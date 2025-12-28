@@ -25,6 +25,8 @@ typedef struct OCCTMesh* OCCTMeshRef;
 OCCTShapeRef OCCTShapeCreateBox(double width, double height, double depth);
 OCCTShapeRef OCCTShapeCreateBoxAt(double x, double y, double z, double width, double height, double depth);
 OCCTShapeRef OCCTShapeCreateCylinder(double radius, double height);
+OCCTShapeRef OCCTShapeCreateCylinderAt(double cx, double cy, double bottomZ, double radius, double height);
+OCCTShapeRef OCCTShapeCreateToolSweep(double radius, double height, double x1, double y1, double z1, double x2, double y2, double z2);
 OCCTShapeRef OCCTShapeCreateSphere(double radius);
 OCCTShapeRef OCCTShapeCreateCone(double bottomRadius, double topRadius, double height);
 OCCTShapeRef OCCTShapeCreateTorus(double majorRadius, double minorRadius);
@@ -102,6 +104,14 @@ void OCCTMeshGetIndices(OCCTMeshRef mesh, uint32_t* outIndices);
 bool OCCTExportSTL(OCCTShapeRef shape, const char* path, double deflection);
 bool OCCTExportSTEP(OCCTShapeRef shape, const char* path);
 bool OCCTExportSTEPWithName(OCCTShapeRef shape, const char* path, const char* name);
+
+// MARK: - Import
+
+OCCTShapeRef OCCTImportSTEP(const char* path);
+
+// MARK: - Bounds
+
+void OCCTShapeGetBounds(OCCTShapeRef shape, double* minX, double* minY, double* minZ, double* maxX, double* maxY, double* maxZ);
 
 #ifdef __cplusplus
 }

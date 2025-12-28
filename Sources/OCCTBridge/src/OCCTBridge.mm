@@ -84,8 +84,11 @@
 #include <Poly_Triangulation.hxx>
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
+#include <Bnd_Box.hxx>
+#include <BRepBndLib.hxx>
 
-// Export
+// Import/Export
+#include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
 #include <StlAPI_Writer.hxx>
 #include <Interface_Static.hxx>
@@ -142,6 +145,105 @@ OCCTShapeRef OCCTShapeCreateCylinder(double radius, double height) {
     try {
         BRepPrimAPI_MakeCylinder maker(radius, height);
         return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateCylinderAt(double cx, double cy, double bottomZ, double radius, double height) {
+    try {
+        // Create axis at position with Z-up direction
+        gp_Ax2 axis(gp_Pnt(cx, cy, bottomZ), gp_Dir(0, 0, 1));
+        BRepPrimAPI_MakeCylinder maker(axis, radius, height);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateToolSweep(double radius, double height,
+                                       double x1, double y1, double z1,
+                                       double x2, double y2, double z2) {
+    try {
+        // For a cylindrical tool (flat end mill) moving from point 1 to point 2:
+        // The swept volume consists of:
+        // 1. Cylinder at start position
+        // 2. Cylinder at end position
+        // 3. A box connecting them (for horizontal component)
+
+        double dx = x2 - x1;
+        double dy = y2 - y1;
+        double dz = z2 - z1;
+        double xyDist = std::sqrt(dx*dx + dy*dy);
+
+        // Use the lower Z as the bottom of the swept volume
+        double bottomZ = std::min(z1, z2);
+
+        // Create cylinder at start position
+        gp_Ax2 axis1(gp_Pnt(x1, y1, bottomZ), gp_Dir(0, 0, 1));
+        BRepPrimAPI_MakeCylinder cyl1Maker(axis1, radius, height + std::abs(dz));
+        TopoDS_Shape result = cyl1Maker.Shape();
+
+        // If there's XY movement, we need the end cylinder and connecting box
+        if (xyDist > 1e-6) {
+            // Create cylinder at end position
+            gp_Ax2 axis2(gp_Pnt(x2, y2, bottomZ), gp_Dir(0, 0, 1));
+            BRepPrimAPI_MakeCylinder cyl2Maker(axis2, radius, height + std::abs(dz));
+
+            // Union end cylinder
+            BRepAlgoAPI_Fuse fuse1(result, cyl2Maker.Shape());
+            fuse1.Build();
+            if (!fuse1.IsDone()) return nullptr;
+            result = fuse1.Shape();
+
+            // Create connecting box
+            // The box needs to be oriented along the movement direction
+            // Width = 2*radius (tool diameter), Length = xyDist, Height = tool height + dz
+
+            // Calculate perpendicular direction for box width
+            double perpX = -dy / xyDist;  // perpendicular to movement direction
+            double perpY = dx / xyDist;
+
+            // Box corner points (4 corners at bottom, extruded up)
+            // The box connects the two cylinder centers
+            gp_Pnt p1(x1 + perpX * radius, y1 + perpY * radius, bottomZ);
+            gp_Pnt p2(x1 - perpX * radius, y1 - perpY * radius, bottomZ);
+            gp_Pnt p3(x2 - perpX * radius, y2 - perpY * radius, bottomZ);
+            gp_Pnt p4(x2 + perpX * radius, y2 + perpY * radius, bottomZ);
+
+            // Create edges for the bottom face
+            TopoDS_Edge e1 = BRepBuilderAPI_MakeEdge(p1, p2);
+            TopoDS_Edge e2 = BRepBuilderAPI_MakeEdge(p2, p3);
+            TopoDS_Edge e3 = BRepBuilderAPI_MakeEdge(p3, p4);
+            TopoDS_Edge e4 = BRepBuilderAPI_MakeEdge(p4, p1);
+
+            // Create wire from edges
+            BRepBuilderAPI_MakeWire wireMaker;
+            wireMaker.Add(e1);
+            wireMaker.Add(e2);
+            wireMaker.Add(e3);
+            wireMaker.Add(e4);
+
+            if (!wireMaker.IsDone()) return nullptr;
+
+            // Create face from wire
+            BRepBuilderAPI_MakeFace faceMaker(wireMaker.Wire());
+            if (!faceMaker.IsDone()) return nullptr;
+
+            // Extrude face upward to create box
+            gp_Vec extrudeVec(0, 0, height + std::abs(dz));
+            BRepPrimAPI_MakePrism prismMaker(faceMaker.Face(), extrudeVec);
+            prismMaker.Build();
+            if (!prismMaker.IsDone()) return nullptr;
+
+            // Union connecting box
+            BRepAlgoAPI_Fuse fuse2(result, prismMaker.Shape());
+            fuse2.Build();
+            if (!fuse2.IsDone()) return nullptr;
+            result = fuse2.Shape();
+        }
+
+        return new OCCTShape(result);
     } catch (...) {
         return nullptr;
     }
@@ -781,5 +883,40 @@ bool OCCTExportSTEPWithName(OCCTShapeRef shape, const char* path, const char* na
         return status == IFSelect_RetDone;
     } catch (...) {
         return false;
+    }
+}
+
+// MARK: - Import
+
+OCCTShapeRef OCCTImportSTEP(const char* path) {
+    if (!path) return nullptr;
+
+    try {
+        STEPControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        // Transfer all roots
+        reader.TransferRoots();
+
+        // Get the result as a single shape (compound if multiple)
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTShapeGetBounds(OCCTShapeRef shape, double* minX, double* minY, double* minZ, double* maxX, double* maxY, double* maxZ) {
+    if (!shape || !minX || !minY || !minZ || !maxX || !maxY || !maxZ) return;
+
+    try {
+        Bnd_Box box;
+        BRepBndLib::Add(shape->shape, box);
+        box.Get(*minX, *minY, *minZ, *maxX, *maxY, *maxZ);
+    } catch (...) {
+        *minX = *minY = *minZ = *maxX = *maxY = *maxZ = 0;
     }
 }

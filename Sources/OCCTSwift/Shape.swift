@@ -42,6 +42,33 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle!)
     }
 
+    /// Create a cylinder at a specific XY position with bottom at specified Z
+    public static func cylinder(
+        at position: SIMD2<Double>,
+        bottomZ: Double,
+        radius: Double,
+        height: Double
+    ) -> Shape {
+        let handle = OCCTShapeCreateCylinderAt(position.x, position.y, bottomZ, radius, height)
+        return Shape(handle: handle!)
+    }
+
+    /// Create a tool sweep solid - the volume swept by a cylindrical tool moving between two points
+    /// Used for CAM simulation to calculate material removal
+    public static func toolSweep(
+        radius: Double,
+        height: Double,
+        from start: SIMD3<Double>,
+        to end: SIMD3<Double>
+    ) -> Shape {
+        let handle = OCCTShapeCreateToolSweep(
+            radius, height,
+            start.x, start.y, start.z,
+            end.x, end.y, end.z
+        )
+        return Shape(handle: handle!)
+    }
+
     /// Create a sphere centered at origin
     public static func sphere(radius: Double) -> Shape {
         let handle = OCCTShapeCreateSphere(radius)
@@ -212,6 +239,60 @@ public final class Shape: @unchecked Sendable {
     ) -> Mesh {
         let meshHandle = OCCTShapeCreateMesh(handle, linearDeflection, angularDeflection)
         return Mesh(handle: meshHandle!)
+    }
+
+    // MARK: - Import
+
+    /// Load a shape from a STEP file
+    public static func load(from url: URL) throws -> Shape {
+        let path = url.path
+        guard let handle = OCCTImportSTEP(path) else {
+            throw ImportError.importFailed("Failed to import STEP file: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load a shape from a STEP file path
+    public static func load(fromPath path: String) throws -> Shape {
+        guard let handle = OCCTImportSTEP(path) else {
+            throw ImportError.importFailed("Failed to import STEP file: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
+    // MARK: - Bounds
+
+    /// Get the axis-aligned bounding box of the shape
+    public var bounds: (min: SIMD3<Double>, max: SIMD3<Double>) {
+        var minX: Double = 0, minY: Double = 0, minZ: Double = 0
+        var maxX: Double = 0, maxY: Double = 0, maxZ: Double = 0
+        OCCTShapeGetBounds(handle, &minX, &minY, &minZ, &maxX, &maxY, &maxZ)
+        return (min: SIMD3(minX, minY, minZ), max: SIMD3(maxX, maxY, maxZ))
+    }
+
+    /// Size of the bounding box
+    public var size: SIMD3<Double> {
+        let b = bounds
+        return b.max - b.min
+    }
+
+    /// Center of the bounding box
+    public var center: SIMD3<Double> {
+        let b = bounds
+        return (b.min + b.max) / 2
+    }
+}
+
+// MARK: - Errors
+
+public enum ImportError: Error, LocalizedError {
+    case importFailed(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .importFailed(let message):
+            return message
+        }
     }
 }
 
