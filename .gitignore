@@ -11,12 +11,17 @@ DerivedData/
 .swiftpm/
 Package.resolved
 
-# OCCT build artifacts
+# OCCT build artifacts and large binaries
+# Users must run Scripts/build-occt.sh to generate these
 Libraries/occt-src/
-Libraries/occt-build/
-
-# Keep the xcframework
-!Libraries/OCCT.xcframework/
+Libraries/occt-build-ios/
+Libraries/occt-build-sim/
+Libraries/occt-build-macos/
+Libraries/occt-install-ios/
+Libraries/occt-install-sim/
+Libraries/occt-install-macos/
+Libraries/OCCT.xcframework/
+Libraries/*.a
 
 # CocoaPods (if used)
 Pods/

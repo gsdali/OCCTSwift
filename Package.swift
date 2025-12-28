@@ -39,7 +39,10 @@ if occtExists {
             sources: ["src"],
             publicHeadersPath: "include",
             cxxSettings: [
-                .headerSearchPath("../../Libraries/OCCT.xcframework/Headers"),
+                // Platform-specific header search paths for XCFramework
+                .headerSearchPath("../../Libraries/OCCT.xcframework/macos-arm64/Headers", .when(platforms: [.macOS])),
+                .headerSearchPath("../../Libraries/OCCT.xcframework/ios-arm64/Headers", .when(platforms: [.iOS])),
+                .headerSearchPath("../../Libraries/OCCT.xcframework/ios-arm64-simulator/Headers", .when(platforms: [.iOS])),
                 .define("OCCT_AVAILABLE", to: "1"),
                 .unsafeFlags(["-std=c++17"])
             ],
