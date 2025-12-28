@@ -1,0 +1,34 @@
+# Xcode
+.DS_Store
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+.build/
+.swiftpm/
+Package.resolved
+
+# OCCT build artifacts
+Libraries/occt-src/
+Libraries/occt-build/
+
+# Keep the xcframework
+!Libraries/OCCT.xcframework/
+
+# CocoaPods (if used)
+Pods/
+
+# Carthage (if used)
+Carthage/Build/
+
+# IDE
+*.idea/
+*.vscode/
+
+# OS
+.DS_Store
+*.swp
+*~
