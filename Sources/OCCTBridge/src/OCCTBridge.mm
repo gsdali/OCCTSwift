@@ -24,7 +24,9 @@
 #include <TopoDS_Wire.hxx>
 #include <TopoDS_Edge.hxx>
 #include <TopoDS_Face.hxx>
+#include <TopoDS_Vertex.hxx>
 #include <TopoDS_Compound.hxx>
+#include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
 
 // Geometry
@@ -57,6 +59,7 @@
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Common.hxx>
+#include <BRepAlgoAPI_Section.hxx>
 
 // Modifications
 #include <BRepFilletAPI_MakeFillet.hxx>
@@ -918,5 +921,110 @@ void OCCTShapeGetBounds(OCCTShapeRef shape, double* minX, double* minY, double* 
         box.Get(*minX, *minY, *minZ, *maxX, *maxY, *maxZ);
     } catch (...) {
         *minX = *minY = *minZ = *maxX = *maxY = *maxZ = 0;
+    }
+}
+
+// MARK: - Slicing
+
+OCCTShapeRef OCCTShapeSliceAtZ(OCCTShapeRef shape, double z) {
+    if (!shape) return nullptr;
+
+    try {
+        // Create a horizontal plane at height z
+        gp_Pln plane(gp_Pnt(0, 0, z), gp_Dir(0, 0, 1));
+
+        // Compute section (intersection of shape with plane)
+        BRepAlgoAPI_Section section(shape->shape, plane);
+        section.Build();
+
+        if (!section.IsDone()) return nullptr;
+
+        TopoDS_Shape result = section.Shape();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTShapeGetEdgeCount(OCCTShapeRef shape) {
+    if (!shape) return 0;
+
+    int32_t count = 0;
+    TopExp_Explorer explorer(shape->shape, TopAbs_EDGE);
+    while (explorer.More()) {
+        count++;
+        explorer.Next();
+    }
+    return count;
+}
+
+int32_t OCCTShapeGetEdgePoints(OCCTShapeRef shape, int32_t edgeIndex, double* outPoints, int32_t maxPoints) {
+    if (!shape || !outPoints || maxPoints < 2) return 0;
+
+    try {
+        // Find the edge at the given index
+        TopExp_Explorer explorer(shape->shape, TopAbs_EDGE);
+        int32_t currentIndex = 0;
+        while (explorer.More() && currentIndex < edgeIndex) {
+            currentIndex++;
+            explorer.Next();
+        }
+
+        if (!explorer.More()) return 0;
+
+        TopoDS_Edge edge = TopoDS::Edge(explorer.Current());
+
+        // Get curve from edge
+        Standard_Real first, last;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+        if (curve.IsNull()) return 0;
+
+        // Sample points along the curve
+        int32_t numPoints = std::min(maxPoints, (int32_t)20);  // Max 20 points per edge
+        for (int32_t i = 0; i < numPoints; i++) {
+            double param = first + (last - first) * i / (numPoints - 1);
+            gp_Pnt pt = curve->Value(param);
+            outPoints[i * 3 + 0] = pt.X();
+            outPoints[i * 3 + 1] = pt.Y();
+            outPoints[i * 3 + 2] = pt.Z();
+        }
+
+        return numPoints;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// Get all edge endpoints as a simple contour (for toolpath generation)
+int32_t OCCTShapeGetContourPoints(OCCTShapeRef shape, double* outPoints, int32_t maxPoints) {
+    if (!shape || !outPoints || maxPoints < 1) return 0;
+
+    try {
+        int32_t pointCount = 0;
+
+        TopExp_Explorer explorer(shape->shape, TopAbs_EDGE);
+        while (explorer.More() && pointCount < maxPoints) {
+            TopoDS_Edge edge = TopoDS::Edge(explorer.Current());
+
+            // Get start and end vertices of the edge
+            TopoDS_Vertex v1, v2;
+            TopExp::Vertices(edge, v1, v2);
+
+            if (!v1.IsNull()) {
+                gp_Pnt pt = BRep_Tool::Pnt(v1);
+                outPoints[pointCount * 3 + 0] = pt.X();
+                outPoints[pointCount * 3 + 1] = pt.Y();
+                outPoints[pointCount * 3 + 2] = pt.Z();
+                pointCount++;
+            }
+
+            explorer.Next();
+        }
+
+        return pointCount;
+    } catch (...) {
+        return 0;
     }
 }

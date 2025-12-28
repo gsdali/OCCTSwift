@@ -281,6 +281,43 @@ public final class Shape: @unchecked Sendable {
         let b = bounds
         return (b.min + b.max) / 2
     }
+
+    // MARK: - Slicing
+
+    /// Slice the shape at a given Z height, returning the cross-section as edges
+    public func sliceAtZ(_ z: Double) -> Shape? {
+        guard let handle = OCCTShapeSliceAtZ(self.handle, z) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Get the number of edges in this shape (useful after slicing)
+    public var edgeCount: Int {
+        Int(OCCTShapeGetEdgeCount(handle))
+    }
+
+    /// Get points along an edge at the given index
+    public func edgePoints(at index: Int, maxPoints: Int = 20) -> [SIMD3<Double>] {
+        var buffer = [Double](repeating: 0, count: maxPoints * 3)
+        let count = OCCTShapeGetEdgePoints(handle, Int32(index), &buffer, Int32(maxPoints))
+        var points: [SIMD3<Double>] = []
+        for i in 0..<Int(count) {
+            points.append(SIMD3(buffer[i*3], buffer[i*3+1], buffer[i*3+2]))
+        }
+        return points
+    }
+
+    /// Get all contour points from the shape's edges (simplified for toolpath generation)
+    public func contourPoints(maxPoints: Int = 1000) -> [SIMD3<Double>] {
+        var buffer = [Double](repeating: 0, count: maxPoints * 3)
+        let count = OCCTShapeGetContourPoints(handle, &buffer, Int32(maxPoints))
+        var points: [SIMD3<Double>] = []
+        for i in 0..<Int(count) {
+            points.append(SIMD3(buffer[i*3], buffer[i*3+1], buffer[i*3+2]))
+        }
+        return points
+    }
 }
 
 // MARK: - Errors

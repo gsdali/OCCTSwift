@@ -113,6 +113,13 @@ OCCTShapeRef OCCTImportSTEP(const char* path);
 
 void OCCTShapeGetBounds(OCCTShapeRef shape, double* minX, double* minY, double* minZ, double* maxX, double* maxY, double* maxZ);
 
+// MARK: - Slicing
+
+OCCTShapeRef OCCTShapeSliceAtZ(OCCTShapeRef shape, double z);
+int32_t OCCTShapeGetEdgeCount(OCCTShapeRef shape);
+int32_t OCCTShapeGetEdgePoints(OCCTShapeRef shape, int32_t edgeIndex, double* outPoints, int32_t maxPoints);
+int32_t OCCTShapeGetContourPoints(OCCTShapeRef shape, double* outPoints, int32_t maxPoints);
+
 #ifdef __cplusplus
 }
 #endif
