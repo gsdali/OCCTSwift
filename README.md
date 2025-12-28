@@ -2,6 +2,22 @@
 
 A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) providing B-Rep solid modeling capabilities for iOS and macOS applications.
 
+## Wrapped Operations Summary
+
+| Category | Count | Examples |
+|----------|-------|----------|
+| **Primitives** | 6 | box, cylinder, sphere, cone, torus |
+| **Sweeps** | 4 | pipe sweep, extrude, revolve, loft |
+| **Booleans** | 3 | union (+), subtract (-), intersect (&) |
+| **Modifications** | 4 | fillet, chamfer, shell, offset |
+| **Transforms** | 4 | translate, rotate, scale, mirror |
+| **Wires** | 8 | rectangle, circle, polygon, line, arc, bspline, path, join |
+| **Export** | 3 | STL, STEP, mesh |
+| **Validation** | 2 | isValid, heal |
+| **Total** | **34** | |
+
+> **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
+
 ## Features
 
 - **B-Rep Solid Modeling**: Full boundary representation geometry
@@ -192,30 +208,18 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 
 ### Adding New OCCT Functions
 
-To wrap additional OCCT functionality:
+To wrap additional OCCT functionality, you need to modify three files:
 
-1. **Add C function to bridge** (`Sources/OCCTBridge/include/OCCTBridge.h`):
-   ```c
-   OCCTShapeRef OCCTShapeNewOperation(OCCTShapeRef shape, double param);
-   ```
+1. **`Sources/OCCTBridge/include/OCCTBridge.h`** - Add C function declaration
+2. **`Sources/OCCTBridge/src/OCCTBridge.mm`** - Implement using OCCT C++ API
+3. **`Sources/OCCTSwift/Shape.swift`** (or Wire.swift) - Add Swift wrapper
 
-2. **Implement in Objective-C++** (`Sources/OCCTBridge/src/OCCTBridge.mm`):
-   ```objc
-   OCCTShapeRef OCCTShapeNewOperation(OCCTShapeRef shape, double param) {
-       TopoDS_Shape* s = reinterpret_cast<TopoDS_Shape*>(shape);
-       // Use OCCT classes here
-       SomeOCCT_Class maker(*s, param);
-       return new TopoDS_Shape(maker.Shape());
-   }
-   ```
-
-3. **Add Swift wrapper** (`Sources/OCCTSwift/Shape.swift`):
-   ```swift
-   public func newOperation(param: Double) -> Shape {
-       let handle = OCCTShapeNewOperation(self.handle, param)
-       return Shape(handle: handle!)
-   }
-   ```
+**See [docs/EXTENDING.md](docs/EXTENDING.md) for the complete guide** with:
+- Step-by-step walkthrough with example
+- Common OCCT patterns (primitives, booleans, topology iteration)
+- Memory management details
+- Internal struct documentation
+- Debugging tips
 
 ## Building OCCT
 
