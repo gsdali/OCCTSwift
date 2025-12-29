@@ -232,6 +232,218 @@ public final class Wire: @unchecked Sendable {
         return Wire(handle: handle!)
     }
 
+    // MARK: - NURBS Curves
+
+    /// Create a NURBS (Non-Uniform Rational B-Spline) curve with full control.
+    ///
+    /// - Parameters:
+    ///   - poles: Control points (poles) defining the curve shape
+    ///   - weights: Weight for each control point (nil for uniform weights = B-spline)
+    ///   - knots: Knot values defining parameterization
+    ///   - multiplicities: Multiplicity of each knot (nil for all 1s)
+    ///   - degree: Curve degree (1=linear, 2=quadratic, 3=cubic)
+    /// - Returns: A NURBS curve wire, or nil if parameters are invalid
+    ///
+    /// NURBS curves provide exact representation of conic sections (circles, ellipses)
+    /// and are the standard for CAD data exchange. Use this when you need precise
+    /// control over the curve shape, especially for importing/exporting to CAD formats.
+    ///
+    /// ## Example: Weighted Curve
+    ///
+    /// ```swift
+    /// // A rational quadratic B-spline (can represent exact circle arcs)
+    /// let poles = [
+    ///     SIMD3(0, 0, 0),
+    ///     SIMD3(1, 1, 0),  // Off-curve control point
+    ///     SIMD3(2, 0, 0)
+    /// ]
+    /// let weights = [1.0, 0.707, 1.0]  // sqrt(2)/2 for quarter circle
+    /// let knots = [0.0, 1.0]
+    /// let mults = [3, 3]  // Clamped at endpoints
+    ///
+    /// let arc = Wire.nurbs(poles: poles, weights: weights,
+    ///                      knots: knots, multiplicities: mults, degree: 2)
+    /// ```
+    public static func nurbs(
+        poles: [SIMD3<Double>],
+        weights: [Double]? = nil,
+        knots: [Double],
+        multiplicities: [Int32]? = nil,
+        degree: Int32
+    ) -> Wire? {
+        guard poles.count >= 2, knots.count >= 2, degree >= 1 else { return nil }
+
+        var flatPoles: [Double] = []
+        flatPoles.reserveCapacity(poles.count * 3)
+        for pole in poles {
+            flatPoles.append(pole.x)
+            flatPoles.append(pole.y)
+            flatPoles.append(pole.z)
+        }
+
+        let handle: OCCTWireRef? = flatPoles.withUnsafeBufferPointer { polesBuffer in
+            knots.withUnsafeBufferPointer { knotsBuffer in
+                if let weights = weights {
+                    return weights.withUnsafeBufferPointer { weightsBuffer in
+                        if let mults = multiplicities {
+                            return mults.withUnsafeBufferPointer { multsBuffer in
+                                OCCTWireCreateNURBS(
+                                    polesBuffer.baseAddress,
+                                    Int32(poles.count),
+                                    weightsBuffer.baseAddress,
+                                    knotsBuffer.baseAddress,
+                                    Int32(knots.count),
+                                    multsBuffer.baseAddress,
+                                    degree
+                                )
+                            }
+                        } else {
+                            return OCCTWireCreateNURBS(
+                                polesBuffer.baseAddress,
+                                Int32(poles.count),
+                                weightsBuffer.baseAddress,
+                                knotsBuffer.baseAddress,
+                                Int32(knots.count),
+                                nil,
+                                degree
+                            )
+                        }
+                    }
+                } else {
+                    if let mults = multiplicities {
+                        return mults.withUnsafeBufferPointer { multsBuffer in
+                            OCCTWireCreateNURBS(
+                                polesBuffer.baseAddress,
+                                Int32(poles.count),
+                                nil,
+                                knotsBuffer.baseAddress,
+                                Int32(knots.count),
+                                multsBuffer.baseAddress,
+                                degree
+                            )
+                        }
+                    } else {
+                        return OCCTWireCreateNURBS(
+                            polesBuffer.baseAddress,
+                            Int32(poles.count),
+                            nil,
+                            knotsBuffer.baseAddress,
+                            Int32(knots.count),
+                            nil,
+                            degree
+                        )
+                    }
+                }
+            }
+        }
+
+        guard let handle = handle else { return nil }
+        return Wire(handle: handle)
+    }
+
+    /// Create a NURBS curve with uniform (clamped) knot vector.
+    ///
+    /// - Parameters:
+    ///   - poles: Control points defining the curve shape
+    ///   - weights: Weight for each control point (nil for uniform = B-spline)
+    ///   - degree: Curve degree (1=linear, 2=quadratic, 3=cubic)
+    /// - Returns: A NURBS curve wire, or nil if parameters are invalid
+    ///
+    /// This is a simplified NURBS creation that automatically generates a
+    /// clamped uniform knot vector. The curve starts at the first control
+    /// point and ends at the last.
+    ///
+    /// ## Example: Cubic B-Spline with Control Polygon
+    ///
+    /// ```swift
+    /// let controlPolygon = [
+    ///     SIMD3(0, 0, 0),
+    ///     SIMD3(10, 5, 0),
+    ///     SIMD3(20, 0, 0),
+    ///     SIMD3(30, 5, 0),
+    ///     SIMD3(40, 0, 0)
+    /// ]
+    /// let curve = Wire.nurbsUniform(poles: controlPolygon, degree: 3)
+    /// ```
+    public static func nurbsUniform(
+        poles: [SIMD3<Double>],
+        weights: [Double]? = nil,
+        degree: Int32
+    ) -> Wire? {
+        guard poles.count >= Int(degree) + 1, degree >= 1 else { return nil }
+
+        var flatPoles: [Double] = []
+        flatPoles.reserveCapacity(poles.count * 3)
+        for pole in poles {
+            flatPoles.append(pole.x)
+            flatPoles.append(pole.y)
+            flatPoles.append(pole.z)
+        }
+
+        let handle: OCCTWireRef? = flatPoles.withUnsafeBufferPointer { polesBuffer in
+            if let weights = weights {
+                return weights.withUnsafeBufferPointer { weightsBuffer in
+                    OCCTWireCreateNURBSUniform(
+                        polesBuffer.baseAddress,
+                        Int32(poles.count),
+                        weightsBuffer.baseAddress,
+                        degree
+                    )
+                }
+            } else {
+                return OCCTWireCreateNURBSUniform(
+                    polesBuffer.baseAddress,
+                    Int32(poles.count),
+                    nil,
+                    degree
+                )
+            }
+        }
+
+        guard let handle = handle else { return nil }
+        return Wire(handle: handle)
+    }
+
+    /// Create a cubic B-spline curve (non-rational, degree 3).
+    ///
+    /// - Parameter poles: Control points (minimum 4 for cubic)
+    /// - Returns: A cubic B-spline wire, or nil if fewer than 4 points
+    ///
+    /// Cubic B-splines are the most common choice for smooth curves.
+    /// They provide C² continuity (smooth curvature) and good local control.
+    ///
+    /// ## Example: Transition Curve Path
+    ///
+    /// ```swift
+    /// let transitionPoles = [
+    ///     SIMD3(0, 0, 0),      // Start tangent to straight
+    ///     SIMD3(20, 0, 0),
+    ///     SIMD3(40, 2, 0),     // Begin curving
+    ///     SIMD3(60, 8, 0),
+    ///     SIMD3(80, 20, 0),    // Full curve
+    ///     SIMD3(90, 30, 0)
+    /// ]
+    /// let easement = Wire.cubicBSpline(poles: transitionPoles)
+    /// ```
+    public static func cubicBSpline(poles: [SIMD3<Double>]) -> Wire? {
+        guard poles.count >= 4 else { return nil }
+
+        var flatPoles: [Double] = []
+        flatPoles.reserveCapacity(poles.count * 3)
+        for pole in poles {
+            flatPoles.append(pole.x)
+            flatPoles.append(pole.y)
+            flatPoles.append(pole.z)
+        }
+
+        let handle: OCCTWireRef? = flatPoles.withUnsafeBufferPointer { buffer in
+            OCCTWireCreateCubicBSpline(buffer.baseAddress, Int32(poles.count))
+        }
+
+        guard let handle = handle else { return nil }
+        return Wire(handle: handle)
+    }
+
     // MARK: - Wire Composition
 
     /// Join multiple wires into a single connected wire.

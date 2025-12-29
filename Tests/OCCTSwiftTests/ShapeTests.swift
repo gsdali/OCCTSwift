@@ -108,6 +108,95 @@ struct WireTests {
         )
         _ = line
     }
+
+    @Test("Create cubic B-spline")
+    func createCubicBSpline() {
+        let poles = [
+            SIMD3<Double>(0, 0, 0),
+            SIMD3<Double>(10, 5, 0),
+            SIMD3<Double>(20, 0, 0),
+            SIMD3<Double>(30, 5, 0),
+            SIMD3<Double>(40, 0, 0)
+        ]
+        let curve = Wire.cubicBSpline(poles: poles)
+        #expect(curve != nil)
+    }
+
+    @Test("Create NURBS with uniform knots")
+    func createNURBSUniform() {
+        let poles = [
+            SIMD3<Double>(0, 0, 0),
+            SIMD3<Double>(10, 10, 0),
+            SIMD3<Double>(20, 0, 0),
+            SIMD3<Double>(30, 10, 0)
+        ]
+        let curve = Wire.nurbsUniform(poles: poles, degree: 2)
+        #expect(curve != nil)
+    }
+
+    @Test("Create weighted NURBS (rational curve)")
+    func createWeightedNURBS() {
+        // Quadratic rational B-spline can represent exact conic sections
+        let poles = [
+            SIMD3<Double>(0, 0, 0),
+            SIMD3<Double>(10, 10, 0),
+            SIMD3<Double>(20, 0, 0)
+        ]
+        let weights = [1.0, 0.707, 1.0]  // sqrt(2)/2 for 90-degree arc
+        let curve = Wire.nurbsUniform(poles: poles, weights: weights, degree: 2)
+        #expect(curve != nil)
+    }
+
+    @Test("Create full NURBS with explicit knots")
+    func createFullNURBS() {
+        // Cubic curve with 5 control points
+        let poles = [
+            SIMD3<Double>(0, 0, 0),
+            SIMD3<Double>(5, 10, 0),
+            SIMD3<Double>(15, 10, 0),
+            SIMD3<Double>(20, 5, 0),
+            SIMD3<Double>(25, 0, 0)
+        ]
+        // Clamped uniform knots for degree 3 with 5 poles
+        // Total knots = poles + degree + 1 = 9
+        // Distinct knots with multiplicities: [0,0,0,0, 0.5, 1,1,1,1]
+        let knots: [Double] = [0.0, 0.5, 1.0]
+        let mults: [Int32] = [4, 1, 4]
+
+        let curve = Wire.nurbs(
+            poles: poles,
+            knots: knots,
+            multiplicities: mults,
+            degree: 3
+        )
+        #expect(curve != nil)
+    }
+
+    @Test("NURBS validation - too few poles")
+    func nurbsTooFewPoles() {
+        let poles = [SIMD3<Double>(0, 0, 0), SIMD3<Double>(10, 0, 0)]
+        // Cubic needs at least 4 poles
+        let curve = Wire.cubicBSpline(poles: poles)
+        #expect(curve == nil)
+    }
+
+    @Test("Sweep profile along NURBS path")
+    func sweepAlongNURBS() {
+        let profile = Wire.circle(radius: 1)
+        let pathPoles = [
+            SIMD3<Double>(0, 0, 0),
+            SIMD3<Double>(20, 0, 0),
+            SIMD3<Double>(40, 10, 0),
+            SIMD3<Double>(60, 20, 0),
+            SIMD3<Double>(80, 20, 0)
+        ]
+        guard let path = Wire.cubicBSpline(poles: pathPoles) else {
+            Issue.record("Failed to create NURBS path")
+            return
+        }
+        let swept = Shape.sweep(profile: profile, along: path)
+        #expect(swept.isValid)
+    }
 }
 
 @Suite("Mesh Tests")

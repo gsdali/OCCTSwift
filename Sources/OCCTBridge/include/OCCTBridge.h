@@ -91,6 +91,43 @@ OCCTWireRef OCCTWireCreateArc(double centerX, double centerY, double centerZ, do
 OCCTWireRef OCCTWireCreateBSpline(const double* controlPoints, int32_t pointCount);
 OCCTWireRef OCCTWireJoin(const OCCTWireRef* wires, int32_t count);
 
+// MARK: - NURBS Curve Creation
+
+/// Create a NURBS curve with full control over all parameters
+/// @param poles Control points as [x,y,z] triplets (count = poleCount * 3)
+/// @param poleCount Number of control points
+/// @param weights Weight for each control point (count = poleCount, NULL for uniform weights)
+/// @param knots Knot values (count = knotCount)
+/// @param knotCount Number of distinct knot values
+/// @param multiplicities Multiplicity of each knot (count = knotCount, NULL for all 1s)
+/// @param degree Curve degree (1=linear, 2=quadratic, 3=cubic, etc.)
+OCCTWireRef OCCTWireCreateNURBS(
+    const double* poles,
+    int32_t poleCount,
+    const double* weights,
+    const double* knots,
+    int32_t knotCount,
+    const int32_t* multiplicities,
+    int32_t degree
+);
+
+/// Create a NURBS curve with uniform knots (clamped, uniform parameterization)
+/// @param poles Control points as [x,y,z] triplets (count = poleCount * 3)
+/// @param poleCount Number of control points
+/// @param weights Weight for each control point (NULL for uniform weights = non-rational B-spline)
+/// @param degree Curve degree (1=linear, 2=quadratic, 3=cubic)
+OCCTWireRef OCCTWireCreateNURBSUniform(
+    const double* poles,
+    int32_t poleCount,
+    const double* weights,
+    int32_t degree
+);
+
+/// Create a clamped cubic B-spline through given control points (non-rational)
+/// @param poles Control points as [x,y,z] triplets
+/// @param poleCount Number of control points (minimum 4 for cubic)
+OCCTWireRef OCCTWireCreateCubicBSpline(const double* poles, int32_t poleCount);
+
 // MARK: - Mesh Access
 
 int32_t OCCTMeshGetVertexCount(OCCTMeshRef mesh);

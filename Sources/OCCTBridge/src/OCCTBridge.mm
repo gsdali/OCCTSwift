@@ -41,6 +41,8 @@
 #include <GC_MakeSegment.hxx>
 #include <GeomAPI_PointsToBSpline.hxx>
 #include <TColgp_Array1OfPnt.hxx>
+#include <TColStd_Array1OfReal.hxx>
+#include <TColStd_Array1OfInteger.hxx>
 
 // Primitive Creation
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -339,6 +341,11 @@ OCCTShapeRef OCCTShapeCreateLoft(const OCCTWireRef* profiles, int32_t count, boo
     if (!profiles || count < 2) return nullptr;
     try {
         BRepOffsetAPI_ThruSections maker(solid ? Standard_True : Standard_False);
+
+        // Enable compatibility checking to:
+        // - Compute origin and orientation on wires to avoid twisted results
+        // - Update wires to have same number of edges
+        maker.CheckCompatibility(Standard_True);
 
         for (int32_t i = 0; i < count; i++) {
             if (profiles[i]) {
@@ -791,6 +798,138 @@ OCCTWireRef OCCTWireCreateBSpline(const double* controlPoints, int32_t pointCoun
     } catch (...) {
         return nullptr;
     }
+}
+
+// MARK: - NURBS Curve Creation
+
+OCCTWireRef OCCTWireCreateNURBS(
+    const double* poles,
+    int32_t poleCount,
+    const double* weights,
+    const double* knots,
+    int32_t knotCount,
+    const int32_t* multiplicities,
+    int32_t degree
+) {
+    if (!poles || poleCount < 2 || !knots || knotCount < 2 || degree < 1) return nullptr;
+
+    try {
+        // Create control points array (1-indexed in OCCT)
+        TColgp_Array1OfPnt polesArray(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) {
+            polesArray.SetValue(i + 1, gp_Pnt(
+                poles[i * 3],
+                poles[i * 3 + 1],
+                poles[i * 3 + 2]
+            ));
+        }
+
+        // Create weights array
+        TColStd_Array1OfReal weightsArray(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) {
+            weightsArray.SetValue(i + 1, weights ? weights[i] : 1.0);
+        }
+
+        // Create knots array
+        TColStd_Array1OfReal knotsArray(1, knotCount);
+        for (int32_t i = 0; i < knotCount; i++) {
+            knotsArray.SetValue(i + 1, knots[i]);
+        }
+
+        // Create multiplicities array
+        TColStd_Array1OfInteger multsArray(1, knotCount);
+        for (int32_t i = 0; i < knotCount; i++) {
+            multsArray.SetValue(i + 1, multiplicities ? multiplicities[i] : 1);
+        }
+
+        // Create the B-spline curve
+        Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(
+            polesArray,
+            weightsArray,
+            knotsArray,
+            multsArray,
+            degree
+        );
+
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(curve);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateNURBSUniform(
+    const double* poles,
+    int32_t poleCount,
+    const double* weights,
+    int32_t degree
+) {
+    if (!poles || poleCount < 2 || degree < 1) return nullptr;
+    if (poleCount < degree + 1) return nullptr;  // Need at least degree+1 control points
+
+    try {
+        // Create control points array
+        TColgp_Array1OfPnt polesArray(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) {
+            polesArray.SetValue(i + 1, gp_Pnt(
+                poles[i * 3],
+                poles[i * 3 + 1],
+                poles[i * 3 + 2]
+            ));
+        }
+
+        // Create weights array
+        TColStd_Array1OfReal weightsArray(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) {
+            weightsArray.SetValue(i + 1, weights ? weights[i] : 1.0);
+        }
+
+        // For clamped uniform B-spline:
+        // - First and last knots have multiplicity = degree + 1
+        // - Interior knots have multiplicity = 1
+        // - Number of interior knots = poleCount - degree - 1
+        // - Total distinct knots = interior + 2 (for start and end)
+        int32_t interiorKnots = poleCount - degree - 1;
+        int32_t knotCount = interiorKnots + 2;
+
+        TColStd_Array1OfReal knotsArray(1, knotCount);
+        TColStd_Array1OfInteger multsArray(1, knotCount);
+
+        // Start knot at 0 with multiplicity degree+1
+        knotsArray.SetValue(1, 0.0);
+        multsArray.SetValue(1, degree + 1);
+
+        // Interior knots uniformly distributed
+        for (int32_t i = 0; i < interiorKnots; i++) {
+            knotsArray.SetValue(i + 2, (double)(i + 1) / (double)(interiorKnots + 1));
+            multsArray.SetValue(i + 2, 1);
+        }
+
+        // End knot at 1 with multiplicity degree+1
+        knotsArray.SetValue(knotCount, 1.0);
+        multsArray.SetValue(knotCount, degree + 1);
+
+        // Create the B-spline curve
+        Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(
+            polesArray,
+            weightsArray,
+            knotsArray,
+            multsArray,
+            degree
+        );
+
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(curve);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateCubicBSpline(const double* poles, int32_t poleCount) {
+    // Cubic B-spline with uniform weights (non-rational)
+    return OCCTWireCreateNURBSUniform(poles, poleCount, nullptr, 3);
 }
 
 OCCTWireRef OCCTWireJoin(const OCCTWireRef* wires, int32_t count) {
