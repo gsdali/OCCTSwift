@@ -164,6 +164,11 @@ OCCTShapeRef OCCTShapeCreateCylinderAt(double cx, double cy, double bottomZ, dou
     }
 }
 
+// Note: This creates an approximation of the swept volume using
+// two cylinders connected by a box. For CAM purposes, this provides
+// a conservative (larger) estimate suitable for collision detection
+// and material removal simulation. A true swept solid could use
+// BRepOffsetAPI_MakePipeShell for more accurate results.
 OCCTShapeRef OCCTShapeCreateToolSweep(double radius, double height,
                                        double x1, double y1, double z1,
                                        double x2, double y2, double z2) {

@@ -6,15 +6,17 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 
 | Category | Count | Examples |
 |----------|-------|----------|
-| **Primitives** | 6 | box, cylinder, sphere, cone, torus |
-| **Sweeps** | 4 | pipe sweep, extrude, revolve, loft |
+| **Primitives** | 7 | box, cylinder, cylinder(at:), sphere, cone, torus |
+| **Sweeps** | 5 | pipe sweep, extrude, revolve, loft, toolSweep |
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
 | **Modifications** | 4 | fillet, chamfer, shell, offset |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
 | **Wires** | 8 | rectangle, circle, polygon, line, arc, bspline, path, join |
-| **Export** | 3 | STL, STEP, mesh |
+| **Import/Export** | 4 | load (STEP), STL, STEP, mesh |
+| **Bounds** | 3 | bounds, size, center |
+| **Slicing** | 4 | sliceAtZ, edgeCount, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
-| **Total** | **34** | |
+| **Total** | **44** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -41,7 +43,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.1.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.2.0")
 ]
 ```
 
@@ -179,6 +181,32 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `Wire.bspline(_:)` | `BRepBuilderAPI_MakeEdge` + `Geom_BSplineCurve` |
 | `Wire.join(_:)` | `BRepBuilderAPI_MakeWire` |
 
+#### Import
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.load(from:)` | `STEPControl_Reader` |
+
+#### Bounds
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.bounds` | `Bnd_Box`, `BRepBndLib` |
+| `shape.size` | (computed from bounds) |
+| `shape.center` | (computed from bounds) |
+
+#### Slicing & Contours
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.sliceAtZ(_:)` | `BRepAlgoAPI_Section`, `gp_Pln` |
+| `shape.edgeCount` | `TopExp_Explorer` |
+| `shape.edgePoints(at:maxPoints:)` | `BRep_Tool::Curve`, `Geom_Curve` |
+| `shape.contourPoints(maxPoints:)` | `TopExp::Vertices`, `BRep_Tool::Pnt` |
+
+#### CAM Operations
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.cylinder(at:bottomZ:radius:height:)` | `BRepPrimAPI_MakeCylinder`, `gp_Ax2` |
+| `Shape.toolSweep(radius:height:from:to:)` | `BRepPrimAPI_MakeCylinder`, `BRepAlgoAPI_Fuse`, `BRepPrimAPI_MakePrism` |
+
 #### Meshing & Export
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -199,11 +227,10 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **NURBS surfaces**: `Geom_BSplineSurface`, surface creation
 - **Blend/Transition**: `BRepBlend_*` classes for complex fillets
 - **Draft angles**: `BRepOffsetAPI_DraftAngle`
-- **Feature recognition**: `TopExp_Explorer`, face/edge iteration
+- **Face/Edge iteration**: Full `TopExp_Explorer` for complex topology
 - **Measurement**: `BRepGProp` for volume, area, center of mass
-- **Section/Slice**: `BRepAlgoAPI_Section`
 - **2D operations**: `BRepBuilderAPI_MakeFace` from 2D regions
-- **Import**: STEP/IGES file reading
+- **IGES import**: Only STEP is currently supported
 - **Advanced healing**: `ShapeUpgrade_*`, `ShapeAnalysis_*`
 
 ### Adding New OCCT Functions

@@ -297,7 +297,12 @@ public final class Shape: @unchecked Sendable {
         Int(OCCTShapeGetEdgeCount(handle))
     }
 
-    /// Get points along an edge at the given index
+    /// Get points along an edge at the given index.
+    ///
+    /// Points are sampled uniformly along the edge curve from start to end.
+    /// - Parameter index: The edge index (0 to edgeCount-1)
+    /// - Parameter maxPoints: Maximum points to return (capped at 20 internally for performance)
+    /// - Returns: Array of 3D points along the edge curve
     public func edgePoints(at index: Int, maxPoints: Int = 20) -> [SIMD3<Double>] {
         var buffer = [Double](repeating: 0, count: maxPoints * 3)
         let count = OCCTShapeGetEdgePoints(handle, Int32(index), &buffer, Int32(maxPoints))
@@ -308,7 +313,14 @@ public final class Shape: @unchecked Sendable {
         return points
     }
 
-    /// Get all contour points from the shape's edges (simplified for toolpath generation)
+    /// Get all contour points from the shape's edges.
+    ///
+    /// Note: This returns edge START vertices only, not intermediate curve points.
+    /// For curved edges, use `edgePoints(at:maxPoints:)` to get curve samples.
+    /// This is suitable for simple polygon contours from Z-plane slices.
+    ///
+    /// - Parameter maxPoints: Maximum number of points to return
+    /// - Returns: Array of 3D points (one per edge start vertex)
     public func contourPoints(maxPoints: Int = 1000) -> [SIMD3<Double>] {
         var buffer = [Double](repeating: 0, count: maxPoints * 3)
         let count = OCCTShapeGetContourPoints(handle, &buffer, Int32(maxPoints))
