@@ -324,7 +324,9 @@ public final class Shape: @unchecked Sendable {
         guard let wireArray = OCCTShapeSectionWiresAtZ(handle, z, &count) else {
             return []
         }
-        defer { OCCTFreeWireArray(wireArray, count) }
+        // Use OCCTFreeWireArrayOnly - Swift Wire objects now own the wire handles
+        // and will release them in their deinit. We only need to free the array container.
+        defer { OCCTFreeWireArrayOnly(wireArray) }
 
         var wires: [Wire] = []
         for i in 0..<Int(count) {

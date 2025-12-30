@@ -1274,3 +1274,8 @@ void OCCTFreeWireArray(OCCTWireRef* wires, int32_t count) {
     }
     delete[] wires;
 }
+
+void OCCTFreeWireArrayOnly(OCCTWireRef* wires) {
+    if (!wires) return;
+    delete[] wires;
+}

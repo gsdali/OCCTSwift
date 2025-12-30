@@ -173,10 +173,14 @@ OCCTWireRef OCCTWireOffset(OCCTWireRef wire, double distance, int32_t joinType);
 /// @return Array of wire references, or NULL on failure. Caller must free with OCCTFreeWireArray.
 OCCTWireRef* OCCTShapeSectionWiresAtZ(OCCTShapeRef shape, double z, int32_t* outCount);
 
-/// Free an array of wires returned by OCCTShapeSectionWiresAtZ
+/// Free an array of wires returned by OCCTShapeSectionWiresAtZ (frees wires AND array)
 /// @param wires Array of wire references
 /// @param count Number of wires in the array
 void OCCTFreeWireArray(OCCTWireRef* wires, int32_t count);
+
+/// Free only the array container, not the wires - use when Swift takes ownership of wire handles
+/// @param wires Array of wire references
+void OCCTFreeWireArrayOnly(OCCTWireRef* wires);
 
 #ifdef __cplusplus
 }
