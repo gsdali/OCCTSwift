@@ -292,6 +292,49 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Get closed wires from a section at Z level.
+    ///
+    /// This is useful for CAM operations where you need to work with closed contours
+    /// that can be offset for tool compensation.
+    ///
+    /// - Parameter z: The Z level to section at
+    /// - Returns: Array of closed wires representing contours at that Z level.
+    ///            Returns empty array if no contours exist at that level.
+    ///
+    /// Unlike `sliceAtZ(_:)` which returns a shape with loose edges, this method
+    /// chains the edges into closed wires that can be used with `Wire.offset(by:)`.
+    ///
+    /// ## Example: CAM Safety Boundary
+    ///
+    /// ```swift
+    /// let model = try Shape.load(from: stepFile)
+    ///
+    /// // Get model contour at Z = 5.0
+    /// let wires = model.sectionWiresAtZ(5.0)
+    ///
+    /// for contour in wires {
+    ///     // Offset outward by tool radius + stock allowance
+    ///     if let safetyBoundary = contour.offset(by: toolRadius + stockAllowance) {
+    ///         // Tool center must stay outside this boundary
+    ///     }
+    /// }
+    /// ```
+    public func sectionWiresAtZ(_ z: Double) -> [Wire] {
+        var count: Int32 = 0
+        guard let wireArray = OCCTShapeSectionWiresAtZ(handle, z, &count) else {
+            return []
+        }
+        defer { OCCTFreeWireArray(wireArray, count) }
+
+        var wires: [Wire] = []
+        for i in 0..<Int(count) {
+            if let wireHandle = wireArray[i] {
+                wires.append(Wire(handle: wireHandle))
+            }
+        }
+        return wires
+    }
+
     /// Get the number of edges in this shape (useful after slicing)
     public var edgeCount: Int {
         Int(OCCTShapeGetEdgeCount(handle))

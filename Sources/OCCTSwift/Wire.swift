@@ -472,6 +472,54 @@ public final class Wire: @unchecked Sendable {
     }
 }
 
+// MARK: - CAM Operations
+
+extension Wire {
+    /// Join type for wire offsetting
+    public enum JoinType: Int32 {
+        /// Round corners (arc)
+        case arc = 0
+        /// Sharp corners (extend until intersection)
+        case intersection = 1
+    }
+
+    /// Offset the wire by a distance.
+    ///
+    /// - Parameters:
+    ///   - distance: Offset distance. Positive = outward, Negative = inward.
+    ///   - joinType: How to handle corners. Default is `.arc` for rounded corners.
+    /// - Returns: The offset wire, or nil if the offset fails.
+    ///
+    /// This is useful for CAM tool compensation:
+    /// - Offset model contour outward by tool radius to get tool center path
+    /// - Offset inward for pocketing operations
+    ///
+    /// ## Example: Tool Compensation
+    ///
+    /// ```swift
+    /// let modelContour = Wire.rectangle(width: 40, height: 40)
+    /// let toolRadius = 3.0
+    ///
+    /// // Offset outward for clearing around the model
+    /// if let toolPath = modelContour.offset(by: toolRadius) {
+    ///     // toolPath is where the tool center should travel
+    /// }
+    ///
+    /// // Offset inward for pocketing
+    /// if let pocketPath = modelContour.offset(by: -toolRadius) {
+    ///     // pocketPath keeps the tool inside the pocket boundary
+    /// }
+    /// ```
+    ///
+    /// - Note: The wire must be planar (all points in the same plane).
+    public func offset(by distance: Double, joinType: JoinType = .arc) -> Wire? {
+        guard let handle = OCCTWireOffset(self.handle, distance, joinType.rawValue) else {
+            return nil
+        }
+        return Wire(handle: handle)
+    }
+}
+
 // MARK: - Convenience Extensions
 
 extension Wire {

@@ -68,7 +68,11 @@
 #include <BRepFilletAPI_MakeChamfer.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
+#include <BRepOffsetAPI_MakeOffset.hxx>
 #include <TopTools_ListOfShape.hxx>
+#include <TopTools_HSequenceOfShape.hxx>
+#include <ShapeAnalysis_FreeBounds.hxx>
+#include <GeomAbs_JoinType.hxx>
 
 // Transformations
 #include <BRepBuilderAPI_Transform.hxx>
@@ -1171,4 +1175,102 @@ int32_t OCCTShapeGetContourPoints(OCCTShapeRef shape, double* outPoints, int32_t
     } catch (...) {
         return 0;
     }
+}
+
+// MARK: - CAM Operations
+
+OCCTWireRef OCCTWireOffset(OCCTWireRef wire, double distance, int32_t joinType) {
+    if (!wire) return nullptr;
+
+    try {
+        TopoDS_Wire theWire = wire->wire;
+
+        // Create a planar face from the wire (required for BRepOffsetAPI_MakeOffset)
+        BRepBuilderAPI_MakeFace faceMaker(theWire, Standard_True);
+        if (!faceMaker.IsDone()) return nullptr;
+        TopoDS_Face face = faceMaker.Face();
+
+        // Select join type
+        GeomAbs_JoinType join = (joinType == 0) ? GeomAbs_Arc : GeomAbs_Intersection;
+
+        // Create offset using the face
+        BRepOffsetAPI_MakeOffset offsetMaker(face, join);
+        offsetMaker.Perform(distance);
+
+        if (!offsetMaker.IsDone()) return nullptr;
+
+        // Extract the offset wire from the result shape
+        TopoDS_Shape result = offsetMaker.Shape();
+
+        // The result may contain multiple wires - get the first one
+        TopExp_Explorer explorer(result, TopAbs_WIRE);
+        if (explorer.More()) {
+            TopoDS_Wire resultWire = TopoDS::Wire(explorer.Current());
+            return new OCCTWire(resultWire);
+        }
+
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef* OCCTShapeSectionWiresAtZ(OCCTShapeRef shape, double z, int32_t* outCount) {
+    if (!shape || !outCount) return nullptr;
+    *outCount = 0;
+
+    try {
+        // Create horizontal cutting plane at Z level
+        gp_Pln plane(gp_Pnt(0, 0, z), gp_Dir(0, 0, 1));
+
+        // Compute section
+        BRepAlgoAPI_Section section(shape->shape, plane);
+        section.Build();
+        if (!section.IsDone()) return nullptr;
+
+        TopoDS_Shape sectionShape = section.Shape();
+        if (sectionShape.IsNull()) return nullptr;
+
+        // Collect edges from section result
+        Handle(TopTools_HSequenceOfShape) edges = new TopTools_HSequenceOfShape;
+        TopExp_Explorer explorer(sectionShape, TopAbs_EDGE);
+        while (explorer.More()) {
+            edges->Append(explorer.Current());
+            explorer.Next();
+        }
+
+        if (edges->Length() == 0) return nullptr;
+
+        // Connect edges into wires using ShapeAnalysis_FreeBounds
+        Handle(TopTools_HSequenceOfShape) wires = new TopTools_HSequenceOfShape;
+        ShapeAnalysis_FreeBounds::ConnectEdgesToWires(
+            edges,
+            1e-6,            // tolerance
+            Standard_False,  // shared edges
+            wires
+        );
+
+        int wireCount = wires->Length();
+        if (wireCount == 0) return nullptr;
+
+        // Allocate array for result
+        OCCTWireRef* result = new OCCTWireRef[wireCount];
+        for (int i = 1; i <= wireCount; i++) {
+            TopoDS_Wire theWire = TopoDS::Wire(wires->Value(i));
+            result[i - 1] = new OCCTWire(theWire);
+        }
+
+        *outCount = wireCount;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTFreeWireArray(OCCTWireRef* wires, int32_t count) {
+    if (!wires) return;
+    for (int32_t i = 0; i < count; i++) {
+        delete wires[i];
+    }
+    delete[] wires;
 }

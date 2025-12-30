@@ -157,6 +157,27 @@ int32_t OCCTShapeGetEdgeCount(OCCTShapeRef shape);
 int32_t OCCTShapeGetEdgePoints(OCCTShapeRef shape, int32_t edgeIndex, double* outPoints, int32_t maxPoints);
 int32_t OCCTShapeGetContourPoints(OCCTShapeRef shape, double* outPoints, int32_t maxPoints);
 
+// MARK: - CAM Operations
+
+/// Offset a planar wire by a distance (positive = outward, negative = inward)
+/// @param wire The wire to offset (must be planar)
+/// @param distance Offset distance (positive = outward, negative = inward)
+/// @param joinType Join type: 0 = arc (round corners), 1 = intersection (sharp corners)
+/// @return Offset wire, or NULL on failure
+OCCTWireRef OCCTWireOffset(OCCTWireRef wire, double distance, int32_t joinType);
+
+/// Get closed wires from a shape section at Z level
+/// @param shape The shape to section
+/// @param z The Z level to section at
+/// @param outCount Output: number of wires returned
+/// @return Array of wire references, or NULL on failure. Caller must free with OCCTFreeWireArray.
+OCCTWireRef* OCCTShapeSectionWiresAtZ(OCCTShapeRef shape, double z, int32_t* outCount);
+
+/// Free an array of wires returned by OCCTShapeSectionWiresAtZ
+/// @param wires Array of wire references
+/// @param count Number of wires in the array
+void OCCTFreeWireArray(OCCTWireRef* wires, int32_t count);
+
 #ifdef __cplusplus
 }
 #endif
