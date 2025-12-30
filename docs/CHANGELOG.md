@@ -1,10 +1,17 @@
 # OCCTSwift Changelog
 
-## [Unreleased]
+## [v0.2.1] - 2025-12-30
+
+### Fixed
+- **Memory management bug in `sectionWiresAtZ`** - Fixed double-free crash where Swift ARC and C++ were both releasing wire handles. Added `OCCTFreeWireArrayOnly()` for proper memory ownership delegation.
 
 ### Added
 
-#### NURBS Curve Support (2025-12-29)
+#### CAM Operations
+- `Wire.offset(by:joinType:)` - Offset planar wires for tool compensation
+- `Shape.sectionWiresAtZ(_:)` - Extract closed wire contours from Z-level sections
+
+#### NURBS Curve Support
 
 Full NURBS (Non-Uniform Rational B-Spline) curve creation with complete control over curve parameters.
 
@@ -117,11 +124,24 @@ let quarterCircle = Wire.nurbs(
 - `BRepBuilderAPI_MakeEdge` - Edge from curve
 - `BRepBuilderAPI_MakeWire` - Wire from edge
 
+### Improved
+- Loft operation now calls `CheckCompatibility(true)` to prevent twisted surfaces
+
 ---
 
-## Previous Releases
+## [v0.2.0] - 2025-12-29
 
-### v1.0.0 - Initial Release
+### Added
+- STEP import (`Shape.importSTEP`)
+- Shape bounds (`Shape.bounds`)
+- Shape slicing (`Shape.sliceAtZ`)
+- Contour extraction (`Shape.contourPoints`, `Shape.edgePoints`)
+- Tool sweep for CAM (`Shape.toolSweep`)
+- Cylinder at point (`Shape.cylinderAt`)
+
+---
+
+## [v0.1.0] - Initial Release
 - Basic primitives (box, cylinder, sphere, cone, torus)
 - Boolean operations (union, subtract, intersect)
 - Transformations (translate, rotate, scale, mirror)
