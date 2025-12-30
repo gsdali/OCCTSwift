@@ -1215,7 +1215,7 @@ OCCTWireRef OCCTWireOffset(OCCTWireRef wire, double distance, int32_t joinType) 
     }
 }
 
-OCCTWireRef* OCCTShapeSectionWiresAtZ(OCCTShapeRef shape, double z, int32_t* outCount) {
+OCCTWireRef* OCCTShapeSectionWiresAtZ(OCCTShapeRef shape, double z, double tolerance, int32_t* outCount) {
     if (!shape || !outCount) return nullptr;
     *outCount = 0;
 
@@ -1245,7 +1245,7 @@ OCCTWireRef* OCCTShapeSectionWiresAtZ(OCCTShapeRef shape, double z, int32_t* out
         Handle(TopTools_HSequenceOfShape) wires = new TopTools_HSequenceOfShape;
         ShapeAnalysis_FreeBounds::ConnectEdgesToWires(
             edges,
-            1e-6,            // tolerance
+            tolerance,       // tolerance for connecting edges
             Standard_False,  // shared edges
             wires
         );

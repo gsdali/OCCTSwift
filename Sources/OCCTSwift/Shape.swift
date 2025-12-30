@@ -297,7 +297,10 @@ public final class Shape: @unchecked Sendable {
     /// This is useful for CAM operations where you need to work with closed contours
     /// that can be offset for tool compensation.
     ///
-    /// - Parameter z: The Z level to section at
+    /// - Parameters:
+    ///   - z: The Z level to section at
+    ///   - tolerance: Tolerance for connecting edges into wires. Use larger values
+    ///                (e.g., 1e-4) for imprecise geometry. Default is 1e-6.
     /// - Returns: Array of closed wires representing contours at that Z level.
     ///            Returns empty array if no contours exist at that level.
     ///
@@ -319,9 +322,9 @@ public final class Shape: @unchecked Sendable {
     ///     }
     /// }
     /// ```
-    public func sectionWiresAtZ(_ z: Double) -> [Wire] {
+    public func sectionWiresAtZ(_ z: Double, tolerance: Double = 1e-6) -> [Wire] {
         var count: Int32 = 0
-        guard let wireArray = OCCTShapeSectionWiresAtZ(handle, z, &count) else {
+        guard let wireArray = OCCTShapeSectionWiresAtZ(handle, z, tolerance, &count) else {
             return []
         }
         // Use OCCTFreeWireArrayOnly - Swift Wire objects now own the wire handles

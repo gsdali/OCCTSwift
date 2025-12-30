@@ -169,9 +169,10 @@ OCCTWireRef OCCTWireOffset(OCCTWireRef wire, double distance, int32_t joinType);
 /// Get closed wires from a shape section at Z level
 /// @param shape The shape to section
 /// @param z The Z level to section at
+/// @param tolerance Tolerance for connecting edges into wires (use 1e-6 for default)
 /// @param outCount Output: number of wires returned
 /// @return Array of wire references, or NULL on failure. Caller must free with OCCTFreeWireArray.
-OCCTWireRef* OCCTShapeSectionWiresAtZ(OCCTShapeRef shape, double z, int32_t* outCount);
+OCCTWireRef* OCCTShapeSectionWiresAtZ(OCCTShapeRef shape, double z, double tolerance, int32_t* outCount);
 
 /// Free an array of wires returned by OCCTShapeSectionWiresAtZ (frees wires AND array)
 /// @param wires Array of wire references

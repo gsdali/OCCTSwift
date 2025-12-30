@@ -512,6 +512,8 @@ extension Wire {
     /// ```
     ///
     /// - Note: The wire must be planar (all points in the same plane).
+    /// - Note: For wires with holes (e.g., a square with a circular hole), only the
+    ///   outermost contour is returned. Inner contours are not included in the result.
     public func offset(by distance: Double, joinType: JoinType = .arc) -> Wire? {
         guard let handle = OCCTWireOffset(self.handle, distance, joinType.rawValue) else {
             return nil
