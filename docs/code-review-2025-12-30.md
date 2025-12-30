@@ -181,24 +181,23 @@ Documentation improvements:
 
 None - current code is release-ready.
 
-### Priority 2 (Nice to have)
+### Priority 2 (Nice to have) - ADDRESSED in 37effac
 
-1. **Wire.offset returns only first wire**
+1. **Wire.offset returns only first wire** ✓ DONE
    - Current: Returns first wire from offset result
    - Issue: Complex shapes with holes produce multiple wires
-   - Suggestion: Either return array of wires, or document limitation
+   - ~~Suggestion: Either return array of wires, or document limitation~~
+   - **Resolution**: Documented limitation in Wire.swift
 
    ```swift
-   // Option A: Return all wires
-   public func offsetAll(by distance: Double, joinType: JoinType = .arc) -> [Wire]
-
-   // Option B: Document current behavior
-   /// - Note: For wires with holes, only the outer contour is returned.
+   /// - Note: For wires with holes (e.g., a square with a circular hole), only the
+   ///   outermost contour is returned. Inner contours are not included in the result.
    ```
 
-2. **Hardcoded tolerance in sectionWiresAtZ**
-   - Current: `1e-6` hardcoded
-   - Suggestion: Add optional tolerance parameter
+2. **Hardcoded tolerance in sectionWiresAtZ** ✓ DONE
+   - Current: ~~`1e-6` hardcoded~~
+   - ~~Suggestion: Add optional tolerance parameter~~
+   - **Resolution**: Added configurable tolerance parameter
 
    ```swift
    public func sectionWiresAtZ(_ z: Double, tolerance: Double = 1e-6) -> [Wire]
