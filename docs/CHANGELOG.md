@@ -1,5 +1,30 @@
 # OCCTSwift Changelog
 
+## [v0.4.0] - 2025-12-31
+
+**Major upgrade to OCCT 8.0.0-rc3**
+
+### Changed
+- **Upgraded OpenCASCADE to 8.0.0-rc3** (from 7.8.1)
+- Build script now uses GitHub for RC releases
+
+### Fixed
+- **STEP export segfault at program exit** - The crash during static destruction (OCCT bug #33656) is now fixed
+  - All STEP exports exit cleanly with code 0
+  - No more crash after exporting complex geometry like slab track
+
+### Technical Details
+- OCCT 8.0 includes RTTI reorganization (GitHub issue #146)
+- Standard C++ `type_info` replaces custom OCCT RTTI system
+- Math functions modernized to use C++ standard library
+- Performance improvements in threading and BSpline computation
+
+### Migration Notes
+- No API changes required - drop-in replacement for v0.3.0
+- XCFramework size: 546MB (iOS: 196MB, Simulator: 175MB, macOS: 175MB)
+
+---
+
 ## [v0.3.0] - 2025-12-31
 
 Final release based on OCCT 7.8.1.
@@ -39,10 +64,8 @@ bool OCCTFaceGetZLevel(OCCTFaceRef face, double* outZ);
 ### Changed
 - Simplified STEP export to use stack-allocated writer (internal cleanup)
 
-### Known Issues
-- STEP export of complex geometry crashes at program exit (OCCT bug #33656, fixed in OCCT 7.9)
-  - Files are written successfully; crash occurs during static destruction
-  - Only affects CLI tools, not iOS app
+### Known Issues (Fixed in v0.4.0)
+- ~~STEP export of complex geometry crashes at program exit~~ - Fixed by upgrading to OCCT 8.0
 
 ---
 
