@@ -241,6 +241,92 @@ public final class Shape: @unchecked Sendable {
         return Mesh(handle: meshHandle!)
     }
 
+    /// Generate a triangulated mesh with enhanced parameters.
+    ///
+    /// This method provides fine-grained control over tessellation quality,
+    /// useful for CAM toolpath generation or high-quality visualization.
+    ///
+    /// ```swift
+    /// var params = MeshParameters.default
+    /// params.deflection = 0.02  // Very fine mesh
+    /// params.inParallel = true  // Multi-threaded
+    /// let mesh = shape.mesh(parameters: params)
+    /// ```
+    ///
+    /// - Parameter parameters: Enhanced mesh parameters
+    /// - Returns: A `Mesh` with the specified quality settings
+    public func mesh(parameters: MeshParameters) -> Mesh {
+        let bridgeParams = parameters.toBridge()
+        let meshHandle = OCCTShapeCreateMeshWithParams(handle, bridgeParams)
+        return Mesh(handle: meshHandle!)
+    }
+
+    // MARK: - Edge Discretization
+
+    /// Get a discretized edge as a polyline.
+    ///
+    /// This method adaptively samples points along a B-Rep edge using
+    /// curvature-based deflection control. Useful for:
+    /// - Contour toolpath generation
+    /// - Edge visualization
+    /// - G-code generation from curve edges
+    ///
+    /// - Parameters:
+    ///   - index: Edge index (0-based)
+    ///   - deflection: Maximum chord deviation
+    ///   - maxPoints: Maximum number of points to return
+    /// - Returns: Array of 3D points along the edge, or nil if edge not found
+    public func edgePolyline(
+        at index: Int,
+        deflection: Double = 0.1,
+        maxPoints: Int = 1000
+    ) -> [SIMD3<Double>]? {
+        var points = [Double](repeating: 0, count: maxPoints * 3)
+        let numPoints = points.withUnsafeMutableBufferPointer { buffer in
+            OCCTShapeGetEdgePolyline(handle, Int32(index), deflection, buffer.baseAddress, Int32(maxPoints))
+        }
+
+        guard numPoints > 0 else { return nil }
+
+        var result: [SIMD3<Double>] = []
+        result.reserveCapacity(Int(numPoints))
+
+        for i in 0..<Int(numPoints) {
+            result.append(SIMD3(
+                points[i * 3],
+                points[i * 3 + 1],
+                points[i * 3 + 2]
+            ))
+        }
+
+        return result
+    }
+
+    /// Get all edges as discretized polylines.
+    ///
+    /// Convenience method that calls `edgePolyline` for each edge in the shape.
+    ///
+    /// - Parameters:
+    ///   - deflection: Maximum chord deviation
+    ///   - maxPointsPerEdge: Maximum points per edge
+    /// - Returns: Array of polylines, one per edge
+    public func allEdgePolylines(
+        deflection: Double = 0.1,
+        maxPointsPerEdge: Int = 1000
+    ) -> [[SIMD3<Double>]] {
+        let count = edgeCount
+        var result: [[SIMD3<Double>]] = []
+        result.reserveCapacity(count)
+
+        for i in 0..<count {
+            if let polyline = edgePolyline(at: i, deflection: deflection, maxPoints: maxPointsPerEdge) {
+                result.append(polyline)
+            }
+        }
+
+        return result
+    }
+
     // MARK: - Import
 
     /// Load a shape from a STEP file

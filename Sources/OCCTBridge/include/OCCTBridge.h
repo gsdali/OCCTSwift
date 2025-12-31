@@ -72,6 +72,74 @@ OCCTShapeRef OCCTShapeHeal(OCCTShapeRef shape);
 
 OCCTMeshRef OCCTShapeCreateMesh(OCCTShapeRef shape, double linearDeflection, double angularDeflection);
 
+/// Enhanced mesh parameters for fine control over tessellation
+typedef struct {
+    double deflection;           // Linear deflection for boundary edges
+    double angle;                // Angular deflection for boundary edges (radians)
+    double deflectionInterior;   // Linear deflection for face interior (0 = same as deflection)
+    double angleInterior;        // Angular deflection for face interior (0 = same as angle)
+    double minSize;              // Minimum element size (0 = no minimum)
+    bool relative;               // Use relative deflection (proportion of edge size)
+    bool inParallel;             // Enable multi-threaded meshing
+    bool internalVertices;       // Generate vertices inside faces
+    bool controlSurfaceDeflection; // Validate surface approximation quality
+    bool adjustMinSize;          // Auto-adjust minSize based on edge size
+} OCCTMeshParameters;
+
+/// Create mesh with enhanced parameters
+OCCTMeshRef OCCTShapeCreateMeshWithParams(OCCTShapeRef shape, OCCTMeshParameters params);
+
+/// Get default mesh parameters
+OCCTMeshParameters OCCTMeshParametersDefault(void);
+
+// MARK: - Edge Discretization
+
+/// Get discretized edge as polyline points
+/// @param shape The shape containing edges
+/// @param edgeIndex Index of the edge (0-based)
+/// @param deflection Linear deflection for discretization
+/// @param outPoints Output array for points [x,y,z,...] (caller allocates)
+/// @param maxPoints Maximum points to return
+/// @return Number of points written, or -1 on error
+int32_t OCCTShapeGetEdgePolyline(OCCTShapeRef shape, int32_t edgeIndex, double deflection, double* outPoints, int32_t maxPoints);
+
+// MARK: - Triangle Access
+
+/// Triangle data with face reference
+typedef struct {
+    uint32_t v1, v2, v3;    // Vertex indices
+    int32_t faceIndex;       // Source B-Rep face index (-1 if unknown)
+    float nx, ny, nz;        // Triangle normal
+} OCCTTriangle;
+
+/// Get triangles with face association and normals
+/// @param mesh The mesh to query
+/// @param outTriangles Output array (caller allocates with triangleCount elements)
+/// @return Number of triangles written
+int32_t OCCTMeshGetTrianglesWithFaces(OCCTMeshRef mesh, OCCTTriangle* outTriangles);
+
+// MARK: - Mesh to Shape Conversion
+
+/// Convert a mesh (triangulation) to a B-Rep shape (compound of faces)
+/// @param mesh The mesh to convert
+/// @return Shape containing triangulated faces, or NULL on failure
+OCCTShapeRef OCCTMeshToShape(OCCTMeshRef mesh);
+
+// MARK: - Mesh Booleans (via B-Rep roundtrip)
+
+/// Perform boolean union on two meshes
+/// @param mesh1 First mesh
+/// @param mesh2 Second mesh
+/// @param deflection Deflection for re-meshing result
+/// @return Result mesh, or NULL on failure
+OCCTMeshRef OCCTMeshUnion(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double deflection);
+
+/// Perform boolean subtraction on two meshes (mesh1 - mesh2)
+OCCTMeshRef OCCTMeshSubtract(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double deflection);
+
+/// Perform boolean intersection on two meshes
+OCCTMeshRef OCCTMeshIntersect(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double deflection);
+
 // MARK: - Memory Management
 
 void OCCTShapeRelease(OCCTShapeRef shape);
