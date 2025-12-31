@@ -336,6 +336,82 @@ OCCTFaceRef* OCCTShapeGetHorizontalFaces(OCCTShapeRef shape, double tolerance, i
 /// @return Array of face references for upward-facing horizontal faces
 OCCTFaceRef* OCCTShapeGetUpwardFaces(OCCTShapeRef shape, double tolerance, int32_t* outCount);
 
+// MARK: - Ray Casting & Selection (Issues #12, #13, #14)
+
+/// Ray hit result structure
+typedef struct {
+    double point[3];        // 3D intersection point
+    double normal[3];       // Surface normal at hit
+    int32_t faceIndex;      // Index of hit face
+    double distance;        // Distance from ray origin
+    double uv[2];           // UV parameters on surface
+} OCCTRayHit;
+
+/// Cast ray against shape and return all intersections
+/// @param shape The shape to test against
+/// @param originX, originY, originZ Ray origin
+/// @param dirX, dirY, dirZ Ray direction (will be normalized)
+/// @param tolerance Intersection tolerance
+/// @param outHits Output array for hits (caller allocates)
+/// @param maxHits Maximum number of hits to return
+/// @return Number of hits found, or -1 on error
+int32_t OCCTShapeRaycast(
+    OCCTShapeRef shape,
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double tolerance,
+    OCCTRayHit* outHits,
+    int32_t maxHits
+);
+
+/// Get total number of faces in a shape
+int32_t OCCTShapeGetFaceCount(OCCTShapeRef shape);
+
+/// Get face by index (0-based)
+/// @param shape The shape containing faces
+/// @param index Face index (0-based)
+/// @return Face reference, or NULL if index out of bounds
+OCCTFaceRef OCCTShapeGetFaceAtIndex(OCCTShapeRef shape, int32_t index);
+
+// MARK: - Edge Access (Issue #14)
+
+typedef struct OCCTEdge* OCCTEdgeRef;
+
+/// Get total number of edges in a shape
+int32_t OCCTShapeGetTotalEdgeCount(OCCTShapeRef shape);
+
+/// Get edge by index (0-based)
+/// @param shape The shape containing edges
+/// @param index Edge index (0-based)
+/// @return Edge reference, or NULL if index out of bounds. Caller must release.
+OCCTEdgeRef OCCTShapeGetEdgeAtIndex(OCCTShapeRef shape, int32_t index);
+
+/// Release an edge reference
+void OCCTEdgeRelease(OCCTEdgeRef edge);
+
+/// Get edge length
+double OCCTEdgeGetLength(OCCTEdgeRef edge);
+
+/// Get edge bounding box
+void OCCTEdgeGetBounds(OCCTEdgeRef edge, double* minX, double* minY, double* minZ, double* maxX, double* maxY, double* maxZ);
+
+/// Get points along edge curve
+/// @param edge The edge to sample
+/// @param count Number of points to generate
+/// @param outPoints Output array [x,y,z,...] (caller allocates count*3 doubles)
+/// @return Actual number of points written
+int32_t OCCTEdgeGetPoints(OCCTEdgeRef edge, int32_t count, double* outPoints);
+
+/// Check if edge is a line
+bool OCCTEdgeIsLine(OCCTEdgeRef edge);
+
+/// Check if edge is a circle/arc
+bool OCCTEdgeIsCircle(OCCTEdgeRef edge);
+
+/// Get start and end vertices of edge
+void OCCTEdgeGetEndpoints(OCCTEdgeRef edge, double* startX, double* startY, double* startZ, double* endX, double* endY, double* endZ);
+
+
 #ifdef __cplusplus
 }
 #endif

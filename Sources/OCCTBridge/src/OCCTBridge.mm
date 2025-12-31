@@ -2085,3 +2085,247 @@ OCCTFaceRef* OCCTShapeGetUpwardFaces(OCCTShapeRef shape, double tolerance, int32
         return nullptr;
     }
 }
+
+// MARK: - Edge Structure
+
+struct OCCTEdge {
+    TopoDS_Edge edge;
+    
+    OCCTEdge() {}
+    OCCTEdge(const TopoDS_Edge& e) : edge(e) {}
+};
+
+// MARK: - Ray Casting Implementation (Issue #12)
+
+#include <IntCurvesFace_ShapeIntersector.hxx>
+#include <gp_Lin.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+
+int32_t OCCTShapeRaycast(
+    OCCTShapeRef shape,
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double tolerance,
+    OCCTRayHit* outHits,
+    int32_t maxHits
+) {
+    if (!shape || !outHits || maxHits <= 0) return -1;
+    
+    try {
+        // Build face index map for looking up face indices
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        
+        // Create ray
+        gp_Pnt origin(originX, originY, originZ);
+        gp_Dir direction(dirX, dirY, dirZ);
+        gp_Lin ray(origin, direction);
+        
+        // Perform intersection
+        IntCurvesFace_ShapeIntersector intersector;
+        intersector.Load(shape->shape, tolerance);
+        intersector.Perform(ray, -1e10, 1e10);  // Large range for ray
+        
+        int32_t hitCount = 0;
+        int nbPoints = intersector.NbPnt();
+        
+        for (int i = 1; i <= nbPoints && hitCount < maxHits; i++) {
+            gp_Pnt pt = intersector.Pnt(i);
+            double param = intersector.WParameter(i);
+            
+            // Get face at this intersection
+            TopoDS_Face hitFace = intersector.Face(i);
+            int faceIndex = faceMap.FindIndex(hitFace) - 1;  // Convert to 0-based
+            
+            // Get UV parameters
+            double u = intersector.UParameter(i);
+            double v = intersector.VParameter(i);
+            
+            // Get surface normal at intersection point
+            BRepAdaptor_Surface adaptor(hitFace);
+            BRepLProp_SLProps props(adaptor, u, v, 1, tolerance);
+            
+            OCCTRayHit& hit = outHits[hitCount];
+            hit.point[0] = pt.X();
+            hit.point[1] = pt.Y();
+            hit.point[2] = pt.Z();
+            hit.distance = param;
+            hit.faceIndex = faceIndex;
+            hit.uv[0] = u;
+            hit.uv[1] = v;
+            
+            if (props.IsNormalDefined()) {
+                gp_Dir normal = props.Normal();
+                if (hitFace.Orientation() == TopAbs_REVERSED) {
+                    normal.Reverse();
+                }
+                hit.normal[0] = normal.X();
+                hit.normal[1] = normal.Y();
+                hit.normal[2] = normal.Z();
+            } else {
+                hit.normal[0] = 0;
+                hit.normal[1] = 0;
+                hit.normal[2] = 1;
+            }
+            
+            hitCount++;
+        }
+        
+        return hitCount;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// MARK: - Face Index Access (Issue #13)
+
+int32_t OCCTShapeGetFaceCount(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        return faceMap.Extent();
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTFaceRef OCCTShapeGetFaceAtIndex(OCCTShapeRef shape, int32_t index) {
+    if (!shape || index < 0) return nullptr;
+    
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        
+        if (index >= faceMap.Extent()) return nullptr;
+        
+        TopoDS_Face face = TopoDS::Face(faceMap(index + 1));  // OCCT is 1-based
+        return new OCCTFace(face);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Edge Access (Issue #14)
+
+int32_t OCCTShapeGetTotalEdgeCount(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    
+    try {
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+        return edgeMap.Extent();
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTEdgeRef OCCTShapeGetEdgeAtIndex(OCCTShapeRef shape, int32_t index) {
+    if (!shape || index < 0) return nullptr;
+    
+    try {
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+        
+        if (index >= edgeMap.Extent()) return nullptr;
+        
+        TopoDS_Edge edge = TopoDS::Edge(edgeMap(index + 1));  // OCCT is 1-based
+        return new OCCTEdge(edge);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTEdgeRelease(OCCTEdgeRef edge) {
+    delete edge;
+}
+
+double OCCTEdgeGetLength(OCCTEdgeRef edge) {
+    if (!edge) return 0;
+    
+    try {
+        GProp_GProps props;
+        BRepGProp::LinearProperties(edge->edge, props);
+        return props.Mass();  // For curves, Mass() returns length
+    } catch (...) {
+        return 0;
+    }
+}
+
+void OCCTEdgeGetBounds(OCCTEdgeRef edge, double* minX, double* minY, double* minZ, double* maxX, double* maxY, double* maxZ) {
+    if (!edge) return;
+    
+    try {
+        Bnd_Box box;
+        BRepBndLib::Add(edge->edge, box);
+        box.Get(*minX, *minY, *minZ, *maxX, *maxY, *maxZ);
+    } catch (...) {
+        *minX = *minY = *minZ = *maxX = *maxY = *maxZ = 0;
+    }
+}
+
+int32_t OCCTEdgeGetPoints(OCCTEdgeRef edge, int32_t count, double* outPoints) {
+    if (!edge || count <= 0 || !outPoints) return 0;
+    
+    try {
+        BRepAdaptor_Curve curve(edge->edge);
+        double first = curve.FirstParameter();
+        double last = curve.LastParameter();
+        
+        for (int32_t i = 0; i < count; i++) {
+            double t = first + (last - first) * i / (count - 1);
+            gp_Pnt pt = curve.Value(t);
+            outPoints[i * 3] = pt.X();
+            outPoints[i * 3 + 1] = pt.Y();
+            outPoints[i * 3 + 2] = pt.Z();
+        }
+        
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTEdgeIsLine(OCCTEdgeRef edge) {
+    if (!edge) return false;
+    
+    try {
+        BRepAdaptor_Curve curve(edge->edge);
+        return curve.GetType() == GeomAbs_Line;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTEdgeIsCircle(OCCTEdgeRef edge) {
+    if (!edge) return false;
+    
+    try {
+        BRepAdaptor_Curve curve(edge->edge);
+        return curve.GetType() == GeomAbs_Circle;
+    } catch (...) {
+        return false;
+    }
+}
+
+void OCCTEdgeGetEndpoints(OCCTEdgeRef edge, double* startX, double* startY, double* startZ, double* endX, double* endY, double* endZ) {
+    if (!edge) return;
+    
+    try {
+        TopoDS_Vertex v1, v2;
+        TopExp::Vertices(edge->edge, v1, v2);
+        
+        gp_Pnt p1 = BRep_Tool::Pnt(v1);
+        gp_Pnt p2 = BRep_Tool::Pnt(v2);
+        
+        *startX = p1.X();
+        *startY = p1.Y();
+        *startZ = p1.Z();
+        *endX = p2.X();
+        *endY = p2.Y();
+        *endZ = p2.Z();
+    } catch (...) {
+        *startX = *startY = *startZ = *endX = *endY = *endZ = 0;
+    }
+}
