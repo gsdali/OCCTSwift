@@ -1,5 +1,51 @@
 # OCCTSwift Changelog
 
+## [v0.3.0] - 2025-12-31
+
+Final release based on OCCT 7.8.1.
+
+### Added
+
+#### Face Analysis for CAM Pocket Detection
+- **New `Face` class** - Represents a bounded surface from a solid shape
+  - `normal` - Get normal vector at face center
+  - `outerWire` - Extract boundary wire for toolpath generation
+  - `bounds` - Bounding box of face
+  - `isPlanar` - Check if face is flat
+  - `zLevel` - Get Z coordinate of horizontal planar face
+  - `isHorizontal(tolerance:)` - Check if normal points up/down
+  - `isUpwardFacing(tolerance:)` - Check if normal points up (pocket floor)
+
+- **Shape extensions for face extraction**
+  - `faces()` - Get all faces from solid
+  - `horizontalFaces(tolerance:)` - Get horizontal faces only
+  - `upwardFaces(tolerance:)` - Get upward-facing faces (pocket floors)
+  - `facesByZLevel(tolerance:)` - Group faces by Z for multi-level pockets
+
+**C Bridge Functions:**
+```c
+OCCTFaceRef* OCCTShapeGetFaces(OCCTShapeRef shape, int32_t* outCount);
+OCCTFaceRef* OCCTShapeGetHorizontalFaces(OCCTShapeRef shape, double tolerance, int32_t* outCount);
+OCCTFaceRef* OCCTShapeGetUpwardFaces(OCCTShapeRef shape, double tolerance, int32_t* outCount);
+bool OCCTFaceGetNormal(OCCTFaceRef face, double* outNx, double* outNy, double* outNz);
+OCCTWireRef OCCTFaceGetOuterWire(OCCTFaceRef face);
+void OCCTFaceGetBounds(OCCTFaceRef face, double* minX, ...);
+bool OCCTFaceIsPlanar(OCCTFaceRef face);
+bool OCCTFaceGetZLevel(OCCTFaceRef face, double* outZ);
+```
+
+**Use Case:** Detects pockets in solid models that wire-based Z-slicing cannot find.
+
+### Changed
+- Simplified STEP export to use stack-allocated writer (internal cleanup)
+
+### Known Issues
+- STEP export of complex geometry crashes at program exit (OCCT bug #33656, fixed in OCCT 7.9)
+  - Files are written successfully; crash occurs during static destruction
+  - Only affects CLI tools, not iOS app
+
+---
+
 ## [v0.2.1] - 2025-12-30
 
 ### Fixed
