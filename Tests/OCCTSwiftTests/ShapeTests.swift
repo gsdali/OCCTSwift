@@ -226,6 +226,136 @@ struct MeshTests {
         #expect(vertices.count == normals.count)
         #expect(indices.count == mesh.triangleCount * 3)
     }
+
+    @Test("Enhanced mesh parameters")
+    func enhancedMeshParameters() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        var params = MeshParameters.default
+        params.deflection = 0.05
+        params.inParallel = true
+
+        let mesh = box.mesh(parameters: params)
+        #expect(mesh.vertexCount > 0)
+        #expect(mesh.triangleCount > 0)
+    }
+
+    @Test("Triangles with face info")
+    func trianglesWithFaceInfo() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let mesh = box.mesh(linearDeflection: 0.1)
+
+        let triangles = mesh.trianglesWithFaces()
+        #expect(triangles.count == mesh.triangleCount)
+
+        // Each triangle should have valid data
+        for tri in triangles {
+            #expect(tri.v1 < UInt32(mesh.vertexCount))
+            #expect(tri.v2 < UInt32(mesh.vertexCount))
+            #expect(tri.v3 < UInt32(mesh.vertexCount))
+            // Face index should be valid (>= 0 for box with 6 faces)
+            #expect(tri.faceIndex >= 0)
+        }
+    }
+
+    @Test("Mesh to shape conversion")
+    func meshToShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let mesh = box.mesh(linearDeflection: 0.5)
+
+        // Convert mesh back to shape
+        let shape = mesh.toShape()
+        #expect(shape != nil)
+    }
+
+    @Test("Mesh boolean union")
+    func meshBooleanUnion() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)
+            .translated(by: SIMD3(5, 0, 0))
+
+        let mesh1 = box1.mesh(linearDeflection: 0.5)
+        let mesh2 = box2.mesh(linearDeflection: 0.5)
+
+        let unionMesh = mesh1.union(with: mesh2, deflection: 0.5)
+        #expect(unionMesh != nil)
+        if let union = unionMesh {
+            #expect(union.triangleCount > 0)
+        }
+    }
+
+    @Test("Mesh boolean subtraction")
+    func meshBooleanSubtraction() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let cylinder = Shape.cylinder(radius: 3, height: 15)
+
+        let boxMesh = box.mesh(linearDeflection: 0.5)
+        let cylMesh = cylinder.mesh(linearDeflection: 0.5)
+
+        let diffMesh = boxMesh.subtracting(cylMesh, deflection: 0.5)
+        #expect(diffMesh != nil)
+    }
+
+    @Test("Mesh boolean intersection")
+    func meshBooleanIntersection() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let sphere = Shape.sphere(radius: 7)
+
+        let boxMesh = box.mesh(linearDeflection: 0.5)
+        let sphereMesh = sphere.mesh(linearDeflection: 0.5)
+
+        let intersectMesh = boxMesh.intersection(with: sphereMesh, deflection: 0.5)
+        #expect(intersectMesh != nil)
+    }
+}
+
+@Suite("Edge Discretization Tests")
+struct EdgeDiscretizationTests {
+
+    @Test("Edge polyline from box")
+    func edgePolylineFromBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        // Box has edges (OCCT may count shared edges per face)
+        #expect(box.edgeCount > 0)
+
+        // Get polyline for first edge
+        let polyline = box.edgePolyline(at: 0, deflection: 0.1)
+        #expect(polyline != nil)
+        if let pts = polyline {
+            #expect(pts.count >= 2)  // At least start and end
+        }
+    }
+
+    @Test("Edge polyline from curved shape")
+    func edgePolylineFromCylinder() {
+        let cylinder = Shape.cylinder(radius: 10, height: 20)
+
+        // Cylinder has curved edges
+        let polyline = cylinder.edgePolyline(at: 0, deflection: 0.1)
+        #expect(polyline != nil)
+        if let pts = polyline {
+            // Curved edges should have many points
+            #expect(pts.count > 2)
+        }
+    }
+
+    @Test("All edge polylines")
+    func allEdgePolylines() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let polylines = box.allEdgePolylines(deflection: 0.1)
+        #expect(polylines.count == box.edgeCount)
+    }
+
+    @Test("Edge polyline invalid index")
+    func edgePolylineInvalidIndex() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        // Box has 12 edges, index 100 should fail
+        let polyline = box.edgePolyline(at: 100, deflection: 0.1)
+        #expect(polyline == nil)
+    }
 }
 
 @Suite("Sweep Tests")

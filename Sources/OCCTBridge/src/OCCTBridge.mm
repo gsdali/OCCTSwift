@@ -97,11 +97,19 @@
 
 // Meshing
 #include <BRepMesh_IncrementalMesh.hxx>
+#include <IMeshTools_Parameters.hxx>
 #include <Poly_Triangulation.hxx>
 #include <BRepGProp.hxx>
 #include <GProp_GProps.hxx>
 #include <Bnd_Box.hxx>
 #include <BRepBndLib.hxx>
+#include <GCPnts_TangentialDeflection.hxx>
+#include <BRepAdaptor_Curve.hxx>
+
+// For mesh-to-shape conversion
+#include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
+#include <ShapeFix_Solid.hxx>
 
 // Import/Export
 #include <STEPControl_Reader.hxx>
@@ -134,6 +142,8 @@ struct OCCTMesh {
     std::vector<float> vertices;
     std::vector<float> normals;
     std::vector<uint32_t> indices;
+    std::vector<int32_t> faceIndices;     // Source B-Rep face index per triangle
+    std::vector<float> triangleNormals;   // Per-triangle normals (nx,ny,nz per triangle)
 };
 
 struct OCCTFace {
@@ -598,6 +608,7 @@ OCCTMeshRef OCCTShapeCreateMesh(OCCTShapeRef shape, double linearDeflection, dou
 
         // Extract triangles from all faces
         TopExp_Explorer explorer(shape->shape, TopAbs_FACE);
+        int32_t faceIndex = 0;
 
         while (explorer.More()) {
             TopoDS_Face face = TopoDS::Face(explorer.Current());
@@ -629,7 +640,7 @@ OCCTMeshRef OCCTShapeCreateMesh(OCCTShapeRef shape, double linearDeflection, dou
                     }
                 }
 
-                // Add triangles
+                // Add triangles with face index and per-triangle normals
                 for (Standard_Integer i = 1; i <= triangulation->NbTriangles(); i++) {
                     const Poly_Triangle& triangle = triangulation->Triangle(i);
                     Standard_Integer n1, n2, n3;
@@ -643,13 +654,367 @@ OCCTMeshRef OCCTShapeCreateMesh(OCCTShapeRef shape, double linearDeflection, dou
                     mesh->indices.push_back(baseIndex + n1 - 1);
                     mesh->indices.push_back(baseIndex + n2 - 1);
                     mesh->indices.push_back(baseIndex + n3 - 1);
+
+                    // Store face index for this triangle
+                    mesh->faceIndices.push_back(faceIndex);
+
+                    // Compute triangle normal
+                    gp_Pnt p1 = triangulation->Node(n1).Transformed(transformation);
+                    gp_Pnt p2 = triangulation->Node(n2).Transformed(transformation);
+                    gp_Pnt p3 = triangulation->Node(n3).Transformed(transformation);
+                    gp_Vec v1(p1, p2);
+                    gp_Vec v2(p1, p3);
+                    gp_Vec triNormal = v1.Crossed(v2);
+                    if (triNormal.Magnitude() > 1e-10) {
+                        triNormal.Normalize();
+                    }
+                    mesh->triangleNormals.push_back(static_cast<float>(triNormal.X()));
+                    mesh->triangleNormals.push_back(static_cast<float>(triNormal.Y()));
+                    mesh->triangleNormals.push_back(static_cast<float>(triNormal.Z()));
                 }
             }
 
+            faceIndex++;
             explorer.Next();
         }
 
         return mesh;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Enhanced Mesh Parameters
+
+OCCTMeshParameters OCCTMeshParametersDefault(void) {
+    OCCTMeshParameters params;
+    params.deflection = 0.1;
+    params.angle = 0.5;  // ~30 degrees
+    params.deflectionInterior = 0.0;  // Use deflection
+    params.angleInterior = 0.0;  // Use angle
+    params.minSize = 0.0;  // No minimum
+    params.relative = false;
+    params.inParallel = true;
+    params.internalVertices = true;
+    params.controlSurfaceDeflection = true;
+    params.adjustMinSize = false;
+    return params;
+}
+
+OCCTMeshRef OCCTShapeCreateMeshWithParams(OCCTShapeRef shape, OCCTMeshParameters params) {
+    if (!shape) return nullptr;
+
+    try {
+        // Configure IMeshTools_Parameters
+        IMeshTools_Parameters meshParams;
+        meshParams.Deflection = params.deflection;
+        meshParams.Angle = params.angle;
+        meshParams.DeflectionInterior = params.deflectionInterior > 0 ? params.deflectionInterior : params.deflection;
+        meshParams.AngleInterior = params.angleInterior > 0 ? params.angleInterior : params.angle;
+        meshParams.MinSize = params.minSize;
+        meshParams.Relative = params.relative ? Standard_True : Standard_False;
+        meshParams.InParallel = params.inParallel ? Standard_True : Standard_False;
+        meshParams.InternalVerticesMode = params.internalVertices ? Standard_True : Standard_False;
+        meshParams.ControlSurfaceDeflection = params.controlSurfaceDeflection ? Standard_True : Standard_False;
+        meshParams.AdjustMinSize = params.adjustMinSize ? Standard_True : Standard_False;
+
+        // Generate mesh with enhanced parameters
+        BRepMesh_IncrementalMesh mesher(shape->shape, meshParams);
+        mesher.Perform();
+
+        auto mesh = new OCCTMesh();
+
+        // Extract triangles from all faces (same as OCCTShapeCreateMesh)
+        TopExp_Explorer explorer(shape->shape, TopAbs_FACE);
+        int32_t faceIndex = 0;
+
+        while (explorer.More()) {
+            TopoDS_Face face = TopoDS::Face(explorer.Current());
+            TopLoc_Location location;
+            Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, location);
+
+            if (!triangulation.IsNull()) {
+                gp_Trsf transformation = location.Transformation();
+                Standard_Integer baseIndex = static_cast<Standard_Integer>(mesh->vertices.size() / 3);
+
+                for (Standard_Integer i = 1; i <= triangulation->NbNodes(); i++) {
+                    gp_Pnt point = triangulation->Node(i).Transformed(transformation);
+                    mesh->vertices.push_back(static_cast<float>(point.X()));
+                    mesh->vertices.push_back(static_cast<float>(point.Y()));
+                    mesh->vertices.push_back(static_cast<float>(point.Z()));
+
+                    if (triangulation->HasNormals()) {
+                        gp_Dir normal = triangulation->Normal(i);
+                        mesh->normals.push_back(static_cast<float>(normal.X()));
+                        mesh->normals.push_back(static_cast<float>(normal.Y()));
+                        mesh->normals.push_back(static_cast<float>(normal.Z()));
+                    } else {
+                        mesh->normals.push_back(0.0f);
+                        mesh->normals.push_back(0.0f);
+                        mesh->normals.push_back(1.0f);
+                    }
+                }
+
+                for (Standard_Integer i = 1; i <= triangulation->NbTriangles(); i++) {
+                    const Poly_Triangle& triangle = triangulation->Triangle(i);
+                    Standard_Integer n1, n2, n3;
+                    triangle.Get(n1, n2, n3);
+
+                    if (face.Orientation() == TopAbs_REVERSED) {
+                        std::swap(n2, n3);
+                    }
+
+                    mesh->indices.push_back(baseIndex + n1 - 1);
+                    mesh->indices.push_back(baseIndex + n2 - 1);
+                    mesh->indices.push_back(baseIndex + n3 - 1);
+
+                    mesh->faceIndices.push_back(faceIndex);
+
+                    gp_Pnt p1 = triangulation->Node(n1).Transformed(transformation);
+                    gp_Pnt p2 = triangulation->Node(n2).Transformed(transformation);
+                    gp_Pnt p3 = triangulation->Node(n3).Transformed(transformation);
+                    gp_Vec v1(p1, p2);
+                    gp_Vec v2(p1, p3);
+                    gp_Vec triNormal = v1.Crossed(v2);
+                    if (triNormal.Magnitude() > 1e-10) {
+                        triNormal.Normalize();
+                    }
+                    mesh->triangleNormals.push_back(static_cast<float>(triNormal.X()));
+                    mesh->triangleNormals.push_back(static_cast<float>(triNormal.Y()));
+                    mesh->triangleNormals.push_back(static_cast<float>(triNormal.Z()));
+                }
+            }
+
+            faceIndex++;
+            explorer.Next();
+        }
+
+        return mesh;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Edge Discretization
+
+int32_t OCCTShapeGetEdgePolyline(OCCTShapeRef shape, int32_t edgeIndex, double deflection, double* outPoints, int32_t maxPoints) {
+    if (!shape || !outPoints || maxPoints < 2) return -1;
+
+    try {
+        // Find the edge at the given index
+        TopExp_Explorer explorer(shape->shape, TopAbs_EDGE);
+        int32_t currentIndex = 0;
+        while (explorer.More() && currentIndex < edgeIndex) {
+            currentIndex++;
+            explorer.Next();
+        }
+
+        if (!explorer.More()) return -1;
+
+        TopoDS_Edge edge = TopoDS::Edge(explorer.Current());
+
+        // Use BRepAdaptor_Curve for edge geometry
+        BRepAdaptor_Curve curve(edge);
+
+        // Use GCPnts_TangentialDeflection for adaptive discretization
+        GCPnts_TangentialDeflection discretizer(curve, deflection, 0.1);  // deflection, angular
+
+        if (discretizer.NbPoints() < 2) return -1;
+
+        int32_t numPoints = std::min(discretizer.NbPoints(), maxPoints);
+        for (int32_t i = 0; i < numPoints; i++) {
+            gp_Pnt pt = discretizer.Value(i + 1);  // 1-indexed
+            outPoints[i * 3 + 0] = pt.X();
+            outPoints[i * 3 + 1] = pt.Y();
+            outPoints[i * 3 + 2] = pt.Z();
+        }
+
+        return numPoints;
+    } catch (...) {
+        return -1;
+    }
+}
+
+// MARK: - Direct Triangle Access
+
+int32_t OCCTMeshGetTrianglesWithFaces(OCCTMeshRef mesh, OCCTTriangle* outTriangles) {
+    if (!mesh || !outTriangles) return 0;
+
+    try {
+        int32_t triCount = static_cast<int32_t>(mesh->indices.size() / 3);
+
+        for (int32_t i = 0; i < triCount; i++) {
+            outTriangles[i].v1 = mesh->indices[i * 3 + 0];
+            outTriangles[i].v2 = mesh->indices[i * 3 + 1];
+            outTriangles[i].v3 = mesh->indices[i * 3 + 2];
+
+            // Face index (-1 if not available)
+            if (i < static_cast<int32_t>(mesh->faceIndices.size())) {
+                outTriangles[i].faceIndex = mesh->faceIndices[i];
+            } else {
+                outTriangles[i].faceIndex = -1;
+            }
+
+            // Triangle normal
+            if (i * 3 + 2 < static_cast<int32_t>(mesh->triangleNormals.size())) {
+                outTriangles[i].nx = mesh->triangleNormals[i * 3 + 0];
+                outTriangles[i].ny = mesh->triangleNormals[i * 3 + 1];
+                outTriangles[i].nz = mesh->triangleNormals[i * 3 + 2];
+            } else {
+                outTriangles[i].nx = 0.0f;
+                outTriangles[i].ny = 0.0f;
+                outTriangles[i].nz = 1.0f;
+            }
+        }
+
+        return triCount;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Mesh to Shape Conversion
+
+OCCTShapeRef OCCTMeshToShape(OCCTMeshRef mesh) {
+    if (!mesh || mesh->indices.empty()) return nullptr;
+
+    try {
+        // Use sewing to create a shell from triangles
+        BRepBuilderAPI_Sewing sewing(1e-6);  // Tolerance for edge merging
+
+        int32_t triCount = static_cast<int32_t>(mesh->indices.size() / 3);
+
+        for (int32_t i = 0; i < triCount; i++) {
+            uint32_t i1 = mesh->indices[i * 3 + 0];
+            uint32_t i2 = mesh->indices[i * 3 + 1];
+            uint32_t i3 = mesh->indices[i * 3 + 2];
+
+            gp_Pnt p1(mesh->vertices[i1 * 3 + 0], mesh->vertices[i1 * 3 + 1], mesh->vertices[i1 * 3 + 2]);
+            gp_Pnt p2(mesh->vertices[i2 * 3 + 0], mesh->vertices[i2 * 3 + 1], mesh->vertices[i2 * 3 + 2]);
+            gp_Pnt p3(mesh->vertices[i3 * 3 + 0], mesh->vertices[i3 * 3 + 1], mesh->vertices[i3 * 3 + 2]);
+
+            // Skip degenerate triangles
+            if (p1.Distance(p2) < 1e-9 || p2.Distance(p3) < 1e-9 || p3.Distance(p1) < 1e-9) {
+                continue;
+            }
+
+            // Create edges
+            TopoDS_Edge e1 = BRepBuilderAPI_MakeEdge(p1, p2);
+            TopoDS_Edge e2 = BRepBuilderAPI_MakeEdge(p2, p3);
+            TopoDS_Edge e3 = BRepBuilderAPI_MakeEdge(p3, p1);
+
+            // Create wire from edges
+            BRepBuilderAPI_MakeWire wireMaker;
+            wireMaker.Add(e1);
+            wireMaker.Add(e2);
+            wireMaker.Add(e3);
+            if (!wireMaker.IsDone()) continue;
+
+            // Create face from wire
+            BRepBuilderAPI_MakeFace faceMaker(wireMaker.Wire());
+            if (!faceMaker.IsDone()) continue;
+
+            sewing.Add(faceMaker.Face());
+        }
+
+        sewing.Perform();
+
+        TopoDS_Shape sewedShape = sewing.SewedShape();
+        if (sewedShape.IsNull()) return nullptr;
+
+        return new OCCTShape(sewedShape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Mesh Booleans (via B-Rep Roundtrip)
+
+OCCTMeshRef OCCTMeshUnion(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double deflection) {
+    if (!mesh1 || !mesh2) return nullptr;
+
+    try {
+        // Convert meshes to shapes
+        OCCTShapeRef shape1 = OCCTMeshToShape(mesh1);
+        OCCTShapeRef shape2 = OCCTMeshToShape(mesh2);
+        if (!shape1 || !shape2) {
+            OCCTShapeRelease(shape1);
+            OCCTShapeRelease(shape2);
+            return nullptr;
+        }
+
+        // Perform boolean union
+        OCCTShapeRef result = OCCTShapeUnion(shape1, shape2);
+        OCCTShapeRelease(shape1);
+        OCCTShapeRelease(shape2);
+
+        if (!result) return nullptr;
+
+        // Re-mesh the result
+        OCCTMeshRef resultMesh = OCCTShapeCreateMesh(result, deflection, 0.5);
+        OCCTShapeRelease(result);
+
+        return resultMesh;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTMeshRef OCCTMeshSubtract(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double deflection) {
+    if (!mesh1 || !mesh2) return nullptr;
+
+    try {
+        // Convert meshes to shapes
+        OCCTShapeRef shape1 = OCCTMeshToShape(mesh1);
+        OCCTShapeRef shape2 = OCCTMeshToShape(mesh2);
+        if (!shape1 || !shape2) {
+            OCCTShapeRelease(shape1);
+            OCCTShapeRelease(shape2);
+            return nullptr;
+        }
+
+        // Perform boolean subtraction
+        OCCTShapeRef result = OCCTShapeSubtract(shape1, shape2);
+        OCCTShapeRelease(shape1);
+        OCCTShapeRelease(shape2);
+
+        if (!result) return nullptr;
+
+        // Re-mesh the result
+        OCCTMeshRef resultMesh = OCCTShapeCreateMesh(result, deflection, 0.5);
+        OCCTShapeRelease(result);
+
+        return resultMesh;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTMeshRef OCCTMeshIntersect(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double deflection) {
+    if (!mesh1 || !mesh2) return nullptr;
+
+    try {
+        // Convert meshes to shapes
+        OCCTShapeRef shape1 = OCCTMeshToShape(mesh1);
+        OCCTShapeRef shape2 = OCCTMeshToShape(mesh2);
+        if (!shape1 || !shape2) {
+            OCCTShapeRelease(shape1);
+            OCCTShapeRelease(shape2);
+            return nullptr;
+        }
+
+        // Perform boolean intersection
+        OCCTShapeRef result = OCCTShapeIntersect(shape1, shape2);
+        OCCTShapeRelease(shape1);
+        OCCTShapeRelease(shape2);
+
+        if (!result) return nullptr;
+
+        // Re-mesh the result
+        OCCTMeshRef resultMesh = OCCTShapeCreateMesh(result, deflection, 0.5);
+        OCCTShapeRelease(result);
+
+        return resultMesh;
     } catch (...) {
         return nullptr;
     }

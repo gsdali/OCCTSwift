@@ -6,6 +6,111 @@ import OCCTBridge
 import SceneKit
 #endif
 
+// MARK: - Mesh Parameters
+
+/// Enhanced parameters for controlling mesh tessellation.
+///
+/// Use these parameters for fine-grained control over mesh quality,
+/// especially for CAM toolpath generation or high-quality visualization.
+///
+/// ## Example
+///
+/// ```swift
+/// var params = MeshParameters.default
+/// params.deflection = 0.05  // Fine mesh
+/// params.inParallel = true  // Use multiple threads
+/// let mesh = shape.mesh(parameters: params)
+/// ```
+public struct MeshParameters: Sendable {
+    /// Linear deflection for boundary edges (maximum chord deviation).
+    public var deflection: Double
+
+    /// Angular deflection for boundary edges (radians).
+    public var angle: Double
+
+    /// Linear deflection for face interior (0 = same as deflection).
+    public var deflectionInterior: Double
+
+    /// Angular deflection for face interior (0 = same as angle).
+    public var angleInterior: Double
+
+    /// Minimum element size (0 = no minimum).
+    public var minSize: Double
+
+    /// Use relative deflection (proportion of edge size).
+    public var relative: Bool
+
+    /// Enable multi-threaded meshing for faster processing.
+    public var inParallel: Bool
+
+    /// Generate vertices inside faces (not just on edges).
+    public var internalVertices: Bool
+
+    /// Validate surface approximation quality.
+    public var controlSurfaceDeflection: Bool
+
+    /// Auto-adjust minSize based on edge size.
+    public var adjustMinSize: Bool
+
+    /// Default mesh parameters suitable for interactive display.
+    public static var `default`: MeshParameters {
+        MeshParameters(
+            deflection: 0.1,
+            angle: 0.5,
+            deflectionInterior: 0,
+            angleInterior: 0,
+            minSize: 0,
+            relative: false,
+            inParallel: true,
+            internalVertices: true,
+            controlSurfaceDeflection: true,
+            adjustMinSize: false
+        )
+    }
+
+    /// Convert to C bridge parameters.
+    internal func toBridge() -> OCCTMeshParameters {
+        var params = OCCTMeshParameters()
+        params.deflection = deflection
+        params.angle = angle
+        params.deflectionInterior = deflectionInterior
+        params.angleInterior = angleInterior
+        params.minSize = minSize
+        params.relative = relative
+        params.inParallel = inParallel
+        params.internalVertices = internalVertices
+        params.controlSurfaceDeflection = controlSurfaceDeflection
+        params.adjustMinSize = adjustMinSize
+        return params
+    }
+}
+
+// MARK: - Triangle with Face Info
+
+/// A mesh triangle with B-Rep face association and normal.
+///
+/// Use for CAM operations that need to know which B-Rep face
+/// each triangle came from, or for per-triangle normal access.
+public struct Triangle: Sendable {
+    /// Index of first vertex.
+    public let v1: UInt32
+
+    /// Index of second vertex.
+    public let v2: UInt32
+
+    /// Index of third vertex.
+    public let v3: UInt32
+
+    /// Source B-Rep face index (-1 if unknown).
+    ///
+    /// This allows correlating mesh triangles back to the original
+    /// solid faces, useful for CAM operations like selective re-meshing.
+    public let faceIndex: Int32
+
+    /// Triangle normal vector.
+    public let normal: SIMD3<Float>
+}
+
 /// A triangulated mesh representation of a shape.
 ///
 /// Meshes are created by tessellating a `Shape` and contain triangle data
@@ -197,6 +302,116 @@ public final class Mesh: @unchecked Sendable {
     public var center: SIMD3<Float> {
         let (minPt, maxPt) = boundingBox
         return (minPt + maxPt) / 2
+    }
+
+    // MARK: - Triangle Access with Face Info
+
+    /// Get triangles with B-Rep face association and normals.
+    ///
+    /// This method provides access to per-triangle data including:
+    /// - Vertex indices
+    /// - Source B-Rep face index (for correlating with original solid)
+    /// - Per-triangle normal vector
+    ///
+    /// Useful for CAM operations that need to distinguish triangles
+    /// by their source face, or for custom rendering with per-triangle normals.
+    ///
+    /// - Returns: Array of `Triangle` structs
+    public func trianglesWithFaces() -> [Triangle] {
+        let count = triangleCount
+        guard count > 0 else { return [] }
+
+        var cTriangles = [OCCTTriangle](repeating: OCCTTriangle(), count: count)
+        let written = cTriangles.withUnsafeMutableBufferPointer { buffer in
+            OCCTMeshGetTrianglesWithFaces(handle, buffer.baseAddress)
+        }
+
+        guard written > 0 else { return [] }
+
+        var result: [Triangle] = []
+        result.reserveCapacity(Int(written))
+
+        for i in 0..<Int(written) {
+            let t = cTriangles[i]
+            result.append(Triangle(
+                v1: t.v1,
+                v2: t.v2,
+                v3: t.v3,
+                faceIndex: t.faceIndex,
+                normal: SIMD3(t.nx, t.ny, t.nz)
+            ))
+        }
+
+        return result
+    }
+
+    // MARK: - Mesh to Shape Conversion
+
+    /// Convert this mesh to a B-Rep shape.
+    ///
+    /// The mesh triangles are converted to B-Rep faces and sewn together.
+    /// This is useful for performing B-Rep operations on mesh data,
+    /// such as boolean operations.
+    ///
+    /// - Note: The resulting shape is a shell/compound of planar faces.
+    ///         It may not be a valid solid depending on the mesh topology.
+    ///
+    /// - Returns: A `Shape` representing the mesh geometry, or `nil` on failure
+    public func toShape() -> Shape? {
+        guard let shapeHandle = OCCTMeshToShape(handle) else {
+            return nil
+        }
+        return Shape(handle: shapeHandle)
+    }
+
+    // MARK: - Mesh Boolean Operations
+
+    /// Perform boolean union with another mesh.
+    ///
+    /// This operation uses a B-Rep roundtrip: both meshes are converted
+    /// to B-Rep shapes, the union is computed, and the result is re-meshed.
+    ///
+    /// - Parameters:
+    ///   - other: The mesh to union with
+    ///   - deflection: Deflection for re-meshing the result (default: 0.1)
+    /// - Returns: The union mesh, or `nil` on failure
+    public func union(with other: Mesh, deflection: Double = 0.1) -> Mesh? {
+        guard let resultHandle = OCCTMeshUnion(handle, other.handle, deflection) else {
+            return nil
+        }
+        return Mesh(handle: resultHandle)
+    }
+
+    /// Subtract another mesh from this mesh.
+    ///
+    /// This operation uses a B-Rep roundtrip: both meshes are converted
+    /// to B-Rep shapes, the subtraction is computed, and the result is re-meshed.
+    ///
+    /// - Parameters:
+    ///   - other: The mesh to subtract
+    ///   - deflection: Deflection for re-meshing the result (default: 0.1)
+    /// - Returns: The difference mesh, or `nil` on failure
+    public func subtracting(_ other: Mesh, deflection: Double = 0.1) -> Mesh? {
+        guard let resultHandle = OCCTMeshSubtract(handle, other.handle, deflection) else {
+            return nil
+        }
+        return Mesh(handle: resultHandle)
+    }
+
+    /// Intersect with another mesh.
+    ///
+    /// This operation uses a B-Rep roundtrip: both meshes are converted
+    /// to B-Rep shapes, the intersection is computed, and the result is re-meshed.
+    ///
+    /// - Parameters:
+    ///   - other: The mesh to intersect with
+    ///   - deflection: Deflection for re-meshing the result (default: 0.1)
+    /// - Returns: The intersection mesh, or `nil` on failure
+    public func intersection(with other: Mesh, deflection: Double = 0.1) -> Mesh? {
+        guard let resultHandle = OCCTMeshIntersect(handle, other.handle, deflection) else {
+            return nil
+        }
+        return Mesh(handle: resultHandle)
     }
 }
 
