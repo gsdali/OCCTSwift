@@ -260,6 +260,79 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    // MARK: - Robust STEP Import
+
+    /// Load a STEP file with robust handling: sewing, solid creation, and shape healing.
+    ///
+    /// This method is recommended for STEP files that may contain:
+    /// - Disconnected faces that need sewing
+    /// - Shells that need conversion to solids
+    /// - Geometry issues that require healing
+    ///
+    /// - Parameter url: URL to the STEP file
+    /// - Returns: Processed shape suitable for CAM operations
+    /// - Throws: ImportError if import fails
+    public static func loadRobust(from url: URL) throws -> Shape {
+        guard let handle = OCCTImportSTEPRobust(url.path) else {
+            throw ImportError.importFailed("Failed to import: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load a STEP file with robust handling: sewing, solid creation, and shape healing.
+    ///
+    /// - Parameter path: Path to the STEP file
+    /// - Returns: Processed shape suitable for CAM operations
+    /// - Throws: ImportError if import fails
+    public static func loadRobust(fromPath path: String) throws -> Shape {
+        guard let handle = OCCTImportSTEPRobust(path) else {
+            throw ImportError.importFailed("Failed to import: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load a STEP file with diagnostic information about processing steps.
+    ///
+    /// Use this when you need to understand what processing was applied to the imported geometry.
+    ///
+    /// - Parameter url: URL to the STEP file
+    /// - Returns: Import result containing the shape and processing information
+    /// - Throws: ImportError if import fails
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let result = try Shape.loadWithDiagnostics(from: stepFile)
+    /// print(result.summary)  // "Shell → Solid (processing: sewing, solid creation, healing)"
+    /// let shape = result.shape
+    /// ```
+    public static func loadWithDiagnostics(from url: URL) throws -> ImportResult {
+        let result = OCCTImportSTEPWithDiagnostics(url.path)
+        guard let handle = result.shape else {
+            throw ImportError.importFailed("Failed to import: \(url.lastPathComponent)")
+        }
+        return ImportResult(
+            shape: Shape(handle: handle),
+            originalType: ShapeType(rawValue: Int(result.originalType)) ?? .unknown,
+            resultType: ShapeType(rawValue: Int(result.resultType)) ?? .unknown,
+            sewingApplied: result.sewingApplied,
+            solidCreated: result.solidCreated,
+            healingApplied: result.healingApplied
+        )
+    }
+
+    // MARK: - Shape Type
+
+    /// The topological type of the shape
+    public var shapeType: ShapeType {
+        ShapeType(rawValue: Int(OCCTShapeGetType(handle))) ?? .unknown
+    }
+
+    /// Whether the shape is a valid closed solid suitable for CAM operations
+    public var isValidSolid: Bool {
+        OCCTShapeIsValidSolid(handle)
+    }
+
     // MARK: - Bounds
 
     /// Get the axis-aligned bounding box of the shape
@@ -390,6 +463,68 @@ public enum ImportError: Error, LocalizedError {
         case .importFailed(let message):
             return message
         }
+    }
+}
+
+// MARK: - Shape Type
+
+/// Topological type of a shape (matches OCCT TopAbs_ShapeEnum)
+public enum ShapeType: Int, CustomStringConvertible, Sendable {
+    case compound = 0
+    case compSolid = 1
+    case solid = 2
+    case shell = 3
+    case face = 4
+    case wire = 5
+    case edge = 6
+    case vertex = 7
+    case unknown = -1
+
+    public var description: String {
+        switch self {
+        case .compound: return "Compound"
+        case .compSolid: return "CompSolid"
+        case .solid: return "Solid"
+        case .shell: return "Shell"
+        case .face: return "Face"
+        case .wire: return "Wire"
+        case .edge: return "Edge"
+        case .vertex: return "Vertex"
+        case .unknown: return "Unknown"
+        }
+    }
+}
+
+// MARK: - Import Result
+
+/// Result of a robust STEP import with diagnostic information
+public struct ImportResult: Sendable {
+    /// The imported and processed shape
+    public let shape: Shape
+
+    /// Original shape type as read from STEP file
+    public let originalType: ShapeType
+
+    /// Final shape type after processing
+    public let resultType: ShapeType
+
+    /// Whether sewing was applied to connect disconnected faces
+    public let sewingApplied: Bool
+
+    /// Whether a solid was created from a shell
+    public let solidCreated: Bool
+
+    /// Whether shape healing was applied
+    public let healingApplied: Bool
+
+    /// Human-readable summary of the import processing
+    public var summary: String {
+        var steps: [String] = []
+        if sewingApplied { steps.append("sewing") }
+        if solidCreated { steps.append("solid creation") }
+        if healingApplied { steps.append("healing") }
+        let processing = steps.isEmpty ? "none" : steps.joined(separator: ", ")
+        return "\(originalType) → \(resultType) (processing: \(processing))"
     }
 }
 

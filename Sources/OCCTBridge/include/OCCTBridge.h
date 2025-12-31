@@ -147,6 +147,30 @@ bool OCCTExportSTEPWithName(OCCTShapeRef shape, const char* path, const char* na
 
 OCCTShapeRef OCCTImportSTEP(const char* path);
 
+// MARK: - Robust STEP Import
+
+/// Import result structure with diagnostics
+typedef struct {
+    OCCTShapeRef shape;
+    int originalType;   // TopAbs_ShapeEnum: 0=Compound, 1=CompSolid, 2=Solid, 3=Shell, 4=Face, etc.
+    int resultType;     // Type after processing
+    bool sewingApplied;
+    bool solidCreated;
+    bool healingApplied;
+} OCCTSTEPImportResult;
+
+/// Import STEP file with robust handling: sewing, solid creation, and shape healing
+OCCTShapeRef OCCTImportSTEPRobust(const char* path);
+
+/// Import STEP file with diagnostic information
+OCCTSTEPImportResult OCCTImportSTEPWithDiagnostics(const char* path);
+
+/// Get shape type (TopAbs_ShapeEnum value)
+int OCCTShapeGetType(OCCTShapeRef shape);
+
+/// Check if shape is a valid closed solid
+bool OCCTShapeIsValidSolid(OCCTShapeRef shape);
+
 // MARK: - Bounds
 
 void OCCTShapeGetBounds(OCCTShapeRef shape, double* minX, double* minY, double* minZ, double* maxX, double* maxY, double* maxZ);
