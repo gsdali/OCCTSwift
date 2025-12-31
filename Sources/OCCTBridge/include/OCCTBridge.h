@@ -19,6 +19,7 @@ extern "C" {
 typedef struct OCCTShape* OCCTShapeRef;
 typedef struct OCCTWire* OCCTWireRef;
 typedef struct OCCTMesh* OCCTMeshRef;
+typedef struct OCCTFace* OCCTFaceRef;
 
 // MARK: - Shape Creation (Primitives)
 
@@ -182,6 +183,66 @@ void OCCTFreeWireArray(OCCTWireRef* wires, int32_t count);
 /// Free only the array container, not the wires - use when Swift takes ownership of wire handles
 /// @param wires Array of wire references
 void OCCTFreeWireArrayOnly(OCCTWireRef* wires);
+
+// MARK: - Face Analysis (for solid-based CAM)
+
+/// Get all faces from a shape
+/// @param shape The shape to extract faces from
+/// @param outCount Output: number of faces returned
+/// @return Array of face references, or NULL on failure. Caller must free with OCCTFreeFaceArray.
+OCCTFaceRef* OCCTShapeGetFaces(OCCTShapeRef shape, int32_t* outCount);
+
+/// Free an array of faces (frees faces AND array)
+/// @param faces Array of face references
+/// @param count Number of faces in the array
+void OCCTFreeFaceArray(OCCTFaceRef* faces, int32_t count);
+
+/// Free only the face array container, not the faces - use when Swift takes ownership
+/// @param faces Array of face references
+void OCCTFreeFaceArrayOnly(OCCTFaceRef* faces);
+
+/// Release a single face
+void OCCTFaceRelease(OCCTFaceRef face);
+
+/// Get the normal vector at the center of a face
+/// @param face The face to get normal from
+/// @param outNx, outNy, outNz Output: normal vector components
+/// @return true if successful, false if normal could not be computed
+bool OCCTFaceGetNormal(OCCTFaceRef face, double* outNx, double* outNy, double* outNz);
+
+/// Get the outer wire (boundary) of a face
+/// @param face The face to get outer wire from
+/// @return Wire reference, or NULL on failure. Caller must release with OCCTWireRelease.
+OCCTWireRef OCCTFaceGetOuterWire(OCCTFaceRef face);
+
+/// Get the bounding box of a face
+/// @param face The face to get bounds from
+void OCCTFaceGetBounds(OCCTFaceRef face, double* minX, double* minY, double* minZ, double* maxX, double* maxY, double* maxZ);
+
+/// Check if a face is planar (flat)
+/// @param face The face to check
+/// @return true if the face is planar
+bool OCCTFaceIsPlanar(OCCTFaceRef face);
+
+/// Get the Z level of a horizontal planar face
+/// @param face The face to get Z from
+/// @param outZ Output: Z coordinate of the face plane
+/// @return true if face is horizontal and Z was computed, false otherwise
+bool OCCTFaceGetZLevel(OCCTFaceRef face, double* outZ);
+
+/// Get horizontal faces from a shape (faces with normals pointing up or down)
+/// @param shape The shape to search
+/// @param tolerance Angle tolerance in radians (e.g., 0.01 for ~0.5 degrees)
+/// @param outCount Output: number of faces returned
+/// @return Array of face references for horizontal faces only
+OCCTFaceRef* OCCTShapeGetHorizontalFaces(OCCTShapeRef shape, double tolerance, int32_t* outCount);
+
+/// Get upward-facing horizontal faces (potential pocket floors)
+/// @param shape The shape to search
+/// @param tolerance Angle tolerance in radians
+/// @param outCount Output: number of faces returned
+/// @return Array of face references for upward-facing horizontal faces
+OCCTFaceRef* OCCTShapeGetUpwardFaces(OCCTShapeRef shape, double tolerance, int32_t* outCount);
 
 #ifdef __cplusplus
 }
