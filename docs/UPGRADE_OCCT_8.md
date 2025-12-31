@@ -57,14 +57,16 @@ Build time: ~30-60 minutes
 
 ## Testing Checklist
 
-- [ ] Full rebuild of OCCT.xcframework
-- [ ] Swift package builds
-- [ ] All 23 tests pass
-- [ ] STEP export without segfault at exit
-- [ ] STL export works
-- [ ] Face analysis works
-- [ ] Wire offset works
-- [ ] Boolean operations work
+- [x] Full rebuild of OCCT.xcframework (546MB total)
+- [x] Swift package builds (6.55s)
+- [x] All 23 tests pass
+- [x] STEP export without segfault at exit (**Exit code 0!**)
+- [x] STL export works
+- [x] Face analysis works
+- [x] Wire offset works
+- [x] Boolean operations work
+
+**Verified 2025-12-31**: OCCT 8.0.0-rc3 build successful. Segfault at exit is fixed.
 
 ## Version Notes
 
