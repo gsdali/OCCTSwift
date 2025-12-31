@@ -60,6 +60,20 @@ public final class Face: @unchecked Sendable {
         return n.z > cos(tolerance)
     }
 
+    /// Check if the face is downward-facing (normal points down)
+    /// - Parameter tolerance: Angle tolerance in radians (default ~0.5 degrees)
+    public func isDownwardFacing(tolerance: Double = 0.01) -> Bool {
+        guard let n = normal else { return false }
+        return n.z < -cos(tolerance)
+    }
+
+    /// Check if the face is vertical (normal is horizontal)
+    /// - Parameter tolerance: Angle tolerance in radians (default ~0.5 degrees)
+    public func isVertical(tolerance: Double = 0.01) -> Bool {
+        guard let n = normal else { return false }
+        return abs(n.z) < sin(tolerance)
+    }
+
     /// Get the Z level of a horizontal planar face
     /// Returns nil if face is not horizontal or not planar
     public var zLevel: Double? {

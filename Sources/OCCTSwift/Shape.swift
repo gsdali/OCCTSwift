@@ -314,7 +314,8 @@ public final class Shape: @unchecked Sendable {
         deflection: Double = 0.1,
         maxPointsPerEdge: Int = 1000
     ) -> [[SIMD3<Double>]] {
-        let count = edgeCount
+        // Get edge count directly from C API
+        let count = Int(OCCTShapeGetTotalEdgeCount(handle))
         var result: [[SIMD3<Double>]] = []
         result.reserveCapacity(count)
 
@@ -497,11 +498,6 @@ public final class Shape: @unchecked Sendable {
             }
         }
         return wires
-    }
-
-    /// Get the number of edges in this shape (useful after slicing)
-    public var edgeCount: Int {
-        Int(OCCTShapeGetEdgeCount(handle))
     }
 
     /// Get points along an edge at the given index.
