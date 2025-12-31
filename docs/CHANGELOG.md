@@ -4,6 +4,31 @@
 
 **Major upgrade to OCCT 8.0.0-rc3**
 
+### Added
+
+#### Robust STEP Import
+- **`Shape.loadRobust(from:)`** - Import STEP files with automatic repair
+  - Sews disconnected faces into connected geometry
+  - Converts shells to valid closed solids
+  - Applies shape healing for geometry issues
+  - Recommended for files from external CAD systems
+
+- **`Shape.loadWithDiagnostics(from:)`** - Import with processing information
+  - Returns `ImportResult` with shape and diagnostic flags
+  - Shows what processing was applied (sewing, solid creation, healing)
+  - Useful for debugging import issues
+
+- **`Shape.shapeType`** - Get topological type (Solid, Shell, Face, etc.)
+- **`Shape.isValidSolid`** - Check if shape is a valid closed solid
+
+**C Bridge Functions:**
+```c
+OCCTShapeRef OCCTImportSTEPRobust(const char* path);
+OCCTSTEPImportResult OCCTImportSTEPWithDiagnostics(const char* path);
+int OCCTShapeGetType(OCCTShapeRef shape);
+bool OCCTShapeIsValidSolid(OCCTShapeRef shape);
+```
+
 ### Changed
 - **Upgraded OpenCASCADE to 8.0.0-rc3** (from 7.8.1)
 - Build script now uses GitHub for RC releases

@@ -94,6 +94,13 @@
 // Validation & Healing
 #include <BRepCheck_Analyzer.hxx>
 #include <ShapeFix_Shape.hxx>
+#include <ShapeFix_Solid.hxx>
+
+// Sewing & Solid Creation
+#include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
+#include <TopoDS_Shell.hxx>
+#include <TopoDS_Solid.hxx>
 
 // Meshing
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -1093,6 +1100,163 @@ OCCTShapeRef OCCTImportSTEP(const char* path) {
         return nullptr;
     }
 }
+
+// MARK: - Robust STEP Import
+
+int OCCTShapeGetType(OCCTShapeRef shape) {
+    if (!shape) return -1;
+    return static_cast<int>(shape->shape.ShapeType());
+}
+
+bool OCCTShapeIsValidSolid(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        if (shape->shape.ShapeType() != TopAbs_SOLID) return false;
+        BRepCheck_Analyzer analyzer(shape->shape);
+        return analyzer.IsValid();
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTShapeRef OCCTImportSTEPRobust(const char* path) {
+    if (!path) return nullptr;
+
+    try {
+        STEPControl_Reader reader;
+
+        // Configure reader for better precision handling
+        Interface_Static::SetIVal("read.precision.mode", 0);
+        Interface_Static::SetRVal("read.maxprecision.val", 0.1);
+        Interface_Static::SetIVal("read.surfacecurve.mode", 3);
+        Interface_Static::SetIVal("read.step.product.mode", 1);
+
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        if (reader.TransferRoots() == 0) return nullptr;
+
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+
+        TopAbs_ShapeEnum shapeType = shape.ShapeType();
+
+        // If already a solid, just apply healing
+        if (shapeType == TopAbs_SOLID) {
+            ShapeFix_Shape fixer(shape);
+            fixer.Perform();
+            TopoDS_Shape fixed = fixer.Shape();
+            return new OCCTShape(fixed.IsNull() ? shape : fixed);
+        }
+
+        // Try sewing and solid creation for non-solids
+        if (shapeType == TopAbs_COMPOUND || shapeType == TopAbs_SHELL ||
+            shapeType == TopAbs_FACE) {
+
+            // Sew disconnected faces/shells
+            BRepBuilderAPI_Sewing sewing(1.0e-4);
+            sewing.SetNonManifoldMode(Standard_False);
+            sewing.Add(shape);
+            sewing.Perform();
+            TopoDS_Shape sewedShape = sewing.SewedShape();
+            if (sewedShape.IsNull()) sewedShape = shape;
+
+            // Try to create solid from shell
+            TopoDS_Shape resultShape = sewedShape;
+            if (sewedShape.ShapeType() != TopAbs_SOLID) {
+                TopExp_Explorer shellExp(sewedShape, TopAbs_SHELL);
+                if (shellExp.More()) {
+                    BRepBuilderAPI_MakeSolid makeSolid(TopoDS::Shell(shellExp.Current()));
+                    if (makeSolid.IsDone()) {
+                        resultShape = makeSolid.Solid();
+                    }
+                }
+            }
+
+            // Apply shape healing
+            ShapeFix_Shape fixer(resultShape);
+            fixer.Perform();
+            TopoDS_Shape fixed = fixer.Shape();
+            return new OCCTShape(fixed.IsNull() ? resultShape : fixed);
+        }
+
+        // Fallback: just heal whatever we got
+        ShapeFix_Shape fixer(shape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+        return new OCCTShape(fixed.IsNull() ? shape : fixed);
+
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSTEPImportResult OCCTImportSTEPWithDiagnostics(const char* path) {
+    OCCTSTEPImportResult result = {nullptr, -1, -1, false, false, false};
+    if (!path) return result;
+
+    try {
+        STEPControl_Reader reader;
+
+        // Configure reader
+        Interface_Static::SetIVal("read.precision.mode", 0);
+        Interface_Static::SetRVal("read.maxprecision.val", 0.1);
+        Interface_Static::SetIVal("read.surfacecurve.mode", 3);
+        Interface_Static::SetIVal("read.step.product.mode", 1);
+
+        if (reader.ReadFile(path) != IFSelect_RetDone) return result;
+        if (reader.TransferRoots() == 0) return result;
+
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return result;
+
+        result.originalType = static_cast<int>(shape.ShapeType());
+
+        // Process non-solids
+        if (shape.ShapeType() != TopAbs_SOLID) {
+            // Try sewing
+            BRepBuilderAPI_Sewing sewing(1.0e-4);
+            sewing.SetNonManifoldMode(Standard_False);
+            sewing.Add(shape);
+            sewing.Perform();
+            TopoDS_Shape sewedShape = sewing.SewedShape();
+            if (!sewedShape.IsNull() && !sewedShape.IsSame(shape)) {
+                shape = sewedShape;
+                result.sewingApplied = true;
+            }
+
+            // Try solid creation
+            if (shape.ShapeType() != TopAbs_SOLID) {
+                TopExp_Explorer shellExp(shape, TopAbs_SHELL);
+                if (shellExp.More()) {
+                    BRepBuilderAPI_MakeSolid makeSolid(TopoDS::Shell(shellExp.Current()));
+                    if (makeSolid.IsDone()) {
+                        shape = makeSolid.Solid();
+                        result.solidCreated = true;
+                    }
+                }
+            }
+        }
+
+        // Apply shape healing
+        ShapeFix_Shape fixer(shape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+        if (!fixed.IsNull()) {
+            shape = fixed;
+            result.healingApplied = true;
+        }
+
+        result.shape = new OCCTShape(shape);
+        result.resultType = static_cast<int>(shape.ShapeType());
+        return result;
+
+    } catch (...) {
+        return result;
+    }
+}
+
+// MARK: - Bounds
 
 void OCCTShapeGetBounds(OCCTShapeRef shape, double* minX, double* minY, double* minZ, double* maxX, double* maxY, double* maxZ) {
     if (!shape || !minX || !minY || !minZ || !maxX || !maxY || !maxZ) return;
