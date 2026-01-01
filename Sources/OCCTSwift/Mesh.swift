@@ -523,3 +523,93 @@ extension Mesh {
         return (positionsData, normalsData, indicesData)
     }
 }
+
+// MARK: - RealityKit Integration
+
+#if canImport(RealityKit)
+import RealityKit
+
+@available(iOS 18.0, macOS 15.0, *)
+extension Mesh {
+    /// Create a RealityKit MeshResource from this mesh.
+    ///
+    /// Use this method to display OCCT geometry in RealityKit-based viewports.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let box = Shape.box(width: 10, height: 5, depth: 3)
+    /// let mesh = box.mesh(linearDeflection: 0.1)
+    /// let meshResource = try mesh.realityKitMeshResource()
+    ///
+    /// let material = SimpleMaterial(color: .gray, isMetallic: true)
+    /// let entity = ModelEntity(mesh: meshResource, materials: [material])
+    /// ```
+    ///
+    /// - Returns: A `MeshResource` suitable for RealityKit
+    /// - Throws: An error if mesh generation fails
+    @MainActor
+    public func realityKitMeshResource() throws -> MeshResource {
+        let verts = vertices
+        let norms = normals
+        let inds = indices
+
+        guard !verts.isEmpty else {
+            // Return empty mesh
+            var descriptor = MeshDescriptor()
+            descriptor.positions = MeshBuffers.Positions([])
+            descriptor.primitives = .triangles([])
+            return try MeshResource.generate(from: [descriptor])
+        }
+
+        var descriptor = MeshDescriptor()
+
+        // Set positions
+        descriptor.positions = MeshBuffers.Positions(verts)
+
+        // Set normals
+        descriptor.normals = MeshBuffers.Normals(norms)
+
+        // Set triangle indices
+        descriptor.primitives = .triangles(inds)
+
+        return try MeshResource.generate(from: [descriptor])
+    }
+
+    /// Create a RealityKit ModelEntity from this mesh.
+    ///
+    /// Convenience method that creates both the MeshResource and ModelEntity.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let shape = Shape.cylinder(radius: 5, height: 10)
+    /// let mesh = shape.mesh(linearDeflection: 0.05)
+    ///
+    /// let entity = try mesh.realityKitModelEntity(
+    ///     material: SimpleMaterial(color: .blue, isMetallic: true)
+    /// )
+    /// content.add(entity)
+    /// ```
+    ///
+    /// - Parameter material: The material to apply to the entity
+    /// - Returns: A `ModelEntity` ready to add to a RealityKit scene
+    /// - Throws: An error if mesh generation fails
+    @MainActor
+    public func realityKitModelEntity(material: RealityKit.Material) throws -> ModelEntity {
+        let meshResource = try realityKitMeshResource()
+        return ModelEntity(mesh: meshResource, materials: [material])
+    }
+
+    /// Create a RealityKit ModelEntity with default gray metallic material.
+    ///
+    /// - Returns: A `ModelEntity` ready to add to a RealityKit scene
+    /// - Throws: An error if mesh generation fails
+    @MainActor
+    public func realityKitModelEntity() throws -> ModelEntity {
+        let material = SimpleMaterial(color: .gray, isMetallic: true)
+        return try realityKitModelEntity(material: material)
+    }
+}
+
+#endif
