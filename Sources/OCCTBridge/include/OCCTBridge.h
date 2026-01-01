@@ -412,8 +412,56 @@ bool OCCTEdgeIsCircle(OCCTEdgeRef edge);
 void OCCTEdgeGetEndpoints(OCCTEdgeRef edge, double* startX, double* startY, double* startZ, double* endX, double* endY, double* endZ);
 
 
+// MARK: - Attributed Adjacency Graph (AAG) Support
+
+/// Edge convexity type for AAG
+typedef enum {
+    OCCTEdgeConvexityConcave = -1,  // Interior angle > 180° (pocket-like)
+    OCCTEdgeConvexitySmooth = 0,    // Tangent faces (180°)
+    OCCTEdgeConvexityConvex = 1     // Interior angle < 180° (fillet-like)
+} OCCTEdgeConvexity;
+
+/// Get the two faces adjacent to an edge within a shape
+/// @param shape The shape containing the edge and faces
+/// @param edge The edge to query
+/// @param outFace1 Output: first adjacent face (caller must release)
+/// @param outFace2 Output: second adjacent face (caller must release), may be NULL for boundary edges
+/// @return Number of adjacent faces (0, 1, or 2)
+int32_t OCCTEdgeGetAdjacentFaces(OCCTShapeRef shape, OCCTEdgeRef edge, OCCTFaceRef* outFace1, OCCTFaceRef* outFace2);
+
+/// Determine the convexity of an edge between two faces
+/// @param shape The shape containing the geometry
+/// @param edge The shared edge
+/// @param face1 First adjacent face
+/// @param face2 Second adjacent face
+/// @return Convexity type (concave, smooth, or convex)
+OCCTEdgeConvexity OCCTEdgeGetConvexity(OCCTShapeRef shape, OCCTEdgeRef edge, OCCTFaceRef face1, OCCTFaceRef face2);
+
+/// Get all edges shared between two faces
+/// @param shape The shape containing the faces
+/// @param face1 First face
+/// @param face2 Second face  
+/// @param outEdges Output array for shared edges (caller allocates)
+/// @param maxEdges Maximum number of edges to return
+/// @return Number of shared edges found
+int32_t OCCTFaceGetSharedEdges(OCCTShapeRef shape, OCCTFaceRef face1, OCCTFaceRef face2, OCCTEdgeRef* outEdges, int32_t maxEdges);
+
+/// Check if two faces are adjacent (share at least one edge)
+bool OCCTFacesAreAdjacent(OCCTShapeRef shape, OCCTFaceRef face1, OCCTFaceRef face2);
+
+/// Get the dihedral angle between two adjacent faces at their shared edge
+/// @param edge The shared edge
+/// @param face1 First face
+/// @param face2 Second face
+/// @param parameter Parameter along edge (0.0 to 1.0) where to measure angle
+/// @return Dihedral angle in radians (0 to 2*PI), or -1 on error
+double OCCTEdgeGetDihedralAngle(OCCTEdgeRef edge, OCCTFaceRef face1, OCCTFaceRef face2, double parameter);
+
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* OCCTBridge_h */
+
+// NOTE: The closing #ifdef __cplusplus and #endif were removed - need to re-add after new content
