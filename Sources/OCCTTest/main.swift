@@ -28,23 +28,32 @@ print("   - Subtraction: \(subtracted.isValid ? "valid" : "invalid")")
 // Test 3: Wire creation
 print()
 print("3. Wire creation...")
-let rect = Wire.rectangle(width: 5, height: 3)
+guard let rect = Wire.rectangle(width: 5, height: 3) else {
+    print("   - Rectangle wire creation failed!")
+    exit(1)
+}
 print("   - Rectangle wire created")
 
-let profile = Wire.polygon([
+guard let profile = Wire.polygon([
     SIMD2(0, 0),
     SIMD2(2, 0),
     SIMD2(2, 1),
     SIMD2(1, 1),
     SIMD2(1, 5),
     SIMD2(0, 5)
-], closed: true)
+], closed: true) else {
+    print("   - Rail profile wire creation failed!")
+    exit(1)
+}
 print("   - Rail profile wire created")
 
 // Test 4: Sweep operations
 print()
 print("4. Sweep operations...")
-let path = Wire.line(from: .zero, to: SIMD3(100, 0, 0))
+guard let path = Wire.line(from: .zero, to: SIMD3(100, 0, 0)) else {
+    print("   - Path wire creation failed!")
+    exit(1)
+}
 let swept = Shape.sweep(profile: rect, along: path)
 print("   - Pipe sweep: \(swept.isValid ? "valid" : "invalid")")
 
@@ -61,23 +70,29 @@ print("   - Triangles: \(mesh.indices.count / 3)")
 // Test 6: Rail sweep (like RailwayCAD would do)
 print()
 print("6. Rail sweep simulation...")
-let railProfile = Wire.railProfile(
+guard let railProfile = Wire.railProfile(
     headWidth: 2.0,
     headHeight: 1.0,
     webThickness: 0.5,
     baseWidth: 3.0,
     baseHeight: 0.5,
     totalHeight: 5.0
-)
+) else {
+    print("   - Rail profile creation failed!")
+    exit(1)
+}
 print("   - Rail profile created")
 
-let trackPath = Wire.arc(
+guard let trackPath = Wire.arc(
     center: SIMD3(0, 500, 0),
     radius: 500,
     startAngle: 0,
     endAngle: .pi / 4,
     normal: SIMD3(0, 0, 1)
-)
+) else {
+    print("   - Track path creation failed!")
+    exit(1)
+}
 print("   - Track curve created (500mm radius, 45 degrees)")
 
 let rail = Shape.sweep(profile: railProfile, along: trackPath)

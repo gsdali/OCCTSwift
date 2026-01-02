@@ -2329,3 +2329,244 @@ void OCCTEdgeGetEndpoints(OCCTEdgeRef edge, double* startX, double* startY, doub
         *startX = *startY = *startZ = *endX = *endY = *endZ = 0;
     }
 }
+
+// MARK: - AAG Support Implementation
+
+#include <TopExp_Explorer.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TopExp.hxx>
+#include <TopTools_ListOfShape.hxx>
+#include <TopTools_ListIteratorOfListOfShape.hxx>
+
+int32_t OCCTEdgeGetAdjacentFaces(OCCTShapeRef shape, OCCTEdgeRef edge, OCCTFaceRef* outFace1, OCCTFaceRef* outFace2) {
+    if (!shape || !edge || !outFace1 || !outFace2) return 0;
+    
+    *outFace1 = nullptr;
+    *outFace2 = nullptr;
+    
+    try {
+        // Build edge-to-face map
+        TopTools_IndexedDataMapOfShapeListOfShape edgeFaceMap;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_EDGE, TopAbs_FACE, edgeFaceMap);
+        
+        // Find faces for this edge
+        if (!edgeFaceMap.Contains(edge->edge)) {
+            return 0;
+        }
+        
+        const TopTools_ListOfShape& faces = edgeFaceMap.FindFromKey(edge->edge);
+        int32_t count = 0;
+        
+        TopTools_ListIteratorOfListOfShape it(faces);
+        for (; it.More() && count < 2; it.Next()) {
+            TopoDS_Face face = TopoDS::Face(it.Value());
+            if (count == 0) {
+                *outFace1 = new OCCTFace(face);
+            } else {
+                *outFace2 = new OCCTFace(face);
+            }
+            count++;
+        }
+        
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTEdgeConvexity OCCTEdgeGetConvexity(OCCTShapeRef shape, OCCTEdgeRef edge, OCCTFaceRef face1, OCCTFaceRef face2) {
+    if (!shape || !edge || !face1 || !face2) return OCCTEdgeConvexitySmooth;
+    
+    try {
+        // Get the edge curve and midpoint
+        BRepAdaptor_Curve edgeCurve(edge->edge);
+        double midParam = (edgeCurve.FirstParameter() + edgeCurve.LastParameter()) / 2.0;
+        gp_Pnt midPt = edgeCurve.Value(midParam);
+        
+        // Get surface adapters
+        BRepAdaptor_Surface surf1(face1->face);
+        BRepAdaptor_Surface surf2(face2->face);
+        
+        // Project point onto surfaces to get UV parameters
+        Standard_Real u1, v1, u2, v2;
+        
+        // Use edge parameters on face - find the PCurve
+        Standard_Real f, l;
+        Handle(Geom2d_Curve) pcurve1 = BRep_Tool::CurveOnSurface(edge->edge, face1->face, f, l);
+        Handle(Geom2d_Curve) pcurve2 = BRep_Tool::CurveOnSurface(edge->edge, face2->face, f, l);
+        
+        if (pcurve1.IsNull() || pcurve2.IsNull()) {
+            return OCCTEdgeConvexitySmooth;
+        }
+        
+        // Get UV at midpoint
+        gp_Pnt2d uv1 = pcurve1->Value(midParam);
+        gp_Pnt2d uv2 = pcurve2->Value(midParam);
+        
+        u1 = uv1.X(); v1 = uv1.Y();
+        u2 = uv2.X(); v2 = uv2.Y();
+        
+        // Get normals at those points
+        gp_Pnt p1, p2;
+        gp_Vec d1u, d1v, d2u, d2v;
+        surf1.D1(u1, v1, p1, d1u, d1v);
+        surf2.D1(u2, v2, p2, d2u, d2v);
+        
+        gp_Vec n1 = d1u.Crossed(d1v);
+        gp_Vec n2 = d2u.Crossed(d2v);
+        
+        if (n1.Magnitude() < 1e-10 || n2.Magnitude() < 1e-10) {
+            return OCCTEdgeConvexitySmooth;
+        }
+        
+        n1.Normalize();
+        n2.Normalize();
+        
+        // Account for face orientation
+        if (face1->face.Orientation() == TopAbs_REVERSED) {
+            n1.Reverse();
+        }
+        if (face2->face.Orientation() == TopAbs_REVERSED) {
+            n2.Reverse();
+        }
+        
+        // Get edge tangent at midpoint
+        gp_Vec tangent;
+        gp_Pnt unused;
+        edgeCurve.D1(midParam, unused, tangent);
+        
+        if (tangent.Magnitude() < 1e-10) {
+            return OCCTEdgeConvexitySmooth;
+        }
+        tangent.Normalize();
+        
+        // Determine convexity:
+        // Cross product of tangent with n1 gives direction "into" face1
+        // If n2 points in same direction as this cross product, edge is concave
+        gp_Vec intoFace1 = tangent.Crossed(n1);
+        
+        double dot = intoFace1.Dot(n2);
+        
+        // Threshold for smooth (nearly tangent)
+        const double smoothThreshold = 0.01;  // ~0.5 degrees
+        
+        if (std::abs(dot) < smoothThreshold) {
+            return OCCTEdgeConvexitySmooth;
+        } else if (dot > 0) {
+            return OCCTEdgeConvexityConcave;
+        } else {
+            return OCCTEdgeConvexityConvex;
+        }
+    } catch (...) {
+        return OCCTEdgeConvexitySmooth;
+    }
+}
+
+int32_t OCCTFaceGetSharedEdges(OCCTShapeRef shape, OCCTFaceRef face1, OCCTFaceRef face2, OCCTEdgeRef* outEdges, int32_t maxEdges) {
+    if (!shape || !face1 || !face2 || !outEdges || maxEdges <= 0) return 0;
+    
+    try {
+        // Get edges of both faces
+        TopTools_IndexedMapOfShape edges1, edges2;
+        TopExp::MapShapes(face1->face, TopAbs_EDGE, edges1);
+        TopExp::MapShapes(face2->face, TopAbs_EDGE, edges2);
+        
+        int32_t count = 0;
+        
+        // Find common edges
+        for (int i = 1; i <= edges1.Extent() && count < maxEdges; i++) {
+            const TopoDS_Edge& e1 = TopoDS::Edge(edges1(i));
+            
+            for (int j = 1; j <= edges2.Extent(); j++) {
+                const TopoDS_Edge& e2 = TopoDS::Edge(edges2(j));
+                
+                // Compare by IsEqual (same TShape)
+                if (e1.IsSame(e2)) {
+                    outEdges[count] = new OCCTEdge(e1);
+                    count++;
+                    break;
+                }
+            }
+        }
+        
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTFacesAreAdjacent(OCCTShapeRef shape, OCCTFaceRef face1, OCCTFaceRef face2) {
+    if (!shape || !face1 || !face2) return false;
+    
+    OCCTEdgeRef edges[1];
+    int32_t count = OCCTFaceGetSharedEdges(shape, face1, face2, edges, 1);
+    
+    if (count > 0) {
+        OCCTEdgeRelease(edges[0]);
+        return true;
+    }
+    return false;
+}
+
+double OCCTEdgeGetDihedralAngle(OCCTEdgeRef edge, OCCTFaceRef face1, OCCTFaceRef face2, double parameter) {
+    if (!edge || !face1 || !face2) return -1;
+    
+    try {
+        // Get edge curve
+        BRepAdaptor_Curve edgeCurve(edge->edge);
+        double first = edgeCurve.FirstParameter();
+        double last = edgeCurve.LastParameter();
+        double param = first + parameter * (last - first);
+        
+        // Get PCurves on each face
+        Standard_Real f, l;
+        Handle(Geom2d_Curve) pcurve1 = BRep_Tool::CurveOnSurface(edge->edge, face1->face, f, l);
+        Handle(Geom2d_Curve) pcurve2 = BRep_Tool::CurveOnSurface(edge->edge, face2->face, f, l);
+        
+        if (pcurve1.IsNull() || pcurve2.IsNull()) {
+            return -1;
+        }
+        
+        // Get UV at parameter
+        gp_Pnt2d uv1 = pcurve1->Value(param);
+        gp_Pnt2d uv2 = pcurve2->Value(param);
+        
+        // Get surface adapters and normals
+        BRepAdaptor_Surface surf1(face1->face);
+        BRepAdaptor_Surface surf2(face2->face);
+        
+        gp_Pnt p1, p2;
+        gp_Vec d1u, d1v, d2u, d2v;
+        surf1.D1(uv1.X(), uv1.Y(), p1, d1u, d1v);
+        surf2.D1(uv2.X(), uv2.Y(), p2, d2u, d2v);
+        
+        gp_Vec n1 = d1u.Crossed(d1v);
+        gp_Vec n2 = d2u.Crossed(d2v);
+        
+        if (n1.Magnitude() < 1e-10 || n2.Magnitude() < 1e-10) {
+            return -1;
+        }
+        
+        n1.Normalize();
+        n2.Normalize();
+        
+        // Account for face orientation
+        if (face1->face.Orientation() == TopAbs_REVERSED) {
+            n1.Reverse();
+        }
+        if (face2->face.Orientation() == TopAbs_REVERSED) {
+            n2.Reverse();
+        }
+        
+        // Angle between normals
+        double cosAngle = n1.Dot(n2);
+        cosAngle = std::max(-1.0, std::min(1.0, cosAngle));  // Clamp
+        
+        // The dihedral angle is PI - acos(dot) for interior angle
+        // Or we return the angle between normals directly
+        return std::acos(cosAngle);
+    } catch (...) {
+        return -1;
+    }
+}

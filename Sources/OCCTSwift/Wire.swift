@@ -21,7 +21,7 @@ import OCCTBridge
 ///     SIMD2(2.5, 1),
 ///     SIMD2(1.5, 7),
 ///     SIMD2(0, 7)
-/// ], closed: true)
+/// ])
 /// ```
 ///
 /// ## Creating 3D Paths
@@ -62,29 +62,31 @@ public final class Wire: @unchecked Sendable {
     /// - Parameters:
     ///   - width: Width of rectangle (X dimension)
     ///   - height: Height of rectangle (Y dimension)
-    /// - Returns: A closed rectangular wire
+    /// - Returns: A closed rectangular wire, or nil if creation fails
     ///
     /// The rectangle is centered at origin with corners at (±width/2, ±height/2).
-    public static func rectangle(width: Double, height: Double) -> Wire {
-        let handle = OCCTWireCreateRectangle(width, height)
-        return Wire(handle: handle!)
+    public static func rectangle(width: Double, height: Double) -> Wire? {
+        guard width > 0, height > 0 else { return nil }
+        guard let handle = OCCTWireCreateRectangle(width, height) else { return nil }
+        return Wire(handle: handle)
     }
 
     /// Create a circular profile centered at origin in XY plane.
     ///
     /// - Parameter radius: Radius of the circle
-    /// - Returns: A closed circular wire
-    public static func circle(radius: Double) -> Wire {
-        let handle = OCCTWireCreateCircle(radius)
-        return Wire(handle: handle!)
+    /// - Returns: A closed circular wire, or nil if creation fails
+    public static func circle(radius: Double) -> Wire? {
+        guard radius > 0 else { return nil }
+        guard let handle = OCCTWireCreateCircle(radius) else { return nil }
+        return Wire(handle: handle)
     }
 
     /// Create a polygon from 2D points in XY plane.
     ///
     /// - Parameters:
-    ///   - points: Array of 2D points defining vertices
+    ///   - points: Array of 2D points defining vertices (minimum 2 points required)
     ///   - closed: If true, connects last point to first
-    /// - Returns: A polygonal wire
+    /// - Returns: A polygonal wire, or nil if creation fails
     ///
     /// Points are connected in order. For a closed profile (suitable for
     /// extrusion), pass `closed: true`.
@@ -101,9 +103,15 @@ public final class Wire: @unchecked Sendable {
     ///     SIMD2(1.0, 7.0),   // Head right
     ///     SIMD2(0, 7.0),     // Head left
     ///     SIMD2(0, 0.8),     // Web left
-    /// ], closed: true)
+    /// ])
     /// ```
-    public static func polygon(_ points: [SIMD2<Double>], closed: Bool = true) -> Wire {
+    ///
+    /// - Note: Returns nil if fewer than 2 points are provided, or if the
+    ///   underlying OCCT operation fails (e.g., degenerate edges from
+    ///   duplicate or nearly-coincident points).
+    public static func polygon(_ points: [SIMD2<Double>], closed: Bool = true) -> Wire? {
+        guard points.count >= 2 else { return nil }
+
         // Flatten to array of doubles: [x1, y1, x2, y2, ...]
         var flatPoints: [Double] = []
         flatPoints.reserveCapacity(points.count * 2)
@@ -115,7 +123,8 @@ public final class Wire: @unchecked Sendable {
         let handle = flatPoints.withUnsafeBufferPointer { buffer in
             OCCTWireCreatePolygon(buffer.baseAddress, Int32(points.count), closed)
         }
-        return Wire(handle: handle!)
+        guard let handle = handle else { return nil }
+        return Wire(handle: handle)
     }
 
     // MARK: - 3D Paths (for Pipe Sweep)
@@ -125,13 +134,17 @@ public final class Wire: @unchecked Sendable {
     /// - Parameters:
     ///   - from: Start point
     ///   - to: End point
-    /// - Returns: A wire consisting of a single straight edge
-    public static func line(from start: SIMD3<Double>, to end: SIMD3<Double>) -> Wire {
-        let handle = OCCTWireCreateLine(
+    /// - Returns: A wire consisting of a single straight edge, or nil if creation fails
+    public static func line(from start: SIMD3<Double>, to end: SIMD3<Double>) -> Wire? {
+        // Check for degenerate edge (start == end)
+        let dist = simd_distance(start, end)
+        guard dist > 1e-10 else { return nil }
+
+        guard let handle = OCCTWireCreateLine(
             start.x, start.y, start.z,
             end.x, end.y, end.z
-        )
-        return Wire(handle: handle!)
+        ) else { return nil }
+        return Wire(handle: handle)
     }
 
     /// Create a circular arc in 3D space.
@@ -142,7 +155,7 @@ public final class Wire: @unchecked Sendable {
     ///   - startAngle: Starting angle in radians (0 = positive X direction)
     ///   - endAngle: Ending angle in radians
     ///   - normal: Normal vector defining the arc plane (default: Z-up)
-    /// - Returns: A wire consisting of a single arc edge
+    /// - Returns: A wire consisting of a single arc edge, or nil if creation fails
     ///
     /// The arc is created in a plane perpendicular to the normal vector.
     /// Angles are measured from the X-axis direction rotated into the plane.
@@ -164,25 +177,30 @@ public final class Wire: @unchecked Sendable {
         startAngle: Double,
         endAngle: Double,
         normal: SIMD3<Double> = SIMD3(0, 0, 1)
-    ) -> Wire {
-        let handle = OCCTWireCreateArc(
+    ) -> Wire? {
+        guard radius > 0 else { return nil }
+        guard abs(endAngle - startAngle) > 1e-10 else { return nil }
+
+        guard let handle = OCCTWireCreateArc(
             center.x, center.y, center.z,
             radius,
             startAngle, endAngle,
             normal.x, normal.y, normal.z
-        )
-        return Wire(handle: handle!)
+        ) else { return nil }
+        return Wire(handle: handle)
     }
 
     /// Create a 3D path from points in 3D space.
     ///
     /// - Parameters:
-    ///   - points: Array of 3D points
+    ///   - points: Array of 3D points (minimum 2 points required)
     ///   - closed: If true, connects last point to first
-    /// - Returns: A wire with straight edges between points
+    /// - Returns: A wire with straight edges between points, or nil if creation fails
     ///
     /// For a smooth path, use `bspline(_:)` instead.
-    public static func path(_ points: [SIMD3<Double>], closed: Bool = false) -> Wire {
+    public static func path(_ points: [SIMD3<Double>], closed: Bool = false) -> Wire? {
+        guard points.count >= 2 else { return nil }
+
         var flatPoints: [Double] = []
         flatPoints.reserveCapacity(points.count * 3)
         for point in points {
@@ -194,13 +212,14 @@ public final class Wire: @unchecked Sendable {
         let handle = flatPoints.withUnsafeBufferPointer { buffer in
             OCCTWireCreateFromPoints3D(buffer.baseAddress, Int32(points.count), closed)
         }
-        return Wire(handle: handle!)
+        guard let handle = handle else { return nil }
+        return Wire(handle: handle)
     }
 
     /// Create a smooth B-spline curve through control points.
     ///
-    /// - Parameter controlPoints: Array of 3D control points
-    /// - Returns: A smooth curve wire
+    /// - Parameter controlPoints: Array of 3D control points (minimum 2 points required)
+    /// - Returns: A smooth curve wire, or nil if creation fails
     ///
     /// The curve will pass near (but not necessarily through) the control points.
     /// For a curve that passes exactly through points, more sophisticated
@@ -217,7 +236,9 @@ public final class Wire: @unchecked Sendable {
     ///     SIMD3(180, 50, 0)    // Continues curving
     /// ])
     /// ```
-    public static func bspline(_ controlPoints: [SIMD3<Double>]) -> Wire {
+    public static func bspline(_ controlPoints: [SIMD3<Double>]) -> Wire? {
+        guard controlPoints.count >= 2 else { return nil }
+
         var flatPoints: [Double] = []
         flatPoints.reserveCapacity(controlPoints.count * 3)
         for point in controlPoints {
@@ -229,7 +250,8 @@ public final class Wire: @unchecked Sendable {
         let handle = flatPoints.withUnsafeBufferPointer { buffer in
             OCCTWireCreateBSpline(buffer.baseAddress, Int32(controlPoints.count))
         }
-        return Wire(handle: handle!)
+        guard let handle = handle else { return nil }
+        return Wire(handle: handle)
     }
 
     // MARK: - NURBS Curves
@@ -448,8 +470,8 @@ public final class Wire: @unchecked Sendable {
 
     /// Join multiple wires into a single connected wire.
     ///
-    /// - Parameter wires: Array of wires to join
-    /// - Returns: A single wire containing all edges
+    /// - Parameter wires: Array of wires to join (minimum 1 wire required)
+    /// - Returns: A single wire containing all edges, or nil if joining fails
     ///
     /// Wires should be geometrically connected (end of one near start of next).
     /// OCCT will attempt to connect them within tolerance.
@@ -463,12 +485,15 @@ public final class Wire: @unchecked Sendable {
     ///
     /// let fullPath = Wire.join([straight1, curve, straight2])
     /// ```
-    public static func join(_ wires: [Wire]) -> Wire {
+    public static func join(_ wires: [Wire]) -> Wire? {
+        guard !wires.isEmpty else { return nil }
+
         let handles: [OCCTWireRef?] = wires.map { $0.handle }
         let handle = handles.withUnsafeBufferPointer { buffer in
             OCCTWireJoin(buffer.baseAddress, Int32(wires.count))
         }
-        return Wire(handle: handle!)
+        guard let handle = handle else { return nil }
+        return Wire(handle: handle)
     }
 }
 
@@ -501,12 +526,12 @@ extension Wire {
     /// let toolRadius = 3.0
     ///
     /// // Offset outward for clearing around the model
-    /// if let toolPath = modelContour.offset(by: toolRadius) {
+    /// if let toolPath = modelContour?.offset(by: toolRadius) {
     ///     // toolPath is where the tool center should travel
     /// }
     ///
     /// // Offset inward for pocketing
-    /// if let pocketPath = modelContour.offset(by: -toolRadius) {
+    /// if let pocketPath = modelContour?.offset(by: -toolRadius) {
     ///     // pocketPath keeps the tool inside the pocket boundary
     /// }
     /// ```
@@ -534,7 +559,7 @@ extension Wire {
     ///   - baseWidth: Width of rail base (foot)
     ///   - baseHeight: Height of rail base
     ///   - totalHeight: Total height from base to head top
-    /// - Returns: A closed wire representing the rail cross-section
+    /// - Returns: A closed wire representing the rail cross-section, or nil if creation fails
     ///
     /// Creates a simplified rail profile suitable for model railway use.
     /// For more accurate profiles, use `polygon(_:closed:)` with exact dimensions.
@@ -545,7 +570,7 @@ extension Wire {
         baseWidth: Double,
         baseHeight: Double,
         totalHeight: Double
-    ) -> Wire {
+    ) -> Wire? {
         let webHeight = totalHeight - headHeight - baseHeight
 
         // Build profile from bottom-left, clockwise

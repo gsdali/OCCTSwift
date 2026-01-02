@@ -1,5 +1,73 @@
 # OCCTSwift Changelog
 
+## [v0.5.0] - 2026-01-02
+
+### Added
+
+#### AAG-Based Feature Recognition
+- **`AttributeAdjacencyGraph`** - Build face adjacency graph for B-Rep feature detection
+  - Analyzes edge convexity between adjacent faces
+  - Supports pocket, boss, and through-hole detection
+  - Uses concave edge connectivity for robust feature isolation
+
+- **`Shape.pocketFaces()`** - Detect pocket floor faces using AAG analysis
+  - Finds upward-facing planar faces bounded by concave edges
+  - More reliable than simple Z-slicing for complex geometry
+  - Returns array of `Face` objects for toolpath generation
+
+- **`Mesh.toMeshResource()`** - Convert to RealityKit `MeshResource` (iOS/macOS)
+- **`Mesh.toModelComponent()`** - Convert to RealityKit `ModelComponent`
+
+**C Bridge Functions:**
+```c
+OCCTAAGRef OCCTShapeCreateAAG(OCCTShapeRef shape);
+OCCTFaceRef* OCCTAAGGetPocketFaces(OCCTAAGRef aag, int32_t* outCount);
+void OCCTAAGRelease(OCCTAAGRef aag);
+```
+
+### Changed
+
+#### Wire Factory Methods Now Return Optionals (Breaking Change)
+
+All Wire factory methods now return `Wire?` instead of `Wire`, allowing graceful handling of invalid inputs:
+
+| Method | Returns nil when |
+|--------|-----------------|
+| `rectangle(width:height:)` | width or height ≤ 0 |
+| `circle(radius:)` | radius ≤ 0 |
+| `polygon(_:closed:)` | fewer than 2 points |
+| `line(from:to:)` | start equals end |
+| `arc(center:radius:...)` | radius ≤ 0 |
+| `path(from:to:bulge:)` | invalid geometry |
+| `join(_:)` | empty array or OCCT failure |
+| `bspline(controlPoints:)` | too few control points |
+| `nurbs(...)` | invalid parameters |
+
+**Migration:**
+```swift
+// Before (v0.4.0)
+let rect = Wire.rectangle(width: 10, height: 5)
+let solid = Shape.extrude(profile: rect, direction: [0,0,1], length: 10)
+
+// After (v0.5.0)
+guard let rect = Wire.rectangle(width: 10, height: 5) else {
+    // Handle invalid dimensions
+    return
+}
+let solid = Shape.extrude(profile: rect, direction: [0,0,1], length: 10)
+```
+
+### Fixed
+- **Wire.polygon crash on complex geometry** - Now returns nil instead of crashing when OCCT's `BRepBuilderAPI_MakePolygon` fails (#18)
+
+### Tests Added
+- `polygonTooFewPoints` - Verify nil return for insufficient points
+- `lineDegenerate` - Verify nil return for zero-length line
+- `arcZeroRadius` - Verify nil return for invalid arc
+- `rectangleZeroDimension` - Verify nil return for zero-size rectangle
+
+---
+
 ## [v0.4.0] - 2025-12-31
 
 **Major upgrade to OCCT 8.0.0-rc3**
@@ -244,3 +312,4 @@ let quarterCircle = Wire.nurbs(
 - Mesh generation with triangulation
 - STL and STEP export/import
 - Shape validation and healing
+

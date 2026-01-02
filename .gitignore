@@ -37,3 +37,7 @@ Carthage/Build/
 .DS_Store
 *.swp
 *~
+
+# Local development artifacts
+Libraries/
+OCCT.xcframework.zip
