@@ -74,8 +74,7 @@ struct WireTests {
     @Test("Create rectangle wire")
     func createRectangle() {
         let rect = Wire.rectangle(width: 10, height: 5)
-        // Wire doesn't have isValid, but it should create successfully
-        _ = rect  // Ensure it compiles
+        #expect(rect != nil)
     }
 
     @Test("Create polygon wire")
@@ -86,7 +85,7 @@ struct WireTests {
             SIMD2(10, 5),
             SIMD2(0, 5)
         ], closed: true)
-        _ = polygon
+        #expect(polygon != nil)
     }
 
     @Test("Create arc wire")
@@ -97,7 +96,7 @@ struct WireTests {
             startAngle: 0,
             endAngle: .pi / 2
         )
-        _ = arc
+        #expect(arc != nil)
     }
 
     @Test("Create line wire")
@@ -106,7 +105,7 @@ struct WireTests {
             from: SIMD3(0, 0, 0),
             to: SIMD3(100, 0, 0)
         )
-        _ = line
+        #expect(line != nil)
     }
 
     @Test("Create cubic B-spline")
@@ -182,7 +181,10 @@ struct WireTests {
 
     @Test("Sweep profile along NURBS path")
     func sweepAlongNURBS() {
-        let profile = Wire.circle(radius: 1)
+        guard let profile = Wire.circle(radius: 1) else {
+            Issue.record("Failed to create circle profile")
+            return
+        }
         let pathPoles = [
             SIMD3<Double>(0, 0, 0),
             SIMD3<Double>(20, 0, 0),
@@ -196,6 +198,30 @@ struct WireTests {
         }
         let swept = Shape.sweep(profile: profile, along: path)
         #expect(swept.isValid)
+    }
+
+    @Test("Polygon with too few points returns nil")
+    func polygonTooFewPoints() {
+        let polygon = Wire.polygon([SIMD2(0, 0)], closed: true)
+        #expect(polygon == nil)
+    }
+
+    @Test("Line with same start and end returns nil")
+    func lineDegenerate() {
+        let line = Wire.line(from: .zero, to: .zero)
+        #expect(line == nil)
+    }
+
+    @Test("Arc with zero radius returns nil")
+    func arcZeroRadius() {
+        let arc = Wire.arc(center: .zero, radius: 0, startAngle: 0, endAngle: .pi)
+        #expect(arc == nil)
+    }
+
+    @Test("Rectangle with zero dimension returns nil")
+    func rectangleZeroDimension() {
+        let rect = Wire.rectangle(width: 0, height: 5)
+        #expect(rect == nil)
     }
 }
 
@@ -241,7 +267,7 @@ struct MeshTests {
     }
 
     @Test("Triangles with face info")
-    func trianglesWithFaceInfo() {
+    func trianglesWithFaces() {
         let box = Shape.box(width: 10, height: 10, depth: 10)
         let mesh = box.mesh(linearDeflection: 0.1)
 
@@ -363,7 +389,10 @@ struct SweepTests {
 
     @Test("Extrude profile")
     func extrudeProfile() {
-        let profile = Wire.rectangle(width: 5, height: 3)
+        guard let profile = Wire.rectangle(width: 5, height: 3) else {
+            Issue.record("Failed to create rectangle profile")
+            return
+        }
         let solid = Shape.extrude(
             profile: profile,
             direction: SIMD3(0, 0, 1),
@@ -374,13 +403,19 @@ struct SweepTests {
 
     @Test("Pipe sweep")
     func pipeSweep() {
-        let profile = Wire.circle(radius: 1)
-        let path = Wire.arc(
+        guard let profile = Wire.circle(radius: 1) else {
+            Issue.record("Failed to create circle profile")
+            return
+        }
+        guard let path = Wire.arc(
             center: .zero,
             radius: 50,
             startAngle: 0,
             endAngle: .pi / 2
-        )
+        ) else {
+            Issue.record("Failed to create arc path")
+            return
+        }
         let pipe = Shape.sweep(profile: profile, along: path)
         #expect(pipe.isValid)
     }
@@ -388,12 +423,15 @@ struct SweepTests {
     @Test("Revolution")
     func revolution() {
         // Create a simple profile to revolve
-        let profile = Wire.polygon([
+        guard let profile = Wire.polygon([
             SIMD2(5, 0),
             SIMD2(7, 0),
             SIMD2(7, 10),
             SIMD2(5, 10)
-        ], closed: true)
+        ], closed: true) else {
+            Issue.record("Failed to create polygon profile")
+            return
+        }
 
         let solid = Shape.revolve(
             profile: profile,
