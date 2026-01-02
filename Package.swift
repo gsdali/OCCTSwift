@@ -49,7 +49,7 @@ let package = Package(
         // OCCT binary framework (remote for SPM consumers)
         .binaryTarget(
             name: "OCCT",
-            url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.4.0/OCCT.xcframework.zip",
+            url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.5.0/OCCT.xcframework.zip",
             checksum: "4f42d7854452946fb8e5141e654c84c2f3bdfcfebff703c143c7961ec340b7f7"
         ),
 
