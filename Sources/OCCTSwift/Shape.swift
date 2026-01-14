@@ -625,3 +625,186 @@ extension Shape {
         lhs.intersection(with: rhs)
     }
 }
+
+// MARK: - Measurement & Analysis (v0.7.0)
+
+/// Mass and geometric properties of a shape
+public struct ShapeProperties: Sendable, Equatable {
+    /// Volume in cubic units
+    public var volume: Double
+
+    /// Surface area in square units
+    public var surfaceArea: Double
+
+    /// Mass (volume × density)
+    public var mass: Double
+
+    /// Center of mass location
+    public var centerOfMass: SIMD3<Double>
+
+    /// Moment of inertia tensor (3x3 matrix)
+    public var momentOfInertia: simd_double3x3
+
+    public init(
+        volume: Double,
+        surfaceArea: Double,
+        mass: Double,
+        centerOfMass: SIMD3<Double>,
+        momentOfInertia: simd_double3x3
+    ) {
+        self.volume = volume
+        self.surfaceArea = surfaceArea
+        self.mass = mass
+        self.centerOfMass = centerOfMass
+        self.momentOfInertia = momentOfInertia
+    }
+}
+
+/// Result of distance measurement between two shapes
+public struct DistanceResult: Sendable, Equatable {
+    /// Minimum distance between the shapes
+    public var distance: Double
+
+    /// Closest point on the first shape
+    public var pointOnShape1: SIMD3<Double>
+
+    /// Closest point on the second shape
+    public var pointOnShape2: SIMD3<Double>
+
+    /// Number of solutions found (may be > 1 for symmetric cases)
+    public var solutionCount: Int
+
+    public init(
+        distance: Double,
+        pointOnShape1: SIMD3<Double>,
+        pointOnShape2: SIMD3<Double>,
+        solutionCount: Int
+    ) {
+        self.distance = distance
+        self.pointOnShape1 = pointOnShape1
+        self.pointOnShape2 = pointOnShape2
+        self.solutionCount = solutionCount
+    }
+}
+
+// MARK: - Shape Measurement Extensions
+
+extension Shape {
+
+    /// Get full mass properties of the shape
+    ///
+    /// - Parameter density: Material density for mass calculation (default 1.0)
+    /// - Returns: Properties including volume, surface area, center of mass, and inertia tensor,
+    ///            or nil if calculation fails
+    public func properties(density: Double = 1.0) -> ShapeProperties? {
+        let result = OCCTShapeGetProperties(handle, density)
+        guard result.isValid else { return nil }
+
+        let inertia = simd_double3x3(
+            SIMD3<Double>(result.ixx, result.iyx, result.izx),
+            SIMD3<Double>(result.ixy, result.iyy, result.izy),
+            SIMD3<Double>(result.ixz, result.iyz, result.izz)
+        )
+
+        return ShapeProperties(
+            volume: result.volume,
+            surfaceArea: result.surfaceArea,
+            mass: result.mass,
+            centerOfMass: SIMD3<Double>(result.centerX, result.centerY, result.centerZ),
+            momentOfInertia: inertia
+        )
+    }
+
+    /// Volume of the shape in cubic units
+    public var volume: Double? {
+        let v = OCCTShapeGetVolume(handle)
+        return v >= 0 ? v : nil
+    }
+
+    /// Surface area of the shape in square units
+    public var surfaceArea: Double? {
+        let a = OCCTShapeGetSurfaceArea(handle)
+        return a >= 0 ? a : nil
+    }
+
+    /// Center of mass (centroid) of the shape
+    public var centerOfMass: SIMD3<Double>? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTShapeGetCenterOfMass(handle, &x, &y, &z) else { return nil }
+        return SIMD3<Double>(x, y, z)
+    }
+
+    /// Compute minimum distance between this shape and another
+    ///
+    /// - Parameters:
+    ///   - other: The other shape to measure distance to
+    ///   - deflection: Tolerance for curved geometry (default 1e-6)
+    /// - Returns: Distance result with closest points, or nil if calculation fails
+    public func distance(to other: Shape, deflection: Double = 1e-6) -> DistanceResult? {
+        let result = OCCTShapeDistance(handle, other.handle, deflection)
+        guard result.isValid else { return nil }
+
+        return DistanceResult(
+            distance: result.distance,
+            pointOnShape1: SIMD3<Double>(result.p1x, result.p1y, result.p1z),
+            pointOnShape2: SIMD3<Double>(result.p2x, result.p2y, result.p2z),
+            solutionCount: Int(result.solutionCount)
+        )
+    }
+
+    /// Get minimum distance between this shape and another
+    ///
+    /// - Parameter other: The other shape
+    /// - Returns: Minimum distance, or nil if calculation fails
+    public func minDistance(to other: Shape) -> Double? {
+        distance(to: other)?.distance
+    }
+
+    /// Check if this shape intersects (overlaps or touches) another shape
+    ///
+    /// - Parameters:
+    ///   - other: The other shape to test
+    ///   - tolerance: Distance threshold for intersection (default 1e-6)
+    /// - Returns: true if shapes intersect or touch within tolerance
+    public func intersects(_ other: Shape, tolerance: Double = 1e-6) -> Bool {
+        OCCTShapeIntersects(handle, other.handle, tolerance)
+    }
+
+    /// Number of vertices (corners) in the shape
+    public var vertexCount: Int {
+        Int(OCCTShapeGetVertexCount(handle))
+    }
+
+    /// Get all vertices (corner points) of the shape
+    ///
+    /// - Returns: Array of vertex positions
+    public func vertices() -> [SIMD3<Double>] {
+        let count = OCCTShapeGetVertexCount(handle)
+        guard count > 0 else { return [] }
+
+        var coords = [Double](repeating: 0, count: Int(count) * 3)
+        let written = OCCTShapeGetVertices(handle, &coords)
+
+        var result: [SIMD3<Double>] = []
+        result.reserveCapacity(Int(written))
+
+        for i in 0..<Int(written) {
+            result.append(SIMD3<Double>(
+                coords[i * 3],
+                coords[i * 3 + 1],
+                coords[i * 3 + 2]
+            ))
+        }
+        return result
+    }
+
+    /// Get vertex at specific index
+    ///
+    /// - Parameter index: Zero-based vertex index
+    /// - Returns: Vertex position, or nil if index out of bounds
+    public func vertex(at index: Int) -> SIMD3<Double>? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTShapeGetVertexAt(handle, Int32(index), &x, &y, &z) else { return nil }
+        return SIMD3<Double>(x, y, z)
+    }
+}

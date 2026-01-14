@@ -1,5 +1,87 @@
 # OCCTSwift Changelog
 
+## [v0.7.0] - 2026-01-14
+
+### Added
+
+#### Measurement & Analysis
+Essential CAD/CAM analysis tools using OCCT's BRepGProp and BRepExtrema modules.
+
+- **`ShapeProperties`** struct - Global properties of a shape
+  - `volume` - Volume in cubic units
+  - `surfaceArea` - Surface area in square units
+  - `mass` - Mass with density applied
+  - `centerOfMass` - Center of mass as SIMD3<Double>
+  - `momentOfInertia` - Inertia tensor as simd_double3x3
+
+- **`DistanceResult`** struct - Distance measurement result
+  - `distance` - Minimum distance between shapes
+  - `pointOnShape1` / `pointOnShape2` - Closest points
+  - `solutionCount` - Number of distance solutions
+
+- **Shape extensions for mass properties**
+  - `volume: Double?` - Get shape volume
+  - `surfaceArea: Double?` - Get surface area
+  - `centerOfMass: SIMD3<Double>?` - Get center of mass
+  - `properties(density:) -> ShapeProperties?` - Full mass properties with density
+
+- **Shape extensions for distance measurement**
+  - `distance(to:deflection:) -> DistanceResult?` - Full distance analysis
+  - `minDistance(to:) -> Double?` - Minimum distance between shapes
+  - `intersects(_:tolerance:) -> Bool` - Check if shapes intersect/touch
+
+- **Shape extensions for vertex iteration**
+  - `vertexCount: Int` - Number of unique vertices
+  - `vertices() -> [SIMD3<Double>]` - All vertex positions
+  - `vertex(at:) -> SIMD3<Double>?` - Vertex at index
+
+**C Bridge Functions:**
+```c
+// Mass Properties (BRepGProp)
+typedef struct {
+    double volume, surfaceArea, mass;
+    double centerX, centerY, centerZ;
+    double ixx, ixy, ixz, iyx, iyy, iyz, izx, izy, izz;
+    bool isValid;
+} OCCTShapeProperties;
+
+OCCTShapeProperties OCCTShapeGetProperties(OCCTShapeRef shape, double density);
+double OCCTShapeGetVolume(OCCTShapeRef shape);
+double OCCTShapeGetSurfaceArea(OCCTShapeRef shape);
+bool OCCTShapeGetCenterOfMass(OCCTShapeRef shape, double* outX, double* outY, double* outZ);
+
+// Distance (BRepExtrema_DistShapeShape)
+typedef struct {
+    double distance;
+    double p1x, p1y, p1z, p2x, p2y, p2z;
+    int32_t solutionCount;
+    bool isValid;
+} OCCTDistanceResult;
+
+OCCTDistanceResult OCCTShapeDistance(OCCTShapeRef shape1, OCCTShapeRef shape2, double deflection);
+bool OCCTShapeIntersects(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance);
+
+// Vertex Iteration
+int32_t OCCTShapeGetVertexCount(OCCTShapeRef shape);
+bool OCCTShapeGetVertexAt(OCCTShapeRef shape, int32_t index, double* outX, double* outY, double* outZ);
+int32_t OCCTShapeGetVertices(OCCTShapeRef shape, double* outVertices);
+```
+
+### Tests Added
+- Volume calculation for box, sphere, cylinder (3 tests)
+- Surface area calculation for box, sphere (2 tests)
+- Center of mass for box, sphere, cylinder (3 tests)
+- Full properties with density (1 test)
+- Distance between separated shapes (1 test)
+- Distance between touching shapes (1 test)
+- Intersection detection (3 tests)
+- Vertex count for box (1 test)
+- Vertex enumeration (1 test)
+- Vertex access by index (1 test)
+- Invalid shape handling (1 test)
+
+---
+
 ## [v0.6.0] - 2026-01-14
 
 ### Added

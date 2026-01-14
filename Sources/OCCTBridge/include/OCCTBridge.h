@@ -68,6 +68,81 @@ OCCTShapeRef OCCTShapeCreateCompound(const OCCTShapeRef* shapes, int32_t count);
 bool OCCTShapeIsValid(OCCTShapeRef shape);
 OCCTShapeRef OCCTShapeHeal(OCCTShapeRef shape);
 
+// MARK: - Measurement & Analysis (v0.7.0)
+
+/// Mass properties result structure
+typedef struct {
+    double volume;           // Cubic units
+    double surfaceArea;      // Square units
+    double mass;             // With density applied
+    double centerX, centerY, centerZ;  // Center of mass
+    double ixx, ixy, ixz;    // Inertia tensor row 1
+    double iyx, iyy, iyz;    // Inertia tensor row 2
+    double izx, izy, izz;    // Inertia tensor row 3
+    bool isValid;
+} OCCTShapeProperties;
+
+/// Get full mass properties of a shape
+/// @param shape The shape to analyze
+/// @param density Density for mass calculation (use 1.0 for volume-only calculations)
+/// @return Properties structure with isValid indicating success
+OCCTShapeProperties OCCTShapeGetProperties(OCCTShapeRef shape, double density);
+
+/// Get volume of a shape (convenience function)
+/// @param shape The shape to measure
+/// @return Volume in cubic units, or -1.0 on error
+double OCCTShapeGetVolume(OCCTShapeRef shape);
+
+/// Get surface area of a shape (convenience function)
+/// @param shape The shape to measure
+/// @return Surface area in square units, or -1.0 on error
+double OCCTShapeGetSurfaceArea(OCCTShapeRef shape);
+
+/// Get center of mass of a shape (convenience function)
+/// @param shape The shape to analyze
+/// @param outX, outY, outZ Output: center of mass coordinates
+/// @return true on success, false on error
+bool OCCTShapeGetCenterOfMass(OCCTShapeRef shape, double* outX, double* outY, double* outZ);
+
+/// Distance measurement result structure
+typedef struct {
+    double distance;         // Minimum distance between shapes
+    double p1x, p1y, p1z;    // Closest point on shape1
+    double p2x, p2y, p2z;    // Closest point on shape2
+    int32_t solutionCount;   // Number of solutions found
+    bool isValid;
+} OCCTDistanceResult;
+
+/// Compute minimum distance between two shapes
+/// @param shape1 First shape
+/// @param shape2 Second shape
+/// @param deflection Deflection tolerance for curved geometry (use 1e-6 for default)
+/// @return Distance result with isValid indicating success
+OCCTDistanceResult OCCTShapeDistance(OCCTShapeRef shape1, OCCTShapeRef shape2, double deflection);
+
+/// Check if two shapes intersect (overlap in space)
+/// @param shape1 First shape
+/// @param shape2 Second shape
+/// @param tolerance Tolerance for intersection test
+/// @return true if shapes intersect or touch, false otherwise
+bool OCCTShapeIntersects(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance);
+
+/// Get total number of vertices in a shape
+int32_t OCCTShapeGetVertexCount(OCCTShapeRef shape);
+
+/// Get vertex coordinates at index
+/// @param shape The shape containing vertices
+/// @param index Vertex index (0-based)
+/// @param outX, outY, outZ Output: vertex coordinates
+/// @return true on success, false if index out of bounds
+bool OCCTShapeGetVertexAt(OCCTShapeRef shape, int32_t index, double* outX, double* outY, double* outZ);
+
+/// Get all vertices as an array
+/// @param shape The shape containing vertices
+/// @param outVertices Output array for vertices [x,y,z,...] (caller allocates vertexCount*3 doubles)
+/// @return Number of vertices written
+int32_t OCCTShapeGetVertices(OCCTShapeRef shape, double* outVertices);
+
 // MARK: - Meshing
 
 OCCTMeshRef OCCTShapeCreateMesh(OCCTShapeRef shape, double linearDeflection, double angularDeflection);

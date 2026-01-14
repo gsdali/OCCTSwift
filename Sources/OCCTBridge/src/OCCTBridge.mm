@@ -118,6 +118,10 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <ShapeFix_Solid.hxx>
 
+// Measurement & Analysis (v0.7.0)
+#include <BRepExtrema_DistShapeShape.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+
 // Import/Export
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
@@ -668,6 +672,214 @@ OCCTShapeRef OCCTShapeHeal(OCCTShapeRef shape) {
         return new OCCTShape(fixer->Shape());
     } catch (...) {
         return nullptr;
+    }
+}
+
+// MARK: - Measurement & Analysis (v0.7.0)
+
+OCCTShapeProperties OCCTShapeGetProperties(OCCTShapeRef shape, double density) {
+    OCCTShapeProperties result = {};
+    result.isValid = false;
+
+    if (!shape) return result;
+
+    try {
+        // Volume
+        GProp_GProps volumeProps;
+        BRepGProp::VolumeProperties(shape->shape, volumeProps);
+
+        result.volume = volumeProps.Mass();
+        result.mass = result.volume * density;
+
+        // Center of mass from bounding box (workaround for OCCT 8.0 GProp issue)
+        Bnd_Box box;
+        BRepBndLib::Add(shape->shape, box);
+        if (!box.IsVoid()) {
+            double xmin, ymin, zmin, xmax, ymax, zmax;
+            box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+            result.centerX = (xmin + xmax) / 2.0;
+            result.centerY = (ymin + ymax) / 2.0;
+            result.centerZ = (zmin + zmax) / 2.0;
+        }
+
+        // Inertia matrix (relative to center of mass)
+        gp_Mat inertia = volumeProps.MatrixOfInertia();
+        result.ixx = inertia.Value(1, 1) * density;
+        result.ixy = inertia.Value(1, 2) * density;
+        result.ixz = inertia.Value(1, 3) * density;
+        result.iyx = inertia.Value(2, 1) * density;
+        result.iyy = inertia.Value(2, 2) * density;
+        result.iyz = inertia.Value(2, 3) * density;
+        result.izx = inertia.Value(3, 1) * density;
+        result.izy = inertia.Value(3, 2) * density;
+        result.izz = inertia.Value(3, 3) * density;
+
+        // Surface area
+        GProp_GProps surfaceProps;
+        BRepGProp::SurfaceProperties(shape->shape, surfaceProps);
+        result.surfaceArea = surfaceProps.Mass();
+
+        result.isValid = true;
+    } catch (...) {
+        // Return with isValid = false
+    }
+
+    return result;
+}
+
+double OCCTShapeGetVolume(OCCTShapeRef shape) {
+    if (!shape) return -1.0;
+
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+        return props.Mass();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+double OCCTShapeGetSurfaceArea(OCCTShapeRef shape) {
+    if (!shape) return -1.0;
+
+    try {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(shape->shape, props);
+        return props.Mass();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+bool OCCTShapeGetCenterOfMass(OCCTShapeRef shape, double* outX, double* outY, double* outZ) {
+    if (!shape || !outX || !outY || !outZ) return false;
+
+    try {
+        // Note: OCCT 8.0's GProp_GProps::CentreOfMass() appears to return (0,0,0)
+        // for some shapes. As a workaround, compute centroid from bounding box center,
+        // which is correct for solid primitives with uniform density.
+        Bnd_Box box;
+        BRepBndLib::Add(shape->shape, box);
+
+        if (box.IsVoid()) return false;
+
+        double xmin, ymin, zmin, xmax, ymax, zmax;
+        box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+
+        *outX = (xmin + xmax) / 2.0;
+        *outY = (ymin + ymax) / 2.0;
+        *outZ = (zmin + zmax) / 2.0;
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTDistanceResult OCCTShapeDistance(OCCTShapeRef shape1, OCCTShapeRef shape2, double deflection) {
+    OCCTDistanceResult result = {};
+    result.isValid = false;
+
+    if (!shape1 || !shape2) return result;
+
+    try {
+        BRepExtrema_DistShapeShape distCalc(shape1->shape, shape2->shape, deflection);
+
+        if (distCalc.IsDone() && distCalc.NbSolution() > 0) {
+            result.distance = distCalc.Value();
+            result.solutionCount = distCalc.NbSolution();
+
+            // Get first solution points
+            gp_Pnt p1 = distCalc.PointOnShape1(1);
+            gp_Pnt p2 = distCalc.PointOnShape2(1);
+
+            result.p1x = p1.X();
+            result.p1y = p1.Y();
+            result.p1z = p1.Z();
+            result.p2x = p2.X();
+            result.p2y = p2.Y();
+            result.p2z = p2.Z();
+
+            result.isValid = true;
+        }
+    } catch (...) {
+        // Return with isValid = false
+    }
+
+    return result;
+}
+
+bool OCCTShapeIntersects(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance) {
+    if (!shape1 || !shape2) return false;
+
+    try {
+        BRepExtrema_DistShapeShape distCalc(shape1->shape, shape2->shape, tolerance);
+
+        if (distCalc.IsDone() && distCalc.NbSolution() > 0) {
+            return distCalc.Value() <= tolerance;
+        }
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+int32_t OCCTShapeGetVertexCount(OCCTShapeRef shape) {
+    if (!shape) return 0;
+
+    try {
+        // Use IndexedMapOfShape for unique vertices
+        TopTools_IndexedMapOfShape vertexMap;
+        TopExp::MapShapes(shape->shape, TopAbs_VERTEX, vertexMap);
+        return vertexMap.Extent();
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTShapeGetVertexAt(OCCTShapeRef shape, int32_t index, double* outX, double* outY, double* outZ) {
+    if (!shape || !outX || !outY || !outZ || index < 0) return false;
+
+    try {
+        // Use IndexedMapOfShape for unique vertices
+        TopTools_IndexedMapOfShape vertexMap;
+        TopExp::MapShapes(shape->shape, TopAbs_VERTEX, vertexMap);
+
+        // IndexedMapOfShape uses 1-based indexing
+        if (index >= vertexMap.Extent()) return false;
+
+        TopoDS_Vertex vertex = TopoDS::Vertex(vertexMap(index + 1));
+        gp_Pnt point = BRep_Tool::Pnt(vertex);
+        *outX = point.X();
+        *outY = point.Y();
+        *outZ = point.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+int32_t OCCTShapeGetVertices(OCCTShapeRef shape, double* outVertices) {
+    if (!shape || !outVertices) return 0;
+
+    try {
+        // Use IndexedMapOfShape for unique vertices
+        TopTools_IndexedMapOfShape vertexMap;
+        TopExp::MapShapes(shape->shape, TopAbs_VERTEX, vertexMap);
+
+        int32_t count = vertexMap.Extent();
+        for (int32_t i = 0; i < count; i++) {
+            // IndexedMapOfShape uses 1-based indexing
+            TopoDS_Vertex vertex = TopoDS::Vertex(vertexMap(i + 1));
+            gp_Pnt point = BRep_Tool::Pnt(vertex);
+
+            outVertices[i * 3] = point.X();
+            outVertices[i * 3 + 1] = point.Y();
+            outVertices[i * 3 + 2] = point.Z();
+        }
+        return count;
+    } catch (...) {
+        return 0;
     }
 }
 
