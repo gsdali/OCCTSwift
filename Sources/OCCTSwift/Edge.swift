@@ -5,9 +5,13 @@ import OCCTBridge
 /// An edge from a 3D solid shape - represents a curve between vertices
 public final class Edge: @unchecked Sendable {
     internal let handle: OCCTEdgeRef
-    
-    internal init(handle: OCCTEdgeRef) {
+
+    /// Index of this edge within the parent shape (-1 if standalone)
+    public let index: Int
+
+    internal init(handle: OCCTEdgeRef, index: Int = -1) {
         self.handle = handle
+        self.index = index
     }
     
     deinit {
@@ -90,7 +94,7 @@ extension Shape {
         guard let edgeHandle = OCCTShapeGetEdgeAtIndex(handle, Int32(index)) else {
             return nil
         }
-        return Edge(handle: edgeHandle)
+        return Edge(handle: edgeHandle, index: index)
     }
     
     /// Get all edges from the shape

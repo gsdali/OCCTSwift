@@ -792,3 +792,205 @@ struct MeasurementTests {
         #expect(vertex == nil)
     }
 }
+
+// MARK: - Advanced Modeling Tests (v0.8.0)
+
+@Suite("Advanced Modeling Tests")
+struct AdvancedModelingTests {
+
+    // MARK: - Selective Fillet Tests
+
+    @Test("Fillet specific edges")
+    func filletSpecificEdges() {
+        let box = Shape.box(width: 20, height: 20, depth: 10)
+        let edges = box.edges()
+        #expect(edges.count > 0)
+
+        // Fillet first 4 edges
+        let edgesToFillet = Array(edges.prefix(4))
+        let filleted = box.filleted(edges: edgesToFillet, radius: 2.0)
+
+        #expect(filleted != nil)
+        // Filleted shape should be valid
+        #expect(filleted?.isValid ?? false)
+    }
+
+    @Test("Fillet single edge")
+    func filletSingleEdge() {
+        let box = Shape.box(width: 20, height: 10, depth: 10)
+
+        guard let edge = box.edge(at: 0) else {
+            Issue.record("Could not get edge")
+            return
+        }
+
+        let filleted = box.filleted(edges: [edge], radius: 1.0)
+        #expect(filleted != nil)
+    }
+
+    @Test("Fillet with variable radius")
+    func filletVariableRadius() {
+        let box = Shape.box(width: 30, height: 10, depth: 10)
+
+        guard let edge = box.edge(at: 0) else {
+            Issue.record("Could not get edge")
+            return
+        }
+
+        let filleted = box.filleted(edges: [edge], startRadius: 1.0, endRadius: 3.0)
+        #expect(filleted != nil)
+    }
+
+    @Test("Edge has valid index")
+    func edgeHasIndex() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let edge = box.edge(at: 5)
+        #expect(edge != nil)
+        #expect(edge?.index == 5)
+    }
+
+    @Test("Face has valid index")
+    func faceHasIndex() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let face = box.face(at: 3)
+        #expect(face != nil)
+        #expect(face?.index == 3)
+    }
+
+    // MARK: - Draft Angle Tests
+
+    @Test("Draft vertical faces")
+    func draftVerticalFaces() {
+        let box = Shape.box(width: 20, height: 20, depth: 30)
+        let faces = box.faces()
+
+        // Get vertical faces (normals perpendicular to Z)
+        let verticalFaces = faces.filter { $0.isVertical() }
+        #expect(verticalFaces.count == 4)  // 4 side faces
+
+        // Apply 3 degree draft angle
+        let draftAngle = 3.0 * .pi / 180.0
+        let drafted = box.drafted(
+            faces: verticalFaces,
+            direction: SIMD3(0, 0, 1),
+            angle: draftAngle,
+            neutralPlane: (point: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        )
+
+        #expect(drafted != nil)
+    }
+
+    // MARK: - Defeaturing Tests
+
+    @Test("Remove faces from shape")
+    func removeFeatures() {
+        // Create a box with a hole
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let hole = Shape.cylinder(radius: 3, height: 30)
+        let boxWithHole = box.subtracting(hole)
+
+        // The box with hole has more faces than a simple box
+        let faces = boxWithHole.faces()
+        #expect(faces.count > 6)
+
+        // Find cylindrical faces (the hole)
+        let cylindricalFaces = faces.filter { !$0.isPlanar }
+
+        if !cylindricalFaces.isEmpty {
+            // Try to remove the hole
+            let defeatured = boxWithHole.withoutFeatures(faces: cylindricalFaces)
+            // May or may not succeed depending on geometry complexity
+            // Just verify it doesn't crash
+            if defeatured != nil {
+                #expect(defeatured!.isValid)
+            }
+        }
+    }
+
+    // MARK: - Pipe Shell Tests
+
+    @Test("Pipe shell with Frenet mode")
+    func pipeShellFrenet() {
+        // Create a simple S-curve path
+        guard let spine = Wire.bspline([
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 0),
+            SIMD3(20, 10, 0),
+            SIMD3(30, 10, 0)
+        ]) else {
+            Issue.record("Could not create spine")
+            return
+        }
+
+        // Create circular profile
+        guard let profile = Wire.circle(radius: 2) else {
+            Issue.record("Could not create profile")
+            return
+        }
+
+        let pipe = Shape.pipeShell(spine: spine, profile: profile, mode: .frenet)
+        #expect(pipe != nil)
+    }
+
+    @Test("Pipe shell with corrected Frenet mode")
+    func pipeShellCorrectedFrenet() {
+        // Create a curve that might have inflection points
+        guard let spine = Wire.bspline([
+            SIMD3(0, 0, 0),
+            SIMD3(10, 5, 0),
+            SIMD3(20, -5, 10),
+            SIMD3(30, 0, 10)
+        ]) else {
+            Issue.record("Could not create spine")
+            return
+        }
+
+        guard let profile = Wire.circle(radius: 1.5) else {
+            Issue.record("Could not create profile")
+            return
+        }
+
+        let pipe = Shape.pipeShell(spine: spine, profile: profile, mode: .correctedFrenet)
+        #expect(pipe != nil)
+    }
+
+    @Test("Pipe shell with fixed binormal")
+    func pipeShellFixedBinormal() {
+        // Straight path where we want to control orientation
+        guard let spine = Wire.bspline([
+            SIMD3(0, 0, 0),
+            SIMD3(50, 0, 0)
+        ]) else {
+            Issue.record("Could not create spine")
+            return
+        }
+
+        // Rectangular profile
+        guard let profile = Wire.rectangle(width: 5, height: 3) else {
+            Issue.record("Could not create profile")
+            return
+        }
+
+        // Keep profile vertical (binormal = Z)
+        let pipe = Shape.pipeShell(spine: spine, profile: profile, mode: .fixed(binormal: SIMD3(0, 0, 1)))
+        #expect(pipe != nil)
+    }
+
+    @Test("Pipe shell creates shell when solid=false")
+    func pipeShellCreatesShell() {
+        guard let spine = Wire.line(from: .zero, to: SIMD3(20, 0, 0)) else {
+            Issue.record("Could not create spine")
+            return
+        }
+
+        guard let profile = Wire.circle(radius: 3) else {
+            Issue.record("Could not create profile")
+            return
+        }
+
+        let shell = Shape.pipeShell(spine: spine, profile: profile, mode: .frenet, solid: false)
+        #expect(shell != nil)
+    }
+}

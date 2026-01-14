@@ -808,3 +808,179 @@ extension Shape {
         return SIMD3<Double>(x, y, z)
     }
 }
+
+// MARK: - Advanced Modeling (v0.8.0)
+
+/// Sweep mode for advanced pipe creation
+public enum PipeSweepMode: Sendable {
+    /// Standard Frenet trihedron - profile orientation follows spine curvature
+    case frenet
+    /// Corrected Frenet - avoids twisting at inflection points
+    case correctedFrenet
+    /// Fixed binormal direction - profile maintains constant orientation
+    case fixed(binormal: SIMD3<Double>)
+    /// Auxiliary spine - twist controlled by secondary curve
+    case auxiliary(spine: Wire)
+}
+
+extension Shape {
+    // MARK: - Selective Fillet
+
+    /// Fillet specific edges with uniform radius
+    ///
+    /// - Parameters:
+    ///   - edges: Edges to fillet (must have valid indices from this shape)
+    ///   - radius: Fillet radius
+    /// - Returns: Filleted shape, or nil on failure
+    public func filleted(edges: [Edge], radius: Double) -> Shape? {
+        guard !edges.isEmpty, radius > 0 else { return nil }
+
+        // Extract indices from edges
+        var indices = [Int32]()
+        indices.reserveCapacity(edges.count)
+        for edge in edges {
+            guard edge.index >= 0 else { return nil }
+            indices.append(Int32(edge.index))
+        }
+
+        return indices.withUnsafeBufferPointer { buffer in
+            guard let result = OCCTShapeFilletEdges(handle, buffer.baseAddress, Int32(indices.count), radius) else {
+                return nil
+            }
+            return Shape(handle: result)
+        }
+    }
+
+    /// Fillet specific edges with linear radius interpolation
+    ///
+    /// - Parameters:
+    ///   - edges: Edges to fillet (must have valid indices from this shape)
+    ///   - startRadius: Radius at start of each edge
+    ///   - endRadius: Radius at end of each edge
+    /// - Returns: Filleted shape, or nil on failure
+    public func filleted(edges: [Edge], startRadius: Double, endRadius: Double) -> Shape? {
+        guard !edges.isEmpty, startRadius > 0, endRadius > 0 else { return nil }
+
+        var indices = [Int32]()
+        indices.reserveCapacity(edges.count)
+        for edge in edges {
+            guard edge.index >= 0 else { return nil }
+            indices.append(Int32(edge.index))
+        }
+
+        return indices.withUnsafeBufferPointer { buffer in
+            guard let result = OCCTShapeFilletEdgesLinear(handle, buffer.baseAddress, Int32(indices.count), startRadius, endRadius) else {
+                return nil
+            }
+            return Shape(handle: result)
+        }
+    }
+
+    // MARK: - Draft Angle
+
+    /// Add draft angle to faces for mold release
+    ///
+    /// Draft angles are used in injection molding and casting to allow parts to
+    /// be released from the mold. The angle is measured from the pull direction.
+    ///
+    /// - Parameters:
+    ///   - faces: Faces to add draft to (must have valid indices from this shape)
+    ///   - direction: Pull direction (typically vertical, e.g., [0, 0, 1])
+    ///   - angle: Draft angle in radians (typically 1-5 degrees)
+    ///   - neutralPlane: Plane where draft angle is zero (point and normal)
+    /// - Returns: Drafted shape, or nil on failure
+    public func drafted(
+        faces: [Face],
+        direction: SIMD3<Double>,
+        angle: Double,
+        neutralPlane: (point: SIMD3<Double>, normal: SIMD3<Double>)
+    ) -> Shape? {
+        guard !faces.isEmpty else { return nil }
+
+        var indices = [Int32]()
+        indices.reserveCapacity(faces.count)
+        for face in faces {
+            guard face.index >= 0 else { return nil }
+            indices.append(Int32(face.index))
+        }
+
+        return indices.withUnsafeBufferPointer { buffer in
+            guard let result = OCCTShapeDraft(
+                handle,
+                buffer.baseAddress,
+                Int32(indices.count),
+                direction.x, direction.y, direction.z,
+                angle,
+                neutralPlane.point.x, neutralPlane.point.y, neutralPlane.point.z,
+                neutralPlane.normal.x, neutralPlane.normal.y, neutralPlane.normal.z
+            ) else {
+                return nil
+            }
+            return Shape(handle: result)
+        }
+    }
+
+    // MARK: - Defeaturing
+
+    /// Remove features by deleting faces
+    ///
+    /// The defeaturing algorithm removes specified faces and heals the resulting
+    /// gaps by extending adjacent faces. Useful for simplifying geometry for
+    /// analysis or removing small features.
+    ///
+    /// - Parameter faces: Faces to remove (must have valid indices from this shape)
+    /// - Returns: Shape with features removed, or nil on failure
+    public func withoutFeatures(faces: [Face]) -> Shape? {
+        guard !faces.isEmpty else { return nil }
+
+        var indices = [Int32]()
+        indices.reserveCapacity(faces.count)
+        for face in faces {
+            guard face.index >= 0 else { return nil }
+            indices.append(Int32(face.index))
+        }
+
+        return indices.withUnsafeBufferPointer { buffer in
+            guard let result = OCCTShapeRemoveFeatures(handle, buffer.baseAddress, Int32(indices.count)) else {
+                return nil
+            }
+            return Shape(handle: result)
+        }
+    }
+
+    // MARK: - Advanced Pipe Sweep
+
+    /// Create a pipe (sweep) with advanced sweep modes
+    ///
+    /// Unlike the basic `pipe(profile:path:)`, this method provides control over
+    /// how the profile is oriented along the sweep path.
+    ///
+    /// - Parameters:
+    ///   - spine: Path wire along which to sweep
+    ///   - profile: Profile wire to sweep
+    ///   - mode: Sweep mode controlling profile orientation
+    ///   - solid: If true, create a solid; if false, create a shell
+    /// - Returns: Swept shape, or nil on failure
+    public static func pipeShell(
+        spine: Wire,
+        profile: Wire,
+        mode: PipeSweepMode = .frenet,
+        solid: Bool = true
+    ) -> Shape? {
+        let result: OCCTShapeRef?
+
+        switch mode {
+        case .frenet:
+            result = OCCTShapeCreatePipeShell(spine.handle, profile.handle, OCCTPipeModeFrenet, solid)
+        case .correctedFrenet:
+            result = OCCTShapeCreatePipeShell(spine.handle, profile.handle, OCCTPipeModeCorrectedFrenet, solid)
+        case .fixed(let binormal):
+            result = OCCTShapeCreatePipeShellWithBinormal(spine.handle, profile.handle, binormal.x, binormal.y, binormal.z, solid)
+        case .auxiliary(let auxSpine):
+            result = OCCTShapeCreatePipeShellWithAuxSpine(spine.handle, profile.handle, auxSpine.handle, solid)
+        }
+
+        guard let shapeRef = result else { return nil }
+        return Shape(handle: shapeRef)
+    }
+}

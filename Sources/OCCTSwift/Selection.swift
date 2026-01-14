@@ -105,6 +105,6 @@ extension Shape {
         guard let faceHandle = OCCTShapeGetFaceAtIndex(handle, Int32(index)) else {
             return nil
         }
-        return Face(handle: faceHandle)
+        return Face(handle: faceHandle, index: index)
     }
 }

@@ -122,6 +122,13 @@
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 
+// Advanced Modeling (v0.8.0)
+#include <BRepOffsetAPI_DraftAngle.hxx>
+#include <BRepAlgoAPI_Defeaturing.hxx>
+#include <BRepOffsetAPI_MakePipeShell.hxx>
+#include <Law_Linear.hxx>
+#include <BRepBuilderAPI_TransitionMode.hxx>
+
 // Import/Export
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
@@ -3469,6 +3476,248 @@ OCCTShapeRef OCCTDrawingGetEdges(OCCTDrawingRef drawing, OCCTEdgeType edgeType) 
         if (compound.IsNull()) return nullptr;
 
         return new OCCTShape(compound);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Advanced Modeling (v0.8.0)
+
+OCCTShapeRef OCCTShapeFilletEdges(OCCTShapeRef shape, const int32_t* edgeIndices,
+                                   int32_t edgeCount, double radius) {
+    if (!shape || !edgeIndices || edgeCount <= 0 || radius <= 0) return nullptr;
+
+    try {
+        BRepFilletAPI_MakeFillet fillet(shape->shape);
+
+        // Build edge index map for lookup
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+
+        for (int32_t i = 0; i < edgeCount; i++) {
+            int32_t idx = edgeIndices[i];
+            if (idx >= 0 && idx < edgeMap.Extent()) {
+                TopoDS_Edge edge = TopoDS::Edge(edgeMap(idx + 1));  // OCCT is 1-based
+                fillet.Add(radius, edge);
+            }
+        }
+
+        fillet.Build();
+        if (!fillet.IsDone()) return nullptr;
+
+        return new OCCTShape(fillet.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFilletEdgesLinear(OCCTShapeRef shape, const int32_t* edgeIndices,
+                                         int32_t edgeCount, double startRadius, double endRadius) {
+    if (!shape || !edgeIndices || edgeCount <= 0) return nullptr;
+    if (startRadius <= 0 || endRadius <= 0) return nullptr;
+
+    try {
+        BRepFilletAPI_MakeFillet fillet(shape->shape);
+
+        // Build edge index map for lookup
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+
+        for (int32_t i = 0; i < edgeCount; i++) {
+            int32_t idx = edgeIndices[i];
+            if (idx >= 0 && idx < edgeMap.Extent()) {
+                TopoDS_Edge edge = TopoDS::Edge(edgeMap(idx + 1));  // OCCT is 1-based
+                // Add edge with variable radius
+                fillet.Add(edge);
+                // Set radius variation along the edge
+                int contourIndex = fillet.NbContours();
+                fillet.SetRadius(startRadius, endRadius, contourIndex, 1);
+            }
+        }
+
+        fillet.Build();
+        if (!fillet.IsDone()) return nullptr;
+
+        return new OCCTShape(fillet.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeDraft(OCCTShapeRef shape, const int32_t* faceIndices, int32_t faceCount,
+                            double dirX, double dirY, double dirZ, double angle,
+                            double planeX, double planeY, double planeZ,
+                            double planeNx, double planeNy, double planeNz) {
+    if (!shape || !faceIndices || faceCount <= 0) return nullptr;
+
+    try {
+        // Pull direction (typically vertical for mold release)
+        gp_Dir pullDir(dirX, dirY, dirZ);
+
+        // Neutral plane - where draft angle is measured from
+        gp_Pnt planePoint(planeX, planeY, planeZ);
+        gp_Dir planeNormal(planeNx, planeNy, planeNz);
+        gp_Pln neutralPlane(planePoint, planeNormal);
+
+        BRepOffsetAPI_DraftAngle draft(shape->shape);
+
+        // Build face index map
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+
+        for (int32_t i = 0; i < faceCount; i++) {
+            int32_t idx = faceIndices[i];
+            if (idx >= 0 && idx < faceMap.Extent()) {
+                TopoDS_Face face = TopoDS::Face(faceMap(idx + 1));
+                draft.Add(face, pullDir, angle, neutralPlane);
+            }
+        }
+
+        draft.Build();
+        if (!draft.IsDone()) return nullptr;
+
+        return new OCCTShape(draft.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeRemoveFeatures(OCCTShapeRef shape, const int32_t* faceIndices, int32_t faceCount) {
+    if (!shape || !faceIndices || faceCount <= 0) return nullptr;
+
+    try {
+        BRepAlgoAPI_Defeaturing defeature;
+        defeature.SetShape(shape->shape);
+
+        // Build face index map
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+
+        for (int32_t i = 0; i < faceCount; i++) {
+            int32_t idx = faceIndices[i];
+            if (idx >= 0 && idx < faceMap.Extent()) {
+                TopoDS_Face face = TopoDS::Face(faceMap(idx + 1));
+                defeature.AddFaceToRemove(face);
+            }
+        }
+
+        defeature.Build();
+        if (!defeature.IsDone()) return nullptr;
+
+        return new OCCTShape(defeature.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreatePipeShell(OCCTWireRef spine, OCCTWireRef profile,
+                                       OCCTPipeMode mode, bool solid) {
+    if (!spine || !profile) return nullptr;
+
+    try {
+        BRepOffsetAPI_MakePipeShell pipeShell(spine->wire);
+
+        // Set sweep mode
+        switch (mode) {
+            case OCCTPipeModeFrenet:
+                pipeShell.SetMode(Standard_False);  // Frenet
+                break;
+            case OCCTPipeModeCorrectedFrenet:
+                pipeShell.SetMode(Standard_True);   // Corrected Frenet
+                break;
+            case OCCTPipeModeFixedBinormal:
+            case OCCTPipeModeAuxiliary:
+                // These modes require additional parameters
+                // Use dedicated functions for them
+                pipeShell.SetMode(Standard_False);
+                break;
+        }
+
+        // Add profile
+        pipeShell.Add(profile->wire);
+
+        // Build the shell
+        pipeShell.Build();
+        if (!pipeShell.IsDone()) return nullptr;
+
+        TopoDS_Shape result = pipeShell.Shape();
+
+        // Make solid if requested
+        if (solid) {
+            pipeShell.MakeSolid();
+            if (pipeShell.IsDone()) {
+                result = pipeShell.Shape();
+            }
+        }
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreatePipeShellWithBinormal(OCCTWireRef spine, OCCTWireRef profile,
+                                                   double bnX, double bnY, double bnZ, bool solid) {
+    if (!spine || !profile) return nullptr;
+
+    try {
+        BRepOffsetAPI_MakePipeShell pipeShell(spine->wire);
+
+        // Set fixed binormal direction
+        gp_Dir binormal(bnX, bnY, bnZ);
+        pipeShell.SetMode(binormal);
+
+        // Add profile
+        pipeShell.Add(profile->wire);
+
+        // Build the shell
+        pipeShell.Build();
+        if (!pipeShell.IsDone()) return nullptr;
+
+        TopoDS_Shape result = pipeShell.Shape();
+
+        // Make solid if requested
+        if (solid) {
+            pipeShell.MakeSolid();
+            if (pipeShell.IsDone()) {
+                result = pipeShell.Shape();
+            }
+        }
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreatePipeShellWithAuxSpine(OCCTWireRef spine, OCCTWireRef profile,
+                                                   OCCTWireRef auxSpine, bool solid) {
+    if (!spine || !profile || !auxSpine) return nullptr;
+
+    try {
+        BRepOffsetAPI_MakePipeShell pipeShell(spine->wire);
+
+        // Set auxiliary spine for twist control
+        pipeShell.SetMode(auxSpine->wire, Standard_False);  // curvilinear equivalence = false
+
+        // Add profile
+        pipeShell.Add(profile->wire);
+
+        // Build the shell
+        pipeShell.Build();
+        if (!pipeShell.IsDone()) return nullptr;
+
+        TopoDS_Shape result = pipeShell.Shape();
+
+        // Make solid if requested
+        if (solid) {
+            pipeShell.MakeSolid();
+            if (pipeShell.IsDone()) {
+                result = pipeShell.Shape();
+            }
+        }
+
+        return new OCCTShape(result);
     } catch (...) {
         return nullptr;
     }

@@ -6,8 +6,12 @@ import OCCTBridge
 public final class Face: @unchecked Sendable {
     internal let handle: OCCTFaceRef
 
-    internal init(handle: OCCTFaceRef) {
+    /// Index of this face within the parent shape (-1 if standalone)
+    public let index: Int
+
+    internal init(handle: OCCTFaceRef, index: Int = -1) {
         self.handle = handle
+        self.index = index
     }
 
     deinit {
@@ -101,7 +105,7 @@ extension Shape {
         var faces: [Face] = []
         for i in 0..<Int(count) {
             if let faceHandle = faceArray[i] {
-                faces.append(Face(handle: faceHandle))
+                faces.append(Face(handle: faceHandle, index: i))
             }
         }
 
@@ -111,39 +115,13 @@ extension Shape {
     /// Get horizontal faces (normals pointing up or down)
     /// - Parameter tolerance: Angle tolerance in radians (default ~0.5 degrees)
     public func horizontalFaces(tolerance: Double = 0.01) -> [Face] {
-        var count: Int32 = 0
-        guard let faceArray = OCCTShapeGetHorizontalFaces(handle, tolerance, &count) else {
-            return []
-        }
-        defer { OCCTFreeFaceArrayOnly(faceArray) }
-
-        var faces: [Face] = []
-        for i in 0..<Int(count) {
-            if let faceHandle = faceArray[i] {
-                faces.append(Face(handle: faceHandle))
-            }
-        }
-
-        return faces
+        faces().filter { $0.isHorizontal(tolerance: tolerance) }
     }
 
     /// Get upward-facing horizontal faces (potential pocket floors)
     /// - Parameter tolerance: Angle tolerance in radians (default ~0.5 degrees)
     public func upwardFaces(tolerance: Double = 0.01) -> [Face] {
-        var count: Int32 = 0
-        guard let faceArray = OCCTShapeGetUpwardFaces(handle, tolerance, &count) else {
-            return []
-        }
-        defer { OCCTFreeFaceArrayOnly(faceArray) }
-
-        var faces: [Face] = []
-        for i in 0..<Int(count) {
-            if let faceHandle = faceArray[i] {
-                faces.append(Face(handle: faceHandle))
-            }
-        }
-
-        return faces
+        faces().filter { $0.isUpwardFacing(tolerance: tolerance) }
     }
 
     /// Get faces grouped by Z level (for CAM pocket detection)

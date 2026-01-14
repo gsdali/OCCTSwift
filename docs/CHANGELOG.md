@@ -1,5 +1,62 @@
 # OCCTSwift Changelog
 
+## [v0.8.0] - 2026-01-14
+
+### Added
+
+#### Advanced Modeling
+Manufacturing-ready modeling operations for selective edge/face modifications and advanced sweeps.
+
+- **Selective Fillet** - Apply fillets to specific edges instead of all edges
+  - `filleted(edges:radius:)` - Uniform radius on selected edges
+  - `filleted(edges:startRadius:endRadius:)` - Linear radius interpolation along edges
+
+- **Draft Angles** - Add mold release draft to faces
+  - `drafted(faces:direction:angle:neutralPlane:)` - Manufacturing draft for injection molding/casting
+
+- **Defeaturing** - Remove features by deleting faces
+  - `withoutFeatures(faces:)` - Remove faces and heal the geometry
+
+- **Advanced Pipe Sweep** - Enhanced sweep with orientation control
+  - `pipeShell(spine:profile:mode:solid:)` - Create pipes with sweep modes:
+    - `.frenet` - Standard Frenet trihedron
+    - `.correctedFrenet` - Avoids twisting at inflection points
+    - `.fixed(binormal:)` - Constant profile orientation
+    - `.auxiliary(spine:)` - Twist controlled by secondary curve
+
+- **`PipeSweepMode`** enum - Sweep orientation control
+
+- **Edge/Face index properties** - Edge and Face objects now track their index within the parent shape
+  - `Edge.index: Int` - Index for selective operations
+  - `Face.index: Int` - Index for selective operations
+
+**C Bridge Functions:**
+```c
+// Selective Fillet
+OCCTShapeRef OCCTShapeFilletEdges(OCCTShapeRef shape, const int32_t* edgeIndices, int32_t edgeCount, double radius);
+OCCTShapeRef OCCTShapeFilletEdgesLinear(OCCTShapeRef shape, const int32_t* edgeIndices, int32_t edgeCount, double startRadius, double endRadius);
+
+// Draft Angle
+OCCTShapeRef OCCTShapeDraft(OCCTShapeRef shape, const int32_t* faceIndices, int32_t faceCount, double dirX, double dirY, double dirZ, double angle, double planeX, double planeY, double planeZ, double planeNx, double planeNy, double planeNz);
+
+// Defeaturing
+OCCTShapeRef OCCTShapeRemoveFeatures(OCCTShapeRef shape, const int32_t* faceIndices, int32_t faceCount);
+
+// Advanced Pipe Sweep
+OCCTShapeRef OCCTShapeCreatePipeShell(OCCTWireRef spine, OCCTWireRef profile, OCCTPipeMode mode, bool solid);
+OCCTShapeRef OCCTShapeCreatePipeShellWithBinormal(OCCTWireRef spine, OCCTWireRef profile, double bnX, double bnY, double bnZ, bool solid);
+OCCTShapeRef OCCTShapeCreatePipeShellWithAuxSpine(OCCTWireRef spine, OCCTWireRef profile, OCCTWireRef auxSpine, bool solid);
+```
+
+### Tests Added
+- Selective fillet on specific edges (3 tests)
+- Edge and Face index tracking (2 tests)
+- Draft angle on vertical faces (1 test)
+- Defeaturing (1 test)
+- Pipe shell with various modes (4 tests)
+
+---
+
 ## [v0.7.0] - 2026-01-14
 
 ### Added

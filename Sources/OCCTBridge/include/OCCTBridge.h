@@ -707,6 +707,84 @@ void OCCTDrawingRelease(OCCTDrawingRef drawing);
 OCCTShapeRef OCCTDrawingGetEdges(OCCTDrawingRef drawing, OCCTEdgeType edgeType);
 
 
+// MARK: - Advanced Modeling (v0.8.0)
+
+/// Fillet specific edges with uniform radius
+/// @param shape The shape to fillet
+/// @param edgeIndices Array of edge indices (0-based)
+/// @param edgeCount Number of edges to fillet
+/// @param radius Fillet radius
+/// @return Filleted shape, or NULL on failure
+OCCTShapeRef OCCTShapeFilletEdges(OCCTShapeRef shape, const int32_t* edgeIndices,
+                                   int32_t edgeCount, double radius);
+
+/// Fillet specific edges with linear radius interpolation
+/// @param shape The shape to fillet
+/// @param edgeIndices Array of edge indices (0-based)
+/// @param edgeCount Number of edges to fillet
+/// @param startRadius Radius at start of each edge
+/// @param endRadius Radius at end of each edge
+/// @return Filleted shape, or NULL on failure
+OCCTShapeRef OCCTShapeFilletEdgesLinear(OCCTShapeRef shape, const int32_t* edgeIndices,
+                                         int32_t edgeCount, double startRadius, double endRadius);
+
+/// Add draft angle to faces for mold release
+/// @param shape The shape to draft
+/// @param faceIndices Array of face indices (0-based)
+/// @param faceCount Number of faces to draft
+/// @param dirX, dirY, dirZ Pull direction (typically vertical)
+/// @param angle Draft angle in radians
+/// @param planeX, planeY, planeZ Point on neutral plane
+/// @param planeNx, planeNy, planeNz Normal of neutral plane
+/// @return Drafted shape, or NULL on failure
+OCCTShapeRef OCCTShapeDraft(OCCTShapeRef shape, const int32_t* faceIndices, int32_t faceCount,
+                            double dirX, double dirY, double dirZ, double angle,
+                            double planeX, double planeY, double planeZ,
+                            double planeNx, double planeNy, double planeNz);
+
+/// Remove features (faces) from shape using defeaturing
+/// @param shape The shape to modify
+/// @param faceIndices Array of face indices to remove (0-based)
+/// @param faceCount Number of faces to remove
+/// @return Shape with features removed, or NULL on failure
+OCCTShapeRef OCCTShapeRemoveFeatures(OCCTShapeRef shape, const int32_t* faceIndices, int32_t faceCount);
+
+/// Pipe sweep mode for advanced sweeps
+typedef enum {
+    OCCTPipeModeFrenet = 0,           // Standard Frenet trihedron
+    OCCTPipeModeCorrectedFrenet = 1,  // Corrected for singularities
+    OCCTPipeModeFixedBinormal = 2,    // Fixed binormal direction
+    OCCTPipeModeAuxiliary = 3         // Guided by auxiliary curve
+} OCCTPipeMode;
+
+/// Create pipe shell with sweep mode
+/// @param spine Path wire for sweep
+/// @param profile Profile wire to sweep
+/// @param mode Sweep mode (Frenet, corrected Frenet, etc.)
+/// @param solid If true, create solid; if false, create shell
+/// @return Swept shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreatePipeShell(OCCTWireRef spine, OCCTWireRef profile,
+                                       OCCTPipeMode mode, bool solid);
+
+/// Create pipe shell with fixed binormal direction
+/// @param spine Path wire for sweep
+/// @param profile Profile wire to sweep
+/// @param bnX, bnY, bnZ Fixed binormal direction
+/// @param solid If true, create solid; if false, create shell
+/// @return Swept shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreatePipeShellWithBinormal(OCCTWireRef spine, OCCTWireRef profile,
+                                                   double bnX, double bnY, double bnZ, bool solid);
+
+/// Create pipe shell guided by auxiliary spine
+/// @param spine Main path wire
+/// @param profile Profile wire to sweep
+/// @param auxSpine Auxiliary spine for twist control
+/// @param solid If true, create solid; if false, create shell
+/// @return Swept shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreatePipeShellWithAuxSpine(OCCTWireRef spine, OCCTWireRef profile,
+                                                   OCCTWireRef auxSpine, bool solid);
+
+
 #ifdef __cplusplus
 }
 #endif
