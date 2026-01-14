@@ -497,6 +497,158 @@ public final class Wire: @unchecked Sendable {
     }
 }
 
+// MARK: - Curve Analysis (v0.9.0)
+
+/// Information about a wire/curve
+public struct CurveInfo: Sendable, Equatable {
+    /// Total length of the curve
+    public var length: Double
+    /// Whether the curve is closed (start meets end)
+    public var isClosed: Bool
+    /// Whether the curve is periodic
+    public var isPeriodic: Bool
+    /// Start point of the curve
+    public var startPoint: SIMD3<Double>
+    /// End point of the curve
+    public var endPoint: SIMD3<Double>
+}
+
+/// Point on a curve with differential geometry properties
+public struct CurvePoint: Sendable, Equatable {
+    /// Position on the curve
+    public var position: SIMD3<Double>
+    /// Unit tangent vector at this point
+    public var tangent: SIMD3<Double>
+    /// Curvature at this point (1/radius, 0 for straight lines)
+    public var curvature: Double
+    /// Principal normal vector (perpendicular to tangent, toward center of curvature)
+    /// Only available when curvature > 0
+    public var normal: SIMD3<Double>?
+}
+
+extension Wire {
+    /// Get comprehensive curve information.
+    ///
+    /// - Returns: Curve information including length, closed status, and endpoints
+    public var curveInfo: CurveInfo? {
+        let info = OCCTWireGetCurveInfo(handle)
+        guard info.isValid else { return nil }
+        return CurveInfo(
+            length: info.length,
+            isClosed: info.isClosed,
+            isPeriodic: info.isPeriodic,
+            startPoint: SIMD3(info.startX, info.startY, info.startZ),
+            endPoint: SIMD3(info.endX, info.endY, info.endZ)
+        )
+    }
+
+    /// Get the total length of the wire.
+    ///
+    /// - Returns: Length in model units, or nil on error
+    public var length: Double? {
+        let len = OCCTWireGetLength(handle)
+        return len >= 0 ? len : nil
+    }
+
+    /// Get point on curve at normalized parameter.
+    ///
+    /// - Parameter parameter: Value from 0.0 (start) to 1.0 (end)
+    /// - Returns: 3D position on the curve
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let arc = Wire.arc(center: .zero, radius: 10, startAngle: 0, endAngle: .pi)
+    /// let midpoint = arc?.point(at: 0.5)  // Point at middle of arc
+    /// ```
+    public func point(at parameter: Double) -> SIMD3<Double>? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTWireGetPointAt(handle, parameter, &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Get unit tangent vector at normalized parameter.
+    ///
+    /// - Parameter parameter: Value from 0.0 (start) to 1.0 (end)
+    /// - Returns: Normalized tangent vector pointing in direction of travel
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let line = Wire.line(from: .zero, to: SIMD3(10, 0, 0))
+    /// let tangent = line?.tangent(at: 0.5)  // Returns (1, 0, 0)
+    /// ```
+    public func tangent(at parameter: Double) -> SIMD3<Double>? {
+        var tx: Double = 0, ty: Double = 0, tz: Double = 0
+        guard OCCTWireGetTangentAt(handle, parameter, &tx, &ty, &tz) else { return nil }
+        return SIMD3(tx, ty, tz)
+    }
+
+    /// Get curvature at normalized parameter.
+    ///
+    /// - Parameter parameter: Value from 0.0 (start) to 1.0 (end)
+    /// - Returns: Curvature value (1/radius), or nil on error
+    ///
+    /// A straight line has curvature 0. A circle with radius R has curvature 1/R.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let circle = Wire.circle(radius: 10)
+    /// let curvature = circle?.curvature(at: 0.5)  // Returns 0.1 (1/10)
+    /// ```
+    public func curvature(at parameter: Double) -> Double? {
+        let k = OCCTWireGetCurvatureAt(handle, parameter)
+        return k >= 0 ? k : nil
+    }
+
+    /// Get full curve point with position, tangent, curvature, and normal.
+    ///
+    /// - Parameter parameter: Value from 0.0 (start) to 1.0 (end)
+    /// - Returns: Complete differential geometry data at the point
+    ///
+    /// This is more efficient than calling `point(at:)`, `tangent(at:)`, and
+    /// `curvature(at:)` separately when you need multiple values.
+    public func curvePoint(at parameter: Double) -> CurvePoint? {
+        let cp = OCCTWireGetCurvePointAt(handle, parameter)
+        guard cp.isValid else { return nil }
+
+        let normal: SIMD3<Double>? = cp.hasNormal ?
+            SIMD3(cp.normX, cp.normY, cp.normZ) : nil
+
+        return CurvePoint(
+            position: SIMD3(cp.posX, cp.posY, cp.posZ),
+            tangent: SIMD3(cp.tanX, cp.tanY, cp.tanZ),
+            curvature: cp.curvature,
+            normal: normal
+        )
+    }
+
+    /// Offset wire in 3D space along a direction.
+    ///
+    /// - Parameters:
+    ///   - distance: Offset distance
+    ///   - direction: Direction to offset (will be normalized)
+    /// - Returns: A new wire translated by the given distance in the given direction
+    ///
+    /// Unlike `offset(by:)` which creates a parallel curve in the XY plane,
+    /// this translates the entire wire in 3D space.
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let profile = Wire.circle(radius: 5)
+    /// let raised = profile?.offset3D(distance: 10, direction: SIMD3(0, 0, 1))
+    /// // raised is a circle at Z=10
+    /// ```
+    public func offset3D(distance: Double, direction: SIMD3<Double>) -> Wire? {
+        guard let handle = OCCTWireOffset3D(handle, distance, direction.x, direction.y, direction.z) else {
+            return nil
+        }
+        return Wire(handle: handle)
+    }
+}
+
 // MARK: - CAM Operations
 
 extension Wire {

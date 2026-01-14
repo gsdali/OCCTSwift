@@ -129,6 +129,15 @@
 #include <Law_Linear.hxx>
 #include <BRepBuilderAPI_TransitionMode.hxx>
 
+// Surfaces & Curves (v0.9.0)
+#include <BRepAdaptor_CompCurve.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
+#include <BRepLProp_CLProps.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <GeomFill_BSplineCurves.hxx>
+#include <BRepFill.hxx>
+#include <TColgp_Array2OfPnt.hxx>
+
 // Import/Export
 #include <STEPControl_Reader.hxx>
 #include <STEPControl_Writer.hxx>
@@ -3718,6 +3727,328 @@ OCCTShapeRef OCCTShapeCreatePipeShellWithAuxSpine(OCCTWireRef spine, OCCTWireRef
         }
 
         return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Surfaces & Curves (v0.9.0)
+
+OCCTCurveInfo OCCTWireGetCurveInfo(OCCTWireRef wire) {
+    OCCTCurveInfo result = {};
+    result.isValid = false;
+    if (!wire) return result;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+
+        // Get length
+        result.length = GCPnts_AbscissaPoint::Length(curve);
+
+        // Get closed/periodic status
+        result.isClosed = curve.IsClosed();
+        result.isPeriodic = curve.IsPeriodic();
+
+        // Get start point
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+        gp_Pnt startPt = curve.Value(first);
+        gp_Pnt endPt = curve.Value(last);
+
+        result.startX = startPt.X();
+        result.startY = startPt.Y();
+        result.startZ = startPt.Z();
+        result.endX = endPt.X();
+        result.endY = endPt.Y();
+        result.endZ = endPt.Z();
+
+        result.isValid = true;
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+double OCCTWireGetLength(OCCTWireRef wire) {
+    if (!wire) return -1.0;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        return GCPnts_AbscissaPoint::Length(curve);
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+bool OCCTWireGetPointAt(OCCTWireRef wire, double param, double* x, double* y, double* z) {
+    if (!wire || !x || !y || !z) return false;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+
+        // Map normalized parameter [0,1] to actual parameter range
+        Standard_Real actualParam = first + param * (last - first);
+
+        gp_Pnt pt = curve.Value(actualParam);
+        *x = pt.X();
+        *y = pt.Y();
+        *z = pt.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTWireGetTangentAt(OCCTWireRef wire, double param, double* tx, double* ty, double* tz) {
+    if (!wire || !tx || !ty || !tz) return false;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+
+        // Map normalized parameter [0,1] to actual parameter range
+        Standard_Real actualParam = first + param * (last - first);
+
+        gp_Pnt pt;
+        gp_Vec tangent;
+        curve.D1(actualParam, pt, tangent);
+
+        // Normalize the tangent
+        if (tangent.Magnitude() > 1e-10) {
+            tangent.Normalize();
+        }
+
+        *tx = tangent.X();
+        *ty = tangent.Y();
+        *tz = tangent.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+double OCCTWireGetCurvatureAt(OCCTWireRef wire, double param) {
+    if (!wire) return -1.0;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+
+        // Map normalized parameter [0,1] to actual parameter range
+        Standard_Real actualParam = first + param * (last - first);
+
+        // Get first and second derivatives
+        gp_Pnt pt;
+        gp_Vec d1, d2;
+        curve.D2(actualParam, pt, d1, d2);
+
+        // Curvature formula: κ = |d1 × d2| / |d1|³
+        gp_Vec cross = d1.Crossed(d2);
+        double d1Mag = d1.Magnitude();
+        if (d1Mag < 1e-10) return 0.0;
+
+        return cross.Magnitude() / (d1Mag * d1Mag * d1Mag);
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+OCCTCurvePoint OCCTWireGetCurvePointAt(OCCTWireRef wire, double param) {
+    OCCTCurvePoint result = {};
+    result.isValid = false;
+    result.hasNormal = false;
+    if (!wire) return result;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+
+        // Map normalized parameter [0,1] to actual parameter range
+        Standard_Real actualParam = first + param * (last - first);
+
+        // Get position and derivatives
+        gp_Pnt pt;
+        gp_Vec d1, d2;
+        curve.D2(actualParam, pt, d1, d2);
+
+        result.posX = pt.X();
+        result.posY = pt.Y();
+        result.posZ = pt.Z();
+
+        // Normalize tangent (d1)
+        double d1Mag = d1.Magnitude();
+        if (d1Mag > 1e-10) {
+            gp_Vec tangent = d1.Divided(d1Mag);
+            result.tanX = tangent.X();
+            result.tanY = tangent.Y();
+            result.tanZ = tangent.Z();
+
+            // Compute curvature: κ = |d1 × d2| / |d1|³
+            gp_Vec cross = d1.Crossed(d2);
+            result.curvature = cross.Magnitude() / (d1Mag * d1Mag * d1Mag);
+
+            // Compute principal normal if curvature is non-zero
+            // Normal = (d1 × d2) × d1, normalized, pointing toward center of curvature
+            if (result.curvature > 1e-10) {
+                // Principal normal is perpendicular to tangent, in the osculating plane
+                // N = (T' - (T' · T)T) / |T' - (T' · T)T|
+                // For arc-length parameterization, T' is already perpendicular to T
+                // For general parameterization, we use: N = d2 - (d2 · T)T, normalized
+                gp_Vec T(result.tanX, result.tanY, result.tanZ);
+                double d2DotT = d2.Dot(T);
+                gp_Vec normalDir = d2 - T.Multiplied(d2DotT);
+                double normalMag = normalDir.Magnitude();
+                if (normalMag > 1e-10) {
+                    normalDir.Divide(normalMag);
+                    result.normX = normalDir.X();
+                    result.normY = normalDir.Y();
+                    result.normZ = normalDir.Z();
+                    result.hasNormal = true;
+                }
+            }
+        } else {
+            result.tanX = result.tanY = result.tanZ = 0.0;
+            result.curvature = 0.0;
+        }
+
+        result.isValid = true;
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTWireRef OCCTWireOffset3D(OCCTWireRef wire, double distance, double dirX, double dirY, double dirZ) {
+    if (!wire) return nullptr;
+
+    try {
+        // Create translation vector
+        gp_Vec offset(dirX, dirY, dirZ);
+        if (offset.Magnitude() > 1e-10) {
+            offset.Normalize();
+        }
+        offset.Multiply(distance);
+
+        // Create transformation
+        gp_Trsf transform;
+        transform.SetTranslation(offset);
+
+        // Apply transformation
+        BRepBuilderAPI_Transform transformer(wire->wire, transform, Standard_True);
+        if (!transformer.IsDone()) return nullptr;
+
+        TopoDS_Shape result = transformer.Shape();
+        if (result.ShapeType() != TopAbs_WIRE) return nullptr;
+
+        return new OCCTWire(TopoDS::Wire(result));
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateBSplineSurface(const double* poles, int32_t uCount, int32_t vCount,
+                                            int32_t uDegree, int32_t vDegree) {
+    if (!poles || uCount < 2 || vCount < 2) return nullptr;
+    if (uDegree < 1 || vDegree < 1) return nullptr;
+    if (uCount < uDegree + 1 || vCount < vDegree + 1) return nullptr;
+
+    try {
+        // Create 2D array of control points (1-indexed for OCCT)
+        TColgp_Array2OfPnt polesArray(1, uCount, 1, vCount);
+
+        for (int32_t u = 0; u < uCount; u++) {
+            for (int32_t v = 0; v < vCount; v++) {
+                int32_t idx = (u * vCount + v) * 3;
+                polesArray.SetValue(u + 1, v + 1, gp_Pnt(poles[idx], poles[idx + 1], poles[idx + 2]));
+            }
+        }
+
+        // Create uniform clamped knot vectors
+        int32_t uKnotCount = uCount - uDegree + 1;
+        int32_t vKnotCount = vCount - vDegree + 1;
+
+        TColStd_Array1OfReal uKnots(1, uKnotCount);
+        TColStd_Array1OfReal vKnots(1, vKnotCount);
+        TColStd_Array1OfInteger uMults(1, uKnotCount);
+        TColStd_Array1OfInteger vMults(1, vKnotCount);
+
+        // Uniform knot values
+        for (int32_t i = 1; i <= uKnotCount; i++) {
+            uKnots.SetValue(i, (double)(i - 1) / (uKnotCount - 1));
+            uMults.SetValue(i, (i == 1 || i == uKnotCount) ? uDegree + 1 : 1);
+        }
+        for (int32_t i = 1; i <= vKnotCount; i++) {
+            vKnots.SetValue(i, (double)(i - 1) / (vKnotCount - 1));
+            vMults.SetValue(i, (i == 1 || i == vKnotCount) ? vDegree + 1 : 1);
+        }
+
+        // Create B-spline surface
+        Handle(Geom_BSplineSurface) surface = new Geom_BSplineSurface(
+            polesArray,
+            uKnots, vKnots,
+            uMults, vMults,
+            uDegree, vDegree
+        );
+
+        if (surface.IsNull()) return nullptr;
+
+        // Create face from surface
+        BRepBuilderAPI_MakeFace faceMaker(surface, 1e-6);
+        if (!faceMaker.IsDone()) return nullptr;
+
+        return new OCCTShape(faceMaker.Face());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateRuled(OCCTWireRef wire1, OCCTWireRef wire2) {
+    if (!wire1 || !wire2) return nullptr;
+
+    try {
+        // Use BRepFill::Face to create a ruled surface between two edges/wires
+        TopoDS_Shape result = BRepFill::Shell(wire1->wire, wire2->wire);
+
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeShellWithOpenFaces(OCCTShapeRef shape, double thickness,
+                                          const int32_t* openFaceIndices, int32_t faceCount) {
+    if (!shape || !openFaceIndices || faceCount < 1) return nullptr;
+
+    try {
+        // Get indexed map of faces
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+
+        // Build list of faces to remove (open faces)
+        TopTools_ListOfShape facesToRemove;
+        for (int32_t i = 0; i < faceCount; i++) {
+            int32_t idx = openFaceIndices[i];
+            if (idx >= 0 && idx < faceMap.Extent()) {
+                facesToRemove.Append(faceMap(idx + 1));  // 1-based indexing
+            }
+        }
+
+        if (facesToRemove.IsEmpty()) return nullptr;
+
+        // Create thick solid (shell) with open faces
+        BRepOffsetAPI_MakeThickSolid thickSolid;
+        thickSolid.MakeThickSolidByJoin(shape->shape, facesToRemove, thickness, 1e-6);
+
+        if (!thickSolid.IsDone()) return nullptr;
+
+        return new OCCTShape(thickSolid.Shape());
     } catch (...) {
         return nullptr;
     }

@@ -993,4 +993,186 @@ struct AdvancedModelingTests {
         let shell = Shape.pipeShell(spine: spine, profile: profile, mode: .frenet, solid: false)
         #expect(shell != nil)
     }
+
+    // MARK: - Curve Analysis Tests (v0.9.0)
+
+    @Test("Wire length of straight line")
+    func wireLengthLine() {
+        let line = Wire.line(from: .zero, to: SIMD3(10, 0, 0))
+        #expect(line != nil)
+        let length = line?.length
+        #expect(length != nil)
+        #expect(abs(length! - 10.0) < 0.01)
+    }
+
+    @Test("Wire length of circle")
+    func wireLengthCircle() {
+        let circle = Wire.circle(radius: 10)
+        #expect(circle != nil)
+        let length = circle?.length
+        #expect(length != nil)
+        // Circumference = 2*pi*r
+        let expected = 2 * Double.pi * 10
+        #expect(abs(length! - expected) < 0.1)
+    }
+
+    @Test("Wire curve info for circle")
+    func wireCurveInfoCircle() {
+        let circle = Wire.circle(radius: 5)
+        #expect(circle != nil)
+        let info = circle?.curveInfo
+        #expect(info != nil)
+        #expect(info!.isClosed)
+        #expect(abs(info!.length - 2 * .pi * 5) < 0.1)
+    }
+
+    @Test("Wire curve info for line")
+    func wireCurveInfoLine() {
+        let line = Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(20, 0, 0))
+        #expect(line != nil)
+        let info = line?.curveInfo
+        #expect(info != nil)
+        #expect(!info!.isClosed)
+        #expect(abs(info!.length - 20.0) < 0.01)
+        // Check start and end points
+        #expect(abs(info!.startPoint.x) < 0.01)
+        #expect(abs(info!.endPoint.x - 20.0) < 0.01)
+    }
+
+    @Test("Wire point at parameter")
+    func wirePointAtParameter() {
+        let line = Wire.line(from: .zero, to: SIMD3(20, 0, 0))
+        #expect(line != nil)
+
+        // Start point
+        let start = line?.point(at: 0.0)
+        #expect(start != nil)
+        #expect(abs(start!.x) < 0.01)
+
+        // Midpoint
+        let mid = line?.point(at: 0.5)
+        #expect(mid != nil)
+        #expect(abs(mid!.x - 10.0) < 0.01)
+
+        // End point
+        let end = line?.point(at: 1.0)
+        #expect(end != nil)
+        #expect(abs(end!.x - 20.0) < 0.01)
+    }
+
+    @Test("Wire tangent at parameter")
+    func wireTangentAtParameter() {
+        let line = Wire.line(from: .zero, to: SIMD3(10, 0, 0))
+        #expect(line != nil)
+
+        let tangent = line?.tangent(at: 0.5)
+        #expect(tangent != nil)
+        // Tangent should point in +X direction
+        #expect(abs(tangent!.x - 1.0) < 0.01)
+        #expect(abs(tangent!.y) < 0.01)
+        #expect(abs(tangent!.z) < 0.01)
+    }
+
+    @Test("Wire curvature of circle")
+    func wireCurvatureCircle() {
+        let radius = 10.0
+        let circle = Wire.circle(radius: radius)
+        #expect(circle != nil)
+
+        let curvature = circle?.curvature(at: 0.5)
+        #expect(curvature != nil)
+        // Curvature of circle = 1/radius
+        #expect(abs(curvature! - 1.0/radius) < 0.001)
+    }
+
+    @Test("Wire curvature of line is zero")
+    func wireCurvatureLine() {
+        let line = Wire.line(from: .zero, to: SIMD3(10, 0, 0))
+        #expect(line != nil)
+
+        let curvature = line?.curvature(at: 0.5)
+        #expect(curvature != nil)
+        #expect(abs(curvature!) < 0.001)
+    }
+
+    @Test("Wire curve point with derivatives")
+    func wireCurvePointDerivatives() {
+        let radius = 5.0
+        let circle = Wire.circle(radius: radius)
+        #expect(circle != nil)
+
+        let cp = circle?.curvePoint(at: 0.25)
+        #expect(cp != nil)
+        #expect(abs(cp!.curvature - 1.0/radius) < 0.001)
+        // For a circle, the normal should point toward center
+        #expect(cp!.normal != nil)
+    }
+
+    @Test("Wire offset 3D translates wire")
+    func wireOffset3D() {
+        let circle = Wire.circle(radius: 5)
+        #expect(circle != nil)
+
+        let raised = circle?.offset3D(distance: 10, direction: SIMD3(0, 0, 1))
+        #expect(raised != nil)
+
+        // Check that start point is at Z=10
+        let info = raised?.curveInfo
+        #expect(info != nil)
+        #expect(abs(info!.startPoint.z - 10.0) < 0.01)
+    }
+
+    // MARK: - Surface Creation Tests (v0.9.0)
+
+    @Test("B-spline surface from control point grid")
+    func bsplineSurface() {
+        // Create a 4x4 grid of control points
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 10, 0), SIMD3(0, 20, 0), SIMD3(0, 30, 0)],
+            [SIMD3(10, 0, 1), SIMD3(10, 10, 1), SIMD3(10, 20, 1), SIMD3(10, 30, 1)],
+            [SIMD3(20, 0, 1), SIMD3(20, 10, 1), SIMD3(20, 20, 1), SIMD3(20, 30, 1)],
+            [SIMD3(30, 0, 0), SIMD3(30, 10, 0), SIMD3(30, 20, 0), SIMD3(30, 30, 0)]
+        ]
+
+        let surface = Shape.surface(poles: poles)
+        #expect(surface != nil)
+        #expect(surface?.isValid == true)
+    }
+
+    @Test("Ruled surface between two circles")
+    func ruledSurfaceBetweenCircles() {
+        let bottom = Wire.circle(radius: 10)
+        #expect(bottom != nil)
+
+        let top = bottom?.offset3D(distance: 20, direction: SIMD3(0, 0, 1))
+        #expect(top != nil)
+
+        let ruled = Shape.ruled(profile1: bottom!, profile2: top!)
+        #expect(ruled != nil)
+    }
+
+    @Test("Shell with open faces")
+    func shellWithOpenFaces() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+
+        // Get upward-facing faces (top face)
+        let topFaces = box.upwardFaces()
+        #expect(!topFaces.isEmpty)
+
+        let shelled = box.shelled(thickness: 2.0, openFaces: topFaces)
+        #expect(shelled != nil)
+        #expect(shelled?.isValid == true)
+    }
+
+    @Test("Shell with specific face open")
+    func shellWithSpecificFaceOpen() {
+        let box = Shape.box(width: 30, height: 20, depth: 10)
+
+        // Get the first face and use it as the open face
+        let faces = box.faces()
+        #expect(!faces.isEmpty)
+
+        let shelled = box.shelled(thickness: 1.5, openFaces: [faces[0]])
+        #expect(shelled != nil)
+    }
 }

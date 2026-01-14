@@ -1,5 +1,79 @@
 # OCCTSwift Changelog
 
+## [v0.9.0] - 2026-01-14
+
+### Added
+
+#### Curve Analysis
+Comprehensive curve geometry analysis for wires using OCCT's BRepAdaptor_CompCurve.
+
+- **`CurveInfo`** struct - Comprehensive curve information
+  - `length` - Total curve length
+  - `isClosed` - Whether the curve forms a closed loop
+  - `isPeriodic` - Whether the curve is periodic
+  - `startPoint` / `endPoint` - Curve endpoints
+
+- **`CurvePoint`** struct - Point on curve with differential geometry
+  - `position` - 3D position on curve
+  - `tangent` - Unit tangent vector
+  - `curvature` - Curvature value (1/radius)
+  - `normal` - Principal normal (when curvature > 0)
+
+- **Wire extensions for curve analysis**
+  - `length: Double?` - Total length of wire
+  - `curveInfo: CurveInfo?` - Complete curve information
+  - `point(at:) -> SIMD3<Double>?` - Point at normalized parameter (0-1)
+  - `tangent(at:) -> SIMD3<Double>?` - Unit tangent at parameter
+  - `curvature(at:) -> Double?` - Curvature at parameter
+  - `curvePoint(at:) -> CurvePoint?` - Full differential geometry data
+
+- **Wire 3D offset**
+  - `offset3D(distance:direction:) -> Wire?` - Translate wire in 3D space
+
+#### Surface Creation
+Freeform surface creation for complex geometry.
+
+- **B-spline surfaces**
+  - `Shape.surface(poles:uDegree:vDegree:)` - Create B-spline surface from control point grid
+
+- **Ruled surfaces**
+  - `Shape.ruled(profile1:profile2:)` - Create ruled surface between two wires
+
+- **Shell with open faces**
+  - `Shape.shelled(thickness:openFaces:)` - Create hollow solid with specific faces left open
+
+**C Bridge Functions:**
+```c
+// Curve Analysis
+typedef struct { double length; bool isClosed, isPeriodic; double startX, startY, startZ, endX, endY, endZ; bool isValid; } OCCTCurveInfo;
+typedef struct { double posX, posY, posZ, tanX, tanY, tanZ; double curvature; double normX, normY, normZ; bool hasNormal, isValid; } OCCTCurvePoint;
+
+OCCTCurveInfo OCCTWireGetCurveInfo(OCCTWireRef wire);
+double OCCTWireGetLength(OCCTWireRef wire);
+bool OCCTWireGetPointAt(OCCTWireRef wire, double param, double* x, double* y, double* z);
+bool OCCTWireGetTangentAt(OCCTWireRef wire, double param, double* tx, double* ty, double* tz);
+double OCCTWireGetCurvatureAt(OCCTWireRef wire, double param);
+OCCTCurvePoint OCCTWireGetCurvePointAt(OCCTWireRef wire, double param);
+OCCTWireRef OCCTWireOffset3D(OCCTWireRef wire, double distance, double dirX, double dirY, double dirZ);
+
+// Surface Creation
+OCCTShapeRef OCCTShapeCreateBSplineSurface(const double* poles, int32_t uCount, int32_t vCount, int32_t uDegree, int32_t vDegree);
+OCCTShapeRef OCCTShapeCreateRuled(OCCTWireRef wire1, OCCTWireRef wire2);
+OCCTShapeRef OCCTShapeShellWithOpenFaces(OCCTShapeRef shape, double thickness, const int32_t* openFaceIndices, int32_t faceCount);
+```
+
+### Tests Added
+- Wire length calculation (2 tests)
+- Wire curve info for circles and lines (2 tests)
+- Point, tangent, and curvature at parameter (4 tests)
+- Curve point with full derivatives (1 test)
+- Wire 3D offset (1 test)
+- B-spline surface creation (1 test)
+- Ruled surface between circles (1 test)
+- Shell with open faces (2 tests)
+
+---
+
 ## [v0.8.0] - 2026-01-14
 
 ### Added

@@ -785,6 +785,97 @@ OCCTShapeRef OCCTShapeCreatePipeShellWithAuxSpine(OCCTWireRef spine, OCCTWireRef
                                                    OCCTWireRef auxSpine, bool solid);
 
 
+// MARK: - Surfaces & Curves (v0.9.0)
+
+/// Curve analysis result structure
+typedef struct {
+    double length;
+    bool isClosed;
+    bool isPeriodic;
+    double startX, startY, startZ;
+    double endX, endY, endZ;
+    bool isValid;
+} OCCTCurveInfo;
+
+/// Curve point with derivatives
+typedef struct {
+    double posX, posY, posZ;      // Position
+    double tanX, tanY, tanZ;      // Tangent vector
+    double curvature;              // Curvature magnitude
+    double normX, normY, normZ;   // Principal normal (if curvature > 0)
+    bool hasNormal;
+    bool isValid;
+} OCCTCurvePoint;
+
+/// Get comprehensive curve information for a wire
+/// @param wire The wire to analyze
+/// @return Curve information structure with isValid indicating success
+OCCTCurveInfo OCCTWireGetCurveInfo(OCCTWireRef wire);
+
+/// Get the length of a wire
+/// @param wire The wire to measure
+/// @return Length in linear units, or -1.0 on error
+double OCCTWireGetLength(OCCTWireRef wire);
+
+/// Get point on wire at normalized parameter (0.0 to 1.0)
+/// @param wire The wire to sample
+/// @param param Parameter value from 0.0 (start) to 1.0 (end)
+/// @param x, y, z Output: point coordinates
+/// @return true on success, false on error
+bool OCCTWireGetPointAt(OCCTWireRef wire, double param, double* x, double* y, double* z);
+
+/// Get tangent vector at normalized parameter
+/// @param wire The wire to sample
+/// @param param Parameter value from 0.0 to 1.0
+/// @param tx, ty, tz Output: tangent vector components (normalized)
+/// @return true on success, false on error
+bool OCCTWireGetTangentAt(OCCTWireRef wire, double param, double* tx, double* ty, double* tz);
+
+/// Get curvature at normalized parameter
+/// @param wire The wire to sample
+/// @param param Parameter value from 0.0 to 1.0
+/// @return Curvature value (1/radius), or -1.0 on error
+double OCCTWireGetCurvatureAt(OCCTWireRef wire, double param);
+
+/// Get full curve point with position, tangent, and curvature
+/// @param wire The wire to sample
+/// @param param Parameter value from 0.0 to 1.0
+/// @return Curve point structure with isValid indicating success
+OCCTCurvePoint OCCTWireGetCurvePointAt(OCCTWireRef wire, double param);
+
+/// Offset wire in 3D space along a direction
+/// @param wire The wire to offset
+/// @param distance Offset distance
+/// @param dirX, dirY, dirZ Direction vector for offset
+/// @return Offset wire, or NULL on failure
+OCCTWireRef OCCTWireOffset3D(OCCTWireRef wire, double distance, double dirX, double dirY, double dirZ);
+
+/// Create B-spline surface from a grid of control points
+/// @param poles Control points as [x,y,z,...] in row-major order (uCount * vCount * 3 doubles)
+/// @param uCount Number of control points in U direction
+/// @param vCount Number of control points in V direction
+/// @param uDegree Degree in U direction (typically 3)
+/// @param vDegree Degree in V direction (typically 3)
+/// @return Face shape from B-spline surface, or NULL on failure
+OCCTShapeRef OCCTShapeCreateBSplineSurface(const double* poles, int32_t uCount, int32_t vCount,
+                                            int32_t uDegree, int32_t vDegree);
+
+/// Create ruled surface between two wires
+/// @param wire1 First boundary wire
+/// @param wire2 Second boundary wire
+/// @return Face shape from ruled surface, or NULL on failure
+OCCTShapeRef OCCTShapeCreateRuled(OCCTWireRef wire1, OCCTWireRef wire2);
+
+/// Create shell (hollow solid) with specific faces left open
+/// @param shape The solid to shell
+/// @param thickness Shell wall thickness (positive = inward, negative = outward)
+/// @param openFaceIndices Array of face indices to leave open (0-based)
+/// @param faceCount Number of faces to leave open
+/// @return Shelled shape, or NULL on failure
+OCCTShapeRef OCCTShapeShellWithOpenFaces(OCCTShapeRef shape, double thickness,
+                                          const int32_t* openFaceIndices, int32_t faceCount);
+
+
 #ifdef __cplusplus
 }
 #endif

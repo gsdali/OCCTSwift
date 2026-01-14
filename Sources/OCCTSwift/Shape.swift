@@ -983,4 +983,139 @@ extension Shape {
         guard let shapeRef = result else { return nil }
         return Shape(handle: shapeRef)
     }
+
+    // MARK: - Surface Creation (v0.9.0)
+
+    /// Create a B-spline surface from a grid of control points.
+    ///
+    /// The surface interpolates approximately through the control point grid.
+    /// Control points are specified in row-major order (U varies fastest).
+    ///
+    /// - Parameters:
+    ///   - poles: 2D array of control points [uIndex][vIndex]
+    ///   - uDegree: Degree in U direction (default 3 for cubic)
+    ///   - vDegree: Degree in V direction (default 3 for cubic)
+    /// - Returns: A face shape from the B-spline surface, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a 4x4 control point grid for a curved surface
+    /// let poles: [[SIMD3<Double>]] = [
+    ///     [SIMD3(0, 0, 0), SIMD3(0, 10, 0), SIMD3(0, 20, 0), SIMD3(0, 30, 0)],
+    ///     [SIMD3(10, 0, 2), SIMD3(10, 10, 2), SIMD3(10, 20, 2), SIMD3(10, 30, 2)],
+    ///     [SIMD3(20, 0, 2), SIMD3(20, 10, 2), SIMD3(20, 20, 2), SIMD3(20, 30, 2)],
+    ///     [SIMD3(30, 0, 0), SIMD3(30, 10, 0), SIMD3(30, 20, 0), SIMD3(30, 30, 0)]
+    /// ]
+    /// let surface = Shape.surface(poles: poles)
+    /// ```
+    public static func surface(
+        poles: [[SIMD3<Double>]],
+        uDegree: Int = 3,
+        vDegree: Int = 3
+    ) -> Shape? {
+        guard !poles.isEmpty, let firstRow = poles.first, !firstRow.isEmpty else { return nil }
+
+        let uCount = poles.count
+        let vCount = firstRow.count
+
+        // Verify all rows have the same count
+        for row in poles {
+            guard row.count == vCount else { return nil }
+        }
+
+        guard uCount >= uDegree + 1, vCount >= vDegree + 1 else { return nil }
+
+        // Flatten to array of doubles in row-major order
+        var flatPoles: [Double] = []
+        flatPoles.reserveCapacity(uCount * vCount * 3)
+
+        for row in poles {
+            for point in row {
+                flatPoles.append(point.x)
+                flatPoles.append(point.y)
+                flatPoles.append(point.z)
+            }
+        }
+
+        return flatPoles.withUnsafeBufferPointer { buffer in
+            guard let result = OCCTShapeCreateBSplineSurface(
+                buffer.baseAddress,
+                Int32(uCount),
+                Int32(vCount),
+                Int32(uDegree),
+                Int32(vDegree)
+            ) else {
+                return nil
+            }
+            return Shape(handle: result)
+        }
+    }
+
+    /// Create a ruled surface between two wires.
+    ///
+    /// A ruled surface is created by connecting corresponding points on two
+    /// boundary curves with straight lines. The result is a smooth surface
+    /// that linearly interpolates between the two profiles.
+    ///
+    /// - Parameters:
+    ///   - profile1: First boundary wire
+    ///   - profile2: Second boundary wire
+    /// - Returns: A shell shape containing the ruled surface, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a cone-like surface between two circles
+    /// let bottom = Wire.circle(radius: 10)!
+    /// let top = Wire.circle(radius: 5)!.offset3D(distance: 20, direction: SIMD3(0, 0, 1))!
+    /// let cone = Shape.ruled(profile1: bottom, profile2: top)
+    /// ```
+    public static func ruled(profile1: Wire, profile2: Wire) -> Shape? {
+        guard let result = OCCTShapeCreateRuled(profile1.handle, profile2.handle) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+
+    /// Create a shell (hollow solid) with specific faces left open.
+    ///
+    /// Unlike the basic `shelled(thickness:)` method, this allows you to specify
+    /// which faces should be removed to create openings.
+    ///
+    /// - Parameters:
+    ///   - thickness: Wall thickness (positive = inward, negative = outward)
+    ///   - openFaces: Faces to leave open (must have valid indices from this shape)
+    /// - Returns: Shelled shape with specified faces open, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a box with an open top
+    /// let box = Shape.box(width: 20, height: 20, depth: 20)!
+    /// let topFaces = box.upwardFaces()
+    /// let openBox = box.shelled(thickness: 2.0, openFaces: topFaces)
+    /// ```
+    public func shelled(thickness: Double, openFaces: [Face]) -> Shape? {
+        guard !openFaces.isEmpty else { return nil }
+
+        var indices = [Int32]()
+        indices.reserveCapacity(openFaces.count)
+        for face in openFaces {
+            guard face.index >= 0 else { return nil }
+            indices.append(Int32(face.index))
+        }
+
+        return indices.withUnsafeBufferPointer { buffer in
+            guard let result = OCCTShapeShellWithOpenFaces(
+                handle,
+                thickness,
+                buffer.baseAddress,
+                Int32(indices.count)
+            ) else {
+                return nil
+            }
+            return Shape(handle: result)
+        }
+    }
 }
