@@ -442,3 +442,137 @@ struct SweepTests {
         #expect(solid.isValid)
     }
 }
+
+// MARK: - XDE Tests (v0.6.0)
+
+@Suite("Color Tests")
+struct ColorTests {
+
+    @Test("Create color with RGBA components")
+    func createColorRGBA() {
+        let color = Color(red: 0.5, green: 0.3, blue: 0.8, alpha: 0.9)
+        #expect(color.red == 0.5)
+        #expect(color.green == 0.3)
+        #expect(color.blue == 0.8)
+        #expect(color.alpha == 0.9)
+    }
+
+    @Test("Create color from 255 values")
+    func createColorFrom255() {
+        let color = Color(red255: 128, green255: 64, blue255: 255)
+        #expect(abs(color.red - 128.0/255.0) < 0.01)
+        #expect(abs(color.green - 64.0/255.0) < 0.01)
+        #expect(abs(color.blue - 1.0) < 0.01)
+        #expect(color.alpha == 1.0)
+    }
+
+    @Test("Predefined colors")
+    func predefinedColors() {
+        #expect(Color.red.red == 1.0)
+        #expect(Color.red.green == 0.0)
+        #expect(Color.blue.blue == 1.0)
+        #expect(Color.white.red == 1.0)
+        #expect(Color.black.red == 0.0)
+    }
+}
+
+@Suite("Material Tests")
+struct MaterialTests {
+
+    @Test("Create PBR material")
+    func createPBRMaterial() {
+        let mat = Material(
+            baseColor: Color(red: 0.8, green: 0.2, blue: 0.1),
+            metallic: 0.9,
+            roughness: 0.3
+        )
+        #expect(mat.baseColor.red == 0.8)
+        #expect(mat.metallic == 0.9)
+        #expect(mat.roughness == 0.3)
+    }
+
+    @Test("Material clamps values to 0-1 range")
+    func materialClamping() {
+        let mat = Material(
+            baseColor: .white,
+            metallic: 1.5,  // Should be clamped to 1.0
+            roughness: -0.5  // Should be clamped to 0.0
+        )
+        #expect(mat.metallic == 1.0)
+        #expect(mat.roughness == 0.0)
+    }
+
+    @Test("Predefined materials")
+    func predefinedMaterials() {
+        let metal = Material.polishedMetal
+        #expect(metal.metallic == 1.0)
+        #expect(metal.roughness < 0.2)
+
+        let plastic = Material.plastic
+        #expect(plastic.metallic == 0.0)
+    }
+}
+
+@Suite("Drawing Tests")
+struct DrawingTests {
+
+    @Test("Create 2D projection of box")
+    func project2DBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let drawing = Drawing.project(box, direction: SIMD3(0, 0, 1))
+        #expect(drawing != nil)
+    }
+
+    @Test("Get visible edges from projection")
+    func visibleEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        guard let drawing = Drawing.project(box, direction: SIMD3(0, 0, 1)) else {
+            Issue.record("Failed to create projection")
+            return
+        }
+        let visible = drawing.visibleEdges
+        #expect(visible != nil)
+    }
+
+    @Test("Get hidden edges from isometric view")
+    func hiddenEdgesIsometric() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        guard let drawing = Drawing.isometricView(of: box) else {
+            Issue.record("Failed to create isometric view")
+            return
+        }
+        let hidden = drawing.hiddenEdges
+        // Isometric view of box should have hidden edges
+        #expect(hidden != nil)
+    }
+
+    @Test("Standard views")
+    func standardViews() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+
+        let top = Drawing.topView(of: box)
+        #expect(top != nil)
+
+        let front = Drawing.frontView(of: box)
+        #expect(front != nil)
+
+        let side = Drawing.sideView(of: box)
+        #expect(side != nil)
+    }
+}
+
+@Suite("Document Tests")
+struct DocumentTests {
+
+    @Test("Create empty document")
+    func createEmptyDocument() {
+        let doc = Document.create()
+        #expect(doc != nil)
+        if let doc = doc {
+            #expect(doc.rootNodes.isEmpty)
+        }
+    }
+
+    // Note: Loading tests require test STEP files with assemblies
+    // These would be added with actual test fixtures
+}

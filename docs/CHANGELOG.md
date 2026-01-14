@@ -1,5 +1,92 @@
 # OCCTSwift Changelog
 
+## [v0.6.0] - 2026-01-14
+
+### Added
+
+#### XDE/XCAF Document Support
+Full Extended Data Exchange (XDE) support for importing/exporting STEP files with assembly structure, part names, colors, and PBR materials.
+
+- **`Document`** class - Load and write STEP files with full metadata
+  - `Document.load(from:)` - Load STEP with assembly structure, names, colors, materials
+  - `Document.write(to:)` - Export preserving all metadata
+  - `rootNodes` - Access top-level assembly nodes
+  - `allShapes()` - Get flat list of all shapes
+  - `shapesWithColors()` - Get shapes with associated colors
+  - `shapesWithMaterials()` - Get shapes with PBR materials
+
+- **`AssemblyNode`** class - Represents a node in the assembly tree
+  - `name` - Part name from CAD software
+  - `isAssembly` / `isReference` - Node type queries
+  - `transform` - 4x4 transform matrix (simd_float4x4)
+  - `color` - Assigned color (if any)
+  - `material` - PBR material (if available)
+  - `children` - Child nodes for assemblies
+  - `shape` - Geometry with transform applied
+
+- **`Color`** struct - RGBA color representation
+  - RGB components (0.0-1.0)
+  - CGColor conversion (when CoreGraphics available)
+  - Predefined colors (black, white, red, green, blue, gray, clear)
+
+- **`Material`** struct - PBR material properties
+  - `baseColor` - Albedo color
+  - `metallic` - Metallic factor (0.0-1.0)
+  - `roughness` - Roughness factor (0.0-1.0)
+  - `emissive` - Emissive color
+  - `transparency` - Transparency factor
+  - Predefined materials (polishedMetal, brushedMetal, plastic, rubber, glass)
+
+#### 2D Drawing / HLR Projection
+Create 2D technical drawings from 3D shapes using Hidden Line Removal (HLR).
+
+- **`Drawing`** class - 2D projection of 3D geometry
+  - `Drawing.project(_:direction:type:)` - Create projection
+  - `Drawing.topView(of:)` / `frontView` / `sideView` / `isometricView` - Standard views
+  - `edges(ofType:)` - Get visible, hidden, or outline edges
+  - `visibleEdges` / `hiddenEdges` / `outlineEdges` - Convenience accessors
+
+> **Note:** DXF export is not included. The `Drawing` class provides edge geometry that can be exported using third-party DXF libraries. See the README for guidance.
+
+**C Bridge Functions:**
+```c
+// Document lifecycle
+OCCTDocumentRef OCCTDocumentCreate(void);
+OCCTDocumentRef OCCTDocumentLoadSTEP(const char* path);
+bool OCCTDocumentWriteSTEP(OCCTDocumentRef doc, const char* path);
+void OCCTDocumentRelease(OCCTDocumentRef doc);
+
+// Assembly traversal
+int32_t OCCTDocumentGetRootCount(OCCTDocumentRef doc);
+int64_t OCCTDocumentGetRootLabelId(OCCTDocumentRef doc, int32_t index);
+const char* OCCTDocumentGetLabelName(OCCTDocumentRef doc, int64_t labelId);
+bool OCCTDocumentIsAssembly(OCCTDocumentRef doc, int64_t labelId);
+bool OCCTDocumentIsReference(OCCTDocumentRef doc, int64_t labelId);
+int32_t OCCTDocumentGetChildCount(OCCTDocumentRef doc, int64_t labelId);
+int64_t OCCTDocumentGetChildLabelId(OCCTDocumentRef doc, int64_t parentLabelId, int32_t index);
+OCCTShapeRef OCCTDocumentGetShape(OCCTDocumentRef doc, int64_t labelId);
+OCCTShapeRef OCCTDocumentGetShapeWithLocation(OCCTDocumentRef doc, int64_t labelId);
+
+// Colors and Materials
+OCCTColor OCCTDocumentGetLabelColor(OCCTDocumentRef doc, int64_t labelId, OCCTColorType colorType);
+void OCCTDocumentSetLabelColor(OCCTDocumentRef doc, int64_t labelId, OCCTColorType colorType, double r, double g, double b);
+OCCTMaterial OCCTDocumentGetLabelMaterial(OCCTDocumentRef doc, int64_t labelId);
+void OCCTDocumentSetLabelMaterial(OCCTDocumentRef doc, int64_t labelId, OCCTMaterial material);
+
+// 2D Drawing / HLR Projection
+OCCTDrawingRef OCCTDrawingCreate(OCCTShapeRef shape, double dirX, double dirY, double dirZ, OCCTProjectionType type);
+OCCTShapeRef OCCTDrawingGetEdges(OCCTDrawingRef drawing, OCCTEdgeType edgeType);
+void OCCTDrawingRelease(OCCTDrawingRef drawing);
+```
+
+### Tests Added
+- Color creation and predefined colors (3 tests)
+- Material creation and clamping (3 tests)
+- Drawing projection and edge extraction (4 tests)
+- Document creation (1 test)
+
+---
+
 ## [v0.5.0] - 2026-01-02
 
 ### Added

@@ -458,10 +458,182 @@ bool OCCTFacesAreAdjacent(OCCTShapeRef shape, OCCTFaceRef face1, OCCTFaceRef fac
 double OCCTEdgeGetDihedralAngle(OCCTEdgeRef edge, OCCTFaceRef face1, OCCTFaceRef face2, double parameter);
 
 
+// MARK: - XDE/XCAF Document Support (v0.6.0)
+
+/// Opaque handle for XDE document
+typedef struct OCCTDocument* OCCTDocumentRef;
+
+/// Create a new empty XDE document
+OCCTDocumentRef OCCTDocumentCreate(void);
+
+/// Load STEP file into XDE document with assembly structure, names, colors, materials
+/// @param path Path to STEP file
+/// @return Document reference, or NULL on failure
+OCCTDocumentRef OCCTDocumentLoadSTEP(const char* path);
+
+/// Write document to STEP file (preserves assembly structure, colors, materials)
+/// @param doc Document to write
+/// @param path Output file path
+/// @return true on success
+bool OCCTDocumentWriteSTEP(OCCTDocumentRef doc, const char* path);
+
+/// Release document and all internal resources
+void OCCTDocumentRelease(OCCTDocumentRef doc);
+
+// MARK: - XDE Assembly Traversal
+
+/// Get number of root (top-level/free) shapes in document
+int32_t OCCTDocumentGetRootCount(OCCTDocumentRef doc);
+
+/// Get label ID for root shape at index
+/// @param doc Document
+/// @param index Root index (0-based)
+/// @return Label ID, or -1 if index out of bounds
+int64_t OCCTDocumentGetRootLabelId(OCCTDocumentRef doc, int32_t index);
+
+/// Get name for a label
+/// @param doc Document
+/// @param labelId Label identifier
+/// @return Name string (caller must free with OCCTStringFree), or NULL if no name
+const char* OCCTDocumentGetLabelName(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if label represents an assembly (has components)
+bool OCCTDocumentIsAssembly(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if label is a reference (instance of another shape)
+bool OCCTDocumentIsReference(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get number of child components for an assembly label
+int32_t OCCTDocumentGetChildCount(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get child label ID at index
+/// @param doc Document
+/// @param parentLabelId Parent assembly label
+/// @param index Child index (0-based)
+/// @return Child label ID, or -1 if index out of bounds
+int64_t OCCTDocumentGetChildLabelId(OCCTDocumentRef doc, int64_t parentLabelId, int32_t index);
+
+/// Get the referred shape label for a reference
+/// @param doc Document
+/// @param refLabelId Reference label ID
+/// @return Referred label ID, or -1 if not a reference
+int64_t OCCTDocumentGetReferredLabelId(OCCTDocumentRef doc, int64_t refLabelId);
+
+/// Get shape for a label (without location transform applied)
+/// @param doc Document
+/// @param labelId Label identifier
+/// @return Shape reference (caller must release), or NULL on failure
+OCCTShapeRef OCCTDocumentGetShape(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get shape with location transform applied
+/// @param doc Document
+/// @param labelId Label identifier
+/// @return Shape reference with transform applied (caller must release), or NULL on failure
+OCCTShapeRef OCCTDocumentGetShapeWithLocation(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - XDE Transforms
+
+/// Get location transform as 4x4 matrix (column-major, suitable for simd_float4x4)
+/// @param doc Document
+/// @param labelId Label identifier
+/// @param outMatrix16 Output array for 16 floats (column-major 4x4 matrix)
+void OCCTDocumentGetLocation(OCCTDocumentRef doc, int64_t labelId, float* outMatrix16);
+
+// MARK: - XDE Colors
+
+/// Color type (matches XCAFDoc_ColorType)
+typedef enum {
+    OCCTColorTypeGeneric = 0,   // Generic color
+    OCCTColorTypeSurface = 1,   // Surface color (overrides generic)
+    OCCTColorTypeCurve = 2      // Curve color (overrides generic)
+} OCCTColorType;
+
+/// RGBA color with set flag
+typedef struct {
+    double r, g, b, a;
+    bool isSet;
+} OCCTColor;
+
+/// Get color for a label
+/// @param doc Document
+/// @param labelId Label identifier
+/// @param colorType Type of color to retrieve
+/// @return Color structure (check isSet to see if color was assigned)
+OCCTColor OCCTDocumentGetLabelColor(OCCTDocumentRef doc, int64_t labelId, OCCTColorType colorType);
+
+/// Set color for a label
+/// @param doc Document
+/// @param labelId Label identifier
+/// @param colorType Type of color to set
+/// @param r, g, b RGB values (0.0-1.0)
+void OCCTDocumentSetLabelColor(OCCTDocumentRef doc, int64_t labelId, OCCTColorType colorType, double r, double g, double b);
+
+// MARK: - XDE Materials (PBR)
+
+/// PBR Material properties
+typedef struct {
+    OCCTColor baseColor;
+    double metallic;        // 0.0-1.0
+    double roughness;       // 0.0-1.0
+    OCCTColor emissive;
+    double transparency;    // 0.0-1.0
+    bool isSet;
+} OCCTMaterial;
+
+/// Get PBR material for a label
+/// @param doc Document
+/// @param labelId Label identifier
+/// @return Material structure (check isSet to see if material was assigned)
+OCCTMaterial OCCTDocumentGetLabelMaterial(OCCTDocumentRef doc, int64_t labelId);
+
+/// Set PBR material for a label
+/// @param doc Document
+/// @param labelId Label identifier
+/// @param material Material properties to set
+void OCCTDocumentSetLabelMaterial(OCCTDocumentRef doc, int64_t labelId, OCCTMaterial material);
+
+// MARK: - XDE Utility
+
+/// Free a string returned by OCCTDocumentGetLabelName
+void OCCTStringFree(const char* str);
+
+// MARK: - 2D Drawing / HLR Projection (v0.6.0)
+
+/// Opaque handle for 2D drawing (HLR projection result)
+typedef struct OCCTDrawing* OCCTDrawingRef;
+
+/// Projection type
+typedef enum {
+    OCCTProjectionOrthographic = 0,
+    OCCTProjectionPerspective = 1
+} OCCTProjectionType;
+
+/// Edge visibility type
+typedef enum {
+    OCCTEdgeTypeVisible = 0,
+    OCCTEdgeTypeHidden = 1,
+    OCCTEdgeTypeOutline = 2
+} OCCTEdgeType;
+
+/// Create 2D projection using Hidden Line Removal (HLR)
+/// @param shape Shape to project
+/// @param dirX, dirY, dirZ View direction (will be normalized)
+/// @param projectionType Orthographic or perspective projection
+/// @return Drawing reference, or NULL on failure
+OCCTDrawingRef OCCTDrawingCreate(OCCTShapeRef shape, double dirX, double dirY, double dirZ, OCCTProjectionType projectionType);
+
+/// Release drawing resources
+void OCCTDrawingRelease(OCCTDrawingRef drawing);
+
+/// Get projected edges by visibility type as a compound shape
+/// @param drawing Drawing to query
+/// @param edgeType Type of edges to retrieve
+/// @return Shape containing 2D edges (caller must release), or NULL if no edges
+OCCTShapeRef OCCTDrawingGetEdges(OCCTDrawingRef drawing, OCCTEdgeType edgeType);
+
+
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* OCCTBridge_h */
-
-// NOTE: The closing #ifdef __cplusplus and #endif were removed - need to re-add after new content

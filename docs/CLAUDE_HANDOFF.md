@@ -1,7 +1,7 @@
 # OCCTSwift - Claude Handoff Documentation
 
-> **Last Updated**: 2026-01-02
-> **Current Version**: v0.5.0
+> **Last Updated**: 2026-01-14
+> **Current Version**: v0.6.0
 > **Repository**: https://github.com/gsdali/OCCTSwift
 
 This document provides complete context for a new Claude instance to manage this repository.

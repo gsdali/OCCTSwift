@@ -16,7 +16,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Bounds** | 3 | bounds, size, center |
 | **Slicing** | 4 | sliceAtZ, edgeCount, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
-| **Total** | **44** | |
+| **XDE/Document** | 10 | Document.load, rootNodes, AssemblyNode, colors, materials |
+| **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
+| **Total** | **59** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -27,6 +29,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Sweep Operations**: Pipe sweeps, extrusions, revolutions, lofts
 - **Modifications**: Fillet, chamfer, shell, offset
 - **Export Formats**: STL (3D printing), STEP (CAD interchange)
+- **XDE Support**: Assembly structure, part names, colors, PBR materials
+- **2D Drawing**: Hidden line removal, technical drawing projection
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -43,7 +47,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.5.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.6.0")
 ]
 ```
 
@@ -108,6 +112,69 @@ let mesh = shape.mesh(linearDeflection: 0.1)
 let geometry = mesh.sceneKitGeometry()
 let node = SCNNode(geometry: geometry)
 ```
+
+### XDE Document Support (v0.6.0)
+
+Load STEP files with assembly structure, part names, colors, and PBR materials:
+
+```swift
+// Load STEP file with full metadata
+let doc = try Document.load(from: stepURL)
+
+// Traverse assembly tree
+for node in doc.rootNodes {
+    print("Part: \(node.name ?? "unnamed")")
+    if let color = node.color {
+        print("  Color: RGB(\(color.red), \(color.green), \(color.blue))")
+    }
+    if let shape = node.shape {
+        let mesh = shape.mesh(linearDeflection: 0.1)
+        // render...
+    }
+}
+
+// Or get flat list with colors
+for (shape, color) in doc.shapesWithColors() {
+    let geometry = shape.mesh().sceneKitGeometry()
+    // apply color...
+}
+
+// Use PBR materials for RealityKit
+for (shape, material) in doc.shapesWithMaterials() {
+    if let mat = material {
+        print("Metallic: \(mat.metallic), Roughness: \(mat.roughness)")
+    }
+}
+```
+
+### 2D Technical Drawings (v0.6.0)
+
+Create 2D projections with hidden line removal:
+
+```swift
+// Create orthographic top view
+let topView = Drawing.project(shape, direction: SIMD3(0, 0, 1))
+
+// Get visible and hidden edges
+let visibleEdges = topView?.visibleEdges
+let hiddenEdges = topView?.hiddenEdges
+
+// Standard views
+let front = Drawing.frontView(of: shape)
+let side = Drawing.sideView(of: shape)
+let iso = Drawing.isometricView(of: shape)
+```
+
+#### Exporting to DXF
+
+OCCTSwift provides the 2D projected edges but does not include DXF export. To export to DXF:
+
+1. Get edges from the `Drawing` as `Shape` objects
+2. Extract edge points using `shape.allEdgePolylines(deflection:)`
+3. Write to DXF using a third-party library like:
+   - [EZDXF](https://github.com/mozman/ezdxf) (Python, can be called via PythonKit)
+   - [dxf-rs](https://github.com/IxMilia/dxf-rs) (Rust, can be wrapped)
+   - FreeCAD's [dxf.cpp](https://github.com/FreeCAD/FreeCAD/tree/main/src/Mod/Import/App/dxf) (BSD-3-Clause, can be adapted)
 
 ## Architecture
 
