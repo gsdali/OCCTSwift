@@ -647,6 +647,109 @@ extension Wire {
         }
         return Wire(handle: handle)
     }
+
+    // MARK: - Curve Interpolation (v0.11.0)
+
+    /// Create a smooth curve that interpolates through given points
+    ///
+    /// Unlike B-splines where control points influence but don't lie on the curve,
+    /// interpolated curves pass exactly through all specified points.
+    ///
+    /// - Parameters:
+    ///   - points: Points the curve must pass through (minimum 2)
+    ///   - closed: If true, create a closed (periodic) curve
+    ///   - tolerance: Interpolation tolerance (default: 1e-6)
+    ///
+    /// - Returns: A wire representing the interpolated curve, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a smooth curve through waypoints
+    /// let waypoints: [SIMD3<Double>] = [
+    ///     SIMD3(0, 0, 0),
+    ///     SIMD3(10, 5, 0),
+    ///     SIMD3(20, 0, 0),
+    ///     SIMD3(30, 5, 0)
+    /// ]
+    /// let path = Wire.interpolate(through: waypoints)
+    /// ```
+    public static func interpolate(
+        through points: [SIMD3<Double>],
+        closed: Bool = false,
+        tolerance: Double = 1e-6
+    ) -> Wire? {
+        guard points.count >= 2 else { return nil }
+
+        // Flatten points to [x,y,z,x,y,z,...]
+        var flatPoints: [Double] = []
+        flatPoints.reserveCapacity(points.count * 3)
+        for p in points {
+            flatPoints.append(p.x)
+            flatPoints.append(p.y)
+            flatPoints.append(p.z)
+        }
+
+        guard let handle = OCCTWireInterpolate(flatPoints, Int32(points.count), closed, tolerance) else {
+            return nil
+        }
+        return Wire(handle: handle)
+    }
+
+    /// Create a smooth curve through points with specified end tangents
+    ///
+    /// This allows controlling the direction of the curve at its start and end,
+    /// which is useful for ensuring smooth connections with other curves.
+    ///
+    /// - Parameters:
+    ///   - points: Points the curve must pass through (minimum 2)
+    ///   - startTangent: Desired tangent direction at start point
+    ///   - endTangent: Desired tangent direction at end point
+    ///   - tolerance: Interpolation tolerance (default: 1e-6)
+    ///
+    /// - Returns: A wire with the specified end tangents, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a curve that enters horizontally and exits vertically
+    /// let points: [SIMD3<Double>] = [
+    ///     SIMD3(0, 0, 0),
+    ///     SIMD3(10, 10, 0)
+    /// ]
+    /// let curve = Wire.interpolate(
+    ///     through: points,
+    ///     startTangent: SIMD3(1, 0, 0),  // Horizontal at start
+    ///     endTangent: SIMD3(0, 1, 0)      // Vertical at end
+    /// )
+    /// ```
+    public static func interpolate(
+        through points: [SIMD3<Double>],
+        startTangent: SIMD3<Double>,
+        endTangent: SIMD3<Double>,
+        tolerance: Double = 1e-6
+    ) -> Wire? {
+        guard points.count >= 2 else { return nil }
+
+        // Flatten points to [x,y,z,x,y,z,...]
+        var flatPoints: [Double] = []
+        flatPoints.reserveCapacity(points.count * 3)
+        for p in points {
+            flatPoints.append(p.x)
+            flatPoints.append(p.y)
+            flatPoints.append(p.z)
+        }
+
+        guard let handle = OCCTWireInterpolateWithTangents(
+            flatPoints, Int32(points.count),
+            startTangent.x, startTangent.y, startTangent.z,
+            endTangent.x, endTangent.y, endTangent.z,
+            tolerance
+        ) else {
+            return nil
+        }
+        return Wire(handle: handle)
+    }
 }
 
 // MARK: - CAM Operations

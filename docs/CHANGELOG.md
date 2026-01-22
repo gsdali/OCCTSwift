@@ -1,5 +1,86 @@
 # OCCTSwift Changelog
 
+## [v0.11.0] - 2026-01-22
+
+### Added
+
+#### Face Creation
+Build faces from wires for custom geometry construction.
+
+- **Face from Wire**
+  - `Shape.face(from:planar:)` - Create planar face from closed wire
+  - `Shape.face(outer:holes:)` - Create face with holes (outer wire + inner wires)
+
+**Use Cases:**
+- Building custom geometry from scratch
+- Creating faces with cutouts (e.g., mounting plates with holes)
+- Preparing profiles for extrusion
+
+#### Solid from Shell
+Convert shells into solids.
+
+- `Shape.solid(from:)` - Create solid from closed shell (useful after sewing operations)
+
+#### Sewing Operations
+Connect disconnected faces into shells or solids.
+
+- **Static Methods**
+  - `Shape.sew(shapes:tolerance:)` - Sew multiple shapes into connected geometry
+  - `Shape.sew(_:with:tolerance:)` - Sew two shapes together
+
+- **Instance Methods**
+  - `shape.sewn(with:tolerance:)` - Sew this shape with another
+
+**Use Cases:**
+- Repairing imported geometry with gaps
+- Combining separately created faces
+- Building watertight solids from face collections
+
+#### Curve Interpolation
+Create smooth curves that pass through specific points.
+
+- `Wire.interpolate(through:closed:tolerance:)` - Interpolate curve through points
+- `Wire.interpolate(through:startTangent:endTangent:tolerance:)` - With tangent constraints
+
+Unlike B-splines where control points influence but don't lie on the curve,
+interpolated curves pass exactly through all specified points.
+
+**Use Cases:**
+- Creating toolpaths through waypoints
+- Generating smooth transitions between specific positions
+- Fitting curves to measured/surveyed data
+
+**C Bridge Functions:**
+```c
+// Face creation
+OCCTShapeRef OCCTShapeCreateFaceFromWire(OCCTWireRef wire, bool planar);
+OCCTShapeRef OCCTShapeCreateFaceWithHoles(OCCTWireRef outer, const OCCTWireRef* holes, int32_t holeCount);
+
+// Solid from shell
+OCCTShapeRef OCCTShapeCreateSolidFromShell(OCCTShapeRef shell);
+
+// Sewing
+OCCTShapeRef OCCTShapeSew(const OCCTShapeRef* shapes, int32_t count, double tolerance);
+OCCTShapeRef OCCTShapeSewTwo(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance);
+
+// Interpolation
+OCCTWireRef OCCTWireInterpolate(const double* points, int32_t count, bool closed, double tolerance);
+OCCTWireRef OCCTWireInterpolateWithTangents(const double* points, int32_t count,
+                                             double startTanX, double startTanY, double startTanZ,
+                                             double endTanX, double endTanY, double endTanZ,
+                                             double tolerance);
+```
+
+### Tests Added
+- Face from wire (rectangular and circular) (2 tests)
+- Face with holes (single and multiple) (2 tests)
+- Face extrusion to solid (1 test)
+- Sewing operations (3 tests)
+- Solid from shell (2 tests)
+- Curve interpolation (6 tests)
+
+---
+
 ## [v0.10.0] - 2026-01-22
 
 ### Added

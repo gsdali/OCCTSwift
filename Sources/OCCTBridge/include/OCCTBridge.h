@@ -917,6 +917,61 @@ bool OCCTExportBREP(OCCTShapeRef shape, const char* path);
 bool OCCTExportBREPWithTriangles(OCCTShapeRef shape, const char* path, bool withTriangles, bool withNormals);
 
 
+// MARK: - Geometry Construction (v0.11.0)
+
+/// Create a planar face from a closed wire
+/// @param wire Closed wire defining the face boundary
+/// @param planar If true, require the wire to be planar; if false, attempt to create face anyway
+/// @return Face shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateFaceFromWire(OCCTWireRef wire, bool planar);
+
+/// Create a face with holes from an outer wire and inner wires
+/// @param outer Outer boundary wire (closed)
+/// @param holes Array of inner boundary wires (holes)
+/// @param holeCount Number of holes
+/// @return Face shape with holes, or NULL on failure
+OCCTShapeRef OCCTShapeCreateFaceWithHoles(OCCTWireRef outer, const OCCTWireRef* holes, int32_t holeCount);
+
+/// Create a solid from a closed shell
+/// @param shell Shell shape (must be closed)
+/// @return Solid shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateSolidFromShell(OCCTShapeRef shell);
+
+/// Sew multiple faces/shapes into a shell or solid
+/// @param shapes Array of shapes to sew
+/// @param count Number of shapes
+/// @param tolerance Sewing tolerance (use 1e-6 for default)
+/// @return Sewn shape (shell or solid), or NULL on failure
+OCCTShapeRef OCCTShapeSew(const OCCTShapeRef* shapes, int32_t count, double tolerance);
+
+/// Sew two shapes together
+/// @param shape1 First shape
+/// @param shape2 Second shape
+/// @param tolerance Sewing tolerance
+/// @return Sewn shape, or NULL on failure
+OCCTShapeRef OCCTShapeSewTwo(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance);
+
+/// Create a smooth curve interpolating through given points
+/// @param points Points as [x,y,z,...] triplets (count * 3 doubles)
+/// @param count Number of points (minimum 2)
+/// @param closed If true, create a closed (periodic) curve
+/// @param tolerance Interpolation tolerance (use 1e-6 for default)
+/// @return Wire representing the interpolated curve, or NULL on failure
+OCCTWireRef OCCTWireInterpolate(const double* points, int32_t count, bool closed, double tolerance);
+
+/// Create a curve interpolating through points with specified end tangents
+/// @param points Points as [x,y,z,...] triplets (count * 3 doubles)
+/// @param count Number of points (minimum 2)
+/// @param startTanX, startTanY, startTanZ Tangent vector at start point
+/// @param endTanX, endTanY, endTanZ Tangent vector at end point
+/// @param tolerance Interpolation tolerance
+/// @return Wire with specified end tangents, or NULL on failure
+OCCTWireRef OCCTWireInterpolateWithTangents(const double* points, int32_t count,
+                                             double startTanX, double startTanY, double startTanZ,
+                                             double endTanX, double endTanY, double endTanZ,
+                                             double tolerance);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -181,6 +181,10 @@
 // BREP native format (v0.10.0)
 #include <BRep_Builder.hxx>
 
+// Geometry Construction (v0.11.0)
+#include <GeomAPI_Interpolate.hxx>
+#include <TColgp_HArray1OfPnt.hxx>
+
 // MARK: - Internal Structures
 
 struct OCCTShape {
@@ -4174,5 +4178,218 @@ bool OCCTExportBREPWithTriangles(OCCTShapeRef shape, const char* path, bool with
         return BRepTools::Write(shape->shape, path, withTriangles, withNormals, TopTools_FormatVersion_CURRENT);
     } catch (...) {
         return false;
+    }
+}
+
+
+// MARK: - Geometry Construction (v0.11.0)
+
+OCCTShapeRef OCCTShapeCreateFaceFromWire(OCCTWireRef wire, bool planar) {
+    if (!wire) return nullptr;
+
+    try {
+        BRepBuilderAPI_MakeFace makeFace(wire->wire, planar);
+        if (!makeFace.IsDone()) {
+            return nullptr;
+        }
+
+        TopoDS_Face face = makeFace.Face();
+        if (face.IsNull()) return nullptr;
+
+        return new OCCTShape(face);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateFaceWithHoles(OCCTWireRef outer, const OCCTWireRef* holes, int32_t holeCount) {
+    if (!outer) return nullptr;
+
+    try {
+        // First create face from outer wire
+        BRepBuilderAPI_MakeFace makeFace(outer->wire, true);  // planar
+        if (!makeFace.IsDone()) {
+            return nullptr;
+        }
+
+        // Add holes (inner wires)
+        for (int32_t i = 0; i < holeCount; i++) {
+            if (holes[i]) {
+                // Inner wires must be reversed to represent holes
+                TopoDS_Wire reversed = TopoDS::Wire(holes[i]->wire.Reversed());
+                makeFace.Add(reversed);
+            }
+        }
+
+        if (!makeFace.IsDone()) {
+            return nullptr;
+        }
+
+        TopoDS_Face face = makeFace.Face();
+        if (face.IsNull()) return nullptr;
+
+        return new OCCTShape(face);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateSolidFromShell(OCCTShapeRef shell) {
+    if (!shell) return nullptr;
+
+    try {
+        // Extract shell from shape
+        TopoDS_Shell topoShell;
+        if (shell->shape.ShapeType() == TopAbs_SHELL) {
+            topoShell = TopoDS::Shell(shell->shape);
+        } else {
+            // Try to find a shell in the shape
+            TopExp_Explorer exp(shell->shape, TopAbs_SHELL);
+            if (exp.More()) {
+                topoShell = TopoDS::Shell(exp.Current());
+            } else {
+                return nullptr;
+            }
+        }
+
+        BRepBuilderAPI_MakeSolid makeSolid(topoShell);
+        if (!makeSolid.IsDone()) {
+            return nullptr;
+        }
+
+        TopoDS_Solid solid = makeSolid.Solid();
+        if (solid.IsNull()) return nullptr;
+
+        // Optionally fix the solid orientation
+        ShapeFix_Solid fixer(solid);
+        fixer.Perform();
+        TopoDS_Shape fixedShape = fixer.Solid();
+        if (fixedShape.IsNull() || fixedShape.ShapeType() != TopAbs_SOLID) {
+            return new OCCTShape(solid);  // Return original if fix failed
+        }
+
+        return new OCCTShape(TopoDS::Solid(fixedShape));
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeSew(const OCCTShapeRef* shapes, int32_t count, double tolerance) {
+    if (!shapes || count < 1) return nullptr;
+
+    try {
+        BRepBuilderAPI_Sewing sewing(tolerance);
+
+        for (int32_t i = 0; i < count; i++) {
+            if (shapes[i]) {
+                sewing.Add(shapes[i]->shape);
+            }
+        }
+
+        sewing.Perform();
+        TopoDS_Shape sewn = sewing.SewedShape();
+
+        if (sewn.IsNull()) return nullptr;
+
+        // Try to make a solid if we got a closed shell
+        if (sewn.ShapeType() == TopAbs_SHELL) {
+            TopoDS_Shell shell = TopoDS::Shell(sewn);
+            if (shell.Closed()) {
+                BRepBuilderAPI_MakeSolid makeSolid(shell);
+                if (makeSolid.IsDone()) {
+                    return new OCCTShape(makeSolid.Solid());
+                }
+            }
+        }
+
+        return new OCCTShape(sewn);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeSewTwo(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance) {
+    if (!shape1 || !shape2) return nullptr;
+
+    OCCTShapeRef shapes[2] = { shape1, shape2 };
+    return OCCTShapeSew(shapes, 2, tolerance);
+}
+
+OCCTWireRef OCCTWireInterpolate(const double* points, int32_t count, bool closed, double tolerance) {
+    if (!points || count < 2) return nullptr;
+
+    try {
+        // Build array of points
+        Handle(TColgp_HArray1OfPnt) hPoints = new TColgp_HArray1OfPnt(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            hPoints->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+
+        // Create interpolator
+        GeomAPI_Interpolate interpolator(hPoints, closed, tolerance);
+        interpolator.Perform();
+
+        if (!interpolator.IsDone()) {
+            return nullptr;
+        }
+
+        Handle(Geom_BSplineCurve) curve = interpolator.Curve();
+        if (curve.IsNull()) return nullptr;
+
+        // Create edge from curve
+        BRepBuilderAPI_MakeEdge makeEdge(curve);
+        if (!makeEdge.IsDone()) return nullptr;
+
+        // Create wire from edge
+        BRepBuilderAPI_MakeWire makeWire(makeEdge.Edge());
+        if (!makeWire.IsDone()) return nullptr;
+
+        return new OCCTWire(makeWire.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireInterpolateWithTangents(const double* points, int32_t count,
+                                             double startTanX, double startTanY, double startTanZ,
+                                             double endTanX, double endTanY, double endTanZ,
+                                             double tolerance) {
+    if (!points || count < 2) return nullptr;
+
+    try {
+        // Build array of points
+        Handle(TColgp_HArray1OfPnt) hPoints = new TColgp_HArray1OfPnt(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            hPoints->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+
+        // Create interpolator (not closed since we have tangent constraints)
+        GeomAPI_Interpolate interpolator(hPoints, Standard_False, tolerance);
+
+        // Set tangent constraints
+        gp_Vec startTangent(startTanX, startTanY, startTanZ);
+        gp_Vec endTangent(endTanX, endTanY, endTanZ);
+        interpolator.Load(startTangent, endTangent);
+
+        interpolator.Perform();
+
+        if (!interpolator.IsDone()) {
+            return nullptr;
+        }
+
+        Handle(Geom_BSplineCurve) curve = interpolator.Curve();
+        if (curve.IsNull()) return nullptr;
+
+        // Create edge from curve
+        BRepBuilderAPI_MakeEdge makeEdge(curve);
+        if (!makeEdge.IsDone()) return nullptr;
+
+        // Create wire from edge
+        BRepBuilderAPI_MakeWire makeWire(makeEdge.Edge());
+        if (!makeWire.IsDone()) return nullptr;
+
+        return new OCCTWire(makeWire.Wire());
+    } catch (...) {
+        return nullptr;
     }
 }

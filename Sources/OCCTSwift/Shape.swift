@@ -473,6 +473,133 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    // MARK: - Geometry Construction (v0.11.0)
+
+    /// Create a planar face from a closed wire
+    ///
+    /// - Parameters:
+    ///   - wire: A closed wire defining the face boundary
+    ///   - planar: If true, requires the wire to be planar (default: true)
+    ///
+    /// - Returns: A face shape, or nil if creation fails
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let rect = Wire.rectangle(width: 10, height: 5)!
+    /// let face = Shape.face(from: rect)!
+    /// let box = face.extruded(direction: [0, 0, 1], length: 3)
+    /// ```
+    public static func face(from wire: Wire, planar: Bool = true) -> Shape? {
+        guard let handle = OCCTShapeCreateFaceFromWire(wire.handle, planar) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Create a face with holes from outer and inner wires
+    ///
+    /// - Parameters:
+    ///   - outer: The outer boundary wire (closed)
+    ///   - holes: Array of inner boundary wires defining holes
+    ///
+    /// - Returns: A face with holes, or nil if creation fails
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let outer = Wire.rectangle(width: 20, height: 20)!
+    /// let hole1 = Wire.circle(radius: 3)!.translated(x: -5, y: 0, z: 0)
+    /// let hole2 = Wire.circle(radius: 3)!.translated(x: 5, y: 0, z: 0)
+    /// let face = Shape.face(outer: outer, holes: [hole1, hole2])!
+    /// ```
+    public static func face(outer: Wire, holes: [Wire]) -> Shape? {
+        var holeHandles = holes.map { $0.handle as OCCTWireRef? }
+        guard let handle = holeHandles.withUnsafeMutableBufferPointer({ buffer in
+            OCCTShapeCreateFaceWithHoles(outer.handle, buffer.baseAddress, Int32(holes.count))
+        }) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Create a solid from a closed shell
+    ///
+    /// Converts a shell (set of connected faces) into a solid. The shell
+    /// must be closed (no gaps) for this to succeed.
+    ///
+    /// - Parameter shell: A shell shape (typically from sewing operations)
+    /// - Returns: A solid shape, or nil if the shell is not closed
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let sewn = Shape.sew(faces: faces, tolerance: 1e-6)!
+    /// let solid = Shape.solid(from: sewn)!
+    /// ```
+    public static func solid(from shell: Shape) -> Shape? {
+        guard let handle = OCCTShapeCreateSolidFromShell(shell.handle) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Sew multiple shapes into a connected shell or solid
+    ///
+    /// Sewing connects faces that share edges within the tolerance. This is
+    /// useful for repairing imported geometry or combining separately created faces.
+    ///
+    /// - Parameters:
+    ///   - shapes: Array of shapes (faces, shells) to sew together
+    ///   - tolerance: Maximum gap size to close (default: 1e-6)
+    ///
+    /// - Returns: Sewn shape (shell or solid if closed), or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create faces manually and sew into solid
+    /// let faces = [topFace, bottomFace, frontFace, backFace, leftFace, rightFace]
+    /// let solid = Shape.sew(shapes: faces, tolerance: 0.01)!
+    /// ```
+    public static func sew(shapes: [Shape], tolerance: Double = 1e-6) -> Shape? {
+        guard !shapes.isEmpty else { return nil }
+
+        var shapeHandles = shapes.map { $0.handle as OCCTShapeRef? }
+        guard let handle = shapeHandles.withUnsafeMutableBufferPointer({ buffer in
+            OCCTShapeSew(buffer.baseAddress, Int32(shapes.count), tolerance)
+        }) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Sew two shapes together
+    ///
+    /// - Parameters:
+    ///   - shape: First shape to sew
+    ///   - other: Second shape to sew
+    ///   - tolerance: Maximum gap size to close (default: 1e-6)
+    ///
+    /// - Returns: Sewn shape, or nil on failure
+    public static func sew(_ shape: Shape, with other: Shape, tolerance: Double = 1e-6) -> Shape? {
+        guard let handle = OCCTShapeSewTwo(shape.handle, other.handle, tolerance) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Sew this shape with another
+    ///
+    /// - Parameters:
+    ///   - other: Shape to sew with
+    ///   - tolerance: Maximum gap size to close (default: 1e-6)
+    ///
+    /// - Returns: Sewn shape, or nil on failure
+    public func sewn(with other: Shape, tolerance: Double = 1e-6) -> Shape? {
+        Shape.sew(self, with: other, tolerance: tolerance)
+    }
+
     // MARK: - Shape Type
 
     /// The topological type of the shape

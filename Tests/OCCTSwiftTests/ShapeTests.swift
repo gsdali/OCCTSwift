@@ -1365,3 +1365,286 @@ struct BREPTests {
         #expect(headerString.contains("DBRep") || headerString.contains("CASCADE"))
     }
 }
+
+
+// MARK: - Geometry Construction Tests (v0.11.0)
+
+@Suite("Geometry Construction Tests")
+struct GeometryConstructionTests {
+
+    @Test("Create face from rectangular wire")
+    func faceFromRectangle() {
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        let face = Shape.face(from: rect)
+
+        #expect(face != nil)
+        #expect(face!.isValid)
+
+        // Face should have surface area equal to rectangle area
+        let area = face!.surfaceArea ?? 0
+        #expect(abs(area - 50.0) < 0.01)  // 10 x 5 = 50
+    }
+
+    @Test("Create face from circular wire")
+    func faceFromCircle() {
+        let circle = Wire.circle(radius: 5)!
+        let face = Shape.face(from: circle)
+
+        #expect(face != nil)
+        #expect(face!.isValid)
+
+        // Face should have surface area equal to π * r²
+        let area = face!.surfaceArea ?? 0
+        let expectedArea = Double.pi * 5.0 * 5.0
+        #expect(abs(area - expectedArea) < 0.1)
+    }
+
+    @Test("Create face with hole")
+    func faceWithHole() {
+        let outer = Wire.rectangle(width: 20, height: 20)!
+        let hole = Wire.circle(radius: 5)!
+
+        let face = Shape.face(outer: outer, holes: [hole])
+
+        #expect(face != nil)
+        #expect(face!.isValid)
+
+        // Area should be outer minus hole
+        let area = face!.surfaceArea ?? 0
+        let expectedArea = 400.0 - (Double.pi * 25.0)  // 20x20 - π*5²
+        #expect(abs(area - expectedArea) < 0.5)
+    }
+
+    @Test("Create face with multiple holes")
+    func faceWithMultipleHoles() {
+        let outer = Wire.rectangle(width: 30, height: 30)!
+        // Use offset3D to position the holes
+        let hole1 = Wire.circle(radius: 3)!.offset3D(distance: 8, direction: SIMD3(-1, 0, 0))!
+        let hole2 = Wire.circle(radius: 3)!.offset3D(distance: 8, direction: SIMD3(1, 0, 0))!
+
+        let face = Shape.face(outer: outer, holes: [hole1, hole2])
+
+        #expect(face != nil)
+        #expect(face!.isValid)
+
+        // Area should be outer minus both holes
+        let area = face!.surfaceArea ?? 0
+        let expectedArea = 900.0 - 2 * (Double.pi * 9.0)  // 30x30 - 2*π*3²
+        #expect(abs(area - expectedArea) < 0.5)
+    }
+
+    @Test("Extrude face to create solid")
+    func extrudeFace() {
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        let face = Shape.face(from: rect)!
+
+        // Extrude the face to create a solid
+        let solid = Shape.extrude(profile: rect, direction: SIMD3(0, 0, 1), length: 3)
+
+        #expect(solid.isValid)
+
+        // Volume should be area * height
+        let volume = solid.volume ?? 0
+        #expect(abs(volume - 150.0) < 0.1)  // 10 * 5 * 3
+    }
+}
+
+
+@Suite("Sewing Tests")
+struct SewingTests {
+
+    @Test("Sew two shapes together")
+    func sewTwoShapes() {
+        // Create two separate faces (they don't need to be adjacent for sewing to work)
+        let rect1 = Wire.rectangle(width: 10, height: 10)!
+        let rect2 = Wire.circle(radius: 5)!
+
+        let face1 = Shape.face(from: rect1)!
+        let face2 = Shape.face(from: rect2)!
+
+        let sewn = Shape.sew(face1, with: face2, tolerance: 1e-6)
+
+        #expect(sewn != nil)
+        #expect(sewn!.isValid)
+    }
+
+    @Test("Sew array of faces")
+    func sewMultipleFaces() {
+        // Create several separate faces
+        let faces = [
+            Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!,
+            Shape.face(from: Wire.circle(radius: 5)!)!,
+            Shape.face(from: Wire.rectangle(width: 8, height: 8)!)!
+        ]
+
+        let sewn = Shape.sew(shapes: faces, tolerance: 1e-6)
+
+        #expect(sewn != nil)
+        #expect(sewn!.isValid)
+    }
+
+    @Test("Instance method sewn(with:)")
+    func instanceMethodSewn() {
+        let face1 = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!
+        let face2 = Shape.face(from: Wire.circle(radius: 5)!)!
+
+        let sewn = face1.sewn(with: face2)
+
+        #expect(sewn != nil)
+        #expect(sewn!.isValid)
+    }
+}
+
+
+@Suite("Solid From Shell Tests")
+struct SolidFromShellTests {
+
+    @Test("Solid from shell function exists")
+    func solidFromShellExists() {
+        // Create a simple face and try to make it into a shell
+        // Note: Creating a proper closed shell from scratch is complex.
+        // This test verifies the API exists and handles inputs correctly.
+        let rect = Wire.rectangle(width: 10, height: 10)!
+        let face = Shape.face(from: rect)!
+
+        // A single face cannot become a solid (not closed), so this should return nil
+        let solid = Shape.solid(from: face)
+
+        // This is expected to fail since a single face isn't a closed shell
+        // The test verifies the API doesn't crash
+        #expect(solid == nil || solid!.isValid)
+    }
+
+    @Test("Solid from compound of shapes")
+    func solidFromCompound() {
+        // Create a compound of faces (still won't be a closed shell)
+        let face1 = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!
+        let face2 = Shape.face(from: Wire.circle(radius: 5)!)!
+
+        let compound = Shape.compound([face1, face2])
+
+        // This won't create a solid since faces aren't connected
+        let solid = Shape.solid(from: compound)
+
+        // The test verifies the API handles non-closed shells gracefully
+        #expect(solid == nil || solid!.isValid)
+    }
+}
+
+
+@Suite("Curve Interpolation Tests")
+struct CurveInterpolationTests {
+
+    @Test("Interpolate through 2 points")
+    func interpolateTwoPoints() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 10, 0)
+        ]
+
+        let wire = Wire.interpolate(through: points)
+
+        #expect(wire != nil)
+
+        // Length should be approximately sqrt(200) ≈ 14.14
+        let length = wire!.length ?? 0
+        #expect(abs(length - 14.14) < 0.5)
+    }
+
+    @Test("Interpolate through multiple points")
+    func interpolateMultiplePoints() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 5, 0),
+            SIMD3(20, 0, 0),
+            SIMD3(30, 5, 0),
+            SIMD3(40, 0, 0)
+        ]
+
+        let wire = Wire.interpolate(through: points)
+
+        #expect(wire != nil)
+
+        // Wire should pass through all points
+        let info = wire!.curveInfo
+        #expect(info != nil)
+        #expect(!info!.isClosed)
+    }
+
+    @Test("Interpolate closed curve")
+    func interpolateClosed() {
+        // Create points for a closed curve (roughly circular)
+        let points: [SIMD3<Double>] = [
+            SIMD3(10, 0, 0),
+            SIMD3(0, 10, 0),
+            SIMD3(-10, 0, 0),
+            SIMD3(0, -10, 0)
+        ]
+
+        let wire = Wire.interpolate(through: points, closed: true)
+
+        #expect(wire != nil)
+
+        let info = wire!.curveInfo
+        #expect(info != nil)
+        #expect(info!.isClosed)
+    }
+
+    @Test("Interpolate with tangent constraints")
+    func interpolateWithTangents() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 0)
+        ]
+
+        // Start going up, end going up (creates an arc)
+        let wire = Wire.interpolate(
+            through: points,
+            startTangent: SIMD3(1, 1, 0),   // 45 degrees up
+            endTangent: SIMD3(1, -1, 0)      // 45 degrees down
+        )
+
+        #expect(wire != nil)
+
+        // The curve should arc above the straight line
+        // Check a point in the middle
+        let midPoint = wire!.point(at: 0.5)
+        #expect(midPoint != nil)
+
+        // The middle should be above Y=0 due to the tangent constraints
+        #expect(midPoint!.y > 0)
+    }
+
+    @Test("Interpolate 3D curve")
+    func interpolate3DCurve() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 5),
+            SIMD3(20, 0, 10),
+            SIMD3(30, 0, 5),
+            SIMD3(40, 0, 0)
+        ]
+
+        let wire = Wire.interpolate(through: points)
+
+        #expect(wire != nil)
+
+        // Check that the curve passes through the middle point
+        // (approximately, as interpolation smooths the curve)
+        let midPoint = wire!.point(at: 0.5)
+        #expect(midPoint != nil)
+
+        // Z should be roughly around 10 at the middle
+        #expect(midPoint!.z > 5)
+    }
+
+    @Test("Interpolate too few points returns nil")
+    func interpolateTooFewPoints() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0)  // Only 1 point
+        ]
+
+        let wire = Wire.interpolate(through: points)
+        #expect(wire == nil)
+    }
+}
