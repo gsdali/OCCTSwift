@@ -11,16 +11,17 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
 | **Modifications** | 7 | fillet, selective fillet, chamfer, shell, offset, draft, defeature |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
-| **Wires** | 11 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D |
+| **Wires** | 13 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
-| **Import/Export** | 4 | load (STEP), STL, STEP, mesh |
+| **Import/Export** | 10 | STEP, IGES, BREP import; STL, STEP, IGES, BREP export; mesh |
+| **Geometry Construction** | 4 | face from wire, face with holes, solid from shell, sew |
 | **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 10 | Document.load, rootNodes, AssemblyNode, colors, materials |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **82** | |
+| **Total** | **94** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -29,8 +30,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **B-Rep Solid Modeling**: Full boundary representation geometry
 - **Boolean Operations**: Union, subtraction, intersection
 - **Sweep Operations**: Pipe sweeps, extrusions, revolutions, lofts
-- **Modifications**: Fillet, chamfer, shell, offset
-- **Export Formats**: STL (3D printing), STEP (CAD interchange)
+- **Modifications**: Fillet, chamfer, shell, offset, draft, defeaturing
+- **Geometry Construction**: Face from wire, face with holes, sewing, solid from shell
+- **Curve Interpolation**: Create smooth curves through specific points
+- **Import Formats**: STEP, IGES, BREP (OCCT native)
+- **Export Formats**: STL (3D printing), STEP, IGES, BREP (CAD interchange)
 - **XDE Support**: Assembly structure, part names, colors, PBR materials
 - **2D Drawing**: Hidden line removal, technical drawing projection
 - **SceneKit Integration**: Generate meshes for visualization
@@ -49,7 +53,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.9.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.11.0")
 ]
 ```
 
@@ -254,6 +258,19 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | Swift API | OCCT Class |
 |-----------|------------|
 | `Shape.load(from:)` | `STEPControl_Reader` |
+| `Shape.loadRobust(from:)` | `STEPControl_Reader` + `ShapeFix_*` |
+| `Shape.loadIGES(from:)` | `IGESControl_Reader` |
+| `Shape.loadIGESRobust(from:)` | `IGESControl_Reader` + `ShapeFix_*` |
+| `Shape.loadBREP(from:)` | `BRepTools::Read` |
+
+#### Geometry Construction
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.face(from:)` | `BRepBuilderAPI_MakeFace` |
+| `Shape.face(outer:holes:)` | `BRepBuilderAPI_MakeFace` |
+| `Shape.solid(from:)` | `BRepBuilderAPI_MakeSolid` |
+| `Shape.sew(shapes:tolerance:)` | `BRepBuilderAPI_Sewing` |
+| `Wire.interpolate(through:)` | `GeomAPI_Interpolate` |
 
 #### Bounds
 | Swift API | OCCT Class |
@@ -282,6 +299,8 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `shape.mesh(linearDeflection:angularDeflection:)` | `BRepMesh_IncrementalMesh` |
 | `shape.writeSTL(to:deflection:)` | `StlAPI_Writer` |
 | `shape.writeSTEP(to:)` | `STEPControl_Writer` |
+| `shape.writeIGES(to:)` | `IGESControl_Writer` |
+| `shape.writeBREP(to:)` | `BRepTools::Write` |
 
 #### Validation
 | Swift API | OCCT Class |
@@ -294,12 +313,14 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 OCCT has thousands of classes. Some notable ones not yet exposed:
 
 - **Blend/Transition**: `BRepBlend_*` classes for complex variable-radius fillets
-- **2D operations**: `BRepBuilderAPI_MakeFace` from 2D regions
-- **IGES import**: Only STEP is currently supported
+- **Feature-Based Modeling**: Slots, pockets with islands, boss features, pattern operations
 - **Advanced healing**: `ShapeUpgrade_*`, `ShapeAnalysis_*`
 - **Offset surfaces**: `BRepOffsetAPI_MakeOffsetSurface`
+- **OBJ import/export**: Returns mesh data rather than B-Rep geometry
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.11.0: Face from wire, sewing operations, solid from shell, curve interpolation
+> - v0.10.0: IGES import/export, BREP native format
 > - v0.9.0: B-spline surfaces, ruled surfaces, curve analysis
 > - v0.8.0: Draft angles, selective fillet, defeaturing, pipe shell modes
 > - v0.7.0: Volume, surface area, distance measurement, center of mass
