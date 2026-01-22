@@ -1,5 +1,116 @@
 # OCCTSwift Changelog
 
+## [v0.12.0] - 2026-01-22
+
+### Added
+
+#### Feature-Based Modeling
+Manufacturing-oriented operations for adding features to existing solids.
+
+- **Prismatic Features**
+  - `withPrism(profile:direction:height:fuse:)` - Add or cut prismatic features
+  - `withBoss(profile:direction:height:)` - Add boss (protrusion) to shape
+  - `withPocket(profile:direction:depth:)` - Create pocket (depression) in shape
+
+- **Drilling Operations**
+  - `drilled(at:direction:radius:depth:)` - Create cylindrical holes in any direction
+    - Supports blind holes (specified depth)
+    - Supports through holes (depth = 0)
+
+**Use Cases:**
+- Adding mounting bosses to enclosures
+- Creating pockets for component mounting
+- Drilling mounting holes at arbitrary angles
+- Feature-based CAD modeling workflows
+
+#### Shape Splitting
+Divide shapes using planes or cutting tools.
+
+- `split(atPlane:normal:)` - Split shape by infinite plane
+- `split(by:)` - Split shape using another shape as cutting tool
+
+Returns array of resulting solid pieces.
+
+**Use Cases:**
+- Dividing parts for manufacturing constraints
+- Creating sectional views
+- Analyzing internal geometry
+
+#### Gluing Operations
+Efficiently combine coincident shapes.
+
+- `Shape.glue(_:_:tolerance:)` - Glue two shapes with shared faces
+
+Unlike boolean union, gluing assumes shapes share coincident faces and runs faster.
+
+#### Evolved Surfaces
+Create surfaces by sweeping profiles along spines.
+
+- `Shape.evolved(spine:profile:)` - Create evolved surface/shell
+
+The profile is swept along the spine maintaining its orientation relative to the spine.
+
+#### Pattern Operations
+Create arrays of shapes in linear or circular patterns.
+
+- `linearPattern(direction:spacing:count:)` - Create linear array of shapes
+- `circularPattern(axisPoint:axisDirection:count:angle:)` - Create circular array
+  - `angle = 0` distributes shapes evenly around 360°
+  - Non-zero angle specifies total angular span
+
+**Use Cases:**
+- Bolt hole patterns
+- Repeated features (fins, slots, teeth)
+- Array of components on PCB
+
+**C Bridge Functions:**
+```c
+// Prismatic Features
+OCCTShapeRef OCCTShapePrism(OCCTShapeRef shape, OCCTWireRef profile,
+                            double dirX, double dirY, double dirZ,
+                            double height, bool fuse);
+
+// Drilling
+OCCTShapeRef OCCTShapeDrillHole(OCCTShapeRef shape,
+                                 double posX, double posY, double posZ,
+                                 double dirX, double dirY, double dirZ,
+                                 double radius, double depth);
+
+// Splitting
+OCCTShapeRef* OCCTShapeSplit(OCCTShapeRef shape, OCCTShapeRef tool, int32_t* outCount);
+OCCTShapeRef* OCCTShapeSplitByPlane(OCCTShapeRef shape,
+                                     double planeX, double planeY, double planeZ,
+                                     double normalX, double normalY, double normalZ,
+                                     int32_t* outCount);
+void OCCTFreeShapeArray(OCCTShapeRef* shapes, int32_t count);
+void OCCTFreeShapeArrayOnly(OCCTShapeRef* shapes);
+
+// Gluing
+OCCTShapeRef OCCTShapeGlue(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance);
+
+// Evolved
+OCCTShapeRef OCCTShapeCreateEvolved(OCCTWireRef spine, OCCTWireRef profile);
+
+// Patterns
+OCCTShapeRef OCCTShapeLinearPattern(OCCTShapeRef shape,
+                                     double dirX, double dirY, double dirZ,
+                                     double spacing, int32_t count);
+OCCTShapeRef OCCTShapeCircularPattern(OCCTShapeRef shape,
+                                       double axisX, double axisY, double axisZ,
+                                       double axisDirX, double axisDirY, double axisDirZ,
+                                       int32_t count, double angle);
+```
+
+### Tests Added
+- Prismatic features (boss and pocket) (2 tests)
+- Drilling (blind hole, through hole, multiple holes) (3 tests)
+- Shape splitting (horizontal plane, diagonal plane, shape tool) (3 tests)
+- Gluing (2 tests)
+- Evolved surfaces (1 test)
+- Pattern operations (linear, circular, partial circular) (3 tests)
+
+---
+
 ## [v0.11.0] - 2026-01-22
 
 ### Added

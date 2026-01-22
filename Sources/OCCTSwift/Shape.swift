@@ -600,6 +600,243 @@ public final class Shape: @unchecked Sendable {
         Shape.sew(self, with: other, tolerance: tolerance)
     }
 
+    // MARK: - Feature-Based Modeling (v0.12.0)
+
+    /// Add a prismatic boss or pocket to the shape
+    ///
+    /// - Parameters:
+    ///   - profile: Wire profile to extrude (should be on a face of this shape)
+    ///   - direction: Extrusion direction
+    ///   - height: Extrusion height
+    ///   - fuse: If true, adds material (boss); if false, removes material (pocket)
+    ///
+    /// - Returns: Modified shape, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let box = Shape.box(width: 50, height: 50, depth: 10)
+    /// let bossProfile = Wire.circle(radius: 5)!.offset3D(distance: 25, direction: SIMD3(0, 0, 1))!
+    /// let withBoss = box.withPrism(profile: bossProfile, direction: SIMD3(0, 0, 1), height: 5, fuse: true)
+    /// ```
+    public func withPrism(profile: Wire, direction: SIMD3<Double>, height: Double, fuse: Bool) -> Shape? {
+        guard let handle = OCCTShapePrism(self.handle, profile.handle,
+                                          direction.x, direction.y, direction.z,
+                                          height, fuse) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Add a boss (raised feature) to the shape
+    ///
+    /// - Parameters:
+    ///   - profile: Wire profile to extrude
+    ///   - direction: Extrusion direction
+    ///   - height: Boss height
+    ///
+    /// - Returns: Shape with added boss, or nil on failure
+    public func withBoss(profile: Wire, direction: SIMD3<Double>, height: Double) -> Shape? {
+        withPrism(profile: profile, direction: direction, height: height, fuse: true)
+    }
+
+    /// Create a pocket (depression) in the shape
+    ///
+    /// - Parameters:
+    ///   - profile: Wire profile defining the pocket boundary
+    ///   - direction: Pocket direction (into the shape)
+    ///   - depth: Pocket depth
+    ///
+    /// - Returns: Shape with pocket, or nil on failure
+    public func withPocket(profile: Wire, direction: SIMD3<Double>, depth: Double) -> Shape? {
+        withPrism(profile: profile, direction: direction, height: depth, fuse: false)
+    }
+
+    /// Drill a cylindrical hole into the shape
+    ///
+    /// - Parameters:
+    ///   - position: Position of hole center on surface
+    ///   - direction: Drill direction (into the shape)
+    ///   - radius: Hole radius
+    ///   - depth: Hole depth (0 for through-hole)
+    ///
+    /// - Returns: Shape with drilled hole, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let plate = Shape.box(width: 50, height: 50, depth: 10)
+    /// let drilled = plate.drilled(at: SIMD3(25, 25, 10), direction: SIMD3(0, 0, -1), radius: 5, depth: 0)
+    /// ```
+    public func drilled(at position: SIMD3<Double>, direction: SIMD3<Double>, radius: Double, depth: Double = 0) -> Shape? {
+        guard let handle = OCCTShapeDrillHole(self.handle,
+                                              position.x, position.y, position.z,
+                                              direction.x, direction.y, direction.z,
+                                              radius, depth) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Split the shape using a cutting tool
+    ///
+    /// - Parameter tool: Shape to use as cutting tool
+    /// - Returns: Array of resulting shapes after split, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let box = Shape.box(width: 20, height: 20, depth: 20)
+    /// let cuttingPlane = Shape.face(from: Wire.rectangle(width: 40, height: 40)!)!
+    /// let halves = box.split(by: cuttingPlane.translated(by: SIMD3(0, 0, 10)))
+    /// ```
+    public func split(by tool: Shape) -> [Shape]? {
+        var count: Int32 = 0
+        guard let shapesPtr = OCCTShapeSplit(self.handle, tool.handle, &count),
+              count > 0 else {
+            return nil
+        }
+
+        var shapes: [Shape] = []
+        for i in 0..<Int(count) {
+            if let shapeHandle = shapesPtr[i] {
+                shapes.append(Shape(handle: shapeHandle))
+            }
+        }
+
+        // Free only the array, not the shapes (we've taken ownership)
+        OCCTFreeShapeArrayOnly(shapesPtr)
+
+        return shapes.isEmpty ? nil : shapes
+    }
+
+    /// Split the shape by a plane
+    ///
+    /// - Parameters:
+    ///   - point: A point on the cutting plane
+    ///   - normal: Normal vector of the cutting plane
+    ///
+    /// - Returns: Array of resulting shapes after split, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let cube = Shape.box(width: 20, height: 20, depth: 20)
+    /// // Split horizontally at Z=10
+    /// let halves = cube.split(atPlane: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1))
+    /// ```
+    public func split(atPlane point: SIMD3<Double>, normal: SIMD3<Double>) -> [Shape]? {
+        var count: Int32 = 0
+        guard let shapesPtr = OCCTShapeSplitByPlane(self.handle,
+                                                     point.x, point.y, point.z,
+                                                     normal.x, normal.y, normal.z,
+                                                     &count),
+              count > 0 else {
+            return nil
+        }
+
+        var shapes: [Shape] = []
+        for i in 0..<Int(count) {
+            if let shapeHandle = shapesPtr[i] {
+                shapes.append(Shape(handle: shapeHandle))
+            }
+        }
+
+        OCCTFreeShapeArrayOnly(shapesPtr)
+
+        return shapes.isEmpty ? nil : shapes
+    }
+
+    /// Glue two shapes together at coincident faces
+    ///
+    /// More efficient than boolean union when shapes have faces that perfectly align.
+    ///
+    /// - Parameters:
+    ///   - shape1: First shape
+    ///   - shape2: Second shape with coincident faces
+    ///   - tolerance: Tolerance for face matching (default: 1e-6)
+    ///
+    /// - Returns: Glued shape, or nil on failure
+    public static func glue(_ shape1: Shape, _ shape2: Shape, tolerance: Double = 1e-6) -> Shape? {
+        guard let handle = OCCTShapeGlue(shape1.handle, shape2.handle, tolerance) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Create an evolved shape (profile swept along spine with rotation)
+    ///
+    /// The profile is swept along the spine, with its orientation evolving
+    /// to stay perpendicular to the spine.
+    ///
+    /// - Parameters:
+    ///   - spine: Path wire to sweep along
+    ///   - profile: Profile wire to sweep
+    ///
+    /// - Returns: Evolved shape, or nil on failure
+    public static func evolved(spine: Wire, profile: Wire) -> Shape? {
+        guard let handle = OCCTShapeCreateEvolved(spine.handle, profile.handle) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Create a linear pattern of the shape
+    ///
+    /// - Parameters:
+    ///   - direction: Direction of the pattern
+    ///   - spacing: Distance between copies
+    ///   - count: Number of copies (including original)
+    ///
+    /// - Returns: Compound containing all copies, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let hole = Shape.cylinder(radius: 3, height: 10)
+    /// let rowOfHoles = hole.linearPattern(direction: SIMD3(20, 0, 0), spacing: 20, count: 5)
+    /// ```
+    public func linearPattern(direction: SIMD3<Double>, spacing: Double, count: Int) -> Shape? {
+        guard let handle = OCCTShapeLinearPattern(self.handle,
+                                                   direction.x, direction.y, direction.z,
+                                                   spacing, Int32(count)) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Create a circular pattern of the shape
+    ///
+    /// - Parameters:
+    ///   - axisPoint: Point on the rotation axis
+    ///   - axisDirection: Direction of the rotation axis
+    ///   - count: Number of copies (including original)
+    ///   - angle: Total angle to span in radians (0 for full circle)
+    ///
+    /// - Returns: Compound containing all copies, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let hole = Shape.cylinder(radius: 3, height: 10).translated(by: SIMD3(20, 0, 0))
+    /// // Create 6 holes in a circle around the Z axis
+    /// let boltPattern = hole.circularPattern(
+    ///     axisPoint: .zero,
+    ///     axisDirection: SIMD3(0, 0, 1),
+    ///     count: 6,
+    ///     angle: 0  // Full circle
+    /// )
+    /// ```
+    public func circularPattern(axisPoint: SIMD3<Double>, axisDirection: SIMD3<Double>, count: Int, angle: Double = 0) -> Shape? {
+        guard let handle = OCCTShapeCircularPattern(self.handle,
+                                                     axisPoint.x, axisPoint.y, axisPoint.z,
+                                                     axisDirection.x, axisDirection.y, axisDirection.z,
+                                                     Int32(count), angle) else {
+            return nil
+        }
+        return Shape(handle: handle)
+    }
+
     // MARK: - Shape Type
 
     /// The topological type of the shape

@@ -972,6 +972,94 @@ OCCTWireRef OCCTWireInterpolateWithTangents(const double* points, int32_t count,
                                              double tolerance);
 
 
+// MARK: - Feature-Based Modeling (v0.12.0)
+
+/// Add a prismatic boss to a shape by extruding a profile
+/// @param shape The base shape to modify
+/// @param profile Wire profile to extrude (must be on a face of shape)
+/// @param dirX, dirY, dirZ Extrusion direction
+/// @param height Extrusion height
+/// @param fuse If true, fuse with base shape; if false, cut from base shape
+/// @return Modified shape with boss/pocket, or NULL on failure
+OCCTShapeRef OCCTShapePrism(OCCTShapeRef shape, OCCTWireRef profile,
+                            double dirX, double dirY, double dirZ,
+                            double height, bool fuse);
+
+/// Drill a cylindrical hole into a shape
+/// @param shape The shape to drill
+/// @param posX, posY, posZ Position of hole center on surface
+/// @param dirX, dirY, dirZ Drill direction (into the shape)
+/// @param radius Hole radius
+/// @param depth Hole depth (0 for through-hole)
+/// @return Shape with hole, or NULL on failure
+OCCTShapeRef OCCTShapeDrillHole(OCCTShapeRef shape,
+                                 double posX, double posY, double posZ,
+                                 double dirX, double dirY, double dirZ,
+                                 double radius, double depth);
+
+/// Split a shape using a cutting tool (wire, face, or shape)
+/// @param shape The shape to split
+/// @param tool The cutting tool
+/// @param outCount Output: number of resulting shapes
+/// @return Array of split shapes (caller must free with OCCTFreeShapeArray), or NULL on failure
+OCCTShapeRef* OCCTShapeSplit(OCCTShapeRef shape, OCCTShapeRef tool, int32_t* outCount);
+
+/// Split a shape by a plane
+/// @param shape The shape to split
+/// @param planeX, planeY, planeZ Point on the cutting plane
+/// @param normalX, normalY, normalZ Normal vector of the cutting plane
+/// @param outCount Output: number of resulting shapes
+/// @return Array of split shapes (caller must free with OCCTFreeShapeArray), or NULL on failure
+OCCTShapeRef* OCCTShapeSplitByPlane(OCCTShapeRef shape,
+                                     double planeX, double planeY, double planeZ,
+                                     double normalX, double normalY, double normalZ,
+                                     int32_t* outCount);
+
+/// Free an array of shapes returned by split operations
+/// @param shapes Array of shape references
+/// @param count Number of shapes in the array
+void OCCTFreeShapeArray(OCCTShapeRef* shapes, int32_t count);
+
+/// Free only the shape array container, not the shapes themselves
+/// @param shapes Array of shape references
+void OCCTFreeShapeArrayOnly(OCCTShapeRef* shapes);
+
+/// Glue two shapes together at coincident faces
+/// @param shape1 First shape
+/// @param shape2 Second shape (must have faces coincident with shape1)
+/// @param tolerance Tolerance for face matching
+/// @return Glued shape, or NULL on failure
+OCCTShapeRef OCCTShapeGlue(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance);
+
+/// Create an evolved shape (profile swept along spine with rotation)
+/// @param spine The spine wire
+/// @param profile The profile wire to sweep
+/// @return Evolved shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateEvolved(OCCTWireRef spine, OCCTWireRef profile);
+
+/// Create a linear pattern of a shape
+/// @param shape The shape to pattern
+/// @param dirX, dirY, dirZ Direction of the pattern
+/// @param spacing Distance between copies
+/// @param count Number of copies (including original)
+/// @return Compound of patterned shapes, or NULL on failure
+OCCTShapeRef OCCTShapeLinearPattern(OCCTShapeRef shape,
+                                     double dirX, double dirY, double dirZ,
+                                     double spacing, int32_t count);
+
+/// Create a circular pattern of a shape
+/// @param shape The shape to pattern
+/// @param axisX, axisY, axisZ Point on the rotation axis
+/// @param axisDirX, axisDirY, axisDirZ Direction of the rotation axis
+/// @param count Number of copies (including original)
+/// @param angle Total angle to span (radians), 0 for full circle
+/// @return Compound of patterned shapes, or NULL on failure
+OCCTShapeRef OCCTShapeCircularPattern(OCCTShapeRef shape,
+                                       double axisX, double axisY, double axisZ,
+                                       double axisDirX, double axisDirY, double axisDirZ,
+                                       int32_t count, double angle);
+
+
 #ifdef __cplusplus
 }
 #endif

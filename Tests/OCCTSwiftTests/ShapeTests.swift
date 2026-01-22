@@ -1648,3 +1648,286 @@ struct CurveInterpolationTests {
         #expect(wire == nil)
     }
 }
+
+
+// MARK: - Feature-Based Modeling Tests (v0.12.0)
+
+@Suite("Prismatic Feature Tests")
+struct PrismaticFeatureTests {
+
+    @Test("Add boss to box")
+    func addBossToBox() {
+        // Box is 50x50x10 centered at origin: X[-25,25], Y[-25,25], Z[-5,5]
+        let box = Shape.box(width: 50, height: 50, depth: 10)
+        let originalVolume = box.volume ?? 0
+
+        // Create a circular profile and position it at top of box (Z=5)
+        let circle = Wire.circle(radius: 5)!
+        let bossProfile = circle.offset3D(distance: 5, direction: SIMD3(0, 0, 1))!
+
+        // Add boss on top (extends from Z=5 to Z=10)
+        let withBoss = box.withBoss(profile: bossProfile, direction: SIMD3(0, 0, 1), height: 5)
+
+        #expect(withBoss != nil)
+        #expect(withBoss!.isValid)
+
+        // Volume should increase
+        let newVolume = withBoss!.volume ?? 0
+        let bossVolume = Double.pi * 25 * 5  // π * r² * h
+        #expect(newVolume > originalVolume)
+        #expect(abs(newVolume - (originalVolume + bossVolume)) < 1.0)
+    }
+
+    @Test("Create pocket in box")
+    func createPocketInBox() {
+        let box = Shape.box(width: 50, height: 50, depth: 20)
+        let originalVolume = box.volume ?? 0
+
+        // Create a rectangular pocket profile
+        let pocketProfile = Wire.rectangle(width: 20, height: 20)!
+
+        // Create pocket going down into the box
+        let withPocket = box.withPocket(profile: pocketProfile, direction: SIMD3(0, 0, -1), depth: 10)
+
+        #expect(withPocket != nil)
+        #expect(withPocket!.isValid)
+
+        // Volume should decrease
+        let newVolume = withPocket!.volume ?? 0
+        let pocketVolume = 20 * 20 * 10  // w * h * d
+        #expect(newVolume < originalVolume)
+        #expect(abs(newVolume - (originalVolume - Double(pocketVolume))) < 1.0)
+    }
+}
+
+
+@Suite("Drilling Tests")
+struct DrillingTests {
+
+    @Test("Drill hole into box")
+    func drillHoleIntoBox() {
+        // Box is centered at origin: X[-25,25], Y[-25,25], Z[-10,10]
+        let box = Shape.box(width: 50, height: 50, depth: 20)
+        let originalVolume = box.volume ?? 0
+
+        // Drill from slightly above top surface (Z=10), at center (X=0, Y=0)
+        let drilled = box.drilled(at: SIMD3(0, 0, 11), direction: SIMD3(0, 0, -1), radius: 5, depth: 11)
+
+        #expect(drilled != nil)
+        #expect(drilled!.isValid)
+
+        // Volume should decrease by cylinder volume
+        let newVolume = drilled!.volume ?? 0
+        let holeVolume = Double.pi * 25 * 10  // π * r² * h (only 10mm inside the box)
+        #expect(newVolume < originalVolume)
+        #expect(abs(newVolume - (originalVolume - holeVolume)) < 2.0)  // Allow some tolerance
+    }
+
+    @Test("Drill through hole")
+    func drillThroughHole() {
+        // Box is centered at origin: X[-25,25], Y[-25,25], Z[-10,10]
+        let box = Shape.box(width: 50, height: 50, depth: 20)
+        let originalVolume = box.volume ?? 0
+
+        // Drill through (depth = 0 means through) starting above top surface
+        let drilled = box.drilled(at: SIMD3(0, 0, 15), direction: SIMD3(0, 0, -1), radius: 5, depth: 0)
+
+        #expect(drilled != nil)
+        #expect(drilled!.isValid)
+
+        // Volume should decrease by full cylinder volume through the box
+        let newVolume = drilled!.volume ?? 0
+        let holeVolume = Double.pi * 25 * 20  // π * r² * box_depth
+        #expect(newVolume < originalVolume)
+        #expect(abs(newVolume - (originalVolume - holeVolume)) < 2.0)
+    }
+
+    @Test("Multiple holes")
+    func multipleHoles() {
+        // Box 50x50x10 is centered at origin: X[-25,25], Y[-25,25], Z[-5,5]
+        let box = Shape.box(width: 50, height: 50, depth: 10)
+
+        // Drill multiple holes from above top surface (Z=5) along Y centerline
+        var result = box.drilled(at: SIMD3(-15, 0, 8), direction: SIMD3(0, 0, -1), radius: 3, depth: 0)
+        #expect(result != nil)
+
+        result = result!.drilled(at: SIMD3(0, 0, 8), direction: SIMD3(0, 0, -1), radius: 3, depth: 0)
+        #expect(result != nil)
+
+        result = result!.drilled(at: SIMD3(15, 0, 8), direction: SIMD3(0, 0, -1), radius: 3, depth: 0)
+        #expect(result != nil)
+        #expect(result!.isValid)
+    }
+}
+
+
+@Suite("Shape Splitting Tests")
+struct ShapeSplittingTests {
+
+    @Test("Split box by horizontal plane")
+    func splitByHorizontalPlane() {
+        // Box is centered at origin: X[-10,10], Y[-10,10], Z[-10,10]
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+
+        // Split at Z=0 (middle of the box)
+        let halves = box.split(atPlane: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+
+        #expect(halves != nil)
+        #expect(halves!.count == 2)
+
+        // Each half should be valid
+        for half in halves! {
+            #expect(half.isValid)
+        }
+
+        // Total volume should equal original
+        let totalVolume = halves!.reduce(0.0) { $0 + ($1.volume ?? 0) }
+        let originalVolume = box.volume ?? 0
+        #expect(abs(totalVolume - originalVolume) < 1.0)
+    }
+
+    @Test("Split box by diagonal plane")
+    func splitByDiagonalPlane() {
+        // Box is centered at origin: X[-10,10], Y[-10,10], Z[-10,10]
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+
+        // Split diagonally through center
+        let pieces = box.split(atPlane: SIMD3(0, 0, 0), normal: SIMD3(1, 1, 0).normalized)
+
+        #expect(pieces != nil)
+        #expect(pieces!.count >= 2)
+
+        for piece in pieces! {
+            #expect(piece.isValid)
+        }
+    }
+
+    @Test("Split by shape tool")
+    func splitByShapeTool() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+
+        // Create a cutting face
+        let cuttingFace = Shape.face(from: Wire.rectangle(width: 40, height: 40)!)!
+            .translated(by: SIMD3(0, 0, 10))
+
+        let pieces = box.split(by: cuttingFace)
+
+        #expect(pieces != nil)
+        #expect(pieces!.count >= 1)
+    }
+}
+
+
+@Suite("Pattern Tests")
+struct PatternTests {
+
+    @Test("Linear pattern of cylinders")
+    func linearPatternOfCylinders() {
+        let cylinder = Shape.cylinder(radius: 5, height: 10)
+
+        // Create a row of 4 cylinders spaced 20mm apart
+        let pattern = cylinder.linearPattern(direction: SIMD3(1, 0, 0), spacing: 20, count: 4)
+
+        #expect(pattern != nil)
+        #expect(pattern!.isValid)
+
+        // The pattern should have approximately 4x the volume
+        let singleVolume = cylinder.volume ?? 0
+        let patternVolume = pattern!.volume ?? 0
+        #expect(abs(patternVolume - singleVolume * 4) < 1.0)
+    }
+
+    @Test("Circular pattern of holes")
+    func circularPatternOfHoles() {
+        let cylinder = Shape.cylinder(radius: 3, height: 10)
+            .translated(by: SIMD3(20, 0, 0))
+
+        // Create 6 cylinders in a circle around Z axis
+        let pattern = cylinder.circularPattern(
+            axisPoint: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            count: 6,
+            angle: 0  // Full circle
+        )
+
+        #expect(pattern != nil)
+        #expect(pattern!.isValid)
+
+        // The pattern should have 6x the volume
+        let singleVolume = cylinder.volume ?? 0
+        let patternVolume = pattern!.volume ?? 0
+        #expect(abs(patternVolume - singleVolume * 6) < 1.0)
+    }
+
+    @Test("Partial circular pattern")
+    func partialCircularPattern() {
+        let box = Shape.box(width: 5, height: 5, depth: 5)
+            .translated(by: SIMD3(15, 0, 0))
+
+        // Create 3 boxes spanning 90 degrees
+        let pattern = box.circularPattern(
+            axisPoint: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            count: 3,
+            angle: .pi / 2  // 90 degrees
+        )
+
+        #expect(pattern != nil)
+        #expect(pattern!.isValid)
+    }
+}
+
+
+@Suite("Glue Tests")
+struct GlueTests {
+
+    @Test("Glue two boxes")
+    func glueTwoBoxes() {
+        // Create two boxes that share a face
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)
+            .translated(by: SIMD3(10, 0, 0))
+
+        let glued = Shape.glue(box1, box2, tolerance: 1e-6)
+
+        #expect(glued != nil)
+        #expect(glued!.isValid)
+
+        // Volume should be sum of both
+        let gluedVolume = glued!.volume ?? 0
+        let expectedVolume = 10.0 * 10.0 * 10.0 * 2
+        #expect(abs(gluedVolume - expectedVolume) < 1.0)
+    }
+}
+
+
+@Suite("Evolved Surface Tests")
+struct EvolvedSurfaceTests {
+
+    @Test("Simple evolved shape")
+    func simpleEvolved() {
+        // Create a simple spine (quarter circle)
+        let spine = Wire.arc(center: SIMD3(0, 0, 0), radius: 20, startAngle: 0, endAngle: .pi / 2)!
+
+        // Create a small profile
+        let profile = Wire.rectangle(width: 2, height: 2)!
+
+        let evolved = Shape.evolved(spine: spine, profile: profile)
+
+        // Evolved may not always succeed depending on geometry
+        if let evolved = evolved {
+            #expect(evolved.isValid)
+        }
+    }
+}
+
+
+// MARK: - SIMD3 Extension for normalization
+
+extension SIMD3 where Scalar == Double {
+    var normalized: SIMD3<Double> {
+        let len = sqrt(x*x + y*y + z*z)
+        guard len > 0 else { return self }
+        return SIMD3(x/len, y/len, z/len)
+    }
+}

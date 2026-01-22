@@ -185,6 +185,14 @@
 #include <GeomAPI_Interpolate.hxx>
 #include <TColgp_HArray1OfPnt.hxx>
 
+// Feature-Based Modeling (v0.12.0)
+#include <BRepFeat_MakePrism.hxx>
+#include <BRepFeat_MakeCylindricalHole.hxx>
+#include <BRepFeat_SplitShape.hxx>
+#include <BRepFeat_Gluer.hxx>
+#include <BRepOffsetAPI_MakeEvolved.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
+
 // MARK: - Internal Structures
 
 struct OCCTShape {
@@ -4389,6 +4397,349 @@ OCCTWireRef OCCTWireInterpolateWithTangents(const double* points, int32_t count,
         if (!makeWire.IsDone()) return nullptr;
 
         return new OCCTWire(makeWire.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+
+// MARK: - Feature-Based Modeling (v0.12.0)
+
+OCCTShapeRef OCCTShapePrism(OCCTShapeRef shape, OCCTWireRef profile,
+                            double dirX, double dirY, double dirZ,
+                            double height, bool fuse) {
+    if (!shape || !profile) return nullptr;
+
+    try {
+        // Create face from profile wire
+        BRepBuilderAPI_MakeFace makeFace(profile->wire, true);
+        if (!makeFace.IsDone()) return nullptr;
+        TopoDS_Face profileFace = makeFace.Face();
+
+        // Create the prism direction
+        gp_Vec dir(dirX, dirY, dirZ);
+        dir.Normalize();
+        dir.Scale(height);
+
+        // Create the prism shape (extrusion of the profile)
+        BRepPrimAPI_MakePrism makePrism(profileFace, dir);
+        if (!makePrism.IsDone()) return nullptr;
+        TopoDS_Shape prismShape = makePrism.Shape();
+
+        // Fuse or cut with base shape
+        TopoDS_Shape result;
+        if (fuse) {
+            BRepAlgoAPI_Fuse fuseOp(shape->shape, prismShape);
+            if (!fuseOp.IsDone()) return nullptr;
+            result = fuseOp.Shape();
+        } else {
+            BRepAlgoAPI_Cut cutOp(shape->shape, prismShape);
+            if (!cutOp.IsDone()) return nullptr;
+            result = cutOp.Shape();
+        }
+
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeDrillHole(OCCTShapeRef shape,
+                                 double posX, double posY, double posZ,
+                                 double dirX, double dirY, double dirZ,
+                                 double radius, double depth) {
+    if (!shape || radius <= 0) return nullptr;
+
+    try {
+        gp_Vec direction(dirX, dirY, dirZ);
+        double dirLen = direction.Magnitude();
+        if (dirLen < 1e-10) return nullptr;
+        direction.Normalize();
+
+        // Determine depth - if depth is 0 or negative, make it through the shape
+        double actualDepth = depth;
+        if (actualDepth <= 0) {
+            // Calculate shape extent for through hole
+            Bnd_Box bounds;
+            BRepBndLib::Add(shape->shape, bounds);
+            double xmin, ymin, zmin, xmax, ymax, zmax;
+            bounds.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+            double diagonal = std::sqrt((xmax-xmin)*(xmax-xmin) +
+                                        (ymax-ymin)*(ymax-ymin) +
+                                        (zmax-zmin)*(zmax-zmin));
+            actualDepth = diagonal * 2;  // Make sure it goes through
+        }
+
+        // Calculate the bottom of the hole (endpoint of drill)
+        double bottomX = posX + direction.X() * actualDepth;
+        double bottomY = posY + direction.Y() * actualDepth;
+        double bottomZ = posZ + direction.Z() * actualDepth;
+
+        // Create cylinder using OCCTShapeCreateCylinderAt pattern
+        // The cylinder's base is at the "bottom" of the hole, extending upward
+        OCCTShapeRef cylRef = OCCTShapeCreateCylinderAt(bottomX, bottomY, bottomZ, radius, actualDepth);
+        if (!cylRef) return nullptr;
+
+        // Subtract using the existing working function
+        OCCTShapeRef result = OCCTShapeSubtract(shape, cylRef);
+        OCCTShapeRelease(cylRef);
+
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef* OCCTShapeSplit(OCCTShapeRef shape, OCCTShapeRef tool, int32_t* outCount) {
+    if (!shape || !tool || !outCount) return nullptr;
+    *outCount = 0;
+
+    try {
+        // Use BRepAlgoAPI_Splitter for general splitting
+        BRepAlgoAPI_Splitter splitter;
+
+        // Set arguments (shapes to be split)
+        TopTools_ListOfShape arguments;
+        arguments.Append(shape->shape);
+        splitter.SetArguments(arguments);
+
+        // Set tools (cutting shapes)
+        TopTools_ListOfShape tools;
+        tools.Append(tool->shape);
+        splitter.SetTools(tools);
+
+        // Perform split
+        splitter.Build();
+        if (!splitter.IsDone()) return nullptr;
+
+        TopoDS_Shape result = splitter.Shape();
+        if (result.IsNull()) return nullptr;
+
+        // Extract solids from result
+        std::vector<TopoDS_Shape> solids;
+        for (TopExp_Explorer exp(result, TopAbs_SOLID); exp.More(); exp.Next()) {
+            solids.push_back(exp.Current());
+        }
+
+        // If no solids, try shells
+        if (solids.empty()) {
+            for (TopExp_Explorer exp(result, TopAbs_SHELL); exp.More(); exp.Next()) {
+                solids.push_back(exp.Current());
+            }
+        }
+
+        // If still nothing, return the whole result as one shape
+        if (solids.empty()) {
+            solids.push_back(result);
+        }
+
+        // Allocate array
+        *outCount = static_cast<int32_t>(solids.size());
+        OCCTShapeRef* shapes = new OCCTShapeRef[*outCount];
+        for (int32_t i = 0; i < *outCount; i++) {
+            shapes[i] = new OCCTShape(solids[i]);
+        }
+
+        return shapes;
+    } catch (...) {
+        *outCount = 0;
+        return nullptr;
+    }
+}
+
+OCCTShapeRef* OCCTShapeSplitByPlane(OCCTShapeRef shape,
+                                     double planeX, double planeY, double planeZ,
+                                     double normalX, double normalY, double normalZ,
+                                     int32_t* outCount) {
+    if (!shape || !outCount) return nullptr;
+    *outCount = 0;
+
+    try {
+        // Create plane
+        gp_Pnt pnt(planeX, planeY, planeZ);
+        gp_Dir normal(normalX, normalY, normalZ);
+        gp_Pln plane(pnt, normal);
+
+        // Create a large face from the plane for cutting
+        // Get shape bounds to size the cutting plane
+        Bnd_Box bounds;
+        BRepBndLib::Add(shape->shape, bounds);
+        double xmin, ymin, zmin, xmax, ymax, zmax;
+        bounds.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+        double size = std::sqrt((xmax-xmin)*(xmax-xmin) +
+                                (ymax-ymin)*(ymax-ymin) +
+                                (zmax-zmin)*(zmax-zmin)) * 2;
+
+        BRepBuilderAPI_MakeFace makeFace(plane, -size, size, -size, size);
+        if (!makeFace.IsDone()) return nullptr;
+        TopoDS_Shape planeFace = makeFace.Face();
+
+        // Use splitter
+        BRepAlgoAPI_Splitter splitter;
+
+        TopTools_ListOfShape arguments;
+        arguments.Append(shape->shape);
+        splitter.SetArguments(arguments);
+
+        TopTools_ListOfShape tools;
+        tools.Append(planeFace);
+        splitter.SetTools(tools);
+
+        splitter.Build();
+        if (!splitter.IsDone()) return nullptr;
+
+        TopoDS_Shape result = splitter.Shape();
+        if (result.IsNull()) return nullptr;
+
+        // Extract solids from result
+        std::vector<TopoDS_Shape> solids;
+        for (TopExp_Explorer exp(result, TopAbs_SOLID); exp.More(); exp.Next()) {
+            solids.push_back(exp.Current());
+        }
+
+        if (solids.empty()) {
+            for (TopExp_Explorer exp(result, TopAbs_SHELL); exp.More(); exp.Next()) {
+                solids.push_back(exp.Current());
+            }
+        }
+
+        if (solids.empty()) {
+            solids.push_back(result);
+        }
+
+        *outCount = static_cast<int32_t>(solids.size());
+        OCCTShapeRef* shapes = new OCCTShapeRef[*outCount];
+        for (int32_t i = 0; i < *outCount; i++) {
+            shapes[i] = new OCCTShape(solids[i]);
+        }
+
+        return shapes;
+    } catch (...) {
+        *outCount = 0;
+        return nullptr;
+    }
+}
+
+void OCCTFreeShapeArray(OCCTShapeRef* shapes, int32_t count) {
+    if (!shapes) return;
+    for (int32_t i = 0; i < count; i++) {
+        delete shapes[i];
+    }
+    delete[] shapes;
+}
+
+void OCCTFreeShapeArrayOnly(OCCTShapeRef* shapes) {
+    if (!shapes) return;
+    delete[] shapes;
+}
+
+OCCTShapeRef OCCTShapeGlue(OCCTShapeRef shape1, OCCTShapeRef shape2, double tolerance) {
+    if (!shape1 || !shape2) return nullptr;
+
+    try {
+        // Use BRepAlgoAPI_Fuse with glue option for coincident faces
+        BRepAlgoAPI_Fuse fuse;
+        fuse.SetGlue(BOPAlgo_GlueShift);  // Enable gluing mode
+        fuse.SetFuzzyValue(tolerance);
+
+        TopTools_ListOfShape args;
+        args.Append(shape1->shape);
+        args.Append(shape2->shape);
+        fuse.SetArguments(args);
+
+        fuse.Build();
+        if (!fuse.IsDone()) {
+            // Fallback to regular fuse
+            BRepAlgoAPI_Fuse regularFuse(shape1->shape, shape2->shape);
+            if (!regularFuse.IsDone()) return nullptr;
+            return new OCCTShape(regularFuse.Shape());
+        }
+
+        TopoDS_Shape result = fuse.Shape();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateEvolved(OCCTWireRef spine, OCCTWireRef profile) {
+    if (!spine || !profile) return nullptr;
+
+    try {
+        BRepOffsetAPI_MakeEvolved evolved(spine->wire, profile->wire);
+        if (!evolved.IsDone()) return nullptr;
+
+        TopoDS_Shape result = evolved.Shape();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeLinearPattern(OCCTShapeRef shape,
+                                     double dirX, double dirY, double dirZ,
+                                     double spacing, int32_t count) {
+    if (!shape || count < 1) return nullptr;
+
+    try {
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+
+        gp_Vec direction(dirX, dirY, dirZ);
+        direction.Normalize();
+
+        for (int32_t i = 0; i < count; i++) {
+            gp_Trsf transform;
+            transform.SetTranslation(direction * (spacing * i));
+
+            BRepBuilderAPI_Transform xform(shape->shape, transform, true);
+            if (xform.IsDone()) {
+                builder.Add(compound, xform.Shape());
+            }
+        }
+
+        return new OCCTShape(compound);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCircularPattern(OCCTShapeRef shape,
+                                       double axisX, double axisY, double axisZ,
+                                       double axisDirX, double axisDirY, double axisDirZ,
+                                       int32_t count, double angle) {
+    if (!shape || count < 1) return nullptr;
+
+    try {
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+
+        gp_Pnt axisPoint(axisX, axisY, axisZ);
+        gp_Dir axisDir(axisDirX, axisDirY, axisDirZ);
+        gp_Ax1 axis(axisPoint, axisDir);
+
+        // If angle is 0, use full circle
+        double totalAngle = (angle == 0) ? (2.0 * M_PI) : angle;
+        double stepAngle = totalAngle / count;
+
+        for (int32_t i = 0; i < count; i++) {
+            gp_Trsf transform;
+            transform.SetRotation(axis, stepAngle * i);
+
+            BRepBuilderAPI_Transform xform(shape->shape, transform, true);
+            if (xform.IsDone()) {
+                builder.Add(compound, xform.Shape());
+            }
+        }
+
+        return new OCCTShape(compound);
     } catch (...) {
         return nullptr;
     }
