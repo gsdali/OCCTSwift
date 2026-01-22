@@ -14,6 +14,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Wires** | 13 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
+| **Healing/Analysis** | 7 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
 | **Import/Export** | 10 | STEP, IGES, BREP import; STL, STEP, IGES, BREP export; mesh |
 | **Geometry Construction** | 4 | face from wire, face with holes, solid from shell, sew |
@@ -22,7 +23,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 10 | Document.load, rootNodes, AssemblyNode, colors, materials |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **104** | |
+| **Total** | **111** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -34,6 +35,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Modifications**: Fillet, chamfer, shell, offset, draft, defeaturing
 - **Feature-Based Modeling**: Boss, pocket, drilling, splitting, gluing, evolved surfaces
 - **Pattern Operations**: Linear and circular arrays of shapes
+- **Shape Healing**: Analysis, fixing, unification, simplification
 - **Geometry Construction**: Face from wire, face with holes, sewing, solid from shell
 - **Curve Interpolation**: Create smooth curves through specific points
 - **Import Formats**: STEP, IGES, BREP (OCCT native)
@@ -56,7 +58,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.12.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.13.0")
 ]
 ```
 
@@ -317,11 +319,11 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 
 - **Blend/Transition**: `BRepBlend_*` classes for complex variable-radius fillets
 - **Pockets with Islands**: Multi-contour pocket features
-- **Advanced healing**: `ShapeUpgrade_*`, `ShapeAnalysis_*`
 - **Offset surfaces**: `BRepOffsetAPI_MakeOffsetSurface`
 - **OBJ import/export**: Returns mesh data rather than B-Rep geometry
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.13.0: Shape analysis, fixing, unification, simplification
 > - v0.12.0: Boss, pocket, drilling, shape splitting, gluing, evolved surfaces, pattern operations
 > - v0.11.0: Face from wire, sewing operations, solid from shell, curve interpolation
 > - v0.10.0: IGES import/export, BREP native format

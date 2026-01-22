@@ -1922,6 +1922,169 @@ struct EvolvedSurfaceTests {
 }
 
 
+// MARK: - v0.13.0 Shape Healing & Analysis Tests
+
+@Suite("Shape Analysis Tests")
+struct ShapeAnalysisTests {
+
+    @Test("Analyze valid box")
+    func analyzeValidBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let analysis = box.analyze(tolerance: 0.001)
+
+        #expect(analysis != nil)
+        #expect(analysis!.hasInvalidTopology == false)
+        // A valid box may have gap counts due to wire analysis heuristics,
+        // but should have no invalid topology
+        #expect(box.isValid)
+    }
+
+    @Test("Analyze shape for small features")
+    func analyzeForSmallFeatures() {
+        // Create a box - should have no small features
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let analysis = box.analyze(tolerance: 0.001)
+
+        #expect(analysis != nil)
+        #expect(analysis!.smallEdgeCount == 0)
+        #expect(analysis!.smallFaceCount == 0)
+    }
+
+    @Test("Analysis result properties")
+    func analysisResultProperties() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let analysis = box.analyze()!
+
+        #expect(analysis.totalProblems >= 0)
+        // Check that totalProblems is consistent with component counts
+        let expectedTotal = analysis.smallEdgeCount + analysis.smallFaceCount +
+                           analysis.gapCount + analysis.selfIntersectionCount +
+                           analysis.freeEdgeCount + analysis.freeFaceCount +
+                           (analysis.hasInvalidTopology ? 1 : 0)
+        #expect(analysis.totalProblems == expectedTotal)
+    }
+}
+
+@Suite("Shape Fixing Tests")
+struct ShapeFixingTests {
+
+    @Test("Fix healthy shape returns shape")
+    func fixHealthyShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let fixed = box.fixed(tolerance: 0.001)
+
+        #expect(fixed != nil)
+        #expect(fixed!.isValid)
+    }
+
+    @Test("Fix with selective modes")
+    func fixWithSelectiveModes() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        // Fix only wires and faces, not solids
+        let fixed = box.fixed(tolerance: 0.001, fixSolid: false, fixShell: true, fixFace: true, fixWire: true)
+
+        #expect(fixed != nil)
+        #expect(fixed!.isValid)
+    }
+
+    @Test("Existing heal function still works")
+    func existingHealStillWorks() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        // The healed() function should still work
+        let healed = box.healed()
+
+        #expect(healed.isValid)
+    }
+}
+
+@Suite("Shape Unification Tests")
+struct ShapeUnificationTests {
+
+    @Test("Unify boolean result")
+    func unifyBooleanResult() {
+        // Create a shape with potentially redundant topology from booleans
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let cyl = Shape.cylinder(radius: 3, height: 25)
+
+        // Subtract cylinder to create internal faces
+        let result = box - cyl
+
+        let unified = result.unified()
+
+        #expect(unified != nil)
+        #expect(unified!.isValid)
+    }
+
+    @Test("Unify with edge-only mode")
+    func unifyEdgesOnly() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let unified = box.unified(unifyEdges: true, unifyFaces: false)
+
+        #expect(unified != nil)
+        #expect(unified!.isValid)
+    }
+
+    @Test("Simplify shape")
+    func simplifyShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let simplified = box.simplified(tolerance: 0.001)
+
+        #expect(simplified != nil)
+        #expect(simplified!.isValid)
+    }
+}
+
+@Suite("Wire Fixing Tests")
+struct WireFixingTests {
+
+    @Test("Fix healthy wire")
+    func fixHealthyWire() {
+        let wire = Wire.rectangle(width: 10, height: 10)!
+
+        let fixed = wire.fixed(tolerance: 0.001)
+
+        #expect(fixed != nil)
+    }
+
+    @Test("Fix circle wire")
+    func fixCircleWire() {
+        let circle = Wire.circle(radius: 5)!
+
+        let fixed = circle.fixed(tolerance: 0.001)
+
+        #expect(fixed != nil)
+    }
+}
+
+@Suite("Face Fixing Tests")
+struct FaceFixingTests {
+
+    @Test("Fix face from wire")
+    func fixFaceFromWire() {
+        let wire = Wire.rectangle(width: 10, height: 10)!
+        let face = Shape.face(from: wire)!
+
+        // Get faces from the shape
+        let faces = face.faces()
+        guard !faces.isEmpty else {
+            return  // Skip if no faces found
+        }
+
+        let fixed = faces[0].fixed(tolerance: 0.001)
+
+        #expect(fixed != nil)
+        #expect(fixed!.isValid)
+    }
+}
+
+
 // MARK: - SIMD3 Extension for normalization
 
 extension SIMD3 where Scalar == Double {

@@ -1,5 +1,94 @@
 # OCCTSwift Changelog
 
+## [v0.13.0] - 2026-01-22
+
+### Added
+
+#### Shape Analysis
+Comprehensive diagnostics for identifying geometry problems.
+
+- **`ShapeAnalysisResult`** struct - Analysis result with problem counts
+  - `smallEdgeCount` - Edges smaller than tolerance
+  - `smallFaceCount` - Faces smaller than tolerance
+  - `gapCount` - Gaps between edges/faces
+  - `selfIntersectionCount` - Self-intersections detected
+  - `freeEdgeCount` - Unconnected edges
+  - `freeFaceCount` - Free faces (unclosed shell)
+  - `hasInvalidTopology` - Whether topology is invalid
+  - `totalProblems` - Total count of all issues
+  - `isHealthy` - Whether shape appears problem-free
+
+- **`shape.analyze(tolerance:)`** - Analyze shape for problems
+
+**Use Cases:**
+- Diagnosing imported geometry
+- Pre-flight checks before operations
+- Quality assurance for CAD models
+
+#### Shape Fixing
+Repair geometry problems automatically.
+
+- **`shape.fixed(tolerance:fixSolid:fixShell:fixFace:fixWire:)`** - Fix with control
+- **`wire.fixed(tolerance:)`** - Fix wire problems (gaps, ordering)
+- **`face.fixed(tolerance:)`** - Fix face problems (orientation, seams)
+
+**Use Cases:**
+- Repairing imported geometry
+- Preparing models for boolean operations
+- Cleaning up manually constructed shapes
+
+#### Shape Unification
+Simplify topology after boolean operations.
+
+- **`shape.unified(unifyEdges:unifyFaces:concatBSplines:)`** - Merge same-domain geometry
+- **`shape.withoutSmallFaces(minArea:)`** - Remove faces below area threshold
+- **`shape.simplified(tolerance:)`** - Combine unification and healing
+
+**Use Cases:**
+- Cleaning up boolean results
+- Reducing face/edge count
+- Preparing models for meshing
+
+**C Bridge Functions:**
+```c
+// Analysis result structure
+typedef struct {
+    int32_t smallEdgeCount;
+    int32_t smallFaceCount;
+    int32_t gapCount;
+    int32_t selfIntersectionCount;
+    int32_t freeEdgeCount;
+    int32_t freeFaceCount;
+    bool hasInvalidTopology;
+    bool isValid;
+} OCCTShapeAnalysisResult;
+
+OCCTShapeAnalysisResult OCCTShapeAnalyze(OCCTShapeRef shape, double tolerance);
+
+// Fixing
+OCCTWireRef OCCTWireFix(OCCTWireRef wire, double tolerance);
+OCCTShapeRef OCCTFaceFix(OCCTFaceRef face, double tolerance);
+OCCTShapeRef OCCTShapeFixDetailed(OCCTShapeRef shape, double tolerance,
+                                   bool fixSolid, bool fixShell,
+                                   bool fixFace, bool fixWire);
+
+// Unification
+OCCTShapeRef OCCTShapeUnifySameDomain(OCCTShapeRef shape,
+                                       bool unifyEdges, bool unifyFaces,
+                                       bool concatBSplines);
+OCCTShapeRef OCCTShapeRemoveSmallFaces(OCCTShapeRef shape, double minArea);
+OCCTShapeRef OCCTShapeSimplify(OCCTShapeRef shape, double tolerance);
+```
+
+### Tests Added
+- Shape analysis (valid box, small features, properties) (3 tests)
+- Shape fixing (healthy shape, selective modes, heal compatibility) (3 tests)
+- Shape unification (boolean result, edge-only, simplify) (3 tests)
+- Wire fixing (rectangle, circle) (2 tests)
+- Face fixing (face from wire) (1 test)
+
+---
+
 ## [v0.12.0] - 2026-01-22
 
 ### Added

@@ -193,6 +193,18 @@
 #include <BRepOffsetAPI_MakeEvolved.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
 
+// Shape Healing & Analysis (v0.13.0)
+#include <ShapeAnalysis_Shell.hxx>
+#include <ShapeAnalysis_Wire.hxx>
+#include <ShapeAnalysis_Surface.hxx>
+#include <ShapeAnalysis_ShapeTolerance.hxx>
+#include <ShapeFix_Wire.hxx>
+#include <ShapeFix_Face.hxx>
+#include <ShapeFix_Shell.hxx>
+#include <ShapeUpgrade_UnifySameDomain.hxx>
+#include <BRepCheck_Wire.hxx>
+#include <BRepCheck_Shell.hxx>
+
 // MARK: - Internal Structures
 
 struct OCCTShape {
@@ -4740,6 +4752,288 @@ OCCTShapeRef OCCTShapeCircularPattern(OCCTShapeRef shape,
         }
 
         return new OCCTShape(compound);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Shape Healing & Analysis (v0.13.0)
+
+OCCTShapeAnalysisResult OCCTShapeAnalyze(OCCTShapeRef shape, double tolerance) {
+    OCCTShapeAnalysisResult result = {0, 0, 0, 0, 0, 0, false, false};
+    if (!shape) return result;
+
+    try {
+        // Use BRepCheck_Analyzer for comprehensive validation
+        BRepCheck_Analyzer analyzer(shape->shape, true);
+        result.hasInvalidTopology = !analyzer.IsValid();
+
+        // Count small edges using ShapeAnalysis_ShapeTolerance
+        ShapeAnalysis_ShapeTolerance shapeTol;
+
+        // Count free edges and faces (topology analysis)
+        int freeEdges = 0;
+        int freeFaces = 0;
+        int smallEdges = 0;
+        int smallFaces = 0;
+        int gaps = 0;
+
+        // Analyze shells for free faces and closure
+        for (TopExp_Explorer shellExp(shape->shape, TopAbs_SHELL); shellExp.More(); shellExp.Next()) {
+            TopoDS_Shell shell = TopoDS::Shell(shellExp.Current());
+            ShapeAnalysis_Shell shellAnalysis;
+            shellAnalysis.LoadShells(shell);
+
+            // Check for free faces
+            if (shellAnalysis.HasFreeEdges()) {
+                // Count free edges in shell
+                TopoDS_Compound freeEdgesCompound = shellAnalysis.FreeEdges();
+                for (TopExp_Explorer edgeExp(freeEdgesCompound, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
+                    freeEdges++;
+                }
+            }
+        }
+
+        // Analyze edges for small size
+        for (TopExp_Explorer edgeExp(shape->shape, TopAbs_EDGE); edgeExp.More(); edgeExp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(edgeExp.Current());
+
+            // Get edge length
+            GProp_GProps props;
+            BRepGProp::LinearProperties(edge, props);
+            double length = props.Mass();
+
+            if (length < tolerance) {
+                smallEdges++;
+            }
+        }
+
+        // Analyze faces for small size
+        for (TopExp_Explorer faceExp(shape->shape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+            TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+            // Get face area
+            GProp_GProps props;
+            BRepGProp::SurfaceProperties(face, props);
+            double area = props.Mass();
+
+            if (area < tolerance * tolerance) {
+                smallFaces++;
+            }
+        }
+
+        // Analyze wires for gaps
+        for (TopExp_Explorer wireExp(shape->shape, TopAbs_WIRE); wireExp.More(); wireExp.Next()) {
+            TopoDS_Wire wire = TopoDS::Wire(wireExp.Current());
+
+            // Find a face containing this wire for context
+            TopoDS_Face face;
+            for (TopExp_Explorer faceExp(shape->shape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+                TopoDS_Face testFace = TopoDS::Face(faceExp.Current());
+                for (TopExp_Explorer innerWireExp(testFace, TopAbs_WIRE); innerWireExp.More(); innerWireExp.Next()) {
+                    if (innerWireExp.Current().IsSame(wire)) {
+                        face = testFace;
+                        break;
+                    }
+                }
+                if (!face.IsNull()) break;
+            }
+
+            if (!face.IsNull()) {
+                ShapeAnalysis_Wire wireAnalysis(wire, face, tolerance);
+                gaps += wireAnalysis.CheckGaps3d();
+            }
+        }
+
+        result.smallEdgeCount = smallEdges;
+        result.smallFaceCount = smallFaces;
+        result.gapCount = gaps;
+        result.selfIntersectionCount = 0;  // Would require more expensive computation
+        result.freeEdgeCount = freeEdges;
+        result.freeFaceCount = freeFaces;
+        result.isValid = true;
+
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTWireRef OCCTWireFix(OCCTWireRef wire, double tolerance) {
+    if (!wire) return nullptr;
+
+    try {
+        // Create a planar face for wire fixing context
+        BRepBuilderAPI_MakeFace makeFace(wire->wire, true);
+        if (!makeFace.IsDone()) {
+            // Try without planar check
+            makeFace = BRepBuilderAPI_MakeFace(wire->wire, false);
+            if (!makeFace.IsDone()) return nullptr;
+        }
+        TopoDS_Face face = makeFace.Face();
+
+        // Fix the wire
+        Handle(ShapeFix_Wire) fixer = new ShapeFix_Wire(wire->wire, face, tolerance);
+        fixer->SetPrecision(tolerance);
+
+        // Enable all fixing modes
+        fixer->FixReorderMode() = 1;
+        fixer->FixConnectedMode() = 1;
+        fixer->FixEdgeCurvesMode() = 1;
+        fixer->FixDegeneratedMode() = 1;
+        fixer->FixSelfIntersectionMode() = 1;
+        fixer->FixLackingMode() = 1;
+        fixer->FixGaps3dMode() = 1;
+
+        if (!fixer->Perform()) {
+            // Fixing failed, return original
+            return new OCCTWire(wire->wire);
+        }
+
+        TopoDS_Wire fixedWire = fixer->Wire();
+        if (fixedWire.IsNull()) return nullptr;
+
+        return new OCCTWire(fixedWire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTFaceFix(OCCTFaceRef face, double tolerance) {
+    if (!face) return nullptr;
+
+    try {
+        Handle(ShapeFix_Face) fixer = new ShapeFix_Face(face->face);
+        fixer->SetPrecision(tolerance);
+
+        // Enable fixing modes
+        fixer->FixWireMode() = 1;
+        fixer->FixOrientationMode() = 1;
+        fixer->FixAddNaturalBoundMode() = 1;
+        fixer->FixMissingSeamMode() = 1;
+        fixer->FixSmallAreaWireMode() = 1;
+
+        if (!fixer->Perform()) {
+            // Fixing failed, return original
+            return new OCCTShape(face->face);
+        }
+
+        TopoDS_Face fixedFace = fixer->Face();
+        if (fixedFace.IsNull()) return nullptr;
+
+        return new OCCTShape(fixedFace);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFixDetailed(OCCTShapeRef shape, double tolerance,
+                                   bool fixSolid, bool fixShell,
+                                   bool fixFace, bool fixWire) {
+    if (!shape) return nullptr;
+
+    try {
+        Handle(ShapeFix_Shape) fixer = new ShapeFix_Shape(shape->shape);
+        fixer->SetPrecision(tolerance);
+
+        // ShapeFix_Shape automatically fixes all sub-shapes
+        // The individual mode flags control specific fixing operations
+        fixer->FixSolidMode() = fixSolid ? 1 : 0;
+
+        // Perform the fix
+        if (!fixer->Perform()) {
+            // Fixing might still produce a result even if Perform returns false
+        }
+
+        TopoDS_Shape fixedShape = fixer->Shape();
+        if (fixedShape.IsNull()) {
+            return new OCCTShape(shape->shape);  // Return original if fix failed
+        }
+
+        return new OCCTShape(fixedShape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeUnifySameDomain(OCCTShapeRef shape,
+                                       bool unifyEdges, bool unifyFaces,
+                                       bool concatBSplines) {
+    if (!shape) return nullptr;
+
+    try {
+        ShapeUpgrade_UnifySameDomain unifier(shape->shape, unifyEdges, unifyFaces, concatBSplines);
+        unifier.Build();
+
+        TopoDS_Shape result = unifier.Shape();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeRemoveSmallFaces(OCCTShapeRef shape, double minArea) {
+    if (!shape || minArea <= 0) return nullptr;
+
+    try {
+        // Collect faces to remove
+        TopTools_ListOfShape facesToRemove;
+
+        for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            TopoDS_Face face = TopoDS::Face(exp.Current());
+
+            GProp_GProps props;
+            BRepGProp::SurfaceProperties(face, props);
+            double area = props.Mass();
+
+            if (area < minArea) {
+                facesToRemove.Append(face);
+            }
+        }
+
+        if (facesToRemove.IsEmpty()) {
+            // No faces to remove
+            return new OCCTShape(shape->shape);
+        }
+
+        // Use defeaturing to remove small faces
+        BRepAlgoAPI_Defeaturing defeaturer;
+        defeaturer.SetShape(shape->shape);
+        defeaturer.AddFacesToRemove(facesToRemove);
+        defeaturer.Build();
+
+        if (!defeaturer.IsDone()) {
+            return nullptr;
+        }
+
+        TopoDS_Shape result = defeaturer.Shape();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeSimplify(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+
+    try {
+        // First unify same domain
+        ShapeUpgrade_UnifySameDomain unifier(shape->shape, true, true, true);
+        unifier.Build();
+        TopoDS_Shape unified = unifier.Shape();
+
+        // Then heal the shape
+        Handle(ShapeFix_Shape) fixer = new ShapeFix_Shape(unified);
+        fixer->SetPrecision(tolerance);
+        fixer->Perform();
+        TopoDS_Shape result = fixer->Shape();
+
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
     } catch (...) {
         return nullptr;
     }

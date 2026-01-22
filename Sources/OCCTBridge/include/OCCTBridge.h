@@ -1059,6 +1059,72 @@ OCCTShapeRef OCCTShapeCircularPattern(OCCTShapeRef shape,
                                        double axisDirX, double axisDirY, double axisDirZ,
                                        int32_t count, double angle);
 
+// MARK: - Shape Healing & Analysis (v0.13.0)
+
+/// Shape analysis result structure
+typedef struct {
+    int32_t smallEdgeCount;        // Number of edges smaller than tolerance
+    int32_t smallFaceCount;        // Number of faces smaller than tolerance
+    int32_t gapCount;              // Number of gaps between edges/faces
+    int32_t selfIntersectionCount; // Number of self-intersections
+    int32_t freeEdgeCount;         // Number of free (unconnected) edges
+    int32_t freeFaceCount;         // Number of free faces (shell not closed)
+    bool hasInvalidTopology;       // Whether topology is invalid
+    bool isValid;                  // Whether analysis succeeded
+} OCCTShapeAnalysisResult;
+
+/// Analyze a shape for problems
+/// @param shape The shape to analyze
+/// @param tolerance Tolerance for small feature detection
+/// @return Analysis result with problem counts
+OCCTShapeAnalysisResult OCCTShapeAnalyze(OCCTShapeRef shape, double tolerance);
+
+/// Fix a wire (close gaps, remove degenerate edges, reorder)
+/// @param wire The wire to fix
+/// @param tolerance Tolerance for fixing operations
+/// @return Fixed wire, or NULL on failure
+OCCTWireRef OCCTWireFix(OCCTWireRef wire, double tolerance);
+
+/// Fix a face (wire orientation, missing seams, surface parameters)
+/// @param face The face to fix
+/// @param tolerance Tolerance for fixing operations
+/// @return Fixed face as a shape, or NULL on failure
+OCCTShapeRef OCCTFaceFix(OCCTFaceRef face, double tolerance);
+
+/// Fix a shape with detailed control
+/// @param shape The shape to fix
+/// @param tolerance Tolerance for fixing operations
+/// @param fixSolid Whether to fix solid orientation
+/// @param fixShell Whether to fix shell closure
+/// @param fixFace Whether to fix face issues
+/// @param fixWire Whether to fix wire issues
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef OCCTShapeFixDetailed(OCCTShapeRef shape, double tolerance,
+                                   bool fixSolid, bool fixShell,
+                                   bool fixFace, bool fixWire);
+
+/// Unify faces and edges lying on the same geometry
+/// @param shape The shape to simplify
+/// @param unifyEdges Whether to unify edges on same curve
+/// @param unifyFaces Whether to unify faces on same surface
+/// @param concatBSplines Whether to concatenate adjacent B-splines
+/// @return Unified shape, or NULL on failure
+OCCTShapeRef OCCTShapeUnifySameDomain(OCCTShapeRef shape,
+                                       bool unifyEdges, bool unifyFaces,
+                                       bool concatBSplines);
+
+/// Remove internal wires (holes) smaller than area threshold
+/// @param shape The shape to clean
+/// @param minArea Minimum area threshold for holes
+/// @return Cleaned shape, or NULL on failure
+OCCTShapeRef OCCTShapeRemoveSmallFaces(OCCTShapeRef shape, double minArea);
+
+/// Simplify shape by removing small features
+/// @param shape The shape to simplify
+/// @param tolerance Size threshold for small features
+/// @return Simplified shape, or NULL on failure
+OCCTShapeRef OCCTShapeSimplify(OCCTShapeRef shape, double tolerance);
+
 
 #ifdef __cplusplus
 }

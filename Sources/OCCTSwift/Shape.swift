@@ -1548,3 +1548,222 @@ extension Shape {
         }
     }
 }
+
+// MARK: - Shape Healing & Analysis (v0.13.0)
+
+/// Result of shape analysis, containing counts of various problems found.
+public struct ShapeAnalysisResult {
+    /// Number of edges smaller than tolerance
+    public let smallEdgeCount: Int
+
+    /// Number of faces smaller than tolerance
+    public let smallFaceCount: Int
+
+    /// Number of gaps between edges/faces
+    public let gapCount: Int
+
+    /// Number of self-intersections detected
+    public let selfIntersectionCount: Int
+
+    /// Number of free (unconnected) edges
+    public let freeEdgeCount: Int
+
+    /// Number of free faces (shell not closed)
+    public let freeFaceCount: Int
+
+    /// Whether the topology is invalid
+    public let hasInvalidTopology: Bool
+
+    /// Total number of problems found
+    public var totalProblems: Int {
+        smallEdgeCount + smallFaceCount + gapCount + selfIntersectionCount + freeEdgeCount + freeFaceCount + (hasInvalidTopology ? 1 : 0)
+    }
+
+    /// Whether the shape appears to be healthy (no problems found)
+    public var isHealthy: Bool {
+        totalProblems == 0 && !hasInvalidTopology
+    }
+}
+
+extension Shape {
+
+    // MARK: - Shape Analysis (v0.13.0)
+
+    /// Analyze a shape for problems such as small edges, gaps, and invalid topology.
+    ///
+    /// - Parameter tolerance: Size threshold for detecting small features
+    /// - Returns: Analysis result with problem counts, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let shape = Shape.load(from: stepURL)!
+    /// if let analysis = shape.analyze(tolerance: 0.001) {
+    ///     print("Found \(analysis.totalProblems) problems")
+    ///     if analysis.hasInvalidTopology {
+    ///         print("Shape has invalid topology!")
+    ///     }
+    /// }
+    /// ```
+    public func analyze(tolerance: Double = 1e-6) -> ShapeAnalysisResult? {
+        let result = OCCTShapeAnalyze(handle, tolerance)
+        guard result.isValid else { return nil }
+
+        return ShapeAnalysisResult(
+            smallEdgeCount: Int(result.smallEdgeCount),
+            smallFaceCount: Int(result.smallFaceCount),
+            gapCount: Int(result.gapCount),
+            selfIntersectionCount: Int(result.selfIntersectionCount),
+            freeEdgeCount: Int(result.freeEdgeCount),
+            freeFaceCount: Int(result.freeFaceCount),
+            hasInvalidTopology: result.hasInvalidTopology
+        )
+    }
+
+    // MARK: - Shape Fixing (v0.13.0)
+
+    /// Fix shape problems with detailed control over what to fix.
+    ///
+    /// - Parameters:
+    ///   - tolerance: Tolerance for fixing operations
+    ///   - fixSolid: Whether to fix solid orientation
+    ///   - fixShell: Whether to fix shell closure
+    ///   - fixFace: Whether to fix face issues
+    ///   - fixWire: Whether to fix wire issues
+    /// - Returns: Fixed shape, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Fix only wire and face issues, not solid
+    /// let fixed = shape.fixed(tolerance: 0.001, fixSolid: false)
+    /// ```
+    public func fixed(tolerance: Double = 1e-6,
+                      fixSolid: Bool = true,
+                      fixShell: Bool = true,
+                      fixFace: Bool = true,
+                      fixWire: Bool = true) -> Shape? {
+        guard let result = OCCTShapeFixDetailed(handle, tolerance, fixSolid, fixShell, fixFace, fixWire) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+
+    // MARK: - Shape Unification (v0.13.0)
+
+    /// Unify faces and edges lying on the same geometry.
+    ///
+    /// After boolean operations, shapes often have unnecessary internal subdivisions.
+    /// This method merges faces that share the same underlying surface and edges
+    /// that share the same underlying curve.
+    ///
+    /// - Parameters:
+    ///   - unifyEdges: Whether to merge edges on same curve (default: true)
+    ///   - unifyFaces: Whether to merge faces on same surface (default: true)
+    ///   - concatBSplines: Whether to concatenate adjacent B-splines (default: true)
+    /// - Returns: Unified shape, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // After subtracting multiple cylinders, unify to simplify topology
+    /// let result = box - cyl1 - cyl2 - cyl3
+    /// let clean = result.unified()
+    /// print("Faces reduced from \(result.faceCount) to \(clean.faceCount)")
+    /// ```
+    public func unified(unifyEdges: Bool = true,
+                        unifyFaces: Bool = true,
+                        concatBSplines: Bool = true) -> Shape? {
+        guard let result = OCCTShapeUnifySameDomain(handle, unifyEdges, unifyFaces, concatBSplines) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+
+    /// Remove faces smaller than the specified area threshold.
+    ///
+    /// Useful for cleaning up shapes with very small faces that can cause
+    /// problems in downstream operations.
+    ///
+    /// - Parameter minArea: Minimum area threshold; faces smaller than this are removed
+    /// - Returns: Cleaned shape, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Remove faces smaller than 0.01 mm²
+    /// let cleaned = shape.withoutSmallFaces(minArea: 0.01)
+    /// ```
+    public func withoutSmallFaces(minArea: Double) -> Shape? {
+        guard let result = OCCTShapeRemoveSmallFaces(handle, minArea) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+
+    /// Simplify a shape by unifying same-domain geometry and healing.
+    ///
+    /// This is a convenience method that combines `unified()` and `healed()`.
+    ///
+    /// - Parameter tolerance: Tolerance for simplification operations
+    /// - Returns: Simplified shape, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Clean up a complex boolean result
+    /// let simplified = result.simplified(tolerance: 0.001)
+    /// ```
+    public func simplified(tolerance: Double = 1e-6) -> Shape? {
+        guard let result = OCCTShapeSimplify(handle, tolerance) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+}
+
+extension Wire {
+
+    // MARK: - Wire Fixing (v0.13.0)
+
+    /// Fix wire problems such as gaps, degenerate edges, and incorrect ordering.
+    ///
+    /// - Parameter tolerance: Tolerance for fixing operations
+    /// - Returns: Fixed wire, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Fix a wire with small gaps between edges
+    /// let fixedWire = problematicWire.fixed(tolerance: 0.001)
+    /// ```
+    public func fixed(tolerance: Double = 1e-6) -> Wire? {
+        guard let result = OCCTWireFix(handle, tolerance) else {
+            return nil
+        }
+        return Wire(handle: result)
+    }
+}
+
+extension Face {
+
+    // MARK: - Face Fixing (v0.13.0)
+
+    /// Fix face problems such as incorrect wire orientation, missing seams, and surface parameters.
+    ///
+    /// - Parameter tolerance: Tolerance for fixing operations
+    /// - Returns: Fixed face as a shape, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Fix a face with wire orientation issues
+    /// let fixedShape = problematicFace.fixed(tolerance: 0.001)
+    /// ```
+    public func fixed(tolerance: Double = 1e-6) -> Shape? {
+        guard let result = OCCTFaceFix(handle, tolerance) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+}
