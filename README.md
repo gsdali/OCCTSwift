@@ -6,19 +6,21 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 
 | Category | Count | Examples |
 |----------|-------|----------|
-| **Primitives** | 7 | box, cylinder, cylinder(at:), sphere, cone, torus |
-| **Sweeps** | 5 | pipe sweep, extrude, revolve, loft, toolSweep |
+| **Primitives** | 7 | box, cylinder, cylinder(at:), sphere, cone, torus, surface |
+| **Sweeps** | 6 | pipe sweep, pipeShell, extrude, revolve, loft, ruled |
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
-| **Modifications** | 4 | fillet, chamfer, shell, offset |
+| **Modifications** | 7 | fillet, selective fillet, chamfer, shell, offset, draft, defeature |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
-| **Wires** | 8 | rectangle, circle, polygon, line, arc, bspline, path, join |
+| **Wires** | 11 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D |
+| **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
+| **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
 | **Import/Export** | 4 | load (STEP), STL, STEP, mesh |
-| **Bounds** | 3 | bounds, size, center |
-| **Slicing** | 4 | sliceAtZ, edgeCount, edgePoints, contourPoints |
+| **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
+| **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 10 | Document.load, rootNodes, AssemblyNode, colors, materials |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **59** | |
+| **Total** | **82** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -47,7 +49,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.6.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.9.0")
 ]
 ```
 
@@ -291,14 +293,16 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 
 OCCT has thousands of classes. Some notable ones not yet exposed:
 
-- **NURBS surfaces**: `Geom_BSplineSurface`, surface creation
-- **Blend/Transition**: `BRepBlend_*` classes for complex fillets
-- **Draft angles**: `BRepOffsetAPI_DraftAngle`
-- **Face/Edge iteration**: Full `TopExp_Explorer` for complex topology
-- **Measurement**: `BRepGProp` for volume, area, center of mass
+- **Blend/Transition**: `BRepBlend_*` classes for complex variable-radius fillets
 - **2D operations**: `BRepBuilderAPI_MakeFace` from 2D regions
 - **IGES import**: Only STEP is currently supported
 - **Advanced healing**: `ShapeUpgrade_*`, `ShapeAnalysis_*`
+- **Offset surfaces**: `BRepOffsetAPI_MakeOffsetSurface`
+
+> **Note:** Many previously missing features have been added in recent versions:
+> - v0.9.0: B-spline surfaces, ruled surfaces, curve analysis
+> - v0.8.0: Draft angles, selective fillet, defeaturing, pipe shell modes
+> - v0.7.0: Volume, surface area, distance measurement, center of mass
 
 ### Adding New OCCT Functions
 

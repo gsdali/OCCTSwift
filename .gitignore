@@ -41,3 +41,6 @@ Carthage/Build/
 # Local development artifacts
 Libraries/
 OCCT.xcframework.zip
+
+# Claude handoff documentation (local only)
+docs/CLAUDE_HANDOFF.md
