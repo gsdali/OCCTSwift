@@ -220,6 +220,119 @@ public enum Exporter {
         try writeSTEP(shape: shape, to: tempURL, name: name)
         return try Data(contentsOf: tempURL)
     }
+
+    // MARK: - IGES Export (v0.10.0)
+
+    /// Export a shape to IGES format.
+    ///
+    /// IGES (Initial Graphics Exchange Specification) is a legacy CAD format
+    /// still commonly used in manufacturing and older CAD systems.
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to export
+    ///   - url: Destination file URL (should end in .igs or .iges)
+    ///
+    /// - Throws: `ExportError` if export fails
+    ///
+    /// ## Use Cases
+    ///
+    /// - Legacy CAD system compatibility
+    /// - CNC machines with IGES-only post processors
+    /// - Exchanging data with older software
+    public static func writeIGES(
+        shape: Shape,
+        to url: URL
+    ) throws {
+        guard shape.isValid else {
+            throw ExportError.invalidShape
+        }
+
+        let path = url.path
+        guard !path.isEmpty else {
+            throw ExportError.invalidPath
+        }
+
+        let success = OCCTExportIGES(shape.handle, path)
+        if !success {
+            throw ExportError.exportFailed("IGES export to \(url.lastPathComponent) failed")
+        }
+    }
+
+    /// Export a shape to IGES and return the data.
+    public static func igesData(shape: Shape) throws -> Data {
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("igs")
+
+        defer {
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+
+        try writeIGES(shape: shape, to: tempURL)
+        return try Data(contentsOf: tempURL)
+    }
+
+    // MARK: - BREP Export (v0.10.0)
+
+    /// Export a shape to OCCT's native BREP format.
+    ///
+    /// BREP is OCCT's native format for exact B-Rep geometry. Benefits:
+    /// - Preserves full precision of the geometry
+    /// - Fast read/write (no format conversion)
+    /// - Includes all topological information
+    /// - Can optionally include triangulation data
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to export
+    ///   - url: Destination file URL (should end in .brep)
+    ///   - withTriangles: Include triangulation data (default: true)
+    ///   - withNormals: Include normals with triangulation (default: false)
+    ///
+    /// - Throws: `ExportError` if export fails
+    ///
+    /// ## Use Cases
+    ///
+    /// - Fast caching of intermediate geometry results
+    /// - Debugging geometry issues
+    /// - Archiving exact geometry for later processing
+    public static func writeBREP(
+        shape: Shape,
+        to url: URL,
+        withTriangles: Bool = true,
+        withNormals: Bool = false
+    ) throws {
+        guard shape.isValid else {
+            throw ExportError.invalidShape
+        }
+
+        let path = url.path
+        guard !path.isEmpty else {
+            throw ExportError.invalidPath
+        }
+
+        let success = OCCTExportBREPWithTriangles(shape.handle, path, withTriangles, withNormals)
+        if !success {
+            throw ExportError.exportFailed("BREP export to \(url.lastPathComponent) failed")
+        }
+    }
+
+    /// Export a shape to BREP and return the data.
+    public static func brepData(
+        shape: Shape,
+        withTriangles: Bool = true,
+        withNormals: Bool = false
+    ) throws -> Data {
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("brep")
+
+        defer {
+            try? FileManager.default.removeItem(at: tempURL)
+        }
+
+        try writeBREP(shape: shape, to: tempURL, withTriangles: withTriangles, withNormals: withNormals)
+        return try Data(contentsOf: tempURL)
+    }
 }
 
 // MARK: - Convenience Extensions
@@ -261,5 +374,40 @@ extension Shape {
     /// - Returns: STEP file data
     public func stepData(name: String? = nil) throws -> Data {
         try Exporter.stepData(shape: self, name: name)
+    }
+
+    // MARK: - IGES Export (v0.10.0)
+
+    /// Export this shape to IGES format.
+    ///
+    /// - Parameter url: Destination file URL
+    public func writeIGES(to url: URL) throws {
+        try Exporter.writeIGES(shape: self, to: url)
+    }
+
+    /// Get IGES data for this shape.
+    public func igesData() throws -> Data {
+        try Exporter.igesData(shape: self)
+    }
+
+    // MARK: - BREP Export (v0.10.0)
+
+    /// Export this shape to OCCT's native BREP format.
+    ///
+    /// - Parameters:
+    ///   - url: Destination file URL
+    ///   - withTriangles: Include triangulation data (default: true)
+    ///   - withNormals: Include normals with triangulation (default: false)
+    public func writeBREP(to url: URL, withTriangles: Bool = true, withNormals: Bool = false) throws {
+        try Exporter.writeBREP(shape: self, to: url, withTriangles: withTriangles, withNormals: withNormals)
+    }
+
+    /// Get BREP data for this shape.
+    ///
+    /// - Parameters:
+    ///   - withTriangles: Include triangulation data (default: true)
+    ///   - withNormals: Include normals with triangulation (default: false)
+    public func brepData(withTriangles: Bool = true, withNormals: Bool = false) throws -> Data {
+        try Exporter.brepData(shape: self, withTriangles: withTriangles, withNormals: withNormals)
     }
 }

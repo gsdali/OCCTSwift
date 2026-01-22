@@ -408,6 +408,71 @@ public final class Shape: @unchecked Sendable {
         )
     }
 
+    // MARK: - IGES Import (v0.10.0)
+
+    /// Load a shape from an IGES file
+    ///
+    /// IGES (Initial Graphics Exchange Specification) is a legacy CAD format
+    /// still commonly used in manufacturing and older CAD systems.
+    ///
+    /// - Parameter url: URL to the IGES file (.igs or .iges)
+    /// - Returns: Imported shape
+    /// - Throws: ImportError if import fails
+    public static func loadIGES(from url: URL) throws -> Shape {
+        guard let handle = OCCTImportIGES(url.path) else {
+            throw ImportError.importFailed("Failed to import IGES file: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load a shape from an IGES file path
+    public static func loadIGES(fromPath path: String) throws -> Shape {
+        guard let handle = OCCTImportIGES(path) else {
+            throw ImportError.importFailed("Failed to import IGES file: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load an IGES file with automatic repair (sewing and healing)
+    ///
+    /// - Parameter url: URL to the IGES file
+    /// - Returns: Processed shape with healing applied
+    /// - Throws: ImportError if import fails
+    public static func loadIGESRobust(from url: URL) throws -> Shape {
+        guard let handle = OCCTImportIGESRobust(url.path) else {
+            throw ImportError.importFailed("Failed to import IGES file: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    // MARK: - BREP Import (v0.10.0)
+
+    /// Load a shape from OCCT's native BREP format
+    ///
+    /// BREP is OCCT's native format for exact B-Rep geometry. It preserves
+    /// the full precision of the geometry and is useful for:
+    /// - Fast caching of intermediate results
+    /// - Debugging geometry issues
+    /// - Archiving exact geometry
+    ///
+    /// - Parameter url: URL to the BREP file (.brep)
+    /// - Returns: Imported shape
+    /// - Throws: ImportError if import fails
+    public static func loadBREP(from url: URL) throws -> Shape {
+        guard let handle = OCCTImportBREP(url.path) else {
+            throw ImportError.importFailed("Failed to import BREP file: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load a shape from a BREP file path
+    public static func loadBREP(fromPath path: String) throws -> Shape {
+        guard let handle = OCCTImportBREP(path) else {
+            throw ImportError.importFailed("Failed to import BREP file: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
     // MARK: - Shape Type
 
     /// The topological type of the shape

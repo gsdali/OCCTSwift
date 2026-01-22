@@ -1,5 +1,72 @@
 # OCCTSwift Changelog
 
+## [v0.10.0] - 2026-01-22
+
+### Added
+
+#### IGES Import/Export
+Support for IGES (Initial Graphics Exchange Specification), a legacy CAD format commonly used in manufacturing and older CAD systems.
+
+- **IGES Import**
+  - `Shape.loadIGES(from:)` - Import IGES file from URL
+  - `Shape.loadIGES(fromPath:)` - Import IGES file from path string
+  - `Shape.loadIGESRobust(from:)` - Import with automatic shape healing (sewing, solid conversion)
+
+- **IGES Export**
+  - `Exporter.writeIGES(shape:to:)` - Export shape to IGES file
+  - `Exporter.igesData(shape:)` - Export shape to IGES and return as Data
+
+- **Shape convenience methods**
+  - `shape.writeIGES(to:)` - Export this shape to IGES
+  - `shape.igesData()` - Get IGES data for this shape
+
+**Use Cases:**
+- Legacy CAD system compatibility
+- CNC machines with IGES-only post processors
+- Exchanging data with older software
+
+#### BREP Native Format
+OCCT's native B-Rep format for exact geometry with full precision.
+
+- **BREP Import**
+  - `Shape.loadBREP(from:)` - Import BREP file from URL
+  - `Shape.loadBREP(fromPath:)` - Import BREP file from path string
+
+- **BREP Export**
+  - `Exporter.writeBREP(shape:to:withTriangles:withNormals:)` - Export shape to BREP
+    - `withTriangles` (default: true) - Include triangulation data for faster visualization
+    - `withNormals` (default: false) - Include normals with triangulation
+  - `Exporter.brepData(shape:withTriangles:withNormals:)` - Export to BREP as Data
+
+- **Shape convenience methods**
+  - `shape.writeBREP(to:withTriangles:withNormals:)` - Export this shape to BREP
+  - `shape.brepData(withTriangles:withNormals:)` - Get BREP data for this shape
+
+**Use Cases:**
+- Fast caching of intermediate geometry results
+- Debugging geometry issues
+- Archiving exact geometry for later processing
+- Full precision preservation (no format conversion losses)
+
+**C Bridge Functions:**
+```c
+// IGES Import/Export
+OCCTShapeRef OCCTImportIGES(const char* path);
+OCCTShapeRef OCCTImportIGESRobust(const char* path);
+bool OCCTExportIGES(OCCTShapeRef shape, const char* path);
+
+// BREP Native Format
+OCCTShapeRef OCCTImportBREP(const char* path);
+bool OCCTExportBREP(OCCTShapeRef shape, const char* path);
+bool OCCTExportBREPWithTriangles(OCCTShapeRef shape, const char* path, bool withTriangles, bool withNormals);
+```
+
+### Tests Added
+- IGES export and roundtrip (3 tests)
+- BREP export and roundtrip with triangulation options (5 tests)
+
+---
+
 ## [v0.9.0] - 2026-01-14
 
 ### Added

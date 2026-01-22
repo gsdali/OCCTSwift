@@ -876,6 +876,47 @@ OCCTShapeRef OCCTShapeShellWithOpenFaces(OCCTShapeRef shape, double thickness,
                                           const int32_t* openFaceIndices, int32_t faceCount);
 
 
+// MARK: - IGES Import/Export (v0.10.0)
+
+/// Import IGES file
+/// @param path Path to IGES file
+/// @return Shape reference, or NULL on failure
+OCCTShapeRef OCCTImportIGES(const char* path);
+
+/// Import IGES file with automatic repair (sewing, healing)
+/// @param path Path to IGES file
+/// @return Shape reference with healing applied, or NULL on failure
+OCCTShapeRef OCCTImportIGESRobust(const char* path);
+
+/// Export shape to IGES file
+/// @param shape The shape to export
+/// @param path Output file path
+/// @return true on success
+bool OCCTExportIGES(OCCTShapeRef shape, const char* path);
+
+
+// MARK: - BREP Native Format (v0.10.0)
+
+/// Import OCCT native BREP file
+/// @param path Path to BREP file
+/// @return Shape reference, or NULL on failure
+OCCTShapeRef OCCTImportBREP(const char* path);
+
+/// Export shape to OCCT native BREP file
+/// @param shape The shape to export
+/// @param path Output file path
+/// @return true on success
+bool OCCTExportBREP(OCCTShapeRef shape, const char* path);
+
+/// Export shape to BREP file with options for triangulation
+/// @param shape The shape to export
+/// @param path Output file path
+/// @param withTriangles Include triangulation data
+/// @param withNormals Include normal data (only if withTriangles is true)
+/// @return true on success
+bool OCCTExportBREPWithTriangles(OCCTShapeRef shape, const char* path, bool withTriangles, bool withNormals);
+
+
 #ifdef __cplusplus
 }
 #endif
