@@ -352,7 +352,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## License
 
-This wrapper is MIT licensed. OpenCASCADE Technology is licensed under LGPL-2.1.
+This wrapper is LGPL-2.1 licensed. OpenCASCADE Technology is licensed under LGPL-2.1.
 
 ## Acknowledgments
 
