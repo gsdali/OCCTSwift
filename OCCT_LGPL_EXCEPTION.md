@@ -1,4 +1,4 @@
-#Open CASCADE exception (version 1.0) to GNU LGPL version 2.1.
+# Open CASCADE exception (version 1.0) to GNU LGPL version 2.1.
 
 The object code (i.e. not a source) form of a "work that uses the Library"
 can incorporate material from a header file that is part of the Library.
