@@ -22,6 +22,12 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle!)
     }
 
+    /// Create a box centered at origin - safe version returning optional
+    public static func tryBox(width: Double, height: Double, depth: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateBox(width, height, depth) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a box at a specific position
     public static func box(
         origin: SIMD3<Double>,
@@ -40,6 +46,12 @@ public final class Shape: @unchecked Sendable {
     public static func cylinder(radius: Double, height: Double) -> Shape {
         let handle = OCCTShapeCreateCylinder(radius, height)
         return Shape(handle: handle!)
+    }
+
+    /// Create a cylinder along Z axis - safe version returning optional
+    public static func tryCylinder(radius: Double, height: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateCylinder(radius, height) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Create a cylinder at a specific XY position with bottom at specified Z
@@ -75,16 +87,34 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle!)
     }
 
+    /// Create a sphere centered at origin - safe version returning optional
+    public static func trySphere(radius: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateSphere(radius) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a cone along Z axis
     public static func cone(bottomRadius: Double, topRadius: Double, height: Double) -> Shape {
         let handle = OCCTShapeCreateCone(bottomRadius, topRadius, height)
         return Shape(handle: handle!)
     }
 
+    /// Create a cone along Z axis - safe version returning optional
+    public static func tryCone(bottomRadius: Double, topRadius: Double, height: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateCone(bottomRadius, topRadius, height) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a torus in XY plane
     public static func torus(majorRadius: Double, minorRadius: Double) -> Shape {
         let handle = OCCTShapeCreateTorus(majorRadius, minorRadius)
         return Shape(handle: handle!)
+    }
+
+    /// Create a torus in XY plane - safe version returning optional
+    public static func tryTorus(majorRadius: Double, minorRadius: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateTorus(majorRadius, minorRadius) else { return nil }
+        return Shape(handle: handle)
     }
 
     // MARK: - Sweep Operations
@@ -138,16 +168,34 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle!)
     }
 
+    /// Union (add) two shapes together - safe version returning optional
+    public func tryUnion(with other: Shape) -> Shape? {
+        guard let handle = OCCTShapeUnion(self.handle, other.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Subtract another shape from this one
     public func subtracting(_ other: Shape) -> Shape {
         let handle = OCCTShapeSubtract(self.handle, other.handle)
         return Shape(handle: handle!)
     }
 
+    /// Subtract another shape from this one - safe version returning optional
+    public func trySubtracting(_ other: Shape) -> Shape? {
+        guard let handle = OCCTShapeSubtract(self.handle, other.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Intersection of two shapes
     public func intersection(with other: Shape) -> Shape {
         let handle = OCCTShapeIntersect(self.handle, other.handle)
         return Shape(handle: handle!)
+    }
+
+    /// Intersection of two shapes - safe version returning optional
+    public func tryIntersection(with other: Shape) -> Shape? {
+        guard let handle = OCCTShapeIntersect(self.handle, other.handle) else { return nil }
+        return Shape(handle: handle)
     }
 
     // MARK: - Modifications
@@ -158,10 +206,22 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle!)
     }
 
+    /// Fillet (round) all edges with given radius - safe version returning optional
+    public func tryFilleted(radius: Double) -> Shape? {
+        guard let handle = OCCTShapeFillet(self.handle, radius) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Chamfer all edges with given distance
     public func chamfered(distance: Double) -> Shape {
         let handle = OCCTShapeChamfer(self.handle, distance)
         return Shape(handle: handle!)
+    }
+
+    /// Chamfer all edges with given distance - safe version returning optional
+    public func tryChamfered(distance: Double) -> Shape? {
+        guard let handle = OCCTShapeChamfer(self.handle, distance) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Create a hollow shell by removing material from inside
@@ -170,10 +230,22 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle!)
     }
 
+    /// Create a hollow shell by removing material from inside - safe version returning optional
+    public func tryShelled(thickness: Double) -> Shape? {
+        guard let handle = OCCTShapeShell(self.handle, thickness) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Offset all faces by a distance (positive = outward)
     public func offset(by distance: Double) -> Shape {
         let handle = OCCTShapeOffset(self.handle, distance)
         return Shape(handle: handle!)
+    }
+
+    /// Offset all faces by a distance - safe version returning optional
+    public func tryOffset(by distance: Double) -> Shape? {
+        guard let handle = OCCTShapeOffset(self.handle, distance) else { return nil }
+        return Shape(handle: handle)
     }
 
     // MARK: - Transformations
@@ -184,16 +256,34 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle!)
     }
 
+    /// Translate the shape - safe version returning optional
+    public func tryTranslated(by offset: SIMD3<Double>) -> Shape? {
+        guard let handle = OCCTShapeTranslate(self.handle, offset.x, offset.y, offset.z) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Rotate around an axis through origin
     public func rotated(axis: SIMD3<Double>, angle: Double) -> Shape {
         let handle = OCCTShapeRotate(self.handle, axis.x, axis.y, axis.z, angle)
         return Shape(handle: handle!)
     }
 
+    /// Rotate around an axis through origin - safe version returning optional
+    public func tryRotated(axis: SIMD3<Double>, angle: Double) -> Shape? {
+        guard let handle = OCCTShapeRotate(self.handle, axis.x, axis.y, axis.z, angle) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Scale uniformly from origin
     public func scaled(by factor: Double) -> Shape {
         let handle = OCCTShapeScale(self.handle, factor)
         return Shape(handle: handle!)
+    }
+
+    /// Scale uniformly from origin - safe version returning optional
+    public func tryScaled(by factor: Double) -> Shape? {
+        guard let handle = OCCTShapeScale(self.handle, factor) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Mirror across a plane
@@ -204,6 +294,16 @@ public final class Shape: @unchecked Sendable {
             planeNormal.x, planeNormal.y, planeNormal.z
         )
         return Shape(handle: handle!)
+    }
+
+    /// Mirror across a plane - safe version returning optional
+    public func tryMirrored(planeNormal: SIMD3<Double>, planeOrigin: SIMD3<Double> = .zero) -> Shape? {
+        guard let handle = OCCTShapeMirror(
+            self.handle,
+            planeOrigin.x, planeOrigin.y, planeOrigin.z,
+            planeNormal.x, planeNormal.y, planeNormal.z
+        ) else { return nil }
+        return Shape(handle: handle)
     }
 
     // MARK: - Compound Operations
@@ -1762,6 +1862,277 @@ extension Face {
     /// ```
     public func fixed(tolerance: Double = 1e-6) -> Shape? {
         guard let result = OCCTFaceFix(handle, tolerance) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+}
+
+// MARK: - Advanced Blends & Surface Filling (v0.14.0)
+
+/// Continuity specification for surface filling operations
+public enum SurfaceContinuity: Int32 {
+    /// Positional continuity (surfaces touch)
+    case c0 = 0
+    /// Tangent continuity (smooth transition)
+    case g1 = 1
+    /// Curvature continuity (very smooth)
+    case g2 = 2
+}
+
+/// Parameters for surface filling operations
+public struct FillingParameters {
+    /// Surface continuity at boundaries
+    public var continuity: SurfaceContinuity
+    /// Surface tolerance
+    public var tolerance: Double
+    /// Maximum surface degree
+    public var maxDegree: Int
+    /// Maximum number of segments
+    public var maxSegments: Int
+
+    /// Create filling parameters with defaults
+    public init(
+        continuity: SurfaceContinuity = .g1,
+        tolerance: Double = 1e-4,
+        maxDegree: Int = 8,
+        maxSegments: Int = 9
+    ) {
+        self.continuity = continuity
+        self.tolerance = tolerance
+        self.maxDegree = maxDegree
+        self.maxSegments = maxSegments
+    }
+
+    internal var cParams: OCCTFillingParams {
+        OCCTFillingParams(
+            continuity: continuity.rawValue,
+            tolerance: tolerance,
+            maxDegree: Int32(maxDegree),
+            maxSegments: Int32(maxSegments)
+        )
+    }
+}
+
+extension Shape {
+    // MARK: - Variable Radius Fillet (v0.14.0)
+
+    /// Apply a variable radius fillet to a specific edge.
+    ///
+    /// The radius varies along the edge according to the given radius/parameter pairs.
+    /// Parameters are normalized from 0.0 (start of edge) to 1.0 (end of edge).
+    ///
+    /// - Parameters:
+    ///   - edgeIndex: Index of the edge to fillet
+    ///   - radiusProfile: Array of (parameter, radius) pairs defining the radius along the edge
+    /// - Returns: Filleted shape, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Fillet with radius varying from 1mm at start to 3mm at end
+    /// let filleted = shape.filletedVariable(
+    ///     edgeIndex: 0,
+    ///     radiusProfile: [(0.0, 1.0), (1.0, 3.0)]
+    /// )
+    ///
+    /// // Fillet with radius varying: 1mm at start, 2mm at middle, 1mm at end
+    /// let complexFillet = shape.filletedVariable(
+    ///     edgeIndex: 0,
+    ///     radiusProfile: [(0.0, 1.0), (0.5, 2.0), (1.0, 1.0)]
+    /// )
+    /// ```
+    public func filletedVariable(
+        edgeIndex: Int,
+        radiusProfile: [(parameter: Double, radius: Double)]
+    ) -> Shape? {
+        guard radiusProfile.count >= 2 else { return nil }
+
+        var radii = radiusProfile.map { $0.radius }
+        var params = radiusProfile.map { $0.parameter }
+
+        guard let result = OCCTShapeFilletVariable(
+            handle,
+            Int32(edgeIndex),
+            &radii,
+            &params,
+            Int32(radii.count)
+        ) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+
+    // MARK: - Multi-Edge Blend (v0.14.0)
+
+    /// Apply fillets to multiple edges with individual radii.
+    ///
+    /// Each edge can have its own fillet radius, allowing for more control
+    /// than applying a uniform fillet to all edges.
+    ///
+    /// - Parameter edgeRadii: Array of (edgeIndex, radius) pairs
+    /// - Returns: Filleted shape, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Apply different radii to different edges
+    /// let blended = shape.blendedEdges([
+    ///     (0, 1.0),  // Edge 0 gets 1mm fillet
+    ///     (1, 2.0),  // Edge 1 gets 2mm fillet
+    ///     (2, 0.5)   // Edge 2 gets 0.5mm fillet
+    /// ])
+    /// ```
+    public func blendedEdges(_ edgeRadii: [(edgeIndex: Int, radius: Double)]) -> Shape? {
+        guard !edgeRadii.isEmpty else { return nil }
+
+        var indices = edgeRadii.map { Int32($0.edgeIndex) }
+        var radii = edgeRadii.map { $0.radius }
+
+        guard let result = OCCTShapeBlendEdges(
+            handle,
+            &indices,
+            &radii,
+            Int32(edgeRadii.count)
+        ) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+
+    // MARK: - Surface Filling (v0.14.0)
+
+    /// Fill an N-sided boundary with a smooth surface.
+    ///
+    /// Creates a surface that passes through the given boundary wires
+    /// with the specified continuity.
+    ///
+    /// - Parameters:
+    ///   - boundaries: Array of wires defining the boundary
+    ///   - parameters: Filling parameters (continuity, tolerance, etc.)
+    /// - Returns: Face shape covering the boundary, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Fill a 4-sided boundary with a smooth surface
+    /// let wire1 = Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))
+    /// let wire2 = Wire.line(from: SIMD3(10, 0, 0), to: SIMD3(10, 10, 5))
+    /// let wire3 = Wire.line(from: SIMD3(10, 10, 5), to: SIMD3(0, 10, 3))
+    /// let wire4 = Wire.line(from: SIMD3(0, 10, 3), to: SIMD3(0, 0, 0))
+    ///
+    /// let surface = Shape.fill(
+    ///     boundaries: [wire1, wire2, wire3, wire4],
+    ///     parameters: FillingParameters(continuity: .g1)
+    /// )
+    /// ```
+    public static func fill(
+        boundaries: [Wire],
+        parameters: FillingParameters = FillingParameters()
+    ) -> Shape? {
+        guard !boundaries.isEmpty else { return nil }
+
+        var handles = boundaries.map { $0.handle as OCCTWireRef? }
+
+        guard let result = handles.withUnsafeMutableBufferPointer({ buffer in
+            OCCTShapeFill(buffer.baseAddress, Int32(boundaries.count), parameters.cParams)
+        }) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+
+    // MARK: - Plate Surfaces (v0.14.0)
+
+    /// Create a surface constrained to pass through specific points.
+    ///
+    /// Uses a plate surface algorithm to create a smooth surface
+    /// that interpolates through all given points.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points the surface must pass through
+    ///   - tolerance: Surface approximation tolerance
+    /// - Returns: Surface face, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a surface through scattered points
+    /// let surface = Shape.plateSurface(
+    ///     through: [
+    ///         SIMD3(0, 0, 0),
+    ///         SIMD3(10, 0, 1),
+    ///         SIMD3(10, 10, 2),
+    ///         SIMD3(0, 10, 1),
+    ///         SIMD3(5, 5, 3)  // Point in middle raises surface
+    ///     ],
+    ///     tolerance: 0.01
+    /// )
+    /// ```
+    public static func plateSurface(
+        through points: [SIMD3<Double>],
+        tolerance: Double = 0.01
+    ) -> Shape? {
+        guard points.count >= 3 else { return nil }
+
+        var flatPoints: [Double] = []
+        for point in points {
+            flatPoints.append(point.x)
+            flatPoints.append(point.y)
+            flatPoints.append(point.z)
+        }
+
+        guard let result = OCCTShapePlatePoints(
+            &flatPoints,
+            Int32(points.count),
+            tolerance
+        ) else {
+            return nil
+        }
+        return Shape(handle: result)
+    }
+
+    /// Create a surface constrained by boundary curves.
+    ///
+    /// Uses a plate surface algorithm to create a smooth surface
+    /// that follows the given boundary curves with specified continuity.
+    ///
+    /// - Parameters:
+    ///   - curves: Array of wires defining boundary constraints
+    ///   - continuity: Continuity requirement at boundaries
+    ///   - tolerance: Surface approximation tolerance
+    /// - Returns: Surface face, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a surface bounded by curves
+    /// let curve1 = Wire.bspline([...])
+    /// let curve2 = Wire.bspline([...])
+    ///
+    /// let surface = Shape.plateSurface(
+    ///     constrainedBy: [curve1, curve2],
+    ///     continuity: .g1,
+    ///     tolerance: 0.01
+    /// )
+    /// ```
+    public static func plateSurface(
+        constrainedBy curves: [Wire],
+        continuity: SurfaceContinuity = .g1,
+        tolerance: Double = 0.01
+    ) -> Shape? {
+        guard !curves.isEmpty else { return nil }
+
+        var handles = curves.map { $0.handle as OCCTWireRef? }
+
+        guard let result = handles.withUnsafeMutableBufferPointer({ buffer in
+            OCCTShapePlateCurves(
+                buffer.baseAddress,
+                Int32(curves.count),
+                continuity.rawValue,
+                tolerance
+            )
+        }) else {
             return nil
         }
         return Shape(handle: result)

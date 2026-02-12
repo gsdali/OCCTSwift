@@ -1125,6 +1125,86 @@ OCCTShapeRef OCCTShapeRemoveSmallFaces(OCCTShapeRef shape, double minArea);
 /// @return Simplified shape, or NULL on failure
 OCCTShapeRef OCCTShapeSimplify(OCCTShapeRef shape, double tolerance);
 
+// MARK: - Advanced Blends & Surface Filling (v0.14.0)
+
+/// Apply variable radius fillet to a specific edge
+/// @param shape The shape to fillet
+/// @param edgeIndex Index of the edge to fillet
+/// @param radii Array of radius values along the edge
+/// @param params Array of parameter values (0-1) where radii apply
+/// @param count Number of radius/parameter pairs
+/// @return Filleted shape, or NULL on failure
+OCCTShapeRef OCCTShapeFilletVariable(OCCTShapeRef shape, int32_t edgeIndex,
+                                      const double* radii, const double* params, int32_t count);
+
+/// Apply 2D fillet to a wire at a specific vertex
+/// @param wire The wire to fillet
+/// @param vertexIndex Index of the vertex to fillet
+/// @param radius Fillet radius
+/// @return Filleted wire, or NULL on failure
+OCCTWireRef OCCTWireFillet2D(OCCTWireRef wire, int32_t vertexIndex, double radius);
+
+/// Apply 2D fillet to all vertices of a wire
+/// @param wire The wire to fillet
+/// @param radius Fillet radius for all corners
+/// @return Filleted wire, or NULL on failure
+OCCTWireRef OCCTWireFilletAll2D(OCCTWireRef wire, double radius);
+
+/// Apply 2D chamfer to a wire at a specific vertex
+/// @param wire The wire to chamfer
+/// @param vertexIndex Index of the vertex to chamfer
+/// @param dist1 First chamfer distance
+/// @param dist2 Second chamfer distance
+/// @return Chamfered wire, or NULL on failure
+OCCTWireRef OCCTWireChamfer2D(OCCTWireRef wire, int32_t vertexIndex, double dist1, double dist2);
+
+/// Apply 2D chamfer to all vertices of a wire
+/// @param wire The wire to chamfer
+/// @param distance Chamfer distance for all corners
+/// @return Chamfered wire, or NULL on failure
+OCCTWireRef OCCTWireChamferAll2D(OCCTWireRef wire, double distance);
+
+/// Blend multiple edges with individual radii
+/// @param shape The shape to blend
+/// @param edgeIndices Array of edge indices
+/// @param radii Array of radii (one per edge)
+/// @param count Number of edges
+/// @return Blended shape, or NULL on failure
+OCCTShapeRef OCCTShapeBlendEdges(OCCTShapeRef shape,
+                                  const int32_t* edgeIndices, const double* radii, int32_t count);
+
+/// Parameters for surface filling operation
+typedef struct {
+    int32_t continuity;   // 0=GeomAbs_C0, 1=GeomAbs_G1, 2=GeomAbs_G2
+    double tolerance;     // Surface tolerance
+    int32_t maxDegree;    // Maximum surface degree (default 8)
+    int32_t maxSegments;  // Maximum segments (default 9)
+} OCCTFillingParams;
+
+/// Fill an N-sided boundary with a surface
+/// @param boundaries Array of boundary wires
+/// @param wireCount Number of boundary wires
+/// @param params Filling parameters
+/// @return Filled face, or NULL on failure
+OCCTShapeRef OCCTShapeFill(const OCCTWireRef* boundaries, int32_t wireCount,
+                            OCCTFillingParams params);
+
+/// Create a surface constrained to pass through points
+/// @param points Array of points [x,y,z triplets]
+/// @param pointCount Number of points
+/// @param tolerance Surface tolerance
+/// @return Surface face, or NULL on failure
+OCCTShapeRef OCCTShapePlatePoints(const double* points, int32_t pointCount, double tolerance);
+
+/// Create a surface constrained by curves
+/// @param curves Array of constraint curves
+/// @param curveCount Number of curves
+/// @param continuity Desired continuity (0=C0, 1=G1, 2=G2)
+/// @param tolerance Surface tolerance
+/// @return Surface face, or NULL on failure
+OCCTShapeRef OCCTShapePlateCurves(const OCCTWireRef* curves, int32_t curveCount,
+                                   int32_t continuity, double tolerance);
+
 
 #ifdef __cplusplus
 }

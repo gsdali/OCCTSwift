@@ -9,21 +9,21 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Primitives** | 7 | box, cylinder, cylinder(at:), sphere, cone, torus, surface |
 | **Sweeps** | 6 | pipe sweep, pipeShell, extrude, revolve, loft, ruled |
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
-| **Modifications** | 7 | fillet, selective fillet, chamfer, shell, offset, draft, defeature |
+| **Modifications** | 9 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, shell, offset, draft, defeature |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
-| **Wires** | 13 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate |
+| **Wires** | 17 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
 | **Healing/Analysis** | 7 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
 | **Import/Export** | 10 | STEP, IGES, BREP import; STL, STEP, IGES, BREP export; mesh |
-| **Geometry Construction** | 4 | face from wire, face with holes, solid from shell, sew |
+| **Geometry Construction** | 7 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves |
 | **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 10 | Document.load, rootNodes, AssemblyNode, colors, materials |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **111** | |
+| **Total** | **120** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -32,11 +32,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **B-Rep Solid Modeling**: Full boundary representation geometry
 - **Boolean Operations**: Union, subtraction, intersection
 - **Sweep Operations**: Pipe sweeps, extrusions, revolutions, lofts
-- **Modifications**: Fillet, chamfer, shell, offset, draft, defeaturing
+- **Modifications**: Fillet (uniform, selective, variable radius), chamfer, shell, offset, draft, defeaturing
+- **Advanced Blends**: Variable radius fillets, multi-edge blends with individual radii
+- **2D Wire Operations**: 2D fillet and chamfer on planar wires
 - **Feature-Based Modeling**: Boss, pocket, drilling, splitting, gluing, evolved surfaces
 - **Pattern Operations**: Linear and circular arrays of shapes
 - **Shape Healing**: Analysis, fixing, unification, simplification
-- **Geometry Construction**: Face from wire, face with holes, sewing, solid from shell
+- **Geometry Construction**: Face from wire, face with holes, sewing, solid from shell, surface filling
+- **Surface Creation**: N-sided boundary filling, plate surfaces through points or curves
 - **Curve Interpolation**: Create smooth curves through specific points
 - **Import Formats**: STEP, IGES, BREP (OCCT native)
 - **Export Formats**: STL (3D printing), STEP, IGES, BREP (CAD interchange)
@@ -58,7 +61,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.13.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.14.0")
 ]
 ```
 
@@ -317,12 +320,12 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 
 OCCT has thousands of classes. Some notable ones not yet exposed:
 
-- **Blend/Transition**: `BRepBlend_*` classes for complex variable-radius fillets
 - **Pockets with Islands**: Multi-contour pocket features
 - **Offset surfaces**: `BRepOffsetAPI_MakeOffsetSurface`
 - **OBJ import/export**: Returns mesh data rather than B-Rep geometry
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.14.0: Variable radius fillets, multi-edge blends, 2D fillet/chamfer, surface filling, plate surfaces
 > - v0.13.0: Shape analysis, fixing, unification, simplification
 > - v0.12.0: Boss, pocket, drilling, shape splitting, gluing, evolved surfaces, pattern operations
 > - v0.11.0: Face from wire, sewing operations, solid from shell, curve interpolation
@@ -349,6 +352,42 @@ To wrap additional OCCT functionality, you need to modify three files:
 ## Building OCCT
 
 See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
+
+## Roadmap
+
+### Current Status: v0.14.0
+
+OCCTSwift now wraps **120 OCCT operations** across 17 categories.
+
+### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
+
+An interactive playground app with CadQuery-inspired scripting:
+
+```javascript
+// Text-based modeling input
+result = Workplane("XY")
+    .box(10, 20, 5)
+    .faces(">Z")
+    .hole(3)
+    .fillet(1)
+```
+
+**Features:**
+- JavaScriptCore interpreter (built into iOS/macOS)
+- ViewportKit 3D visualization
+- CadQuery-compatible syntax
+- Example library
+
+See [docs/DEMO_APP_PROPOSAL.md](docs/DEMO_APP_PROPOSAL.md) for details.
+
+### Open Issues
+
+| Issue | Description |
+|-------|-------------|
+| [#1](https://github.com/gsdali/OCCTSwift/issues/1) | SPM header path fix |
+| [#2](https://github.com/gsdali/OCCTSwift/issues/2) | CAM: Wire offsetting |
+| [#3](https://github.com/gsdali/OCCTSwift/issues/3) | CAM: Coordinate systems |
+| [#4](https://github.com/gsdali/OCCTSwift/issues/4) | CAM: Swept tool solids |
 
 ## License
 

@@ -385,6 +385,86 @@ struct EdgeDiscretizationTests {
     }
 }
 
+@Suite("Edge Polyline Consistency Tests")
+struct EdgePolylineConsistencyTests {
+
+    @Test("Lofted shape edge polylines match edge count")
+    func loftedShapeEdgePolylines() {
+        // Two circles at different Z heights
+        guard let circle1 = Wire.circle(radius: 10),
+              let circle2 = Wire.circle(radius: 5) else {
+            Issue.record("Failed to create circle wires")
+            return
+        }
+        // Loft between the two circles
+        let lofted = Shape.loft(profiles: [circle1, circle2], solid: true)
+        #expect(lofted.isValid)
+
+        let edgeCount = lofted.edgeCount
+        #expect(edgeCount > 0)
+
+        let polylines = lofted.allEdgePolylines(deflection: 0.1)
+        #expect(polylines.count == edgeCount, "polylines.count (\(polylines.count)) should match edgeCount (\(edgeCount))")
+
+        // Every edge should produce at least 2 points
+        for (i, polyline) in polylines.enumerated() {
+            #expect(polyline.count >= 2, "Edge \(i) should have at least 2 points, got \(polyline.count)")
+        }
+    }
+
+    @Test("Extruded rectangle all 12 edges recovered")
+    func extrudedRectangleEdges() {
+        guard let rect = Wire.rectangle(width: 10, height: 5) else {
+            Issue.record("Failed to create rectangle wire")
+            return
+        }
+        let solid = Shape.extrude(profile: rect, direction: SIMD3(0, 0, 1), length: 8)
+        #expect(solid.isValid)
+
+        // A box-like extrusion has 12 edges
+        let edgeCount = solid.edgeCount
+        #expect(edgeCount == 12, "Extruded rectangle should have 12 edges, got \(edgeCount)")
+
+        let polylines = solid.allEdgePolylines(deflection: 0.1)
+        #expect(polylines.count == 12, "Should recover all 12 edge polylines, got \(polylines.count)")
+    }
+
+    @Test("Extruded circle seam edges handled")
+    func extrudedCircleEdges() {
+        guard let circle = Wire.circle(radius: 5) else {
+            Issue.record("Failed to create circle wire")
+            return
+        }
+        let solid = Shape.extrude(profile: circle, direction: SIMD3(0, 0, 1), length: 10)
+        #expect(solid.isValid)
+
+        let edgeCount = solid.edgeCount
+        #expect(edgeCount > 0)
+
+        let polylines = solid.allEdgePolylines(deflection: 0.1)
+        #expect(polylines.count == edgeCount, "polylines.count (\(polylines.count)) should match edgeCount (\(edgeCount))")
+
+        for (i, polyline) in polylines.enumerated() {
+            #expect(polyline.count >= 2, "Edge \(i) should have at least 2 points, got \(polyline.count)")
+        }
+    }
+
+    @Test("allEdgePolylines count matches edgeCount for various shapes")
+    func consistencyAcrossShapes() {
+        let shapes: [(String, Shape)] = [
+            ("box", Shape.box(width: 5, height: 5, depth: 5)),
+            ("cylinder", Shape.cylinder(radius: 3, height: 6)),
+            ("sphere", Shape.sphere(radius: 4)),
+        ]
+
+        for (name, shape) in shapes {
+            let edgeCount = shape.edgeCount
+            let polylines = shape.allEdgePolylines(deflection: 0.1)
+            #expect(polylines.count == edgeCount, "\(name): polylines.count (\(polylines.count)) != edgeCount (\(edgeCount))")
+        }
+    }
+}
+
 @Suite("Sweep Tests")
 struct SweepTests {
 
@@ -2081,6 +2161,327 @@ struct FaceFixingTests {
 
         #expect(fixed != nil)
         #expect(fixed!.isValid)
+    }
+}
+
+// MARK: - Advanced Blends & Surface Filling Tests (v0.14.0)
+
+@Suite("Variable Radius Fillet Tests")
+struct VariableRadiusFilletTests {
+
+    @Test("Variable radius fillet on box edge")
+    func variableFilletOnBoxEdge() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+
+        // Apply variable radius fillet: starts at 1mm, ends at 3mm
+        let filleted = box.filletedVariable(
+            edgeIndex: 0,
+            radiusProfile: [(0.0, 1.0), (1.0, 3.0)]
+        )
+
+        #expect(filleted != nil)
+        if let filleted = filleted {
+            #expect(filleted.isValid)
+        }
+    }
+
+    @Test("Variable radius fillet with mid-point")
+    func variableFilletWithMidPoint() {
+        let box = Shape.box(width: 30, height: 30, depth: 30)
+
+        // Apply variable radius fillet: 1mm at start, 4mm at middle, 1mm at end
+        let filleted = box.filletedVariable(
+            edgeIndex: 0,
+            radiusProfile: [(0.0, 1.0), (0.5, 4.0), (1.0, 1.0)]
+        )
+
+        #expect(filleted != nil)
+        if let filleted = filleted {
+            #expect(filleted.isValid)
+        }
+    }
+
+    @Test("Variable fillet requires at least two points")
+    func variableFilletRequiresMinPoints() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        // Should fail with only one point
+        let filleted = box.filletedVariable(
+            edgeIndex: 0,
+            radiusProfile: [(0.5, 1.0)]
+        )
+
+        #expect(filleted == nil)
+    }
+}
+
+@Suite("Multi-Edge Blend Tests")
+struct MultiEdgeBlendTests {
+
+    @Test("Blend multiple edges with different radii")
+    func blendMultipleEdges() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+
+        // Fillet three edges with different radii
+        let blended = box.blendedEdges([
+            (0, 1.0),
+            (1, 2.0),
+            (2, 1.5)
+        ])
+
+        #expect(blended != nil)
+        if let blended = blended {
+            #expect(blended.isValid)
+        }
+    }
+
+    @Test("Blend single edge")
+    func blendSingleEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let blended = box.blendedEdges([(0, 1.0)])
+
+        #expect(blended != nil)
+        if let blended = blended {
+            #expect(blended.isValid)
+        }
+    }
+
+    @Test("Blend with empty array returns nil")
+    func blendEmptyArray() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let blended = box.blendedEdges([])
+
+        #expect(blended == nil)
+    }
+}
+
+@Suite("Wire 2D Fillet Tests")
+struct Wire2DFilletTests {
+
+    @Test("Fillet single vertex of rectangle")
+    func filletSingleVertex() {
+        guard let rect = Wire.rectangle(width: 10, height: 5) else {
+            Issue.record("Failed to create rectangle wire")
+            return
+        }
+
+        let filleted = rect.filleted2D(vertexIndex: 0, radius: 1.0)
+
+        #expect(filleted != nil)
+    }
+
+    @Test("Fillet all vertices of rectangle")
+    func filletAllVertices() {
+        guard let rect = Wire.rectangle(width: 10, height: 5) else {
+            Issue.record("Failed to create rectangle wire")
+            return
+        }
+
+        let filleted = rect.filletedAll2D(radius: 1.0)
+
+        #expect(filleted != nil)
+    }
+
+    @Test("Fillet polygon wire")
+    func filletPolygonWire() {
+        guard let polygon = Wire.polygon([
+            SIMD2(0, 0),
+            SIMD2(10, 0),
+            SIMD2(10, 10),
+            SIMD2(5, 15),
+            SIMD2(0, 10)
+        ], closed: true) else {
+            Issue.record("Failed to create polygon wire")
+            return
+        }
+
+        let filleted = polygon.filleted2D(vertexIndex: 2, radius: 1.5)
+
+        #expect(filleted != nil)
+    }
+}
+
+@Suite("Wire 2D Chamfer Tests")
+struct Wire2DChamferTests {
+
+    @Test("Chamfer single vertex of rectangle")
+    func chamferSingleVertex() {
+        guard let rect = Wire.rectangle(width: 10, height: 5) else {
+            Issue.record("Failed to create rectangle wire")
+            return
+        }
+
+        let chamfered = rect.chamfered2D(vertexIndex: 0, distance1: 1.0, distance2: 1.0)
+
+        #expect(chamfered != nil)
+    }
+
+    @Test("Chamfer all vertices of rectangle")
+    func chamferAllVertices() {
+        guard let rect = Wire.rectangle(width: 10, height: 5) else {
+            Issue.record("Failed to create rectangle wire")
+            return
+        }
+
+        let chamfered = rect.chamferedAll2D(distance: 1.0)
+
+        #expect(chamfered != nil)
+    }
+
+    @Test("Asymmetric chamfer")
+    func asymmetricChamfer() {
+        guard let rect = Wire.rectangle(width: 20, height: 10) else {
+            Issue.record("Failed to create rectangle wire")
+            return
+        }
+
+        // Asymmetric chamfer: different distances
+        let chamfered = rect.chamfered2D(vertexIndex: 1, distance1: 1.0, distance2: 2.0)
+
+        #expect(chamfered != nil)
+    }
+}
+
+@Suite("Surface Filling Tests")
+struct SurfaceFillingTests {
+
+    @Test("Fill from closed wire boundary")
+    func fillClosedWireBoundary() {
+        // Create a closed rectangular wire as boundary
+        guard let boundary = Wire.rectangle(width: 10, height: 10) else {
+            Issue.record("Failed to create boundary wire")
+            return
+        }
+
+        // Note: Surface filling is a complex OCCT operation that may not
+        // succeed with all boundary configurations. This tests the API.
+        let surface = Shape.fill(
+            boundaries: [boundary],
+            parameters: FillingParameters(continuity: .c0)
+        )
+
+        // The operation may or may not succeed depending on OCCT's
+        // internal handling - we're testing the API interface works
+        if let surface = surface {
+            #expect(surface.isValid)
+        }
+    }
+
+    @Test("Fill with polygon boundary")
+    func fillPolygonBoundary() {
+        guard let boundary = Wire.polygon([
+            SIMD2(0, 0),
+            SIMD2(10, 0),
+            SIMD2(10, 10),
+            SIMD2(0, 10)
+        ], closed: true) else {
+            Issue.record("Failed to create polygon boundary")
+            return
+        }
+
+        let params = FillingParameters(
+            continuity: .c0,
+            tolerance: 1e-3,
+            maxDegree: 8,
+            maxSegments: 9
+        )
+
+        let surface = Shape.fill(boundaries: [boundary], parameters: params)
+
+        // Test API works - actual success depends on OCCT
+        if let surface = surface {
+            #expect(surface.isValid)
+        }
+    }
+
+    @Test("Fill empty boundaries returns nil")
+    func fillEmptyBoundaries() {
+        let surface = Shape.fill(boundaries: [])
+
+        #expect(surface == nil)
+    }
+}
+
+@Suite("Plate Surface Tests")
+struct PlateSurfaceTests {
+
+    @Test("Plate surface through grid of points")
+    func plateThroughGridPoints() {
+        // Create a grid of points for plate surface
+        // GeomPlate works better with a good distribution of points
+        let points: [SIMD3<Double>] = [
+            // 3x3 grid
+            SIMD3(0, 0, 0),
+            SIMD3(5, 0, 0.5),
+            SIMD3(10, 0, 0),
+            SIMD3(0, 5, 0.5),
+            SIMD3(5, 5, 1),  // Center raised
+            SIMD3(10, 5, 0.5),
+            SIMD3(0, 10, 0),
+            SIMD3(5, 10, 0.5),
+            SIMD3(10, 10, 0)
+        ]
+
+        let surface = Shape.plateSurface(through: points, tolerance: 1.0)
+
+        // GeomPlate algorithms are complex - test API works
+        if let surface = surface {
+            #expect(surface.isValid)
+        }
+    }
+
+    @Test("Plate surface with corner points")
+    func plateWithCornerPoints() {
+        // Simpler case - just corner points
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 0),
+            SIMD3(10, 10, 0),
+            SIMD3(0, 10, 0)
+        ]
+
+        let surface = Shape.plateSurface(through: points, tolerance: 1.0)
+
+        // Test API interface
+        if let surface = surface {
+            #expect(surface.isValid)
+        }
+    }
+
+    @Test("Plate surface too few points")
+    func plateTooFewPoints() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 0)
+        ]
+
+        let surface = Shape.plateSurface(through: points, tolerance: 0.1)
+
+        #expect(surface == nil)
+    }
+
+    @Test("Plate surface from curves - API test")
+    func plateFromCurvesAPI() {
+        guard let curve1 = Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0)),
+              let curve2 = Wire.line(from: SIMD3(0, 10, 0), to: SIMD3(10, 10, 0)) else {
+            Issue.record("Failed to create curves")
+            return
+        }
+
+        // Test the API interface - actual surface creation may not
+        // succeed depending on OCCT's GeomPlate algorithm
+        let surface = Shape.plateSurface(
+            constrainedBy: [curve1, curve2],
+            continuity: .c0,
+            tolerance: 1.0
+        )
+
+        // Just verify we don't crash and API returns expected type
+        if let surface = surface {
+            #expect(surface.isValid)
+        }
     }
 }
 

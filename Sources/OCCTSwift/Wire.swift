@@ -859,4 +859,100 @@ extension Wire {
 
         return polygon(points, closed: true)
     }
+
+    // MARK: - 2D Fillet (v0.14.0)
+
+    /// Apply a 2D fillet (rounded corner) to a specific vertex.
+    ///
+    /// The wire must be planar. The fillet creates a circular arc
+    /// that smoothly connects the two edges meeting at the vertex.
+    ///
+    /// - Parameters:
+    ///   - vertexIndex: Index of the vertex to fillet (0-based)
+    ///   - radius: Fillet radius
+    /// - Returns: Wire with filleted corner, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a rectangle and fillet one corner
+    /// let rect = Wire.rectangle(width: 10, height: 5)
+    /// let rounded = rect?.filleted2D(vertexIndex: 0, radius: 1.0)
+    /// ```
+    public func filleted2D(vertexIndex: Int, radius: Double) -> Wire? {
+        guard let result = OCCTWireFillet2D(handle, Int32(vertexIndex), radius) else {
+            return nil
+        }
+        return Wire(handle: result)
+    }
+
+    /// Apply 2D fillets (rounded corners) to all vertices.
+    ///
+    /// The wire must be planar. Each corner gets a fillet with the specified radius.
+    /// Some corners may not be fillettable if the radius is too large.
+    ///
+    /// - Parameter radius: Fillet radius for all corners
+    /// - Returns: Wire with filleted corners, or original wire if some failed
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a rounded rectangle
+    /// let rect = Wire.rectangle(width: 10, height: 5)
+    /// let rounded = rect?.filletedAll2D(radius: 1.0)
+    /// ```
+    public func filletedAll2D(radius: Double) -> Wire? {
+        guard let result = OCCTWireFilletAll2D(handle, radius) else {
+            return nil
+        }
+        return Wire(handle: result)
+    }
+
+    // MARK: - 2D Chamfer (v0.14.0)
+
+    /// Apply a 2D chamfer (angled corner cut) to a specific vertex.
+    ///
+    /// The wire must be planar. The chamfer creates a straight line
+    /// that cuts across the corner.
+    ///
+    /// - Parameters:
+    ///   - vertexIndex: Index of the vertex to chamfer (0-based)
+    ///   - distance1: Distance along the first edge
+    ///   - distance2: Distance along the second edge
+    /// - Returns: Wire with chamfered corner, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a rectangle and chamfer one corner
+    /// let rect = Wire.rectangle(width: 10, height: 5)
+    /// let chamfered = rect?.chamfered2D(vertexIndex: 0, distance1: 1.0, distance2: 1.0)
+    /// ```
+    public func chamfered2D(vertexIndex: Int, distance1: Double, distance2: Double) -> Wire? {
+        guard let result = OCCTWireChamfer2D(handle, Int32(vertexIndex), distance1, distance2) else {
+            return nil
+        }
+        return Wire(handle: result)
+    }
+
+    /// Apply 2D chamfers (angled corner cuts) to all vertices.
+    ///
+    /// The wire must be planar. Each corner gets a symmetric chamfer.
+    ///
+    /// - Parameter distance: Chamfer distance for all corners
+    /// - Returns: Wire with chamfered corners, or original wire if some failed
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// // Create a rectangle with all corners chamfered
+    /// let rect = Wire.rectangle(width: 10, height: 5)
+    /// let chamfered = rect?.chamferedAll2D(distance: 1.0)
+    /// ```
+    public func chamferedAll2D(distance: Double) -> Wire? {
+        guard let result = OCCTWireChamferAll2D(handle, distance) else {
+            return nil
+        }
+        return Wire(handle: result)
+    }
 }

@@ -1,7 +1,7 @@
 # OCCTSwift - Claude Handoff Documentation
 
-> **Last Updated**: 2026-01-14
-> **Current Version**: v0.6.0
+> **Last Updated**: 2026-01-23
+> **Current Version**: v0.14.0 (with safe API additions)
 > **Repository**: https://github.com/gsdali/OCCTSwift
 
 This document provides complete context for a new Claude instance to manage this repository.
@@ -13,10 +13,12 @@ This document provides complete context for a new Claude instance to manage this
 **OCCTSwift** is a Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/), providing B-Rep solid modeling capabilities for iOS and macOS applications.
 
 ### Key Facts
-- **Language**: Swift 6.1 with Objective-C++ bridge
-- **Platforms**: iOS 15+, macOS 12+
+- **Language**: Swift 6.0 with Objective-C++ bridge
+- **Platforms**: iOS 18+, macOS 15+
 - **OCCT Version**: 8.0.0-rc3
-- **License**: MIT (wrapper), LGPL-2.1 (OCCT)
+- **License**: LGPL-2.1
+- **Operations**: 120 wrapped OCCT operations across 17 categories
+- **Tests**: 159 unit tests
 
 ### Primary Use Cases
 - CAD/CAM applications
@@ -212,87 +214,200 @@ gh release create vX.Y.Z \
 
 ---
 
-## 6. Current State (as of v0.5.0)
+## 6. Current State (as of v0.14.0)
 
 ### Recent Releases
 
 | Version | Date | Key Changes |
 |---------|------|-------------|
+| v0.14.0 | 2026-01-22 | Variable radius fillet, multi-edge blend, 2D fillet/chamfer, surface filling, plate surfaces |
+| v0.13.0 | 2026-01-21 | Shape analysis, fixing, unification, simplification |
+| v0.12.0 | 2026-01-20 | Boss, pocket, drilling, splitting, gluing, evolved, patterns |
+| v0.11.0 | 2026-01-19 | Face from wire, sewing, solid from shell, curve interpolation |
+| v0.10.0 | 2026-01-18 | IGES import/export, BREP native format |
+| v0.9.0 | 2026-01-17 | B-spline surfaces, ruled surfaces, curve analysis |
+| v0.8.0 | 2026-01-16 | Draft angles, selective fillet, defeaturing, pipe shell modes |
+| v0.7.0 | 2026-01-15 | Volume, surface area, distance measurement, center of mass |
+| v0.6.0 | 2026-01-14 | XDE/XCAF document support, 2D drawing projection |
 | v0.5.0 | 2026-01-02 | AAG feature recognition, Wire optionals, RealityKit |
-| v0.4.0 | 2025-12-31 | OCCT 8.0.0-rc3 upgrade, STEP export fix |
-| v0.3.0 | 2025-12-31 | Face analysis for CAM |
-| v0.2.1 | 2025-12-30 | Wire offset, NURBS, memory fix |
+
+### Demo App (OCCTSwiftDemo)
+
+A companion demo app has been created to showcase OCCTSwift:
+- **Location**: ~/Projects/OCCTSwiftDemo
+- **Status**: Phase 1 complete, tested on iOS device (2026-01-23)
+- **Features**: CadQuery-inspired JavaScript scripting, ViewportKit 3D display
+- **iOS Testing**: App runs on iPhone with some issues (to be documented)
+- **See**: [DEMO_APP_PROPOSAL.md](DEMO_APP_PROPOSAL.md)
+
+### Safe API Additions (2026-01-23)
+
+Added optional-returning versions of operations that can fail, preventing crashes when OCCT operations return nil:
+
+```swift
+// Safe primitives
+Shape.tryBox(width:height:depth:) -> Shape?
+Shape.tryCylinder(radius:height:) -> Shape?
+Shape.trySphere(radius:) -> Shape?
+Shape.tryCone(bottomRadius:topRadius:height:) -> Shape?
+Shape.tryTorus(majorRadius:minorRadius:) -> Shape?
+
+// Safe booleans
+shape.tryUnion(with:) -> Shape?
+shape.trySubtracting(_:) -> Shape?
+shape.tryIntersection(with:) -> Shape?
+
+// Safe modifications
+shape.tryFilleted(radius:) -> Shape?
+shape.tryChamfered(distance:) -> Shape?
+shape.tryShelled(thickness:) -> Shape?
+shape.tryOffset(by:) -> Shape?
+
+// Safe transforms
+shape.tryTranslated(by:) -> Shape?
+shape.tryRotated(axis:angle:) -> Shape?
+shape.tryScaled(by:) -> Shape?
+shape.tryMirrored(planeNormal:planeOrigin:) -> Shape?
+```
+
+These are used by OCCTSwiftDemo to gracefully handle failures on iOS.
 
 ### Open Issues
 
 | # | Title | Priority | Notes |
 |---|-------|----------|-------|
 | 1 | SPM header paths don't work as dependency | Bug | Real issue, not yet fixed |
-| 2 | CAM: Wire Offsetting and Contour Extraction | Feature | Wire.offset() done, more pending |
-| 3 | Coordinate System Support for CAM | Enhancement | Low priority, can do at app level |
-| 4 | True Swept Solid for Tool Paths | Enhancement | Low priority, toolSweep() sufficient |
+| 25 | Demo App - Parent Issue | Feature | Phase 1 complete |
+| 26 | Demo App Phase 1: MVP | Feature | ✅ Complete |
+| 27 | Demo App Phase 2: Workplanes | Feature | Pending |
+| 28 | Demo App Phase 3: Polish | Feature | Pending |
 
 ### Closed Issues (Recent)
 
 | # | Title | Resolution |
 |---|-------|------------|
-| 18 | Wire.polygon crashes | Fixed in v0.5.0 (PR #19) |
+| 24 | v0.14.0 Release | Completed |
+| 18 | Wire.polygon crashes | Fixed in v0.5.0 |
 | 17 | v0.4.0 missing binary asset | Fixed |
-| 15-5 | Various feature requests | Implemented |
 
 ---
 
-## 7. API Overview
+## 7. API Overview (120+ Operations)
 
 ### Shape (3D Solids)
 
 ```swift
-// Primitives
+// Primitives (7 + safe variants)
 Shape.box(width:height:depth:)
+Shape.tryBox(width:height:depth:) -> Shape?      // safe version
 Shape.cylinder(radius:height:)
+Shape.tryCylinder(radius:height:) -> Shape?      // safe version
+Shape.cylinder(at:bottomZ:radius:height:)        // positioned
 Shape.sphere(radius:)
-Shape.cone(radius1:radius2:height:)
+Shape.trySphere(radius:) -> Shape?               // safe version
+Shape.cone(bottomRadius:topRadius:height:)
+Shape.tryCone(...) -> Shape?                     // safe version
 Shape.torus(majorRadius:minorRadius:)
+Shape.tryTorus(...) -> Shape?                    // safe version
+Shape.surface(...)  // B-spline surface
 
-// Booleans
+// Booleans (3 + safe variants)
 shape1 + shape2  // union
 shape1 - shape2  // subtract
 shape1 & shape2  // intersect
+shape.tryUnion(with:) -> Shape?                  // safe version
+shape.trySubtracting(_:) -> Shape?               // safe version
+shape.tryIntersection(with:) -> Shape?           // safe version
 
-// Transforms
+// Transforms (4 + safe variants)
 shape.translated(by:)
+shape.tryTranslated(by:) -> Shape?               // safe version
 shape.rotated(axis:angle:)
+shape.tryRotated(axis:angle:) -> Shape?          // safe version
 shape.scaled(by:)
+shape.tryScaled(by:) -> Shape?                   // safe version
 shape.mirrored(planeNormal:planeOrigin:)
+shape.tryMirrored(...) -> Shape?                 // safe version
 
-// Modifications
+// Modifications (9 + safe variants)
 shape.filleted(radius:)
+shape.tryFilleted(radius:) -> Shape?             // safe version
+shape.filleted(edges:radius:)                    // selective
+shape.filletedVariable(...)                      // variable radius (v0.14.0)
+shape.blendedMultiEdge(...)                      // multi-edge blend (v0.14.0)
 shape.chamfered(distance:)
+shape.tryChamfered(distance:) -> Shape?          // safe version
 shape.shelled(thickness:)
+shape.tryShelled(thickness:) -> Shape?           // safe version
+shape.shelled(thickness:openFaces:)
+shape.offset(by:)
+shape.tryOffset(by:) -> Shape?                   // safe version
+shape.drafted(...)
+shape.defeatured(facesToRemove:)
 
-// Sweeps
+// Sweeps (6)
 Shape.extrude(profile:direction:length:)
-Shape.revolve(profile:axisOrigin:axisDirection:angle:)
+Shape.revolve(profile:...)
 Shape.sweep(profile:along:)
+Shape.pipeShell(profile:spine:...)
 Shape.loft(profiles:solid:)
+Shape.ruled(wire1:wire2:)
 
-// Import/Export
-Shape.load(from:)           // STEP import
+// Feature-Based (10)
+Shape.boss(on:profile:height:draft:fillet:)
+Shape.pocket(in:profile:depth:draft:fillet:)
+Shape.prism(profile:height:draft:)
+shape.drilled(...)
+shape.split(by:)
+Shape.glue(shapes:tolerance:)
+Shape.evolved(spine:profile:)
+shape.linearPattern(...)
+shape.circularPattern(...)
+
+// Geometry Construction (7)
+Shape.face(from:)
+Shape.face(outer:holes:)
+Shape.solid(from:)
+Shape.sew(shapes:tolerance:)
+Shape.fill(boundary:)                   // N-sided fill (v0.14.0)
+Shape.plateSurface(through:)            // plate surface (v0.14.0)
+Shape.plateCurves(wires:...)            // plate from curves (v0.14.0)
+
+// Healing/Analysis (7)
+shape.analyze()
+shape.fixed()
+shape.unified()
+shape.simplified()
+shape.withoutSmallFaces(minArea:)
+
+// Measurement (7)
+shape.volume
+shape.surfaceArea
+shape.centerOfMass
+shape.properties
+shape.distance(to:)
+shape.minDistance(to:)
+shape.intersects(_:)
+
+// Import/Export (10)
+Shape.load(from:)           // STEP
+Shape.loadIGES(from:)
+Shape.loadBREP(from:)
 shape.writeSTEP(to:)
 shape.writeSTL(to:deflection:)
+shape.writeIGES(to:)
+shape.writeBREP(to:)
+shape.mesh(...)
 
-// Analysis
-shape.bounds
-shape.isValid
-shape.faces()
-shape.sliceAtZ(_:)
-shape.buildAAG()            // Feature recognition (v0.5.0)
+// XDE/Document (10)
+Document.load(from:)
+document.rootNodes
+AssemblyNode properties...
 ```
 
-### Wire (2D/3D Paths)
+### Wire (17 Operations)
 
 ```swift
-// All return Wire? (optional since v0.5.0)
 Wire.rectangle(width:height:)
 Wire.circle(radius:)
 Wire.polygon(_:closed:)
@@ -300,10 +415,28 @@ Wire.line(from:to:)
 Wire.arc(center:radius:startAngle:endAngle:normal:)
 Wire.bspline(_:)
 Wire.nurbs(poles:weights:knots:multiplicities:degree:)
+Wire.path(_:)
 Wire.join(_:)
+Wire.interpolate(through:)
 
-// Operations
-wire.offset(by:joinType:)   // Tool compensation
+wire.offset(by:joinType:)
+wire.offset3D(distance:)
+wire.filleted2D(radius:)      // 2D fillet (v0.14.0)
+wire.filletedAll2D(radius:)   // all corners (v0.14.0)
+wire.chamfered2D(distance:)   // 2D chamfer (v0.14.0)
+wire.chamferedAll2D(distance:)
+wire.fixed()
+```
+
+### Curve Analysis (6)
+
+```swift
+edge.length
+edge.curveInfo()
+edge.point(at:)
+edge.tangent(at:)
+edge.curvature(at:)
+edge.curvePoint(at:)
 ```
 
 ### Mesh
@@ -312,26 +445,18 @@ wire.offset(by:joinType:)   // Tool compensation
 let mesh = shape.mesh(linearDeflection:angularDeflection:)
 mesh.vertices      // [SIMD3<Float>]
 mesh.normals       // [SIMD3<Float>]
-mesh.triangles     // [(Int, Int, Int)]
+mesh.indices       // [UInt32]
 
-// Export
 mesh.sceneKitGeometry()
-mesh.toMeshResource()       // RealityKit (v0.5.0)
-mesh.toModelComponent()     // RealityKit (v0.5.0)
+mesh.toMeshResource()       // RealityKit
 ```
 
-### Feature Recognition (v0.5.0)
+### Feature Recognition
 
 ```swift
 let aag = AAG(shape: shape)
 let pockets = aag.detectPockets()
 let holes = aag.detectHoles()
-
-// Pocket info
-pocket.floorFaceIndex
-pocket.wallFaceIndices
-pocket.zLevel
-pocket.depth
 ```
 
 ---

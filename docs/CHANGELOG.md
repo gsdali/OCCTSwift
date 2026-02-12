@@ -1,5 +1,196 @@
 # OCCTSwift Changelog
 
+## Safe API Additions (2026-01-23)
+
+Added optional-returning "try" variants of operations that can fail. These prevent crashes when OCCT operations return nil, which can occur on iOS or with certain geometric configurations.
+
+### Safe Primitive Creation
+- `Shape.tryBox(width:height:depth:) -> Shape?`
+- `Shape.tryCylinder(radius:height:) -> Shape?`
+- `Shape.trySphere(radius:) -> Shape?`
+- `Shape.tryCone(bottomRadius:topRadius:height:) -> Shape?`
+- `Shape.tryTorus(majorRadius:minorRadius:) -> Shape?`
+
+### Safe Boolean Operations
+- `shape.tryUnion(with:) -> Shape?`
+- `shape.trySubtracting(_:) -> Shape?`
+- `shape.tryIntersection(with:) -> Shape?`
+
+### Safe Modifications
+- `shape.tryFilleted(radius:) -> Shape?`
+- `shape.tryChamfered(distance:) -> Shape?`
+- `shape.tryShelled(thickness:) -> Shape?`
+- `shape.tryOffset(by:) -> Shape?`
+
+### Safe Transformations
+- `shape.tryTranslated(by:) -> Shape?`
+- `shape.tryRotated(axis:angle:) -> Shape?`
+- `shape.tryScaled(by:) -> Shape?`
+- `shape.tryMirrored(planeNormal:planeOrigin:) -> Shape?`
+
+**Usage**: These are used by OCCTSwiftDemo for graceful error handling. The original non-optional methods remain available for code that prefers fail-fast behavior.
+
+---
+
+## Demo App - OCCTSwiftDemo (2026-01-22, updated 2026-01-23)
+
+A companion demo app has been created to showcase OCCTSwift capabilities:
+
+- **Repository**: `~/Projects/OCCTSwiftDemo`
+- **Status**: Phase 1 complete, iOS device testing in progress
+- **Features**:
+  - CadQuery-inspired JavaScript scripting via JavaScriptCore
+  - ViewportKit 3D visualization with camera controls
+  - Platform-adaptive UI (macOS HSplitView, iPad 3-column, iPhone TabView)
+  - Example library with presets
+  - Live model properties (volume, area, face/edge counts)
+  - Safe operation handling (uses try* methods to prevent crashes)
+
+See [DEMO_APP_PROPOSAL.md](DEMO_APP_PROPOSAL.md) for details and roadmap.
+
+---
+
+## [v0.14.0] - 2026-01-22
+
+### Added
+
+#### Variable Radius Fillet
+Apply fillets with varying radius along an edge.
+
+- **`shape.filletedVariable(edgeIndex:radiusProfile:)`** - Variable radius fillet
+  - `radiusProfile` - Array of (parameter, radius) pairs
+  - Parameters normalized 0.0 (start) to 1.0 (end)
+
+```swift
+// Fillet varying from 1mm to 3mm along edge
+let filleted = shape.filletedVariable(
+    edgeIndex: 0,
+    radiusProfile: [(0.0, 1.0), (1.0, 3.0)]
+)
+
+// Bulging fillet: 1mm at ends, 4mm in middle
+let bulge = shape.filletedVariable(
+    edgeIndex: 0,
+    radiusProfile: [(0.0, 1.0), (0.5, 4.0), (1.0, 1.0)]
+)
+```
+
+#### Multi-Edge Blend
+Apply fillets to multiple edges with individual radii.
+
+- **`shape.blendedEdges(_:)`** - Fillet multiple edges with different radii
+
+```swift
+let blended = shape.blendedEdges([
+    (0, 1.0),  // Edge 0: 1mm fillet
+    (1, 2.0),  // Edge 1: 2mm fillet
+    (2, 0.5)   // Edge 2: 0.5mm fillet
+])
+```
+
+#### 2D Wire Fillet
+Round corners on planar wires.
+
+- **`wire.filleted2D(vertexIndex:radius:)`** - Fillet single vertex
+- **`wire.filletedAll2D(radius:)`** - Fillet all vertices
+
+```swift
+let rect = Wire.rectangle(width: 10, height: 5)
+
+// Fillet one corner
+let oneCorner = rect?.filleted2D(vertexIndex: 0, radius: 1.0)
+
+// Rounded rectangle
+let rounded = rect?.filletedAll2D(radius: 1.0)
+```
+
+#### 2D Wire Chamfer
+Cut corners on planar wires.
+
+- **`wire.chamfered2D(vertexIndex:distance1:distance2:)`** - Chamfer single vertex
+- **`wire.chamferedAll2D(distance:)`** - Chamfer all vertices
+
+```swift
+let rect = Wire.rectangle(width: 10, height: 5)
+
+// Asymmetric chamfer
+let chamfered = rect?.chamfered2D(vertexIndex: 0, distance1: 1.0, distance2: 2.0)
+
+// Chamfer all corners
+let allChamfered = rect?.chamferedAll2D(distance: 1.0)
+```
+
+#### Surface Filling
+Create surfaces constrained by boundaries.
+
+- **`SurfaceContinuity`** enum - `.c0`, `.g1`, `.g2`
+- **`FillingParameters`** struct - Control filling operation
+- **`Shape.fill(boundaries:parameters:)`** - Fill N-sided boundary
+
+```swift
+let params = FillingParameters(continuity: .g1, tolerance: 1e-4)
+let surface = Shape.fill(boundaries: [closedWire], parameters: params)
+```
+
+#### Plate Surfaces
+Create surfaces through points or along curves.
+
+- **`Shape.plateSurface(through:tolerance:)`** - Surface through points
+- **`Shape.plateSurface(constrainedBy:continuity:tolerance:)`** - Surface along curves
+
+```swift
+// Surface through scattered points
+let surface = Shape.plateSurface(through: [
+    SIMD3(0, 0, 0),
+    SIMD3(10, 0, 1),
+    SIMD3(10, 10, 2),
+    SIMD3(0, 10, 1),
+    SIMD3(5, 5, 3)  // Raised center
+], tolerance: 0.01)
+```
+
+**C Bridge Functions:**
+```c
+// Variable fillet
+OCCTShapeRef OCCTShapeFilletVariable(OCCTShapeRef shape, int32_t edgeIndex,
+                                      const double* radii, const double* params, int32_t count);
+
+// 2D fillet/chamfer
+OCCTWireRef OCCTWireFillet2D(OCCTWireRef wire, int32_t vertexIndex, double radius);
+OCCTWireRef OCCTWireFilletAll2D(OCCTWireRef wire, double radius);
+OCCTWireRef OCCTWireChamfer2D(OCCTWireRef wire, int32_t vertexIndex, double dist1, double dist2);
+OCCTWireRef OCCTWireChamferAll2D(OCCTWireRef wire, double distance);
+
+// Multi-edge blend
+OCCTShapeRef OCCTShapeBlendEdges(OCCTShapeRef shape,
+                                  const int32_t* edgeIndices, const double* radii, int32_t count);
+
+// Surface filling
+typedef struct {
+    int32_t continuity;
+    double tolerance;
+    int32_t maxDegree;
+    int32_t maxSegments;
+} OCCTFillingParams;
+
+OCCTShapeRef OCCTShapeFill(const OCCTWireRef* boundaries, int32_t wireCount,
+                            OCCTFillingParams params);
+
+// Plate surfaces
+OCCTShapeRef OCCTShapePlatePoints(const double* points, int32_t pointCount, double tolerance);
+OCCTShapeRef OCCTShapePlateCurves(const OCCTWireRef* curves, int32_t curveCount,
+                                   int32_t continuity, double tolerance);
+```
+
+**OCCT Classes Used:**
+- `BRepFilletAPI_MakeFillet` with `SetRadius` at parameters
+- `ChFi2d_Builder` for 2D fillet/chamfer
+- `BRepOffsetAPI_MakeFilling` for N-sided surface filling
+- `GeomPlate_BuildPlateSurface` for plate surfaces
+- `GeomPlate_PointConstraint` and `GeomPlate_CurveConstraint`
+
+---
+
 ## [v0.13.0] - 2026-01-22
 
 ### Added

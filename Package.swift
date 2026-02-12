@@ -46,11 +46,16 @@ let package = Package(
             ]
         ),
 
-        // OCCT binary framework (remote for SPM consumers)
+        // OCCT binary framework (local for development)
+        // For SPM consumers, use remote URL:
+        // .binaryTarget(
+        //     name: "OCCT",
+        //     url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.5.0/OCCT.xcframework.zip",
+        //     checksum: "4f42d7854452946fb8e5141e654c84c2f3bdfcfebff703c143c7961ec340b7f7"
+        // ),
         .binaryTarget(
             name: "OCCT",
-            url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.5.0/OCCT.xcframework.zip",
-            checksum: "4f42d7854452946fb8e5141e654c84c2f3bdfcfebff703c143c7961ec340b7f7"
+            path: "Libraries/OCCT.xcframework"
         ),
 
         // Tests

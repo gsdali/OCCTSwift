@@ -92,6 +92,7 @@
 #include <BRep_Tool.hxx>
 
 // Validation & Healing
+#include <BRepLib.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <ShapeFix_Shape.hxx>
 #include <ShapeFix_Solid.hxx>
@@ -204,6 +205,20 @@
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <BRepCheck_Wire.hxx>
 #include <BRepCheck_Shell.hxx>
+
+// Advanced Blends & Surface Filling (v0.14.0)
+#include <ChFi2d.hxx>
+#include <ChFi2d_Builder.hxx>
+#include <ChFi2d_FilletAPI.hxx>
+#include <ChFi2d_ChamferAPI.hxx>
+#include <BRepOffsetAPI_MakeFilling.hxx>
+#include <GeomPlate_BuildPlateSurface.hxx>
+#include <GeomPlate_MakeApprox.hxx>
+#include <GeomPlate_PointConstraint.hxx>
+#include <GeomPlate_CurveConstraint.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <GeomAdaptor_Curve.hxx>
+#include <Adaptor3d_CurveOnSurface.hxx>
 
 // MARK: - Internal Structures
 
@@ -1134,20 +1149,19 @@ OCCTMeshRef OCCTShapeCreateMeshWithParams(OCCTShapeRef shape, OCCTMeshParameters
 // MARK: - Edge Discretization
 
 int32_t OCCTShapeGetEdgePolyline(OCCTShapeRef shape, int32_t edgeIndex, double deflection, double* outPoints, int32_t maxPoints) {
-    if (!shape || !outPoints || maxPoints < 2) return -1;
+    if (!shape || !outPoints || maxPoints < 2 || edgeIndex < 0) return -1;
 
     try {
-        // Find the edge at the given index
-        TopExp_Explorer explorer(shape->shape, TopAbs_EDGE);
-        int32_t currentIndex = 0;
-        while (explorer.More() && currentIndex < edgeIndex) {
-            currentIndex++;
-            explorer.Next();
-        }
+        // Use IndexedMap to match OCCTShapeGetTotalEdgeCount ordering
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
 
-        if (!explorer.More()) return -1;
+        if (edgeIndex >= edgeMap.Extent()) return -1;
 
-        TopoDS_Edge edge = TopoDS::Edge(explorer.Current());
+        TopoDS_Edge edge = TopoDS::Edge(edgeMap(edgeIndex + 1));  // OCCT is 1-based
+
+        // Ensure 3D curve exists (lofted shapes may only have pcurves)
+        BRepLib::BuildCurves3d(edge);
 
         // Use BRepAdaptor_Curve for edge geometry
         BRepAdaptor_Curve curve(edge);
@@ -2001,20 +2015,19 @@ int32_t OCCTShapeGetEdgeCount(OCCTShapeRef shape) {
 }
 
 int32_t OCCTShapeGetEdgePoints(OCCTShapeRef shape, int32_t edgeIndex, double* outPoints, int32_t maxPoints) {
-    if (!shape || !outPoints || maxPoints < 2) return 0;
+    if (!shape || !outPoints || maxPoints < 2 || edgeIndex < 0) return 0;
 
     try {
-        // Find the edge at the given index
-        TopExp_Explorer explorer(shape->shape, TopAbs_EDGE);
-        int32_t currentIndex = 0;
-        while (explorer.More() && currentIndex < edgeIndex) {
-            currentIndex++;
-            explorer.Next();
-        }
+        // Use IndexedMap to match OCCTShapeGetTotalEdgeCount ordering
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
 
-        if (!explorer.More()) return 0;
+        if (edgeIndex >= edgeMap.Extent()) return 0;
 
-        TopoDS_Edge edge = TopoDS::Edge(explorer.Current());
+        TopoDS_Edge edge = TopoDS::Edge(edgeMap(edgeIndex + 1));  // OCCT is 1-based
+
+        // Ensure 3D curve exists (lofted shapes may only have pcurves)
+        BRepLib::BuildCurves3d(edge);
 
         // Get curve from edge
         Standard_Real first, last;
@@ -5034,6 +5047,399 @@ OCCTShapeRef OCCTShapeSimplify(OCCTShapeRef shape, double tolerance) {
 
         if (result.IsNull()) return nullptr;
         return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Advanced Blends & Surface Filling (v0.14.0)
+
+OCCTShapeRef OCCTShapeFilletVariable(OCCTShapeRef shape, int32_t edgeIndex,
+                                      const double* radii, const double* params, int32_t count) {
+    if (!shape || !radii || !params || count < 2 || edgeIndex < 0) return nullptr;
+
+    try {
+        // Get the edge at the specified index
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+
+        if (edgeIndex >= edgeMap.Extent()) return nullptr;
+
+        TopoDS_Edge edge = TopoDS::Edge(edgeMap(edgeIndex + 1));  // OCCT uses 1-based indexing
+
+        // Create fillet maker
+        BRepFilletAPI_MakeFillet fillet(shape->shape);
+
+        // Add edge with variable radius
+        fillet.Add(edge);
+
+        // Get the edge length for parameter mapping
+        double first, last;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+        if (curve.IsNull()) return nullptr;
+
+        // Set radius at each parameter point
+        for (int32_t i = 0; i < count; i++) {
+            double param = first + params[i] * (last - first);  // Map 0-1 to curve parameter range
+            fillet.SetRadius(radii[i], param, 1);  // 1 is the contour index
+        }
+
+        fillet.Build();
+        if (!fillet.IsDone()) return nullptr;
+
+        TopoDS_Shape result = fillet.Shape();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireFillet2D(OCCTWireRef wire, int32_t vertexIndex, double radius) {
+    if (!wire || radius <= 0 || vertexIndex < 0) return nullptr;
+
+    try {
+        // Create a face from the wire for 2D operations
+        BRepBuilderAPI_MakeFace makeFace(wire->wire, true);
+        if (!makeFace.IsDone()) return nullptr;
+        TopoDS_Face face = makeFace.Face();
+
+        // Get vertex at index
+        TopTools_IndexedMapOfShape vertexMap;
+        TopExp::MapShapes(wire->wire, TopAbs_VERTEX, vertexMap);
+
+        if (vertexIndex >= vertexMap.Extent()) return nullptr;
+
+        TopoDS_Vertex vertex = TopoDS::Vertex(vertexMap(vertexIndex + 1));
+
+        // Use ChFi2d_Builder for 2D fillet on face
+        ChFi2d_Builder fillet2d(face);
+        TopoDS_Edge filletEdge = fillet2d.AddFillet(vertex, radius);
+
+        if (filletEdge.IsNull()) return nullptr;
+        if (fillet2d.Status() != ChFi2d_IsDone) return nullptr;
+
+        // Get the modified face and extract its outer wire
+        TopoDS_Face resultFace = TopoDS::Face(fillet2d.Result());
+        if (resultFace.IsNull()) return nullptr;
+
+        TopoDS_Wire outerWire = BRepTools::OuterWire(resultFace);
+        if (outerWire.IsNull()) return nullptr;
+
+        return new OCCTWire(outerWire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireFilletAll2D(OCCTWireRef wire, double radius) {
+    if (!wire || radius <= 0) return nullptr;
+
+    try {
+        // Create a face from the wire
+        BRepBuilderAPI_MakeFace makeFace(wire->wire, true);
+        if (!makeFace.IsDone()) return nullptr;
+        TopoDS_Face face = makeFace.Face();
+
+        // Get all vertices
+        TopTools_IndexedMapOfShape vertexMap;
+        TopExp::MapShapes(wire->wire, TopAbs_VERTEX, vertexMap);
+
+        if (vertexMap.Extent() < 2) return nullptr;
+
+        // Use ChFi2d_Builder to fillet all vertices
+        ChFi2d_Builder fillet2d(face);
+
+        // Add fillet to each vertex
+        for (int v = 1; v <= vertexMap.Extent(); v++) {
+            TopoDS_Vertex vertex = TopoDS::Vertex(vertexMap(v));
+            fillet2d.AddFillet(vertex, radius);
+        }
+
+        if (fillet2d.Status() != ChFi2d_IsDone) {
+            // Some vertices might not be fillettable; return original
+            return new OCCTWire(wire->wire);
+        }
+
+        // Get the modified face and extract its outer wire
+        TopoDS_Face resultFace = TopoDS::Face(fillet2d.Result());
+        if (resultFace.IsNull()) return nullptr;
+
+        TopoDS_Wire outerWire = BRepTools::OuterWire(resultFace);
+        if (outerWire.IsNull()) return nullptr;
+
+        return new OCCTWire(outerWire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireChamfer2D(OCCTWireRef wire, int32_t vertexIndex, double dist1, double dist2) {
+    if (!wire || dist1 <= 0 || dist2 <= 0 || vertexIndex < 0) return nullptr;
+
+    try {
+        // Create face from wire
+        BRepBuilderAPI_MakeFace makeFace(wire->wire, true);
+        if (!makeFace.IsDone()) return nullptr;
+        TopoDS_Face face = makeFace.Face();
+
+        // Get edges and vertices
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(wire->wire, TopAbs_EDGE, edgeMap);
+
+        TopTools_IndexedMapOfShape vertexMap;
+        TopExp::MapShapes(wire->wire, TopAbs_VERTEX, vertexMap);
+
+        if (vertexIndex >= vertexMap.Extent()) return nullptr;
+
+        TopoDS_Vertex vertex = TopoDS::Vertex(vertexMap(vertexIndex + 1));
+
+        // Find edges sharing this vertex
+        TopoDS_Edge edge1, edge2;
+        for (int i = 1; i <= edgeMap.Extent(); i++) {
+            TopoDS_Edge edge = TopoDS::Edge(edgeMap(i));
+            TopoDS_Vertex v1, v2;
+            TopExp::Vertices(edge, v1, v2);
+            if (v1.IsSame(vertex) || v2.IsSame(vertex)) {
+                if (edge1.IsNull()) {
+                    edge1 = edge;
+                } else {
+                    edge2 = edge;
+                    break;
+                }
+            }
+        }
+
+        if (edge1.IsNull() || edge2.IsNull()) return nullptr;
+
+        // Use ChFi2d_Builder for 2D chamfer
+        ChFi2d_Builder chamfer2d(face);
+        TopoDS_Edge chamferEdge = chamfer2d.AddChamfer(edge1, edge2, dist1, dist2);
+
+        if (chamferEdge.IsNull()) return nullptr;
+        if (chamfer2d.Status() != ChFi2d_IsDone) return nullptr;
+
+        // Get the modified face and extract its outer wire
+        TopoDS_Face resultFace = TopoDS::Face(chamfer2d.Result());
+        if (resultFace.IsNull()) return nullptr;
+
+        TopoDS_Wire outerWire = BRepTools::OuterWire(resultFace);
+        if (outerWire.IsNull()) return nullptr;
+
+        return new OCCTWire(outerWire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireChamferAll2D(OCCTWireRef wire, double distance) {
+    if (!wire || distance <= 0) return nullptr;
+
+    try {
+        // Create face from wire
+        BRepBuilderAPI_MakeFace makeFace(wire->wire, true);
+        if (!makeFace.IsDone()) return nullptr;
+        TopoDS_Face face = makeFace.Face();
+
+        // Get edges and vertices
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(wire->wire, TopAbs_EDGE, edgeMap);
+
+        if (edgeMap.Extent() < 2) return nullptr;
+
+        // Use ChFi2d_Builder for 2D chamfers
+        ChFi2d_Builder chamfer2d(face);
+
+        // For each pair of adjacent edges, add chamfer
+        // We need to find adjacent edge pairs
+        for (int i = 1; i <= edgeMap.Extent(); i++) {
+            TopoDS_Edge edge1 = TopoDS::Edge(edgeMap(i));
+            int nextIdx = (i % edgeMap.Extent()) + 1;
+            TopoDS_Edge edge2 = TopoDS::Edge(edgeMap(nextIdx));
+
+            // Check if edges share a vertex
+            TopoDS_Vertex v1_1, v1_2, v2_1, v2_2;
+            TopExp::Vertices(edge1, v1_1, v1_2);
+            TopExp::Vertices(edge2, v2_1, v2_2);
+
+            bool sharesVertex = v1_1.IsSame(v2_1) || v1_1.IsSame(v2_2) ||
+                               v1_2.IsSame(v2_1) || v1_2.IsSame(v2_2);
+
+            if (sharesVertex) {
+                chamfer2d.AddChamfer(edge1, edge2, distance, distance);
+            }
+        }
+
+        if (chamfer2d.Status() != ChFi2d_IsDone) {
+            // Some edges might not be chamferable; return original
+            return new OCCTWire(wire->wire);
+        }
+
+        // Get the modified face and extract its outer wire
+        TopoDS_Face resultFace = TopoDS::Face(chamfer2d.Result());
+        if (resultFace.IsNull()) return nullptr;
+
+        TopoDS_Wire outerWire = BRepTools::OuterWire(resultFace);
+        if (outerWire.IsNull()) return nullptr;
+
+        return new OCCTWire(outerWire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeBlendEdges(OCCTShapeRef shape,
+                                  const int32_t* edgeIndices, const double* radii, int32_t count) {
+    if (!shape || !edgeIndices || !radii || count < 1) return nullptr;
+
+    try {
+        // Get all edges from shape
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+
+        // Create fillet maker
+        BRepFilletAPI_MakeFillet fillet(shape->shape);
+
+        // Add each edge with its radius
+        for (int32_t i = 0; i < count; i++) {
+            int32_t idx = edgeIndices[i];
+            if (idx < 0 || idx >= edgeMap.Extent()) continue;
+
+            TopoDS_Edge edge = TopoDS::Edge(edgeMap(idx + 1));
+            fillet.Add(radii[i], edge);
+        }
+
+        fillet.Build();
+        if (!fillet.IsDone()) return nullptr;
+
+        TopoDS_Shape result = fillet.Shape();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFill(const OCCTWireRef* boundaries, int32_t wireCount,
+                            OCCTFillingParams params) {
+    if (!boundaries || wireCount < 1) return nullptr;
+
+    try {
+        // Create filling operation
+        BRepOffsetAPI_MakeFilling filling(
+            params.maxDegree > 0 ? params.maxDegree : 8,
+            params.maxSegments > 0 ? params.maxSegments : 9,
+            1,  // Number of iterations
+            false,  // Anisotropie
+            params.tolerance > 0 ? params.tolerance : 1e-4,
+            params.tolerance > 0 ? params.tolerance : 1e-3,
+            static_cast<GeomAbs_Shape>(params.continuity)  // Continuity
+        );
+
+        // Add boundary constraints
+        for (int32_t i = 0; i < wireCount; i++) {
+            if (!boundaries[i]) continue;
+
+            // Add each edge from the wire as a constraint
+            for (TopExp_Explorer exp(boundaries[i]->wire, TopAbs_EDGE); exp.More(); exp.Next()) {
+                TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+                filling.Add(edge, static_cast<GeomAbs_Shape>(params.continuity));
+            }
+        }
+
+        filling.Build();
+        if (!filling.IsDone()) return nullptr;
+
+        TopoDS_Shape result = filling.Shape();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapePlatePoints(const double* points, int32_t pointCount, double tolerance) {
+    if (!points || pointCount < 3 || tolerance <= 0) return nullptr;
+
+    try {
+        // Create plate surface builder
+        GeomPlate_BuildPlateSurface plateBuilder(3, 15, 2);  // degree, nbPtsOnCur, nbIter
+
+        // Add point constraints
+        for (int32_t i = 0; i < pointCount; i++) {
+            gp_Pnt pt(points[i*3], points[i*3+1], points[i*3+2]);
+            Handle(GeomPlate_PointConstraint) constraint =
+                new GeomPlate_PointConstraint(pt, 0);  // 0 = order (just pass through)
+            plateBuilder.Add(constraint);
+        }
+
+        // Perform the computation
+        plateBuilder.Perform();
+        if (!plateBuilder.IsDone()) return nullptr;
+
+        // Get the plate surface
+        Handle(GeomPlate_Surface) plateSurface = plateBuilder.Surface();
+        if (plateSurface.IsNull()) return nullptr;
+
+        // Approximate with B-spline surface
+        GeomPlate_MakeApprox approx(plateSurface, tolerance, 1, 8, tolerance * 10, 0);
+        Handle(Geom_BSplineSurface) bsplineSurf = approx.Surface();
+        if (bsplineSurf.IsNull()) return nullptr;
+
+        // Create face from surface
+        BRepBuilderAPI_MakeFace makeFace(bsplineSurf, tolerance);
+        if (!makeFace.IsDone()) return nullptr;
+
+        return new OCCTShape(makeFace.Face());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapePlateCurves(const OCCTWireRef* curves, int32_t curveCount,
+                                   int32_t continuity, double tolerance) {
+    if (!curves || curveCount < 1 || tolerance <= 0) return nullptr;
+
+    try {
+        // Create plate surface builder
+        GeomPlate_BuildPlateSurface plateBuilder(3, 15, 2);
+
+        // Add curve constraints from each wire
+        for (int32_t i = 0; i < curveCount; i++) {
+            if (!curves[i]) continue;
+
+            for (TopExp_Explorer exp(curves[i]->wire, TopAbs_EDGE); exp.More(); exp.Next()) {
+                TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+
+                // Create adaptor for edge
+                BRepAdaptor_Curve adaptor(edge);
+                Handle(Adaptor3d_Curve) curve = new BRepAdaptor_Curve(adaptor);
+
+                Handle(GeomPlate_CurveConstraint) constraint =
+                    new GeomPlate_CurveConstraint(curve, continuity);
+                plateBuilder.Add(constraint);
+            }
+        }
+
+        // Perform computation
+        plateBuilder.Perform();
+        if (!plateBuilder.IsDone()) return nullptr;
+
+        // Get and approximate surface
+        Handle(GeomPlate_Surface) plateSurface = plateBuilder.Surface();
+        if (plateSurface.IsNull()) return nullptr;
+
+        GeomPlate_MakeApprox approx(plateSurface, tolerance, 1, 8, tolerance * 10, 0);
+        Handle(Geom_BSplineSurface) bsplineSurf = approx.Surface();
+        if (bsplineSurf.IsNull()) return nullptr;
+
+        BRepBuilderAPI_MakeFace makeFace(bsplineSurf, tolerance);
+        if (!makeFace.IsDone()) return nullptr;
+
+        return new OCCTShape(makeFace.Face());
     } catch (...) {
         return nullptr;
     }
