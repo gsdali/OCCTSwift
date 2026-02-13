@@ -206,6 +206,21 @@
 #include <BRepCheck_Wire.hxx>
 #include <BRepCheck_Shell.hxx>
 
+// Camera (Metal Visualization)
+#include <Graphic3d_Camera.hxx>
+
+// SelectMgr (Metal Visualization)
+#include <SelectMgr_ViewerSelector3d.hxx>
+#include <SelectMgr_SelectableObject.hxx>
+#include <SelectMgr_SelectionManager.hxx>
+#include <SelectMgr_EntityOwner.hxx>
+#include <StdSelect_BRepSelectionTool.hxx>
+#include <StdSelect_BRepOwner.hxx>
+#include <NCollection_DataMap.hxx>
+#include <Graphic3d_Mat4.hxx>
+#include <Graphic3d_Mat4d.hxx>
+#include <Poly_Connect.hxx>
+
 // Advanced Blends & Surface Filling (v0.14.0)
 #include <ChFi2d.hxx>
 #include <ChFi2d_Builder.hxx>
@@ -5449,5 +5464,622 @@ OCCTShapeRef OCCTShapePlateCurves(const OCCTWireRef* curves, int32_t curveCount,
         return new OCCTShape(makeFace.Face());
     } catch (...) {
         return nullptr;
+    }
+}
+
+// MARK: - Camera Implementation
+
+struct OCCTCamera {
+    Handle(Graphic3d_Camera) camera;
+
+    OCCTCamera() {
+        camera = new Graphic3d_Camera();
+        camera->SetZeroToOneDepth(Standard_True);
+    }
+};
+
+OCCTCameraRef OCCTCameraCreate(void) {
+    try {
+        return new OCCTCamera();
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTCameraDestroy(OCCTCameraRef cam) {
+    delete cam;
+}
+
+void OCCTCameraSetEye(OCCTCameraRef cam, double x, double y, double z) {
+    if (!cam) return;
+    cam->camera->SetEye(gp_Pnt(x, y, z));
+}
+
+void OCCTCameraGetEye(OCCTCameraRef cam, double* x, double* y, double* z) {
+    if (!cam || !x || !y || !z) return;
+    gp_Pnt eye = cam->camera->Eye();
+    *x = eye.X(); *y = eye.Y(); *z = eye.Z();
+}
+
+void OCCTCameraSetCenter(OCCTCameraRef cam, double x, double y, double z) {
+    if (!cam) return;
+    cam->camera->SetCenter(gp_Pnt(x, y, z));
+}
+
+void OCCTCameraGetCenter(OCCTCameraRef cam, double* x, double* y, double* z) {
+    if (!cam || !x || !y || !z) return;
+    gp_Pnt center = cam->camera->Center();
+    *x = center.X(); *y = center.Y(); *z = center.Z();
+}
+
+void OCCTCameraSetUp(OCCTCameraRef cam, double x, double y, double z) {
+    if (!cam) return;
+    cam->camera->SetUp(gp_Dir(x, y, z));
+}
+
+void OCCTCameraGetUp(OCCTCameraRef cam, double* x, double* y, double* z) {
+    if (!cam || !x || !y || !z) return;
+    gp_Dir up = cam->camera->Up();
+    *x = up.X(); *y = up.Y(); *z = up.Z();
+}
+
+void OCCTCameraSetProjectionType(OCCTCameraRef cam, int type) {
+    if (!cam) return;
+    cam->camera->SetProjectionType(
+        type == 1 ? Graphic3d_Camera::Projection_Orthographic
+                  : Graphic3d_Camera::Projection_Perspective
+    );
+}
+
+int OCCTCameraGetProjectionType(OCCTCameraRef cam) {
+    if (!cam) return 0;
+    return cam->camera->ProjectionType() == Graphic3d_Camera::Projection_Orthographic ? 1 : 0;
+}
+
+void OCCTCameraSetFOV(OCCTCameraRef cam, double degrees) {
+    if (!cam) return;
+    cam->camera->SetFOVy(degrees);
+}
+
+double OCCTCameraGetFOV(OCCTCameraRef cam) {
+    if (!cam) return 45.0;
+    return cam->camera->FOVy();
+}
+
+void OCCTCameraSetScale(OCCTCameraRef cam, double scale) {
+    if (!cam) return;
+    cam->camera->SetScale(scale);
+}
+
+double OCCTCameraGetScale(OCCTCameraRef cam) {
+    if (!cam) return 1.0;
+    return cam->camera->Scale();
+}
+
+void OCCTCameraSetZRange(OCCTCameraRef cam, double zNear, double zFar) {
+    if (!cam) return;
+    cam->camera->SetZRange(zNear, zFar);
+}
+
+void OCCTCameraGetZRange(OCCTCameraRef cam, double* zNear, double* zFar) {
+    if (!cam || !zNear || !zFar) return;
+    *zNear = cam->camera->ZNear();
+    *zFar = cam->camera->ZFar();
+}
+
+void OCCTCameraSetAspect(OCCTCameraRef cam, double aspect) {
+    if (!cam) return;
+    cam->camera->SetAspect(aspect);
+}
+
+void OCCTCameraGetProjectionMatrix(OCCTCameraRef cam, float* out16) {
+    if (!cam || !out16) return;
+    const Graphic3d_Mat4& mat = cam->camera->ProjectionMatrixF();
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++)
+            out16[j * 4 + i] = mat.GetValue(i, j);
+}
+
+void OCCTCameraGetViewMatrix(OCCTCameraRef cam, float* out16) {
+    if (!cam || !out16) return;
+    const Graphic3d_Mat4& mat = cam->camera->OrientationMatrixF();
+    for (int i = 0; i < 4; i++)
+        for (int j = 0; j < 4; j++)
+            out16[j * 4 + i] = mat.GetValue(i, j);
+}
+
+void OCCTCameraProject(OCCTCameraRef cam, double wX, double wY, double wZ,
+                       double* sX, double* sY, double* sZ) {
+    if (!cam || !sX || !sY || !sZ) return;
+    try {
+        gp_Pnt projected = cam->camera->Project(gp_Pnt(wX, wY, wZ));
+        *sX = projected.X(); *sY = projected.Y(); *sZ = projected.Z();
+    } catch (...) {
+        *sX = *sY = *sZ = 0;
+    }
+}
+
+void OCCTCameraUnproject(OCCTCameraRef cam, double sX, double sY, double sZ,
+                         double* wX, double* wY, double* wZ) {
+    if (!cam || !wX || !wY || !wZ) return;
+    try {
+        gp_Pnt unprojected = cam->camera->UnProject(gp_Pnt(sX, sY, sZ));
+        *wX = unprojected.X(); *wY = unprojected.Y(); *wZ = unprojected.Z();
+    } catch (...) {
+        *wX = *wY = *wZ = 0;
+    }
+}
+
+void OCCTCameraFitBBox(OCCTCameraRef cam, double xMin, double yMin, double zMin,
+                       double xMax, double yMax, double zMax) {
+    if (!cam) return;
+    try {
+        Bnd_Box bbox;
+        bbox.Update(xMin, yMin, zMin, xMax, yMax, zMax);
+        cam->camera->FitMinMax(bbox, 0.01, false);
+    } catch (...) {}
+}
+
+// MARK: - Presentation Mesh Implementation
+
+bool OCCTShapeGetShadedMesh(OCCTShapeRef shape, double deflection, OCCTShadedMeshData* out) {
+    if (!shape || !out) return false;
+
+    out->vertices = nullptr;
+    out->vertexCount = 0;
+    out->indices = nullptr;
+    out->triangleCount = 0;
+
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        mesher.Perform();
+
+        // First pass: count vertices and triangles
+        int32_t totalVerts = 0;
+        int32_t totalTris = 0;
+
+        for (TopExp_Explorer faceExp(shape->shape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+            TopoDS_Face face = TopoDS::Face(faceExp.Current());
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+            if (tri.IsNull()) continue;
+            totalVerts += tri->NbNodes();
+            totalTris += tri->NbTriangles();
+        }
+
+        if (totalVerts == 0 || totalTris == 0) return false;
+
+        // Allocate buffers: interleaved position + normal (6 floats per vertex)
+        out->vertices = (float*)malloc(totalVerts * 6 * sizeof(float));
+        out->indices = (int32_t*)malloc(totalTris * 3 * sizeof(int32_t));
+        if (!out->vertices || !out->indices) {
+            free(out->vertices); free(out->indices);
+            out->vertices = nullptr; out->indices = nullptr;
+            return false;
+        }
+
+        int32_t vertexOffset = 0;
+        int32_t triOffset = 0;
+
+        for (TopExp_Explorer faceExp(shape->shape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+            TopoDS_Face face = TopoDS::Face(faceExp.Current());
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+            if (tri.IsNull()) continue;
+
+            gp_Trsf transform;
+            if (!loc.IsIdentity()) {
+                transform = loc.Transformation();
+            }
+
+            bool reversed = (face.Orientation() == TopAbs_REVERSED);
+            bool hasNormals = tri->HasNormals();
+
+            // Write vertex positions and normals
+            for (int i = 1; i <= tri->NbNodes(); i++) {
+                gp_Pnt node = tri->Node(i);
+                if (!loc.IsIdentity()) node.Transform(transform);
+
+                float* vPtr = out->vertices + (vertexOffset + i - 1) * 6;
+                vPtr[0] = (float)node.X();
+                vPtr[1] = (float)node.Y();
+                vPtr[2] = (float)node.Z();
+
+                if (hasNormals) {
+                    gp_Dir normal = tri->Normal(i);
+                    if (!loc.IsIdentity()) normal.Transform(transform);
+                    if (reversed) normal.Reverse();
+                    vPtr[3] = (float)normal.X();
+                    vPtr[4] = (float)normal.Y();
+                    vPtr[5] = (float)normal.Z();
+                } else {
+                    vPtr[3] = 0; vPtr[4] = 0; vPtr[5] = 0;
+                }
+            }
+
+            // Compute normals from triangles if not available
+            if (!hasNormals) {
+                for (int i = 1; i <= tri->NbTriangles(); i++) {
+                    int n1, n2, n3;
+                    tri->Triangle(i).Get(n1, n2, n3);
+                    if (reversed) std::swap(n2, n3);
+
+                    gp_Pnt p1 = tri->Node(n1), p2 = tri->Node(n2), p3 = tri->Node(n3);
+                    if (!loc.IsIdentity()) {
+                        p1.Transform(transform); p2.Transform(transform); p3.Transform(transform);
+                    }
+
+                    gp_Vec v1(p1, p2), v2(p1, p3);
+                    gp_Vec fn = v1.Crossed(v2);
+                    double mag = fn.Magnitude();
+                    if (mag > 1e-10) {
+                        fn.Divide(mag);
+                        for (int idx : {n1, n2, n3}) {
+                            float* nPtr = out->vertices + (vertexOffset + idx - 1) * 6 + 3;
+                            nPtr[0] += (float)fn.X();
+                            nPtr[1] += (float)fn.Y();
+                            nPtr[2] += (float)fn.Z();
+                        }
+                    }
+                }
+                // Normalize accumulated normals
+                for (int i = 0; i < tri->NbNodes(); i++) {
+                    float* nPtr = out->vertices + (vertexOffset + i) * 6 + 3;
+                    float len = sqrtf(nPtr[0]*nPtr[0] + nPtr[1]*nPtr[1] + nPtr[2]*nPtr[2]);
+                    if (len > 1e-6f) {
+                        nPtr[0] /= len; nPtr[1] /= len; nPtr[2] /= len;
+                    }
+                }
+            }
+
+            // Triangle indices
+            for (int i = 1; i <= tri->NbTriangles(); i++) {
+                int n1, n2, n3;
+                tri->Triangle(i).Get(n1, n2, n3);
+                if (reversed) std::swap(n2, n3);
+
+                int32_t* tPtr = out->indices + triOffset * 3;
+                tPtr[0] = vertexOffset + n1 - 1;
+                tPtr[1] = vertexOffset + n2 - 1;
+                tPtr[2] = vertexOffset + n3 - 1;
+                triOffset++;
+            }
+
+            vertexOffset += tri->NbNodes();
+        }
+
+        out->vertexCount = totalVerts;
+        out->triangleCount = totalTris;
+        return true;
+    } catch (...) {
+        free(out->vertices); free(out->indices);
+        out->vertices = nullptr; out->indices = nullptr;
+        out->vertexCount = 0; out->triangleCount = 0;
+        return false;
+    }
+}
+
+void OCCTShadedMeshDataFree(OCCTShadedMeshData* data) {
+    if (!data) return;
+    free(data->vertices);
+    free(data->indices);
+    data->vertices = nullptr;
+    data->indices = nullptr;
+    data->vertexCount = 0;
+    data->triangleCount = 0;
+}
+
+bool OCCTShapeGetEdgeMesh(OCCTShapeRef shape, double deflection, OCCTEdgeMeshData* out) {
+    if (!shape || !out) return false;
+
+    out->vertices = nullptr;
+    out->vertexCount = 0;
+    out->segmentStarts = nullptr;
+    out->segmentCount = 0;
+
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        mesher.Perform();
+
+        std::vector<float> allVerts;
+        std::vector<int32_t> segStarts;
+
+        // Use indexed map to get unique edges (TopExp_Explorer visits each edge
+        // once per adjacent face, causing duplicates)
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+
+        for (int ei = 1; ei <= edgeMap.Extent(); ei++) {
+            TopoDS_Edge edge = TopoDS::Edge(edgeMap(ei));
+            bool foundPolyline = false;
+
+            // Try PolygonOnTriangulation first
+            for (TopExp_Explorer faceExp(shape->shape, TopAbs_FACE); faceExp.More(); faceExp.Next()) {
+                TopoDS_Face face = TopoDS::Face(faceExp.Current());
+                TopLoc_Location loc;
+                Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+                if (tri.IsNull()) continue;
+
+                Handle(Poly_PolygonOnTriangulation) polyOnTri;
+                TopLoc_Location edgeLoc;
+                polyOnTri = BRep_Tool::PolygonOnTriangulation(edge, tri, edgeLoc);
+                if (polyOnTri.IsNull()) continue;
+
+                gp_Trsf transform;
+                if (!loc.IsIdentity()) transform = loc.Transformation();
+
+                const TColStd_Array1OfInteger& nodeIndices = polyOnTri->Nodes();
+                if (nodeIndices.Length() < 2) continue;
+
+                segStarts.push_back((int32_t)(allVerts.size() / 3));
+
+                for (int i = nodeIndices.Lower(); i <= nodeIndices.Upper(); i++) {
+                    gp_Pnt pt = tri->Node(nodeIndices(i));
+                    if (!loc.IsIdentity()) pt.Transform(transform);
+                    allVerts.push_back((float)pt.X());
+                    allVerts.push_back((float)pt.Y());
+                    allVerts.push_back((float)pt.Z());
+                }
+
+                foundPolyline = true;
+                break;
+            }
+
+            if (!foundPolyline) {
+                // Try Polygon3D
+                TopLoc_Location loc;
+                Handle(Poly_Polygon3D) poly3d = BRep_Tool::Polygon3D(edge, loc);
+                if (!poly3d.IsNull() && poly3d->NbNodes() >= 2) {
+                    gp_Trsf transform;
+                    if (!loc.IsIdentity()) transform = loc.Transformation();
+
+                    segStarts.push_back((int32_t)(allVerts.size() / 3));
+
+                    for (int i = 1; i <= poly3d->NbNodes(); i++) {
+                        gp_Pnt pt = poly3d->Nodes().Value(i);
+                        if (!loc.IsIdentity()) pt.Transform(transform);
+                        allVerts.push_back((float)pt.X());
+                        allVerts.push_back((float)pt.Y());
+                        allVerts.push_back((float)pt.Z());
+                    }
+                } else {
+                    // Fall back to curve discretization
+                    try {
+                        BRepAdaptor_Curve curve(edge);
+                        GCPnts_TangentialDeflection disc(curve, deflection, 0.1);
+                        if (disc.NbPoints() >= 2) {
+                            segStarts.push_back((int32_t)(allVerts.size() / 3));
+                            for (int i = 1; i <= disc.NbPoints(); i++) {
+                                gp_Pnt pt = disc.Value(i);
+                                allVerts.push_back((float)pt.X());
+                                allVerts.push_back((float)pt.Y());
+                                allVerts.push_back((float)pt.Z());
+                            }
+                        }
+                    } catch (...) {}
+                }
+            }
+        }
+
+        if (allVerts.empty()) return false;
+
+        int32_t vertCount = (int32_t)(allVerts.size() / 3);
+        int32_t segCount = (int32_t)segStarts.size();
+
+        out->vertices = (float*)malloc(allVerts.size() * sizeof(float));
+        out->segmentStarts = (int32_t*)malloc((segCount + 1) * sizeof(int32_t));
+        if (!out->vertices || !out->segmentStarts) {
+            free(out->vertices); free(out->segmentStarts);
+            out->vertices = nullptr; out->segmentStarts = nullptr;
+            return false;
+        }
+
+        memcpy(out->vertices, allVerts.data(), allVerts.size() * sizeof(float));
+        memcpy(out->segmentStarts, segStarts.data(), segCount * sizeof(int32_t));
+        out->segmentStarts[segCount] = vertCount; // sentinel
+
+        out->vertexCount = vertCount;
+        out->segmentCount = segCount;
+        return true;
+    } catch (...) {
+        free(out->vertices); free(out->segmentStarts);
+        out->vertices = nullptr; out->segmentStarts = nullptr;
+        out->vertexCount = 0; out->segmentCount = 0;
+        return false;
+    }
+}
+
+void OCCTEdgeMeshDataFree(OCCTEdgeMeshData* data) {
+    if (!data) return;
+    free(data->vertices);
+    free(data->segmentStarts);
+    data->vertices = nullptr;
+    data->segmentStarts = nullptr;
+    data->vertexCount = 0;
+    data->segmentCount = 0;
+}
+
+// MARK: - Selector Implementation
+
+class OCCTBRepSelectable : public SelectMgr_SelectableObject {
+    DEFINE_STANDARD_RTTI_INLINE(OCCTBRepSelectable, SelectMgr_SelectableObject)
+public:
+    OCCTBRepSelectable(const TopoDS_Shape& shape) : myShape(shape) {
+        RecomputePrimitives();
+    }
+
+    const TopoDS_Shape& Shape() const { return myShape; }
+
+private:
+    void Compute(const Handle(PrsMgr_PresentationManager)&,
+                 const Handle(Prs3d_Presentation)&,
+                 const Standard_Integer) override {}
+
+    void ComputeSelection(const Handle(SelectMgr_Selection)& sel,
+                          const Standard_Integer) override {
+        StdSelect_BRepSelectionTool::Load(sel, this, myShape,
+                                          TopAbs_SHAPE, 0.05, 0.5, Standard_True);
+    }
+
+    TopoDS_Shape myShape;
+};
+
+// Subclass to expose the protected TraverseSensitives method so we can
+// pick with a camera directly, bypassing the V3d_View requirement.
+class OCCTHeadlessSelector : public SelectMgr_ViewerSelector {
+    DEFINE_STANDARD_RTTI_INLINE(OCCTHeadlessSelector, SelectMgr_ViewerSelector)
+public:
+    OCCTHeadlessSelector() : SelectMgr_ViewerSelector() {}
+
+    void PickPoint(double pixelX, double pixelY,
+                   const Handle(Graphic3d_Camera)& cam,
+                   int width, int height) {
+        SelectMgr_SelectingVolumeManager& mgr = GetManager();
+        mgr.SetCamera(cam);
+        mgr.SetWindowSize(width, height);
+        mgr.SetPixelTolerance(2);
+        mgr.InitPointSelectingVolume(gp_Pnt2d(pixelX, pixelY));
+        mgr.BuildSelectingVolume();
+        TraverseSensitives();
+    }
+
+    void PickBox(double xMin, double yMin, double xMax, double yMax,
+                 const Handle(Graphic3d_Camera)& cam,
+                 int width, int height) {
+        SelectMgr_SelectingVolumeManager& mgr = GetManager();
+        mgr.SetCamera(cam);
+        mgr.SetWindowSize(width, height);
+        mgr.SetPixelTolerance(2);
+        mgr.InitBoxSelectingVolume(gp_Pnt2d(xMin, yMin), gp_Pnt2d(xMax, yMax));
+        mgr.BuildSelectingVolume();
+        TraverseSensitives();
+    }
+};
+
+struct OCCTSelector {
+    Handle(OCCTHeadlessSelector) selector;
+    NCollection_DataMap<int32_t, Handle(OCCTBRepSelectable)> objects;
+
+    OCCTSelector() {
+        selector = new OCCTHeadlessSelector();
+    }
+};
+
+OCCTSelectorRef OCCTSelectorCreate(void) {
+    try {
+        return new OCCTSelector();
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTSelectorDestroy(OCCTSelectorRef sel) {
+    delete sel;
+}
+
+bool OCCTSelectorAddShape(OCCTSelectorRef sel, OCCTShapeRef shape, int32_t shapeId) {
+    if (!sel || !shape) return false;
+    try {
+        if (sel->objects.IsBound(shapeId)) {
+            Handle(OCCTBRepSelectable) old = sel->objects.Find(shapeId);
+            sel->selector->RemoveSelectableObject(old);
+            sel->objects.UnBind(shapeId);
+        }
+
+        Handle(OCCTBRepSelectable) selectable = new OCCTBRepSelectable(shape->shape);
+        sel->objects.Bind(shapeId, selectable);
+        sel->selector->AddSelectableObject(selectable);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTSelectorRemoveShape(OCCTSelectorRef sel, int32_t shapeId) {
+    if (!sel) return false;
+    try {
+        if (!sel->objects.IsBound(shapeId)) return false;
+        Handle(OCCTBRepSelectable) obj = sel->objects.Find(shapeId);
+        sel->selector->RemoveSelectableObject(obj);
+        sel->objects.UnBind(shapeId);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+void OCCTSelectorClear(OCCTSelectorRef sel) {
+    if (!sel) return;
+    try {
+        sel->selector->Clear();
+        sel->objects.Clear();
+    } catch (...) {}
+}
+
+static int32_t OCCTSelectorCollectResults(OCCTSelectorRef sel, OCCTPickResult* out, int32_t maxResults) {
+    int32_t count = 0;
+    for (int i = 1; i <= sel->selector->NbPicked() && count < maxResults; i++) {
+        Handle(SelectMgr_EntityOwner) owner = sel->selector->Picked(i);
+        if (owner.IsNull()) continue;
+
+        Handle(OCCTBRepSelectable) selectable =
+            Handle(OCCTBRepSelectable)::DownCast(owner->Selectable());
+        if (selectable.IsNull()) continue;
+
+        int32_t foundId = -1;
+        for (NCollection_DataMap<int32_t, Handle(OCCTBRepSelectable)>::Iterator it(sel->objects);
+             it.More(); it.Next()) {
+            if (it.Value() == selectable) {
+                foundId = it.Key();
+                break;
+            }
+        }
+        if (foundId < 0) continue;
+
+        const SelectMgr_SortCriterion& criterion = sel->selector->PickedData(i);
+
+        out[count].shapeId = foundId;
+        out[count].depth = criterion.Depth;
+        out[count].pointX = criterion.Point.X();
+        out[count].pointY = criterion.Point.Y();
+        out[count].pointZ = criterion.Point.Z();
+        count++;
+    }
+    return count;
+}
+
+int32_t OCCTSelectorPick(OCCTSelectorRef sel, OCCTCameraRef cam,
+                         double viewW, double viewH,
+                         double pixelX, double pixelY,
+                         OCCTPickResult* out, int32_t maxResults) {
+    if (!sel || !cam || !out || maxResults <= 0) return 0;
+    try {
+        Handle(Graphic3d_Camera) pickCam = new Graphic3d_Camera(*cam->camera);
+        pickCam->SetAspect(viewW / viewH);
+
+        sel->selector->PickPoint(pixelX, pixelY, pickCam,
+                                 (int)viewW, (int)viewH);
+
+        return OCCTSelectorCollectResults(sel, out, maxResults);
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
+                             double viewW, double viewH,
+                             double xMin, double yMin, double xMax, double yMax,
+                             OCCTPickResult* out, int32_t maxResults) {
+    if (!sel || !cam || !out || maxResults <= 0) return 0;
+    try {
+        Handle(Graphic3d_Camera) pickCam = new Graphic3d_Camera(*cam->camera);
+        pickCam->SetAspect(viewW / viewH);
+
+        sel->selector->PickBox(xMin, yMin, xMax, yMax, pickCam,
+                               (int)viewW, (int)viewH);
+
+        return OCCTSelectorCollectResults(sel, out, maxResults);
+    } catch (...) {
+        return 0;
     }
 }

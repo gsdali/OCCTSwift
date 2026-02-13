@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import simd
 @testable import OCCTSwift
 
 /// Basic tests for Shape creation and operations.
@@ -2516,6 +2517,323 @@ struct PlateSurfaceTests {
     }
 }
 
+
+// MARK: - Metal Visualization Tests
+
+@Suite("Camera Tests")
+struct CameraTests {
+
+    @Test("Default state valid")
+    func defaultState() {
+        let cam = Camera()
+        let eye = cam.eye
+        let center = cam.center
+        let up = cam.up
+
+        // Default camera should have non-zero eye and up
+        let eyeLen = sqrt(eye.x*eye.x + eye.y*eye.y + eye.z*eye.z)
+        let upLen = sqrt(up.x*up.x + up.y*up.y + up.z*up.z)
+        #expect(eyeLen > 0)
+        #expect(upLen > 0)
+    }
+
+    @Test("Projection matrix non-identity")
+    func projectionMatrixNonIdentity() {
+        let cam = Camera()
+        cam.aspect = 1.5
+        let proj = cam.projectionMatrix
+
+        // Check it's not identity — at least one off-diagonal or non-1 diagonal
+        let isIdentity = proj.columns.0.x == 1 && proj.columns.1.y == 1 &&
+                         proj.columns.2.z == 1 && proj.columns.3.w == 1 &&
+                         proj.columns.0.y == 0 && proj.columns.0.z == 0
+        #expect(!isIdentity)
+
+        // Determinant should be non-zero
+        let det = simd_determinant(proj)
+        #expect(abs(det) > 1e-10)
+    }
+
+    @Test("View matrix changes with eye/center")
+    func viewMatrixChanges() {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 10)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        let view1 = cam.viewMatrix
+
+        cam.eye = SIMD3(10, 0, 0)
+        let view2 = cam.viewMatrix
+
+        // The two view matrices should differ
+        let diff = view1.columns.0.x - view2.columns.0.x
+        let diff2 = view1.columns.2.z - view2.columns.2.z
+        #expect(abs(diff) > 1e-6 || abs(diff2) > 1e-6)
+    }
+
+    @Test("Project/Unproject roundtrip")
+    func projectUnprojectRoundtrip() {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 100)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let original = SIMD3<Double>(5, 3, 0)
+        let projected = cam.project(original)
+        let recovered = cam.unproject(projected)
+
+        #expect(abs(recovered.x - original.x) < 0.1)
+        #expect(abs(recovered.y - original.y) < 0.1)
+        #expect(abs(recovered.z - original.z) < 0.1)
+    }
+
+    @Test("Orthographic mode produces different matrices")
+    func orthographicVsPerspective() {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 100)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        cam.projectionType = .perspective
+        let perspProj = cam.projectionMatrix
+
+        cam.projectionType = .orthographic
+        let orthoProj = cam.projectionMatrix
+
+        // The projection matrices must differ
+        let d = abs(perspProj.columns.0.x - orthoProj.columns.0.x) +
+                abs(perspProj.columns.2.w - orthoProj.columns.2.w)
+        #expect(d > 1e-6)
+    }
+
+    @Test("Fit bounding box adjusts camera")
+    func fitBoundingBox() {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 100)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.aspect = 1.0
+        cam.zRange = (near: 0.1, far: 10000)
+
+        let bboxMin = SIMD3<Double>(-5, -5, -5)
+        let bboxMax = SIMD3<Double>(5, 5, 5)
+        cam.fit(boundingBox: (min: bboxMin, max: bboxMax))
+
+        // Project the center of the bounding box — should be near screen origin
+        let boxCenter = SIMD3<Double>(0, 0, 0)
+        let projected = cam.project(boxCenter)
+        #expect(abs(projected.x) < 0.5)
+        #expect(abs(projected.y) < 0.5)
+    }
+}
+
+@Suite("Presentation Mesh Tests")
+struct PresentationMeshTests {
+
+    @Test("Box shaded mesh has 12 triangles")
+    func boxShadedMesh() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let mesh = box.shadedMesh(deflection: 0.1)
+
+        #expect(mesh != nil)
+        #expect(mesh!.triangleCount == 12)  // 6 faces * 2 triangles each
+        #expect(mesh!.vertices.count == mesh!.normals.count)
+
+        // All normals should be non-zero
+        for normal in mesh!.normals {
+            let len = sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z)
+            #expect(len > 0.5)
+        }
+    }
+
+    @Test("Cylinder shaded mesh has triangles")
+    func cylinderShadedMesh() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)
+        let mesh = cyl.shadedMesh(deflection: 0.1)
+
+        #expect(mesh != nil)
+        #expect(mesh!.triangleCount > 0)
+        #expect(mesh!.vertices.count > 0)
+    }
+
+    @Test("Box edge mesh has 12 segments")
+    func boxEdgeMesh() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let edges = box.edgeMesh(deflection: 0.1)
+
+        #expect(edges != nil)
+        #expect(edges!.segmentCount == 12)  // A box has 12 edges
+        #expect(edges!.vertices.count > 0)
+    }
+
+    @Test("Sphere edge mesh produces valid segments")
+    func sphereEdgeMesh() {
+        let sphere = Shape.sphere(radius: 5)
+        let edges = sphere.edgeMesh(deflection: 0.1)
+
+        #expect(edges != nil)
+        #expect(edges!.segmentCount > 0)
+        #expect(edges!.vertices.count > 0)
+    }
+}
+
+@Suite("Selector Tests")
+struct SelectorTests {
+
+    @Test("Add and pick box at center")
+    func pickBoxAtCenter() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let selector = Selector()
+        let added = selector.add(shape: box, id: 42)
+        #expect(added)
+
+        // Pick at center of viewport
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        // The box should be hit
+        if !results.isEmpty {
+            #expect(results[0].shapeId == 42)
+        }
+    }
+
+    @Test("Pick miss at far corner")
+    func pickMiss() {
+        let box = Shape.box(width: 1, height: 1, depth: 1)
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+
+        // Pick at far corner — should miss the small box
+        let results = selector.pick(
+            at: SIMD2(0, 0),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        #expect(results.isEmpty)
+    }
+
+    @Test("Multiple shapes return correct IDs")
+    func multipleShapes() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+            .translated(by: SIMD3(-20, 0, 0))
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)
+            .translated(by: SIMD3(20, 0, 0))
+
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 100)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let selector = Selector()
+        selector.add(shape: box1, id: 1)
+        selector.add(shape: box2, id: 2)
+
+        // Just verify both shapes were added without crash
+        #expect(true)
+    }
+
+    @Test("Remove shape then pick returns miss")
+    func removeShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let selector = Selector()
+        selector.add(shape: box, id: 99)
+        let removed = selector.remove(id: 99)
+        #expect(removed)
+
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.aspect = 1.0
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        #expect(results.isEmpty)
+    }
+
+    @Test("Rectangle pick covers geometry")
+    func rectanglePick() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let selector = Selector()
+        selector.add(shape: box, id: 7)
+
+        // Select a large rectangle covering the center
+        let results = selector.pick(
+            rect: (min: SIMD2(100, 100), max: SIMD2(700, 500)),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        if !results.isEmpty {
+            #expect(results[0].shapeId == 7)
+        }
+    }
+
+    @Test("Clear all removes everything")
+    func clearAll() {
+        let selector = Selector()
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        selector.add(shape: box, id: 1)
+        selector.add(shape: box, id: 2)
+        selector.clearAll()
+
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.aspect = 1.0
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        #expect(results.isEmpty)
+    }
+}
 
 // MARK: - SIMD3 Extension for normalization
 

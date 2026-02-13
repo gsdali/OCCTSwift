@@ -1129,6 +1129,90 @@ OCCTShapeRef OCCTShapeRemoveSmallFaces(OCCTShapeRef shape, double minArea);
 /// @return Simplified shape, or NULL on failure
 OCCTShapeRef OCCTShapeSimplify(OCCTShapeRef shape, double tolerance);
 
+// MARK: - Camera (Metal Visualization)
+
+typedef struct OCCTCamera* OCCTCameraRef;
+
+OCCTCameraRef OCCTCameraCreate(void);
+void          OCCTCameraDestroy(OCCTCameraRef cam);
+
+void OCCTCameraSetEye(OCCTCameraRef cam, double x, double y, double z);
+void OCCTCameraGetEye(OCCTCameraRef cam, double* x, double* y, double* z);
+void OCCTCameraSetCenter(OCCTCameraRef cam, double x, double y, double z);
+void OCCTCameraGetCenter(OCCTCameraRef cam, double* x, double* y, double* z);
+void OCCTCameraSetUp(OCCTCameraRef cam, double x, double y, double z);
+void OCCTCameraGetUp(OCCTCameraRef cam, double* x, double* y, double* z);
+
+void OCCTCameraSetProjectionType(OCCTCameraRef cam, int type);
+int  OCCTCameraGetProjectionType(OCCTCameraRef cam);
+void OCCTCameraSetFOV(OCCTCameraRef cam, double degrees);
+double OCCTCameraGetFOV(OCCTCameraRef cam);
+void OCCTCameraSetScale(OCCTCameraRef cam, double scale);
+double OCCTCameraGetScale(OCCTCameraRef cam);
+void OCCTCameraSetZRange(OCCTCameraRef cam, double zNear, double zFar);
+void OCCTCameraGetZRange(OCCTCameraRef cam, double* zNear, double* zFar);
+void OCCTCameraSetAspect(OCCTCameraRef cam, double aspect);
+
+void OCCTCameraGetProjectionMatrix(OCCTCameraRef cam, float* out16);
+void OCCTCameraGetViewMatrix(OCCTCameraRef cam, float* out16);
+
+void OCCTCameraProject(OCCTCameraRef cam, double wX, double wY, double wZ,
+                       double* sX, double* sY, double* sZ);
+void OCCTCameraUnproject(OCCTCameraRef cam, double sX, double sY, double sZ,
+                         double* wX, double* wY, double* wZ);
+
+void OCCTCameraFitBBox(OCCTCameraRef cam, double xMin, double yMin, double zMin,
+                       double xMax, double yMax, double zMax);
+
+// MARK: - Presentation Mesh (Metal Visualization)
+
+typedef struct {
+    float* vertices;
+    int32_t vertexCount;
+    int32_t* indices;
+    int32_t triangleCount;
+} OCCTShadedMeshData;
+
+typedef struct {
+    float* vertices;
+    int32_t vertexCount;
+    int32_t* segmentStarts;
+    int32_t segmentCount;
+} OCCTEdgeMeshData;
+
+bool OCCTShapeGetShadedMesh(OCCTShapeRef shape, double deflection, OCCTShadedMeshData* out);
+void OCCTShadedMeshDataFree(OCCTShadedMeshData* data);
+
+bool OCCTShapeGetEdgeMesh(OCCTShapeRef shape, double deflection, OCCTEdgeMeshData* out);
+void OCCTEdgeMeshDataFree(OCCTEdgeMeshData* data);
+
+// MARK: - Selector (Metal Visualization)
+
+typedef struct OCCTSelector* OCCTSelectorRef;
+
+typedef struct {
+    int32_t shapeId;
+    double depth;
+    double pointX, pointY, pointZ;
+} OCCTPickResult;
+
+OCCTSelectorRef OCCTSelectorCreate(void);
+void            OCCTSelectorDestroy(OCCTSelectorRef sel);
+
+bool OCCTSelectorAddShape(OCCTSelectorRef sel, OCCTShapeRef shape, int32_t shapeId);
+bool OCCTSelectorRemoveShape(OCCTSelectorRef sel, int32_t shapeId);
+void OCCTSelectorClear(OCCTSelectorRef sel);
+
+int32_t OCCTSelectorPick(OCCTSelectorRef sel, OCCTCameraRef cam,
+                         double viewW, double viewH,
+                         double pixelX, double pixelY,
+                         OCCTPickResult* out, int32_t maxResults);
+
+int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
+                             double viewW, double viewH,
+                             double xMin, double yMin, double xMax, double yMax,
+                             OCCTPickResult* out, int32_t maxResults);
+
 // MARK: - Advanced Blends & Surface Filling (v0.14.0)
 
 /// Apply variable radius fillet to a specific edge
