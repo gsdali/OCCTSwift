@@ -2835,6 +2835,213 @@ struct SelectorTests {
     }
 }
 
+// MARK: - Enhanced Selector Tests
+
+@Suite("Selector Sub-Shape Modes")
+struct SelectorSubShapeTests {
+
+    private func makeCamera() -> Camera {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+        return cam
+    }
+
+    @Test("Mode 0 (shape) is active by default")
+    func defaultMode() {
+        let selector = Selector()
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        selector.add(shape: box, id: 1)
+        #expect(selector.isModeActive(.shape, for: 1) == true)
+    }
+
+    @Test("Activate face mode")
+    func activateFaceMode() {
+        let selector = Selector()
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        selector.add(shape: box, id: 1)
+
+        selector.activateMode(.face, for: 1)
+        #expect(selector.isModeActive(.face, for: 1) == true)
+    }
+
+    @Test("Deactivate mode")
+    func deactivateMode() {
+        let selector = Selector()
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        selector.add(shape: box, id: 1)
+
+        selector.activateMode(.face, for: 1)
+        #expect(selector.isModeActive(.face, for: 1) == true)
+
+        selector.deactivateMode(.face, for: 1)
+        #expect(selector.isModeActive(.face, for: 1) == false)
+    }
+
+    @Test("Face mode pick returns face sub-shape type")
+    func faceModePick() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let cam = makeCamera()
+
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+        // Deactivate shape mode, activate face mode
+        selector.deactivateMode(.shape, for: 1)
+        selector.activateMode(.face, for: 1)
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        if !results.isEmpty {
+            #expect(results[0].shapeId == 1)
+            #expect(results[0].subShapeType == .face)
+            #expect(results[0].subShapeIndex > 0)
+        }
+    }
+
+    @Test("Edge mode pick returns edge sub-shape type")
+    func edgeModePick() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let cam = makeCamera()
+
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+        selector.deactivateMode(.shape, for: 1)
+        selector.activateMode(.edge, for: 1)
+        // Increase tolerance for edge picking
+        selector.pixelTolerance = 10
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        // Edges are thin, so we might or might not hit one
+        // Just verify no crash and correct sub-shape type if hit
+        if !results.isEmpty {
+            #expect(results[0].subShapeType == .edge)
+            #expect(results[0].subShapeIndex > 0)
+        }
+    }
+
+    @Test("Pixel tolerance getter/setter")
+    func pixelTolerance() {
+        let selector = Selector()
+        selector.pixelTolerance = 5
+        #expect(selector.pixelTolerance == 5)
+    }
+
+    @Test("Shape mode pick returns shape sub-shape type with index 0")
+    func shapeModePick() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let cam = makeCamera()
+
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        if !results.isEmpty {
+            // In shape mode, subShapeIndex should be 0 (whole shape)
+            #expect(results[0].subShapeIndex == 0)
+        }
+    }
+}
+
+// MARK: - Display Drawer Tests
+
+@Suite("Display Drawer")
+struct DisplayDrawerTests {
+
+    @Test("Default values")
+    func defaults() {
+        let drawer = DisplayDrawer()
+        #expect(drawer.autoTriangulation == true)
+        #expect(drawer.wireDraw == true)
+        #expect(drawer.faceBoundaryDraw == false)
+        #expect(drawer.deflectionType == .relative)
+        #expect(drawer.discretisation == 30)
+    }
+
+    @Test("Deviation coefficient roundtrip")
+    func deviationCoefficient() {
+        let drawer = DisplayDrawer()
+        drawer.deviationCoefficient = 0.005
+        #expect(abs(drawer.deviationCoefficient - 0.005) < 0.0001)
+    }
+
+    @Test("Deviation angle roundtrip")
+    func deviationAngle() {
+        let drawer = DisplayDrawer()
+        let angle = 10.0 * .pi / 180.0
+        drawer.deviationAngle = angle
+        #expect(abs(drawer.deviationAngle - angle) < 0.001)
+    }
+
+    @Test("Maximal chordial deviation roundtrip")
+    func maxChordialDeviation() {
+        let drawer = DisplayDrawer()
+        drawer.maximalChordialDeviation = 0.05
+        #expect(abs(drawer.maximalChordialDeviation - 0.05) < 0.001)
+    }
+
+    @Test("Deflection type toggle")
+    func deflectionType() {
+        let drawer = DisplayDrawer()
+        drawer.deflectionType = .absolute
+        #expect(drawer.deflectionType == .absolute)
+        drawer.deflectionType = .relative
+        #expect(drawer.deflectionType == .relative)
+    }
+
+    @Test("Auto-triangulation toggle")
+    func autoTriangulation() {
+        let drawer = DisplayDrawer()
+        drawer.autoTriangulation = false
+        #expect(drawer.autoTriangulation == false)
+    }
+
+    @Test("Iso on triangulation toggle")
+    func isoOnTriangulation() {
+        let drawer = DisplayDrawer()
+        drawer.isoOnTriangulation = true
+        #expect(drawer.isoOnTriangulation == true)
+    }
+
+    @Test("Discretisation roundtrip")
+    func discretisation() {
+        let drawer = DisplayDrawer()
+        drawer.discretisation = 50
+        #expect(drawer.discretisation == 50)
+    }
+
+    @Test("Face boundary draw toggle")
+    func faceBoundaryDraw() {
+        let drawer = DisplayDrawer()
+        drawer.faceBoundaryDraw = true
+        #expect(drawer.faceBoundaryDraw == true)
+    }
+
+    @Test("Wire draw toggle")
+    func wireDraw() {
+        let drawer = DisplayDrawer()
+        drawer.wireDraw = false
+        #expect(drawer.wireDraw == false)
+    }
+}
+
 // MARK: - Clip Plane Tests
 
 @Suite("Clip Plane")

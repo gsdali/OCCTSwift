@@ -6,8 +6,41 @@ import OCCTBridge
 ///
 /// Manages a set of shapes identified by integer IDs and performs
 /// point or rectangle picking against them using a camera's projection.
+/// Supports sub-shape selection modes for picking individual faces,
+/// edges, or vertices within a shape.
 public final class Selector: @unchecked Sendable {
     let handle: OCCTSelectorRef
+
+    /// Selection modes controlling what level of sub-shape is selectable.
+    ///
+    /// Maps to OCCT's `TopAbs_ShapeEnum` decomposition in `StdSelect_BRepSelectionTool`.
+    public enum SelectionMode: Int32, Sendable {
+        /// Select the entire shape as one entity.
+        case shape = 0
+        /// Select individual vertices.
+        case vertex = 1
+        /// Select individual edges.
+        case edge = 2
+        /// Select wires (connected edge loops).
+        case wire = 3
+        /// Select individual faces.
+        case face = 4
+    }
+
+    /// The type of sub-shape that was picked.
+    ///
+    /// Maps to OCCT's `TopAbs_ShapeEnum` values.
+    public enum SubShapeType: Int32, Sendable {
+        case compound = 0
+        case compsolid = 1
+        case solid = 2
+        case shell = 3
+        case face = 4
+        case wire = 5
+        case edge = 6
+        case vertex = 7
+        case shape = 8
+    }
 
     /// Result of a pick operation.
     public struct PickResult: Sendable {
@@ -19,6 +52,13 @@ public final class Selector: @unchecked Sendable {
 
         /// 3D world-space point where the pick intersected.
         public let point: SIMD3<Double>
+
+        /// The type of sub-shape that was hit.
+        public let subShapeType: SubShapeType
+
+        /// 1-based index of the sub-shape within its parent shape.
+        /// Zero if the whole shape was selected (mode 0).
+        public let subShapeIndex: Int32
     }
 
     public init() {
@@ -29,7 +69,12 @@ public final class Selector: @unchecked Sendable {
         OCCTSelectorDestroy(handle)
     }
 
+    // MARK: - Shape Management
+
     /// Add a shape to the selector with a unique integer ID.
+    ///
+    /// The shape is registered with mode 0 (whole shape) active by default.
+    /// Use ``activateMode(_:for:)`` to enable sub-shape selection.
     ///
     /// If a shape with the same ID already exists, it is replaced.
     /// - Returns: `true` if the shape was added successfully.
@@ -49,6 +94,47 @@ public final class Selector: @unchecked Sendable {
     public func clearAll() {
         OCCTSelectorClear(handle)
     }
+
+    // MARK: - Selection Modes
+
+    /// Activate a selection mode for a shape.
+    ///
+    /// Multiple modes can be active simultaneously. For example, activating
+    /// both `.face` and `.edge` allows picking either faces or edges.
+    ///
+    /// - Parameters:
+    ///   - mode: The selection mode to activate.
+    ///   - shapeId: The ID of the shape to configure.
+    public func activateMode(_ mode: SelectionMode, for shapeId: Int32) {
+        OCCTSelectorActivateMode(handle, shapeId, mode.rawValue)
+    }
+
+    /// Deactivate a selection mode for a shape.
+    ///
+    /// - Parameters:
+    ///   - mode: The selection mode to deactivate.
+    ///   - shapeId: The ID of the shape to configure.
+    public func deactivateMode(_ mode: SelectionMode, for shapeId: Int32) {
+        OCCTSelectorDeactivateMode(handle, shapeId, mode.rawValue)
+    }
+
+    /// Check if a selection mode is active for a shape.
+    public func isModeActive(_ mode: SelectionMode, for shapeId: Int32) -> Bool {
+        OCCTSelectorIsModeActive(handle, shapeId, mode.rawValue)
+    }
+
+    // MARK: - Pixel Tolerance
+
+    /// Pixel tolerance for picking near edges and vertices.
+    ///
+    /// Higher values make it easier to pick thin geometry like edges.
+    /// Default is 2 pixels.
+    public var pixelTolerance: Int32 {
+        get { OCCTSelectorGetPixelTolerance(handle) }
+        set { OCCTSelectorSetPixelTolerance(handle, newValue) }
+    }
+
+    // MARK: - Picking
 
     /// Pick shapes at a single pixel coordinate.
     ///
@@ -70,7 +156,9 @@ public final class Selector: @unchecked Sendable {
         return (0..<Int(count)).map { i in
             PickResult(shapeId: buffer[i].shapeId,
                        depth: buffer[i].depth,
-                       point: SIMD3(buffer[i].pointX, buffer[i].pointY, buffer[i].pointZ))
+                       point: SIMD3(buffer[i].pointX, buffer[i].pointY, buffer[i].pointZ),
+                       subShapeType: SubShapeType(rawValue: buffer[i].subShapeType) ?? .shape,
+                       subShapeIndex: buffer[i].subShapeIndex)
         }
     }
 
@@ -95,7 +183,9 @@ public final class Selector: @unchecked Sendable {
         return (0..<Int(count)).map { i in
             PickResult(shapeId: buffer[i].shapeId,
                        depth: buffer[i].depth,
-                       point: SIMD3(buffer[i].pointX, buffer[i].pointY, buffer[i].pointZ))
+                       point: SIMD3(buffer[i].pointX, buffer[i].pointY, buffer[i].pointZ),
+                       subShapeType: SubShapeType(rawValue: buffer[i].subShapeType) ?? .shape,
+                       subShapeIndex: buffer[i].subShapeIndex)
         }
     }
 }

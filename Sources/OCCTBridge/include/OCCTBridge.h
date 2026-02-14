@@ -1194,6 +1194,8 @@ typedef struct {
     int32_t shapeId;
     double depth;
     double pointX, pointY, pointZ;
+    int32_t subShapeType;   // TopAbs_ShapeEnum: 7=VERTEX, 6=EDGE, 5=WIRE, 4=FACE, 8=SHAPE
+    int32_t subShapeIndex;  // 1-based index of sub-shape within parent, 0 if whole shape
 } OCCTPickResult;
 
 OCCTSelectorRef OCCTSelectorCreate(void);
@@ -1202,6 +1204,20 @@ void            OCCTSelectorDestroy(OCCTSelectorRef sel);
 bool OCCTSelectorAddShape(OCCTSelectorRef sel, OCCTShapeRef shape, int32_t shapeId);
 bool OCCTSelectorRemoveShape(OCCTSelectorRef sel, int32_t shapeId);
 void OCCTSelectorClear(OCCTSelectorRef sel);
+
+/// Activate a selection mode for a shape (0=shape, 1=vertex, 2=edge, 3=wire, 4=face).
+/// Mode 0 is activated automatically when adding a shape.
+void OCCTSelectorActivateMode(OCCTSelectorRef sel, int32_t shapeId, int32_t mode);
+
+/// Deactivate a selection mode for a shape. Pass -1 to deactivate all modes.
+void OCCTSelectorDeactivateMode(OCCTSelectorRef sel, int32_t shapeId, int32_t mode);
+
+/// Check if a selection mode is active for a shape.
+bool OCCTSelectorIsModeActive(OCCTSelectorRef sel, int32_t shapeId, int32_t mode);
+
+/// Set pixel tolerance for picking near edges/vertices (default 2).
+void OCCTSelectorSetPixelTolerance(OCCTSelectorRef sel, int32_t tolerance);
+int32_t OCCTSelectorGetPixelTolerance(OCCTSelectorRef sel);
 
 int32_t OCCTSelectorPick(OCCTSelectorRef sel, OCCTCameraRef cam,
                          double viewW, double viewH,
@@ -1212,6 +1228,49 @@ int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
                              double viewW, double viewH,
                              double xMin, double yMin, double xMax, double yMax,
                              OCCTPickResult* out, int32_t maxResults);
+
+// MARK: - Display Drawer (Metal Visualization)
+
+typedef struct OCCTDrawer* OCCTDrawerRef;
+
+OCCTDrawerRef OCCTDrawerCreate(void);
+void OCCTDrawerDestroy(OCCTDrawerRef drawer);
+
+/// Chordal deviation coefficient (relative to bounding box). Default ~0.001.
+void OCCTDrawerSetDeviationCoefficient(OCCTDrawerRef drawer, double coeff);
+double OCCTDrawerGetDeviationCoefficient(OCCTDrawerRef drawer);
+
+/// Angular deviation in radians. Default 20 degrees (M_PI/9).
+void OCCTDrawerSetDeviationAngle(OCCTDrawerRef drawer, double angle);
+double OCCTDrawerGetDeviationAngle(OCCTDrawerRef drawer);
+
+/// Maximal chordal deviation (absolute). Applies when type of deflection is absolute.
+void OCCTDrawerSetMaximalChordialDeviation(OCCTDrawerRef drawer, double deviation);
+double OCCTDrawerGetMaximalChordialDeviation(OCCTDrawerRef drawer);
+
+/// Type of deflection: 0=relative (default), 1=absolute.
+void OCCTDrawerSetTypeOfDeflection(OCCTDrawerRef drawer, int32_t type);
+int32_t OCCTDrawerGetTypeOfDeflection(OCCTDrawerRef drawer);
+
+/// Auto-triangulation on/off. Default true.
+void OCCTDrawerSetAutoTriangulation(OCCTDrawerRef drawer, bool on);
+bool OCCTDrawerGetAutoTriangulation(OCCTDrawerRef drawer);
+
+/// Number of iso-parameter lines (U and V). Default 1.
+void OCCTDrawerSetIsoOnTriangulation(OCCTDrawerRef drawer, bool on);
+bool OCCTDrawerGetIsoOnTriangulation(OCCTDrawerRef drawer);
+
+/// Discretisation (number of points for curves). Default 30.
+void OCCTDrawerSetDiscretisation(OCCTDrawerRef drawer, int32_t value);
+int32_t OCCTDrawerGetDiscretisation(OCCTDrawerRef drawer);
+
+/// Face boundary display on/off. Default false.
+void OCCTDrawerSetFaceBoundaryDraw(OCCTDrawerRef drawer, bool on);
+bool OCCTDrawerGetFaceBoundaryDraw(OCCTDrawerRef drawer);
+
+/// Wire frame display on/off. Default true.
+void OCCTDrawerSetWireDraw(OCCTDrawerRef drawer, bool on);
+bool OCCTDrawerGetWireDraw(OCCTDrawerRef drawer);
 
 // MARK: - Clip Plane (Metal Visualization)
 

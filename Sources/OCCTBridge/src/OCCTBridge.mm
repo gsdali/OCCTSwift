@@ -221,6 +221,9 @@
 #include <Graphic3d_Mat4d.hxx>
 #include <Poly_Connect.hxx>
 
+// Prs3d_Drawer (Metal Visualization)
+#include <Prs3d_Drawer.hxx>
+
 // ClipPlane (Metal Visualization)
 #include <Graphic3d_ClipPlane.hxx>
 #include <Graphic3d_Vec4.hxx>
@@ -5910,12 +5913,22 @@ void OCCTEdgeMeshDataFree(OCCTEdgeMeshData* data) {
 
 // MARK: - Selector Implementation
 
+// Map selection mode integers to TopAbs_ShapeEnum:
+// 0=SHAPE, 1=VERTEX, 2=EDGE, 3=WIRE, 4=FACE
+static TopAbs_ShapeEnum OCCTModeToShapeEnum(Standard_Integer mode) {
+    switch (mode) {
+        case 1: return TopAbs_VERTEX;
+        case 2: return TopAbs_EDGE;
+        case 3: return TopAbs_WIRE;
+        case 4: return TopAbs_FACE;
+        default: return TopAbs_SHAPE;
+    }
+}
+
 class OCCTBRepSelectable : public SelectMgr_SelectableObject {
     DEFINE_STANDARD_RTTI_INLINE(OCCTBRepSelectable, SelectMgr_SelectableObject)
 public:
-    OCCTBRepSelectable(const TopoDS_Shape& shape) : myShape(shape) {
-        RecomputePrimitives();
-    }
+    OCCTBRepSelectable(const TopoDS_Shape& shape) : myShape(shape) {}
 
     const TopoDS_Shape& Shape() const { return myShape; }
 
@@ -5925,9 +5938,10 @@ private:
                  const Standard_Integer) override {}
 
     void ComputeSelection(const Handle(SelectMgr_Selection)& sel,
-                          const Standard_Integer) override {
+                          const Standard_Integer mode) override {
+        TopAbs_ShapeEnum type = OCCTModeToShapeEnum(mode);
         StdSelect_BRepSelectionTool::Load(sel, this, myShape,
-                                          TopAbs_SHAPE, 0.05, 0.5, Standard_True);
+                                          type, 0.05, 0.5, Standard_True);
     }
 
     TopoDS_Shape myShape;
@@ -5946,7 +5960,7 @@ public:
         SelectMgr_SelectingVolumeManager& mgr = GetManager();
         mgr.SetCamera(cam);
         mgr.SetWindowSize(width, height);
-        mgr.SetPixelTolerance(2);
+        mgr.SetPixelTolerance(PixelTolerance());
         mgr.InitPointSelectingVolume(gp_Pnt2d(pixelX, pixelY));
         mgr.BuildSelectingVolume();
         TraverseSensitives();
@@ -5958,7 +5972,7 @@ public:
         SelectMgr_SelectingVolumeManager& mgr = GetManager();
         mgr.SetCamera(cam);
         mgr.SetWindowSize(width, height);
-        mgr.SetPixelTolerance(2);
+        mgr.SetPixelTolerance(PixelTolerance());
         mgr.InitBoxSelectingVolume(gp_Pnt2d(xMin, yMin), gp_Pnt2d(xMax, yMax));
         mgr.BuildSelectingVolume();
         TraverseSensitives();
@@ -5967,10 +5981,12 @@ public:
 
 struct OCCTSelector {
     Handle(OCCTHeadlessSelector) selector;
+    Handle(SelectMgr_SelectionManager) selMgr;
     NCollection_DataMap<int32_t, Handle(OCCTBRepSelectable)> objects;
 
     OCCTSelector() {
         selector = new OCCTHeadlessSelector();
+        selMgr = new SelectMgr_SelectionManager(selector);
     }
 };
 
@@ -5991,13 +6007,15 @@ bool OCCTSelectorAddShape(OCCTSelectorRef sel, OCCTShapeRef shape, int32_t shape
     try {
         if (sel->objects.IsBound(shapeId)) {
             Handle(OCCTBRepSelectable) old = sel->objects.Find(shapeId);
-            sel->selector->RemoveSelectableObject(old);
+            sel->selMgr->Remove(old);
             sel->objects.UnBind(shapeId);
         }
 
         Handle(OCCTBRepSelectable) selectable = new OCCTBRepSelectable(shape->shape);
         sel->objects.Bind(shapeId, selectable);
-        sel->selector->AddSelectableObject(selectable);
+        // Load and activate mode 0 (whole shape) by default
+        sel->selMgr->Load(selectable, 0);
+        sel->selMgr->Activate(selectable, 0);
         return true;
     } catch (...) {
         return false;
@@ -6009,7 +6027,7 @@ bool OCCTSelectorRemoveShape(OCCTSelectorRef sel, int32_t shapeId) {
     try {
         if (!sel->objects.IsBound(shapeId)) return false;
         Handle(OCCTBRepSelectable) obj = sel->objects.Find(shapeId);
-        sel->selector->RemoveSelectableObject(obj);
+        sel->selMgr->Remove(obj);
         sel->objects.UnBind(shapeId);
         return true;
     } catch (...) {
@@ -6020,9 +6038,49 @@ bool OCCTSelectorRemoveShape(OCCTSelectorRef sel, int32_t shapeId) {
 void OCCTSelectorClear(OCCTSelectorRef sel) {
     if (!sel) return;
     try {
-        sel->selector->Clear();
+        for (NCollection_DataMap<int32_t, Handle(OCCTBRepSelectable)>::Iterator it(sel->objects);
+             it.More(); it.Next()) {
+            sel->selMgr->Remove(it.Value());
+        }
         sel->objects.Clear();
     } catch (...) {}
+}
+
+void OCCTSelectorActivateMode(OCCTSelectorRef sel, int32_t shapeId, int32_t mode) {
+    if (!sel || !sel->objects.IsBound(shapeId)) return;
+    try {
+        Handle(OCCTBRepSelectable) obj = sel->objects.Find(shapeId);
+        sel->selMgr->Activate(obj, mode);
+    } catch (...) {}
+}
+
+void OCCTSelectorDeactivateMode(OCCTSelectorRef sel, int32_t shapeId, int32_t mode) {
+    if (!sel || !sel->objects.IsBound(shapeId)) return;
+    try {
+        Handle(OCCTBRepSelectable) obj = sel->objects.Find(shapeId);
+        sel->selMgr->Deactivate(obj, mode);
+    } catch (...) {}
+}
+
+bool OCCTSelectorIsModeActive(OCCTSelectorRef sel, int32_t shapeId, int32_t mode) {
+    if (!sel || !sel->objects.IsBound(shapeId)) return false;
+    try {
+        Handle(OCCTBRepSelectable) obj = sel->objects.Find(shapeId);
+        return sel->selMgr->IsActivated(obj, mode) == Standard_True;
+    } catch (...) {
+        return false;
+    }
+}
+
+void OCCTSelectorSetPixelTolerance(OCCTSelectorRef sel, int32_t tolerance) {
+    if (!sel) return;
+    sel->selector->SetPixelTolerance(tolerance);
+}
+
+int32_t OCCTSelectorGetPixelTolerance(OCCTSelectorRef sel) {
+    if (!sel) return 2;
+    Standard_Integer custom = sel->selector->CustomPixelTolerance();
+    return custom >= 0 ? custom : 2;
 }
 
 static int32_t OCCTSelectorCollectResults(OCCTSelectorRef sel, OCCTPickResult* out, int32_t maxResults) {
@@ -6052,6 +6110,26 @@ static int32_t OCCTSelectorCollectResults(OCCTSelectorRef sel, OCCTPickResult* o
         out[count].pointX = criterion.Point.X();
         out[count].pointY = criterion.Point.Y();
         out[count].pointZ = criterion.Point.Z();
+
+        // Extract sub-shape information from BRepOwner
+        out[count].subShapeType = static_cast<int32_t>(TopAbs_SHAPE);
+        out[count].subShapeIndex = 0;
+
+        Handle(StdSelect_BRepOwner) brepOwner =
+            Handle(StdSelect_BRepOwner)::DownCast(owner);
+        if (!brepOwner.IsNull() && brepOwner->HasShape()) {
+            const TopoDS_Shape& subShape = brepOwner->Shape();
+            out[count].subShapeType = static_cast<int32_t>(subShape.ShapeType());
+
+            // Find 1-based index of sub-shape within parent shape
+            if (brepOwner->ComesFromDecomposition()) {
+                TopTools_IndexedMapOfShape map;
+                TopExp::MapShapes(selectable->Shape(), subShape.ShapeType(), map);
+                int idx = map.FindIndex(subShape);
+                out[count].subShapeIndex = (idx > 0) ? idx : 0;
+            }
+        }
+
         count++;
     }
     return count;
@@ -6091,6 +6169,117 @@ int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
     } catch (...) {
         return 0;
     }
+}
+
+// MARK: - Display Drawer Implementation
+
+struct OCCTDrawer {
+    Handle(Prs3d_Drawer) drawer;
+    OCCTDrawer() {
+        drawer = new Prs3d_Drawer();
+    }
+};
+
+OCCTDrawerRef OCCTDrawerCreate(void) {
+    try {
+        return new OCCTDrawer();
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTDrawerDestroy(OCCTDrawerRef d) {
+    delete d;
+}
+
+void OCCTDrawerSetDeviationCoefficient(OCCTDrawerRef d, double coeff) {
+    if (!d) return;
+    d->drawer->SetDeviationCoefficient(coeff);
+}
+
+double OCCTDrawerGetDeviationCoefficient(OCCTDrawerRef d) {
+    if (!d) return 0.001;
+    return d->drawer->DeviationCoefficient();
+}
+
+void OCCTDrawerSetDeviationAngle(OCCTDrawerRef d, double angle) {
+    if (!d) return;
+    d->drawer->SetDeviationAngle(angle);
+}
+
+double OCCTDrawerGetDeviationAngle(OCCTDrawerRef d) {
+    if (!d) return 20.0 * M_PI / 180.0;
+    return d->drawer->DeviationAngle();
+}
+
+void OCCTDrawerSetMaximalChordialDeviation(OCCTDrawerRef d, double deviation) {
+    if (!d) return;
+    d->drawer->SetMaximalChordialDeviation(deviation);
+}
+
+double OCCTDrawerGetMaximalChordialDeviation(OCCTDrawerRef d) {
+    if (!d) return 0.1;
+    return d->drawer->MaximalChordialDeviation();
+}
+
+void OCCTDrawerSetTypeOfDeflection(OCCTDrawerRef d, int32_t type) {
+    if (!d) return;
+    d->drawer->SetTypeOfDeflection(type == 1 ? Aspect_TOD_ABSOLUTE : Aspect_TOD_RELATIVE);
+}
+
+int32_t OCCTDrawerGetTypeOfDeflection(OCCTDrawerRef d) {
+    if (!d) return 0;
+    return d->drawer->TypeOfDeflection() == Aspect_TOD_ABSOLUTE ? 1 : 0;
+}
+
+void OCCTDrawerSetAutoTriangulation(OCCTDrawerRef d, bool on) {
+    if (!d) return;
+    d->drawer->SetAutoTriangulation(on ? Standard_True : Standard_False);
+}
+
+bool OCCTDrawerGetAutoTriangulation(OCCTDrawerRef d) {
+    if (!d) return true;
+    return d->drawer->IsAutoTriangulation() == Standard_True;
+}
+
+void OCCTDrawerSetIsoOnTriangulation(OCCTDrawerRef d, bool on) {
+    if (!d) return;
+    d->drawer->SetIsoOnTriangulation(on ? Standard_True : Standard_False);
+}
+
+bool OCCTDrawerGetIsoOnTriangulation(OCCTDrawerRef d) {
+    if (!d) return false;
+    return d->drawer->IsoOnTriangulation() == Standard_True;
+}
+
+void OCCTDrawerSetDiscretisation(OCCTDrawerRef d, int32_t value) {
+    if (!d) return;
+    d->drawer->SetDiscretisation(value);
+}
+
+int32_t OCCTDrawerGetDiscretisation(OCCTDrawerRef d) {
+    if (!d) return 30;
+    return d->drawer->Discretisation();
+}
+
+void OCCTDrawerSetFaceBoundaryDraw(OCCTDrawerRef d, bool on) {
+    if (!d) return;
+    d->drawer->SetFaceBoundaryDraw(on ? Standard_True : Standard_False);
+}
+
+bool OCCTDrawerGetFaceBoundaryDraw(OCCTDrawerRef d) {
+    if (!d) return false;
+    return d->drawer->FaceBoundaryDraw() == Standard_True;
+}
+
+void OCCTDrawerSetWireDraw(OCCTDrawerRef d, bool on) {
+    if (!d) return;
+    d->drawer->SetWireDraw(on ? Standard_True : Standard_False);
+}
+
+bool OCCTDrawerGetWireDraw(OCCTDrawerRef d) {
+    if (!d) return true;
+    return d->drawer->WireDraw() == Standard_True;
 }
 
 // MARK: - Clip Plane Implementation
