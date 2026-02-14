@@ -1,5 +1,64 @@
 # OCCTSwift Changelog
 
+## [v0.17.0] - 2026-02-14
+
+### Mesh Import, OBJ/PLY Export, Advanced Healing, Point Classification
+
+New capabilities for importing mesh formats, exporting to additional mesh formats, advanced shape healing utilities, and classifying points relative to solids and faces. 23 new tests across 6 suites.
+
+#### STL Import
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.loadSTL(from:)` | `StlAPI_Reader` |
+| `Shape.loadSTL(fromPath:)` | `StlAPI_Reader` |
+| `Shape.loadSTLRobust(from:sewingTolerance:)` | `StlAPI_Reader` + `BRepBuilderAPI_Sewing` + `ShapeFix_Shape` |
+| `Shape.loadSTLRobust(fromPath:sewingTolerance:)` | `StlAPI_Reader` + `BRepBuilderAPI_Sewing` + `ShapeFix_Shape` |
+
+#### OBJ Import/Export
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.loadOBJ(from:)` | `RWObj_CafReader` |
+| `Shape.loadOBJ(fromPath:)` | `RWObj_CafReader` |
+| `Exporter.writeOBJ(shape:to:deflection:)` | `RWObj_CafWriter` |
+| `shape.writeOBJ(to:deflection:)` | `RWObj_CafWriter` |
+
+#### PLY Export
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Exporter.writePLY(shape:to:deflection:)` | `RWPly_CafWriter` |
+| `shape.writePLY(to:deflection:)` | `RWPly_CafWriter` |
+
+#### Advanced Shape Healing
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.divided(at:)` | `ShapeUpgrade_ShapeDivide` |
+| `shape.directFaces()` | `ShapeCustom::DirectFaces` |
+| `shape.scaledGeometry(factor:)` | `ShapeCustom::ScaleShape` |
+| `shape.bsplineRestriction(...)` | `ShapeCustom::BSplineRestriction` |
+| `shape.sweptToElementary()` | `ShapeCustom::SweptToElementary` |
+| `shape.revolutionToElementary()` | `ShapeCustom::ConvertToRevolution` |
+| `shape.convertedToBSpline()` | `ShapeCustom::ConvertToBSpline` |
+| `shape.sewn(tolerance:)` | `BRepBuilderAPI_Sewing` |
+| `shape.upgraded(tolerance:)` | `BRepBuilderAPI_Sewing` + `BRepBuilderAPI_MakeSolid` + `ShapeFix_Shape` |
+
+#### Point Classification
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.classify(point:tolerance:)` | `BRepClass3d_SolidClassifier` |
+| `face.classify(point:tolerance:)` | `BRepClass_FaceClassifier` |
+| `face.classify(u:v:tolerance:)` | `BRepClass_FaceClassifier` |
+
+#### New Types
+- `GeometricContinuity` — enum for C0/C1/C2/C3 continuity levels
+- `PointClassification` — enum for inside/outside/onBoundary/unknown
+
+### Statistics
+- 327 tests passing across 62 suites (23 new tests across 6 new suites)
+- +1,095 lines across 5 files
+- 1 commit since v0.16.0
+
+---
+
 ## [v0.16.0] - 2026-02-14
 
 ### 2D Parametric Curves (Geom2d)

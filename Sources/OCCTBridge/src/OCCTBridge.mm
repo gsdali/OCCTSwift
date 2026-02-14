@@ -8070,3 +8070,407 @@ OCCTCurve2DRef OCCTCurve2DBisectorPC(double px, double py, OCCTCurve2DRef curve,
         return nullptr;
     }
 }
+
+
+// MARK: - STL Import (v0.17.0)
+
+#include <StlAPI_Reader.hxx>
+
+OCCTShapeRef OCCTImportSTL(const char* path) {
+    if (!path) return nullptr;
+
+    try {
+        TopoDS_Shape shape;
+        StlAPI_Reader reader;
+        if (!reader.Read(shape, path)) return nullptr;
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTImportSTLRobust(const char* path, double sewingTolerance) {
+    if (!path) return nullptr;
+
+    try {
+        TopoDS_Shape shape;
+        StlAPI_Reader reader;
+        if (!reader.Read(shape, path)) return nullptr;
+        if (shape.IsNull()) return nullptr;
+
+        // Sew disconnected faces
+        BRepBuilderAPI_Sewing sewing(sewingTolerance);
+        sewing.Add(shape);
+        sewing.Perform();
+        TopoDS_Shape sewedShape = sewing.SewedShape();
+        if (sewedShape.IsNull()) sewedShape = shape;
+
+        // Try to create solid from shell
+        TopoDS_Shape resultShape = sewedShape;
+        if (sewedShape.ShapeType() != TopAbs_SOLID) {
+            TopExp_Explorer shellExp(sewedShape, TopAbs_SHELL);
+            if (shellExp.More()) {
+                BRepBuilderAPI_MakeSolid makeSolid(TopoDS::Shell(shellExp.Current()));
+                if (makeSolid.IsDone()) {
+                    resultShape = makeSolid.Solid();
+                }
+            }
+        }
+
+        // Apply shape healing
+        ShapeFix_Shape fixer(resultShape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+        return new OCCTShape(fixed.IsNull() ? resultShape : fixed);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+
+// MARK: - OBJ Import/Export (v0.17.0)
+
+#include <RWObj_CafReader.hxx>
+#include <RWObj_CafWriter.hxx>
+#include <TDocStd_Document.hxx>
+#include <XCAFApp_Application.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <Message_ProgressRange.hxx>
+
+OCCTShapeRef OCCTImportOBJ(const char* path) {
+    if (!path) return nullptr;
+
+    try {
+        // Use RWObj_CafReader for OBJ import
+        RWObj_CafReader objReader;
+
+        // Create an XDE document
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+
+        objReader.SetDocument(doc);
+        TCollection_AsciiString filePath(path);
+        if (!objReader.Perform(filePath, Message_ProgressRange())) return nullptr;
+
+        // Extract shape from document
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        TopoDS_Shape shape = shapeTool->GetOneShape();
+        if (shape.IsNull()) return nullptr;
+
+        // Close document
+        app->Close(doc);
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTExportOBJ(OCCTShapeRef shape, const char* path, double deflection) {
+    if (!shape || !path) return false;
+
+    try {
+        // Tessellate the shape first
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        mesher.Perform();
+
+        // Create an XDE document
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        shapeTool->AddShape(shape->shape);
+
+        // Write OBJ
+        RWObj_CafWriter writer(path);
+        bool success = writer.Perform(doc, TColStd_IndexedDataMapOfStringString(), Message_ProgressRange());
+
+        app->Close(doc);
+        return success;
+    } catch (...) {
+        return false;
+    }
+}
+
+
+// MARK: - PLY Export (v0.17.0)
+
+#include <RWPly_CafWriter.hxx>
+
+bool OCCTExportPLY(OCCTShapeRef shape, const char* path, double deflection) {
+    if (!shape || !path) return false;
+
+    try {
+        // Tessellate the shape first
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        mesher.Perform();
+
+        // Create an XDE document
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        shapeTool->AddShape(shape->shape);
+
+        // Write PLY
+        RWPly_CafWriter writer(path);
+        writer.SetNormals(true);
+        bool success = writer.Perform(doc, TColStd_IndexedDataMapOfStringString(), Message_ProgressRange());
+
+        app->Close(doc);
+        return success;
+    } catch (...) {
+        return false;
+    }
+}
+
+
+// MARK: - Advanced Healing (v0.17.0)
+
+#include <ShapeUpgrade_ShapeDivide.hxx>
+#include <ShapeCustom.hxx>
+#include <ShapeCustom_RestrictionParameters.hxx>
+
+OCCTShapeRef OCCTShapeDivide(OCCTShapeRef shape, int32_t continuity) {
+    if (!shape) return nullptr;
+
+    try {
+        ShapeUpgrade_ShapeDivide divider(shape->shape);
+
+        // Map continuity: 0=C0, 1=C1, 2=C2, 3=C3
+        GeomAbs_Shape cont;
+        switch (continuity) {
+            case 0:  cont = GeomAbs_C0; break;
+            case 1:  cont = GeomAbs_C1; break;
+            case 2:  cont = GeomAbs_C2; break;
+            case 3:  cont = GeomAbs_C3; break;
+            default: cont = GeomAbs_C1; break;
+        }
+
+        divider.SetSurfaceSegmentMode(Standard_True);
+        if (!divider.Perform()) return nullptr;
+
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeDirectFaces(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+
+    try {
+        TopoDS_Shape result = ShapeCustom::DirectFaces(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeScaleGeometry(OCCTShapeRef shape, double factor) {
+    if (!shape) return nullptr;
+
+    try {
+        TopoDS_Shape result = ShapeCustom::ScaleShape(shape->shape, factor);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeBSplineRestriction(OCCTShapeRef shape,
+                                          double surfaceTol, double curveTol,
+                                          int32_t maxDegree, int32_t maxSegments) {
+    if (!shape) return nullptr;
+
+    try {
+        // Static method signature:
+        // BSplineRestriction(shape, Tol3d, Tol2d, MaxDegree, MaxNbSegment,
+        //                    Continuity3d, Continuity2d, Degree, Rational, aParameters)
+        Handle(ShapeCustom_RestrictionParameters) params = new ShapeCustom_RestrictionParameters();
+        TopoDS_Shape result = ShapeCustom::BSplineRestriction(
+            shape->shape,
+            surfaceTol,
+            curveTol,
+            maxDegree,
+            maxSegments,
+            GeomAbs_C1,       // Continuity3d
+            GeomAbs_C1,       // Continuity2d
+            Standard_True,     // Degree priority
+            Standard_True,     // Rational
+            params
+        );
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeSweptToElementary(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+
+    try {
+        TopoDS_Shape result = ShapeCustom::SweptToElementary(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeRevolutionToElementary(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+
+    try {
+        TopoDS_Shape result = ShapeCustom::ConvertToRevolution(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeConvertToBSpline(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+
+    try {
+        // ConvertToBSpline(shape, extrMode, revolMode, offsetMode, planeMode)
+        TopoDS_Shape result = ShapeCustom::ConvertToBSpline(
+            shape->shape,
+            Standard_True,   // Convert extrusion surfaces
+            Standard_True,   // Convert revolution surfaces
+            Standard_True,   // Convert offset surfaces
+            Standard_False   // Don't convert planes
+        );
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeSewSingle(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+
+    try {
+        BRepBuilderAPI_Sewing sewing(tolerance);
+        sewing.Add(shape->shape);
+        sewing.Perform();
+        TopoDS_Shape sewn = sewing.SewedShape();
+        if (sewn.IsNull()) return nullptr;
+
+        // Try to make a solid if we got a closed shell
+        if (sewn.ShapeType() == TopAbs_SHELL) {
+            TopoDS_Shell shell = TopoDS::Shell(sewn);
+            if (shell.Closed()) {
+                BRepBuilderAPI_MakeSolid makeSolid(shell);
+                if (makeSolid.IsDone()) {
+                    return new OCCTShape(makeSolid.Solid());
+                }
+            }
+        }
+
+        return new OCCTShape(sewn);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeUpgrade(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+
+    try {
+        // Step 1: Sew
+        BRepBuilderAPI_Sewing sewing(tolerance);
+        sewing.Add(shape->shape);
+        sewing.Perform();
+        TopoDS_Shape sewedShape = sewing.SewedShape();
+        if (sewedShape.IsNull()) sewedShape = shape->shape;
+
+        // Step 2: Try to create solid from shell
+        TopoDS_Shape resultShape = sewedShape;
+        if (sewedShape.ShapeType() != TopAbs_SOLID) {
+            TopExp_Explorer shellExp(sewedShape, TopAbs_SHELL);
+            if (shellExp.More()) {
+                BRepBuilderAPI_MakeSolid makeSolid(TopoDS::Shell(shellExp.Current()));
+                if (makeSolid.IsDone()) {
+                    resultShape = makeSolid.Solid();
+                }
+            }
+        }
+
+        // Step 3: Apply shape healing
+        ShapeFix_Shape fixer(resultShape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+        return new OCCTShape(fixed.IsNull() ? resultShape : fixed);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+
+// MARK: - Point Classification (v0.17.0)
+
+#include <BRepClass3d_SolidClassifier.hxx>
+#include <BRepClass_FaceClassifier.hxx>
+#include <TopAbs_State.hxx>
+
+static int32_t mapTopAbsState(TopAbs_State state) {
+    switch (state) {
+        case TopAbs_IN:      return 0;
+        case TopAbs_OUT:     return 1;
+        case TopAbs_ON:      return 2;
+        case TopAbs_UNKNOWN: return 3;
+        default:             return 3;
+    }
+}
+
+OCCTTopAbsState OCCTClassifyPointInSolid(OCCTShapeRef solid,
+                                          double px, double py, double pz,
+                                          double tolerance) {
+    if (!solid) return 3; // UNKNOWN
+
+    try {
+        BRepClass3d_SolidClassifier classifier(solid->shape, gp_Pnt(px, py, pz), tolerance);
+        return mapTopAbsState(classifier.State());
+    } catch (...) {
+        return 3; // UNKNOWN
+    }
+}
+
+OCCTTopAbsState OCCTClassifyPointOnFace(OCCTFaceRef face,
+                                         double px, double py, double pz,
+                                         double tolerance) {
+    if (!face) return 3; // UNKNOWN
+
+    try {
+        BRepClass_FaceClassifier classifier(face->face, gp_Pnt(px, py, pz), tolerance);
+        return mapTopAbsState(classifier.State());
+    } catch (...) {
+        return 3; // UNKNOWN
+    }
+}
+
+OCCTTopAbsState OCCTClassifyPointOnFaceUV(OCCTFaceRef face,
+                                           double u, double v,
+                                           double tolerance) {
+    if (!face) return 3; // UNKNOWN
+
+    try {
+        BRepClass_FaceClassifier classifier(face->face, gp_Pnt2d(u, v), tolerance);
+        return mapTopAbsState(classifier.State());
+    } catch (...) {
+        return 3; // UNKNOWN
+    }
+}

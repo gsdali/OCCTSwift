@@ -333,6 +333,72 @@ public enum Exporter {
         try writeBREP(shape: shape, to: tempURL, withTriangles: withTriangles, withNormals: withNormals)
         return try Data(contentsOf: tempURL)
     }
+
+    // MARK: - OBJ Export (v0.17.0)
+
+    /// Export a shape to OBJ format.
+    ///
+    /// OBJ (Wavefront) is a widely supported mesh format for 3D visualization
+    /// and modeling applications.
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to export
+    ///   - url: Destination file URL (should end in .obj)
+    ///   - deflection: Tessellation quality - smaller = finer mesh (default: 0.1)
+    ///
+    /// - Throws: `ExportError` if export fails
+    public static func writeOBJ(
+        shape: Shape,
+        to url: URL,
+        deflection: Double = 0.1
+    ) throws {
+        guard shape.isValid else {
+            throw ExportError.invalidShape
+        }
+
+        let path = url.path
+        guard !path.isEmpty else {
+            throw ExportError.invalidPath
+        }
+
+        let success = OCCTExportOBJ(shape.handle, path, deflection)
+        if !success {
+            throw ExportError.exportFailed("OBJ export to \(url.lastPathComponent) failed")
+        }
+    }
+
+    // MARK: - PLY Export (v0.17.0)
+
+    /// Export a shape to PLY format (Stanford Polygon Format).
+    ///
+    /// PLY is a simple mesh format commonly used for 3D scanning data
+    /// and point cloud applications.
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to export
+    ///   - url: Destination file URL (should end in .ply)
+    ///   - deflection: Tessellation quality - smaller = finer mesh (default: 0.1)
+    ///
+    /// - Throws: `ExportError` if export fails
+    public static func writePLY(
+        shape: Shape,
+        to url: URL,
+        deflection: Double = 0.1
+    ) throws {
+        guard shape.isValid else {
+            throw ExportError.invalidShape
+        }
+
+        let path = url.path
+        guard !path.isEmpty else {
+            throw ExportError.invalidPath
+        }
+
+        let success = OCCTExportPLY(shape.handle, path, deflection)
+        if !success {
+            throw ExportError.exportFailed("PLY export to \(url.lastPathComponent) failed")
+        }
+    }
 }
 
 // MARK: - Convenience Extensions
@@ -409,5 +475,27 @@ extension Shape {
     ///   - withNormals: Include normals with triangulation (default: false)
     public func brepData(withTriangles: Bool = true, withNormals: Bool = false) throws -> Data {
         try Exporter.brepData(shape: self, withTriangles: withTriangles, withNormals: withNormals)
+    }
+
+    // MARK: - OBJ Export (v0.17.0)
+
+    /// Export this shape to OBJ format.
+    ///
+    /// - Parameters:
+    ///   - url: Destination file URL
+    ///   - deflection: Tessellation quality (default: 0.1)
+    public func writeOBJ(to url: URL, deflection: Double = 0.1) throws {
+        try Exporter.writeOBJ(shape: self, to: url, deflection: deflection)
+    }
+
+    // MARK: - PLY Export (v0.17.0)
+
+    /// Export this shape to PLY format.
+    ///
+    /// - Parameters:
+    ///   - url: Destination file URL
+    ///   - deflection: Tessellation quality (default: 0.1)
+    public func writePLY(to url: URL, deflection: Double = 0.1) throws {
+        try Exporter.writePLY(shape: self, to: url, deflection: deflection)
     }
 }

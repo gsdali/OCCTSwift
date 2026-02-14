@@ -488,6 +488,72 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    // MARK: - STL Import (v0.17.0)
+
+    /// Load a shape from an STL file
+    ///
+    /// - Parameter url: URL to the STL file (.stl)
+    /// - Returns: Imported shape
+    /// - Throws: ImportError if import fails
+    public static func loadSTL(from url: URL) throws -> Shape {
+        guard let handle = OCCTImportSTL(url.path) else {
+            throw ImportError.importFailed("Failed to import STL file: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load a shape from an STL file path
+    public static func loadSTL(fromPath path: String) throws -> Shape {
+        guard let handle = OCCTImportSTL(path) else {
+            throw ImportError.importFailed("Failed to import STL file: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load an STL file with robust healing (sew + solid creation + heal)
+    ///
+    /// - Parameters:
+    ///   - url: URL to the STL file
+    ///   - sewingTolerance: Tolerance for sewing disconnected faces (default: 1e-6)
+    /// - Returns: Processed shape suitable for solid operations
+    /// - Throws: ImportError if import fails
+    public static func loadSTLRobust(from url: URL, sewingTolerance: Double = 1e-6) throws -> Shape {
+        guard let handle = OCCTImportSTLRobust(url.path, sewingTolerance) else {
+            throw ImportError.importFailed("Failed to import STL file: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load an STL file with robust healing from a path
+    public static func loadSTLRobust(fromPath path: String, sewingTolerance: Double = 1e-6) throws -> Shape {
+        guard let handle = OCCTImportSTLRobust(path, sewingTolerance) else {
+            throw ImportError.importFailed("Failed to import STL file: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
+    // MARK: - OBJ Import (v0.17.0)
+
+    /// Load a shape from an OBJ file
+    ///
+    /// - Parameter url: URL to the OBJ file (.obj)
+    /// - Returns: Imported shape
+    /// - Throws: ImportError if import fails
+    public static func loadOBJ(from url: URL) throws -> Shape {
+        guard let handle = OCCTImportOBJ(url.path) else {
+            throw ImportError.importFailed("Failed to import OBJ file: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Load a shape from an OBJ file path
+    public static func loadOBJ(fromPath path: String) throws -> Shape {
+        guard let handle = OCCTImportOBJ(path) else {
+            throw ImportError.importFailed("Failed to import OBJ file: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
     // MARK: - Geometry Construction (v0.11.0)
 
     /// Create a planar face from a closed wire
@@ -2051,5 +2117,168 @@ extension Shape {
             return nil
         }
         return Shape(handle: result)
+    }
+}
+
+// MARK: - Advanced Healing (v0.17.0)
+
+/// Target geometric continuity for shape divide operations
+public enum GeometricContinuity: Int32, Sendable {
+    case c0 = 0
+    case c1 = 1
+    case c2 = 2
+    case c3 = 3
+}
+
+extension Shape {
+
+    /// Divide a shape at continuity discontinuities
+    ///
+    /// - Parameter continuity: Target continuity level
+    /// - Returns: Divided shape, or nil on failure
+    public func divided(at continuity: GeometricContinuity) -> Shape? {
+        guard let handle = OCCTShapeDivide(self.handle, continuity.rawValue) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Convert geometry to direct faces (canonical surfaces)
+    ///
+    /// - Returns: Shape with canonical surfaces, or nil on failure
+    public func directFaces() -> Shape? {
+        guard let handle = OCCTShapeDirectFaces(self.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Scale shape geometry by a factor
+    ///
+    /// Unlike `scaled(by:)` which applies a geometric transform, this modifies the
+    /// underlying surface and curve definitions.
+    ///
+    /// - Parameter factor: Scale factor
+    /// - Returns: Scaled shape, or nil on failure
+    public func scaledGeometry(factor: Double) -> Shape? {
+        guard let handle = OCCTShapeScaleGeometry(self.handle, factor) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Convert BSpline surfaces to their closest analytical form
+    ///
+    /// Attempts to convert BSpline surfaces to planes, cylinders, cones, spheres, or tori.
+    ///
+    /// - Parameters:
+    ///   - surfaceTolerance: Tolerance for surface approximation (default: 0.01)
+    ///   - curveTolerance: Tolerance for curve approximation (default: 0.01)
+    ///   - maxDegree: Maximum degree for BSpline restriction (default: 9)
+    ///   - maxSegments: Maximum number of segments (default: 10000)
+    /// - Returns: Shape with restricted BSplines, or nil on failure
+    public func bsplineRestriction(surfaceTolerance: Double = 0.01,
+                                   curveTolerance: Double = 0.01,
+                                   maxDegree: Int = 9,
+                                   maxSegments: Int = 10000) -> Shape? {
+        guard let handle = OCCTShapeBSplineRestriction(self.handle, surfaceTolerance, curveTolerance,
+                                                        Int32(maxDegree), Int32(maxSegments)) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Convert swept surfaces to elementary (canonical) surfaces
+    ///
+    /// - Returns: Shape with elementary surfaces, or nil on failure
+    public func sweptToElementary() -> Shape? {
+        guard let handle = OCCTShapeSweptToElementary(self.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Convert surfaces of revolution to elementary surfaces
+    ///
+    /// - Returns: Shape with elementary surfaces, or nil on failure
+    public func revolutionToElementary() -> Shape? {
+        guard let handle = OCCTShapeRevolutionToElementary(self.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Convert all surfaces to BSpline
+    ///
+    /// - Returns: Shape with BSpline surfaces, or nil on failure
+    public func convertedToBSpline() -> Shape? {
+        guard let handle = OCCTShapeConvertToBSpline(self.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Sew disconnected faces in this shape together
+    ///
+    /// - Parameter tolerance: Sewing tolerance (default: 1e-6)
+    /// - Returns: Sewn shape, or nil on failure
+    public func sewn(tolerance: Double = 1e-6) -> Shape? {
+        guard let handle = OCCTShapeSewSingle(self.handle, tolerance) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Upgrade shape: sew + make solid + heal pipeline
+    ///
+    /// Performs a complete upgrade of the shape by sewing disconnected faces,
+    /// attempting to create a solid from shells, and applying shape healing.
+    ///
+    /// - Parameter tolerance: Tolerance for sewing and healing (default: 1e-6)
+    /// - Returns: Upgraded shape, or nil on failure
+    public func upgraded(tolerance: Double = 1e-6) -> Shape? {
+        guard let handle = OCCTShapeUpgrade(self.handle, tolerance) else { return nil }
+        return Shape(handle: handle)
+    }
+}
+
+// MARK: - Point Classification (v0.17.0)
+
+/// Classification of a point relative to a shape
+public enum PointClassification: Int32, Sendable {
+    /// Point is inside the shape
+    case inside = 0      // TopAbs_IN
+    /// Point is outside the shape
+    case outside = 1     // TopAbs_OUT
+    /// Point is on the boundary of the shape
+    case onBoundary = 2  // TopAbs_ON
+    /// Classification could not be determined
+    case unknown = 3     // TopAbs_UNKNOWN
+}
+
+extension Shape {
+
+    /// Classify a point relative to this solid
+    ///
+    /// Determines whether a 3D point is inside, outside, or on the boundary of
+    /// this shape. The shape should be a solid for reliable results.
+    ///
+    /// - Parameters:
+    ///   - point: The 3D point to classify
+    ///   - tolerance: Tolerance for boundary detection (default: 1e-6)
+    /// - Returns: Classification result
+    public func classify(point: SIMD3<Double>, tolerance: Double = 1e-6) -> PointClassification {
+        let state = OCCTClassifyPointInSolid(handle, point.x, point.y, point.z, tolerance)
+        return PointClassification(rawValue: state) ?? .unknown
+    }
+}
+
+extension Face {
+
+    /// Classify a point relative to this face using a 3D point
+    ///
+    /// - Parameters:
+    ///   - point: The 3D point to classify
+    ///   - tolerance: Tolerance for boundary detection (default: 1e-6)
+    /// - Returns: Classification result
+    public func classify(point: SIMD3<Double>, tolerance: Double = 1e-6) -> PointClassification {
+        let state = OCCTClassifyPointOnFace(handle, point.x, point.y, point.z, tolerance)
+        return PointClassification(rawValue: state) ?? .unknown
+    }
+
+    /// Classify a point relative to this face using UV parameters
+    ///
+    /// - Parameters:
+    ///   - u: U parameter on the face surface
+    ///   - v: V parameter on the face surface
+    ///   - tolerance: Tolerance for boundary detection (default: 1e-6)
+    /// - Returns: Classification result
+    public func classify(u: Double, v: Double, tolerance: Double = 1e-6) -> PointClassification {
+        let state = OCCTClassifyPointOnFaceUV(handle, u, v, tolerance)
+        return PointClassification(rawValue: state) ?? .unknown
     }
 }

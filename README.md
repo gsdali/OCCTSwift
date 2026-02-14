@@ -15,16 +15,17 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **2D Curves (Curve2D)** | 55 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
-| **Healing/Analysis** | 7 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed |
+| **Healing/Analysis** | 16 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
-| **Import/Export** | 10 | STEP, IGES, BREP import; STL, STEP, IGES, BREP export; mesh |
+| **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
+| **Import/Export** | 16 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; mesh |
 | **Geometry Construction** | 7 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves |
 | **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 10 | Document.load, rootNodes, AssemblyNode, colors, materials |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **175** | |
+| **Total** | **197** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -43,8 +44,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Geometry Construction**: Face from wire, face with holes, sewing, solid from shell, surface filling
 - **Surface Creation**: N-sided boundary filling, plate surfaces through points or curves
 - **Curve Interpolation**: Create smooth curves through specific points
-- **Import Formats**: STEP, IGES, BREP (OCCT native)
-- **Export Formats**: STL (3D printing), STEP, IGES, BREP (CAD interchange)
+- **Import Formats**: STL, STEP, IGES, BREP, OBJ (mesh and CAD)
+- **Export Formats**: STL, STEP, IGES, BREP, OBJ, PLY (3D printing, CAD, visualization)
+- **Point Classification**: Classify points as inside/outside/on boundary of solids and faces
+- **Advanced Shape Healing**: Surface division, BSpline restriction, geometry scaling, surface type conversion, sewing, upgrade pipeline
 - **XDE Support**: Assembly structure, part names, colors, PBR materials
 - **2D Drawing**: Hidden line removal, technical drawing projection
 - **SceneKit Integration**: Generate meshes for visualization
@@ -63,7 +66,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.16.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.17.0")
 ]
 ```
 
@@ -332,6 +335,9 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `Shape.loadIGES(from:)` | `IGESControl_Reader` |
 | `Shape.loadIGESRobust(from:)` | `IGESControl_Reader` + `ShapeFix_*` |
 | `Shape.loadBREP(from:)` | `BRepTools::Read` |
+| `Shape.loadSTL(from:)` | `StlAPI_Reader` |
+| `Shape.loadSTLRobust(from:)` | `StlAPI_Reader` + `BRepBuilderAPI_Sewing` + `ShapeFix_Shape` |
+| `Shape.loadOBJ(from:)` | `RWObj_CafReader` |
 
 #### Geometry Construction
 | Swift API | OCCT Class |
@@ -371,6 +377,8 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `shape.writeSTEP(to:)` | `STEPControl_Writer` |
 | `shape.writeIGES(to:)` | `IGESControl_Writer` |
 | `shape.writeBREP(to:)` | `BRepTools::Write` |
+| `shape.writeOBJ(to:deflection:)` | `RWObj_CafWriter` |
+| `shape.writePLY(to:deflection:)` | `RWPly_CafWriter` |
 
 #### Validation
 | Swift API | OCCT Class |
@@ -384,9 +392,9 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 
 - **Pockets with Islands**: Multi-contour pocket features
 - **Offset surfaces**: `BRepOffsetAPI_MakeOffsetSurface`
-- **OBJ import/export**: Returns mesh data rather than B-Rep geometry
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.17.0: STL/OBJ import, OBJ/PLY export, advanced shape healing, point classification
 > - v0.16.0: Full Geom2d wrapping — 2D parametric curves with evaluation, operations, analysis, Gcc solver, hatching, bisectors
 > - v0.14.0: Variable radius fillets, multi-edge blends, 2D fillet/chamfer, surface filling, plate surfaces
 > - v0.13.0: Shape analysis, fixing, unification, simplification
@@ -418,9 +426,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.16.0
+### Current Status: v0.17.0
 
-OCCTSwift now wraps **175 OCCT operations** across 18 categories.
+OCCTSwift now wraps **197 OCCT operations** across 20 categories.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 

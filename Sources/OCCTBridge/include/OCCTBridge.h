@@ -1684,6 +1684,87 @@ OCCTCurve2DRef OCCTCurve2DBisectorPC(double px, double py, OCCTCurve2DRef curve,
                                      double originX, double originY, bool side);
 
 
+// MARK: - STL Import (v0.17.0)
+
+/// Import an STL file as a shape (sews faces into a shell/solid)
+OCCTShapeRef OCCTImportSTL(const char* path);
+
+/// Import an STL file with robust healing (sew + solid creation + heal)
+OCCTShapeRef OCCTImportSTLRobust(const char* path, double sewingTolerance);
+
+
+// MARK: - OBJ Import/Export (v0.17.0)
+
+/// Import an OBJ file as a shape
+OCCTShapeRef OCCTImportOBJ(const char* path);
+
+/// Export a shape to OBJ format
+bool OCCTExportOBJ(OCCTShapeRef shape, const char* path, double deflection);
+
+
+// MARK: - PLY Export (v0.17.0)
+
+/// Export a shape to PLY format (Stanford Polygon Format)
+bool OCCTExportPLY(OCCTShapeRef shape, const char* path, double deflection);
+
+
+// MARK: - Advanced Healing (v0.17.0)
+
+/// Divide a shape at continuity discontinuities
+/// @param shape Shape to divide
+/// @param continuity Target continuity (0=C0, 1=C1, 2=C2, 3=C3)
+/// @return Divided shape, or NULL on failure
+OCCTShapeRef OCCTShapeDivide(OCCTShapeRef shape, int32_t continuity);
+
+/// Convert geometry to direct faces (canonical surfaces)
+OCCTShapeRef OCCTShapeDirectFaces(OCCTShapeRef shape);
+
+/// Scale shape geometry
+OCCTShapeRef OCCTShapeScaleGeometry(OCCTShapeRef shape, double factor);
+
+/// Convert BSpline surfaces to their closest analytical form
+/// (planes, cylinders, cones, spheres, tori)
+OCCTShapeRef OCCTShapeBSplineRestriction(OCCTShapeRef shape,
+                                          double surfaceTol, double curveTol,
+                                          int32_t maxDegree, int32_t maxSegments);
+
+/// Convert swept surfaces to elementary (canonical) surfaces
+OCCTShapeRef OCCTShapeSweptToElementary(OCCTShapeRef shape);
+
+/// Convert surfaces of revolution to elementary surfaces
+OCCTShapeRef OCCTShapeRevolutionToElementary(OCCTShapeRef shape);
+
+/// Convert all surfaces to BSpline
+OCCTShapeRef OCCTShapeConvertToBSpline(OCCTShapeRef shape);
+
+/// Sew a single shape (reconnect disconnected faces)
+OCCTShapeRef OCCTShapeSewSingle(OCCTShapeRef shape, double tolerance);
+
+/// Upgrade shape: sew + make solid + heal (pipeline)
+OCCTShapeRef OCCTShapeUpgrade(OCCTShapeRef shape, double tolerance);
+
+
+// MARK: - Point Classification (v0.17.0)
+
+/// Classification result: 0=IN, 1=OUT, 2=ON, 3=UNKNOWN
+typedef int32_t OCCTTopAbsState;
+
+/// Classify a point relative to a solid
+OCCTTopAbsState OCCTClassifyPointInSolid(OCCTShapeRef solid,
+                                          double px, double py, double pz,
+                                          double tolerance);
+
+/// Classify a point relative to a face (using 3D point)
+OCCTTopAbsState OCCTClassifyPointOnFace(OCCTFaceRef face,
+                                         double px, double py, double pz,
+                                         double tolerance);
+
+/// Classify a point relative to a face (using UV parameters)
+OCCTTopAbsState OCCTClassifyPointOnFaceUV(OCCTFaceRef face,
+                                           double u, double v,
+                                           double tolerance);
+
+
 #ifdef __cplusplus
 }
 #endif
