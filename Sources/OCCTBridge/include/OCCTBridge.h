@@ -2318,6 +2318,78 @@ bool OCCTSurfaceProjectPoint(OCCTSurfaceRef surface,
                               double* u, double* v, double* distance);
 
 
+// MARK: - BRepMAT2d: Medial Axis Transform (v0.24.0)
+
+/// Opaque handle for a computed medial axis of a planar face.
+typedef struct OCCTMedialAxis* OCCTMedialAxisRef;
+
+/// Node in the medial axis graph: position (x,y) and distance to boundary.
+typedef struct {
+    int32_t index;
+    double x;
+    double y;
+    double distance;  // inscribed circle radius at this node
+    bool isPending;   // true if node has only one linked arc (endpoint)
+    bool isOnBoundary;
+} OCCTMedialAxisNode;
+
+/// Arc in the medial axis graph: connects two nodes, separates two boundary elements.
+typedef struct {
+    int32_t index;
+    int32_t geomIndex;
+    int32_t firstNodeIndex;
+    int32_t secondNodeIndex;
+    int32_t firstEltIndex;
+    int32_t secondEltIndex;
+} OCCTMedialAxisArc;
+
+/// Compute the medial axis of a planar face.
+/// The shape must contain at least one face; the first face is used.
+/// Returns NULL on failure.
+OCCTMedialAxisRef OCCTMedialAxisCompute(OCCTShapeRef shape, double tolerance);
+
+/// Release a medial axis computation.
+void OCCTMedialAxisRelease(OCCTMedialAxisRef ma);
+
+/// Get the number of arcs (bisector curves) in the medial axis graph.
+int32_t OCCTMedialAxisGetArcCount(OCCTMedialAxisRef ma);
+
+/// Get the number of nodes (arc endpoints) in the medial axis graph.
+int32_t OCCTMedialAxisGetNodeCount(OCCTMedialAxisRef ma);
+
+/// Get information about a node by index (1-based).
+/// Returns true on success.
+bool OCCTMedialAxisGetNode(OCCTMedialAxisRef ma, int32_t index, OCCTMedialAxisNode* outNode);
+
+/// Get information about an arc by index (1-based).
+/// Returns true on success.
+bool OCCTMedialAxisGetArc(OCCTMedialAxisRef ma, int32_t index, OCCTMedialAxisArc* outArc);
+
+/// Sample points along a bisector arc. Returns the number of points written.
+/// Points are written as (x,y) pairs into outXY (so outXY needs 2*maxPoints capacity).
+/// index is 1-based.
+int32_t OCCTMedialAxisDrawArc(OCCTMedialAxisRef ma, int32_t arcIndex,
+                               double* outXY, int32_t maxPoints);
+
+/// Sample all bisector arcs. Returns total number of points written.
+/// outXY receives (x,y) pairs. lineStarts receives the starting index in outXY
+/// for each arc. maxLines should be >= arc count.
+int32_t OCCTMedialAxisDrawAll(OCCTMedialAxisRef ma,
+                               double* outXY, int32_t maxPoints,
+                               int32_t* lineStarts, int32_t* lineLengths, int32_t maxLines);
+
+/// Get the inscribed circle distance (radius) at a point along an arc.
+/// arcIndex is 1-based, t is in [0,1] where 0=firstNode, 1=secondNode.
+double OCCTMedialAxisDistanceOnArc(OCCTMedialAxisRef ma, int32_t arcIndex, double t);
+
+/// Get the minimum distance (half-thickness) across the entire medial axis.
+/// Returns the smallest inscribed circle radius found at any node.
+double OCCTMedialAxisMinThickness(OCCTMedialAxisRef ma);
+
+/// Get the number of boundary elements (input edges) in the medial axis.
+int32_t OCCTMedialAxisGetBasicEltCount(OCCTMedialAxisRef ma);
+
+
 #ifdef __cplusplus
 }
 #endif

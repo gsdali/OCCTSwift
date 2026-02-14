@@ -11218,3 +11218,262 @@ OCCTSurfaceRef OCCTSurfaceNLPlateG1(OCCTSurfaceRef initialSurface,
         return nullptr;
     }
 }
+
+
+// MARK: - BRepMAT2d: Medial Axis Transform (v0.24.0)
+
+#include <BRepMAT2d_BisectingLocus.hxx>
+#include <BRepMAT2d_Explorer.hxx>
+#include <BRepMAT2d_LinkTopoBilo.hxx>
+#include <MAT_Graph.hxx>
+#include <MAT_Arc.hxx>
+#include <MAT_Node.hxx>
+#include <MAT_BasicElt.hxx>
+#include <MAT_SequenceOfArc.hxx>
+#include <MAT_SequenceOfBasicElt.hxx>
+#include <Bisector_Bisec.hxx>
+#include <Geom2dAPI_ProjectPointOnCurve.hxx>
+#include <Geom2d_Curve.hxx>
+
+struct OCCTMedialAxis {
+    BRepMAT2d_BisectingLocus locus;
+    BRepMAT2d_Explorer explorer;
+    Handle(MAT_Graph) graph;
+    // Cached boundary curves for distance computation
+    std::vector<Handle(Geom2d_Curve)> boundaryCurves;
+
+    // Compute distance from a 2D point to the nearest boundary curve
+    double distanceToBoundary(const gp_Pnt2d& pt) const {
+        double minDist = std::numeric_limits<double>::max();
+        for (const auto& curve : boundaryCurves) {
+            if (curve.IsNull()) continue;
+            try {
+                Geom2dAPI_ProjectPointOnCurve proj(pt, curve);
+                if (proj.NbPoints() > 0) {
+                    double d = proj.LowerDistance();
+                    if (d < minDist) minDist = d;
+                }
+            } catch (...) {
+                continue;
+            }
+        }
+        return (minDist < std::numeric_limits<double>::max()) ? minDist : 0.0;
+    }
+};
+
+OCCTMedialAxisRef OCCTMedialAxisCompute(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        // Extract the first face from the shape
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        if (!faceExp.More()) return nullptr;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        auto ma = new OCCTMedialAxis();
+        ma->explorer.Perform(face);
+
+        ma->locus.Compute(ma->explorer, 1, MAT_Left, GeomAbs_Arc, Standard_False);
+        if (!ma->locus.IsDone()) {
+            delete ma;
+            return nullptr;
+        }
+
+        ma->graph = ma->locus.Graph();
+        if (ma->graph.IsNull() || ma->graph->NumberOfArcs() == 0) {
+            delete ma;
+            return nullptr;
+        }
+
+        // Cache boundary curves for distance computation
+        int numContours = ma->explorer.NumberOfContours();
+        for (int c = 1; c <= numContours; c++) {
+            ma->explorer.Init(c);
+            while (ma->explorer.More()) {
+                Handle(Geom2d_Curve) curve = ma->explorer.Value();
+                if (!curve.IsNull()) {
+                    ma->boundaryCurves.push_back(curve);
+                }
+                ma->explorer.Next();
+            }
+        }
+
+        return ma;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTMedialAxisRelease(OCCTMedialAxisRef ma) {
+    delete ma;
+}
+
+int32_t OCCTMedialAxisGetArcCount(OCCTMedialAxisRef ma) {
+    if (!ma || ma->graph.IsNull()) return 0;
+    return (int32_t)ma->graph->NumberOfArcs();
+}
+
+int32_t OCCTMedialAxisGetNodeCount(OCCTMedialAxisRef ma) {
+    if (!ma || ma->graph.IsNull()) return 0;
+    return (int32_t)ma->graph->NumberOfNodes();
+}
+
+bool OCCTMedialAxisGetNode(OCCTMedialAxisRef ma, int32_t index, OCCTMedialAxisNode* outNode) {
+    if (!ma || !outNode || ma->graph.IsNull()) return false;
+    if (index < 1 || index > ma->graph->NumberOfNodes()) return false;
+    try {
+        Handle(MAT_Node) node = ma->graph->Node(index);
+        if (node.IsNull()) return false;
+
+        gp_Pnt2d pt = ma->locus.GeomElt(node);
+        outNode->index = index;
+        outNode->x = pt.X();
+        outNode->y = pt.Y();
+        // Compute distance from node to nearest boundary curve
+        outNode->distance = ma->distanceToBoundary(pt);
+        outNode->isPending = node->PendingNode();
+        outNode->isOnBoundary = node->OnBasicElt();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTMedialAxisGetArc(OCCTMedialAxisRef ma, int32_t index, OCCTMedialAxisArc* outArc) {
+    if (!ma || !outArc || ma->graph.IsNull()) return false;
+    if (index < 1 || index > ma->graph->NumberOfArcs()) return false;
+    try {
+        Handle(MAT_Arc) arc = ma->graph->Arc(index);
+        if (arc.IsNull()) return false;
+
+        outArc->index = arc->Index();
+        outArc->geomIndex = arc->GeomIndex();
+        outArc->firstNodeIndex = arc->FirstNode()->Index();
+        outArc->secondNodeIndex = arc->SecondNode()->Index();
+        outArc->firstEltIndex = arc->FirstElement()->Index();
+        outArc->secondEltIndex = arc->SecondElement()->Index();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+int32_t OCCTMedialAxisDrawArc(OCCTMedialAxisRef ma, int32_t arcIndex,
+                               double* outXY, int32_t maxPoints) {
+    if (!ma || !outXY || maxPoints < 2 || ma->graph.IsNull()) return 0;
+    if (arcIndex < 1 || arcIndex > ma->graph->NumberOfArcs()) return 0;
+    try {
+        Handle(MAT_Arc) arc = ma->graph->Arc(arcIndex);
+        if (arc.IsNull()) return 0;
+
+        Standard_Boolean reverse = Standard_False;
+        Bisector_Bisec bisec = ma->locus.GeomBis(arc, reverse);
+        Handle(Geom2d_TrimmedCurve) trimmed = bisec.Value();
+        if (trimmed.IsNull()) return 0;
+
+        double u0 = trimmed->FirstParameter();
+        double u1 = trimmed->LastParameter();
+
+        // Clamp infinite parameters
+        if (Precision::IsNegativeInfinite(u0)) u0 = -1000.0;
+        if (Precision::IsPositiveInfinite(u1)) u1 = 1000.0;
+
+        // Get node positions as fallback endpoints
+        gp_Pnt2d firstPt = ma->locus.GeomElt(arc->FirstNode());
+        gp_Pnt2d lastPt = ma->locus.GeomElt(arc->SecondNode());
+
+        int32_t numPoints = maxPoints;
+        for (int32_t i = 0; i < numPoints; i++) {
+            double t = (numPoints > 1) ? (double)i / (numPoints - 1) : 0.0;
+            double u = u0 + t * (u1 - u0);
+            try {
+                gp_Pnt2d pt;
+                trimmed->D0(u, pt);
+                outXY[i * 2 + 0] = pt.X();
+                outXY[i * 2 + 1] = pt.Y();
+            } catch (...) {
+                // Fallback: interpolate between node positions
+                double tx = firstPt.X() + t * (lastPt.X() - firstPt.X());
+                double ty = firstPt.Y() + t * (lastPt.Y() - firstPt.Y());
+                outXY[i * 2 + 0] = tx;
+                outXY[i * 2 + 1] = ty;
+            }
+        }
+        return numPoints;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTMedialAxisDrawAll(OCCTMedialAxisRef ma,
+                               double* outXY, int32_t maxPoints,
+                               int32_t* lineStarts, int32_t* lineLengths, int32_t maxLines) {
+    if (!ma || !outXY || !lineStarts || !lineLengths || ma->graph.IsNull()) return 0;
+    int32_t arcCount = (int32_t)ma->graph->NumberOfArcs();
+    if (arcCount == 0) return 0;
+
+    int32_t pointsPerArc = maxPoints / std::max(arcCount, (int32_t)1);
+    if (pointsPerArc < 2) pointsPerArc = 2;
+
+    int32_t totalPoints = 0;
+    int32_t lineCount = 0;
+
+    for (int32_t i = 1; i <= arcCount && lineCount < maxLines; i++) {
+        int32_t remaining = maxPoints - totalPoints;
+        int32_t pts = std::min(pointsPerArc, remaining);
+        if (pts < 2) break;
+
+        int32_t drawn = OCCTMedialAxisDrawArc(ma, i, outXY + totalPoints * 2, pts);
+        if (drawn > 0) {
+            lineStarts[lineCount] = totalPoints;
+            lineLengths[lineCount] = drawn;
+            lineCount++;
+            totalPoints += drawn;
+        }
+    }
+    return totalPoints;
+}
+
+double OCCTMedialAxisDistanceOnArc(OCCTMedialAxisRef ma, int32_t arcIndex, double t) {
+    if (!ma || ma->graph.IsNull()) return -1.0;
+    if (arcIndex < 1 || arcIndex > ma->graph->NumberOfArcs()) return -1.0;
+    try {
+        Handle(MAT_Arc) arc = ma->graph->Arc(arcIndex);
+        if (arc.IsNull()) return -1.0;
+
+        // Compute boundary distances at both endpoints
+        gp_Pnt2d pt1 = ma->locus.GeomElt(arc->FirstNode());
+        gp_Pnt2d pt2 = ma->locus.GeomElt(arc->SecondNode());
+        double d1 = ma->distanceToBoundary(pt1);
+        double d2 = ma->distanceToBoundary(pt2);
+
+        // Linear interpolation between node distances
+        t = std::max(0.0, std::min(1.0, t));
+        return d1 + t * (d2 - d1);
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+double OCCTMedialAxisMinThickness(OCCTMedialAxisRef ma) {
+    if (!ma || ma->graph.IsNull()) return -1.0;
+    try {
+        double minDist = std::numeric_limits<double>::max();
+        int32_t nodeCount = (int32_t)ma->graph->NumberOfNodes();
+        for (int32_t i = 1; i <= nodeCount; i++) {
+            Handle(MAT_Node) node = ma->graph->Node(i);
+            if (!node.IsNull() && !node->Infinite()) {
+                gp_Pnt2d pt = ma->locus.GeomElt(node);
+                double d = ma->distanceToBoundary(pt);
+                if (d > 0 && d < minDist) minDist = d;
+            }
+        }
+        return (minDist < std::numeric_limits<double>::max()) ? minDist : -1.0;
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+int32_t OCCTMedialAxisGetBasicEltCount(OCCTMedialAxisRef ma) {
+    if (!ma || ma->graph.IsNull()) return 0;
+    return (int32_t)ma->graph->NumberOfBasicElts();
+}

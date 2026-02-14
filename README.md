@@ -31,7 +31,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 19 | Document.load, rootNodes, AssemblyNode, colors, materials, dimensions, geomTolerances, datums |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **345** | |
+| **Camera** | 14 | eye, center, up, projectionType, fieldOfView, scale, zRange, aspect, projectionMatrix, viewMatrix, project, unproject, fit |
+| **Selection** | 11 | add, remove, clear, activateMode, deactivateMode, isModeActive, pixelTolerance, pick, pickRect, pickPoly |
+| **Presentation Mesh** | 2 | shadedMesh, edgeMesh |
+| **Medial Axis** | 12 | compute, arcCount, nodeCount, basicElementCount, node(at:), arc(at:), nodes, arcs, minThickness, distanceToBoundary, drawArc, drawAll |
+| **Total** | **384** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -55,6 +59,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Geometry Construction**: Face from wire, face with holes, sewing, solid from shell, surface filling
 - **Surface Creation**: N-sided boundary filling, plate surfaces through points or curves, advanced plates with per-point constraint orders, mixed point/curve constraints
 - **NLPlate Surface Deformation**: Non-linear plate solver for G0 (positional) and G0+G1 (positional + tangent) surface deformation
+- **Medial Axis Transform**: Voronoi skeleton of planar faces — arc/node graph traversal, bisector curve drawing, inscribed circle radius, minimum wall thickness
+- **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
+- **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)
+- **Presentation Mesh**: GPU-ready triangulated mesh and edge wireframe extraction from shapes
 - **Curve Interpolation**: Create smooth curves through specific points
 - **Import Formats**: STL, STEP, IGES, BREP, OBJ (mesh and CAD)
 - **Export Formats**: STL, STEP, IGES, BREP, OBJ, PLY (3D printing, CAD, visualization)
