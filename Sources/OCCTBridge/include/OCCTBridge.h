@@ -1213,6 +1213,96 @@ int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
                              double xMin, double yMin, double xMax, double yMax,
                              OCCTPickResult* out, int32_t maxResults);
 
+// MARK: - Clip Plane (Metal Visualization)
+
+typedef struct OCCTClipPlane* OCCTClipPlaneRef;
+
+/// Create a clip plane from an equation Ax + By + Cz + D = 0
+OCCTClipPlaneRef OCCTClipPlaneCreate(double a, double b, double c, double d);
+void OCCTClipPlaneDestroy(OCCTClipPlaneRef plane);
+
+void OCCTClipPlaneSetEquation(OCCTClipPlaneRef plane, double a, double b, double c, double d);
+void OCCTClipPlaneGetEquation(OCCTClipPlaneRef plane, double* a, double* b, double* c, double* d);
+
+/// Get the reversed equation (for back-face clipping)
+void OCCTClipPlaneGetReversedEquation(OCCTClipPlaneRef plane, double* a, double* b, double* c, double* d);
+
+void OCCTClipPlaneSetOn(OCCTClipPlaneRef plane, bool on);
+bool OCCTClipPlaneIsOn(OCCTClipPlaneRef plane);
+
+void OCCTClipPlaneSetCapping(OCCTClipPlaneRef plane, bool on);
+bool OCCTClipPlaneIsCapping(OCCTClipPlaneRef plane);
+
+void OCCTClipPlaneSetCappingColor(OCCTClipPlaneRef plane, double r, double g, double b);
+void OCCTClipPlaneGetCappingColor(OCCTClipPlaneRef plane, double* r, double* g, double* b);
+
+/// Set capping hatch style (see Aspect_HatchStyle values)
+void OCCTClipPlaneSetCappingHatch(OCCTClipPlaneRef plane, int32_t style);
+int32_t OCCTClipPlaneGetCappingHatch(OCCTClipPlaneRef plane);
+void OCCTClipPlaneSetCappingHatchOn(OCCTClipPlaneRef plane, bool on);
+bool OCCTClipPlaneIsCappingHatchOn(OCCTClipPlaneRef plane);
+
+/// Probe a point against the clip plane chain. Returns: 0=Out, 1=In, 2=On
+int32_t OCCTClipPlaneProbePoint(OCCTClipPlaneRef plane, double x, double y, double z);
+
+/// Probe an axis-aligned bounding box against the clip plane chain. Returns: 0=Out, 1=In, 2=On
+int32_t OCCTClipPlaneProbeBox(OCCTClipPlaneRef plane,
+                               double xMin, double yMin, double zMin,
+                               double xMax, double yMax, double zMax);
+
+/// Chain another plane for logical AND clipping (conjunction)
+void OCCTClipPlaneSetChainNext(OCCTClipPlaneRef plane, OCCTClipPlaneRef next);
+/// Get the number of planes in the forward chain (including this one)
+int32_t OCCTClipPlaneChainLength(OCCTClipPlaneRef plane);
+
+// MARK: - Z-Layer Settings (Metal Visualization)
+
+typedef struct OCCTZLayerSettings* OCCTZLayerSettingsRef;
+
+OCCTZLayerSettingsRef OCCTZLayerSettingsCreate(void);
+void OCCTZLayerSettingsDestroy(OCCTZLayerSettingsRef settings);
+
+void OCCTZLayerSettingsSetName(OCCTZLayerSettingsRef settings, const char* name);
+
+void OCCTZLayerSettingsSetDepthTest(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetDepthTest(OCCTZLayerSettingsRef settings);
+void OCCTZLayerSettingsSetDepthWrite(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetDepthWrite(OCCTZLayerSettingsRef settings);
+void OCCTZLayerSettingsSetClearDepth(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetClearDepth(OCCTZLayerSettingsRef settings);
+
+/// Set polygon offset: mode (0=Off,1=Fill,2=Line,4=Point,7=All), factor, units
+void OCCTZLayerSettingsSetPolygonOffset(OCCTZLayerSettingsRef settings, int32_t mode, float factor, float units);
+void OCCTZLayerSettingsGetPolygonOffset(OCCTZLayerSettingsRef settings, int32_t* mode, float* factor, float* units);
+
+/// Convenience: set minimal positive depth offset (factor=1, units=1)
+void OCCTZLayerSettingsSetDepthOffsetPositive(OCCTZLayerSettingsRef settings);
+/// Convenience: set minimal negative depth offset (factor=1, units=-1)
+void OCCTZLayerSettingsSetDepthOffsetNegative(OCCTZLayerSettingsRef settings);
+
+void OCCTZLayerSettingsSetImmediate(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetImmediate(OCCTZLayerSettingsRef settings);
+void OCCTZLayerSettingsSetRaytracable(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetRaytracable(OCCTZLayerSettingsRef settings);
+
+void OCCTZLayerSettingsSetEnvironmentTexture(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetEnvironmentTexture(OCCTZLayerSettingsRef settings);
+
+void OCCTZLayerSettingsSetRenderInDepthPrepass(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetRenderInDepthPrepass(OCCTZLayerSettingsRef settings);
+
+/// Set culling distance (set to negative or zero to disable)
+void OCCTZLayerSettingsSetCullingDistance(OCCTZLayerSettingsRef settings, double distance);
+double OCCTZLayerSettingsGetCullingDistance(OCCTZLayerSettingsRef settings);
+
+/// Set culling size (set to negative or zero to disable)
+void OCCTZLayerSettingsSetCullingSize(OCCTZLayerSettingsRef settings, double size);
+double OCCTZLayerSettingsGetCullingSize(OCCTZLayerSettingsRef settings);
+
+/// Set layer origin (for coordinate precision in large scenes)
+void OCCTZLayerSettingsSetOrigin(OCCTZLayerSettingsRef settings, double x, double y, double z);
+void OCCTZLayerSettingsGetOrigin(OCCTZLayerSettingsRef settings, double* x, double* y, double* z);
+
 // MARK: - Advanced Blends & Surface Filling (v0.14.0)
 
 /// Apply variable radius fillet to a specific edge

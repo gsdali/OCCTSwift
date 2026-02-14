@@ -221,6 +221,15 @@
 #include <Graphic3d_Mat4d.hxx>
 #include <Poly_Connect.hxx>
 
+// ClipPlane (Metal Visualization)
+#include <Graphic3d_ClipPlane.hxx>
+#include <Graphic3d_Vec4.hxx>
+#include <Graphic3d_BndBox3d.hxx>
+
+// ZLayerSettings (Metal Visualization)
+#include <Graphic3d_ZLayerSettings.hxx>
+#include <Graphic3d_PolygonOffset.hxx>
+
 // Advanced Blends & Surface Filling (v0.14.0)
 #include <ChFi2d.hxx>
 #include <ChFi2d_Builder.hxx>
@@ -6082,4 +6091,312 @@ int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
     } catch (...) {
         return 0;
     }
+}
+
+// MARK: - Clip Plane Implementation
+
+struct OCCTClipPlane {
+    Handle(Graphic3d_ClipPlane) plane;
+};
+
+OCCTClipPlaneRef OCCTClipPlaneCreate(double a, double b, double c, double d) {
+    try {
+        auto* cp = new OCCTClipPlane();
+        cp->plane = new Graphic3d_ClipPlane(Graphic3d_Vec4d(a, b, c, d));
+        return cp;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTClipPlaneDestroy(OCCTClipPlaneRef plane) {
+    delete plane;
+}
+
+void OCCTClipPlaneSetEquation(OCCTClipPlaneRef plane, double a, double b, double c, double d) {
+    if (!plane) return;
+    plane->plane->SetEquation(Graphic3d_Vec4d(a, b, c, d));
+}
+
+void OCCTClipPlaneGetEquation(OCCTClipPlaneRef plane, double* a, double* b, double* c, double* d) {
+    if (!plane || !a || !b || !c || !d) return;
+    const Graphic3d_Vec4d& eq = plane->plane->GetEquation();
+    *a = eq.x();
+    *b = eq.y();
+    *c = eq.z();
+    *d = eq.w();
+}
+
+void OCCTClipPlaneGetReversedEquation(OCCTClipPlaneRef plane, double* a, double* b, double* c, double* d) {
+    if (!plane || !a || !b || !c || !d) return;
+    const Graphic3d_Vec4d& eq = plane->plane->ReversedEquation();
+    *a = eq.x();
+    *b = eq.y();
+    *c = eq.z();
+    *d = eq.w();
+}
+
+void OCCTClipPlaneSetOn(OCCTClipPlaneRef plane, bool on) {
+    if (!plane) return;
+    plane->plane->SetOn(on ? Standard_True : Standard_False);
+}
+
+bool OCCTClipPlaneIsOn(OCCTClipPlaneRef plane) {
+    if (!plane) return false;
+    return plane->plane->IsOn() == Standard_True;
+}
+
+void OCCTClipPlaneSetCapping(OCCTClipPlaneRef plane, bool on) {
+    if (!plane) return;
+    plane->plane->SetCapping(on ? Standard_True : Standard_False);
+}
+
+bool OCCTClipPlaneIsCapping(OCCTClipPlaneRef plane) {
+    if (!plane) return false;
+    return plane->plane->IsCapping() == Standard_True;
+}
+
+void OCCTClipPlaneSetCappingColor(OCCTClipPlaneRef plane, double r, double g, double b) {
+    if (!plane) return;
+    plane->plane->SetCappingColor(Quantity_Color(r, g, b, Quantity_TOC_RGB));
+}
+
+void OCCTClipPlaneGetCappingColor(OCCTClipPlaneRef plane, double* r, double* g, double* b) {
+    if (!plane || !r || !g || !b) return;
+    // Read InteriorColor directly from the aspect, matching what SetCappingColor writes.
+    // CappingColor() may return the material color if material type != MATERIAL_ASPECT.
+    Quantity_Color color = plane->plane->CappingAspect()->InteriorColor();
+    *r = color.Red();
+    *g = color.Green();
+    *b = color.Blue();
+}
+
+void OCCTClipPlaneSetCappingHatch(OCCTClipPlaneRef plane, int32_t style) {
+    if (!plane) return;
+    plane->plane->SetCappingHatch(static_cast<Aspect_HatchStyle>(style));
+}
+
+int32_t OCCTClipPlaneGetCappingHatch(OCCTClipPlaneRef plane) {
+    if (!plane) return 0;
+    return static_cast<int32_t>(plane->plane->CappingHatch());
+}
+
+void OCCTClipPlaneSetCappingHatchOn(OCCTClipPlaneRef plane, bool on) {
+    if (!plane) return;
+    if (on) {
+        plane->plane->SetCappingHatchOn();
+    } else {
+        plane->plane->SetCappingHatchOff();
+    }
+}
+
+bool OCCTClipPlaneIsCappingHatchOn(OCCTClipPlaneRef plane) {
+    if (!plane) return false;
+    return plane->plane->IsHatchOn() == Standard_True;
+}
+
+int32_t OCCTClipPlaneProbePoint(OCCTClipPlaneRef plane, double x, double y, double z) {
+    if (!plane) return 0;
+    Graphic3d_Vec4d pt(x, y, z, 1.0);
+    // Traverse the chain: all planes must be satisfied (logical AND)
+    Graphic3d_ClipState worst = Graphic3d_ClipState_In;
+    for (Handle(Graphic3d_ClipPlane) p = plane->plane; !p.IsNull(); p = p->ChainNextPlane()) {
+        Graphic3d_ClipState state = p->ProbePointHalfspace(pt);
+        if (state == Graphic3d_ClipState_Out) {
+            return static_cast<int32_t>(Graphic3d_ClipState_Out);
+        }
+        if (state == Graphic3d_ClipState_On) {
+            worst = Graphic3d_ClipState_On;
+        }
+    }
+    return static_cast<int32_t>(worst);
+}
+
+int32_t OCCTClipPlaneProbeBox(OCCTClipPlaneRef plane,
+                               double xMin, double yMin, double zMin,
+                               double xMax, double yMax, double zMax) {
+    if (!plane) return 0;
+    Graphic3d_BndBox3d box;
+    box.Add(Graphic3d_Vec3d(xMin, yMin, zMin));
+    box.Add(Graphic3d_Vec3d(xMax, yMax, zMax));
+    // Traverse the chain: all planes must be satisfied (logical AND)
+    Graphic3d_ClipState worst = Graphic3d_ClipState_In;
+    for (Handle(Graphic3d_ClipPlane) p = plane->plane; !p.IsNull(); p = p->ChainNextPlane()) {
+        Graphic3d_ClipState state = p->ProbeBoxHalfspace(box);
+        if (state == Graphic3d_ClipState_Out) {
+            return static_cast<int32_t>(Graphic3d_ClipState_Out);
+        }
+        if (state == Graphic3d_ClipState_On) {
+            worst = Graphic3d_ClipState_On;
+        }
+    }
+    return static_cast<int32_t>(worst);
+}
+
+void OCCTClipPlaneSetChainNext(OCCTClipPlaneRef plane, OCCTClipPlaneRef next) {
+    if (!plane) return;
+    if (next) {
+        plane->plane->SetChainNextPlane(next->plane);
+    } else {
+        plane->plane->SetChainNextPlane(Handle(Graphic3d_ClipPlane)());
+    }
+}
+
+int32_t OCCTClipPlaneChainLength(OCCTClipPlaneRef plane) {
+    if (!plane) return 0;
+    // NbChainNextPlanes() already counts self (starts at 1)
+    return plane->plane->NbChainNextPlanes();
+}
+
+// MARK: - Z-Layer Settings Implementation
+
+struct OCCTZLayerSettings {
+    Graphic3d_ZLayerSettings settings;
+};
+
+OCCTZLayerSettingsRef OCCTZLayerSettingsCreate(void) {
+    try {
+        return new OCCTZLayerSettings();
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTZLayerSettingsDestroy(OCCTZLayerSettingsRef s) {
+    delete s;
+}
+
+void OCCTZLayerSettingsSetName(OCCTZLayerSettingsRef s, const char* name) {
+    if (!s || !name) return;
+    s->settings.SetName(TCollection_AsciiString(name));
+}
+
+void OCCTZLayerSettingsSetDepthTest(OCCTZLayerSettingsRef s, bool on) {
+    if (!s) return;
+    s->settings.SetEnableDepthTest(on ? Standard_True : Standard_False);
+}
+
+bool OCCTZLayerSettingsGetDepthTest(OCCTZLayerSettingsRef s) {
+    if (!s) return true;
+    return s->settings.ToEnableDepthTest() == Standard_True;
+}
+
+void OCCTZLayerSettingsSetDepthWrite(OCCTZLayerSettingsRef s, bool on) {
+    if (!s) return;
+    s->settings.SetEnableDepthWrite(on ? Standard_True : Standard_False);
+}
+
+bool OCCTZLayerSettingsGetDepthWrite(OCCTZLayerSettingsRef s) {
+    if (!s) return true;
+    return s->settings.ToEnableDepthWrite() == Standard_True;
+}
+
+void OCCTZLayerSettingsSetClearDepth(OCCTZLayerSettingsRef s, bool on) {
+    if (!s) return;
+    s->settings.SetClearDepth(on ? Standard_True : Standard_False);
+}
+
+bool OCCTZLayerSettingsGetClearDepth(OCCTZLayerSettingsRef s) {
+    if (!s) return true;
+    return s->settings.ToClearDepth() == Standard_True;
+}
+
+void OCCTZLayerSettingsSetPolygonOffset(OCCTZLayerSettingsRef s, int32_t mode, float factor, float units) {
+    if (!s) return;
+    Graphic3d_PolygonOffset offset;
+    offset.Mode = static_cast<Aspect_PolygonOffsetMode>(mode);
+    offset.Factor = factor;
+    offset.Units = units;
+    s->settings.SetPolygonOffset(offset);
+}
+
+void OCCTZLayerSettingsGetPolygonOffset(OCCTZLayerSettingsRef s, int32_t* mode, float* factor, float* units) {
+    if (!s || !mode || !factor || !units) return;
+    const Graphic3d_PolygonOffset& offset = s->settings.PolygonOffset();
+    *mode = static_cast<int32_t>(offset.Mode);
+    *factor = offset.Factor;
+    *units = offset.Units;
+}
+
+void OCCTZLayerSettingsSetDepthOffsetPositive(OCCTZLayerSettingsRef s) {
+    if (!s) return;
+    s->settings.SetDepthOffsetPositive();
+}
+
+void OCCTZLayerSettingsSetDepthOffsetNegative(OCCTZLayerSettingsRef s) {
+    if (!s) return;
+    s->settings.SetDepthOffsetNegative();
+}
+
+void OCCTZLayerSettingsSetImmediate(OCCTZLayerSettingsRef s, bool on) {
+    if (!s) return;
+    s->settings.SetImmediate(on ? Standard_True : Standard_False);
+}
+
+bool OCCTZLayerSettingsGetImmediate(OCCTZLayerSettingsRef s) {
+    if (!s) return false;
+    return s->settings.IsImmediate() == Standard_True;
+}
+
+void OCCTZLayerSettingsSetRaytracable(OCCTZLayerSettingsRef s, bool on) {
+    if (!s) return;
+    s->settings.SetRaytracable(on ? Standard_True : Standard_False);
+}
+
+bool OCCTZLayerSettingsGetRaytracable(OCCTZLayerSettingsRef s) {
+    if (!s) return true;
+    return s->settings.IsRaytracable() == Standard_True;
+}
+
+void OCCTZLayerSettingsSetEnvironmentTexture(OCCTZLayerSettingsRef s, bool on) {
+    if (!s) return;
+    s->settings.SetEnvironmentTexture(on ? Standard_True : Standard_False);
+}
+
+bool OCCTZLayerSettingsGetEnvironmentTexture(OCCTZLayerSettingsRef s) {
+    if (!s) return true;
+    return s->settings.UseEnvironmentTexture() == Standard_True;
+}
+
+void OCCTZLayerSettingsSetRenderInDepthPrepass(OCCTZLayerSettingsRef s, bool on) {
+    if (!s) return;
+    s->settings.SetRenderInDepthPrepass(on ? Standard_True : Standard_False);
+}
+
+bool OCCTZLayerSettingsGetRenderInDepthPrepass(OCCTZLayerSettingsRef s) {
+    if (!s) return true;
+    return s->settings.ToRenderInDepthPrepass() == Standard_True;
+}
+
+void OCCTZLayerSettingsSetCullingDistance(OCCTZLayerSettingsRef s, double distance) {
+    if (!s) return;
+    s->settings.SetCullingDistance(distance);
+}
+
+double OCCTZLayerSettingsGetCullingDistance(OCCTZLayerSettingsRef s) {
+    if (!s) return 0.0;
+    return s->settings.CullingDistance();
+}
+
+void OCCTZLayerSettingsSetCullingSize(OCCTZLayerSettingsRef s, double size) {
+    if (!s) return;
+    s->settings.SetCullingSize(size);
+}
+
+double OCCTZLayerSettingsGetCullingSize(OCCTZLayerSettingsRef s) {
+    if (!s) return 0.0;
+    return s->settings.CullingSize();
+}
+
+void OCCTZLayerSettingsSetOrigin(OCCTZLayerSettingsRef s, double x, double y, double z) {
+    if (!s) return;
+    s->settings.SetOrigin(gp_XYZ(x, y, z));
+}
+
+void OCCTZLayerSettingsGetOrigin(OCCTZLayerSettingsRef s, double* x, double* y, double* z) {
+    if (!s || !x || !y || !z) return;
+    const gp_XYZ& origin = s->settings.Origin();
+    *x = origin.X();
+    *y = origin.Y();
+    *z = origin.Z();
 }
