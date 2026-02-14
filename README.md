@@ -7,25 +7,31 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | Category | Count | Examples |
 |----------|-------|----------|
 | **Primitives** | 7 | box, cylinder, cylinder(at:), sphere, cone, torus, surface |
-| **Sweeps** | 6 | pipe sweep, pipeShell, extrude, revolve, loft, ruled |
+| **Sweeps** | 7 | pipe sweep, pipeShell, pipeShellWithLaw, extrude, revolve, loft, ruled |
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
 | **Modifications** | 9 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, shell, offset, draft, defeature |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
 | **Wires** | 17 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **2D Curves (Curve2D)** | 55 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw |
+| **3D Curves (Curve3D)** | 50 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection |
+| **Surfaces (Surface)** | 40 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures |
+| **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
+| **Edge Analysis** | 10 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
 | **Healing/Analysis** | 16 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
+| **Shape Proximity** | 2 | proximityFaces, selfIntersects |
+| **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
 | **Import/Export** | 16 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; mesh |
 | **Geometry Construction** | 7 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves |
 | **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
-| **XDE/Document** | 10 | Document.load, rootNodes, AssemblyNode, colors, materials |
+| **XDE/Document** | 19 | Document.load, rootNodes, AssemblyNode, colors, materials, dimensions, geomTolerances, datums |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **197** | |
+| **Total** | **335** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -33,11 +39,15 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 
 - **B-Rep Solid Modeling**: Full boundary representation geometry
 - **Boolean Operations**: Union, subtraction, intersection
-- **Sweep Operations**: Pipe sweeps, extrusions, revolutions, lofts
+- **Sweep Operations**: Pipe sweeps, extrusions, revolutions, lofts, variable-section sweeps with law functions
 - **Modifications**: Fillet (uniform, selective, variable radius), chamfer, shell, offset, draft, defeaturing
 - **Advanced Blends**: Variable radius fillets, multi-edge blends with individual radii
 - **2D Wire Operations**: 2D fillet and chamfer on planar wires
 - **2D Parametric Curves**: Full Geom2d wrapping — lines, conics, BSplines, Beziers, interpolation, operations, analysis, Gcc constraint solver, hatching, bisectors, Metal draw methods
+- **3D Parametric Curves**: Full Geom wrapping — lines, circles, arcs, ellipses, BSplines, Beziers, interpolation, operations, conversion, local properties, Metal draw methods
+- **Parametric Surfaces**: Analytic (plane, cylinder, cone, sphere, torus), swept (extrusion, revolution), freeform (Bezier, BSpline), pipe surfaces, operations, curvature analysis, Metal draw methods
+- **3D Geometry Analysis**: Face surface properties, edge curve properties, point projection, shape proximity detection, surface intersection
+- **Law Functions**: Constant, linear, S-curve, interpolated, BSpline evolution functions for variable-section sweeps
 - **Feature-Based Modeling**: Boss, pocket, drilling, splitting, gluing, evolved surfaces
 - **Pattern Operations**: Linear and circular arrays of shapes
 - **Shape Healing**: Analysis, fixing, unification, simplification
@@ -48,7 +58,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Export Formats**: STL, STEP, IGES, BREP, OBJ, PLY (3D printing, CAD, visualization)
 - **Point Classification**: Classify points as inside/outside/on boundary of solids and faces
 - **Advanced Shape Healing**: Surface division, BSpline restriction, geometry scaling, surface type conversion, sewing, upgrade pipeline
-- **XDE Support**: Assembly structure, part names, colors, PBR materials
+- **XDE Support**: Assembly structure, part names, colors, PBR materials, GD&T (dimensions, tolerances, datums)
 - **2D Drawing**: Hidden line removal, technical drawing projection
 - **SceneKit Integration**: Generate meshes for visualization
 
@@ -66,7 +76,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.17.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.21.0")
 ]
 ```
 
@@ -212,6 +222,90 @@ let hatchLines = Curve2DGcc.hatch(
 )
 ```
 
+### 3D Parametric Curves (v0.19.0)
+
+Create, evaluate, and discretize 3D curves for Metal rendering:
+
+```swift
+// Create curves
+let segment = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 5, 3))!
+let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 10)!
+let arc = Curve3D.arcOfCircle(start: SIMD3(1, 0, 0),
+                               interior: SIMD3(0, 1, 0),
+                               end: SIMD3(-1, 0, 0))!
+
+// BSpline interpolation through 3D points
+let spline = Curve3D.interpolate(points: [
+    SIMD3(0, 0, 0), SIMD3(3, 5, 1), SIMD3(7, 2, 4), SIMD3(10, 8, 2)
+])!
+
+// Evaluate
+let pt = circle.point(at: 0)                    // SIMD3<Double>
+let (p, tangent) = circle.d1(at: 0)             // point + tangent vector
+let k = circle.curvature(at: 0)                 // 1/radius
+
+// Operations (all return new curves)
+let trimmed = circle.trimmed(from: 0, to: .pi)!
+let translated = segment.translated(by: SIMD3(1, 2, 3))!
+
+// Discretize for Metal rendering
+let polyline = circle.drawAdaptive()             // [SIMD3<Double>]
+let uniform = spline.drawUniform(pointCount: 100)
+```
+
+### Parametric Surfaces (v0.20.0)
+
+Create and evaluate parametric surfaces:
+
+```swift
+// Analytic surfaces
+let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+let sphere = Surface.sphere(center: .zero, radius: 5)!
+let cyl = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 3)!
+
+// BSpline surface
+let bspline = Surface.bspline(poles: controlPointGrid, ...)
+
+// Evaluate
+let pt = sphere.point(atU: 0.5, v: 0.5)         // SIMD3<Double>
+let n = sphere.normal(atU: 0.5, v: 0.5)         // surface normal
+let K = sphere.gaussianCurvature(atU: 0.5, v: 0.5)  // 1/r^2
+
+// Iso curves
+let meridian = sphere.uIso(at: 0)               // Curve3D
+
+// Draw for Metal rendering
+let gridLines = sphere.drawGrid(uLineCount: 10, vLineCount: 10)
+let meshGrid = sphere.drawMesh(uCount: 20, vCount: 20)
+```
+
+### 3D Geometry Analysis (v0.18.0)
+
+Analyze face surfaces, edge curves, and detect proximity:
+
+```swift
+let box = Shape.box(width: 10, height: 10, depth: 10)!
+
+// Face surface properties
+let face = box.faces()[0]
+let normal = face.normal(atU: 0.5, v: 0.5)      // surface normal
+let K = face.gaussianCurvature(atU: 0.5, v: 0.5)
+let area = face.area()
+
+// Edge curve properties
+let edge = box.edges()[0]
+let tangent = edge.tangent(at: 0.5)              // tangent direction
+let curvature = edge.curvature(at: 0.5)
+
+// Point projection
+let proj = face.project(point: SIMD3(15, 5, 5))  // closest point on face
+let edgeProj = edge.project(point: SIMD3(5, 5, 5))
+
+// Shape proximity
+let nearby = box.proximityFaces(with: otherShape, tolerance: 0.1)
+let selfCheck = box.selfIntersects
+```
+
 ### 2D Technical Drawings (v0.6.0)
 
 Create 2D projections with hidden line removal:
@@ -246,14 +340,21 @@ OCCTSwift provides the 2D projected edges but does not include DXF export. To ex
 ```
 OCCTSwift/
 ├── Sources/
-│   ├── OCCTSwift/        # Swift API (public interface)
-│   │   ├── Shape.swift   # 3D solid shapes
-│   │   ├── Wire.swift    # 2D profiles and 3D paths
-│   │   ├── Mesh.swift    # Triangulated mesh data
-│   │   └── Exporter.swift# STL/STEP export
-│   └── OCCTBridge/       # Objective-C++ bridge to OCCT
+│   ├── OCCTSwift/           # Swift API (public interface)
+│   │   ├── Shape.swift      # 3D solid shapes + boolean + modifications
+│   │   ├── Wire.swift       # 2D profiles and 3D paths
+│   │   ├── Face.swift       # Face surface analysis + projection
+│   │   ├── Edge.swift       # Edge curve analysis + projection
+│   │   ├── Curve2D.swift    # 2D parametric curves (Geom2d)
+│   │   ├── Curve3D.swift    # 3D parametric curves (Geom)
+│   │   ├── Surface.swift    # Parametric surfaces (Geom)
+│   │   ├── LawFunction.swift# Evolution functions for sweeps
+│   │   ├── Document.swift   # XDE assembly + GD&T
+│   │   ├── Mesh.swift       # Triangulated mesh data
+│   │   └── Exporter.swift   # Multi-format export
+│   └── OCCTBridge/          # Objective-C++ bridge to OCCT
 └── Libraries/
-    └── OCCT.xcframework  # Pre-built OCCT libraries
+    └── OCCT.xcframework     # Pre-built OCCT libraries
 ```
 
 ## API Reference
@@ -327,6 +428,76 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `Curve2DGcc.circlesTangentWithCenter(...)` | `Geom2dGcc_Circ2dTanCen` |
 | `Curve2DGcc.hatch(boundaries:...)` | `Geom2dHatch_Hatcher` |
 
+#### 3D Parametric Curves (v0.19.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Curve3D.line(through:direction:)` | `Geom_Line` |
+| `Curve3D.segment(from:to:)` | `GC_MakeSegment` |
+| `Curve3D.circle(center:normal:radius:)` | `Geom_Circle` |
+| `Curve3D.arcOfCircle(start:interior:end:)` | `GC_MakeArcOfCircle` |
+| `Curve3D.ellipse(...)` | `Geom_Ellipse` |
+| `Curve3D.bspline(...)` | `Geom_BSplineCurve` |
+| `Curve3D.interpolate(points:...)` | `GeomAPI_Interpolate` |
+| `curve.drawAdaptive()` | `GCPnts_TangentialDeflection` |
+| `curve.curvature(at:)` | `GeomLProp_CLProps` |
+| `Curve3D.join(_:)` | `GeomConvert::ConcatG1` |
+
+#### Parametric Surfaces (v0.20.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Surface.plane(origin:normal:)` | `Geom_Plane` |
+| `Surface.cylinder(origin:axis:radius:)` | `Geom_CylindricalSurface` |
+| `Surface.sphere(center:radius:)` | `Geom_SphericalSurface` |
+| `Surface.bspline(...)` | `Geom_BSplineSurface` |
+| `Surface.extrusion(profile:direction:)` | `Geom_SurfaceOfLinearExtrusion` |
+| `Surface.revolution(...)` | `Geom_SurfaceOfRevolution` |
+| `Surface.pipe(path:radius:)` | `GeomFill_Pipe` |
+| `surface.uIso(at:)` / `surface.vIso(at:)` | `Geom_Surface::UIso/VIso` |
+| `surface.drawGrid(...)` / `surface.drawMesh(...)` | Grid/mesh discretization |
+| `surface.gaussianCurvature(atU:v:)` | `GeomLProp_SLProps` |
+
+#### Face Surface Analysis (v0.18.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `face.uvBounds` | `BRepTools::UVBounds` |
+| `face.point(atU:v:)` / `face.normal(atU:v:)` | `GeomLProp_SLProps` |
+| `face.gaussianCurvature(atU:v:)` / `face.meanCurvature(atU:v:)` | `GeomLProp_SLProps` |
+| `face.principalCurvatures(atU:v:)` | `GeomLProp_SLProps` |
+| `face.surfaceType` / `face.area(tolerance:)` | `GeomAdaptor_Surface` / `BRepGProp` |
+| `face.project(point:)` / `face.allProjections(of:)` | `GeomAPI_ProjectPointOnSurf` |
+| `face.intersection(with:tolerance:)` | `BRepAlgoAPI_Section` |
+
+#### Edge Curve Analysis (v0.18.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `edge.parameterBounds` / `edge.curveType` | `BRep_Tool` / `GeomAdaptor_Curve` |
+| `edge.point(at:)` / `edge.tangent(at:)` / `edge.normal(at:)` | `GeomLProp_CLProps` |
+| `edge.curvature(at:)` / `edge.centerOfCurvature(at:)` / `edge.torsion(at:)` | `GeomLProp_CLProps` |
+| `edge.project(point:)` | `GeomAPI_ProjectPointOnCurve` |
+
+#### Shape Proximity (v0.18.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.proximityFaces(with:tolerance:)` | `BRepExtrema_ShapeProximity` |
+| `shape.selfIntersects` | `BOPAlgo_CheckerSI` |
+
+#### Law Functions (v0.21.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `LawFunction.constant(_:from:to:)` | `Law_Constant` |
+| `LawFunction.linear(from:to:parameterRange:)` | `Law_Linear` |
+| `LawFunction.sCurve(from:to:parameterRange:)` | `Law_S` |
+| `LawFunction.interpolate(points:periodic:)` | `Law_Interpol` |
+| `LawFunction.bspline(...)` | `Law_BSpline` |
+| `Shape.pipeShellWithLaw(spine:profile:law:solid:)` | `BRepOffsetAPI_MakePipeShell` |
+
+#### XDE GD&T (v0.21.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `document.dimensionCount` / `document.dimension(at:)` | `XCAFDimTolObjects_DimensionObject` |
+| `document.geomToleranceCount` / `document.geomTolerance(at:)` | `XCAFDimTolObjects_GeomToleranceObject` |
+| `document.datumCount` / `document.datum(at:)` | `XCAFDimTolObjects_DatumObject` |
+
 #### Import
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -391,9 +562,15 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 OCCT has thousands of classes. Some notable ones not yet exposed:
 
 - **Pockets with Islands**: Multi-contour pocket features
-- **Offset surfaces**: `BRepOffsetAPI_MakeOffsetSurface`
+- **Curve Projection**: Project 3D curves onto surfaces (`ProjLib`, `GeomProjLib`)
+- **Medial Axis Transform**: 2D Voronoi skeleton (`BRepMAT2d`)
+- **Topological Naming**: Persistent name tracking across operations (`TNaming`)
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.21.0: Law functions, variable-section sweeps, XDE GD&T (dimensions, tolerances, datums)
+> - v0.20.0: Full parametric surface wrapping — analytic, swept, freeform, pipe, draw methods, curvature
+> - v0.19.0: Full 3D parametric curve wrapping — primitives, BSplines, operations, conversion, draw methods
+> - v0.18.0: 3D geometry analysis — face surface properties, edge curve queries, point projection, proximity
 > - v0.17.0: STL/OBJ import, OBJ/PLY export, advanced shape healing, point classification
 > - v0.16.0: Full Geom2d wrapping — 2D parametric curves with evaluation, operations, analysis, Gcc solver, hatching, bisectors
 > - v0.14.0: Variable radius fillets, multi-edge blends, 2D fillet/chamfer, surface filling, plate surfaces
@@ -426,9 +603,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.17.0
+### Current Status: v0.21.0
 
-OCCTSwift now wraps **197 OCCT operations** across 20 categories.
+OCCTSwift now wraps **335 OCCT operations** across 25 categories with 443 tests across 83 suites.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 
