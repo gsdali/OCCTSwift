@@ -2238,6 +2238,48 @@ typedef struct {
 OCCTDatumInfo OCCTDocumentGetDatumInfo(OCCTDocumentRef doc, int32_t index);
 
 
+// MARK: - NLPlate: Advanced Plate Surfaces (v0.23.0)
+
+/// Constraint order for advanced plate surface construction
+typedef enum {
+    OCCTPlateConstraintG0 = 0,  // Position only
+    OCCTPlateConstraintG1 = 1,  // Position + tangent
+    OCCTPlateConstraintG2 = 2   // Position + tangent + curvature
+} OCCTPlateConstraintOrder;
+
+/// Create a plate surface through points with specified constraint orders.
+/// points: flat array of (x,y,z). orders: G0/G1/G2 per point.
+/// Returns a BSpline face approximation.
+OCCTShapeRef OCCTShapePlatePointsAdvanced(const double* points, int32_t pointCount,
+                                           const int32_t* orders, int32_t degree,
+                                           int32_t nbPtsOnCur, int32_t nbIter,
+                                           double tolerance);
+
+/// Create a plate surface with mixed point and curve constraints.
+OCCTShapeRef OCCTShapePlateMixed(const double* points, const int32_t* pointOrders,
+                                  int32_t pointCount,
+                                  const OCCTWireRef* curves, const int32_t* curveOrders,
+                                  int32_t curveCount,
+                                  int32_t degree, double tolerance);
+
+/// Create a plate surface (as parametric Surface) through points.
+/// Uses GeomPlate_BuildPlateSurface + GeomPlate_MakeApprox.
+OCCTSurfaceRef OCCTSurfacePlateThrough(const double* points, int32_t pointCount,
+                                        int32_t degree, double tolerance);
+
+/// Deform a surface to pass through constraint points (NLPlate G0).
+/// constraints: flat array of (u, v, targetX, targetY, targetZ) per point.
+OCCTSurfaceRef OCCTSurfaceNLPlateG0(OCCTSurfaceRef initialSurface,
+                                     const double* constraints, int32_t constraintCount,
+                                     int32_t maxIter, double tolerance);
+
+/// Deform a surface with position + tangent constraints (NLPlate G0+G1).
+/// constraints: flat (u, v, targetX, targetY, targetZ, d1uX, d1uY, d1uZ, d1vX, d1vY, d1vZ) per point.
+OCCTSurfaceRef OCCTSurfaceNLPlateG1(OCCTSurfaceRef initialSurface,
+                                     const double* constraints, int32_t constraintCount,
+                                     int32_t maxIter, double tolerance);
+
+
 // MARK: - ProjLib: Curve Projection onto Surfaces (v0.22.0)
 
 /// Project a 3D curve onto a surface, returning a 2D (UV) curve.

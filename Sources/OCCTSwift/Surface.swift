@@ -601,4 +601,112 @@ public final class Surface: @unchecked Sendable {
         }
         return SurfaceProjection(u: u, v: v, distance: distance)
     }
+
+    // MARK: - Advanced Plate Surfaces (v0.23.0)
+
+    /// Create a plate surface (parametric) interpolating through 3D points.
+    ///
+    /// Uses `GeomPlate_BuildPlateSurface` + `GeomPlate_MakeApprox` to produce
+    /// a BSpline surface that passes through all given points.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points (minimum 3)
+    ///   - degree: Maximum polynomial degree (default 3)
+    ///   - tolerance: Approximation tolerance (default 0.01)
+    /// - Returns: A parametric BSpline surface, or nil on failure
+    public static func plateThrough(
+        _ points: [SIMD3<Double>],
+        degree: Int = 3,
+        tolerance: Double = 0.01
+    ) -> Surface? {
+        guard points.count >= 3 else { return nil }
+
+        var flatPoints: [Double] = []
+        for p in points {
+            flatPoints.append(p.x)
+            flatPoints.append(p.y)
+            flatPoints.append(p.z)
+        }
+
+        guard let h = OCCTSurfacePlateThrough(
+            &flatPoints, Int32(points.count),
+            Int32(degree), tolerance
+        ) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Deform this surface to pass through target positions (NLPlate G0).
+    ///
+    /// Uses the non-linear plate solver to compute a displacement field on
+    /// this surface, then samples and approximates as a BSpline. Each constraint
+    /// specifies a (u, v) parameter and a target 3D position.
+    ///
+    /// - Parameters:
+    ///   - constraints: Array of (uv parameter, target 3D position) pairs
+    ///   - maxIterations: Maximum solver iterations (default 4)
+    ///   - tolerance: Approximation tolerance (default 1e-3)
+    /// - Returns: A new deformed surface, or nil on failure
+    public func nlPlateDeformed(
+        constraints: [(uv: SIMD2<Double>, target: SIMD3<Double>)],
+        maxIterations: Int = 4,
+        tolerance: Double = 1e-3
+    ) -> Surface? {
+        guard !constraints.isEmpty else { return nil }
+
+        // Flat array: (u, v, targetX, targetY, targetZ) per constraint
+        var flat: [Double] = []
+        for c in constraints {
+            flat.append(c.uv.x)
+            flat.append(c.uv.y)
+            flat.append(c.target.x)
+            flat.append(c.target.y)
+            flat.append(c.target.z)
+        }
+
+        guard let h = OCCTSurfaceNLPlateG0(
+            handle, &flat, Int32(constraints.count),
+            Int32(maxIterations), tolerance
+        ) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Deform this surface with position + tangent constraints (NLPlate G0+G1).
+    ///
+    /// Each constraint specifies a (u, v) parameter, a target 3D position, and
+    /// desired partial derivatives (tangent vectors) in the U and V directions.
+    ///
+    /// - Parameters:
+    ///   - constraints: Array of (uv, target, tangentU, tangentV) tuples
+    ///   - maxIterations: Maximum solver iterations (default 4)
+    ///   - tolerance: Approximation tolerance (default 1e-3)
+    /// - Returns: A new deformed surface, or nil on failure
+    public func nlPlateDeformedG1(
+        constraints: [(uv: SIMD2<Double>, target: SIMD3<Double>, tangentU: SIMD3<Double>, tangentV: SIMD3<Double>)],
+        maxIterations: Int = 4,
+        tolerance: Double = 1e-3
+    ) -> Surface? {
+        guard !constraints.isEmpty else { return nil }
+
+        // Flat: (u, v, targetX, targetY, targetZ, d1uX, d1uY, d1uZ, d1vX, d1vY, d1vZ)
+        var flat: [Double] = []
+        for c in constraints {
+            flat.append(c.uv.x)
+            flat.append(c.uv.y)
+            flat.append(c.target.x)
+            flat.append(c.target.y)
+            flat.append(c.target.z)
+            flat.append(c.tangentU.x)
+            flat.append(c.tangentU.y)
+            flat.append(c.tangentU.z)
+            flat.append(c.tangentV.x)
+            flat.append(c.tangentV.y)
+            flat.append(c.tangentV.z)
+        }
+
+        guard let h = OCCTSurfaceNLPlateG1(
+            handle, &flat, Int32(constraints.count),
+            Int32(maxIterations), tolerance
+        ) else { return nil }
+        return Surface(handle: h)
+    }
 }

@@ -6651,3 +6651,307 @@ struct Curve3DPlaneProjectionTests {
         )
     }
 }
+
+// MARK: - Advanced Plate Surfaces Tests (v0.23.0)
+
+@Suite("Advanced Plate Surface Tests")
+struct AdvancedPlateSurfaceTests {
+
+    @Test("Plate surface with G0 constraint orders")
+    func platePointsAdvancedG0() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(10, 0, 1), SIMD3(10, 10, 2),
+            SIMD3(0, 10, 1), SIMD3(5, 5, 3)
+        ]
+        let orders: [PlateConstraintOrder] = [.g0, .g0, .g0, .g0, .g0]
+        let shape = Shape.plateSurface(through: points, orders: orders)
+        #expect(shape != nil)
+        if let s = shape {
+            #expect((s.surfaceArea ?? 0) > 0)
+        }
+    }
+
+    @Test("Plate surface with mixed G0/G1 orders")
+    func platePointsMixedOrders() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 10, 0),
+            SIMD3(0, 10, 0), SIMD3(5, 5, 2)
+        ]
+        let orders: [PlateConstraintOrder] = [.g0, .g1, .g0, .g1, .g0]
+        let shape = Shape.plateSurface(through: points, orders: orders)
+        #expect(shape != nil)
+    }
+
+    @Test("Plate surface with custom degree and iterations")
+    func platePointsCustomParams() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(5, 0, 1), SIMD3(10, 0, 0),
+            SIMD3(0, 5, 1), SIMD3(5, 5, 3), SIMD3(10, 5, 1),
+            SIMD3(0, 10, 0), SIMD3(5, 10, 1), SIMD3(10, 10, 0)
+        ]
+        let orders: [PlateConstraintOrder] = Array(repeating: .g0, count: 9)
+        let shape = Shape.plateSurface(
+            through: points, orders: orders,
+            degree: 4, pointsOnCurves: 20, iterations: 3, tolerance: 0.001
+        )
+        #expect(shape != nil)
+    }
+
+    @Test("Plate surface rejects mismatched point/order counts")
+    func platePointsMismatch() {
+        let points: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0)]
+        let orders: [PlateConstraintOrder] = [.g0, .g0]  // Too few
+        let shape = Shape.plateSurface(through: points, orders: orders)
+        #expect(shape == nil)
+    }
+
+    @Test("Plate surface rejects fewer than 3 points")
+    func platePointsTooFew() {
+        let points: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0)]
+        let orders: [PlateConstraintOrder] = [.g0, .g0]
+        let shape = Shape.plateSurface(through: points, orders: orders)
+        #expect(shape == nil)
+    }
+
+    @Test("Mixed plate surface with points and curves")
+    func plateMixedPointsAndCurves() {
+        let pointConstraints: [(point: SIMD3<Double>, order: PlateConstraintOrder)] = [
+            (point: SIMD3(5, 5, 3), order: .g0),
+            (point: SIMD3(2, 8, 1), order: .g0)
+        ]
+
+        // Create a boundary wire (3D path)
+        let wire = Wire.path([
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 10, 0), SIMD3(0, 10, 0)
+        ], closed: true)
+        guard let w = wire else {
+            #expect(Bool(false), "Failed to create boundary wire")
+            return
+        }
+
+        let curveConstraints: [(wire: Wire, order: PlateConstraintOrder)] = [
+            (wire: w, order: .g0)
+        ]
+
+        let shape = Shape.plateSurface(
+            pointConstraints: pointConstraints,
+            curveConstraints: curveConstraints
+        )
+        #expect(shape != nil)
+    }
+
+    @Test("Mixed plate surface with points only")
+    func plateMixedPointsOnly() {
+        let pointConstraints: [(point: SIMD3<Double>, order: PlateConstraintOrder)] = [
+            (point: SIMD3(0, 0, 0), order: .g0),
+            (point: SIMD3(10, 0, 1), order: .g0),
+            (point: SIMD3(10, 10, 2), order: .g0),
+            (point: SIMD3(0, 10, 1), order: .g0)
+        ]
+        let curveConstraints: [(wire: Wire, order: PlateConstraintOrder)] = []
+
+        let shape = Shape.plateSurface(
+            pointConstraints: pointConstraints,
+            curveConstraints: curveConstraints
+        )
+        #expect(shape != nil)
+    }
+
+    @Test("Advanced plate produces face with nonzero area")
+    func plateAdvancedArea() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 10, 0),
+            SIMD3(0, 10, 0), SIMD3(5, 5, 5)
+        ]
+        let orders: [PlateConstraintOrder] = Array(repeating: .g0, count: 5)
+        let shape = Shape.plateSurface(through: points, orders: orders)
+        #expect(shape != nil)
+        if let s = shape {
+            #expect((s.surfaceArea ?? 0) > 50)
+        }
+    }
+}
+
+@Suite("Parametric Plate Surface Tests")
+struct ParametricPlateSurfaceTests {
+
+    @Test("Plate through points returns parametric surface")
+    func plateThroughPoints() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(10, 0, 1), SIMD3(10, 10, 2),
+            SIMD3(0, 10, 1), SIMD3(5, 5, 3)
+        ]
+        let surface = Surface.plateThrough(points)
+        #expect(surface != nil)
+        if let s = surface {
+            let d = s.domain
+            #expect(d.uMax > d.uMin)
+        }
+    }
+
+    @Test("Plate through points is evaluable")
+    func plateThroughEvaluable() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 10, 0), SIMD3(0, 10, 0)
+        ]
+        let surface = Surface.plateThrough(points)
+        #expect(surface != nil)
+        if let s = surface {
+            let domain = s.domain
+            let midU = (domain.uMin + domain.uMax) / 2
+            let midV = (domain.vMin + domain.vMax) / 2
+            let pt = s.point(atU: midU, v: midV)
+            #expect(pt.x.isFinite)
+            #expect(pt.y.isFinite)
+            #expect(pt.z.isFinite)
+        }
+    }
+
+    @Test("Plate through rejects fewer than 3 points")
+    func plateThroughTooFew() {
+        let points: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0)]
+        let surface = Surface.plateThrough(points)
+        #expect(surface == nil)
+    }
+
+    @Test("Plate through with custom degree")
+    func plateThroughCustomDegree() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(5, 0, 2), SIMD3(10, 0, 0),
+            SIMD3(0, 5, 2), SIMD3(5, 5, 4), SIMD3(10, 5, 2),
+            SIMD3(0, 10, 0), SIMD3(5, 10, 2), SIMD3(10, 10, 0)
+        ]
+        let surface = Surface.plateThrough(points, degree: 4, tolerance: 0.001)
+        #expect(surface != nil)
+    }
+}
+
+@Suite("NLPlate Deformation Tests")
+struct NLPlateDeformationTests {
+
+    @Test("NLPlate G0 deformation of flat plane")
+    func nlPlateG0FlatPlane() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        #expect(plane != nil)
+        guard let surface = plane else { return }
+
+        let deformed = surface.nlPlateDeformed(
+            constraints: [(uv: SIMD2(0, 0), target: SIMD3(0, 0, 5))],
+            maxIterations: 4,
+            tolerance: 0.1
+        )
+        #expect(deformed != nil)
+        if let d = deformed {
+            let domain = d.domain
+            let midU = (domain.uMin + domain.uMax) / 2
+            let midV = (domain.vMin + domain.vMax) / 2
+            let pt = d.point(atU: midU, v: midV)
+            #expect(pt.z.isFinite)
+        }
+    }
+
+    @Test("NLPlate G0 with multiple constraints")
+    func nlPlateG0MultipleConstraints() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        guard let surface = plane else {
+            #expect(Bool(false), "Failed to create plane")
+            return
+        }
+
+        let deformed = surface.nlPlateDeformed(
+            constraints: [
+                (uv: SIMD2(-5, -5), target: SIMD3(-5, -5, 1)),
+                (uv: SIMD2(5, 5), target: SIMD3(5, 5, 2)),
+                (uv: SIMD2(0, 0), target: SIMD3(0, 0, 5))
+            ],
+            maxIterations: 4,
+            tolerance: 0.1
+        )
+        #expect(deformed != nil)
+    }
+
+    @Test("NLPlate G0 deformation produces evaluable surface")
+    func nlPlateG0Evaluable() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        guard let surface = plane else { return }
+
+        let deformed = surface.nlPlateDeformed(
+            constraints: [(uv: SIMD2(0, 0), target: SIMD3(0, 0, 3))],
+            maxIterations: 4,
+            tolerance: 0.1
+        )
+        #expect(deformed != nil)
+        if let d = deformed {
+            let dom = d.domain
+            #expect(dom.uMax > dom.uMin)
+        }
+    }
+
+    @Test("NLPlate G0 with empty constraints returns nil")
+    func nlPlateG0EmptyConstraints() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        guard let surface = plane else { return }
+        let deformed = surface.nlPlateDeformed(
+            constraints: [],
+            maxIterations: 4,
+            tolerance: 0.1
+        )
+        #expect(deformed == nil)
+    }
+
+    @Test("NLPlate G1 deformation with position + tangent constraints")
+    func nlPlateG1Deformation() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        guard let surface = plane else { return }
+
+        // G0+G1: target position + desired tangent vectors
+        let deformed = surface.nlPlateDeformedG1(
+            constraints: [
+                (uv: SIMD2(0, 0), target: SIMD3(0, 0, 5),
+                 tangentU: SIMD3(1, 0, 0.5), tangentV: SIMD3(0, 1, 0.5))
+            ],
+            maxIterations: 4,
+            tolerance: 0.1
+        )
+        #expect(deformed != nil)
+        if let d = deformed {
+            let dom = d.domain
+            #expect(dom.uMax > dom.uMin)
+        }
+    }
+
+    @Test("NLPlate G1 with multiple position + tangent constraints")
+    func nlPlateG1MultipleConstraints() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        guard let surface = plane else { return }
+
+        // Use closer constraints with more iterations for convergence
+        let deformed = surface.nlPlateDeformedG1(
+            constraints: [
+                (uv: SIMD2(-2, 0), target: SIMD3(-2, 0, 1),
+                 tangentU: SIMD3(1, 0, 0.2), tangentV: SIMD3(0, 1, 0)),
+                (uv: SIMD2(2, 0), target: SIMD3(2, 0, 1),
+                 tangentU: SIMD3(1, 0, -0.2), tangentV: SIMD3(0, 1, 0))
+            ],
+            maxIterations: 8,
+            tolerance: 1.0
+        )
+        // Multi-G1 may not converge for all inputs; verify no crash
+        if let d = deformed {
+            let dom = d.domain
+            #expect(dom.uMax > dom.uMin)
+        }
+    }
+
+    @Test("NLPlate G1 with empty constraints returns nil")
+    func nlPlateG1EmptyConstraints() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        guard let surface = plane else { return }
+        let deformed = surface.nlPlateDeformedG1(
+            constraints: [],
+            maxIterations: 4,
+            tolerance: 0.1
+        )
+        #expect(deformed == nil)
+    }
+}

@@ -1879,6 +1879,16 @@ public enum SurfaceContinuity: Int32 {
     case g2 = 2
 }
 
+/// Constraint order for advanced plate surface construction (v0.23.0)
+public enum PlateConstraintOrder: Int32 {
+    /// Position only — surface must pass through the point
+    case g0 = 0
+    /// Position + tangent — surface must be tangent-continuous
+    case g1 = 1
+    /// Position + tangent + curvature — surface must be curvature-continuous
+    case g2 = 2
+}
+
 /// Parameters for surface filling operations
 public struct FillingParameters {
     /// Surface continuity at boundaries
@@ -2134,6 +2144,100 @@ extension Shape {
         }) else {
             return nil
         }
+        return Shape(handle: result)
+    }
+
+    // MARK: - Advanced Plate Surfaces (v0.23.0)
+
+    /// Create a plate surface through points with specified constraint orders per point.
+    ///
+    /// Each point can independently specify G0 (position only), G1 (position + tangent),
+    /// or G2 (position + tangent + curvature) continuity.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points the surface must satisfy
+    ///   - orders: Constraint order per point (`.g0`, `.g1`, or `.g2`)
+    ///   - degree: Maximum polynomial degree (default 3)
+    ///   - pointsOnCurves: Number of sample points on curves (default 15)
+    ///   - iterations: Number of solver iterations (default 2)
+    ///   - tolerance: Approximation tolerance (default 0.01)
+    /// - Returns: Surface face, or nil on failure
+    public static func plateSurface(
+        through points: [SIMD3<Double>],
+        orders: [PlateConstraintOrder],
+        degree: Int = 3,
+        pointsOnCurves: Int = 15,
+        iterations: Int = 2,
+        tolerance: Double = 0.01
+    ) -> Shape? {
+        guard points.count >= 3, points.count == orders.count else { return nil }
+
+        var flatPoints: [Double] = []
+        for p in points {
+            flatPoints.append(p.x)
+            flatPoints.append(p.y)
+            flatPoints.append(p.z)
+        }
+        var rawOrders = orders.map { Int32($0.rawValue) }
+
+        guard let result = OCCTShapePlatePointsAdvanced(
+            &flatPoints, Int32(points.count),
+            &rawOrders, Int32(degree),
+            Int32(pointsOnCurves), Int32(iterations),
+            tolerance
+        ) else { return nil }
+        return Shape(handle: result)
+    }
+
+    /// Create a plate surface with mixed point and curve constraints.
+    ///
+    /// Combines point constraints (each with its own continuity order) and
+    /// curve constraints (wires with continuity orders) into a single plate surface.
+    ///
+    /// - Parameters:
+    ///   - points: Point constraints with positions and orders
+    ///   - curves: Curve constraints with wires and orders
+    ///   - degree: Maximum polynomial degree (default 3)
+    ///   - tolerance: Approximation tolerance (default 0.01)
+    /// - Returns: Surface face, or nil on failure
+    public static func plateSurface(
+        pointConstraints points: [(point: SIMD3<Double>, order: PlateConstraintOrder)],
+        curveConstraints curves: [(wire: Wire, order: PlateConstraintOrder)],
+        degree: Int = 3,
+        tolerance: Double = 0.01
+    ) -> Shape? {
+        guard !points.isEmpty || !curves.isEmpty else { return nil }
+
+        var flatPoints: [Double] = []
+        var pointOrders: [Int32] = []
+        for (p, order) in points {
+            flatPoints.append(p.x)
+            flatPoints.append(p.y)
+            flatPoints.append(p.z)
+            pointOrders.append(Int32(order.rawValue))
+        }
+
+        var wireHandles = curves.map { $0.wire.handle as OCCTWireRef? }
+        var curveOrders = curves.map { Int32($0.order.rawValue) }
+
+        let result: OCCTShapeRef? = flatPoints.withUnsafeMutableBufferPointer { ptBuf in
+            pointOrders.withUnsafeMutableBufferPointer { ordBuf in
+                wireHandles.withUnsafeMutableBufferPointer { wireBuf in
+                    curveOrders.withUnsafeMutableBufferPointer { coBuf in
+                        OCCTShapePlateMixed(
+                            points.isEmpty ? nil : ptBuf.baseAddress,
+                            points.isEmpty ? nil : ordBuf.baseAddress,
+                            Int32(points.count),
+                            curves.isEmpty ? nil : wireBuf.baseAddress,
+                            curves.isEmpty ? nil : coBuf.baseAddress,
+                            Int32(curves.count),
+                            Int32(degree), tolerance
+                        )
+                    }
+                }
+            }
+        }
+        guard let result else { return nil }
         return Shape(handle: result)
     }
 }

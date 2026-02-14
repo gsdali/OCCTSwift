@@ -15,7 +15,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **2D Curves (Curve2D)** | 55 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw |
 | **3D Curves (Curve3D)** | 51 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection, projectedOnPlane |
-| **Surfaces (Surface)** | 44 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint |
+| **Surfaces (Surface)** | 47 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1 |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 10 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
@@ -25,13 +25,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
 | **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
 | **Import/Export** | 16 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; mesh |
-| **Geometry Construction** | 7 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves |
+| **Geometry Construction** | 9 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed |
 | **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 19 | Document.load, rootNodes, AssemblyNode, colors, materials, dimensions, geomTolerances, datums |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **340** | |
+| **Total** | **345** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -53,7 +53,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Pattern Operations**: Linear and circular arrays of shapes
 - **Shape Healing**: Analysis, fixing, unification, simplification
 - **Geometry Construction**: Face from wire, face with holes, sewing, solid from shell, surface filling
-- **Surface Creation**: N-sided boundary filling, plate surfaces through points or curves
+- **Surface Creation**: N-sided boundary filling, plate surfaces through points or curves, advanced plates with per-point constraint orders, mixed point/curve constraints
+- **NLPlate Surface Deformation**: Non-linear plate solver for G0 (positional) and G0+G1 (positional + tangent) surface deformation
 - **Curve Interpolation**: Create smooth curves through specific points
 - **Import Formats**: STL, STEP, IGES, BREP, OBJ (mesh and CAD)
 - **Export Formats**: STL, STEP, IGES, BREP, OBJ, PLY (3D printing, CAD, visualization)
@@ -77,7 +78,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.22.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.23.0")
 ]
 ```
 
@@ -613,9 +614,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.22.0
+### Current Status: v0.23.0
 
-OCCTSwift now wraps **340 OCCT operations** across 25 categories with 459 tests across 85 suites.
+OCCTSwift now wraps **345 OCCT operations** across 25 categories with 478 tests across 88 suites.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 
