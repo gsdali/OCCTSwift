@@ -1372,6 +1372,13 @@ OCCTMeshRef OCCTMeshIntersect(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double defle
 
 // MARK: - Memory Management
 
+// MARK: - Shape Conversion
+
+OCCTShapeRef OCCTShapeFromWire(OCCTWireRef wireRef) {
+    if (!wireRef) return nullptr;
+    return new OCCTShape(wireRef->wire);
+}
+
 void OCCTShapeRelease(OCCTShapeRef shape) {
     delete shape;
 }

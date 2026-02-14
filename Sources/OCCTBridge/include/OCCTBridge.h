@@ -215,6 +215,10 @@ OCCTMeshRef OCCTMeshSubtract(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double deflec
 /// Perform boolean intersection on two meshes
 OCCTMeshRef OCCTMeshIntersect(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double deflection);
 
+// MARK: - Shape Conversion
+
+OCCTShapeRef OCCTShapeFromWire(OCCTWireRef wireRef);
+
 // MARK: - Memory Management
 
 void OCCTShapeRelease(OCCTShapeRef shape);

@@ -217,6 +217,21 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    // MARK: - Conversion
+
+    /// Wrap a Wire as a Shape to access edge extraction and other Shape methods.
+    ///
+    /// Since `TopoDS_Wire` inherits from `TopoDS_Shape` in OCCT, this is a
+    /// lightweight conversion that enables using Shape methods like
+    /// `allEdgePolylines()` on wire geometry without creating solid geometry.
+    ///
+    /// - Parameter wire: The wire to wrap.
+    /// - Returns: A Shape wrapping the wire, or `nil` on failure.
+    public static func fromWire(_ wire: Wire) -> Shape? {
+        guard let handle = OCCTShapeFromWire(wire.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
     // MARK: - Validation
 
     /// Check if shape is valid
