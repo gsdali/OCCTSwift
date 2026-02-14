@@ -2637,7 +2637,7 @@ struct PresentationMeshTests {
 
     @Test("Box shaded mesh has 12 triangles")
     func boxShadedMesh() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let mesh = box.shadedMesh(deflection: 0.1)
 
         #expect(mesh != nil)
@@ -2646,14 +2646,14 @@ struct PresentationMeshTests {
 
         // All normals should be non-zero
         for normal in mesh!.normals {
-            let len = sqrt(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z)
+            let len = Float(sqrt(Double(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z)))
             #expect(len > 0.5)
         }
     }
 
     @Test("Cylinder shaded mesh has triangles")
     func cylinderShadedMesh() {
-        let cyl = Shape.cylinder(radius: 5, height: 10)
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
         let mesh = cyl.shadedMesh(deflection: 0.1)
 
         #expect(mesh != nil)
@@ -2663,7 +2663,7 @@ struct PresentationMeshTests {
 
     @Test("Box edge mesh has 12 segments")
     func boxEdgeMesh() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let edges = box.edgeMesh(deflection: 0.1)
 
         #expect(edges != nil)
@@ -2673,7 +2673,7 @@ struct PresentationMeshTests {
 
     @Test("Sphere edge mesh produces valid segments")
     func sphereEdgeMesh() {
-        let sphere = Shape.sphere(radius: 5)
+        let sphere = Shape.sphere(radius: 5)!
         let edges = sphere.edgeMesh(deflection: 0.1)
 
         #expect(edges != nil)
@@ -2687,7 +2687,7 @@ struct SelectorTests {
 
     @Test("Add and pick box at center")
     func pickBoxAtCenter() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let cam = Camera()
         cam.eye = SIMD3(0, 0, 50)
         cam.center = SIMD3(0, 0, 0)
@@ -2715,7 +2715,7 @@ struct SelectorTests {
 
     @Test("Pick miss at far corner")
     func pickMiss() {
-        let box = Shape.box(width: 1, height: 1, depth: 1)
+        let box = Shape.box(width: 1, height: 1, depth: 1)!
         let cam = Camera()
         cam.eye = SIMD3(0, 0, 50)
         cam.center = SIMD3(0, 0, 0)
@@ -2739,10 +2739,10 @@ struct SelectorTests {
 
     @Test("Multiple shapes return correct IDs")
     func multipleShapes() {
-        let box1 = Shape.box(width: 10, height: 10, depth: 10)
-            .translated(by: SIMD3(-20, 0, 0))
-        let box2 = Shape.box(width: 10, height: 10, depth: 10)
-            .translated(by: SIMD3(20, 0, 0))
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(-20, 0, 0))!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(20, 0, 0))!
 
         let cam = Camera()
         cam.eye = SIMD3(0, 0, 100)
@@ -2762,7 +2762,7 @@ struct SelectorTests {
 
     @Test("Remove shape then pick returns miss")
     func removeShape() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let selector = Selector()
         selector.add(shape: box, id: 99)
@@ -2786,7 +2786,7 @@ struct SelectorTests {
 
     @Test("Rectangle pick covers geometry")
     func rectanglePick() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let cam = Camera()
         cam.eye = SIMD3(0, 0, 50)
@@ -2814,7 +2814,7 @@ struct SelectorTests {
     @Test("Clear all removes everything")
     func clearAll() {
         let selector = Selector()
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         selector.add(shape: box, id: 1)
         selector.add(shape: box, id: 2)
         selector.clearAll()
@@ -2854,7 +2854,7 @@ struct SelectorSubShapeTests {
     @Test("Mode 0 (shape) is active by default")
     func defaultMode() {
         let selector = Selector()
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         selector.add(shape: box, id: 1)
         #expect(selector.isModeActive(.shape, for: 1) == true)
     }
@@ -2862,7 +2862,7 @@ struct SelectorSubShapeTests {
     @Test("Activate face mode")
     func activateFaceMode() {
         let selector = Selector()
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         selector.add(shape: box, id: 1)
 
         selector.activateMode(.face, for: 1)
@@ -2872,7 +2872,7 @@ struct SelectorSubShapeTests {
     @Test("Deactivate mode")
     func deactivateMode() {
         let selector = Selector()
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         selector.add(shape: box, id: 1)
 
         selector.activateMode(.face, for: 1)
@@ -2884,7 +2884,7 @@ struct SelectorSubShapeTests {
 
     @Test("Face mode pick returns face sub-shape type")
     func faceModePick() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let cam = makeCamera()
 
         let selector = Selector()
@@ -2908,7 +2908,7 @@ struct SelectorSubShapeTests {
 
     @Test("Edge mode pick returns edge sub-shape type")
     func edgeModePick() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let cam = makeCamera()
 
         let selector = Selector()
@@ -2941,7 +2941,7 @@ struct SelectorSubShapeTests {
 
     @Test("Shape mode pick returns shape sub-shape type with index 0")
     func shapeModePick() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let cam = makeCamera()
 
         let selector = Selector()
@@ -3334,7 +3334,7 @@ struct PolylinePickTests {
 
     @Test("Polygon enclosing shape returns hit")
     func polygonHit() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let cam = makeCamera()
         let selector = Selector()
         selector.add(shape: box, id: 1)
@@ -3358,7 +3358,7 @@ struct PolylinePickTests {
 
     @Test("Polygon missing shape returns empty")
     func polygonMiss() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let cam = makeCamera()
         let selector = Selector()
         selector.add(shape: box, id: 1)
@@ -3389,7 +3389,7 @@ struct PolylinePickTests {
 
     @Test("Triangular polygon selects shape")
     func triangularPolygon() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let cam = makeCamera()
         let selector = Selector()
         selector.add(shape: box, id: 42)
@@ -3418,7 +3418,7 @@ struct DrawerMeshTests {
 
     @Test("Shaded mesh with default drawer produces valid mesh")
     func shadedMeshDefaultDrawer() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let drawer = DisplayDrawer()
 
         let mesh = box.shadedMesh(drawer: drawer)
@@ -3432,7 +3432,7 @@ struct DrawerMeshTests {
 
     @Test("Edge mesh with default drawer produces valid segments")
     func edgeMeshDefaultDrawer() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let drawer = DisplayDrawer()
 
         let mesh = box.edgeMesh(drawer: drawer)
@@ -3445,7 +3445,7 @@ struct DrawerMeshTests {
 
     @Test("Finer deviation produces more triangles for curved shape")
     func finerDeviationMoreTriangles() {
-        let sphere = Shape.sphere(radius: 10)
+        let sphere = Shape.sphere(radius: 10)!
 
         let coarseDrawer = DisplayDrawer()
         coarseDrawer.deviationCoefficient = 0.1
@@ -3465,7 +3465,7 @@ struct DrawerMeshTests {
 
     @Test("Absolute deflection type works")
     func absoluteDeflection() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let drawer = DisplayDrawer()
         drawer.deflectionType = .absolute
         drawer.maximalChordialDeviation = 0.5
