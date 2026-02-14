@@ -11477,3 +11477,315 @@ int32_t OCCTMedialAxisGetBasicEltCount(OCCTMedialAxisRef ma) {
     if (!ma || ma->graph.IsNull()) return 0;
     return (int32_t)ma->graph->NumberOfBasicElts();
 }
+
+
+// MARK: - TNaming: Topological Naming History (v0.25.0)
+
+#include <TNaming_Builder.hxx>
+#include <TNaming_NamedShape.hxx>
+#include <TNaming_Selector.hxx>
+#include <TNaming_Iterator.hxx>
+#include <TNaming_NewShapeIterator.hxx>
+#include <TNaming_OldShapeIterator.hxx>
+#include <TNaming_Tool.hxx>
+#include <TDF_Label.hxx>
+#include <TDF_LabelMap.hxx>
+#include <TDF_Data.hxx>
+
+int64_t OCCTDocumentCreateLabel(OCCTDocumentRef doc, int64_t parentLabelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label parentLabel;
+        if (parentLabelId < 0) {
+            // Create under document root
+            parentLabel = doc->doc->Main();
+        } else {
+            parentLabel = doc->getLabel(parentLabelId);
+            if (parentLabel.IsNull()) return -1;
+        }
+        TDF_Label newLabel = parentLabel.NewChild();
+        return doc->registerLabel(newLabel);
+    } catch (...) {
+        return -1;
+    }
+}
+
+bool OCCTDocumentNamingRecord(OCCTDocumentRef doc, int64_t labelId,
+                               OCCTNamingEvolution evolution,
+                               OCCTShapeRef oldShape, OCCTShapeRef newShape) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        TNaming_Builder builder(label);
+        switch (evolution) {
+            case OCCTNamingPrimitive:
+                if (!newShape) return false;
+                builder.Generated(newShape->shape);
+                break;
+            case OCCTNamingGenerated:
+                if (!oldShape || !newShape) return false;
+                builder.Generated(oldShape->shape, newShape->shape);
+                break;
+            case OCCTNamingModify:
+                if (!oldShape || !newShape) return false;
+                builder.Modify(oldShape->shape, newShape->shape);
+                break;
+            case OCCTNamingDelete:
+                if (!oldShape) return false;
+                builder.Delete(oldShape->shape);
+                break;
+            case OCCTNamingSelected:
+                if (!oldShape || !newShape) return false;
+                builder.Select(newShape->shape, oldShape->shape);
+                break;
+            default:
+                return false;
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTShapeRef OCCTDocumentNamingGetCurrentShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return nullptr;
+        if (ns.IsNull() || ns->IsEmpty()) return nullptr;
+
+        TopoDS_Shape current = TNaming_Tool::CurrentShape(ns);
+        if (current.IsNull()) return nullptr;
+
+        return new OCCTShape(current);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTDocumentNamingGetShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return nullptr;
+        if (ns.IsNull() || ns->IsEmpty()) return nullptr;
+
+        TopoDS_Shape shape = TNaming_Tool::GetShape(ns);
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTDocumentNamingHistoryCount(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return 0;
+
+        int32_t count = 0;
+        for (TNaming_Iterator it(ns); it.More(); it.Next()) {
+            count++;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTDocumentNamingGetHistoryEntry(OCCTDocumentRef doc, int64_t labelId,
+                                        int32_t index, OCCTNamingHistoryEntry* outEntry) {
+    if (!doc || !outEntry || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return false;
+
+        int32_t i = 0;
+        for (TNaming_Iterator it(ns); it.More(); it.Next(), i++) {
+            if (i == index) {
+                TNaming_Evolution evo = it.Evolution();
+                outEntry->hasOldShape = !it.OldShape().IsNull();
+                outEntry->hasNewShape = !it.NewShape().IsNull();
+                outEntry->isModification = it.IsModification();
+                switch (evo) {
+                    case TNaming_PRIMITIVE: outEntry->evolution = OCCTNamingPrimitive; break;
+                    case TNaming_GENERATED: outEntry->evolution = OCCTNamingGenerated; break;
+                    case TNaming_MODIFY: outEntry->evolution = OCCTNamingModify; break;
+                    case TNaming_DELETE: outEntry->evolution = OCCTNamingDelete; break;
+                    case TNaming_SELECTED: outEntry->evolution = OCCTNamingSelected; break;
+                    default: outEntry->evolution = OCCTNamingPrimitive; break;
+                }
+                return true;
+            }
+        }
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTShapeRef OCCTDocumentNamingGetOldShape(OCCTDocumentRef doc, int64_t labelId, int32_t index) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return nullptr;
+
+        int32_t i = 0;
+        for (TNaming_Iterator it(ns); it.More(); it.Next(), i++) {
+            if (i == index) {
+                TopoDS_Shape old = it.OldShape();
+                if (old.IsNull()) return nullptr;
+                return new OCCTShape(old);
+            }
+        }
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTDocumentNamingGetNewShape(OCCTDocumentRef doc, int64_t labelId, int32_t index) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return nullptr;
+
+        int32_t i = 0;
+        for (TNaming_Iterator it(ns); it.More(); it.Next(), i++) {
+            if (i == index) {
+                TopoDS_Shape nw = it.NewShape();
+                if (nw.IsNull()) return nullptr;
+                return new OCCTShape(nw);
+            }
+        }
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTDocumentNamingTraceForward(OCCTDocumentRef doc, int64_t accessLabelId,
+                                        OCCTShapeRef shape,
+                                        OCCTShapeRef* outShapes, int32_t maxCount) {
+    if (!doc || !shape || !outShapes || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label access = doc->getLabel(accessLabelId);
+        if (access.IsNull()) return 0;
+
+        int32_t count = 0;
+        for (TNaming_NewShapeIterator it(shape->shape, access);
+             it.More() && count < maxCount; it.Next()) {
+            TopoDS_Shape s = it.Shape();
+            if (!s.IsNull()) {
+                outShapes[count] = new OCCTShape(s);
+                count++;
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTDocumentNamingTraceBackward(OCCTDocumentRef doc, int64_t accessLabelId,
+                                         OCCTShapeRef shape,
+                                         OCCTShapeRef* outShapes, int32_t maxCount) {
+    if (!doc || !shape || !outShapes || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label access = doc->getLabel(accessLabelId);
+        if (access.IsNull()) return 0;
+
+        int32_t count = 0;
+        for (TNaming_OldShapeIterator it(shape->shape, access);
+             it.More() && count < maxCount; it.Next()) {
+            TopoDS_Shape s = it.Shape();
+            if (!s.IsNull()) {
+                outShapes[count] = new OCCTShape(s);
+                count++;
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTDocumentNamingSelect(OCCTDocumentRef doc, int64_t labelId,
+                               OCCTShapeRef selection, OCCTShapeRef context) {
+    if (!doc || !selection || !context || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        TNaming_Selector selector(label);
+        return selector.Select(selection->shape, context->shape);
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTShapeRef OCCTDocumentNamingResolve(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+
+        TNaming_Selector selector(label);
+        TDF_LabelMap valid;
+        if (!selector.Solve(valid)) return nullptr;
+
+        Handle(TNaming_NamedShape) ns = selector.NamedShape();
+        if (ns.IsNull() || ns->IsEmpty()) return nullptr;
+
+        TopoDS_Shape shape = TNaming_Tool::CurrentShape(ns);
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTDocumentNamingGetEvolution(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return -1;
+
+        switch (ns->Evolution()) {
+            case TNaming_PRIMITIVE: return OCCTNamingPrimitive;
+            case TNaming_GENERATED: return OCCTNamingGenerated;
+            case TNaming_MODIFY: return OCCTNamingModify;
+            case TNaming_DELETE: return OCCTNamingDelete;
+            case TNaming_SELECTED: return OCCTNamingSelected;
+            default: return -1;
+        }
+    } catch (...) {
+        return -1;
+    }
+}

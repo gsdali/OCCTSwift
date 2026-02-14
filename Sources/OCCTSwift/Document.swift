@@ -138,7 +138,7 @@ public final class Document: @unchecked Sendable {
 /// - Shape (for parts)
 public final class AssemblyNode: @unchecked Sendable {
     private let document: Document
-    private let labelId: Int64
+    internal let labelId: Int64
 
     internal init(document: Document, labelId: Int64) {
         self.document = document
@@ -349,6 +349,167 @@ extension Document {
     /// All datums in this document
     public var datums: [DatumInfo] {
         (0..<datumCount).compactMap { datum(at: $0) }
+    }
+}
+
+// MARK: - TNaming: Topological Naming (v0.25.0)
+
+/// Evolution type for topological naming history
+public enum NamingEvolution: Int32, Sendable {
+    /// Shape created from scratch (no predecessor)
+    case primitive = 0
+    /// Shape generated from another shape (e.g. face from edge extrusion)
+    case generated = 1
+    /// Shape modified (e.g. filleted edge)
+    case modify = 2
+    /// Shape deleted
+    case delete = 3
+    /// Named selection for persistent identification
+    case selected = 4
+}
+
+/// A single entry in the naming history of a label
+public struct NamingHistoryEntry: Sendable {
+    /// The type of evolution this entry represents
+    public let evolution: NamingEvolution
+    /// Whether this entry has an old (input) shape
+    public let hasOldShape: Bool
+    /// Whether this entry has a new (result) shape
+    public let hasNewShape: Bool
+    /// Whether this is a modification operation
+    public let isModification: Bool
+}
+
+extension Document {
+
+    /// Create a new label for naming history tracking
+    ///
+    /// - Parameter parent: Parent node (nil for document root)
+    /// - Returns: Assembly node representing the new label, or nil on failure
+    public func createLabel(parent: AssemblyNode? = nil) -> AssemblyNode? {
+        let parentId = parent?.labelId ?? -1
+        let labelId = OCCTDocumentCreateLabel(handle, parentId)
+        guard labelId >= 0 else { return nil }
+        return AssemblyNode(document: self, labelId: labelId)
+    }
+
+    /// Record a naming evolution on a label
+    ///
+    /// - Parameters:
+    ///   - node: The label to record on
+    ///   - evolution: Type of topological evolution
+    ///   - oldShape: Previous shape (nil for primitive)
+    ///   - newShape: Result shape (nil for delete)
+    /// - Returns: true if recording succeeded
+    @discardableResult
+    public func recordNaming(on node: AssemblyNode, evolution: NamingEvolution,
+                             oldShape: Shape? = nil, newShape: Shape? = nil) -> Bool {
+        OCCTDocumentNamingRecord(handle, node.labelId,
+                                OCCTNamingEvolution(UInt32(evolution.rawValue)),
+                                oldShape?.handle, newShape?.handle)
+    }
+
+    /// Get the current (most recent) shape on a label
+    public func currentShape(on node: AssemblyNode) -> Shape? {
+        guard let h = OCCTDocumentNamingGetCurrentShape(handle, node.labelId) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the stored shape on a label
+    public func storedShape(on node: AssemblyNode) -> Shape? {
+        guard let h = OCCTDocumentNamingGetShape(handle, node.labelId) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the naming evolution type on a label
+    public func namingEvolution(on node: AssemblyNode) -> NamingEvolution? {
+        let raw = OCCTDocumentNamingGetEvolution(handle, node.labelId)
+        guard raw >= 0 else { return nil }
+        return NamingEvolution(rawValue: raw)
+    }
+
+    /// Get the full naming history on a label
+    public func namingHistory(on node: AssemblyNode) -> [NamingHistoryEntry] {
+        let count = OCCTDocumentNamingHistoryCount(handle, node.labelId)
+        guard count > 0 else { return [] }
+
+        var entries: [NamingHistoryEntry] = []
+        entries.reserveCapacity(Int(count))
+
+        for i in 0..<count {
+            var entry = OCCTNamingHistoryEntry()
+            if OCCTDocumentNamingGetHistoryEntry(handle, node.labelId, i, &entry) {
+                entries.append(NamingHistoryEntry(
+                    evolution: NamingEvolution(rawValue: Int32(entry.evolution.rawValue)) ?? .primitive,
+                    hasOldShape: entry.hasOldShape,
+                    hasNewShape: entry.hasNewShape,
+                    isModification: entry.isModification
+                ))
+            }
+        }
+
+        return entries
+    }
+
+    /// Get the old (input) shape from a history entry
+    public func oldShape(on node: AssemblyNode, at index: Int) -> Shape? {
+        guard let h = OCCTDocumentNamingGetOldShape(handle, node.labelId, Int32(index)) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the new (result) shape from a history entry
+    public func newShape(on node: AssemblyNode, at index: Int) -> Shape? {
+        guard let h = OCCTDocumentNamingGetNewShape(handle, node.labelId, Int32(index)) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Trace forward: find shapes generated/modified from the given shape
+    ///
+    /// - Parameters:
+    ///   - shape: The source shape to trace from
+    ///   - scope: A label providing document scope for the search
+    /// - Returns: Array of shapes that were generated/modified from the source
+    public func tracedForward(from shape: Shape, scope: AssemblyNode) -> [Shape] {
+        let maxCount: Int32 = 64
+        var handles = [OCCTShapeRef?](repeating: nil, count: Int(maxCount))
+        let count = OCCTDocumentNamingTraceForward(handle, scope.labelId, shape.handle,
+                                                    &handles, maxCount)
+        return (0..<Int(count)).compactMap { handles[$0].map { Shape(handle: $0) } }
+    }
+
+    /// Trace backward: find shapes that generated/preceded the given shape
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to trace back from
+    ///   - scope: A label providing document scope for the search
+    /// - Returns: Array of shapes that preceded the given shape
+    public func tracedBackward(from shape: Shape, scope: AssemblyNode) -> [Shape] {
+        let maxCount: Int32 = 64
+        var handles = [OCCTShapeRef?](repeating: nil, count: Int(maxCount))
+        let count = OCCTDocumentNamingTraceBackward(handle, scope.labelId, shape.handle,
+                                                     &handles, maxCount)
+        return (0..<Int(count)).compactMap { handles[$0].map { Shape(handle: $0) } }
+    }
+
+    /// Create a persistent named selection
+    ///
+    /// - Parameters:
+    ///   - selection: The shape to select
+    ///   - context: The context shape containing the selection
+    ///   - node: The label to store the selection on
+    /// - Returns: true if selection succeeded
+    @discardableResult
+    public func selectShape(_ selection: Shape, context: Shape, on node: AssemblyNode) -> Bool {
+        OCCTDocumentNamingSelect(handle, node.labelId, selection.handle, context.handle)
+    }
+
+    /// Resolve a previously selected shape after modifications
+    ///
+    /// - Parameter node: The label containing the selection
+    /// - Returns: The resolved shape, or nil on failure
+    public func resolveShape(on node: AssemblyNode) -> Shape? {
+        guard let h = OCCTDocumentNamingResolve(handle, node.labelId) else { return nil }
+        return Shape(handle: h)
     }
 }
 

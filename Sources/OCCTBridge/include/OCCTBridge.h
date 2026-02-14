@@ -2390,6 +2390,97 @@ double OCCTMedialAxisMinThickness(OCCTMedialAxisRef ma);
 int32_t OCCTMedialAxisGetBasicEltCount(OCCTMedialAxisRef ma);
 
 
+// MARK: - TNaming: Topological Naming History (v0.25.0)
+
+/// Evolution type for TNaming history records.
+typedef enum {
+    OCCTNamingPrimitive  = 0,  ///< New entity created (old=NULL, new=shape)
+    OCCTNamingGenerated  = 1,  ///< Entity generated from another (old=generator, new=result)
+    OCCTNamingModify     = 2,  ///< Entity modified (old=before, new=after)
+    OCCTNamingDelete     = 3,  ///< Entity deleted (old=shape, new=NULL)
+    OCCTNamingSelected   = 4   ///< Named selection (old=context, new=selected)
+} OCCTNamingEvolution;
+
+/// A single entry in the naming history of a label.
+typedef struct {
+    OCCTNamingEvolution evolution;
+    bool hasOldShape;
+    bool hasNewShape;
+    bool isModification;
+} OCCTNamingHistoryEntry;
+
+/// Create a new child label under the given parent label.
+/// Pass parentLabelId = -1 to create under the document root.
+/// Returns the new label's ID, or -1 on failure.
+int64_t OCCTDocumentCreateLabel(OCCTDocumentRef doc, int64_t parentLabelId);
+
+/// Record a naming evolution on a label.
+/// For PRIMITIVE: oldShape=NULL, newShape=the created shape.
+/// For GENERATED: oldShape=generator, newShape=generated result.
+/// For MODIFY: oldShape=before, newShape=after.
+/// For DELETE: oldShape=deleted shape, newShape=NULL.
+/// For SELECTED: oldShape=context, newShape=selected shape.
+/// Returns true on success.
+bool OCCTDocumentNamingRecord(OCCTDocumentRef doc, int64_t labelId,
+                               OCCTNamingEvolution evolution,
+                               OCCTShapeRef oldShape, OCCTShapeRef newShape);
+
+/// Get the current (most recent) shape stored on a label via TNaming.
+/// Uses TNaming_Tool::CurrentShape. Returns NULL if no naming exists.
+OCCTShapeRef OCCTDocumentNamingGetCurrentShape(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the shape stored in the NamedShape attribute on a label.
+/// Uses TNaming_Tool::GetShape. Returns NULL if no naming exists.
+OCCTShapeRef OCCTDocumentNamingGetShape(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the number of history entries (old/new pairs) on a label.
+int32_t OCCTDocumentNamingHistoryCount(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get a specific history entry by index (0-based).
+/// Returns true on success.
+bool OCCTDocumentNamingGetHistoryEntry(OCCTDocumentRef doc, int64_t labelId,
+                                        int32_t index, OCCTNamingHistoryEntry* outEntry);
+
+/// Get the old shape from a specific history entry (0-based index).
+/// Returns NULL if the entry has no old shape.
+OCCTShapeRef OCCTDocumentNamingGetOldShape(OCCTDocumentRef doc, int64_t labelId, int32_t index);
+
+/// Get the new shape from a specific history entry (0-based index).
+/// Returns NULL if the entry has no new shape.
+OCCTShapeRef OCCTDocumentNamingGetNewShape(OCCTDocumentRef doc, int64_t labelId, int32_t index);
+
+/// Trace forward: find all shapes generated/modified from the given shape.
+/// Uses TNaming_NewShapeIterator. accessLabelId provides the label scope.
+/// Returns the number of shapes written to outShapes (up to maxCount).
+/// Caller must release each returned shape.
+int32_t OCCTDocumentNamingTraceForward(OCCTDocumentRef doc, int64_t accessLabelId,
+                                        OCCTShapeRef shape,
+                                        OCCTShapeRef* outShapes, int32_t maxCount);
+
+/// Trace backward: find all shapes that generated/preceded the given shape.
+/// Uses TNaming_OldShapeIterator. accessLabelId provides the label scope.
+/// Returns the number of shapes written to outShapes (up to maxCount).
+/// Caller must release each returned shape.
+int32_t OCCTDocumentNamingTraceBackward(OCCTDocumentRef doc, int64_t accessLabelId,
+                                         OCCTShapeRef shape,
+                                         OCCTShapeRef* outShapes, int32_t maxCount);
+
+/// Select a shape for persistent naming.
+/// Creates a TNaming_Selector on the label and selects the shape within context.
+/// Returns true on success.
+bool OCCTDocumentNamingSelect(OCCTDocumentRef doc, int64_t labelId,
+                               OCCTShapeRef selection, OCCTShapeRef context);
+
+/// Resolve a previously selected shape after modifications.
+/// Uses TNaming_Selector::Solve to update the selection.
+/// Returns the resolved shape, or NULL on failure.
+OCCTShapeRef OCCTDocumentNamingResolve(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the evolution type of the NamedShape attribute on a label.
+/// Returns -1 if no NamedShape exists on the label.
+int32_t OCCTDocumentNamingGetEvolution(OCCTDocumentRef doc, int64_t labelId);
+
+
 #ifdef __cplusplus
 }
 #endif

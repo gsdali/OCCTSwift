@@ -35,7 +35,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Selection** | 11 | add, remove, clear, activateMode, deactivateMode, isModeActive, pixelTolerance, pick, pickRect, pickPoly |
 | **Presentation Mesh** | 2 | shadedMesh, edgeMesh |
 | **Medial Axis** | 12 | compute, arcCount, nodeCount, basicElementCount, node(at:), arc(at:), nodes, arcs, minThickness, distanceToBoundary, drawArc, drawAll |
-| **Total** | **384** | |
+| **Topological Naming** | 12 | createLabel, recordNaming, currentShape, storedShape, namingEvolution, namingHistory, oldShape, newShape, tracedForward, tracedBackward, selectShape, resolveShape |
+| **Total** | **396** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -60,6 +61,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Surface Creation**: N-sided boundary filling, plate surfaces through points or curves, advanced plates with per-point constraint orders, mixed point/curve constraints
 - **NLPlate Surface Deformation**: Non-linear plate solver for G0 (positional) and G0+G1 (positional + tangent) surface deformation
 - **Medial Axis Transform**: Voronoi skeleton of planar faces — arc/node graph traversal, bisector curve drawing, inscribed circle radius, minimum wall thickness
+- **Topological Naming**: TNaming history tracking — record primitive/generated/modify/delete evolutions, forward/backward tracing through naming graph, persistent named selections with resolve
 - **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)
 - **Presentation Mesh**: GPU-ready triangulated mesh and edge wireframe extraction from shapes
@@ -86,7 +88,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.23.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.25.0")
 ]
 ```
 
@@ -359,7 +361,8 @@ OCCTSwift/
 │   │   ├── Curve3D.swift    # 3D parametric curves (Geom)
 │   │   ├── Surface.swift    # Parametric surfaces (Geom)
 │   │   ├── LawFunction.swift# Evolution functions for sweeps
-│   │   ├── Document.swift   # XDE assembly + GD&T
+│   │   ├── Document.swift   # XDE assembly + GD&T + TNaming
+│   │   ├── MedialAxis.swift # Medial axis / Voronoi skeleton
 │   │   ├── Mesh.swift       # Triangulated mesh data
 │   │   └── Exporter.swift   # Multi-format export
 │   └── OCCTBridge/          # Objective-C++ bridge to OCCT
@@ -517,6 +520,20 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `document.geomToleranceCount` / `document.geomTolerance(at:)` | `XCAFDimTolObjects_GeomToleranceObject` |
 | `document.datumCount` / `document.datum(at:)` | `XCAFDimTolObjects_DatumObject` |
 
+#### Topological Naming (v0.25.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `document.createLabel(parent:)` | `TDF_TagSource::NewTag` |
+| `document.recordNaming(on:evolution:oldShape:newShape:)` | `TNaming_Builder` |
+| `document.currentShape(on:)` | `TNaming_Tool::CurrentShape` |
+| `document.storedShape(on:)` | `TNaming_Tool::GetShape` |
+| `document.namingEvolution(on:)` | `TNaming_NamedShape::Evolution` |
+| `document.namingHistory(on:)` | `TNaming_Iterator` |
+| `document.tracedForward(from:scope:)` | `TNaming_NewShapeIterator` |
+| `document.tracedBackward(from:scope:)` | `TNaming_OldShapeIterator` |
+| `document.selectShape(_:context:on:)` | `TNaming_Selector::Select` |
+| `document.resolveShape(on:)` | `TNaming_Selector::Solve` |
+
 #### Import
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -581,10 +598,11 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 OCCT has thousands of classes. Some notable ones not yet exposed:
 
 - **Pockets with Islands**: Multi-contour pocket features
-- **Medial Axis Transform**: 2D Voronoi skeleton (`BRepMAT2d`)
-- **Topological Naming**: Persistent name tracking across operations (`TNaming`)
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.24.0: Medial axis transform — Voronoi skeleton, arc/node graph, bisector curves, wall thickness
+> - v0.23.0: NLPlate — advanced plate surfaces, non-linear G0/G1 surface deformation
 > - v0.22.0: Curve projection onto surfaces — 2D UV projection, composite segments, 3D-on-surface, plane projection
 > - v0.21.0: Law functions, variable-section sweeps, XDE GD&T (dimensions, tolerances, datums)
 > - v0.20.0: Full parametric surface wrapping — analytic, swept, freeform, pipe, draw methods, curvature
@@ -622,9 +640,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.23.0
+### Current Status: v0.25.0
 
-OCCTSwift now wraps **345 OCCT operations** across 25 categories with 478 tests across 88 suites.
+OCCTSwift now wraps **396 OCCT operations** across 30 categories with 518 tests across 93 suites.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 
