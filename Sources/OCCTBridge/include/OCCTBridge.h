@@ -1893,6 +1893,131 @@ OCCTShapeRef OCCTFaceIntersect(OCCTFaceRef face1, OCCTFaceRef face2,
                                 double tolerance);
 
 
+// MARK: - Curve3D: 3D Parametric Curves (v0.19.0)
+
+typedef struct OCCTCurve3D* OCCTCurve3DRef;
+
+void OCCTCurve3DRelease(OCCTCurve3DRef curve);
+
+// Properties
+void   OCCTCurve3DGetDomain(OCCTCurve3DRef curve, double* first, double* last);
+bool   OCCTCurve3DIsClosed(OCCTCurve3DRef curve);
+bool   OCCTCurve3DIsPeriodic(OCCTCurve3DRef curve);
+double OCCTCurve3DGetPeriod(OCCTCurve3DRef curve);
+
+// Evaluation
+void OCCTCurve3DGetPoint(OCCTCurve3DRef curve, double u,
+                         double* x, double* y, double* z);
+void OCCTCurve3DD1(OCCTCurve3DRef curve, double u,
+                   double* px, double* py, double* pz,
+                   double* vx, double* vy, double* vz);
+void OCCTCurve3DD2(OCCTCurve3DRef curve, double u,
+                   double* px, double* py, double* pz,
+                   double* v1x, double* v1y, double* v1z,
+                   double* v2x, double* v2y, double* v2z);
+
+// Primitive Curves
+OCCTCurve3DRef OCCTCurve3DCreateLine(double px, double py, double pz,
+                                      double dx, double dy, double dz);
+OCCTCurve3DRef OCCTCurve3DCreateSegment(double p1x, double p1y, double p1z,
+                                         double p2x, double p2y, double p2z);
+OCCTCurve3DRef OCCTCurve3DCreateCircle(double cx, double cy, double cz,
+                                        double nx, double ny, double nz,
+                                        double radius);
+OCCTCurve3DRef OCCTCurve3DCreateArcOfCircle(double p1x, double p1y, double p1z,
+                                             double p2x, double p2y, double p2z,
+                                             double p3x, double p3y, double p3z);
+OCCTCurve3DRef OCCTCurve3DCreateArc3Points(double p1x, double p1y, double p1z,
+                                            double pmx, double pmy, double pmz,
+                                            double p2x, double p2y, double p2z);
+OCCTCurve3DRef OCCTCurve3DCreateEllipse(double cx, double cy, double cz,
+                                         double nx, double ny, double nz,
+                                         double majorR, double minorR);
+OCCTCurve3DRef OCCTCurve3DCreateParabola(double cx, double cy, double cz,
+                                          double nx, double ny, double nz,
+                                          double focal);
+OCCTCurve3DRef OCCTCurve3DCreateHyperbola(double cx, double cy, double cz,
+                                           double nx, double ny, double nz,
+                                           double majorR, double minorR);
+
+// BSpline / Bezier / Interpolation
+OCCTCurve3DRef OCCTCurve3DCreateBSpline(const double* poles, int32_t poleCount,
+                                         const double* weights,
+                                         const double* knots, int32_t knotCount,
+                                         const int32_t* multiplicities, int32_t degree);
+OCCTCurve3DRef OCCTCurve3DCreateBezier(const double* poles, int32_t poleCount,
+                                        const double* weights);
+OCCTCurve3DRef OCCTCurve3DInterpolate(const double* points, int32_t count,
+                                       bool closed, double tolerance);
+OCCTCurve3DRef OCCTCurve3DInterpolateWithTangents(const double* points, int32_t count,
+                                                   double stx, double sty, double stz,
+                                                   double etx, double ety, double etz,
+                                                   double tolerance);
+OCCTCurve3DRef OCCTCurve3DFitPoints(const double* points, int32_t count,
+                                     int32_t minDeg, int32_t maxDeg, double tolerance);
+
+// BSpline queries
+int32_t OCCTCurve3DGetPoleCount(OCCTCurve3DRef curve);
+int32_t OCCTCurve3DGetPoles(OCCTCurve3DRef curve, double* outXYZ);
+int32_t OCCTCurve3DGetDegree(OCCTCurve3DRef curve);
+
+// Operations
+OCCTCurve3DRef OCCTCurve3DTrim(OCCTCurve3DRef curve, double u1, double u2);
+OCCTCurve3DRef OCCTCurve3DReversed(OCCTCurve3DRef curve);
+OCCTCurve3DRef OCCTCurve3DTranslate(OCCTCurve3DRef curve, double dx, double dy, double dz);
+OCCTCurve3DRef OCCTCurve3DRotate(OCCTCurve3DRef curve,
+                                  double axisOx, double axisOy, double axisOz,
+                                  double axisDx, double axisDy, double axisDz,
+                                  double angle);
+OCCTCurve3DRef OCCTCurve3DScale(OCCTCurve3DRef curve,
+                                 double cx, double cy, double cz, double factor);
+OCCTCurve3DRef OCCTCurve3DMirrorPoint(OCCTCurve3DRef curve,
+                                       double px, double py, double pz);
+OCCTCurve3DRef OCCTCurve3DMirrorAxis(OCCTCurve3DRef curve,
+                                      double px, double py, double pz,
+                                      double dx, double dy, double dz);
+OCCTCurve3DRef OCCTCurve3DMirrorPlane(OCCTCurve3DRef curve,
+                                       double px, double py, double pz,
+                                       double nx, double ny, double nz);
+double OCCTCurve3DGetLength(OCCTCurve3DRef curve);
+double OCCTCurve3DGetLengthBetween(OCCTCurve3DRef curve, double u1, double u2);
+
+// Conversion (GeomConvert)
+OCCTCurve3DRef OCCTCurve3DToBSpline(OCCTCurve3DRef curve);
+int32_t OCCTCurve3DBSplineToBeziers(OCCTCurve3DRef curve,
+                                     OCCTCurve3DRef* out, int32_t max);
+void OCCTCurve3DFreeArray(OCCTCurve3DRef* curves, int32_t count);
+OCCTCurve3DRef OCCTCurve3DJoinToBSpline(const OCCTCurve3DRef* curves, int32_t count,
+                                         double tolerance);
+OCCTCurve3DRef OCCTCurve3DApproximate(OCCTCurve3DRef curve, double tolerance,
+                                       int32_t continuity, int32_t maxSegments,
+                                       int32_t maxDegree);
+
+// Draw Methods (discretization for Metal)
+int32_t OCCTCurve3DDrawAdaptive(OCCTCurve3DRef curve,
+                                 double angularDefl, double chordalDefl,
+                                 double* outXYZ, int32_t maxPoints);
+int32_t OCCTCurve3DDrawUniform(OCCTCurve3DRef curve,
+                                int32_t pointCount, double* outXYZ);
+int32_t OCCTCurve3DDrawDeflection(OCCTCurve3DRef curve, double deflection,
+                                   double* outXYZ, int32_t maxPoints);
+
+// Local Properties
+double OCCTCurve3DGetCurvature(OCCTCurve3DRef curve, double u);
+bool   OCCTCurve3DGetTangent(OCCTCurve3DRef curve, double u,
+                              double* tx, double* ty, double* tz);
+bool   OCCTCurve3DGetNormal(OCCTCurve3DRef curve, double u,
+                             double* nx, double* ny, double* nz);
+bool   OCCTCurve3DGetCenterOfCurvature(OCCTCurve3DRef curve, double u,
+                                        double* cx, double* cy, double* cz);
+double OCCTCurve3DGetTorsion(OCCTCurve3DRef curve, double u);
+
+// Bounding Box
+bool OCCTCurve3DGetBoundingBox(OCCTCurve3DRef curve,
+                                double* xMin, double* yMin, double* zMin,
+                                double* xMax, double* yMax, double* zMax);
+
+
 #ifdef __cplusplus
 }
 #endif

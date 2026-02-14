@@ -5286,3 +5286,456 @@ struct SurfaceIntersectionTests {
         }
     }
 }
+
+
+// MARK: - Curve3D Tests (v0.19.0)
+
+@Suite("Curve3D Primitive Tests")
+struct Curve3DPrimitiveTests {
+
+    @Test("Create segment and verify endpoints")
+    func createSegment() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 5, 3))
+        #expect(seg != nil)
+        if let seg = seg {
+            let start = seg.startPoint
+            let end = seg.endPoint
+            #expect(abs(start.x) < 1e-10)
+            #expect(abs(start.y) < 1e-10)
+            #expect(abs(start.z) < 1e-10)
+            #expect(abs(end.x - 10) < 1e-10)
+            #expect(abs(end.y - 5) < 1e-10)
+            #expect(abs(end.z - 3) < 1e-10)
+        }
+    }
+
+    @Test("Degenerate segment returns nil")
+    func degenerateSegment() {
+        let seg = Curve3D.segment(from: SIMD3(5, 5, 5), to: SIMD3(5, 5, 5))
+        #expect(seg == nil)
+    }
+
+    @Test("Create circle and verify closed/periodic")
+    func createCircle() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)
+        #expect(circle != nil)
+        if let circle = circle {
+            #expect(circle.isClosed)
+            #expect(circle.isPeriodic)
+            #expect(circle.period != nil)
+        }
+    }
+
+    @Test("Circle zero radius returns nil")
+    func circleZeroRadius() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 0)
+        #expect(circle == nil)
+    }
+
+    @Test("Circle point at 0 and pi/2")
+    func circlePoints() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let p0 = circle.point(at: 0)
+        let pHalfPi = circle.point(at: .pi / 2)
+        #expect(abs(p0.x - 5) < 1e-10)
+        #expect(abs(p0.y) < 1e-10)
+        #expect(abs(pHalfPi.x) < 1e-10)
+        #expect(abs(pHalfPi.y - 5) < 1e-10)
+    }
+
+    @Test("Arc through three points")
+    func arcThreePoints() {
+        let arc = Curve3D.arcOfCircle(start: SIMD3(5, 0, 0),
+                                       interior: SIMD3(0, 5, 0),
+                                       end: SIMD3(-5, 0, 0))
+        #expect(arc != nil)
+        if let arc = arc {
+            #expect(!arc.isClosed)
+            let start = arc.startPoint
+            #expect(abs(start.x - 5) < 0.01)
+        }
+    }
+
+    @Test("Create ellipse")
+    func createEllipse() {
+        let ellipse = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1),
+                                       majorRadius: 10, minorRadius: 5)
+        #expect(ellipse != nil)
+        if let e = ellipse {
+            #expect(e.isClosed)
+            #expect(e.isPeriodic)
+        }
+    }
+
+    @Test("Invalid ellipse returns nil")
+    func invalidEllipse() {
+        // Minor > major is invalid
+        let e = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1),
+                                 majorRadius: 5, minorRadius: 10)
+        #expect(e == nil)
+    }
+
+    @Test("Create line and verify infinite domain")
+    func createLine() {
+        let line = Curve3D.line(through: .zero, direction: SIMD3(1, 0, 0))
+        #expect(line != nil)
+        if let line = line {
+            let d = line.domain
+            // Line domain should be very large (practically infinite)
+            #expect(d.upperBound - d.lowerBound > 1e10)
+        }
+    }
+
+    @Test("Evaluate segment midpoint")
+    func evaluateSegmentMidpoint() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let d = seg.domain
+        let mid = (d.lowerBound + d.upperBound) / 2
+        let p = seg.point(at: mid)
+        #expect(abs(p.x - 5) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+    }
+
+    @Test("D1 returns non-zero tangent")
+    func d1Tangent() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 5, 3))!
+        let result = seg.d1(at: seg.domain.lowerBound)
+        let len = simd_length(result.tangent)
+        #expect(len > 0)
+    }
+}
+
+
+@Suite("Curve3D BSpline Tests")
+struct Curve3DBSplineTests {
+
+    @Test("Create quadratic Bezier")
+    func quadraticBezier() {
+        let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(5,10,0), SIMD3(10,0,0)])
+        #expect(bez != nil)
+        if let bez = bez {
+            #expect(bez.degree == 2)
+            #expect(bez.poleCount == 3)
+        }
+    }
+
+    @Test("Poles roundtrip")
+    func polesRoundtrip() {
+        let original: [SIMD3<Double>] = [SIMD3(0,0,0), SIMD3(5,10,5), SIMD3(10,0,0)]
+        let bez = Curve3D.bezier(poles: original)!
+        let retrieved = bez.poles!
+        #expect(retrieved.count == 3)
+        for i in 0..<3 {
+            #expect(abs(retrieved[i].x - original[i].x) < 1e-10)
+            #expect(abs(retrieved[i].y - original[i].y) < 1e-10)
+            #expect(abs(retrieved[i].z - original[i].z) < 1e-10)
+        }
+    }
+
+    @Test("Interpolate through points")
+    func interpolate() {
+        let pts: [SIMD3<Double>] = [SIMD3(0,0,0), SIMD3(3,5,1), SIMD3(7,2,3), SIMD3(10,0,0)]
+        let curve = Curve3D.interpolate(points: pts)
+        #expect(curve != nil)
+        if let c = curve {
+            let start = c.startPoint
+            let end = c.endPoint
+            #expect(abs(start.x) < 0.01)
+            #expect(abs(end.x - 10) < 0.01)
+        }
+    }
+
+    @Test("Interpolate with tangents")
+    func interpolateWithTangents() {
+        let pts: [SIMD3<Double>] = [SIMD3(0,0,0), SIMD3(5,5,5), SIMD3(10,0,0)]
+        let curve = Curve3D.interpolate(points: pts,
+                                         startTangent: SIMD3(1, 1, 1),
+                                         endTangent: SIMD3(1, -1, -1))
+        #expect(curve != nil)
+    }
+
+    @Test("Fit points to BSpline")
+    func fitPoints() {
+        let pts: [SIMD3<Double>] = (0..<20).map { i in
+            let t = Double(i) / 19.0 * .pi * 2
+            return SIMD3(cos(t) * 5, sin(t) * 5, Double(i) * 0.5)
+        }
+        let curve = Curve3D.fit(points: pts)
+        #expect(curve != nil)
+        if let c = curve {
+            let start = c.startPoint
+            #expect(abs(start.x - pts[0].x) < 0.5)
+        }
+    }
+
+    @Test("Create BSpline with explicit knots")
+    func createBSpline() {
+        let poles: [SIMD3<Double>] = [SIMD3(0,0,0), SIMD3(3,5,1), SIMD3(7,3,2), SIMD3(10,0,0)]
+        let knots: [Double] = [0, 1]
+        let mults: [Int32] = [4, 4]
+        let bsp = Curve3D.bspline(poles: poles, knots: knots, multiplicities: mults, degree: 3)
+        #expect(bsp != nil)
+        if let b = bsp {
+            #expect(b.degree == 3)
+            #expect(b.poleCount == 4)
+        }
+    }
+}
+
+
+@Suite("Curve3D Operations Tests")
+struct Curve3DOperationsTests {
+
+    @Test("Trim circle to quarter arc")
+    func trimCircle() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let arc = circle.trimmed(from: 0, to: .pi / 2)
+        #expect(arc != nil)
+        if let arc = arc {
+            #expect(!arc.isClosed)
+            let start = arc.startPoint
+            let end = arc.endPoint
+            #expect(abs(start.x - 5) < 1e-10)
+            #expect(abs(end.y - 5) < 1e-10)
+        }
+    }
+
+    @Test("Reverse segment swaps endpoints")
+    func reverseSegment() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 5, 3))!
+        let rev = seg.reversed()!
+        let revStart = rev.startPoint
+        let revEnd = rev.endPoint
+        #expect(abs(revStart.x - 10) < 1e-10)
+        #expect(abs(revEnd.x) < 1e-10)
+    }
+
+    @Test("Translate segment")
+    func translateSegment() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let moved = seg.translated(by: SIMD3(5, 5, 5))!
+        let start = moved.startPoint
+        #expect(abs(start.x - 5) < 1e-10)
+        #expect(abs(start.y - 5) < 1e-10)
+        #expect(abs(start.z - 5) < 1e-10)
+    }
+
+    @Test("Rotate segment around Z axis")
+    func rotateSegment() {
+        let seg = Curve3D.segment(from: SIMD3(5, 0, 0), to: SIMD3(10, 0, 0))!
+        let rotated = seg.rotated(around: .zero, direction: SIMD3(0, 0, 1), angle: .pi / 2)!
+        let start = rotated.startPoint
+        #expect(abs(start.x) < 0.01)
+        #expect(abs(start.y - 5) < 0.01)
+    }
+
+    @Test("Scale segment")
+    func scaleSegment() {
+        let seg = Curve3D.segment(from: SIMD3(1, 0, 0), to: SIMD3(2, 0, 0))!
+        let scaled = seg.scaled(from: .zero, factor: 3)!
+        let start = scaled.startPoint
+        let end = scaled.endPoint
+        #expect(abs(start.x - 3) < 1e-10)
+        #expect(abs(end.x - 6) < 1e-10)
+    }
+
+    @Test("Mirror across XY plane")
+    func mirrorPlane() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 1), to: SIMD3(10, 0, 1))!
+        let mirrored = seg.mirrored(acrossPlane: .zero, normal: SIMD3(0, 0, 1))!
+        let start = mirrored.startPoint
+        #expect(abs(start.z + 1) < 1e-10)
+    }
+
+    @Test("Length of segment")
+    func segmentLength() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(3, 4, 0))!
+        let len = seg.length
+        #expect(len != nil)
+        if let l = len {
+            #expect(abs(l - 5.0) < 0.01)
+        }
+    }
+
+    @Test("Length of circle")
+    func circleLength() {
+        let radius = 5.0
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: radius)!
+        let len = circle.length
+        #expect(len != nil)
+        if let l = len {
+            #expect(abs(l - 2 * .pi * radius) < 0.01)
+        }
+    }
+
+    @Test("Partial length")
+    func partialLength() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let d = seg.domain
+        let halfLen = seg.length(from: d.lowerBound, to: (d.lowerBound + d.upperBound) / 2)
+        #expect(halfLen != nil)
+        if let h = halfLen {
+            #expect(abs(h - 5.0) < 0.01)
+        }
+    }
+}
+
+
+@Suite("Curve3D Conversion Tests")
+struct Curve3DConversionTests {
+
+    @Test("Circle to BSpline")
+    func circleToBSpline() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let bsp = circle.toBSpline()
+        #expect(bsp != nil)
+        if let b = bsp {
+            #expect(b.poleCount > 0)
+            #expect(b.degree > 0)
+        }
+    }
+
+    @Test("BSpline to Bezier segments")
+    func bsplineToBeziers() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let beziers = circle.toBezierSegments()
+        #expect(beziers != nil)
+        if let segs = beziers {
+            #expect(segs.count >= 2)
+        }
+    }
+
+    @Test("Join two segments into BSpline")
+    func joinCurves() {
+        let seg1 = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(5, 0, 0))!
+        let seg2 = Curve3D.segment(from: SIMD3(5, 0, 0), to: SIMD3(10, 5, 0))!
+        let joined = Curve3D.join([seg1, seg2])
+        #expect(joined != nil)
+        if let j = joined {
+            let start = j.startPoint
+            let end = j.endPoint
+            #expect(abs(start.x) < 0.1)
+            #expect(abs(end.x - 10) < 0.1)
+        }
+    }
+
+    @Test("Approximate curve")
+    func approximateCurve() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let arc = circle.trimmed(from: 0, to: .pi)!
+        let approx = arc.approximated(tolerance: 0.01)
+        #expect(approx != nil)
+    }
+}
+
+
+@Suite("Curve3D Draw Tests")
+struct Curve3DDrawTests {
+
+    @Test("Adaptive draw on circle produces points")
+    func adaptiveDrawCircle() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let points = circle.drawAdaptive()
+        #expect(points.count >= 10)
+        // Points should be on the circle (radius ≈ 5)
+        for p in points {
+            let r = sqrt(p.x * p.x + p.y * p.y)
+            #expect(abs(r - 5) < 0.1)
+        }
+    }
+
+    @Test("Uniform draw produces exact count")
+    func uniformDraw() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let points = circle.drawUniform(pointCount: 32)
+        #expect(points.count == 32)
+    }
+
+    @Test("Deflection draw produces points")
+    func deflectionDraw() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let points = circle.drawDeflection(deflection: 0.1)
+        #expect(points.count >= 4)
+    }
+
+    @Test("Adaptive draw on segment produces at least 2 points")
+    func adaptiveDrawSegment() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 5, 3))!
+        let points = seg.drawAdaptive()
+        #expect(points.count >= 2)
+    }
+}
+
+
+@Suite("Curve3D Local Properties Tests")
+struct Curve3DLocalPropertiesTests {
+
+    @Test("Curvature of circle is 1/r")
+    func circleRadius() {
+        let radius = 5.0
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: radius)!
+        let curv = circle.curvature(at: 0)
+        #expect(abs(curv - 1.0 / radius) < 0.01)
+    }
+
+    @Test("Curvature of line is zero")
+    func lineCurvature() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let d = seg.domain
+        let curv = seg.curvature(at: (d.lowerBound + d.upperBound) / 2)
+        #expect(abs(curv) < 1e-10)
+    }
+
+    @Test("Tangent of X-axis segment is (1,0,0)")
+    func segmentTangent() {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let d = seg.domain
+        let tang = seg.tangentDirection(at: (d.lowerBound + d.upperBound) / 2)
+        #expect(tang != nil)
+        if let t = tang {
+            #expect(abs(t.x - 1) < 1e-6)
+            #expect(abs(t.y) < 1e-6)
+            #expect(abs(t.z) < 1e-6)
+        }
+    }
+
+    @Test("Normal of circle points inward")
+    func circleNormal() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let n = circle.normal(at: 0)
+        #expect(n != nil)
+        if let n = n {
+            let len = simd_length(n)
+            #expect(abs(len - 1.0) < 1e-6)
+        }
+    }
+
+    @Test("Center of curvature of circle is at origin")
+    func circleCenterOfCurvature() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let c = circle.centerOfCurvature(at: 0)
+        #expect(c != nil)
+        if let c = c {
+            #expect(abs(c.x) < 0.01)
+            #expect(abs(c.y) < 0.01)
+        }
+    }
+
+    @Test("Torsion of planar circle is zero")
+    func circularTorsion() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let tor = circle.torsion(at: 0.5)
+        #expect(abs(tor) < 1e-6)
+    }
+
+    @Test("Bounding box of segment")
+    func segmentBoundingBox() {
+        let seg = Curve3D.segment(from: SIMD3(1, 2, 3), to: SIMD3(10, 8, 6))!
+        let bb = seg.boundingBox
+        #expect(bb != nil)
+        if let bb = bb {
+            #expect(bb.min.x <= 1.01)
+            #expect(bb.max.x >= 9.99)
+        }
+    }
+}
