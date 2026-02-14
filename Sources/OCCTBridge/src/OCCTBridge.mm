@@ -7452,3 +7452,621 @@ OCCTCurve2DRef OCCTCurve2DJoinToBSpline(const OCCTCurve2DRef* curves, int32_t co
         return nullptr;
     }
 }
+
+
+// MARK: - Local Properties (Geom2dLProp)
+
+#include <Geom2dLProp_CLProps2d.hxx>
+#include <Geom2dLProp_CurAndInf2d.hxx>
+#include <LProp_CurAndInf.hxx>
+#include <LProp_CIType.hxx>
+#include <Bnd_Box2d.hxx>
+#include <BndLib_Add2dCurve.hxx>
+#include <GCE2d_MakeArcOfHyperbola.hxx>
+#include <GCE2d_MakeArcOfParabola.hxx>
+#include <Geom2dConvert_ApproxCurve.hxx>
+#include <Geom2dConvert_BSplineCurveKnotSplitting.hxx>
+#include <Geom2dConvert_ApproxArcsSegments.hxx>
+#include <Geom2d_CartesianPoint.hxx>
+#include <Geom2dGcc_Circ2d3Tan.hxx>
+#include <Geom2dGcc_Circ2d2TanRad.hxx>
+#include <Geom2dGcc_Circ2dTanCen.hxx>
+#include <Geom2dGcc_Lin2d2Tan.hxx>
+#include <Geom2dGcc_QualifiedCurve.hxx>
+#include <GccEnt_Position.hxx>
+
+double OCCTCurve2DGetCurvature(OCCTCurve2DRef c, double u) {
+    if (!c || c->curve.IsNull()) return 0.0;
+    try {
+        Geom2dLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
+        return props.Curvature();
+    } catch (...) {
+        return 0.0;
+    }
+}
+
+bool OCCTCurve2DGetNormal(OCCTCurve2DRef c, double u, double* nx, double* ny) {
+    if (!c || c->curve.IsNull() || !nx || !ny) return false;
+    try {
+        Geom2dLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
+        if (!props.IsTangentDefined()) return false;
+        if (props.Curvature() < Precision::Confusion()) return false;
+        gp_Dir2d n;
+        props.Normal(n);
+        *nx = n.X(); *ny = n.Y();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTCurve2DGetTangentDir(OCCTCurve2DRef c, double u, double* tx, double* ty) {
+    if (!c || c->curve.IsNull() || !tx || !ty) return false;
+    try {
+        Geom2dLProp_CLProps2d props(c->curve, u, 1, Precision::Confusion());
+        if (!props.IsTangentDefined()) return false;
+        gp_Dir2d t;
+        props.Tangent(t);
+        *tx = t.X(); *ty = t.Y();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTCurve2DGetCenterOfCurvature(OCCTCurve2DRef c, double u, double* cx, double* cy) {
+    if (!c || c->curve.IsNull() || !cx || !cy) return false;
+    try {
+        Geom2dLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
+        if (!props.IsTangentDefined()) return false;
+        if (props.Curvature() < Precision::Confusion()) return false;
+        gp_Pnt2d center;
+        props.CentreOfCurvature(center);
+        *cx = center.X(); *cy = center.Y();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+int32_t OCCTCurve2DGetInflectionPoints(OCCTCurve2DRef c, double* outParams, int32_t max) {
+    if (!c || c->curve.IsNull() || !outParams || max <= 0) return 0;
+    try {
+        Geom2dLProp_CurAndInf2d analyzer;
+        analyzer.PerformInf(c->curve);
+        if (!analyzer.IsDone()) return 0;
+        int32_t n = 0;
+        for (int i = 1; i <= analyzer.NbPoints() && n < max; i++) {
+            if (analyzer.Type(i) == LProp_Inflection) {
+                outParams[n++] = analyzer.Parameter(i);
+            }
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTCurve2DGetCurvatureExtrema(OCCTCurve2DRef c, OCCTCurve2DCurvePoint* out, int32_t max) {
+    if (!c || c->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        Geom2dLProp_CurAndInf2d analyzer;
+        analyzer.PerformCurExt(c->curve);
+        if (!analyzer.IsDone()) return 0;
+        int32_t n = 0;
+        for (int i = 1; i <= analyzer.NbPoints() && n < max; i++) {
+            out[n].parameter = analyzer.Parameter(i);
+            LProp_CIType t = analyzer.Type(i);
+            out[n].type = (t == LProp_MinCur) ? 1 : (t == LProp_MaxCur) ? 2 : 0;
+            n++;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTCurve2DGetAllSpecialPoints(OCCTCurve2DRef c, OCCTCurve2DCurvePoint* out, int32_t max) {
+    if (!c || c->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        Geom2dLProp_CurAndInf2d analyzer;
+        analyzer.Perform(c->curve);
+        if (!analyzer.IsDone()) return 0;
+        int32_t n = std::min((int32_t)analyzer.NbPoints(), max);
+        for (int i = 0; i < n; i++) {
+            out[i].parameter = analyzer.Parameter(i + 1);
+            LProp_CIType t = analyzer.Type(i + 1);
+            out[i].type = (t == LProp_Inflection) ? 0 : (t == LProp_MinCur) ? 1 : 2;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// Bounding Box
+
+bool OCCTCurve2DGetBoundingBox(OCCTCurve2DRef c, double* xMin, double* yMin,
+                               double* xMax, double* yMax) {
+    if (!c || c->curve.IsNull() || !xMin || !yMin || !xMax || !yMax) return false;
+    try {
+        Bnd_Box2d box;
+        BndLib_Add2dCurve::Add(c->curve, 0.0, box);
+        if (box.IsVoid()) return false;
+        box.Get(*xMin, *yMin, *xMax, *yMax);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// Additional Arc Types
+
+OCCTCurve2DRef OCCTCurve2DCreateArcOfHyperbola(double cx, double cy,
+                                               double majorR, double minorR,
+                                               double rotation,
+                                               double startAngle, double endAngle) {
+    try {
+        if (majorR <= 0 || minorR <= 0) return nullptr;
+        gp_Pnt2d center(cx, cy);
+        gp_Dir2d majorDir(cos(rotation), sin(rotation));
+        gp_Ax22d axes(center, majorDir);
+        Handle(Geom2d_Hyperbola) hyp = new Geom2d_Hyperbola(axes, majorR, minorR);
+        Handle(Geom2d_TrimmedCurve) arc = new Geom2d_TrimmedCurve(hyp, startAngle, endAngle);
+        return new OCCTCurve2D(arc);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateArcOfParabola(double fx, double fy,
+                                              double dx, double dy, double focal,
+                                              double startParam, double endParam) {
+    try {
+        if (focal <= 0) return nullptr;
+        gp_Pnt2d mirrorP(fx - dx * focal, fy - dy * focal);
+        gp_Dir2d dir(dx, dy);
+        gp_Ax2d axis(mirrorP, dir);
+        Handle(Geom2d_Parabola) parab = new Geom2d_Parabola(axis, focal);
+        Handle(Geom2d_TrimmedCurve) arc = new Geom2d_TrimmedCurve(parab, startParam, endParam);
+        return new OCCTCurve2D(arc);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// Conversion Extras
+
+OCCTCurve2DRef OCCTCurve2DApproximate(OCCTCurve2DRef c, double tolerance,
+                                      int32_t continuity, int32_t maxSegments, int32_t maxDegree) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        GeomAbs_Shape cont = GeomAbs_C2;
+        switch (continuity) {
+            case 0: cont = GeomAbs_C0; break;
+            case 1: cont = GeomAbs_C1; break;
+            case 2: cont = GeomAbs_C2; break;
+            case 3: cont = GeomAbs_C3; break;
+            default: cont = GeomAbs_C2; break;
+        }
+        Geom2dConvert_ApproxCurve approx(c->curve, tolerance, cont, maxSegments, maxDegree);
+        if (!approx.HasResult()) return nullptr;
+        Handle(Geom2d_BSplineCurve) result = approx.Curve();
+        if (result.IsNull()) return nullptr;
+        return new OCCTCurve2D(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTCurve2DSplitAtDiscontinuities(OCCTCurve2DRef c, int32_t continuity,
+                                          int32_t* outKnotIndices, int32_t max) {
+    if (!c || c->curve.IsNull() || !outKnotIndices || max <= 0) return 0;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(c->curve);
+        if (bsp.IsNull()) return 0;
+        Geom2dConvert_BSplineCurveKnotSplitting splitter(bsp, continuity);
+        int32_t n = std::min((int32_t)splitter.NbSplits(), max);
+        TColStd_Array1OfInteger indices(1, splitter.NbSplits());
+        splitter.Splitting(indices);
+        for (int32_t i = 0; i < n; i++) {
+            outKnotIndices[i] = indices(i + 1);
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTCurve2DToArcsAndSegments(OCCTCurve2DRef c, double tolerance,
+                                     double angleTol, OCCTCurve2DRef* out, int32_t max) {
+    if (!c || c->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        // Approximate with arcs/segments using adaptor
+        Geom2dAdaptor_Curve adaptor(c->curve);
+        Geom2dConvert_ApproxArcsSegments converter(adaptor, tolerance, angleTol);
+        const TColGeom2d_SequenceOfCurve& result = converter.GetResult();
+        int32_t n = std::min((int32_t)result.Size(), max);
+        for (int32_t i = 0; i < n; i++) {
+            out[i] = new OCCTCurve2D(result.Value(i + 1));
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Gcc Constraint Solver
+
+static GccEnt_Position toGccPosition(int32_t q) {
+    switch (q) {
+        case 1: return GccEnt_enclosing;
+        case 2: return GccEnt_enclosed;
+        case 3: return GccEnt_outside;
+        default: return GccEnt_unqualified;
+    }
+}
+
+static Geom2dGcc_QualifiedCurve makeQualifiedCurve(OCCTCurve2DRef c, int32_t q) {
+    Geom2dAdaptor_Curve adaptor(c->curve);
+    return Geom2dGcc_QualifiedCurve(adaptor, toGccPosition(q));
+}
+
+int32_t OCCTGccCircle2d3Tan(OCCTCurve2DRef c1, int32_t q1,
+                            OCCTCurve2DRef c2, int32_t q2,
+                            OCCTCurve2DRef c3, int32_t q3,
+                            double tolerance,
+                            OCCTGccCircleSolution* out, int32_t max) {
+    if (!c1 || !c2 || !c3 || !out || max <= 0) return 0;
+    if (c1->curve.IsNull() || c2->curve.IsNull() || c3->curve.IsNull()) return 0;
+    try {
+        Geom2dGcc_QualifiedCurve qc1 = makeQualifiedCurve(c1, q1);
+        Geom2dGcc_QualifiedCurve qc2 = makeQualifiedCurve(c2, q2);
+        Geom2dGcc_QualifiedCurve qc3 = makeQualifiedCurve(c3, q3);
+        Geom2dGcc_Circ2d3Tan solver(qc1, qc2, qc3, tolerance, 0, 0, 0);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i + 1);
+            out[i].cx = circ.Location().X();
+            out[i].cy = circ.Location().Y();
+            out[i].radius = circ.Radius();
+            GccEnt_Position qq1, qq2, qq3;
+            solver.WhichQualifier(i + 1, qq1, qq2, qq3);
+            out[i].qualifier = (int32_t)qq1;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGccCircle2d2TanPt(OCCTCurve2DRef c1, int32_t q1,
+                              OCCTCurve2DRef c2, int32_t q2,
+                              double px, double py,
+                              double tolerance,
+                              OCCTGccCircleSolution* out, int32_t max) {
+    if (!c1 || !c2 || !out || max <= 0) return 0;
+    if (c1->curve.IsNull() || c2->curve.IsNull()) return 0;
+    try {
+        Geom2dGcc_QualifiedCurve qc1 = makeQualifiedCurve(c1, q1);
+        Geom2dGcc_QualifiedCurve qc2 = makeQualifiedCurve(c2, q2);
+        Handle(Geom2d_CartesianPoint) point = new Geom2d_CartesianPoint(px, py);
+        Geom2dGcc_Circ2d3Tan solver(qc1, qc2, point, tolerance, 0, 0);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i + 1);
+            out[i].cx = circ.Location().X();
+            out[i].cy = circ.Location().Y();
+            out[i].radius = circ.Radius();
+            out[i].qualifier = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGccCircle2dTanCen(OCCTCurve2DRef curve, int32_t qualifier,
+                              double cx, double cy, double tolerance,
+                              OCCTGccCircleSolution* out, int32_t max) {
+    if (!curve || curve->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        Geom2dGcc_QualifiedCurve qc = makeQualifiedCurve(curve, qualifier);
+        Handle(Geom2d_CartesianPoint) center = new Geom2d_CartesianPoint(cx, cy);
+        Geom2dGcc_Circ2dTanCen solver(qc, center, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i + 1);
+            out[i].cx = circ.Location().X();
+            out[i].cy = circ.Location().Y();
+            out[i].radius = circ.Radius();
+            out[i].qualifier = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGccCircle2d2TanRad(OCCTCurve2DRef c1, int32_t q1,
+                               OCCTCurve2DRef c2, int32_t q2,
+                               double radius, double tolerance,
+                               OCCTGccCircleSolution* out, int32_t max) {
+    if (!c1 || !c2 || !out || max <= 0) return 0;
+    if (c1->curve.IsNull() || c2->curve.IsNull()) return 0;
+    if (radius <= 0) return 0;
+    try {
+        Geom2dGcc_QualifiedCurve qc1 = makeQualifiedCurve(c1, q1);
+        Geom2dGcc_QualifiedCurve qc2 = makeQualifiedCurve(c2, q2);
+        Geom2dGcc_Circ2d2TanRad solver(qc1, qc2, radius, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i + 1);
+            out[i].cx = circ.Location().X();
+            out[i].cy = circ.Location().Y();
+            out[i].radius = circ.Radius();
+            out[i].qualifier = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGccCircle2dTanPtRad(OCCTCurve2DRef curve, int32_t qualifier,
+                                double px, double py,
+                                double radius, double tolerance,
+                                OCCTGccCircleSolution* out, int32_t max) {
+    if (!curve || curve->curve.IsNull() || !out || max <= 0) return 0;
+    if (radius <= 0) return 0;
+    try {
+        Geom2dGcc_QualifiedCurve qc = makeQualifiedCurve(curve, qualifier);
+        Handle(Geom2d_CartesianPoint) point = new Geom2d_CartesianPoint(px, py);
+        Geom2dGcc_Circ2d2TanRad solver(qc, point, radius, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i + 1);
+            out[i].cx = circ.Location().X();
+            out[i].cy = circ.Location().Y();
+            out[i].radius = circ.Radius();
+            out[i].qualifier = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGccCircle2d2PtRad(double p1x, double p1y, double p2x, double p2y,
+                              double radius, double tolerance,
+                              OCCTGccCircleSolution* out, int32_t max) {
+    if (!out || max <= 0 || radius <= 0) return 0;
+    try {
+        Handle(Geom2d_CartesianPoint) pt1 = new Geom2d_CartesianPoint(p1x, p1y);
+        Handle(Geom2d_CartesianPoint) pt2 = new Geom2d_CartesianPoint(p2x, p2y);
+        Geom2dGcc_Circ2d2TanRad solver(pt1, pt2, radius, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i + 1);
+            out[i].cx = circ.Location().X();
+            out[i].cy = circ.Location().Y();
+            out[i].radius = circ.Radius();
+            out[i].qualifier = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGccCircle2d3Pt(double p1x, double p1y, double p2x, double p2y,
+                           double p3x, double p3y, double tolerance,
+                           OCCTGccCircleSolution* out, int32_t max) {
+    if (!out || max <= 0) return 0;
+    try {
+        Handle(Geom2d_CartesianPoint) pt1 = new Geom2d_CartesianPoint(p1x, p1y);
+        Handle(Geom2d_CartesianPoint) pt2 = new Geom2d_CartesianPoint(p2x, p2y);
+        Handle(Geom2d_CartesianPoint) pt3 = new Geom2d_CartesianPoint(p3x, p3y);
+        Geom2dGcc_Circ2d3Tan solver(pt1, pt2, pt3, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i + 1);
+            out[i].cx = circ.Location().X();
+            out[i].cy = circ.Location().Y();
+            out[i].radius = circ.Radius();
+            out[i].qualifier = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// Gcc Line Construction
+
+int32_t OCCTGccLine2d2Tan(OCCTCurve2DRef c1, int32_t q1,
+                          OCCTCurve2DRef c2, int32_t q2,
+                          double tolerance,
+                          OCCTGccLineSolution* out, int32_t max) {
+    if (!c1 || !c2 || !out || max <= 0) return 0;
+    if (c1->curve.IsNull() || c2->curve.IsNull()) return 0;
+    try {
+        Geom2dGcc_QualifiedCurve qc1 = makeQualifiedCurve(c1, q1);
+        Geom2dGcc_QualifiedCurve qc2 = makeQualifiedCurve(c2, q2);
+        Geom2dGcc_Lin2d2Tan solver(qc1, qc2, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Lin2d lin = solver.ThisSolution(i + 1);
+            out[i].px = lin.Location().X();
+            out[i].py = lin.Location().Y();
+            out[i].dx = lin.Direction().X();
+            out[i].dy = lin.Direction().Y();
+            out[i].qualifier = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGccLine2dTanPt(OCCTCurve2DRef curve, int32_t qualifier,
+                           double px, double py, double tolerance,
+                           OCCTGccLineSolution* out, int32_t max) {
+    if (!curve || curve->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        Geom2dGcc_QualifiedCurve qc = makeQualifiedCurve(curve, qualifier);
+        gp_Pnt2d point(px, py);
+        Geom2dGcc_Lin2d2Tan solver(qc, point, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t n = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Lin2d lin = solver.ThisSolution(i + 1);
+            out[i].px = lin.Location().X();
+            out[i].py = lin.Location().Y();
+            out[i].dx = lin.Direction().X();
+            out[i].dy = lin.Direction().Y();
+            out[i].qualifier = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Hatching
+
+#include <Geom2dHatch_Hatcher.hxx>
+#include <Geom2dHatch_Intersector.hxx>
+#include <HatchGen_Domain.hxx>
+
+int32_t OCCTCurve2DHatch(const OCCTCurve2DRef* boundaries, int32_t boundaryCount,
+                         double originX, double originY,
+                         double dirX, double dirY,
+                         double spacing, double tolerance,
+                         double* outXY, int32_t maxPoints) {
+    if (!boundaries || boundaryCount <= 0 || !outXY || maxPoints <= 0 || spacing <= 0) return 0;
+    try {
+        Geom2dHatch_Intersector intersector(tolerance, tolerance);
+        Geom2dHatch_Hatcher hatcher(intersector, tolerance, tolerance);
+
+        // Add boundary elements
+        for (int32_t i = 0; i < boundaryCount; i++) {
+            if (!boundaries[i] || boundaries[i]->curve.IsNull()) continue;
+            Geom2dAdaptor_Curve adaptor(boundaries[i]->curve);
+            hatcher.AddElement(adaptor, TopAbs_FORWARD);
+        }
+
+        // Compute bounding box for hatch range
+        Bnd_Box2d box;
+        for (int32_t i = 0; i < boundaryCount; i++) {
+            if (!boundaries[i] || boundaries[i]->curve.IsNull()) continue;
+            BndLib_Add2dCurve::Add(boundaries[i]->curve, 0.0, box);
+        }
+        if (box.IsVoid()) return 0;
+
+        double xMin, yMin, xMax, yMax;
+        box.Get(xMin, yMin, xMax, yMax);
+        double diag = sqrt((xMax - xMin) * (xMax - xMin) + (yMax - yMin) * (yMax - yMin));
+        if (diag < tolerance) return 0;
+
+        gp_Dir2d dir(dirX, dirY);
+        gp_Dir2d perp(-dirY, dirX);
+        gp_Pnt2d origin(originX, originY);
+
+        // Compute perpendicular extent
+        double minPerp = 1e100, maxPerp = -1e100;
+        double corners[4][2] = {{xMin, yMin}, {xMax, yMin}, {xMax, yMax}, {xMin, yMax}};
+        for (int i = 0; i < 4; i++) {
+            double dx = corners[i][0] - originX;
+            double dy = corners[i][1] - originY;
+            double proj = dx * perp.X() + dy * perp.Y();
+            if (proj < minPerp) minPerp = proj;
+            if (proj > maxPerp) maxPerp = proj;
+        }
+
+        // Add hatch lines
+        int nLines = (int)((maxPerp - minPerp) / spacing) + 2;
+        std::vector<int> hatchIndices;
+        for (int i = 0; i < nLines; i++) {
+            double offset = minPerp + i * spacing;
+            gp_Pnt2d p(originX + perp.X() * offset, originY + perp.Y() * offset);
+            gp_Lin2d line(p, dir);
+            Geom2dAdaptor_Curve lineAdaptor(new Geom2d_Line(line));
+            int idx = hatcher.AddHatching(lineAdaptor);
+            hatchIndices.push_back(idx);
+        }
+
+        hatcher.Trim();
+        hatcher.ComputeDomains();
+
+        // Extract hatch segments
+        int32_t pointIdx = 0;
+        for (int idx : hatchIndices) {
+            if (!hatcher.IsDone(idx)) continue;
+            int nDomains = hatcher.NbDomains(idx);
+            for (int d = 1; d <= nDomains; d++) {
+                HatchGen_Domain domain = hatcher.Domain(idx, d);
+                if (!domain.HasFirstPoint() || !domain.HasSecondPoint()) continue;
+                double u1 = domain.FirstPoint().Parameter();
+                double u2 = domain.SecondPoint().Parameter();
+                // Get the hatch line curve
+                const Geom2dAdaptor_Curve& hatchCurve = hatcher.HatchingCurve(idx);
+                gp_Pnt2d p1 = hatchCurve.Value(u1);
+                gp_Pnt2d p2 = hatchCurve.Value(u2);
+                if (pointIdx + 4 > maxPoints * 2) break;
+                outXY[pointIdx++] = p1.X();
+                outXY[pointIdx++] = p1.Y();
+                outXY[pointIdx++] = p2.X();
+                outXY[pointIdx++] = p2.Y();
+            }
+        }
+        return pointIdx / 4; // Each segment = 2 points = 4 doubles
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Bisector
+
+#include <Bisector_BisecCC.hxx>
+#include <Bisector_BisecPC.hxx>
+
+OCCTCurve2DRef OCCTCurve2DBisectorCC(OCCTCurve2DRef c1, OCCTCurve2DRef c2,
+                                     double originX, double originY, bool side) {
+    if (!c1 || c1->curve.IsNull() || !c2 || c2->curve.IsNull()) return nullptr;
+    try {
+        Handle(Bisector_BisecCC) bisector = new Bisector_BisecCC();
+        gp_Pnt2d origin(originX, originY);
+        double s = side ? 1.0 : -1.0;
+        bisector->Perform(c1->curve, c2->curve, s, s, origin);
+        if (bisector->IsEmpty()) return nullptr;
+        // Return as Geom2d_Curve (Bisector_BisecCC inherits from Geom2d_Curve)
+        Handle(Geom2d_Curve) result = bisector;
+        return new OCCTCurve2D(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DBisectorPC(double px, double py, OCCTCurve2DRef curve,
+                                     double originX, double originY, bool side) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        Handle(Bisector_BisecPC) bisector = new Bisector_BisecPC();
+        gp_Pnt2d point(px, py);
+        bisector->Perform(curve->curve, point, side ? 1.0 : -1.0);
+        if (bisector->IsEmpty()) return nullptr;
+        Handle(Geom2d_Curve) result = bisector;
+        return new OCCTCurve2D(result);
+    } catch (...) {
+        return nullptr;
+    }
+}

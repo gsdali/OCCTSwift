@@ -381,6 +381,154 @@ public final class Curve2D: @unchecked Sendable {
         return l >= 0 ? l : nil
     }
 
+    // MARK: - Local Properties (Curvature, Normal, Inflection)
+
+    /// The curvature (1/radius) at parameter `u`.
+    /// Returns 0 for straight segments or on error.
+    public func curvature(at u: Double) -> Double {
+        OCCTCurve2DGetCurvature(handle, u)
+    }
+
+    /// The unit normal vector at parameter `u`, or `nil` if undefined (e.g. on a straight line).
+    public func normal(at u: Double) -> SIMD2<Double>? {
+        var nx: Double = 0, ny: Double = 0
+        guard OCCTCurve2DGetNormal(handle, u, &nx, &ny) else { return nil }
+        return SIMD2(nx, ny)
+    }
+
+    /// The unit tangent direction at parameter `u`, or `nil` if undefined.
+    public func tangentDirection(at u: Double) -> SIMD2<Double>? {
+        var tx: Double = 0, ty: Double = 0
+        guard OCCTCurve2DGetTangentDir(handle, u, &tx, &ty) else { return nil }
+        return SIMD2(tx, ty)
+    }
+
+    /// The center of curvature (osculating circle center) at parameter `u`,
+    /// or `nil` if curvature is zero (straight segment).
+    public func centerOfCurvature(at u: Double) -> SIMD2<Double>? {
+        var cx: Double = 0, cy: Double = 0
+        guard OCCTCurve2DGetCenterOfCurvature(handle, u, &cx, &cy) else { return nil }
+        return SIMD2(cx, cy)
+    }
+
+    /// Find all inflection points (where curvature changes sign).
+    /// Returns an array of parameter values.
+    public func inflectionPoints() -> [Double] {
+        var buffer = [Double](repeating: 0, count: 256)
+        let n = Int(OCCTCurve2DGetInflectionPoints(handle, &buffer, 256))
+        return Array(buffer.prefix(n))
+    }
+
+    /// Find curvature extrema (local min/max of curvature magnitude).
+    public func curvatureExtrema() -> [Curve2DSpecialPoint] {
+        var buffer = [OCCTCurve2DCurvePoint](repeating: OCCTCurve2DCurvePoint(), count: 256)
+        let n = Int(OCCTCurve2DGetCurvatureExtrema(handle, &buffer, 256))
+        return (0..<n).map {
+            Curve2DSpecialPoint(parameter: buffer[$0].parameter,
+                                type: Curve2DSpecialPointType(rawValue: buffer[$0].type) ?? .minCurvature)
+        }
+    }
+
+    /// Find all special points: inflection points and curvature extrema.
+    public func allSpecialPoints() -> [Curve2DSpecialPoint] {
+        var buffer = [OCCTCurve2DCurvePoint](repeating: OCCTCurve2DCurvePoint(), count: 256)
+        let n = Int(OCCTCurve2DGetAllSpecialPoints(handle, &buffer, 256))
+        return (0..<n).map {
+            Curve2DSpecialPoint(parameter: buffer[$0].parameter,
+                                type: Curve2DSpecialPointType(rawValue: buffer[$0].type) ?? .inflection)
+        }
+    }
+
+    // MARK: - Bounding Box
+
+    /// The axis-aligned bounding box of this curve.
+    public var boundingBox: (min: SIMD2<Double>, max: SIMD2<Double>)? {
+        var xMin: Double = 0, yMin: Double = 0, xMax: Double = 0, yMax: Double = 0
+        guard OCCTCurve2DGetBoundingBox(handle, &xMin, &yMin, &xMax, &yMax) else { return nil }
+        return (min: SIMD2(xMin, yMin), max: SIMD2(xMax, yMax))
+    }
+
+    // MARK: - Additional Arc Types
+
+    /// Create a trimmed arc of a hyperbola.
+    public static func arcOfHyperbola(center: SIMD2<Double>, majorRadius: Double,
+                                      minorRadius: Double, rotation: Double = 0,
+                                      startAngle: Double, endAngle: Double) -> Curve2D? {
+        guard let h = OCCTCurve2DCreateArcOfHyperbola(center.x, center.y,
+                                                       majorRadius, minorRadius, rotation,
+                                                       startAngle, endAngle) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Create a trimmed arc of a parabola.
+    public static func arcOfParabola(focus: SIMD2<Double>, direction: SIMD2<Double>,
+                                     focalLength: Double,
+                                     startParam: Double, endParam: Double) -> Curve2D? {
+        guard let h = OCCTCurve2DCreateArcOfParabola(focus.x, focus.y,
+                                                      direction.x, direction.y, focalLength,
+                                                      startParam, endParam) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    // MARK: - Conversion Extras
+
+    /// Re-approximate this curve as a B-spline with controlled degree and segments.
+    /// - Parameters:
+    ///   - tolerance: Maximum approximation error
+    ///   - continuity: Desired continuity (0=C0, 1=C1, 2=C2, 3=C3)
+    ///   - maxSegments: Maximum number of B-spline segments
+    ///   - maxDegree: Maximum polynomial degree
+    public func approximated(tolerance: Double = 1e-3, continuity: Int = 2,
+                             maxSegments: Int = 100, maxDegree: Int = 8) -> Curve2D? {
+        guard let h = OCCTCurve2DApproximate(handle, tolerance, Int32(continuity),
+                                              Int32(maxSegments), Int32(maxDegree)) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Find knot indices where a B-spline has continuity discontinuities.
+    /// - Parameter continuity: The desired continuity level to check (0=C0, 1=C1, etc.)
+    /// - Returns: Array of knot indices where the curve drops below the requested continuity, or nil if not a B-spline.
+    public func splitIndicesAtDiscontinuities(continuity: Int = 1) -> [Int]? {
+        var buffer = [Int32](repeating: 0, count: 256)
+        let n = Int(OCCTCurve2DSplitAtDiscontinuities(handle, Int32(continuity), &buffer, 256))
+        guard n > 0 else { return nil }
+        return (0..<n).map { Int(buffer[$0]) }
+    }
+
+    /// Approximate this curve as a sequence of arcs and line segments.
+    /// Useful for CNC G-code generation.
+    public func toArcsAndSegments(tolerance: Double = 0.01,
+                                  angleTolerance: Double = 0.04) -> [Curve2D]? {
+        var buffer = [OCCTCurve2DRef?](repeating: nil, count: 256)
+        let n = Int(buffer.withUnsafeMutableBufferPointer { ptr in
+            OCCTCurve2DToArcsAndSegments(handle, tolerance, angleTolerance, ptr.baseAddress, 256)
+        })
+        guard n > 0 else { return nil }
+        return (0..<n).compactMap { i in
+            guard let h = buffer[i] else { return nil }
+            return Curve2D(handle: h)
+        }
+    }
+
+    // MARK: - Bisector
+
+    /// Compute the bisector curve between this curve and another.
+    /// The bisector is the locus of points equidistant from both curves.
+    public func bisector(with other: Curve2D, origin: SIMD2<Double>,
+                         side: Bool = true) -> Curve2D? {
+        guard let h = OCCTCurve2DBisectorCC(handle, other.handle,
+                                             origin.x, origin.y, side) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Compute the bisector curve between a point and this curve.
+    public func bisector(withPoint point: SIMD2<Double>, origin: SIMD2<Double>,
+                         side: Bool = true) -> Curve2D? {
+        guard let h = OCCTCurve2DBisectorPC(point.x, point.y, handle,
+                                             origin.x, origin.y, side) else { return nil }
+        return Curve2D(handle: h)
+    }
+
     // MARK: - Analysis
 
     /// Find intersection points between this curve and another.
@@ -508,4 +656,257 @@ public struct Curve2DExtremaResult: Sendable {
     public let parameter2: Double
     /// The distance between the two points.
     public let distance: Double
+}
+
+/// Type of a special point on a curve (inflection or curvature extremum).
+public enum Curve2DSpecialPointType: Int32, Sendable {
+    case inflection = 0
+    case minCurvature = 1
+    case maxCurvature = 2
+}
+
+/// A special point on a 2D curve: inflection or curvature extremum.
+public struct Curve2DSpecialPoint: Sendable {
+    /// The parameter value on the curve.
+    public let parameter: Double
+    /// The type of special point.
+    public let type: Curve2DSpecialPointType
+}
+
+// MARK: - Gcc Constraint Solver
+
+/// Qualifier for how a curve participates in a geometric constraint.
+public enum Curve2DQualifier: Int32, Sendable {
+    /// The solution position is unspecified relative to the curve.
+    case unqualified = 0
+    /// The solution encloses the curve.
+    case enclosing = 1
+    /// The solution is enclosed by the curve.
+    case enclosed = 2
+    /// The solution is outside the curve.
+    case outside = 3
+}
+
+/// A circle solution from the Gcc constraint solver.
+public struct Curve2DCircleSolution: Sendable {
+    /// Center of the solution circle.
+    public let center: SIMD2<Double>
+    /// Radius of the solution circle.
+    public let radius: Double
+}
+
+/// A line solution from the Gcc constraint solver.
+public struct Curve2DLineSolution: Sendable {
+    /// A point on the solution line.
+    public let point: SIMD2<Double>
+    /// Direction of the solution line (unit vector).
+    public let direction: SIMD2<Double>
+}
+
+/// A hatch segment produced by the hatching algorithm.
+public struct Curve2DHatchSegment: Sendable {
+    /// Start point of the hatch line segment.
+    public let start: SIMD2<Double>
+    /// End point of the hatch line segment.
+    public let end: SIMD2<Double>
+}
+
+/// Constraint-based 2D geometric construction (circle/line solver).
+///
+/// Wraps the OpenCASCADE `Geom2dGcc` package — given tangency, passing-through,
+/// and radius constraints, finds all circles or lines satisfying them.
+///
+/// ## Examples
+///
+/// ```swift
+/// // Circle tangent to two circles with a given radius
+/// let solutions = Curve2DGcc.circlesTangentToTwoCurves(
+///     c1, .unqualified, c2, .unqualified, radius: 3)
+///
+/// // Line tangent to a circle through a point
+/// let lines = Curve2DGcc.linesTangentToPoint(circle, .outside,
+///                                            point: SIMD2(10, 0))
+/// ```
+public enum Curve2DGcc {
+
+    // MARK: - Circle Construction
+
+    /// Find circles tangent to three curves.
+    public static func circlesTangentTo(
+        _ c1: Curve2D, _ q1: Curve2DQualifier = .unqualified,
+        _ c2: Curve2D, _ q2: Curve2DQualifier = .unqualified,
+        _ c3: Curve2D, _ q3: Curve2DQualifier = .unqualified,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccCircle2d3Tan(c1.handle, q1.rawValue,
+                                         c2.handle, q2.rawValue,
+                                         c3.handle, q3.rawValue,
+                                         tolerance, &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    /// Find circles tangent to two curves and passing through a point.
+    public static func circlesTangentToTwoCurvesAndPoint(
+        _ c1: Curve2D, _ q1: Curve2DQualifier = .unqualified,
+        _ c2: Curve2D, _ q2: Curve2DQualifier = .unqualified,
+        point: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccCircle2d2TanPt(c1.handle, q1.rawValue,
+                                           c2.handle, q2.rawValue,
+                                           point.x, point.y,
+                                           tolerance, &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    /// Find circles tangent to a curve with a given center point.
+    public static func circlesTangentWithCenter(
+        _ curve: Curve2D, _ qualifier: Curve2DQualifier = .unqualified,
+        center: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccCircle2dTanCen(curve.handle, qualifier.rawValue,
+                                           center.x, center.y, tolerance,
+                                           &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    /// Find circles tangent to two curves with a given radius.
+    public static func circlesTangentToTwoCurves(
+        _ c1: Curve2D, _ q1: Curve2DQualifier = .unqualified,
+        _ c2: Curve2D, _ q2: Curve2DQualifier = .unqualified,
+        radius: Double,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccCircle2d2TanRad(c1.handle, q1.rawValue,
+                                            c2.handle, q2.rawValue,
+                                            radius, tolerance, &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    /// Find circles tangent to a curve, passing through a point, with a given radius.
+    public static func circlesTangentToPointWithRadius(
+        _ curve: Curve2D, _ qualifier: Curve2DQualifier = .unqualified,
+        point: SIMD2<Double>, radius: Double,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccCircle2dTanPtRad(curve.handle, qualifier.rawValue,
+                                             point.x, point.y, radius, tolerance,
+                                             &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    /// Find circles through two points with a given radius.
+    public static func circlesThroughTwoPoints(
+        _ p1: SIMD2<Double>, _ p2: SIMD2<Double>,
+        radius: Double,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccCircle2d2PtRad(p1.x, p1.y, p2.x, p2.y,
+                                           radius, tolerance, &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    /// Find the circle through three points.
+    public static func circleThroughThreePoints(
+        _ p1: SIMD2<Double>, _ p2: SIMD2<Double>, _ p3: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccCircle2d3Pt(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y,
+                                        tolerance, &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    // MARK: - Line Construction
+
+    /// Find lines tangent to two curves.
+    public static func linesTangentTo(
+        _ c1: Curve2D, _ q1: Curve2DQualifier = .unqualified,
+        _ c2: Curve2D, _ q2: Curve2DQualifier = .unqualified,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 32)
+        let n = Int(OCCTGccLine2d2Tan(c1.handle, q1.rawValue,
+                                       c2.handle, q2.rawValue,
+                                       tolerance, &buffer, 32))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                                direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    /// Find lines tangent to a curve and passing through a point.
+    public static func linesTangentToPoint(
+        _ curve: Curve2D, _ qualifier: Curve2DQualifier = .unqualified,
+        point: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 32)
+        let n = Int(OCCTGccLine2dTanPt(curve.handle, qualifier.rawValue,
+                                        point.x, point.y, tolerance,
+                                        &buffer, 32))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                                direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    // MARK: - Hatching
+
+    /// Generate parallel hatch lines clipped to a region bounded by curves.
+    /// - Parameters:
+    ///   - boundaries: Closed boundary curves defining the region
+    ///   - origin: Origin point for the hatch pattern
+    ///   - direction: Direction of hatch lines
+    ///   - spacing: Distance between hatch lines
+    ///   - tolerance: Intersection tolerance
+    /// - Returns: Array of hatch line segments
+    public static func hatch(boundaries: [Curve2D],
+                             origin: SIMD2<Double> = .zero,
+                             direction: SIMD2<Double> = SIMD2(1, 0),
+                             spacing: Double,
+                             tolerance: Double = 1e-6) -> [Curve2DHatchSegment] {
+        let maxSegments = 4096
+        var buffer = [Double](repeating: 0, count: maxSegments * 4)
+        let handles = boundaries.map { $0.handle as OCCTCurve2DRef? }
+        let n = Int(handles.withUnsafeBufferPointer { ptr in
+            OCCTCurve2DHatch(ptr.baseAddress, Int32(boundaries.count),
+                             origin.x, origin.y, direction.x, direction.y,
+                             spacing, tolerance, &buffer, Int32(maxSegments))
+        })
+        return (0..<n).map { i in
+            let base = i * 4
+            return Curve2DHatchSegment(
+                start: SIMD2(buffer[base], buffer[base + 1]),
+                end: SIMD2(buffer[base + 2], buffer[base + 3]))
+        }
+    }
 }

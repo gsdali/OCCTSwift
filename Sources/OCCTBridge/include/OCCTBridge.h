@@ -1575,6 +1575,114 @@ void OCCTCurve2DFreeArray(OCCTCurve2DRef* curves, int32_t count);
 OCCTCurve2DRef OCCTCurve2DJoinToBSpline(const OCCTCurve2DRef* curves, int32_t count,
                                         double tolerance);
 
+// Local Properties (Geom2dLProp)
+double OCCTCurve2DGetCurvature(OCCTCurve2DRef curve, double u);
+bool   OCCTCurve2DGetNormal(OCCTCurve2DRef curve, double u, double* nx, double* ny);
+bool   OCCTCurve2DGetTangentDir(OCCTCurve2DRef curve, double u, double* tx, double* ty);
+bool   OCCTCurve2DGetCenterOfCurvature(OCCTCurve2DRef curve, double u, double* cx, double* cy);
+
+/// Curve inflection/curvature result type: 0=Inflection, 1=MinCurvature, 2=MaxCurvature
+typedef struct {
+    double parameter;
+    int32_t type;
+} OCCTCurve2DCurvePoint;
+
+int32_t OCCTCurve2DGetInflectionPoints(OCCTCurve2DRef curve, double* outParams, int32_t max);
+int32_t OCCTCurve2DGetCurvatureExtrema(OCCTCurve2DRef curve, OCCTCurve2DCurvePoint* out, int32_t max);
+int32_t OCCTCurve2DGetAllSpecialPoints(OCCTCurve2DRef curve, OCCTCurve2DCurvePoint* out, int32_t max);
+
+// Bounding Box
+bool OCCTCurve2DGetBoundingBox(OCCTCurve2DRef curve, double* xMin, double* yMin,
+                               double* xMax, double* yMax);
+
+// Additional Arc Types
+OCCTCurve2DRef OCCTCurve2DCreateArcOfHyperbola(double cx, double cy,
+                                               double majorR, double minorR,
+                                               double rotation,
+                                               double startAngle, double endAngle);
+OCCTCurve2DRef OCCTCurve2DCreateArcOfParabola(double fx, double fy,
+                                              double dx, double dy, double focal,
+                                              double startParam, double endParam);
+
+// Conversion Extras
+OCCTCurve2DRef OCCTCurve2DApproximate(OCCTCurve2DRef curve, double tolerance,
+                                      int32_t continuity, int32_t maxSegments, int32_t maxDegree);
+int32_t OCCTCurve2DSplitAtDiscontinuities(OCCTCurve2DRef curve, int32_t continuity,
+                                          int32_t* outKnotIndices, int32_t max);
+int32_t OCCTCurve2DToArcsAndSegments(OCCTCurve2DRef curve, double tolerance,
+                                     double angleTol, OCCTCurve2DRef* out, int32_t max);
+
+// Gcc Constraint Solver — Qualifier enum
+typedef enum {
+    OCCTGccQualUnqualified = 0,
+    OCCTGccQualEnclosing   = 1,
+    OCCTGccQualEnclosed    = 2,
+    OCCTGccQualOutside     = 3
+} OCCTGccQualifier;
+
+/// Circle tangent solution result
+typedef struct {
+    double cx, cy, radius;
+    int32_t qualifier;
+} OCCTGccCircleSolution;
+
+/// Line tangent solution result
+typedef struct {
+    double px, py, dx, dy;
+    int32_t qualifier;
+} OCCTGccLineSolution;
+
+// Gcc Circle Construction
+int32_t OCCTGccCircle2d3Tan(OCCTCurve2DRef c1, int32_t q1,
+                            OCCTCurve2DRef c2, int32_t q2,
+                            OCCTCurve2DRef c3, int32_t q3,
+                            double tolerance,
+                            OCCTGccCircleSolution* out, int32_t max);
+int32_t OCCTGccCircle2d2TanPt(OCCTCurve2DRef c1, int32_t q1,
+                              OCCTCurve2DRef c2, int32_t q2,
+                              double px, double py,
+                              double tolerance,
+                              OCCTGccCircleSolution* out, int32_t max);
+int32_t OCCTGccCircle2dTanCen(OCCTCurve2DRef curve, int32_t qualifier,
+                              double cx, double cy, double tolerance,
+                              OCCTGccCircleSolution* out, int32_t max);
+int32_t OCCTGccCircle2d2TanRad(OCCTCurve2DRef c1, int32_t q1,
+                               OCCTCurve2DRef c2, int32_t q2,
+                               double radius, double tolerance,
+                               OCCTGccCircleSolution* out, int32_t max);
+int32_t OCCTGccCircle2dTanPtRad(OCCTCurve2DRef curve, int32_t qualifier,
+                                double px, double py,
+                                double radius, double tolerance,
+                                OCCTGccCircleSolution* out, int32_t max);
+int32_t OCCTGccCircle2d2PtRad(double p1x, double p1y, double p2x, double p2y,
+                              double radius, double tolerance,
+                              OCCTGccCircleSolution* out, int32_t max);
+int32_t OCCTGccCircle2d3Pt(double p1x, double p1y, double p2x, double p2y,
+                           double p3x, double p3y, double tolerance,
+                           OCCTGccCircleSolution* out, int32_t max);
+
+// Gcc Line Construction
+int32_t OCCTGccLine2d2Tan(OCCTCurve2DRef c1, int32_t q1,
+                          OCCTCurve2DRef c2, int32_t q2,
+                          double tolerance,
+                          OCCTGccLineSolution* out, int32_t max);
+int32_t OCCTGccLine2dTanPt(OCCTCurve2DRef curve, int32_t qualifier,
+                           double px, double py, double tolerance,
+                           OCCTGccLineSolution* out, int32_t max);
+
+// Hatching
+int32_t OCCTCurve2DHatch(const OCCTCurve2DRef* boundaries, int32_t boundaryCount,
+                         double originX, double originY,
+                         double dirX, double dirY,
+                         double spacing, double tolerance,
+                         double* outXY, int32_t maxPoints);
+
+// Bisector
+OCCTCurve2DRef OCCTCurve2DBisectorCC(OCCTCurve2DRef c1, OCCTCurve2DRef c2,
+                                     double originX, double originY, bool side);
+OCCTCurve2DRef OCCTCurve2DBisectorPC(double px, double py, OCCTCurve2DRef curve,
+                                     double originX, double originY, bool side);
+
 
 #ifdef __cplusplus
 }

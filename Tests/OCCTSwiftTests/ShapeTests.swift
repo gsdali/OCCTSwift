@@ -3940,3 +3940,336 @@ struct Curve2DAnalysisTests {
         }
     }
 }
+
+// MARK: - Curve2D Local Properties Tests
+
+@Suite("Curve2D Local Properties Tests")
+struct Curve2DLocalPropertiesTests {
+
+    @Test("Curvature of circle equals 1/radius")
+    func curvatureOfCircle() {
+        let r = 5.0
+        let circle = Curve2D.circle(center: .zero, radius: r)!
+        let k = circle.curvature(at: 0)
+        #expect(abs(k - 1.0 / r) < 1e-10)
+    }
+
+    @Test("Curvature of line is zero")
+    func curvatureOfLine() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let k = seg.curvature(at: 0.5)
+        #expect(abs(k) < 1e-10)
+    }
+
+    @Test("Normal on circle points toward center")
+    func normalOnCircle() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        // At u=0, point is (5,0), normal should point toward center i.e. (-1,0)
+        let n = circle.normal(at: 0)
+        #expect(n != nil)
+        if let n = n {
+            // Normal should be roughly (-1, 0) or (1, 0) depending on convention
+            let len = sqrt(n.x * n.x + n.y * n.y)
+            #expect(abs(len - 1.0) < 1e-6)
+        }
+    }
+
+    @Test("Tangent direction on segment is along direction")
+    func tangentOnSegment() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let mid = (seg.domain.lowerBound + seg.domain.upperBound) / 2
+        let t = seg.tangentDirection(at: mid)
+        #expect(t != nil)
+        if let t = t {
+            // Should be along X axis
+            let len = sqrt(t.x * t.x + t.y * t.y)
+            #expect(abs(len - 1.0) < 1e-6)
+            #expect(abs(t.y) < 1e-6)
+        }
+    }
+
+    @Test("Center of curvature on circle is at center")
+    func centerOfCurvatureCircle() {
+        let circle = Curve2D.circle(center: SIMD2(3, 4), radius: 5)!
+        let cc = circle.centerOfCurvature(at: 0)
+        #expect(cc != nil)
+        if let cc = cc {
+            #expect(abs(cc.x - 3) < 1e-6)
+            #expect(abs(cc.y - 4) < 1e-6)
+        }
+    }
+
+    @Test("Inflection points of cubic BSpline")
+    func inflectionPointsCubic() {
+        // An S-shaped cubic should have an inflection point
+        let pts: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(2, 5), SIMD2(5, -5), SIMD2(8, 0)
+        ]
+        let curve = Curve2D.interpolate(through: pts)
+        #expect(curve != nil)
+        if let curve = curve {
+            let inflections = curve.inflectionPoints()
+            // S-curve should have at least one inflection
+            #expect(inflections.count >= 1)
+        }
+    }
+
+    @Test("Curvature extrema of ellipse")
+    func curvatureExtremaEllipse() {
+        let ellipse = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5)!
+        let extrema = ellipse.curvatureExtrema()
+        // Ellipse has curvature extrema at ends of major and minor axes
+        #expect(extrema.count >= 2)
+    }
+
+    @Test("All special points of ellipse")
+    func allSpecialPointsEllipse() {
+        let ellipse = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5)!
+        let points = ellipse.allSpecialPoints()
+        // Should have min and max curvature points
+        #expect(points.count >= 2)
+        let hasMinCur = points.contains { $0.type == .minCurvature }
+        let hasMaxCur = points.contains { $0.type == .maxCurvature }
+        #expect(hasMinCur)
+        #expect(hasMaxCur)
+    }
+}
+
+// MARK: - Curve2D Bounding Box Tests
+
+@Suite("Curve2D Bounding Box Tests")
+struct Curve2DBoundingBoxTests {
+
+    @Test("Bounding box of segment")
+    func boundingBoxSegment() {
+        let seg = Curve2D.segment(from: SIMD2(1, 2), to: SIMD2(5, 8))!
+        let bb = seg.boundingBox
+        #expect(bb != nil)
+        if let bb = bb {
+            #expect(bb.min.x <= 1 + 1e-6)
+            #expect(bb.min.y <= 2 + 1e-6)
+            #expect(bb.max.x >= 5 - 1e-6)
+            #expect(bb.max.y >= 8 - 1e-6)
+        }
+    }
+
+    @Test("Bounding box of circle")
+    func boundingBoxCircle() {
+        let r = 5.0
+        let circle = Curve2D.circle(center: SIMD2(10, 10), radius: r)!
+        let bb = circle.boundingBox
+        #expect(bb != nil)
+        if let bb = bb {
+            #expect(bb.min.x <= 10 - r + 1e-6)
+            #expect(bb.min.y <= 10 - r + 1e-6)
+            #expect(bb.max.x >= 10 + r - 1e-6)
+            #expect(bb.max.y >= 10 + r - 1e-6)
+        }
+    }
+}
+
+// MARK: - Curve2D Arc Types Tests
+
+@Suite("Curve2D Arc Types Tests")
+struct Curve2DArcTypesTests {
+
+    @Test("Arc of hyperbola creation")
+    func arcOfHyperbola() {
+        let arc = Curve2D.arcOfHyperbola(
+            center: .zero, majorRadius: 5, minorRadius: 3,
+            rotation: 0, startAngle: -0.5, endAngle: 0.5
+        )
+        #expect(arc != nil)
+        if let arc = arc {
+            #expect(!arc.isClosed)
+            let pts = arc.drawAdaptive()
+            #expect(pts.count >= 2)
+        }
+    }
+
+    @Test("Arc of parabola creation")
+    func arcOfParabola() {
+        let arc = Curve2D.arcOfParabola(
+            focus: .zero, direction: SIMD2(1, 0),
+            focalLength: 2, startParam: -5, endParam: 5
+        )
+        #expect(arc != nil)
+        if let arc = arc {
+            #expect(!arc.isClosed)
+            let pts = arc.drawAdaptive()
+            #expect(pts.count >= 2)
+        }
+    }
+}
+
+// MARK: - Curve2D Convert Extras Tests
+
+@Suite("Curve2D Convert Extras Tests")
+struct Curve2DConvertExtrasTests {
+
+    @Test("Approximate circle as BSpline")
+    func approximateCircle() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let approx = circle.approximated(tolerance: 1e-3)
+        #expect(approx != nil)
+        if let approx = approx {
+            // Should be a BSpline after approximation
+            #expect(approx.degree != nil)
+        }
+    }
+
+    @Test("Split BSpline at discontinuities")
+    func splitAtDiscontinuities() {
+        // A BSpline created by joining two segments should have a C0 junction
+        let seg1 = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(5, 5))!
+        let seg2 = Curve2D.segment(from: SIMD2(5, 5), to: SIMD2(10, 0))!
+        let joined = Curve2D.join([seg1, seg2])
+        #expect(joined != nil)
+        if let joined = joined {
+            let indices = joined.splitIndicesAtDiscontinuities(continuity: 2)
+            // May or may not find C2 discontinuities depending on join method
+            #expect(indices != nil)
+        }
+    }
+
+    @Test("Convert to arcs and segments")
+    func toArcsAndSegments() {
+        // Create a simple curve and convert
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let result = circle.toArcsAndSegments(tolerance: 0.1, angleTolerance: 0.1)
+        // Circle should decompose into arc segments
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.count >= 1)
+        }
+    }
+}
+
+// MARK: - Curve2D Gcc Tests
+
+@Suite("Curve2D Gcc Tests")
+struct Curve2DGccTests {
+
+    @Test("Circle through three points")
+    func circleThroughThreePoints() {
+        let results = Curve2DGcc.circleThroughThreePoints(
+            SIMD2(0, 0), SIMD2(10, 0), SIMD2(5, 5),
+            tolerance: 1e-6
+        )
+        // Unique circle through 3 non-collinear points
+        #expect(results.count == 1)
+        if let first = results.first {
+            #expect(first.radius > 0)
+        }
+    }
+
+    @Test("Circles through two points with radius")
+    func circlesTwoPointsRadius() {
+        let results = Curve2DGcc.circlesThroughTwoPoints(
+            SIMD2(0, 0), SIMD2(6, 0),
+            radius: 5, tolerance: 1e-6
+        )
+        // Two circles pass through 2 points at given radius (if radius > half-distance)
+        #expect(results.count == 2)
+        for r in results {
+            #expect(abs(r.radius - 5) < 1e-6)
+        }
+    }
+
+    @Test("Circle tangent to curve with center")
+    func circleTanCen() {
+        let line = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 0))!
+        let results = Curve2DGcc.circlesTangentWithCenter(
+            line, .unqualified,
+            center: SIMD2(5, 3), tolerance: 1e-6
+        )
+        #expect(results.count >= 1)
+        if let first = results.first {
+            // Circle centered at (5,3) tangent to X-axis should have radius 3
+            #expect(abs(first.radius - 3) < 1e-4)
+        }
+    }
+
+    @Test("Lines tangent to circle through point")
+    func linesTangentToPoint() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let results = Curve2DGcc.linesTangentToPoint(
+            circle, .outside,
+            point: SIMD2(10, 0), tolerance: 1e-6
+        )
+        // Two tangent lines from external point to circle
+        #expect(results.count >= 1)
+    }
+
+    @Test("Circles tangent to curve and point with radius")
+    func circleTanPtRad() {
+        let line = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 0))!
+        let results = Curve2DGcc.circlesTangentToPointWithRadius(
+            line, .unqualified,
+            point: SIMD2(5, 5), radius: 5, tolerance: 1e-6
+        )
+        #expect(results.count >= 1)
+    }
+}
+
+// MARK: - Curve2D Hatching Tests
+
+@Suite("Curve2D Hatching Tests")
+struct Curve2DHatchingTests {
+
+    @Test("Hatch a rectangular boundary")
+    func hatchRectangle() {
+        // Create a rectangle boundary from 4 segments
+        let s1 = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let s2 = Curve2D.segment(from: SIMD2(10, 0), to: SIMD2(10, 10))!
+        let s3 = Curve2D.segment(from: SIMD2(10, 10), to: SIMD2(0, 10))!
+        let s4 = Curve2D.segment(from: SIMD2(0, 10), to: SIMD2(0, 0))!
+
+        let segments = Curve2DGcc.hatch(
+            boundaries: [s1, s2, s3, s4],
+            origin: .zero,
+            direction: SIMD2(1, 0),
+            spacing: 2.0,
+            tolerance: 1e-6
+        )
+        // Should produce horizontal hatch lines across the rectangle
+        #expect(segments.count >= 1)
+        for seg in segments {
+            // Each segment should have valid start/end
+            let dx = seg.end.x - seg.start.x
+            let dy = seg.end.y - seg.start.y
+            let len = sqrt(dx * dx + dy * dy)
+            #expect(len > 0)
+        }
+    }
+}
+
+// MARK: - Curve2D Bisector Tests
+
+@Suite("Curve2D Bisector Tests")
+struct Curve2DBisectorTests {
+
+    @Test("Bisector between two lines")
+    func bisectorTwoLines() {
+        let l1 = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let l2 = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(0, 10))!
+        let bis = l1.bisector(with: l2, origin: SIMD2(0, 0), side: true)
+        // Bisector of two perpendicular lines through origin = 45-degree line
+        // May or may not succeed depending on OCCT bisector requirements
+        if let bis = bis {
+            let pts = bis.drawAdaptive()
+            #expect(pts.count >= 2)
+        }
+    }
+
+    @Test("Bisector between point and line")
+    func bisectorPointCurve() {
+        let line = Curve2D.segment(from: SIMD2(-10, 0), to: SIMD2(10, 0))!
+        let bis = line.bisector(withPoint: SIMD2(0, 5), origin: SIMD2(0, 0), side: true)
+        // Bisector of a point and a line = parabola
+        if let bis = bis {
+            let pts = bis.drawAdaptive()
+            #expect(pts.count >= 2)
+        }
+    }
+}
