@@ -1,5 +1,128 @@
 # OCCTSwift Changelog
 
+## [v0.16.0] - 2026-02-14
+
+### 2D Parametric Curves (Geom2d)
+
+New `Curve2D` class wrapping OCCT's `Handle(Geom2d_Curve)` polymorphically. A single type represents all 2D curve subtypes with factory methods for creation, evaluation for sampling, operations for manipulation, analysis for querying, and draw methods for Metal rendering. 69 new tests across 11 suites.
+
+#### Core Type
+- `Curve2D` — final class wrapping `Handle(Geom2d_Curve)` with automatic memory management
+- Properties: `domain`, `isClosed`, `isPeriodic`, `period`, `startPoint`, `endPoint`, `boundingBox`
+- Evaluation: `point(at:)`, `d1(at:)`, `d2(at:)`
+
+#### Primitive Curves
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Curve2D.line(through:direction:)` | `Geom2d_Line` |
+| `Curve2D.segment(from:to:)` | `GCE2d_MakeSegment` |
+| `Curve2D.circle(center:radius:)` | `Geom2d_Circle` |
+| `Curve2D.arcOfCircle(center:radius:startAngle:endAngle:)` | `GCE2d_MakeArcOfCircle` |
+| `Curve2D.arcThrough(_:_:_:)` | `GCE2d_MakeArcOfCircle` |
+| `Curve2D.ellipse(center:majorRadius:minorRadius:rotation:)` | `GCE2d_MakeEllipse` |
+| `Curve2D.arcOfEllipse(...)` | `GCE2d_MakeArcOfEllipse` |
+| `Curve2D.parabola(focus:direction:focalLength:)` | `Geom2d_Parabola` |
+| `Curve2D.hyperbola(center:majorRadius:minorRadius:rotation:)` | `Geom2d_Hyperbola` |
+| `Curve2D.arcOfHyperbola(...)` | `Geom2d_TrimmedCurve` + `Geom2d_Hyperbola` |
+| `Curve2D.arcOfParabola(...)` | `Geom2d_TrimmedCurve` + `Geom2d_Parabola` |
+
+#### BSpline & Bezier
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Curve2D.bspline(poles:weights:knots:multiplicities:degree:)` | `Geom2d_BSplineCurve` |
+| `Curve2D.bezier(poles:weights:)` | `Geom2d_BezierCurve` |
+| `Curve2D.interpolate(through:closed:tolerance:)` | `Geom2dAPI_Interpolate` |
+| `Curve2D.interpolate(through:startTangent:endTangent:tolerance:)` | `Geom2dAPI_Interpolate` |
+| `Curve2D.fit(through:minDegree:maxDegree:tolerance:)` | `Geom2dAPI_PointsToBSpline` |
+- Pole queries: `poleCount`, `poles`, `degree`
+
+#### Draw Methods (Metal Discretization)
+Discretize curves to `[SIMD2<Double>]` polylines for GPU rendering:
+- `drawAdaptive(angularDeflection:chordalDeflection:maxPoints:)` — `GCPnts_TangentialDeflection`
+- `drawUniform(pointCount:)` — `GCPnts_UniformAbscissa`
+- `drawDeflection(deflection:maxPoints:)` — `GCPnts_UniformDeflection`
+
+#### Operations
+| Swift API | OCCT Class |
+|-----------|------------|
+| `trimmed(from:to:)` | `Geom2d_TrimmedCurve` |
+| `offset(by:)` | `Geom2d_OffsetCurve` |
+| `reversed()` | `Geom2d_Curve::Reversed()` |
+| `translated(by:)` | `gp_Trsf2d` |
+| `rotated(around:angle:)` | `gp_Trsf2d` |
+| `scaled(from:factor:)` | `gp_Trsf2d` |
+| `mirrored(acrossLine:direction:)` | `gp_Trsf2d` |
+| `mirrored(acrossPoint:)` | `gp_Trsf2d` |
+| `length` / `length(from:to:)` | `GCPnts_AbscissaPoint` |
+
+#### Local Properties (Geom2dLProp)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curvature(at:)` | `Geom2dLProp_CLProps2d` |
+| `normal(at:)` | `Geom2dLProp_CLProps2d` |
+| `tangentDirection(at:)` | `Geom2dLProp_CLProps2d` |
+| `centerOfCurvature(at:)` | `Geom2dLProp_CLProps2d` |
+| `inflectionPoints()` | `Geom2dLProp_CurAndInf2d` |
+| `curvatureExtrema()` | `Geom2dLProp_CurAndInf2d` |
+| `allSpecialPoints()` | `Geom2dLProp_CurAndInf2d` |
+
+#### Analysis
+| Swift API | OCCT Class |
+|-----------|------------|
+| `intersections(with:tolerance:)` | `Geom2dAPI_InterCurveCurve` |
+| `selfIntersections(tolerance:)` | `Geom2dAPI_InterCurveCurve` |
+| `project(point:)` | `Geom2dAPI_ProjectPointOnCurve` |
+| `allProjections(of:)` | `Geom2dAPI_ProjectPointOnCurve` |
+| `minDistance(to:)` | `Geom2dAPI_ExtremaCurveCurve` |
+| `allExtrema(with:)` | `Geom2dAPI_ExtremaCurveCurve` |
+
+#### Conversion
+| Swift API | OCCT Class |
+|-----------|------------|
+| `toBSpline(tolerance:)` | `Geom2dConvert::CurveToBSplineCurve` |
+| `toBezierSegments()` | `Geom2dConvert_BSplineCurveToBezierCurve` |
+| `Curve2D.join(_:tolerance:)` | `Geom2dConvert_CompCurveToBSplineCurve` |
+| `approximated(tolerance:continuity:maxDegree:maxSegments:)` | `Geom2dConvert_ApproxCurve` |
+| `splitIndicesAtDiscontinuities(continuity:)` | `Geom2dConvert_BSplineCurveKnotSplitting` |
+| `toArcsAndSegments(tolerance:angleTolerance:)` | `Geom2dConvert_ApproxArcsSegments` |
+
+#### Constraint Solver (Geom2dGcc)
+`Curve2DGcc` namespace with geometric constraint solvers:
+| Swift API | OCCT Class |
+|-----------|------------|
+| `circlesTangentTo(_:_:_:...)` | `Geom2dGcc_Circ2d3Tan` |
+| `circlesTangentToTwoCurvesAndPoint(...)` | `Geom2dGcc_Circ2d3Tan` |
+| `circlesTangentWithCenter(_:_:center:...)` | `Geom2dGcc_Circ2dTanCen` |
+| `circlesTangentToTwoCurves(_:_:_:_:radius:...)` | `Geom2dGcc_Circ2d2TanRad` |
+| `circlesTangentToPointWithRadius(_:_:point:radius:...)` | `Geom2dGcc_Circ2d2TanRad` |
+| `circlesThroughTwoPoints(_:_:radius:...)` | `Geom2dGcc_Circ2d2TanRad` |
+| `circleThroughThreePoints(_:_:_:...)` | `Geom2dGcc_Circ2d3Tan` |
+| `linesTangentTo(_:_:_:_:...)` | `Geom2dGcc_Lin2d2Tan` |
+| `linesTangentToPoint(_:_:point:...)` | `Geom2dGcc_Lin2d2Tan` |
+
+#### Hatching & Bisector
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Curve2DGcc.hatch(boundaries:origin:direction:spacing:...)` | `Geom2dHatch_Hatcher` |
+| `bisector(with:origin:side:)` | `Bisector_BisecCC` |
+| `bisector(withPoint:origin:side:)` | `Bisector_BisecPC` |
+
+#### Result Types
+- `Curve2DIntersection` — intersection point, parameters on both curves
+- `Curve2DProjection` — projected point, parameter, distance
+- `Curve2DExtremaResult` — closest points on two curves with parameters
+- `Curve2DSpecialPoint` — inflection/min/max curvature with parameter
+- `Curve2DCircleSolution` — center, radius, qualifier from Gcc solver
+- `Curve2DLineSolution` — point, direction, qualifier from Gcc solver
+- `Curve2DHatchSegment` — start/end points of hatch line segment
+
+### Statistics
+- 304 tests passing across 56 suites (69 new tests across 11 new suites)
+- 1 new Swift source file (`Curve2D.swift`), +2,878 lines across 4 files
+- 2 commits since v0.15.0
+
+---
+
 ## [v0.15.0] - 2026-02-14
 
 ### Metal Visualization Wrappers

@@ -13,6 +13,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Transforms** | 4 | translate, rotate, scale, mirror |
 | **Wires** | 17 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
+| **2D Curves (Curve2D)** | 55 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
 | **Healing/Analysis** | 7 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
@@ -23,7 +24,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 10 | Document.load, rootNodes, AssemblyNode, colors, materials |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **120** | |
+| **Total** | **175** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -35,6 +36,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Modifications**: Fillet (uniform, selective, variable radius), chamfer, shell, offset, draft, defeaturing
 - **Advanced Blends**: Variable radius fillets, multi-edge blends with individual radii
 - **2D Wire Operations**: 2D fillet and chamfer on planar wires
+- **2D Parametric Curves**: Full Geom2d wrapping — lines, conics, BSplines, Beziers, interpolation, operations, analysis, Gcc constraint solver, hatching, bisectors, Metal draw methods
 - **Feature-Based Modeling**: Boss, pocket, drilling, splitting, gluing, evolved surfaces
 - **Pattern Operations**: Linear and circular arrays of shapes
 - **Shape Healing**: Analysis, fixing, unification, simplification
@@ -61,7 +63,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.14.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.16.0")
 ]
 ```
 
@@ -159,6 +161,52 @@ for (shape, material) in doc.shapesWithMaterials() {
         print("Metallic: \(mat.metallic), Roughness: \(mat.roughness)")
     }
 }
+```
+
+### 2D Parametric Curves (v0.16.0)
+
+Create, evaluate, manipulate, and discretize 2D curves for Metal rendering:
+
+```swift
+// Create curves
+let circle = Curve2D.circle(center: .zero, radius: 10)!
+let segment = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 5))!
+let arc = Curve2D.arcOfCircle(center: .zero, radius: 5,
+                               startAngle: 0, endAngle: .pi / 2)!
+
+// BSpline interpolation through points
+let spline = Curve2D.interpolate(through: [
+    SIMD2(0, 0), SIMD2(3, 5), SIMD2(7, 2), SIMD2(10, 8)
+])!
+
+// Evaluate
+let pt = circle.point(at: 0)           // SIMD2<Double>
+let (p, tangent) = circle.d1(at: 0)    // point + tangent vector
+let k = circle.curvature(at: 0)        // 1/radius
+
+// Operations (all return new curves)
+let trimmed = circle.trimmed(from: 0, to: .pi)!
+let offset = segment.offset(by: 2.0)!
+let rotated = segment.rotated(around: .zero, angle: .pi / 4)!
+
+// Discretize for Metal rendering
+let polyline = circle.drawAdaptive()    // [SIMD2<Double>]
+let uniform = spline.drawUniform(pointCount: 100)
+
+// Analysis
+let hits = circle.intersections(with: segment)
+let proj = circle.project(point: SIMD2(15, 0))
+
+// Gcc constraint solver — circle tangent to curve through center
+let solutions = Curve2DGcc.circlesTangentWithCenter(
+    circle, .unqualified, center: SIMD2(20, 0)
+)
+
+// Hatching
+let hatchLines = Curve2DGcc.hatch(
+    boundaries: [seg1, seg2, seg3, seg4],
+    origin: .zero, direction: SIMD2(1, 0), spacing: 2.0
+)
 ```
 
 ### 2D Technical Drawings (v0.6.0)
@@ -262,6 +310,20 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `Wire.bspline(_:)` | `BRepBuilderAPI_MakeEdge` + `Geom_BSplineCurve` |
 | `Wire.join(_:)` | `BRepBuilderAPI_MakeWire` |
 
+#### 2D Parametric Curves
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Curve2D.segment(from:to:)` | `GCE2d_MakeSegment` |
+| `Curve2D.circle(center:radius:)` | `Geom2d_Circle` |
+| `Curve2D.ellipse(...)` | `GCE2d_MakeEllipse` |
+| `Curve2D.bspline(...)` | `Geom2d_BSplineCurve` |
+| `Curve2D.interpolate(through:)` | `Geom2dAPI_Interpolate` |
+| `curve.curvature(at:)` | `Geom2dLProp_CLProps2d` |
+| `curve.intersections(with:)` | `Geom2dAPI_InterCurveCurve` |
+| `curve.drawAdaptive()` | `GCPnts_TangentialDeflection` |
+| `Curve2DGcc.circlesTangentWithCenter(...)` | `Geom2dGcc_Circ2dTanCen` |
+| `Curve2DGcc.hatch(boundaries:...)` | `Geom2dHatch_Hatcher` |
+
 #### Import
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -325,6 +387,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **OBJ import/export**: Returns mesh data rather than B-Rep geometry
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.16.0: Full Geom2d wrapping — 2D parametric curves with evaluation, operations, analysis, Gcc solver, hatching, bisectors
 > - v0.14.0: Variable radius fillets, multi-edge blends, 2D fillet/chamfer, surface filling, plate surfaces
 > - v0.13.0: Shape analysis, fixing, unification, simplification
 > - v0.12.0: Boss, pocket, drilling, shape splitting, gluing, evolved surfaces, pattern operations
@@ -355,9 +418,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.14.0
+### Current Status: v0.16.0
 
-OCCTSwift now wraps **120 OCCT operations** across 17 categories.
+OCCTSwift now wraps **175 OCCT operations** across 18 categories.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 
