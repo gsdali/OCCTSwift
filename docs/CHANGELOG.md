@@ -1,12 +1,10 @@
 # OCCTSwift Changelog
 
-## [v0.15.0] - 2026-02-14 — BREAKING: Safe Optional Returns
+## [v0.14.0] - 2026-02-14
 
-All Shape and Mesh creation methods now return optionals instead of force-unwrapping. This eliminates crashes when OCCT operations fail (e.g. invalid geometry, degenerate inputs) and replaces the previous `try`-prefixed safe variants which have been removed.
+### Breaking Changes — Safe Optional Returns
 
-Closes #30.
-
-### Breaking Changes
+All Shape and Mesh creation methods now return optionals instead of force-unwrapping. This eliminates crashes when OCCT operations fail (e.g. invalid geometry, degenerate inputs) and replaces the previous `try`-prefixed safe variants which have been removed. Closes #30.
 
 **26 methods changed from non-optional to optional return types:**
 
@@ -25,7 +23,7 @@ Closes #30.
 **15 `try`-prefixed methods removed** (the base methods are now safe):
 `tryBox`, `tryCylinder`, `trySphere`, `tryCone`, `tryTorus`, `tryUnion`, `trySubtracting`, `tryIntersection`, `tryFilleted`, `tryChamfered`, `tryShelled`, `tryOffset`, `tryTranslated`, `tryRotated`, `tryScaled`, `tryMirrored`
 
-### Migration Guide
+#### Migration Guide
 
 **Simple case — add `!` or `guard let`:**
 ```swift
@@ -77,31 +75,16 @@ let box = Shape.box(width: w, height: h, depth: d)
 let result = shape.filleted(radius: r)
 ```
 
----
-
----
-
-## Demo App - OCCTSwiftDemo (2026-01-22, updated 2026-01-23)
-
-A companion demo app has been created to showcase OCCTSwift capabilities:
-
-- **Repository**: `~/Projects/OCCTSwiftDemo`
-- **Status**: Phase 1 complete, iOS device testing in progress
-- **Features**:
-  - CadQuery-inspired JavaScript scripting via JavaScriptCore
-  - ViewportKit 3D visualization with camera controls
-  - Platform-adaptive UI (macOS HSplitView, iPad 3-column, iPhone TabView)
-  - Example library with presets
-  - Live model properties (volume, area, face/edge counts)
-  - Safe operation handling (uses try* methods to prevent crashes)
-
-See [DEMO_APP_PROPOSAL.md](DEMO_APP_PROPOSAL.md) for details and roadmap.
-
----
-
-## [v0.14.0] - 2026-01-22
-
 ### Added
+
+#### Shape.fromWire(_:) — Wire to Shape Conversion
+Convert a Wire to a Shape to access edge extraction methods without creating solid geometry. Closes #31.
+
+```swift
+let path = Wire.circle(radius: 10)!
+let shape = Shape.fromWire(path)!
+let polylines = shape.allEdgePolylines()  // wireframe rendering
+```
 
 #### Variable Radius Fillet
 Apply fillets with varying radius along an edge.
@@ -198,45 +181,34 @@ let surface = Shape.plateSurface(through: [
 ], tolerance: 0.01)
 ```
 
-**C Bridge Functions:**
-```c
-// Variable fillet
-OCCTShapeRef OCCTShapeFilletVariable(OCCTShapeRef shape, int32_t edgeIndex,
-                                      const double* radii, const double* params, int32_t count);
+### Fixed
 
-// 2D fillet/chamfer
-OCCTWireRef OCCTWireFillet2D(OCCTWireRef wire, int32_t vertexIndex, double radius);
-OCCTWireRef OCCTWireFilletAll2D(OCCTWireRef wire, double radius);
-OCCTWireRef OCCTWireChamfer2D(OCCTWireRef wire, int32_t vertexIndex, double dist1, double dist2);
-OCCTWireRef OCCTWireChamferAll2D(OCCTWireRef wire, double distance);
+- Edge polylines missing on lofted shapes and some extrusion edges (#29)
 
-// Multi-edge blend
-OCCTShapeRef OCCTShapeBlendEdges(OCCTShapeRef shape,
-                                  const int32_t* edgeIndices, const double* radii, int32_t count);
+### Other
 
-// Surface filling
-typedef struct {
-    int32_t continuity;
-    double tolerance;
-    int32_t maxDegree;
-    int32_t maxSegments;
-} OCCTFillingParams;
+- Added GNU LGPL v2.1 license with OCCT LGPL exception
 
-OCCTShapeRef OCCTShapeFill(const OCCTWireRef* boundaries, int32_t wireCount,
-                            OCCTFillingParams params);
+### Statistics
+- 166 tests passing across 36 suites
 
-// Plate surfaces
-OCCTShapeRef OCCTShapePlatePoints(const double* points, int32_t pointCount, double tolerance);
-OCCTShapeRef OCCTShapePlateCurves(const OCCTWireRef* curves, int32_t curveCount,
-                                   int32_t continuity, double tolerance);
-```
+---
 
-**OCCT Classes Used:**
-- `BRepFilletAPI_MakeFillet` with `SetRadius` at parameters
-- `ChFi2d_Builder` for 2D fillet/chamfer
-- `BRepOffsetAPI_MakeFilling` for N-sided surface filling
-- `GeomPlate_BuildPlateSurface` for plate surfaces
-- `GeomPlate_PointConstraint` and `GeomPlate_CurveConstraint`
+## Demo App - OCCTSwiftDemo (2026-01-22, updated 2026-01-23)
+
+A companion demo app has been created to showcase OCCTSwift capabilities:
+
+- **Repository**: `~/Projects/OCCTSwiftDemo`
+- **Status**: Phase 1 complete, iOS device testing in progress
+- **Features**:
+  - CadQuery-inspired JavaScript scripting via JavaScriptCore
+  - ViewportKit 3D visualization with camera controls
+  - Platform-adaptive UI (macOS HSplitView, iPad 3-column, iPhone TabView)
+  - Example library with presets
+  - Live model properties (volume, area, face/edge counts)
+  - Safe operation handling (uses optional-returning methods to prevent crashes)
+
+See [DEMO_APP_PROPOSAL.md](DEMO_APP_PROPOSAL.md) for details and roadmap.
 
 ---
 
