@@ -214,6 +214,7 @@
 #include <SelectMgr_SelectableObject.hxx>
 #include <SelectMgr_SelectionManager.hxx>
 #include <SelectMgr_EntityOwner.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
 #include <StdSelect_BRepSelectionTool.hxx>
 #include <StdSelect_BRepOwner.hxx>
 #include <NCollection_DataMap.hxx>
@@ -5958,10 +5959,10 @@ public:
                    const Handle(Graphic3d_Camera)& cam,
                    int width, int height) {
         SelectMgr_SelectingVolumeManager& mgr = GetManager();
+        mgr.InitPointSelectingVolume(gp_Pnt2d(pixelX, pixelY));
         mgr.SetCamera(cam);
         mgr.SetWindowSize(width, height);
         mgr.SetPixelTolerance(PixelTolerance());
-        mgr.InitPointSelectingVolume(gp_Pnt2d(pixelX, pixelY));
         mgr.BuildSelectingVolume();
         TraverseSensitives();
     }
@@ -5970,10 +5971,22 @@ public:
                  const Handle(Graphic3d_Camera)& cam,
                  int width, int height) {
         SelectMgr_SelectingVolumeManager& mgr = GetManager();
+        mgr.InitBoxSelectingVolume(gp_Pnt2d(xMin, yMin), gp_Pnt2d(xMax, yMax));
         mgr.SetCamera(cam);
         mgr.SetWindowSize(width, height);
         mgr.SetPixelTolerance(PixelTolerance());
-        mgr.InitBoxSelectingVolume(gp_Pnt2d(xMin, yMin), gp_Pnt2d(xMax, yMax));
+        mgr.BuildSelectingVolume();
+        TraverseSensitives();
+    }
+
+    void PickPoly(const TColgp_Array1OfPnt2d& polyPoints,
+                  const Handle(Graphic3d_Camera)& cam,
+                  int width, int height) {
+        SelectMgr_SelectingVolumeManager& mgr = GetManager();
+        mgr.InitPolylineSelectingVolume(polyPoints);
+        mgr.SetCamera(cam);
+        mgr.SetWindowSize(width, height);
+        mgr.SetPixelTolerance(PixelTolerance());
         mgr.BuildSelectingVolume();
         TraverseSensitives();
     }
@@ -6171,6 +6184,28 @@ int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
     }
 }
 
+int32_t OCCTSelectorPickPoly(OCCTSelectorRef sel, OCCTCameraRef cam,
+                             double viewW, double viewH,
+                             const double* polyXY, int32_t pointCount,
+                             OCCTPickResult* out, int32_t maxResults) {
+    if (!sel || !cam || !out || !polyXY || pointCount < 3 || maxResults <= 0) return 0;
+    try {
+        Handle(Graphic3d_Camera) pickCam = new Graphic3d_Camera(*cam->camera);
+        pickCam->SetAspect(viewW / viewH);
+
+        TColgp_Array1OfPnt2d polyPoints(1, pointCount);
+        for (int i = 0; i < pointCount; i++) {
+            polyPoints.SetValue(i + 1, gp_Pnt2d(polyXY[i * 2], polyXY[i * 2 + 1]));
+        }
+
+        sel->selector->PickPoly(polyPoints, pickCam, (int)viewW, (int)viewH);
+
+        return OCCTSelectorCollectResults(sel, out, maxResults);
+    } catch (...) {
+        return 0;
+    }
+}
+
 // MARK: - Display Drawer Implementation
 
 struct OCCTDrawer {
@@ -6280,6 +6315,57 @@ void OCCTDrawerSetWireDraw(OCCTDrawerRef d, bool on) {
 bool OCCTDrawerGetWireDraw(OCCTDrawerRef d) {
     if (!d) return true;
     return d->drawer->WireDraw() == Standard_True;
+}
+
+// MARK: - Drawer-Aware Mesh Extraction
+
+static double OCCTDrawerGetEffectiveDeflection(OCCTDrawerRef drawer) {
+    if (!drawer) return 0.1;
+    if (drawer->drawer->TypeOfDeflection() == Aspect_TOD_RELATIVE) {
+        return drawer->drawer->DeviationCoefficient();
+    } else {
+        return drawer->drawer->MaximalChordialDeviation();
+    }
+}
+
+bool OCCTShapeGetShadedMeshWithDrawer(OCCTShapeRef shape, OCCTDrawerRef drawer, OCCTShadedMeshData* out) {
+    if (!shape || !drawer || !out) return false;
+    double deflection = OCCTDrawerGetEffectiveDeflection(drawer);
+    double angle = drawer->drawer->DeviationAngle();
+
+    out->vertices = nullptr;
+    out->vertexCount = 0;
+    out->indices = nullptr;
+    out->triangleCount = 0;
+
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection, Standard_False, angle);
+        mesher.Perform();
+
+        return OCCTShapeGetShadedMesh(shape, deflection, out);
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTShapeGetEdgeMeshWithDrawer(OCCTShapeRef shape, OCCTDrawerRef drawer, OCCTEdgeMeshData* out) {
+    if (!shape || !drawer || !out) return false;
+    double deflection = OCCTDrawerGetEffectiveDeflection(drawer);
+    double angle = drawer->drawer->DeviationAngle();
+
+    out->vertices = nullptr;
+    out->vertexCount = 0;
+    out->segmentStarts = nullptr;
+    out->segmentCount = 0;
+
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection, Standard_False, angle);
+        mesher.Perform();
+
+        return OCCTShapeGetEdgeMesh(shape, deflection, out);
+    } catch (...) {
+        return false;
+    }
 }
 
 // MARK: - Clip Plane Implementation

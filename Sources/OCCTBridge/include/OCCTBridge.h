@@ -1229,9 +1229,22 @@ int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
                              double xMin, double yMin, double xMax, double yMax,
                              OCCTPickResult* out, int32_t maxResults);
 
-// MARK: - Display Drawer (Metal Visualization)
+/// Polyline (lasso) pick: select shapes within a closed polygon defined by 2D pixel points.
+/// polyXY is an array of x,y pairs (length = pointCount * 2).
+int32_t OCCTSelectorPickPoly(OCCTSelectorRef sel, OCCTCameraRef cam,
+                             double viewW, double viewH,
+                             const double* polyXY, int32_t pointCount,
+                             OCCTPickResult* out, int32_t maxResults);
+
+// MARK: - Drawer-Aware Mesh Extraction
 
 typedef struct OCCTDrawer* OCCTDrawerRef;
+
+/// Extract shaded mesh using a DisplayDrawer for tessellation control.
+bool OCCTShapeGetShadedMeshWithDrawer(OCCTShapeRef shape, OCCTDrawerRef drawer, OCCTShadedMeshData* out);
+bool OCCTShapeGetEdgeMeshWithDrawer(OCCTShapeRef shape, OCCTDrawerRef drawer, OCCTEdgeMeshData* out);
+
+// MARK: - Display Drawer (Metal Visualization)
 
 OCCTDrawerRef OCCTDrawerCreate(void);
 void OCCTDrawerDestroy(OCCTDrawerRef drawer);

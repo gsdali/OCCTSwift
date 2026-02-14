@@ -109,4 +109,77 @@ public extension Shape {
 
         return EdgeMeshData(vertices: positions, segmentStarts: starts)
     }
+
+    /// Extract a triangulated mesh using a ``DisplayDrawer`` for tessellation control.
+    ///
+    /// The drawer's deflection type, deviation coefficient/angle, and other
+    /// tessellation parameters are used instead of a fixed deflection value.
+    ///
+    /// - Parameter drawer: The display drawer controlling tessellation quality.
+    /// - Returns: Shaded mesh data, or `nil` if tessellation fails.
+    func shadedMesh(drawer: DisplayDrawer) -> ShadedMeshData? {
+        var data = OCCTShadedMeshData()
+        guard OCCTShapeGetShadedMeshWithDrawer(handle, drawer.handle, &data) else {
+            return nil
+        }
+        defer { OCCTShadedMeshDataFree(&data) }
+
+        let vertCount = Int(data.vertexCount)
+        let triCount = Int(data.triangleCount)
+
+        var positions = [SIMD3<Float>]()
+        var normals = [SIMD3<Float>]()
+        positions.reserveCapacity(vertCount)
+        normals.reserveCapacity(vertCount)
+
+        for i in 0..<vertCount {
+            let base = i * 6
+            positions.append(SIMD3(data.vertices[base],
+                                   data.vertices[base + 1],
+                                   data.vertices[base + 2]))
+            normals.append(SIMD3(data.vertices[base + 3],
+                                  data.vertices[base + 4],
+                                  data.vertices[base + 5]))
+        }
+
+        var indices = [UInt32]()
+        indices.reserveCapacity(triCount * 3)
+        for i in 0..<(triCount * 3) {
+            indices.append(UInt32(data.indices[i]))
+        }
+
+        return ShadedMeshData(vertices: positions, normals: normals, indices: indices)
+    }
+
+    /// Extract edge wireframe polylines using a ``DisplayDrawer`` for tessellation control.
+    ///
+    /// - Parameter drawer: The display drawer controlling tessellation quality.
+    /// - Returns: Edge mesh data, or `nil` if extraction fails.
+    func edgeMesh(drawer: DisplayDrawer) -> EdgeMeshData? {
+        var data = OCCTEdgeMeshData()
+        guard OCCTShapeGetEdgeMeshWithDrawer(handle, drawer.handle, &data) else {
+            return nil
+        }
+        defer { OCCTEdgeMeshDataFree(&data) }
+
+        let vertCount = Int(data.vertexCount)
+        let segCount = Int(data.segmentCount)
+
+        var positions = [SIMD3<Float>]()
+        positions.reserveCapacity(vertCount)
+        for i in 0..<vertCount {
+            let base = i * 3
+            positions.append(SIMD3(data.vertices[base],
+                                   data.vertices[base + 1],
+                                   data.vertices[base + 2]))
+        }
+
+        var starts = [Int]()
+        starts.reserveCapacity(segCount)
+        for i in 0..<segCount {
+            starts.append(Int(data.segmentStarts[i]))
+        }
+
+        return EdgeMeshData(vertices: positions, segmentStarts: starts)
+    }
 }

@@ -188,4 +188,40 @@ public final class Selector: @unchecked Sendable {
                        subShapeIndex: buffer[i].subShapeIndex)
         }
     }
+
+    /// Pick shapes within a closed polygon (lasso selection).
+    ///
+    /// The polygon must have at least 3 points. The polygon is automatically
+    /// closed (last point connects to first).
+    ///
+    /// - Parameters:
+    ///   - polygon: Array of pixel coordinates defining the polygon vertices.
+    ///   - camera: The camera providing projection/view transforms.
+    ///   - viewSize: Viewport size in pixels (width, height).
+    ///   - maxResults: Maximum number of results to return (default 32).
+    /// - Returns: Array of pick results for all shapes inside the polygon.
+    public func pick(polygon: [SIMD2<Double>],
+                     camera: Camera,
+                     viewSize: SIMD2<Double>,
+                     maxResults: Int = 32) -> [PickResult] {
+        guard polygon.count >= 3 else { return [] }
+        var buffer = [OCCTPickResult](repeating: OCCTPickResult(), count: maxResults)
+        var polyXY = [Double]()
+        polyXY.reserveCapacity(polygon.count * 2)
+        for pt in polygon {
+            polyXY.append(pt.x)
+            polyXY.append(pt.y)
+        }
+        let count = OCCTSelectorPickPoly(handle, camera.handle,
+                                         viewSize.x, viewSize.y,
+                                         polyXY, Int32(polygon.count),
+                                         &buffer, Int32(maxResults))
+        return (0..<Int(count)).map { i in
+            PickResult(shapeId: buffer[i].shapeId,
+                       depth: buffer[i].depth,
+                       point: SIMD3(buffer[i].pointX, buffer[i].pointY, buffer[i].pointZ),
+                       subShapeType: SubShapeType(rawValue: buffer[i].subShapeType) ?? .shape,
+                       subShapeIndex: buffer[i].subShapeIndex)
+        }
+    }
 }
