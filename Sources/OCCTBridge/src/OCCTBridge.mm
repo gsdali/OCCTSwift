@@ -10793,3 +10793,112 @@ OCCTDatumInfo OCCTDocumentGetDatumInfo(OCCTDocumentRef doc, int32_t index) {
         return info;
     }
 }
+
+
+// MARK: - ProjLib: Curve Projection onto Surfaces (v0.22.0)
+
+#include <GeomProjLib.hxx>
+#include <ProjLib_CompProjectedCurve.hxx>
+#include <ProjLib_ProjectedCurve.hxx>
+#include <ProjLib_ProjectOnPlane.hxx>
+#include <Geom_Plane.hxx>
+
+OCCTCurve2DRef OCCTSurfaceProjectCurve2D(OCCTSurfaceRef surface,
+                                          OCCTCurve3DRef curve,
+                                          double tolerance) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        Standard_Real first = curve->curve->FirstParameter();
+        Standard_Real last = curve->curve->LastParameter();
+        Standard_Real tol = tolerance;
+        Handle(Geom2d_Curve) result = GeomProjLib::Curve2d(
+            curve->curve, first, last, surface->surface, tol);
+        if (result.IsNull()) return nullptr;
+        return new OCCTCurve2D(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTSurfaceProjectCurveSegments(OCCTSurfaceRef surface,
+                                         OCCTCurve3DRef curve,
+                                         double tolerance,
+                                         OCCTCurve2DRef* outCurves,
+                                         int32_t maxCurves) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    if (!curve || curve->curve.IsNull()) return 0;
+    if (!outCurves || maxCurves <= 0) return 0;
+    try {
+        Handle(GeomAdaptor_Surface) surfAdaptor =
+            new GeomAdaptor_Surface(surface->surface);
+        Handle(GeomAdaptor_Curve) curveAdaptor =
+            new GeomAdaptor_Curve(curve->curve);
+
+        ProjLib_CompProjectedCurve comp(tolerance, surfAdaptor, curveAdaptor);
+        comp.Perform();
+
+        int32_t nbCurves = comp.NbCurves();
+        int32_t count = 0;
+        for (int32_t i = 1; i <= nbCurves && count < maxCurves; i++) {
+            Handle(Geom2d_Curve) c2d = comp.GetResult2dC(i);
+            if (!c2d.IsNull()) {
+                outCurves[count] = new OCCTCurve2D(c2d);
+                count++;
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTCurve3DRef OCCTSurfaceProjectCurve3D(OCCTSurfaceRef surface,
+                                          OCCTCurve3DRef curve) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom_Curve) result = GeomProjLib::Project(
+            curve->curve, surface->surface);
+        if (result.IsNull()) return nullptr;
+        return new OCCTCurve3D(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve3DRef OCCTCurve3DProjectOnPlane(OCCTCurve3DRef curve,
+                                          double oX, double oY, double oZ,
+                                          double nX, double nY, double nZ,
+                                          double dX, double dY, double dZ) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        gp_Pnt origin(oX, oY, oZ);
+        gp_Dir normal(nX, nY, nZ);
+        gp_Dir direction(dX, dY, dZ);
+        Handle(Geom_Plane) plane = new Geom_Plane(origin, normal);
+
+        Handle(Geom_Curve) result = GeomProjLib::ProjectOnPlane(
+            curve->curve, plane, direction, Standard_True);
+        if (result.IsNull()) return nullptr;
+        return new OCCTCurve3D(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTSurfaceProjectPoint(OCCTSurfaceRef surface,
+                              double px, double py, double pz,
+                              double* u, double* v, double* distance) {
+    if (!surface || surface->surface.IsNull()) return false;
+    if (!u || !v || !distance) return false;
+    try {
+        GeomAPI_ProjectPointOnSurf proj(gp_Pnt(px, py, pz), surface->surface);
+        if (!proj.IsDone() || proj.NbPoints() == 0) return false;
+        proj.LowerDistanceParameters(*u, *v);
+        *distance = proj.LowerDistance();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}

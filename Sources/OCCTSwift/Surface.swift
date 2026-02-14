@@ -525,4 +525,80 @@ public final class Surface: @unchecked Sendable {
     public var vDegree: Int {
         Int(OCCTSurfaceGetVDegree(handle))
     }
+
+    // MARK: - Curve Projection (v0.22.0)
+
+    /// Result of projecting a point onto a surface
+    public struct SurfaceProjection: Sendable {
+        public let u: Double
+        public let v: Double
+        public let distance: Double
+    }
+
+    /// Project a 3D curve onto this surface, returning a 2D (UV) parametric curve.
+    ///
+    /// Uses `GeomProjLib::Curve2d` for analytic projection. The result is a
+    /// `Curve2D` in the surface's UV parameter space.
+    /// - Parameters:
+    ///   - curve: The 3D curve to project
+    ///   - tolerance: Projection tolerance (default 1e-4)
+    /// - Returns: A 2D curve in UV space, or nil if projection fails
+    public func projectCurve(_ curve: Curve3D, tolerance: Double = 1e-4) -> Curve2D? {
+        guard let h = OCCTSurfaceProjectCurve2D(handle, curve.handle, tolerance) else {
+            return nil
+        }
+        return Curve2D(handle: h)
+    }
+
+    /// Project a 3D curve onto this surface using composite projection.
+    ///
+    /// Uses `ProjLib_CompProjectedCurve` which handles cases where the curve
+    /// projects as multiple disconnected segments in UV space (e.g., when
+    /// the curve crosses surface seams or boundaries).
+    /// - Parameters:
+    ///   - curve: The 3D curve to project
+    ///   - tolerance: Projection tolerance (default 1e-4)
+    /// - Returns: Array of 2D curves in UV space (may be empty)
+    public func projectCurveSegments(_ curve: Curve3D, tolerance: Double = 1e-4) -> [Curve2D] {
+        var buffer = [OCCTCurve2DRef?](repeating: nil, count: 32)
+        let count = buffer.withUnsafeMutableBufferPointer { ptr in
+            OCCTSurfaceProjectCurveSegments(handle, curve.handle, tolerance,
+                                             ptr.baseAddress, 32)
+        }
+        var result = [Curve2D]()
+        for i in 0..<Int(count) {
+            if let h = buffer[i] {
+                result.append(Curve2D(handle: h))
+            }
+        }
+        return result
+    }
+
+    /// Project a 3D curve onto this surface, returning the result as a 3D curve.
+    ///
+    /// Uses `GeomProjLib::Project` for normal projection. The result is a
+    /// 3D curve that lies on the surface.
+    /// - Parameter curve: The 3D curve to project
+    /// - Returns: A 3D curve on the surface, or nil if projection fails
+    public func projectCurve3D(_ curve: Curve3D) -> Curve3D? {
+        guard let h = OCCTSurfaceProjectCurve3D(handle, curve.handle) else {
+            return nil
+        }
+        return Curve3D(handle: h)
+    }
+
+    /// Project a 3D point onto this surface (closest point).
+    ///
+    /// Uses `GeomAPI_ProjectPointOnSurf` to find the nearest point
+    /// on the surface to the given point.
+    /// - Parameter point: The 3D point to project
+    /// - Returns: UV parameters and distance, or nil if projection fails
+    public func projectPoint(_ point: SIMD3<Double>) -> SurfaceProjection? {
+        var u: Double = 0, v: Double = 0, distance: Double = 0
+        guard OCCTSurfaceProjectPoint(handle, point.x, point.y, point.z,
+                                       &u, &v, &distance) else {
+            return nil
+        }
+        return SurfaceProjection(u: u, v: v, distance: distance)
+    }
 }

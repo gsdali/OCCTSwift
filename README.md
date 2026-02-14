@@ -14,8 +14,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Wires** | 17 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **2D Curves (Curve2D)** | 55 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw |
-| **3D Curves (Curve3D)** | 50 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection |
-| **Surfaces (Surface)** | 40 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures |
+| **3D Curves (Curve3D)** | 51 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection, projectedOnPlane |
+| **Surfaces (Surface)** | 44 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 10 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
@@ -31,7 +31,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 19 | Document.load, rootNodes, AssemblyNode, colors, materials, dimensions, geomTolerances, datums |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
-| **Total** | **335** | |
+| **Total** | **340** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -47,6 +47,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **3D Parametric Curves**: Full Geom wrapping — lines, circles, arcs, ellipses, BSplines, Beziers, interpolation, operations, conversion, local properties, Metal draw methods
 - **Parametric Surfaces**: Analytic (plane, cylinder, cone, sphere, torus), swept (extrusion, revolution), freeform (Bezier, BSpline), pipe surfaces, operations, curvature analysis, Metal draw methods
 - **3D Geometry Analysis**: Face surface properties, edge curve properties, point projection, shape proximity detection, surface intersection
+- **Curve Projection**: Project 3D curves onto surfaces (2D UV result, composite segments, 3D-on-surface), project curves onto planes
 - **Law Functions**: Constant, linear, S-curve, interpolated, BSpline evolution functions for variable-section sweeps
 - **Feature-Based Modeling**: Boss, pocket, drilling, splitting, gluing, evolved surfaces
 - **Pattern Operations**: Linear and circular arrays of shapes
@@ -76,7 +77,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.21.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.22.0")
 ]
 ```
 
@@ -491,6 +492,15 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `LawFunction.bspline(...)` | `Law_BSpline` |
 | `Shape.pipeShellWithLaw(spine:profile:law:solid:)` | `BRepOffsetAPI_MakePipeShell` |
 
+#### Curve Projection (v0.22.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `surface.projectCurve(_:tolerance:)` → `Curve2D?` | `GeomProjLib::Curve2d` |
+| `surface.projectCurveSegments(_:tolerance:)` → `[Curve2D]` | `ProjLib_CompProjectedCurve` |
+| `surface.projectCurve3D(_:)` → `Curve3D?` | `GeomProjLib::Project` |
+| `surface.projectPoint(_:)` → `SurfaceProjection?` | `GeomAPI_ProjectPointOnSurf` |
+| `curve.projectedOnPlane(origin:normal:direction:)` → `Curve3D?` | `GeomProjLib::ProjectOnPlane` |
+
 #### XDE GD&T (v0.21.0)
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -562,11 +572,11 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 OCCT has thousands of classes. Some notable ones not yet exposed:
 
 - **Pockets with Islands**: Multi-contour pocket features
-- **Curve Projection**: Project 3D curves onto surfaces (`ProjLib`, `GeomProjLib`)
 - **Medial Axis Transform**: 2D Voronoi skeleton (`BRepMAT2d`)
 - **Topological Naming**: Persistent name tracking across operations (`TNaming`)
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.22.0: Curve projection onto surfaces — 2D UV projection, composite segments, 3D-on-surface, plane projection
 > - v0.21.0: Law functions, variable-section sweeps, XDE GD&T (dimensions, tolerances, datums)
 > - v0.20.0: Full parametric surface wrapping — analytic, swept, freeform, pipe, draw methods, curvature
 > - v0.19.0: Full 3D parametric curve wrapping — primitives, BSplines, operations, conversion, draw methods
@@ -603,9 +613,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.21.0
+### Current Status: v0.22.0
 
-OCCTSwift now wraps **335 OCCT operations** across 25 categories with 443 tests across 83 suites.
+OCCTSwift now wraps **340 OCCT operations** across 25 categories with 459 tests across 85 suites.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 

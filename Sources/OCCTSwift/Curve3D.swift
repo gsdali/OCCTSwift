@@ -436,4 +436,26 @@ public final class Curve3D: @unchecked Sendable {
                                          &xMax, &yMax, &zMax) else { return nil }
         return (min: SIMD3(xMin, yMin, zMin), max: SIMD3(xMax, yMax, zMax))
     }
+
+    // MARK: - Projection (v0.22.0)
+
+    /// Project this curve onto a plane along a given direction.
+    ///
+    /// Uses `GeomProjLib::ProjectOnPlane`. The result is a 3D curve
+    /// lying in the target plane.
+    /// - Parameters:
+    ///   - origin: A point on the target plane
+    ///   - normal: Normal direction of the target plane
+    ///   - direction: Projection direction (must not be parallel to the plane normal)
+    /// - Returns: The projected 3D curve, or nil if projection fails
+    public func projectedOnPlane(origin: SIMD3<Double>,
+                                  normal: SIMD3<Double>,
+                                  direction: SIMD3<Double>) -> Curve3D? {
+        guard let h = OCCTCurve3DProjectOnPlane(handle,
+                                                 origin.x, origin.y, origin.z,
+                                                 normal.x, normal.y, normal.z,
+                                                 direction.x, direction.y, direction.z)
+        else { return nil }
+        return Curve3D(handle: h)
+    }
 }

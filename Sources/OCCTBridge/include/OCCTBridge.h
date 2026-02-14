@@ -2238,6 +2238,44 @@ typedef struct {
 OCCTDatumInfo OCCTDocumentGetDatumInfo(OCCTDocumentRef doc, int32_t index);
 
 
+// MARK: - ProjLib: Curve Projection onto Surfaces (v0.22.0)
+
+/// Project a 3D curve onto a surface, returning a 2D (UV) curve.
+/// Uses GeomProjLib::Curve2d. Returns NULL on failure.
+OCCTCurve2DRef OCCTSurfaceProjectCurve2D(OCCTSurfaceRef surface,
+                                          OCCTCurve3DRef curve,
+                                          double tolerance);
+
+/// Project a 3D curve onto a surface using composite projection (multiple segments).
+/// Returns the number of 2D curve segments written to outCurves (up to maxCurves).
+/// Uses ProjLib_CompProjectedCurve.
+int32_t OCCTSurfaceProjectCurveSegments(OCCTSurfaceRef surface,
+                                         OCCTCurve3DRef curve,
+                                         double tolerance,
+                                         OCCTCurve2DRef* outCurves,
+                                         int32_t maxCurves);
+
+/// Project a 3D curve onto a surface, returning the result as a 3D curve.
+/// Uses GeomProjLib::Project. Returns NULL on failure.
+OCCTCurve3DRef OCCTSurfaceProjectCurve3D(OCCTSurfaceRef surface,
+                                          OCCTCurve3DRef curve);
+
+/// Project a 3D curve onto a plane along a direction, returning a 3D curve.
+/// Uses GeomProjLib::ProjectOnPlane.
+/// (oX,oY,oZ) = plane origin, (nX,nY,nZ) = plane normal, (dX,dY,dZ) = projection direction.
+OCCTCurve3DRef OCCTCurve3DProjectOnPlane(OCCTCurve3DRef curve,
+                                          double oX, double oY, double oZ,
+                                          double nX, double nY, double nZ,
+                                          double dX, double dY, double dZ);
+
+/// Project a point onto a parametric surface (closest point).
+/// Returns true on success, writing UV parameters and distance.
+/// Uses GeomAPI_ProjectPointOnSurf.
+bool OCCTSurfaceProjectPoint(OCCTSurfaceRef surface,
+                              double px, double py, double pz,
+                              double* u, double* v, double* distance);
+
+
 #ifdef __cplusplus
 }
 #endif
