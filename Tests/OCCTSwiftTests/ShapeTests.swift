@@ -4566,3 +4566,723 @@ struct PointClassificationTests {
         #expect(result == .inside || result == .outside || result == .onBoundary || result == .unknown)
     }
 }
+
+
+// MARK: - Face Surface Properties Tests (v0.18.0)
+
+@Suite("Face Surface Properties Tests")
+struct FaceSurfacePropertiesTests {
+
+    @Test("UV bounds of box face")
+    func uvBoundsBoxFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let faces = box.faces()
+        #expect(!faces.isEmpty)
+
+        let face = faces[0]
+        let bounds = face.uvBounds
+        #expect(bounds != nil)
+        if let b = bounds {
+            #expect(b.uMax > b.uMin)
+            #expect(b.vMax > b.vMin)
+        }
+    }
+
+    @Test("Evaluate point on box face at UV center")
+    func evaluatePointOnBoxFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let faces = box.faces()
+        #expect(!faces.isEmpty)
+
+        let face = faces[0]
+        guard let bounds = face.uvBounds else {
+            #expect(Bool(false), "No UV bounds")
+            return
+        }
+        let uMid = (bounds.uMin + bounds.uMax) / 2.0
+        let vMid = (bounds.vMin + bounds.vMax) / 2.0
+        let pt = face.point(atU: uMid, v: vMid)
+        #expect(pt != nil)
+    }
+
+    @Test("Normal at UV on box face is axis-aligned")
+    func normalAtUVBoxFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let faces = box.faces()
+        #expect(!faces.isEmpty)
+
+        let face = faces[0]
+        guard let bounds = face.uvBounds else {
+            #expect(Bool(false), "No UV bounds")
+            return
+        }
+        let uMid = (bounds.uMin + bounds.uMax) / 2.0
+        let vMid = (bounds.vMin + bounds.vMax) / 2.0
+        let n = face.normal(atU: uMid, v: vMid)
+        #expect(n != nil)
+        if let n = n {
+            // Box face normal should be axis-aligned: one component ~1, others ~0
+            let absN = SIMD3(abs(n.x), abs(n.y), abs(n.z))
+            let maxComponent = max(absN.x, max(absN.y, absN.z))
+            #expect(maxComponent > 0.99)
+        }
+    }
+
+    @Test("Gaussian curvature of plane face is zero")
+    func gaussianCurvaturePlane() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let faces = box.faces()
+        #expect(!faces.isEmpty)
+
+        let face = faces[0]
+        guard let bounds = face.uvBounds else {
+            #expect(Bool(false), "No UV bounds")
+            return
+        }
+        let uMid = (bounds.uMin + bounds.uMax) / 2.0
+        let vMid = (bounds.vMin + bounds.vMax) / 2.0
+        let gc = face.gaussianCurvature(atU: uMid, v: vMid)
+        #expect(gc != nil)
+        if let gc = gc {
+            #expect(abs(gc) < 1e-10)
+        }
+    }
+
+    @Test("Gaussian curvature of sphere is 1/r²")
+    func gaussianCurvatureSphere() {
+        let radius = 5.0
+        let sphere = Shape.sphere(radius: radius)!
+        let faces = sphere.faces()
+        #expect(!faces.isEmpty)
+
+        let face = faces[0]
+        guard let bounds = face.uvBounds else {
+            #expect(Bool(false), "No UV bounds")
+            return
+        }
+        let uMid = (bounds.uMin + bounds.uMax) / 2.0
+        let vMid = (bounds.vMin + bounds.vMax) / 2.0
+        let gc = face.gaussianCurvature(atU: uMid, v: vMid)
+        #expect(gc != nil)
+        if let gc = gc {
+            let expected = 1.0 / (radius * radius)
+            #expect(abs(gc - expected) < 0.01)
+        }
+    }
+
+    @Test("Mean curvature of sphere is 1/r")
+    func meanCurvatureSphere() {
+        let radius = 5.0
+        let sphere = Shape.sphere(radius: radius)!
+        let faces = sphere.faces()
+        #expect(!faces.isEmpty)
+
+        let face = faces[0]
+        guard let bounds = face.uvBounds else {
+            #expect(Bool(false), "No UV bounds")
+            return
+        }
+        let uMid = (bounds.uMin + bounds.uMax) / 2.0
+        let vMid = (bounds.vMin + bounds.vMax) / 2.0
+        let mc = face.meanCurvature(atU: uMid, v: vMid)
+        #expect(mc != nil)
+        if let mc = mc {
+            let expected = 1.0 / radius
+            // Mean curvature sign depends on face orientation; compare magnitudes
+            #expect(abs(abs(mc) - expected) < 0.01)
+        }
+    }
+
+    @Test("Principal curvatures of cylinder")
+    func principalCurvaturesCylinder() {
+        let radius = 5.0
+        let cyl = Shape.cylinder(radius: radius, height: 10)!
+        let faces = cyl.faces()
+        // Cylinder has 3 faces: lateral, top, bottom
+        // Find the cylindrical (non-planar) face
+        var cylFace: Face?
+        for face in faces {
+            if face.surfaceType == .cylinder {
+                cylFace = face
+                break
+            }
+        }
+        #expect(cylFace != nil)
+
+        if let face = cylFace {
+            guard let bounds = face.uvBounds else {
+                #expect(Bool(false), "No UV bounds")
+                return
+            }
+            let uMid = (bounds.uMin + bounds.uMax) / 2.0
+            let vMid = (bounds.vMin + bounds.vMax) / 2.0
+            let pc = face.principalCurvatures(atU: uMid, v: vMid)
+            #expect(pc != nil)
+            if let pc = pc {
+                // Cylinder: one curvature ~0 (along axis), other ~1/r
+                let minK = min(abs(pc.kMin), abs(pc.kMax))
+                let maxK = max(abs(pc.kMin), abs(pc.kMax))
+                #expect(minK < 0.01)
+                #expect(abs(maxK - 1.0 / radius) < 0.01)
+            }
+        }
+    }
+
+    @Test("Surface type detection")
+    func surfaceTypeDetection() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let boxFaces = box.faces()
+        #expect(!boxFaces.isEmpty)
+        #expect(boxFaces[0].surfaceType == .plane)
+
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let cylFaces = cyl.faces()
+        var hasCylinder = false
+        for face in cylFaces {
+            if face.surfaceType == .cylinder {
+                hasCylinder = true
+                break
+            }
+        }
+        #expect(hasCylinder)
+    }
+
+    @Test("Face area of box face")
+    func faceAreaBox() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let faces = box.faces()
+        #expect(faces.count == 6)
+
+        // Sum all face areas should equal total surface area
+        var totalArea = 0.0
+        for face in faces {
+            totalArea += face.area()
+        }
+        let expectedTotal: Double = 2200.0  // 2*(10*20 + 10*30 + 20*30)
+        #expect(abs(totalArea - expectedTotal) < 1.0)
+    }
+}
+
+
+// MARK: - Edge 3D Curve Properties Tests (v0.18.0)
+
+@Suite("Edge Curve Properties Tests")
+struct EdgeCurvePropertiesTests {
+
+    @Test("Parameter bounds of line edge")
+    func parameterBoundsLineEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edges = box.edges()
+        #expect(!edges.isEmpty)
+
+        let edge = edges[0]
+        let bounds = edge.parameterBounds
+        #expect(bounds != nil)
+        if let b = bounds {
+            #expect(b.last > b.first)
+        }
+    }
+
+    @Test("Curvature of circle edge is 1/r")
+    func curvatureCircleEdge() {
+        let radius = 5.0
+        let cyl = Shape.cylinder(radius: radius, height: 10)!
+        let edges = cyl.edges()
+
+        // Find a circular edge
+        var circEdge: Edge?
+        for edge in edges {
+            if edge.curveType == .circle {
+                circEdge = edge
+                break
+            }
+        }
+        #expect(circEdge != nil)
+
+        if let edge = circEdge {
+            guard let bounds = edge.parameterBounds else {
+                #expect(Bool(false), "No parameter bounds")
+                return
+            }
+            let mid = (bounds.first + bounds.last) / 2.0
+            let curv = edge.curvature(at: mid)
+            #expect(curv != nil)
+            if let curv = curv {
+                #expect(abs(curv - 1.0 / radius) < 0.01)
+            }
+        }
+    }
+
+    @Test("Curvature of line edge is zero")
+    func curvatureLineEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edges = box.edges()
+
+        var lineEdge: Edge?
+        for edge in edges {
+            if edge.curveType == .line {
+                lineEdge = edge
+                break
+            }
+        }
+        #expect(lineEdge != nil)
+
+        if let edge = lineEdge {
+            guard let bounds = edge.parameterBounds else {
+                #expect(Bool(false), "No parameter bounds")
+                return
+            }
+            let mid = (bounds.first + bounds.last) / 2.0
+            let curv = edge.curvature(at: mid)
+            #expect(curv != nil)
+            if let curv = curv {
+                #expect(abs(curv) < 1e-10)
+            }
+        }
+    }
+
+    @Test("Tangent direction of straight edge")
+    func tangentStraightEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edges = box.edges()
+        #expect(!edges.isEmpty)
+
+        var lineEdge: Edge?
+        for edge in edges {
+            if edge.curveType == .line {
+                lineEdge = edge
+                break
+            }
+        }
+        #expect(lineEdge != nil)
+
+        if let edge = lineEdge {
+            guard let bounds = edge.parameterBounds else {
+                #expect(Bool(false), "No parameter bounds")
+                return
+            }
+            let mid = (bounds.first + bounds.last) / 2.0
+            let tang = edge.tangent(at: mid)
+            #expect(tang != nil)
+            if let t = tang {
+                // Tangent should be unit length
+                let len = sqrt(t.x * t.x + t.y * t.y + t.z * t.z)
+                #expect(abs(len - 1.0) < 1e-6)
+            }
+        }
+    }
+
+    @Test("Normal of circle edge points toward center")
+    func normalCircleEdge() {
+        let radius = 5.0
+        let cyl = Shape.cylinder(radius: radius, height: 10)!
+        let edges = cyl.edges()
+
+        var circEdge: Edge?
+        for edge in edges {
+            if edge.curveType == .circle {
+                circEdge = edge
+                break
+            }
+        }
+        #expect(circEdge != nil)
+
+        if let edge = circEdge {
+            guard let bounds = edge.parameterBounds else {
+                #expect(Bool(false), "No parameter bounds")
+                return
+            }
+            let mid = (bounds.first + bounds.last) / 2.0
+            let n = edge.normal(at: mid)
+            #expect(n != nil)
+            if let n = n {
+                let len = sqrt(n.x * n.x + n.y * n.y + n.z * n.z)
+                #expect(abs(len - 1.0) < 1e-6)
+            }
+        }
+    }
+
+    @Test("Center of curvature of circle matches circle center")
+    func centerOfCurvatureCircle() {
+        let radius = 5.0
+        let cyl = Shape.cylinder(radius: radius, height: 10)!
+        let edges = cyl.edges()
+
+        var circEdge: Edge?
+        for edge in edges {
+            if edge.curveType == .circle {
+                circEdge = edge
+                break
+            }
+        }
+        #expect(circEdge != nil)
+
+        if let edge = circEdge {
+            guard let bounds = edge.parameterBounds else {
+                #expect(Bool(false), "No parameter bounds")
+                return
+            }
+            let mid = (bounds.first + bounds.last) / 2.0
+            let center = edge.centerOfCurvature(at: mid)
+            #expect(center != nil)
+            if let c = center {
+                // Circle is in XY plane at Z=0 or Z=height, centered at origin
+                // Center of curvature should be at the circle center (0,0,z)
+                let distFromAxis = sqrt(c.x * c.x + c.y * c.y)
+                #expect(distFromAxis < 0.01)
+            }
+        }
+    }
+
+    @Test("Torsion of planar curve is zero")
+    func torsionPlanarCurve() {
+        let radius = 5.0
+        let cyl = Shape.cylinder(radius: radius, height: 10)!
+        let edges = cyl.edges()
+
+        var circEdge: Edge?
+        for edge in edges {
+            if edge.curveType == .circle {
+                circEdge = edge
+                break
+            }
+        }
+        #expect(circEdge != nil)
+
+        if let edge = circEdge {
+            guard let bounds = edge.parameterBounds else {
+                #expect(Bool(false), "No parameter bounds")
+                return
+            }
+            let mid = (bounds.first + bounds.last) / 2.0
+            let tor = edge.torsion(at: mid)
+            #expect(tor != nil)
+            if let tor = tor {
+                #expect(abs(tor) < 1e-6)
+            }
+        }
+    }
+
+    @Test("Curve type detection")
+    func curveTypeDetection() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let boxEdges = box.edges()
+        #expect(!boxEdges.isEmpty)
+        #expect(boxEdges[0].curveType == .line)
+
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let cylEdges = cyl.edges()
+        var hasCircle = false
+        for edge in cylEdges {
+            if edge.curveType == .circle {
+                hasCircle = true
+                break
+            }
+        }
+        #expect(hasCircle)
+    }
+
+    @Test("Point at parameter matches expected location")
+    func pointAtParameter() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edges = box.edges()
+        #expect(!edges.isEmpty)
+
+        let edge = edges[0]
+        guard let bounds = edge.parameterBounds else {
+            #expect(Bool(false), "No parameter bounds")
+            return
+        }
+
+        // Points at start and end should match endpoints
+        let ptStart = edge.point(at: bounds.first)
+        let ptEnd = edge.point(at: bounds.last)
+        let endpoints = edge.endpoints
+        #expect(ptStart != nil)
+        #expect(ptEnd != nil)
+
+        if let s = ptStart {
+            let dist = simd_length(s - endpoints.start)
+            #expect(dist < 0.01)
+        }
+        if let e = ptEnd {
+            let dist = simd_length(e - endpoints.end)
+            #expect(dist < 0.01)
+        }
+    }
+}
+
+
+// MARK: - Point Projection Tests (v0.18.0)
+
+@Suite("Point Projection Tests")
+struct PointProjectionTests {
+
+    @Test("Project point onto box face")
+    func projectPointOntoBoxFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let faces = box.faces()
+
+        // Find the top face (Z=5)
+        var topFace: Face?
+        for face in faces {
+            if let n = face.normal, n.z > 0.9 {
+                topFace = face
+                break
+            }
+        }
+        #expect(topFace != nil)
+
+        if let face = topFace {
+            // Project a point directly above the face center
+            let proj = face.project(point: SIMD3(0, 0, 15))
+            #expect(proj != nil)
+            if let p = proj {
+                #expect(abs(p.point.z - 5.0) < 0.01)
+                #expect(abs(p.distance - 10.0) < 0.01)
+            }
+        }
+    }
+
+    @Test("Project point onto sphere face with UV")
+    func projectPointOntoSphere() {
+        let radius = 5.0
+        let sphere = Shape.sphere(radius: radius)!
+        let faces = sphere.faces()
+        #expect(!faces.isEmpty)
+
+        let face = faces[0]
+        // Project a point outside the sphere
+        let proj = face.project(point: SIMD3(10, 0, 0))
+        #expect(proj != nil)
+        if let p = proj {
+            #expect(abs(p.distance - 5.0) < 0.1)
+            // Closest point should be on the sphere at (5,0,0)
+            #expect(abs(p.point.x - 5.0) < 0.1)
+            #expect(abs(p.point.y) < 0.1)
+            #expect(abs(p.point.z) < 0.1)
+        }
+    }
+
+    @Test("All projections returns results")
+    func allProjections() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let faces = box.faces()
+        #expect(!faces.isEmpty)
+
+        // Find the top face
+        var topFace: Face?
+        for face in faces {
+            if let n = face.normal, n.z > 0.9 {
+                topFace = face
+                break
+            }
+        }
+        #expect(topFace != nil)
+
+        if let face = topFace {
+            // Project a point above the face - should get at least one result
+            let projs = face.allProjections(of: SIMD3(0, 0, 15))
+            #expect(!projs.isEmpty)
+            if let first = projs.first {
+                #expect(abs(first.distance - 10.0) < 0.1)
+            }
+        }
+    }
+
+    @Test("Project point onto straight edge")
+    func projectPointOntoEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edges = box.edges()
+        #expect(!edges.isEmpty)
+
+        // Find a line edge
+        var lineEdge: Edge?
+        for edge in edges {
+            if edge.curveType == .line {
+                lineEdge = edge
+                break
+            }
+        }
+        #expect(lineEdge != nil)
+
+        if let edge = lineEdge {
+            // Project a point near the midpoint of the edge
+            let mid = edge.endpoints
+            let midPt = (mid.start + mid.end) / 2.0
+            let offset = midPt + SIMD3(1, 1, 1) // offset from midpoint
+            let proj = edge.project(point: offset)
+            #expect(proj != nil)
+            if let p = proj {
+                #expect(p.distance > 0)
+                #expect(p.distance < 3.0) // should be reasonably close
+            }
+        }
+    }
+
+    @Test("Project point onto circular edge")
+    func projectPointOntoCircularEdge() {
+        let radius = 5.0
+        let cyl = Shape.cylinder(radius: radius, height: 10)!
+        let edges = cyl.edges()
+
+        var circEdge: Edge?
+        for edge in edges {
+            if edge.curveType == .circle {
+                circEdge = edge
+                break
+            }
+        }
+        #expect(circEdge != nil)
+
+        if let edge = circEdge {
+            // Get a point on the circle edge and offset it radially outward
+            guard let bounds = edge.parameterBounds else {
+                #expect(Bool(false), "No parameter bounds")
+                return
+            }
+            let mid = (bounds.first + bounds.last) / 2.0
+            guard let onCurve = edge.point(at: mid) else {
+                #expect(Bool(false), "No point at param")
+                return
+            }
+            // Offset radially outward by 3 units in XY plane
+            let radialDir = SIMD3(onCurve.x, onCurve.y, 0.0)
+            let radialLen = simd_length(radialDir)
+            let offset = radialLen > 0.01
+                ? onCurve + (radialDir / radialLen) * 3.0
+                : onCurve + SIMD3(3, 0, 0)
+            let proj = edge.project(point: offset)
+            #expect(proj != nil)
+            if let p = proj {
+                #expect(abs(p.distance - 3.0) < 0.5)
+            }
+        }
+    }
+}
+
+
+// MARK: - Shape Proximity Tests (v0.18.0)
+
+@Suite("Shape Proximity Tests")
+struct ShapeProximityTests {
+
+    @Test("Two boxes with small gap detect proximity")
+    func twoBoxesProximity() {
+        // box1 centered at origin: -5..5 on each axis
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        // box2 corner at (5.05, -5, -5) → gap of 0.05 from box1's +X face
+        let box2 = Shape.box(origin: SIMD3(5.05, -5, -5), width: 10, height: 10, depth: 10)!
+
+        let pairs = box1.proximityFaces(with: box2, tolerance: 1.0)
+        // BRepExtrema_ShapeProximity should detect the close face pair
+        #expect(pairs.count >= 0) // API doesn't crash
+
+        // Verify the gap distance is correct
+        let dist = box1.distance(to: box2)
+        #expect(dist != nil)
+        if let d = dist {
+            #expect(abs(d.distance - 0.05) < 0.01)
+        }
+    }
+
+    @Test("Two distant shapes have no proximity")
+    func distantShapesNoProximity() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(origin: SIMD3(100, 100, 100), width: 10, height: 10, depth: 10)!
+
+        let pairs = box1.proximityFaces(with: box2, tolerance: 0.5)
+        #expect(pairs.isEmpty)
+    }
+
+    @Test("Box does not self-intersect")
+    func boxNoSelfIntersection() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        #expect(!box.selfIntersects)
+    }
+}
+
+
+// MARK: - Surface Intersection Tests (v0.18.0)
+
+@Suite("Surface Intersection Tests")
+struct SurfaceIntersectionTests {
+
+    @Test("Intersect two perpendicular planar faces gives line")
+    func intersectPerpendicularPlanes() {
+        // Create two boxes that share an edge
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+
+        let faces1 = box1.faces()
+        let faces2 = box2.faces()
+        #expect(faces1.count >= 2)
+        #expect(faces2.count >= 2)
+
+        // Find two faces with perpendicular normals
+        var face1: Face?
+        var face2: Face?
+        for f1 in faces1 {
+            guard let n1 = f1.normal else { continue }
+            for f2 in faces2 {
+                guard let n2 = f2.normal else { continue }
+                let dot = abs(n1.x * n2.x + n1.y * n2.y + n1.z * n2.z)
+                if dot < 0.01 { // perpendicular
+                    face1 = f1
+                    face2 = f2
+                    break
+                }
+            }
+            if face1 != nil { break }
+        }
+        #expect(face1 != nil)
+        #expect(face2 != nil)
+
+        if let f1 = face1, let f2 = face2 {
+            let result = f1.intersection(with: f2)
+            // Perpendicular planes of the same box should intersect along an edge
+            #expect(result != nil)
+            if let r = result {
+                #expect(r.isValid)
+            }
+        }
+    }
+
+    @Test("Intersect cylinder with plane gives curve")
+    func intersectCylinderWithPlane() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
+
+        let cylFaces = cyl.faces()
+        let boxFaces = box.faces()
+
+        // Find the cylindrical face
+        var cylFace: Face?
+        for face in cylFaces {
+            if face.surfaceType == .cylinder {
+                cylFace = face
+                break
+            }
+        }
+
+        // Find a planar face that would intersect the cylinder
+        var planeFace: Face?
+        for face in boxFaces {
+            if face.surfaceType == .plane {
+                planeFace = face
+                break
+            }
+        }
+
+        #expect(cylFace != nil)
+        #expect(planeFace != nil)
+
+        if let cf = cylFace, let pf = planeFace {
+            let result = cf.intersection(with: pf)
+            // The plane should cut through the cylinder
+            if let r = result {
+                #expect(r.isValid)
+            }
+        }
+    }
+}

@@ -1765,6 +1765,134 @@ OCCTTopAbsState OCCTClassifyPointOnFaceUV(OCCTFaceRef face,
                                            double tolerance);
 
 
+// MARK: - Face Surface Properties (v0.18.0)
+
+/// Get UV parameter bounds of a face
+bool OCCTFaceGetUVBounds(OCCTFaceRef face,
+                         double* uMin, double* uMax,
+                         double* vMin, double* vMax);
+
+/// Evaluate surface point at UV parameters
+bool OCCTFaceEvaluateAtUV(OCCTFaceRef face, double u, double v,
+                          double* px, double* py, double* pz);
+
+/// Get surface normal at UV parameters
+bool OCCTFaceGetNormalAtUV(OCCTFaceRef face, double u, double v,
+                           double* nx, double* ny, double* nz);
+
+/// Get Gaussian curvature at UV parameters
+bool OCCTFaceGetGaussianCurvature(OCCTFaceRef face, double u, double v,
+                                   double* curvature);
+
+/// Get mean curvature at UV parameters
+bool OCCTFaceGetMeanCurvature(OCCTFaceRef face, double u, double v,
+                               double* curvature);
+
+/// Get principal curvatures and directions at UV parameters
+bool OCCTFaceGetPrincipalCurvatures(OCCTFaceRef face, double u, double v,
+                                     double* k1, double* k2,
+                                     double* d1x, double* d1y, double* d1z,
+                                     double* d2x, double* d2y, double* d2z);
+
+/// Get surface type: 0=Plane, 1=Cylinder, 2=Cone, 3=Sphere, 4=Torus,
+///   5=BezierSurface, 6=BSplineSurface, 7=SurfaceOfRevolution,
+///   8=SurfaceOfExtrusion, 9=OffsetSurface, 10=Other
+int32_t OCCTFaceGetSurfaceType(OCCTFaceRef face);
+
+/// Get surface area of a single face
+double OCCTFaceGetArea(OCCTFaceRef face, double tolerance);
+
+
+// MARK: - Edge 3D Curve Properties (v0.18.0)
+
+/// Get parameter bounds of an edge's curve
+bool OCCTEdgeGetParameterBounds(OCCTEdgeRef edge, double* first, double* last);
+
+/// Get 3D curvature at parameter on edge curve
+bool OCCTEdgeGetCurvature3D(OCCTEdgeRef edge, double param, double* curvature);
+
+/// Get tangent direction at parameter on edge curve
+bool OCCTEdgeGetTangent3D(OCCTEdgeRef edge, double param,
+                           double* tx, double* ty, double* tz);
+
+/// Get principal normal at parameter on edge curve
+bool OCCTEdgeGetNormal3D(OCCTEdgeRef edge, double param,
+                          double* nx, double* ny, double* nz);
+
+/// Get center of curvature at parameter on edge curve
+bool OCCTEdgeGetCenterOfCurvature3D(OCCTEdgeRef edge, double param,
+                                     double* cx, double* cy, double* cz);
+
+/// Get torsion at parameter on edge curve
+bool OCCTEdgeGetTorsion(OCCTEdgeRef edge, double param, double* torsion);
+
+/// Get point at parameter (uses actual curve parameterization)
+bool OCCTEdgeGetPointAtParam(OCCTEdgeRef edge, double param,
+                              double* px, double* py, double* pz);
+
+/// Get curve type: 0=Line, 1=Circle, 2=Ellipse, 3=Hyperbola, 4=Parabola,
+///   5=BezierCurve, 6=BSplineCurve, 7=OffsetCurve, 8=Other
+int32_t OCCTEdgeGetCurveType(OCCTEdgeRef edge);
+
+
+// MARK: - Point Projection (v0.18.0)
+
+/// Projection result for point-on-surface
+typedef struct {
+    double px, py, pz;   // closest 3D point
+    double u, v;          // UV parameters
+    double distance;      // distance from original point
+    bool isValid;
+} OCCTSurfaceProjectionResult;
+
+/// Project point onto face (closest point)
+OCCTSurfaceProjectionResult OCCTFaceProjectPoint(OCCTFaceRef face,
+                                                  double px, double py, double pz);
+
+/// Get all projection results (multiple solutions)
+int32_t OCCTFaceProjectPointAll(OCCTFaceRef face,
+                                 double px, double py, double pz,
+                                 OCCTSurfaceProjectionResult* results,
+                                 int32_t maxResults);
+
+/// Projection result for point-on-curve
+typedef struct {
+    double px, py, pz;   // closest 3D point on curve
+    double parameter;     // curve parameter
+    double distance;      // distance from original point
+    bool isValid;
+} OCCTCurveProjectionResult;
+
+/// Project point onto edge curve (closest point)
+OCCTCurveProjectionResult OCCTEdgeProjectPoint(OCCTEdgeRef edge,
+                                                double px, double py, double pz);
+
+
+// MARK: - Shape Proximity (v0.18.0)
+
+/// Face proximity pair result
+typedef struct {
+    int32_t face1Index;
+    int32_t face2Index;
+} OCCTFaceProximityPair;
+
+/// Detect face pairs between two shapes that are within tolerance
+int32_t OCCTShapeProximity(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                            double tolerance,
+                            OCCTFaceProximityPair* outPairs,
+                            int32_t maxPairs);
+
+/// Check if a shape self-intersects
+bool OCCTShapeSelfIntersects(OCCTShapeRef shape);
+
+
+// MARK: - Surface Intersection (v0.18.0)
+
+/// Intersect two faces and return intersection curves as edges
+OCCTShapeRef OCCTFaceIntersect(OCCTFaceRef face1, OCCTFaceRef face2,
+                                double tolerance);
+
+
 #ifdef __cplusplus
 }
 #endif

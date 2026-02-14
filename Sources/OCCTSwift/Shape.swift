@@ -2282,3 +2282,35 @@ extension Face {
         return PointClassification(rawValue: state) ?? .unknown
     }
 }
+
+
+// MARK: - Shape Proximity (v0.18.0)
+
+extension Shape {
+
+    /// A pair of face indices detected as near-miss (within tolerance)
+    public struct FaceProximityPair: Sendable {
+        public let face1Index: Int
+        public let face2Index: Int
+    }
+
+    /// Detect face pairs between this shape and another that are within tolerance
+    public func proximityFaces(with other: Shape, tolerance: Double) -> [FaceProximityPair] {
+        var buffer = [OCCTFaceProximityPair](repeating: OCCTFaceProximityPair(), count: 256)
+        let count = OCCTShapeProximity(handle, other.handle, tolerance, &buffer, 256)
+
+        var pairs = [FaceProximityPair]()
+        for i in 0..<Int(count) {
+            pairs.append(FaceProximityPair(
+                face1Index: Int(buffer[i].face1Index),
+                face2Index: Int(buffer[i].face2Index)
+            ))
+        }
+        return pairs
+    }
+
+    /// Check if this shape self-intersects
+    public var selfIntersects: Bool {
+        OCCTShapeSelfIntersects(handle)
+    }
+}

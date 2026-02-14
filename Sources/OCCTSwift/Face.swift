@@ -87,6 +87,143 @@ public final class Face: @unchecked Sendable {
         }
         return z
     }
+
+    // MARK: - Surface Properties (v0.18.0)
+
+    /// Surface type classification
+    public enum SurfaceType: Int32, Sendable {
+        case plane = 0, cylinder = 1, cone = 2, sphere = 3, torus = 4
+        case bezierSurface = 5, bsplineSurface = 6
+        case surfaceOfRevolution = 7, surfaceOfExtrusion = 8
+        case offsetSurface = 9, other = 10
+    }
+
+    /// Principal curvature result
+    public struct PrincipalCurvatures: Sendable {
+        public let kMin: Double
+        public let kMax: Double
+        public let dirMin: SIMD3<Double>
+        public let dirMax: SIMD3<Double>
+    }
+
+    /// Projection result for a point onto this face's surface
+    public struct SurfaceProjection: Sendable {
+        public let point: SIMD3<Double>
+        public let u: Double
+        public let v: Double
+        public let distance: Double
+    }
+
+    /// Get UV parameter bounds of the face
+    public var uvBounds: (uMin: Double, uMax: Double, vMin: Double, vMax: Double)? {
+        var uMin: Double = 0, uMax: Double = 0, vMin: Double = 0, vMax: Double = 0
+        guard OCCTFaceGetUVBounds(handle, &uMin, &uMax, &vMin, &vMax) else {
+            return nil
+        }
+        return (uMin: uMin, uMax: uMax, vMin: vMin, vMax: vMax)
+    }
+
+    /// Get the surface type of this face
+    public var surfaceType: SurfaceType {
+        SurfaceType(rawValue: OCCTFaceGetSurfaceType(handle)) ?? .other
+    }
+
+    /// Get the surface area of this face
+    public func area(tolerance: Double = 1e-6) -> Double {
+        OCCTFaceGetArea(handle, tolerance)
+    }
+
+    /// Evaluate a point on the surface at UV parameters
+    public func point(atU u: Double, v: Double) -> SIMD3<Double>? {
+        var px: Double = 0, py: Double = 0, pz: Double = 0
+        guard OCCTFaceEvaluateAtUV(handle, u, v, &px, &py, &pz) else {
+            return nil
+        }
+        return SIMD3(px, py, pz)
+    }
+
+    /// Get the surface normal at UV parameters
+    public func normal(atU u: Double, v: Double) -> SIMD3<Double>? {
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        guard OCCTFaceGetNormalAtUV(handle, u, v, &nx, &ny, &nz) else {
+            return nil
+        }
+        return SIMD3(nx, ny, nz)
+    }
+
+    /// Get Gaussian curvature at UV parameters
+    public func gaussianCurvature(atU u: Double, v: Double) -> Double? {
+        var curvature: Double = 0
+        guard OCCTFaceGetGaussianCurvature(handle, u, v, &curvature) else {
+            return nil
+        }
+        return curvature
+    }
+
+    /// Get mean curvature at UV parameters
+    public func meanCurvature(atU u: Double, v: Double) -> Double? {
+        var curvature: Double = 0
+        guard OCCTFaceGetMeanCurvature(handle, u, v, &curvature) else {
+            return nil
+        }
+        return curvature
+    }
+
+    /// Get principal curvatures and their directions at UV parameters
+    public func principalCurvatures(atU u: Double, v: Double) -> PrincipalCurvatures? {
+        var k1: Double = 0, k2: Double = 0
+        var d1x: Double = 0, d1y: Double = 0, d1z: Double = 0
+        var d2x: Double = 0, d2y: Double = 0, d2z: Double = 0
+        guard OCCTFaceGetPrincipalCurvatures(handle, u, v,
+                                              &k1, &k2,
+                                              &d1x, &d1y, &d1z,
+                                              &d2x, &d2y, &d2z) else {
+            return nil
+        }
+        return PrincipalCurvatures(
+            kMin: k1, kMax: k2,
+            dirMin: SIMD3(d1x, d1y, d1z),
+            dirMax: SIMD3(d2x, d2y, d2z)
+        )
+    }
+
+    /// Project a 3D point onto this face's surface (closest point)
+    public func project(point: SIMD3<Double>) -> SurfaceProjection? {
+        let result = OCCTFaceProjectPoint(handle, point.x, point.y, point.z)
+        guard result.isValid else { return nil }
+        return SurfaceProjection(
+            point: SIMD3(result.px, result.py, result.pz),
+            u: result.u, v: result.v,
+            distance: result.distance
+        )
+    }
+
+    /// Get all projection results for a point onto this face's surface
+    public func allProjections(of point: SIMD3<Double>) -> [SurfaceProjection] {
+        var buffer = [OCCTSurfaceProjectionResult](repeating: OCCTSurfaceProjectionResult(), count: 32)
+        let count = OCCTFaceProjectPointAll(handle, point.x, point.y, point.z,
+                                             &buffer, 32)
+        var projections = [SurfaceProjection]()
+        for i in 0..<Int(count) {
+            let r = buffer[i]
+            if r.isValid {
+                projections.append(SurfaceProjection(
+                    point: SIMD3(r.px, r.py, r.pz),
+                    u: r.u, v: r.v,
+                    distance: r.distance
+                ))
+            }
+        }
+        return projections
+    }
+
+    /// Get intersection curves between this face and another
+    public func intersection(with other: Face, tolerance: Double = 1e-6) -> Shape? {
+        guard let resultHandle = OCCTFaceIntersect(handle, other.handle, tolerance) else {
+            return nil
+        }
+        return Shape(handle: resultHandle)
+    }
 }
 
 // MARK: - Shape Extension for Face Analysis

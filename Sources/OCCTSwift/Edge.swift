@@ -53,6 +53,102 @@ public final class Edge: @unchecked Sendable {
     
     // MARK: - Sampling
     
+    // MARK: - 3D Curve Properties (v0.18.0)
+
+    /// Curve type classification
+    public enum CurveType: Int32, Sendable {
+        case line = 0, circle = 1, ellipse = 2, hyperbola = 3, parabola = 4
+        case bezierCurve = 5, bsplineCurve = 6, offsetCurve = 7, other = 8
+    }
+
+    /// Projection result for a point onto this edge's curve
+    public struct CurveProjection: Sendable {
+        public let point: SIMD3<Double>
+        public let parameter: Double
+        public let distance: Double
+    }
+
+    /// Get the parameter bounds of the edge's underlying curve
+    public var parameterBounds: (first: Double, last: Double)? {
+        var first: Double = 0, last: Double = 0
+        guard OCCTEdgeGetParameterBounds(handle, &first, &last) else {
+            return nil
+        }
+        return (first: first, last: last)
+    }
+
+    /// Get the curve type of this edge
+    public var curveType: CurveType {
+        CurveType(rawValue: OCCTEdgeGetCurveType(handle)) ?? .other
+    }
+
+    /// Get 3D point at a curve parameter
+    public func point(at parameter: Double) -> SIMD3<Double>? {
+        var px: Double = 0, py: Double = 0, pz: Double = 0
+        guard OCCTEdgeGetPointAtParam(handle, parameter, &px, &py, &pz) else {
+            return nil
+        }
+        return SIMD3(px, py, pz)
+    }
+
+    /// Get curvature at a curve parameter
+    public func curvature(at parameter: Double) -> Double? {
+        var curvature: Double = 0
+        guard OCCTEdgeGetCurvature3D(handle, parameter, &curvature) else {
+            return nil
+        }
+        return curvature
+    }
+
+    /// Get tangent direction at a curve parameter
+    public func tangent(at parameter: Double) -> SIMD3<Double>? {
+        var tx: Double = 0, ty: Double = 0, tz: Double = 0
+        guard OCCTEdgeGetTangent3D(handle, parameter, &tx, &ty, &tz) else {
+            return nil
+        }
+        return SIMD3(tx, ty, tz)
+    }
+
+    /// Get principal normal direction at a curve parameter
+    public func normal(at parameter: Double) -> SIMD3<Double>? {
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        guard OCCTEdgeGetNormal3D(handle, parameter, &nx, &ny, &nz) else {
+            return nil
+        }
+        return SIMD3(nx, ny, nz)
+    }
+
+    /// Get center of curvature at a curve parameter
+    public func centerOfCurvature(at parameter: Double) -> SIMD3<Double>? {
+        var cx: Double = 0, cy: Double = 0, cz: Double = 0
+        guard OCCTEdgeGetCenterOfCurvature3D(handle, parameter, &cx, &cy, &cz) else {
+            return nil
+        }
+        return SIMD3(cx, cy, cz)
+    }
+
+    /// Get torsion at a curve parameter
+    public func torsion(at parameter: Double) -> Double? {
+        var torsion: Double = 0
+        guard OCCTEdgeGetTorsion(handle, parameter, &torsion) else {
+            return nil
+        }
+        return torsion
+    }
+
+    /// Project a 3D point onto this edge's curve (closest point)
+    public func project(point: SIMD3<Double>) -> CurveProjection? {
+        let result = OCCTEdgeProjectPoint(handle, point.x, point.y, point.z)
+        guard result.isValid else { return nil }
+        return CurveProjection(
+            point: SIMD3(result.px, result.py, result.pz),
+            parameter: result.parameter,
+            distance: result.distance
+        )
+    }
+
+    // MARK: - Sampling
+
     /// Get points along the edge curve
     /// - Parameter count: Number of points to generate (default: automatic based on length)
     /// - Returns: Array of 3D points along the edge
