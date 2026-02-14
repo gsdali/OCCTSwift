@@ -7,22 +7,22 @@ print()
 
 // Test 1: Create primitives
 print("1. Creating primitives...")
-let box = Shape.box(width: 10, height: 5, depth: 3)
+let box = Shape.box(width: 10, height: 5, depth: 3)!
 print("   - Box: \(box.isValid ? "valid" : "invalid")")
 
-let cylinder = Shape.cylinder(radius: 2, height: 8)
+let cylinder = Shape.cylinder(radius: 2, height: 8)!
 print("   - Cylinder: \(cylinder.isValid ? "valid" : "invalid")")
 
-let sphere = Shape.sphere(radius: 3)
+let sphere = Shape.sphere(radius: 3)!
 print("   - Sphere: \(sphere.isValid ? "valid" : "invalid")")
 
 // Test 2: Boolean operations
 print()
 print("2. Boolean operations...")
-let combined = box.union(with: cylinder.translated(by: [5, 0, 0]))
+let combined = box.union(with: cylinder.translated(by: [5, 0, 0])!)!
 print("   - Union: \(combined.isValid ? "valid" : "invalid")")
 
-let subtracted = box.subtracting(sphere)
+let subtracted = box.subtracting(sphere)!
 print("   - Subtraction: \(subtracted.isValid ? "valid" : "invalid")")
 
 // Test 3: Wire creation
@@ -54,16 +54,16 @@ guard let path = Wire.line(from: .zero, to: SIMD3(100, 0, 0)) else {
     print("   - Path wire creation failed!")
     exit(1)
 }
-let swept = Shape.sweep(profile: rect, along: path)
+let swept = Shape.sweep(profile: rect, along: path)!
 print("   - Pipe sweep: \(swept.isValid ? "valid" : "invalid")")
 
-let extruded = Shape.extrude(profile: rect, direction: [0, 0, 1], length: 10)
+let extruded = Shape.extrude(profile: rect, direction: [0, 0, 1], length: 10)!
 print("   - Extrusion: \(extruded.isValid ? "valid" : "invalid")")
 
 // Test 5: Meshing
 print()
 print("5. Mesh generation...")
-let mesh = box.mesh(linearDeflection: 0.1)
+let mesh = box.mesh(linearDeflection: 0.1)!
 print("   - Vertices: \(mesh.vertices.count)")
 print("   - Triangles: \(mesh.indices.count / 3)")
 
@@ -95,10 +95,10 @@ guard let trackPath = Wire.arc(
 }
 print("   - Track curve created (500mm radius, 45 degrees)")
 
-let rail = Shape.sweep(profile: railProfile, along: trackPath)
+let rail = Shape.sweep(profile: railProfile, along: trackPath)!
 print("   - Rail solid: \(rail.isValid ? "valid" : "invalid")")
 
-let railMesh = rail.mesh(linearDeflection: 0.05)
+let railMesh = rail.mesh(linearDeflection: 0.05)!
 print("   - Rail mesh: \(railMesh.vertices.count) vertices, \(railMesh.indices.count / 3) triangles")
 
 print()

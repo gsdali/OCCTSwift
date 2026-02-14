@@ -17,13 +17,7 @@ public final class Shape: @unchecked Sendable {
     // MARK: - Primitive Creation
 
     /// Create a box centered at origin
-    public static func box(width: Double, height: Double, depth: Double) -> Shape {
-        let handle = OCCTShapeCreateBox(width, height, depth)
-        return Shape(handle: handle!)
-    }
-
-    /// Create a box centered at origin - safe version returning optional
-    public static func tryBox(width: Double, height: Double, depth: Double) -> Shape? {
+    public static func box(width: Double, height: Double, depth: Double) -> Shape? {
         guard let handle = OCCTShapeCreateBox(width, height, depth) else { return nil }
         return Shape(handle: handle)
     }
@@ -34,22 +28,16 @@ public final class Shape: @unchecked Sendable {
         width: Double,
         height: Double,
         depth: Double
-    ) -> Shape {
-        let handle = OCCTShapeCreateBoxAt(
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateBoxAt(
             origin.x, origin.y, origin.z,
             width, height, depth
-        )
-        return Shape(handle: handle!)
+        ) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Create a cylinder along Z axis
-    public static func cylinder(radius: Double, height: Double) -> Shape {
-        let handle = OCCTShapeCreateCylinder(radius, height)
-        return Shape(handle: handle!)
-    }
-
-    /// Create a cylinder along Z axis - safe version returning optional
-    public static func tryCylinder(radius: Double, height: Double) -> Shape? {
+    public static func cylinder(radius: Double, height: Double) -> Shape? {
         guard let handle = OCCTShapeCreateCylinder(radius, height) else { return nil }
         return Shape(handle: handle)
     }
@@ -60,9 +48,9 @@ public final class Shape: @unchecked Sendable {
         bottomZ: Double,
         radius: Double,
         height: Double
-    ) -> Shape {
-        let handle = OCCTShapeCreateCylinderAt(position.x, position.y, bottomZ, radius, height)
-        return Shape(handle: handle!)
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateCylinderAt(position.x, position.y, bottomZ, radius, height) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Create a tool sweep solid - the volume swept by a cylindrical tool moving between two points
@@ -72,47 +60,29 @@ public final class Shape: @unchecked Sendable {
         height: Double,
         from start: SIMD3<Double>,
         to end: SIMD3<Double>
-    ) -> Shape {
-        let handle = OCCTShapeCreateToolSweep(
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateToolSweep(
             radius, height,
             start.x, start.y, start.z,
             end.x, end.y, end.z
-        )
-        return Shape(handle: handle!)
+        ) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Create a sphere centered at origin
-    public static func sphere(radius: Double) -> Shape {
-        let handle = OCCTShapeCreateSphere(radius)
-        return Shape(handle: handle!)
-    }
-
-    /// Create a sphere centered at origin - safe version returning optional
-    public static func trySphere(radius: Double) -> Shape? {
+    public static func sphere(radius: Double) -> Shape? {
         guard let handle = OCCTShapeCreateSphere(radius) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Create a cone along Z axis
-    public static func cone(bottomRadius: Double, topRadius: Double, height: Double) -> Shape {
-        let handle = OCCTShapeCreateCone(bottomRadius, topRadius, height)
-        return Shape(handle: handle!)
-    }
-
-    /// Create a cone along Z axis - safe version returning optional
-    public static func tryCone(bottomRadius: Double, topRadius: Double, height: Double) -> Shape? {
+    public static func cone(bottomRadius: Double, topRadius: Double, height: Double) -> Shape? {
         guard let handle = OCCTShapeCreateCone(bottomRadius, topRadius, height) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Create a torus in XY plane
-    public static func torus(majorRadius: Double, minorRadius: Double) -> Shape {
-        let handle = OCCTShapeCreateTorus(majorRadius, minorRadius)
-        return Shape(handle: handle!)
-    }
-
-    /// Create a torus in XY plane - safe version returning optional
-    public static func tryTorus(majorRadius: Double, minorRadius: Double) -> Shape? {
+    public static func torus(majorRadius: Double, minorRadius: Double) -> Shape? {
         guard let handle = OCCTShapeCreateTorus(majorRadius, minorRadius) else { return nil }
         return Shape(handle: handle)
     }
@@ -120,19 +90,19 @@ public final class Shape: @unchecked Sendable {
     // MARK: - Sweep Operations
 
     /// Sweep a 2D profile along a path to create a solid
-    public static func sweep(profile: Wire, along path: Wire) -> Shape {
-        let handle = OCCTShapeCreatePipeSweep(profile.handle, path.handle)
-        return Shape(handle: handle!)
+    public static func sweep(profile: Wire, along path: Wire) -> Shape? {
+        guard let handle = OCCTShapeCreatePipeSweep(profile.handle, path.handle) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Extrude a 2D profile in a direction
-    public static func extrude(profile: Wire, direction: SIMD3<Double>, length: Double) -> Shape {
-        let handle = OCCTShapeCreateExtrusion(
+    public static func extrude(profile: Wire, direction: SIMD3<Double>, length: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateExtrusion(
             profile.handle,
             direction.x, direction.y, direction.z,
             length
-        )
-        return Shape(handle: handle!)
+        ) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Revolve a 2D profile around an axis
@@ -141,59 +111,41 @@ public final class Shape: @unchecked Sendable {
         axisOrigin: SIMD3<Double>,
         axisDirection: SIMD3<Double>,
         angle: Double = .pi * 2
-    ) -> Shape {
-        let handle = OCCTShapeCreateRevolution(
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateRevolution(
             profile.handle,
             axisOrigin.x, axisOrigin.y, axisOrigin.z,
             axisDirection.x, axisDirection.y, axisDirection.z,
             angle
-        )
-        return Shape(handle: handle!)
+        ) else { return nil }
+        return Shape(handle: handle)
     }
 
     /// Loft through multiple profile wires
-    public static func loft(profiles: [Wire], solid: Bool = true) -> Shape {
+    public static func loft(profiles: [Wire], solid: Bool = true) -> Shape? {
         let handles: [OCCTWireRef?] = profiles.map { $0.handle }
-        let handle = handles.withUnsafeBufferPointer { buffer in
+        guard let handle = handles.withUnsafeBufferPointer({ buffer in
             OCCTShapeCreateLoft(buffer.baseAddress, Int32(profiles.count), solid)
-        }
-        return Shape(handle: handle!)
+        }) else { return nil }
+        return Shape(handle: handle)
     }
 
     // MARK: - Boolean Operations
 
     /// Union (add) two shapes together
-    public func union(with other: Shape) -> Shape {
-        let handle = OCCTShapeUnion(self.handle, other.handle)
-        return Shape(handle: handle!)
-    }
-
-    /// Union (add) two shapes together - safe version returning optional
-    public func tryUnion(with other: Shape) -> Shape? {
+    public func union(with other: Shape) -> Shape? {
         guard let handle = OCCTShapeUnion(self.handle, other.handle) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Subtract another shape from this one
-    public func subtracting(_ other: Shape) -> Shape {
-        let handle = OCCTShapeSubtract(self.handle, other.handle)
-        return Shape(handle: handle!)
-    }
-
-    /// Subtract another shape from this one - safe version returning optional
-    public func trySubtracting(_ other: Shape) -> Shape? {
+    public func subtracting(_ other: Shape) -> Shape? {
         guard let handle = OCCTShapeSubtract(self.handle, other.handle) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Intersection of two shapes
-    public func intersection(with other: Shape) -> Shape {
-        let handle = OCCTShapeIntersect(self.handle, other.handle)
-        return Shape(handle: handle!)
-    }
-
-    /// Intersection of two shapes - safe version returning optional
-    public func tryIntersection(with other: Shape) -> Shape? {
+    public func intersection(with other: Shape) -> Shape? {
         guard let handle = OCCTShapeIntersect(self.handle, other.handle) else { return nil }
         return Shape(handle: handle)
     }
@@ -201,49 +153,25 @@ public final class Shape: @unchecked Sendable {
     // MARK: - Modifications
 
     /// Fillet (round) all edges with given radius
-    public func filleted(radius: Double) -> Shape {
-        let handle = OCCTShapeFillet(self.handle, radius)
-        return Shape(handle: handle!)
-    }
-
-    /// Fillet (round) all edges with given radius - safe version returning optional
-    public func tryFilleted(radius: Double) -> Shape? {
+    public func filleted(radius: Double) -> Shape? {
         guard let handle = OCCTShapeFillet(self.handle, radius) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Chamfer all edges with given distance
-    public func chamfered(distance: Double) -> Shape {
-        let handle = OCCTShapeChamfer(self.handle, distance)
-        return Shape(handle: handle!)
-    }
-
-    /// Chamfer all edges with given distance - safe version returning optional
-    public func tryChamfered(distance: Double) -> Shape? {
+    public func chamfered(distance: Double) -> Shape? {
         guard let handle = OCCTShapeChamfer(self.handle, distance) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Create a hollow shell by removing material from inside
-    public func shelled(thickness: Double) -> Shape {
-        let handle = OCCTShapeShell(self.handle, thickness)
-        return Shape(handle: handle!)
-    }
-
-    /// Create a hollow shell by removing material from inside - safe version returning optional
-    public func tryShelled(thickness: Double) -> Shape? {
+    public func shelled(thickness: Double) -> Shape? {
         guard let handle = OCCTShapeShell(self.handle, thickness) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Offset all faces by a distance (positive = outward)
-    public func offset(by distance: Double) -> Shape {
-        let handle = OCCTShapeOffset(self.handle, distance)
-        return Shape(handle: handle!)
-    }
-
-    /// Offset all faces by a distance - safe version returning optional
-    public func tryOffset(by distance: Double) -> Shape? {
+    public func offset(by distance: Double) -> Shape? {
         guard let handle = OCCTShapeOffset(self.handle, distance) else { return nil }
         return Shape(handle: handle)
     }
@@ -251,53 +179,25 @@ public final class Shape: @unchecked Sendable {
     // MARK: - Transformations
 
     /// Translate the shape
-    public func translated(by offset: SIMD3<Double>) -> Shape {
-        let handle = OCCTShapeTranslate(self.handle, offset.x, offset.y, offset.z)
-        return Shape(handle: handle!)
-    }
-
-    /// Translate the shape - safe version returning optional
-    public func tryTranslated(by offset: SIMD3<Double>) -> Shape? {
+    public func translated(by offset: SIMD3<Double>) -> Shape? {
         guard let handle = OCCTShapeTranslate(self.handle, offset.x, offset.y, offset.z) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Rotate around an axis through origin
-    public func rotated(axis: SIMD3<Double>, angle: Double) -> Shape {
-        let handle = OCCTShapeRotate(self.handle, axis.x, axis.y, axis.z, angle)
-        return Shape(handle: handle!)
-    }
-
-    /// Rotate around an axis through origin - safe version returning optional
-    public func tryRotated(axis: SIMD3<Double>, angle: Double) -> Shape? {
+    public func rotated(axis: SIMD3<Double>, angle: Double) -> Shape? {
         guard let handle = OCCTShapeRotate(self.handle, axis.x, axis.y, axis.z, angle) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Scale uniformly from origin
-    public func scaled(by factor: Double) -> Shape {
-        let handle = OCCTShapeScale(self.handle, factor)
-        return Shape(handle: handle!)
-    }
-
-    /// Scale uniformly from origin - safe version returning optional
-    public func tryScaled(by factor: Double) -> Shape? {
+    public func scaled(by factor: Double) -> Shape? {
         guard let handle = OCCTShapeScale(self.handle, factor) else { return nil }
         return Shape(handle: handle)
     }
 
     /// Mirror across a plane
-    public func mirrored(planeNormal: SIMD3<Double>, planeOrigin: SIMD3<Double> = .zero) -> Shape {
-        let handle = OCCTShapeMirror(
-            self.handle,
-            planeOrigin.x, planeOrigin.y, planeOrigin.z,
-            planeNormal.x, planeNormal.y, planeNormal.z
-        )
-        return Shape(handle: handle!)
-    }
-
-    /// Mirror across a plane - safe version returning optional
-    public func tryMirrored(planeNormal: SIMD3<Double>, planeOrigin: SIMD3<Double> = .zero) -> Shape? {
+    public func mirrored(planeNormal: SIMD3<Double>, planeOrigin: SIMD3<Double> = .zero) -> Shape? {
         guard let handle = OCCTShapeMirror(
             self.handle,
             planeOrigin.x, planeOrigin.y, planeOrigin.z,
@@ -309,12 +209,12 @@ public final class Shape: @unchecked Sendable {
     // MARK: - Compound Operations
 
     /// Combine multiple shapes into a compound (no boolean, just grouping)
-    public static func compound(_ shapes: [Shape]) -> Shape {
+    public static func compound(_ shapes: [Shape]) -> Shape? {
         let handles: [OCCTShapeRef?] = shapes.map { $0.handle }
-        let handle = handles.withUnsafeBufferPointer { buffer in
+        guard let handle = handles.withUnsafeBufferPointer({ buffer in
             OCCTShapeCreateCompound(buffer.baseAddress, Int32(shapes.count))
-        }
-        return Shape(handle: handle!)
+        }) else { return nil }
+        return Shape(handle: handle)
     }
 
     // MARK: - Validation
@@ -325,9 +225,9 @@ public final class Shape: @unchecked Sendable {
     }
 
     /// Attempt to repair/heal the shape
-    public func healed() -> Shape {
-        let handle = OCCTShapeHeal(self.handle)
-        return Shape(handle: handle!)
+    public func healed() -> Shape? {
+        guard let handle = OCCTShapeHeal(self.handle) else { return nil }
+        return Shape(handle: handle)
     }
 
     // MARK: - Meshing
@@ -336,9 +236,9 @@ public final class Shape: @unchecked Sendable {
     public func mesh(
         linearDeflection: Double = 0.1,
         angularDeflection: Double = 0.5
-    ) -> Mesh {
-        let meshHandle = OCCTShapeCreateMesh(handle, linearDeflection, angularDeflection)
-        return Mesh(handle: meshHandle!)
+    ) -> Mesh? {
+        guard let meshHandle = OCCTShapeCreateMesh(handle, linearDeflection, angularDeflection) else { return nil }
+        return Mesh(handle: meshHandle)
     }
 
     /// Generate a triangulated mesh with enhanced parameters.
@@ -355,10 +255,10 @@ public final class Shape: @unchecked Sendable {
     ///
     /// - Parameter parameters: Enhanced mesh parameters
     /// - Returns: A `Mesh` with the specified quality settings
-    public func mesh(parameters: MeshParameters) -> Mesh {
+    public func mesh(parameters: MeshParameters) -> Mesh? {
         let bridgeParams = parameters.toBridge()
-        let meshHandle = OCCTShapeCreateMeshWithParams(handle, bridgeParams)
-        return Mesh(handle: meshHandle!)
+        guard let meshHandle = OCCTShapeCreateMeshWithParams(handle, bridgeParams) else { return nil }
+        return Mesh(handle: meshHandle)
     }
 
     // MARK: - Edge Discretization
@@ -1142,15 +1042,15 @@ public struct ImportResult: Sendable {
 // MARK: - Operators
 
 extension Shape {
-    public static func + (lhs: Shape, rhs: Shape) -> Shape {
+    public static func + (lhs: Shape, rhs: Shape) -> Shape? {
         lhs.union(with: rhs)
     }
 
-    public static func - (lhs: Shape, rhs: Shape) -> Shape {
+    public static func - (lhs: Shape, rhs: Shape) -> Shape? {
         lhs.subtracting(rhs)
     }
 
-    public static func & (lhs: Shape, rhs: Shape) -> Shape {
+    public static func & (lhs: Shape, rhs: Shape) -> Shape? {
         lhs.intersection(with: rhs)
     }
 }

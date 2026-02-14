@@ -11,7 +11,7 @@ struct ShapeTests {
 
     @Test("Create box primitive")
     func createBox() {
-        let box = Shape.box(width: 10, height: 5, depth: 3)
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
         // With stubs, isValid returns true (placeholder)
         // With real OCCT, this creates actual geometry
         #expect(box.isValid)
@@ -19,52 +19,52 @@ struct ShapeTests {
 
     @Test("Create cylinder primitive")
     func createCylinder() {
-        let cylinder = Shape.cylinder(radius: 5, height: 10)
+        let cylinder = Shape.cylinder(radius: 5, height: 10)!
         #expect(cylinder.isValid)
     }
 
     @Test("Create sphere primitive")
     func createSphere() {
-        let sphere = Shape.sphere(radius: 5)
+        let sphere = Shape.sphere(radius: 5)!
         #expect(sphere.isValid)
     }
 
     @Test("Boolean union")
     func booleanUnion() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let sphere = Shape.sphere(radius: 3)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let sphere = Shape.sphere(radius: 3)!
 
-        let union = box + sphere
+        let union = (box + sphere)!
         #expect(union.isValid)
     }
 
     @Test("Boolean subtraction")
     func booleanSubtraction() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let cylinder = Shape.cylinder(radius: 2, height: 15)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cylinder = Shape.cylinder(radius: 2, height: 15)!
 
-        let result = box - cylinder
+        let result = (box - cylinder)!
         #expect(result.isValid)
     }
 
     @Test("Translation")
     func translation() {
-        let box = Shape.box(width: 10, height: 5, depth: 3)
-        let moved = box.translated(by: SIMD3(10, 20, 30))
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        let moved = box.translated(by: SIMD3(10, 20, 30))!
         #expect(moved.isValid)
     }
 
     @Test("Rotation")
     func rotation() {
-        let box = Shape.box(width: 10, height: 5, depth: 3)
-        let rotated = box.rotated(axis: SIMD3(0, 0, 1), angle: .pi / 4)
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        let rotated = box.rotated(axis: SIMD3(0, 0, 1), angle: .pi / 4)!
         #expect(rotated.isValid)
     }
 
     @Test("Fillet")
     func fillet() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let filleted = box.filleted(radius: 1)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let filleted = box.filleted(radius: 1)!
         #expect(filleted.isValid)
     }
 }
@@ -197,7 +197,7 @@ struct WireTests {
             Issue.record("Failed to create NURBS path")
             return
         }
-        let swept = Shape.sweep(profile: profile, along: path)
+        let swept = Shape.sweep(profile: profile, along: path)!
         #expect(swept.isValid)
     }
 
@@ -231,8 +231,8 @@ struct MeshTests {
 
     @Test("Mesh from shape")
     func meshFromShape() {
-        let box = Shape.box(width: 10, height: 5, depth: 3)
-        let mesh = box.mesh(linearDeflection: 0.1)
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        let mesh = box.mesh(linearDeflection: 0.1)!
 
         // With stubs, mesh will be empty
         // With real OCCT, will have vertices and triangles
@@ -242,8 +242,8 @@ struct MeshTests {
 
     @Test("Mesh data access")
     func meshDataAccess() {
-        let sphere = Shape.sphere(radius: 5)
-        let mesh = sphere.mesh(linearDeflection: 0.5)
+        let sphere = Shape.sphere(radius: 5)!
+        let mesh = sphere.mesh(linearDeflection: 0.5)!
 
         let vertices = mesh.vertices
         let normals = mesh.normals
@@ -256,21 +256,21 @@ struct MeshTests {
 
     @Test("Enhanced mesh parameters")
     func enhancedMeshParameters() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         var params = MeshParameters.default
         params.deflection = 0.05
         params.inParallel = true
 
-        let mesh = box.mesh(parameters: params)
+        let mesh = box.mesh(parameters: params)!
         #expect(mesh.vertexCount > 0)
         #expect(mesh.triangleCount > 0)
     }
 
     @Test("Triangles with face info")
     func trianglesWithFaces() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let mesh = box.mesh(linearDeflection: 0.1)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let mesh = box.mesh(linearDeflection: 0.1)!
 
         let triangles = mesh.trianglesWithFaces()
         #expect(triangles.count == mesh.triangleCount)
@@ -287,8 +287,8 @@ struct MeshTests {
 
     @Test("Mesh to shape conversion")
     func meshToShape() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let mesh = box.mesh(linearDeflection: 0.5)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let mesh = box.mesh(linearDeflection: 0.5)!
 
         // Convert mesh back to shape
         let shape = mesh.toShape()
@@ -297,12 +297,12 @@ struct MeshTests {
 
     @Test("Mesh boolean union")
     func meshBooleanUnion() {
-        let box1 = Shape.box(width: 10, height: 10, depth: 10)
-        let box2 = Shape.box(width: 10, height: 10, depth: 10)
-            .translated(by: SIMD3(5, 0, 0))
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(5, 0, 0))!
 
-        let mesh1 = box1.mesh(linearDeflection: 0.5)
-        let mesh2 = box2.mesh(linearDeflection: 0.5)
+        let mesh1 = box1.mesh(linearDeflection: 0.5)!
+        let mesh2 = box2.mesh(linearDeflection: 0.5)!
 
         let unionMesh = mesh1.union(with: mesh2, deflection: 0.5)
         #expect(unionMesh != nil)
@@ -313,11 +313,11 @@ struct MeshTests {
 
     @Test("Mesh boolean subtraction")
     func meshBooleanSubtraction() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let cylinder = Shape.cylinder(radius: 3, height: 15)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cylinder = Shape.cylinder(radius: 3, height: 15)!
 
-        let boxMesh = box.mesh(linearDeflection: 0.5)
-        let cylMesh = cylinder.mesh(linearDeflection: 0.5)
+        let boxMesh = box.mesh(linearDeflection: 0.5)!
+        let cylMesh = cylinder.mesh(linearDeflection: 0.5)!
 
         let diffMesh = boxMesh.subtracting(cylMesh, deflection: 0.5)
         #expect(diffMesh != nil)
@@ -325,11 +325,11 @@ struct MeshTests {
 
     @Test("Mesh boolean intersection")
     func meshBooleanIntersection() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let sphere = Shape.sphere(radius: 7)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let sphere = Shape.sphere(radius: 7)!
 
-        let boxMesh = box.mesh(linearDeflection: 0.5)
-        let sphereMesh = sphere.mesh(linearDeflection: 0.5)
+        let boxMesh = box.mesh(linearDeflection: 0.5)!
+        let sphereMesh = sphere.mesh(linearDeflection: 0.5)!
 
         let intersectMesh = boxMesh.intersection(with: sphereMesh, deflection: 0.5)
         #expect(intersectMesh != nil)
@@ -341,7 +341,7 @@ struct EdgeDiscretizationTests {
 
     @Test("Edge polyline from box")
     func edgePolylineFromBox() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         // Box has edges (OCCT may count shared edges per face)
         #expect(box.edgeCount > 0)
@@ -356,7 +356,7 @@ struct EdgeDiscretizationTests {
 
     @Test("Edge polyline from curved shape")
     func edgePolylineFromCylinder() {
-        let cylinder = Shape.cylinder(radius: 10, height: 20)
+        let cylinder = Shape.cylinder(radius: 10, height: 20)!
 
         // Cylinder has curved edges
         let polyline = cylinder.edgePolyline(at: 0, deflection: 0.1)
@@ -369,7 +369,7 @@ struct EdgeDiscretizationTests {
 
     @Test("All edge polylines")
     func allEdgePolylines() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let polylines = box.allEdgePolylines(deflection: 0.1)
         #expect(polylines.count == box.edgeCount)
@@ -377,7 +377,7 @@ struct EdgeDiscretizationTests {
 
     @Test("Edge polyline invalid index")
     func edgePolylineInvalidIndex() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         // Box has 12 edges, index 100 should fail
         let polyline = box.edgePolyline(at: 100, deflection: 0.1)
@@ -397,7 +397,7 @@ struct EdgePolylineConsistencyTests {
             return
         }
         // Loft between the two circles
-        let lofted = Shape.loft(profiles: [circle1, circle2], solid: true)
+        let lofted = Shape.loft(profiles: [circle1, circle2], solid: true)!
         #expect(lofted.isValid)
 
         let edgeCount = lofted.edgeCount
@@ -418,7 +418,7 @@ struct EdgePolylineConsistencyTests {
             Issue.record("Failed to create rectangle wire")
             return
         }
-        let solid = Shape.extrude(profile: rect, direction: SIMD3(0, 0, 1), length: 8)
+        let solid = Shape.extrude(profile: rect, direction: SIMD3(0, 0, 1), length: 8)!
         #expect(solid.isValid)
 
         // A box-like extrusion has 12 edges
@@ -435,7 +435,7 @@ struct EdgePolylineConsistencyTests {
             Issue.record("Failed to create circle wire")
             return
         }
-        let solid = Shape.extrude(profile: circle, direction: SIMD3(0, 0, 1), length: 10)
+        let solid = Shape.extrude(profile: circle, direction: SIMD3(0, 0, 1), length: 10)!
         #expect(solid.isValid)
 
         let edgeCount = solid.edgeCount
@@ -452,9 +452,9 @@ struct EdgePolylineConsistencyTests {
     @Test("allEdgePolylines count matches edgeCount for various shapes")
     func consistencyAcrossShapes() {
         let shapes: [(String, Shape)] = [
-            ("box", Shape.box(width: 5, height: 5, depth: 5)),
-            ("cylinder", Shape.cylinder(radius: 3, height: 6)),
-            ("sphere", Shape.sphere(radius: 4)),
+            ("box", Shape.box(width: 5, height: 5, depth: 5)!),
+            ("cylinder", Shape.cylinder(radius: 3, height: 6)!),
+            ("sphere", Shape.sphere(radius: 4)!),
         ]
 
         for (name, shape) in shapes {
@@ -478,7 +478,7 @@ struct SweepTests {
             profile: profile,
             direction: SIMD3(0, 0, 1),
             length: 10
-        )
+        )!
         #expect(solid.isValid)
     }
 
@@ -497,7 +497,7 @@ struct SweepTests {
             Issue.record("Failed to create arc path")
             return
         }
-        let pipe = Shape.sweep(profile: profile, along: path)
+        let pipe = Shape.sweep(profile: profile, along: path)!
         #expect(pipe.isValid)
     }
 
@@ -519,7 +519,7 @@ struct SweepTests {
             axisOrigin: .zero,
             axisDirection: SIMD3(0, 1, 0),
             angle: .pi * 2
-        )
+        )!
         #expect(solid.isValid)
     }
 }
@@ -599,14 +599,14 @@ struct DrawingTests {
 
     @Test("Create 2D projection of box")
     func project2DBox() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let drawing = Drawing.project(box, direction: SIMD3(0, 0, 1))
         #expect(drawing != nil)
     }
 
     @Test("Get visible edges from projection")
     func visibleEdges() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         guard let drawing = Drawing.project(box, direction: SIMD3(0, 0, 1)) else {
             Issue.record("Failed to create projection")
             return
@@ -617,7 +617,7 @@ struct DrawingTests {
 
     @Test("Get hidden edges from isometric view")
     func hiddenEdgesIsometric() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         guard let drawing = Drawing.isometricView(of: box) else {
             Issue.record("Failed to create isometric view")
             return
@@ -629,7 +629,7 @@ struct DrawingTests {
 
     @Test("Standard views")
     func standardViews() {
-        let box = Shape.box(width: 10, height: 20, depth: 30)
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
 
         let top = Drawing.topView(of: box)
         #expect(top != nil)
@@ -667,7 +667,7 @@ struct MeasurementTests {
 
     @Test("Volume of box")
     func volumeOfBox() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         guard let volume = box.volume else {
             Issue.record("Failed to compute volume")
             return
@@ -678,7 +678,7 @@ struct MeasurementTests {
 
     @Test("Volume of cylinder")
     func volumeOfCylinder() {
-        let cylinder = Shape.cylinder(radius: 5, height: 10)
+        let cylinder = Shape.cylinder(radius: 5, height: 10)!
         guard let volume = cylinder.volume else {
             Issue.record("Failed to compute volume")
             return
@@ -690,7 +690,7 @@ struct MeasurementTests {
 
     @Test("Volume of sphere")
     func volumeOfSphere() {
-        let sphere = Shape.sphere(radius: 5)
+        let sphere = Shape.sphere(radius: 5)!
         guard let volume = sphere.volume else {
             Issue.record("Failed to compute volume")
             return
@@ -704,7 +704,7 @@ struct MeasurementTests {
 
     @Test("Surface area of box")
     func surfaceAreaOfBox() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         guard let area = box.surfaceArea else {
             Issue.record("Failed to compute surface area")
             return
@@ -715,7 +715,7 @@ struct MeasurementTests {
 
     @Test("Surface area of sphere")
     func surfaceAreaOfSphere() {
-        let sphere = Shape.sphere(radius: 5)
+        let sphere = Shape.sphere(radius: 5)!
         guard let area = sphere.surfaceArea else {
             Issue.record("Failed to compute surface area")
             return
@@ -729,7 +729,7 @@ struct MeasurementTests {
 
     @Test("Center of mass of box at origin")
     func centerOfMassBox() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         guard let center = box.centerOfMass else {
             Issue.record("Failed to compute center of mass")
             return
@@ -742,8 +742,8 @@ struct MeasurementTests {
 
     @Test("Center of mass of translated box")
     func centerOfMassTranslatedBox() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-            .translated(by: SIMD3(100, 200, 300))
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(100, 200, 300))!
         guard let center = box.centerOfMass else {
             Issue.record("Failed to compute center of mass")
             return
@@ -758,7 +758,7 @@ struct MeasurementTests {
 
     @Test("Full shape properties")
     func fullShapeProperties() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         guard let props = box.properties(density: 2.5) else {
             Issue.record("Failed to compute properties")
             return
@@ -774,9 +774,9 @@ struct MeasurementTests {
 
     @Test("Distance between separated boxes")
     func distanceBetweenBoxes() {
-        let box1 = Shape.box(width: 10, height: 10, depth: 10)
-        let box2 = Shape.box(width: 10, height: 10, depth: 10)
-            .translated(by: SIMD3(20, 0, 0))
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(20, 0, 0))!
 
         guard let result = box1.distance(to: box2) else {
             Issue.record("Failed to compute distance")
@@ -788,9 +788,9 @@ struct MeasurementTests {
 
     @Test("Distance between touching boxes")
     func distanceBetweenTouchingBoxes() {
-        let box1 = Shape.box(width: 10, height: 10, depth: 10)
-        let box2 = Shape.box(width: 10, height: 10, depth: 10)
-            .translated(by: SIMD3(10, 0, 0))
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(10, 0, 0))!
 
         guard let result = box1.distance(to: box2) else {
             Issue.record("Failed to compute distance")
@@ -802,8 +802,8 @@ struct MeasurementTests {
 
     @Test("Min distance convenience method")
     func minDistanceConvenience() {
-        let sphere1 = Shape.sphere(radius: 5)
-        let sphere2 = Shape.sphere(radius: 3).translated(by: SIMD3(15, 0, 0))
+        let sphere1 = Shape.sphere(radius: 5)!
+        let sphere2 = Shape.sphere(radius: 3)!.translated(by: SIMD3(15, 0, 0))!
 
         guard let dist = sphere1.minDistance(to: sphere2) else {
             Issue.record("Failed to compute min distance")
@@ -817,17 +817,17 @@ struct MeasurementTests {
 
     @Test("Intersects - overlapping shapes")
     func intersectsOverlapping() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let sphere = Shape.sphere(radius: 3)  // At origin, inside box
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let sphere = Shape.sphere(radius: 3)!  // At origin, inside box
 
         #expect(box.intersects(sphere))
     }
 
     @Test("Intersects - separated shapes")
     func intersectsSeparated() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
-        let sphere = Shape.sphere(radius: 3)
-            .translated(by: SIMD3(50, 0, 0))  // Far away
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let sphere = Shape.sphere(radius: 3)!
+            .translated(by: SIMD3(50, 0, 0))!  // Far away
 
         #expect(!box.intersects(sphere))
     }
@@ -835,10 +835,10 @@ struct MeasurementTests {
     @Test("Intersects - touching shapes")
     func intersectsTouching() {
         // Box from -5 to +5 in each axis (centered at origin)
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         // Sphere of radius 5 centered at (10, 0, 0) touches box at x=5
-        let sphere = Shape.sphere(radius: 5)
-            .translated(by: SIMD3(10, 0, 0))
+        let sphere = Shape.sphere(radius: 5)!
+            .translated(by: SIMD3(10, 0, 0))!
 
         // Should be touching or very close
         #expect(box.intersects(sphere, tolerance: 0.1))
@@ -848,27 +848,27 @@ struct MeasurementTests {
 
     @Test("Vertex count of box")
     func vertexCountBox() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         #expect(box.vertexCount == 8)
     }
 
     @Test("Get all vertices")
     func getAllVertices() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let vertices = box.vertices()
         #expect(vertices.count == 8)
     }
 
     @Test("Get vertex at index")
     func vertexAtIndex() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let vertex = box.vertex(at: 0)
         #expect(vertex != nil)
     }
 
     @Test("Vertex out of bounds")
     func vertexOutOfBounds() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let vertex = box.vertex(at: 100)  // Invalid index
         #expect(vertex == nil)
     }
@@ -883,7 +883,7 @@ struct AdvancedModelingTests {
 
     @Test("Fillet specific edges")
     func filletSpecificEdges() {
-        let box = Shape.box(width: 20, height: 20, depth: 10)
+        let box = Shape.box(width: 20, height: 20, depth: 10)!
         let edges = box.edges()
         #expect(edges.count > 0)
 
@@ -898,7 +898,7 @@ struct AdvancedModelingTests {
 
     @Test("Fillet single edge")
     func filletSingleEdge() {
-        let box = Shape.box(width: 20, height: 10, depth: 10)
+        let box = Shape.box(width: 20, height: 10, depth: 10)!
 
         guard let edge = box.edge(at: 0) else {
             Issue.record("Could not get edge")
@@ -911,7 +911,7 @@ struct AdvancedModelingTests {
 
     @Test("Fillet with variable radius")
     func filletVariableRadius() {
-        let box = Shape.box(width: 30, height: 10, depth: 10)
+        let box = Shape.box(width: 30, height: 10, depth: 10)!
 
         guard let edge = box.edge(at: 0) else {
             Issue.record("Could not get edge")
@@ -924,7 +924,7 @@ struct AdvancedModelingTests {
 
     @Test("Edge has valid index")
     func edgeHasIndex() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let edge = box.edge(at: 5)
         #expect(edge != nil)
@@ -933,7 +933,7 @@ struct AdvancedModelingTests {
 
     @Test("Face has valid index")
     func faceHasIndex() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let face = box.face(at: 3)
         #expect(face != nil)
@@ -944,7 +944,7 @@ struct AdvancedModelingTests {
 
     @Test("Draft vertical faces")
     func draftVerticalFaces() {
-        let box = Shape.box(width: 20, height: 20, depth: 30)
+        let box = Shape.box(width: 20, height: 20, depth: 30)!
         let faces = box.faces()
 
         // Get vertical faces (normals perpendicular to Z)
@@ -968,9 +968,9 @@ struct AdvancedModelingTests {
     @Test("Remove faces from shape")
     func removeFeatures() {
         // Create a box with a hole
-        let box = Shape.box(width: 20, height: 20, depth: 20)
-        let hole = Shape.cylinder(radius: 3, height: 30)
-        let boxWithHole = box.subtracting(hole)
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
+        let hole = Shape.cylinder(radius: 3, height: 30)!
+        let boxWithHole = box.subtracting(hole)!
 
         // The box with hole has more faces than a simple box
         let faces = boxWithHole.faces()
@@ -1234,7 +1234,7 @@ struct AdvancedModelingTests {
 
     @Test("Shell with open faces")
     func shellWithOpenFaces() {
-        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
 
         // Get upward-facing faces (top face)
         let topFaces = box.upwardFaces()
@@ -1247,7 +1247,7 @@ struct AdvancedModelingTests {
 
     @Test("Shell with specific face open")
     func shellWithSpecificFaceOpen() {
-        let box = Shape.box(width: 30, height: 20, depth: 10)
+        let box = Shape.box(width: 30, height: 20, depth: 10)!
 
         // Get the first face and use it as the open face
         let faces = box.faces()
@@ -1266,7 +1266,7 @@ struct IGESTests {
 
     @Test("Export shape to IGES")
     func exportIGES() throws {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("test_export.igs")
@@ -1287,7 +1287,7 @@ struct IGESTests {
 
     @Test("IGES roundtrip")
     func igesRoundtrip() throws {
-        let original = Shape.box(width: 20, height: 15, depth: 10)
+        let original = Shape.box(width: 20, height: 15, depth: 10)!
         let originalVolume = original.volume ?? 0
 
         let tempURL = FileManager.default.temporaryDirectory
@@ -1312,7 +1312,7 @@ struct IGESTests {
 
     @Test("Get IGES data")
     func getIGESData() throws {
-        let cylinder = Shape.cylinder(radius: 5, height: 20)
+        let cylinder = Shape.cylinder(radius: 5, height: 20)!
 
         let data = try cylinder.igesData()
         #expect(data.count > 0)
@@ -1328,7 +1328,7 @@ struct BREPTests {
 
     @Test("Export shape to BREP")
     func exportBREP() throws {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("test_export.brep")
@@ -1349,7 +1349,7 @@ struct BREPTests {
 
     @Test("BREP roundtrip preserves geometry exactly")
     func brepRoundtrip() throws {
-        let original = Shape.box(width: 20, height: 15, depth: 10)
+        let original = Shape.box(width: 20, height: 15, depth: 10)!
         let originalVolume = original.volume ?? 0
         let originalArea = original.surfaceArea ?? 0
 
@@ -1378,7 +1378,7 @@ struct BREPTests {
 
     @Test("BREP export with triangles")
     func brepExportWithTriangles() throws {
-        let sphere = Shape.sphere(radius: 10)
+        let sphere = Shape.sphere(radius: 10)!
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("test_triangles.brep")
@@ -1402,9 +1402,9 @@ struct BREPTests {
     @Test("BREP export with and without triangles options")
     func brepExportTriangleOptions() throws {
         // Use a sphere which has actual triangulation data
-        let sphere = Shape.sphere(radius: 10)
+        let sphere = Shape.sphere(radius: 10)!
         // Mesh the sphere first to ensure triangulation exists
-        let _ = sphere.mesh(linearDeflection: 0.1, angularDeflection: 0.5)
+        let _ = sphere.mesh(linearDeflection: 0.1, angularDeflection: 0.5)!
 
         let withTriangles = FileManager.default.temporaryDirectory
             .appendingPathComponent("with_tri.brep")
@@ -1435,7 +1435,7 @@ struct BREPTests {
 
     @Test("Get BREP data")
     func getBREPData() throws {
-        let cone = Shape.cone(bottomRadius: 10, topRadius: 5, height: 15)
+        let cone = Shape.cone(bottomRadius: 10, topRadius: 5, height: 15)!
 
         let data = try cone.brepData()
         #expect(data.count > 0)
@@ -1519,7 +1519,7 @@ struct GeometryConstructionTests {
         let face = Shape.face(from: rect)!
 
         // Extrude the face to create a solid
-        let solid = Shape.extrude(profile: rect, direction: SIMD3(0, 0, 1), length: 3)
+        let solid = Shape.extrude(profile: rect, direction: SIMD3(0, 0, 1), length: 3)!
 
         #expect(solid.isValid)
 
@@ -1601,7 +1601,7 @@ struct SolidFromShellTests {
         let face1 = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!
         let face2 = Shape.face(from: Wire.circle(radius: 5)!)!
 
-        let compound = Shape.compound([face1, face2])
+        let compound = Shape.compound([face1, face2])!
 
         // This won't create a solid since faces aren't connected
         let solid = Shape.solid(from: compound)
@@ -1738,7 +1738,7 @@ struct PrismaticFeatureTests {
     @Test("Add boss to box")
     func addBossToBox() {
         // Box is 50x50x10 centered at origin: X[-25,25], Y[-25,25], Z[-5,5]
-        let box = Shape.box(width: 50, height: 50, depth: 10)
+        let box = Shape.box(width: 50, height: 50, depth: 10)!
         let originalVolume = box.volume ?? 0
 
         // Create a circular profile and position it at top of box (Z=5)
@@ -1760,7 +1760,7 @@ struct PrismaticFeatureTests {
 
     @Test("Create pocket in box")
     func createPocketInBox() {
-        let box = Shape.box(width: 50, height: 50, depth: 20)
+        let box = Shape.box(width: 50, height: 50, depth: 20)!
         let originalVolume = box.volume ?? 0
 
         // Create a rectangular pocket profile
@@ -1787,7 +1787,7 @@ struct DrillingTests {
     @Test("Drill hole into box")
     func drillHoleIntoBox() {
         // Box is centered at origin: X[-25,25], Y[-25,25], Z[-10,10]
-        let box = Shape.box(width: 50, height: 50, depth: 20)
+        let box = Shape.box(width: 50, height: 50, depth: 20)!
         let originalVolume = box.volume ?? 0
 
         // Drill from slightly above top surface (Z=10), at center (X=0, Y=0)
@@ -1806,7 +1806,7 @@ struct DrillingTests {
     @Test("Drill through hole")
     func drillThroughHole() {
         // Box is centered at origin: X[-25,25], Y[-25,25], Z[-10,10]
-        let box = Shape.box(width: 50, height: 50, depth: 20)
+        let box = Shape.box(width: 50, height: 50, depth: 20)!
         let originalVolume = box.volume ?? 0
 
         // Drill through (depth = 0 means through) starting above top surface
@@ -1825,7 +1825,7 @@ struct DrillingTests {
     @Test("Multiple holes")
     func multipleHoles() {
         // Box 50x50x10 is centered at origin: X[-25,25], Y[-25,25], Z[-5,5]
-        let box = Shape.box(width: 50, height: 50, depth: 10)
+        let box = Shape.box(width: 50, height: 50, depth: 10)!
 
         // Drill multiple holes from above top surface (Z=5) along Y centerline
         var result = box.drilled(at: SIMD3(-15, 0, 8), direction: SIMD3(0, 0, -1), radius: 3, depth: 0)
@@ -1847,7 +1847,7 @@ struct ShapeSplittingTests {
     @Test("Split box by horizontal plane")
     func splitByHorizontalPlane() {
         // Box is centered at origin: X[-10,10], Y[-10,10], Z[-10,10]
-        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
 
         // Split at Z=0 (middle of the box)
         let halves = box.split(atPlane: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
@@ -1869,7 +1869,7 @@ struct ShapeSplittingTests {
     @Test("Split box by diagonal plane")
     func splitByDiagonalPlane() {
         // Box is centered at origin: X[-10,10], Y[-10,10], Z[-10,10]
-        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
 
         // Split diagonally through center
         let pieces = box.split(atPlane: SIMD3(0, 0, 0), normal: SIMD3(1, 1, 0).normalized)
@@ -1884,11 +1884,11 @@ struct ShapeSplittingTests {
 
     @Test("Split by shape tool")
     func splitByShapeTool() {
-        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
 
         // Create a cutting face
         let cuttingFace = Shape.face(from: Wire.rectangle(width: 40, height: 40)!)!
-            .translated(by: SIMD3(0, 0, 10))
+            .translated(by: SIMD3(0, 0, 10))!
 
         let pieces = box.split(by: cuttingFace)
 
@@ -1903,7 +1903,7 @@ struct PatternTests {
 
     @Test("Linear pattern of cylinders")
     func linearPatternOfCylinders() {
-        let cylinder = Shape.cylinder(radius: 5, height: 10)
+        let cylinder = Shape.cylinder(radius: 5, height: 10)!
 
         // Create a row of 4 cylinders spaced 20mm apart
         let pattern = cylinder.linearPattern(direction: SIMD3(1, 0, 0), spacing: 20, count: 4)
@@ -1919,8 +1919,8 @@ struct PatternTests {
 
     @Test("Circular pattern of holes")
     func circularPatternOfHoles() {
-        let cylinder = Shape.cylinder(radius: 3, height: 10)
-            .translated(by: SIMD3(20, 0, 0))
+        let cylinder = Shape.cylinder(radius: 3, height: 10)!
+            .translated(by: SIMD3(20, 0, 0))!
 
         // Create 6 cylinders in a circle around Z axis
         let pattern = cylinder.circularPattern(
@@ -1941,8 +1941,8 @@ struct PatternTests {
 
     @Test("Partial circular pattern")
     func partialCircularPattern() {
-        let box = Shape.box(width: 5, height: 5, depth: 5)
-            .translated(by: SIMD3(15, 0, 0))
+        let box = Shape.box(width: 5, height: 5, depth: 5)!
+            .translated(by: SIMD3(15, 0, 0))!
 
         // Create 3 boxes spanning 90 degrees
         let pattern = box.circularPattern(
@@ -1964,9 +1964,9 @@ struct GlueTests {
     @Test("Glue two boxes")
     func glueTwoBoxes() {
         // Create two boxes that share a face
-        let box1 = Shape.box(width: 10, height: 10, depth: 10)
-        let box2 = Shape.box(width: 10, height: 10, depth: 10)
-            .translated(by: SIMD3(10, 0, 0))
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(10, 0, 0))!
 
         let glued = Shape.glue(box1, box2, tolerance: 1e-6)
 
@@ -2009,7 +2009,7 @@ struct ShapeAnalysisTests {
 
     @Test("Analyze valid box")
     func analyzeValidBox() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let analysis = box.analyze(tolerance: 0.001)
 
@@ -2023,7 +2023,7 @@ struct ShapeAnalysisTests {
     @Test("Analyze shape for small features")
     func analyzeForSmallFeatures() {
         // Create a box - should have no small features
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let analysis = box.analyze(tolerance: 0.001)
 
@@ -2034,7 +2034,7 @@ struct ShapeAnalysisTests {
 
     @Test("Analysis result properties")
     func analysisResultProperties() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
         let analysis = box.analyze()!
 
         #expect(analysis.totalProblems >= 0)
@@ -2052,7 +2052,7 @@ struct ShapeFixingTests {
 
     @Test("Fix healthy shape returns shape")
     func fixHealthyShape() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let fixed = box.fixed(tolerance: 0.001)
 
@@ -2062,7 +2062,7 @@ struct ShapeFixingTests {
 
     @Test("Fix with selective modes")
     func fixWithSelectiveModes() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         // Fix only wires and faces, not solids
         let fixed = box.fixed(tolerance: 0.001, fixSolid: false, fixShell: true, fixFace: true, fixWire: true)
@@ -2073,10 +2073,10 @@ struct ShapeFixingTests {
 
     @Test("Existing heal function still works")
     func existingHealStillWorks() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         // The healed() function should still work
-        let healed = box.healed()
+        let healed = box.healed()!
 
         #expect(healed.isValid)
     }
@@ -2088,11 +2088,11 @@ struct ShapeUnificationTests {
     @Test("Unify boolean result")
     func unifyBooleanResult() {
         // Create a shape with potentially redundant topology from booleans
-        let box = Shape.box(width: 20, height: 20, depth: 20)
-        let cyl = Shape.cylinder(radius: 3, height: 25)
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
+        let cyl = Shape.cylinder(radius: 3, height: 25)!
 
         // Subtract cylinder to create internal faces
-        let result = box - cyl
+        let result = (box - cyl)!
 
         let unified = result.unified()
 
@@ -2102,7 +2102,7 @@ struct ShapeUnificationTests {
 
     @Test("Unify with edge-only mode")
     func unifyEdgesOnly() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let unified = box.unified(unifyEdges: true, unifyFaces: false)
 
@@ -2112,7 +2112,7 @@ struct ShapeUnificationTests {
 
     @Test("Simplify shape")
     func simplifyShape() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let simplified = box.simplified(tolerance: 0.001)
 
@@ -2171,7 +2171,7 @@ struct VariableRadiusFilletTests {
 
     @Test("Variable radius fillet on box edge")
     func variableFilletOnBoxEdge() {
-        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
 
         // Apply variable radius fillet: starts at 1mm, ends at 3mm
         let filleted = box.filletedVariable(
@@ -2187,7 +2187,7 @@ struct VariableRadiusFilletTests {
 
     @Test("Variable radius fillet with mid-point")
     func variableFilletWithMidPoint() {
-        let box = Shape.box(width: 30, height: 30, depth: 30)
+        let box = Shape.box(width: 30, height: 30, depth: 30)!
 
         // Apply variable radius fillet: 1mm at start, 4mm at middle, 1mm at end
         let filleted = box.filletedVariable(
@@ -2203,7 +2203,7 @@ struct VariableRadiusFilletTests {
 
     @Test("Variable fillet requires at least two points")
     func variableFilletRequiresMinPoints() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         // Should fail with only one point
         let filleted = box.filletedVariable(
@@ -2220,7 +2220,7 @@ struct MultiEdgeBlendTests {
 
     @Test("Blend multiple edges with different radii")
     func blendMultipleEdges() {
-        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
 
         // Fillet three edges with different radii
         let blended = box.blendedEdges([
@@ -2237,7 +2237,7 @@ struct MultiEdgeBlendTests {
 
     @Test("Blend single edge")
     func blendSingleEdge() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let blended = box.blendedEdges([(0, 1.0)])
 
@@ -2249,7 +2249,7 @@ struct MultiEdgeBlendTests {
 
     @Test("Blend with empty array returns nil")
     func blendEmptyArray() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
 
         let blended = box.blendedEdges([])
 

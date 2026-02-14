@@ -1,34 +1,83 @@
 # OCCTSwift Changelog
 
-## Safe API Additions (2026-01-23)
+## [v0.15.0] - 2026-02-14 — BREAKING: Safe Optional Returns
 
-Added optional-returning "try" variants of operations that can fail. These prevent crashes when OCCT operations return nil, which can occur on iOS or with certain geometric configurations.
+All Shape and Mesh creation methods now return optionals instead of force-unwrapping. This eliminates crashes when OCCT operations fail (e.g. invalid geometry, degenerate inputs) and replaces the previous `try`-prefixed safe variants which have been removed.
 
-### Safe Primitive Creation
-- `Shape.tryBox(width:height:depth:) -> Shape?`
-- `Shape.tryCylinder(radius:height:) -> Shape?`
-- `Shape.trySphere(radius:) -> Shape?`
-- `Shape.tryCone(bottomRadius:topRadius:height:) -> Shape?`
-- `Shape.tryTorus(majorRadius:minorRadius:) -> Shape?`
+Closes #30.
 
-### Safe Boolean Operations
-- `shape.tryUnion(with:) -> Shape?`
-- `shape.trySubtracting(_:) -> Shape?`
-- `shape.tryIntersection(with:) -> Shape?`
+### Breaking Changes
 
-### Safe Modifications
-- `shape.tryFilleted(radius:) -> Shape?`
-- `shape.tryChamfered(distance:) -> Shape?`
-- `shape.tryShelled(thickness:) -> Shape?`
-- `shape.tryOffset(by:) -> Shape?`
+**26 methods changed from non-optional to optional return types:**
 
-### Safe Transformations
-- `shape.tryTranslated(by:) -> Shape?`
-- `shape.tryRotated(axis:angle:) -> Shape?`
-- `shape.tryScaled(by:) -> Shape?`
-- `shape.tryMirrored(planeNormal:planeOrigin:) -> Shape?`
+| Category | Methods |
+|----------|---------|
+| Primitives | `box(width:height:depth:)`, `box(origin:...)`, `cylinder(radius:height:)`, `cylinder(at:...)`, `sphere(radius:)`, `cone(...)`, `torus(...)`, `toolSweep(...)` |
+| Sweeps | `sweep(profile:along:)`, `extrude(...)`, `revolve(...)`, `loft(...)` |
+| Booleans | `union(with:)`, `subtracting(_:)`, `intersection(with:)` |
+| Modifications | `filleted(radius:)`, `chamfered(distance:)`, `shelled(thickness:)`, `offset(by:)` |
+| Transforms | `translated(by:)`, `rotated(axis:angle:)`, `scaled(by:)`, `mirrored(...)` |
+| Compound | `compound(_:)` |
+| Validation | `healed()` |
+| Meshing | `mesh(linearDeflection:angularDeflection:)`, `mesh(parameters:)` |
+| Operators | `+` (`Shape?`), `-` (`Shape?`), `&` (`Shape?`) |
 
-**Usage**: These are used by OCCTSwiftDemo for graceful error handling. The original non-optional methods remain available for code that prefers fail-fast behavior.
+**15 `try`-prefixed methods removed** (the base methods are now safe):
+`tryBox`, `tryCylinder`, `trySphere`, `tryCone`, `tryTorus`, `tryUnion`, `trySubtracting`, `tryIntersection`, `tryFilleted`, `tryChamfered`, `tryShelled`, `tryOffset`, `tryTranslated`, `tryRotated`, `tryScaled`, `tryMirrored`
+
+### Migration Guide
+
+**Simple case — add `!` or `guard let`:**
+```swift
+// Before:
+let box = Shape.box(width: 10, height: 5, depth: 3)
+let mesh = box.mesh(linearDeflection: 0.1)
+
+// After (force-unwrap when you know inputs are valid):
+let box = Shape.box(width: 10, height: 5, depth: 3)!
+let mesh = box.mesh(linearDeflection: 0.1)!
+
+// After (graceful handling):
+guard let box = Shape.box(width: 10, height: 5, depth: 3) else { return }
+guard let mesh = box.mesh(linearDeflection: 0.1) else { return }
+```
+
+**Chained operations:**
+```swift
+// Before:
+let result = Shape.box(width: 10, height: 10, depth: 10)
+    .translated(by: SIMD3(5, 0, 0))
+    .filleted(radius: 1.0)
+
+// After:
+let result = Shape.box(width: 10, height: 10, depth: 10)!
+    .translated(by: SIMD3(5, 0, 0))!
+    .filleted(radius: 1.0)
+```
+
+**Boolean operators:**
+```swift
+// Before:
+let union = box + sphere
+
+// After:
+let union = (box + sphere)!
+// or:
+let union = box.union(with: sphere)!
+```
+
+**Replacing try-prefixed methods:**
+```swift
+// Before:
+let box = Shape.tryBox(width: w, height: h, depth: d)
+let result = shape.tryFilleted(radius: r)
+
+// After (identical behavior):
+let box = Shape.box(width: w, height: h, depth: d)
+let result = shape.filleted(radius: r)
+```
+
+---
 
 ---
 
