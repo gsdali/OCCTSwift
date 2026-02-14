@@ -1,5 +1,59 @@
 # OCCTSwift Changelog
 
+## [v0.15.0] - 2026-02-14
+
+### Metal Visualization Wrappers
+
+Six new Swift types providing GPU-friendly geometry extraction, camera math, and interactive picking from OCCT — without depending on OCCT's OpenGL rendering layer. Designed for Metal viewports (e.g. ViewportKit). Closes #32.
+
+#### Camera
+- `Camera` — wraps `Graphic3d_Camera` with Metal-compatible [0,1] depth range
+- Produces `simd_float4x4` projection and view matrices directly usable by Metal shaders
+- Project/unproject between world and screen coordinates
+- Auto-frame geometry with `fit(boundingBox:)`
+- Perspective and orthographic projection modes
+
+#### PresentationMesh (Geometry Extraction)
+- `Shape.shadedMesh(deflection:)` — indexed triangle mesh with per-vertex normals for Metal vertex buffers
+- `Shape.edgeMesh(deflection:)` — edge wireframe polylines with segment boundaries
+- `Shape.shadedMesh(drawer:)` / `Shape.edgeMesh(drawer:)` — drawer-controlled tessellation quality
+
+#### Selector (Hit Testing)
+- `Selector` — BVH-accelerated picking without OpenGL
+- Point pick, rectangle pick, and polygon (lasso) pick
+- Sub-shape selection modes: `.shape`, `.face`, `.edge`, `.vertex`, `.wire`
+- Configurable pixel tolerance
+- Returns hit depth, 3D point, sub-shape type and index
+
+#### ClipPlane
+- `ClipPlane` — wraps `Graphic3d_ClipPlane` for Metal `[[clip_distance]]`
+- Plane equation get/set, reversed equation for back-face clipping
+- Capping with color and hatch patterns
+- Probe points and bounding boxes against half-space
+- AND-chain multiple planes
+
+#### ZLayerSettings
+- `ZLayerSettings` — wraps `Graphic3d_ZLayerSettings` for render layer ordering
+- Depth test/write control, polygon offset (`setDepthBias`)
+- Culling distance/size, origin offset
+- Predefined layer IDs (default, top, topmost, bottomOSD, topOSD)
+
+#### DisplayDrawer
+- `DisplayDrawer` — wraps `Prs3d_Drawer` for tessellation quality control
+- Deviation coefficient/angle, deflection type (relative/absolute)
+- Wire draw, face boundary draw, iso-on-triangulation toggles
+- Discretisation control
+
+### Documentation
+- Added [`docs/METAL_VISUALIZATION_API.md`](METAL_VISUALIZATION_API.md) with full API reference and Metal integration examples
+
+### Statistics
+- 235 tests passing across 45 suites (69 new tests across 9 new suites)
+- 6 new Swift source files, +4,065 lines
+- 6 commits since v0.14.0
+
+---
+
 ## [v0.14.0] - 2026-02-14
 
 ### Breaking Changes — Safe Optional Returns
