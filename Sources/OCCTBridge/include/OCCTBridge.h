@@ -1456,6 +1456,126 @@ OCCTShapeRef OCCTShapePlateCurves(const OCCTWireRef* curves, int32_t curveCount,
                                    int32_t continuity, double tolerance);
 
 
+// MARK: - 2D Curve (Geom2d) — v0.16.0
+
+typedef struct OCCTCurve2D* OCCTCurve2DRef;
+
+void OCCTCurve2DRelease(OCCTCurve2DRef curve);
+
+// Properties
+void   OCCTCurve2DGetDomain(OCCTCurve2DRef curve, double* first, double* last);
+bool   OCCTCurve2DIsClosed(OCCTCurve2DRef curve);
+bool   OCCTCurve2DIsPeriodic(OCCTCurve2DRef curve);
+double OCCTCurve2DGetPeriod(OCCTCurve2DRef curve);
+
+// Evaluation
+void OCCTCurve2DGetPoint(OCCTCurve2DRef curve, double u, double* x, double* y);
+void OCCTCurve2DD1(OCCTCurve2DRef curve, double u,
+                   double* px, double* py, double* vx, double* vy);
+void OCCTCurve2DD2(OCCTCurve2DRef curve, double u,
+                   double* px, double* py,
+                   double* v1x, double* v1y, double* v2x, double* v2y);
+
+// Primitives
+OCCTCurve2DRef OCCTCurve2DCreateLine(double px, double py, double dx, double dy);
+OCCTCurve2DRef OCCTCurve2DCreateSegment(double p1x, double p1y, double p2x, double p2y);
+OCCTCurve2DRef OCCTCurve2DCreateCircle(double cx, double cy, double radius);
+OCCTCurve2DRef OCCTCurve2DCreateArcOfCircle(double cx, double cy, double radius,
+                                            double startAngle, double endAngle);
+OCCTCurve2DRef OCCTCurve2DCreateArcThrough(double p1x, double p1y,
+                                           double p2x, double p2y,
+                                           double p3x, double p3y);
+OCCTCurve2DRef OCCTCurve2DCreateEllipse(double cx, double cy,
+                                        double majorR, double minorR, double rotation);
+OCCTCurve2DRef OCCTCurve2DCreateArcOfEllipse(double cx, double cy,
+                                             double majorR, double minorR,
+                                             double rotation,
+                                             double startAngle, double endAngle);
+OCCTCurve2DRef OCCTCurve2DCreateParabola(double fx, double fy,
+                                         double dx, double dy, double focal);
+OCCTCurve2DRef OCCTCurve2DCreateHyperbola(double cx, double cy,
+                                          double majorR, double minorR,
+                                          double rotation);
+
+// Draw (discretization for Metal)
+int32_t OCCTCurve2DDrawAdaptive(OCCTCurve2DRef curve, double angularDefl, double chordalDefl,
+                                double* outXY, int32_t maxPoints);
+int32_t OCCTCurve2DDrawUniform(OCCTCurve2DRef curve, int32_t pointCount, double* outXY);
+int32_t OCCTCurve2DDrawDeflection(OCCTCurve2DRef curve, double deflection,
+                                  double* outXY, int32_t maxPoints);
+
+// BSpline & Bezier
+OCCTCurve2DRef OCCTCurve2DCreateBSpline(const double* poles, int32_t poleCount,
+                                        const double* weights,
+                                        const double* knots, int32_t knotCount,
+                                        const int32_t* multiplicities, int32_t degree);
+OCCTCurve2DRef OCCTCurve2DCreateBezier(const double* poles, int32_t poleCount,
+                                       const double* weights);
+
+// Interpolation & Fitting
+OCCTCurve2DRef OCCTCurve2DInterpolate(const double* points, int32_t count,
+                                      bool closed, double tolerance);
+OCCTCurve2DRef OCCTCurve2DInterpolateWithTangents(const double* points, int32_t count,
+                                                  double stx, double sty,
+                                                  double etx, double ety,
+                                                  double tolerance);
+OCCTCurve2DRef OCCTCurve2DFitPoints(const double* points, int32_t count,
+                                    int32_t minDeg, int32_t maxDeg, double tolerance);
+
+// BSpline queries
+int32_t OCCTCurve2DGetPoleCount(OCCTCurve2DRef curve);
+int32_t OCCTCurve2DGetPoles(OCCTCurve2DRef curve, double* outXY);
+int32_t OCCTCurve2DGetDegree(OCCTCurve2DRef curve);
+
+// Operations
+OCCTCurve2DRef OCCTCurve2DTrim(OCCTCurve2DRef curve, double u1, double u2);
+OCCTCurve2DRef OCCTCurve2DOffset(OCCTCurve2DRef curve, double distance);
+OCCTCurve2DRef OCCTCurve2DReversed(OCCTCurve2DRef curve);
+OCCTCurve2DRef OCCTCurve2DTranslate(OCCTCurve2DRef curve, double dx, double dy);
+OCCTCurve2DRef OCCTCurve2DRotate(OCCTCurve2DRef curve, double cx, double cy, double angle);
+OCCTCurve2DRef OCCTCurve2DScale(OCCTCurve2DRef curve, double cx, double cy, double factor);
+OCCTCurve2DRef OCCTCurve2DMirrorAxis(OCCTCurve2DRef curve, double px, double py,
+                                     double dx, double dy);
+OCCTCurve2DRef OCCTCurve2DMirrorPoint(OCCTCurve2DRef curve, double px, double py);
+double OCCTCurve2DGetLength(OCCTCurve2DRef curve);
+double OCCTCurve2DGetLengthBetween(OCCTCurve2DRef curve, double u1, double u2);
+
+// Intersection
+typedef struct {
+    double x, y, u1, u2;
+} OCCTCurve2DIntersection;
+
+int32_t OCCTCurve2DIntersect(OCCTCurve2DRef c1, OCCTCurve2DRef c2, double tolerance,
+                             OCCTCurve2DIntersection* out, int32_t max);
+int32_t OCCTCurve2DSelfIntersect(OCCTCurve2DRef curve, double tolerance,
+                                 OCCTCurve2DIntersection* out, int32_t max);
+
+// Projection
+typedef struct {
+    double x, y, parameter, distance;
+} OCCTCurve2DProjection;
+
+OCCTCurve2DProjection OCCTCurve2DProjectPoint(OCCTCurve2DRef curve, double px, double py);
+int32_t OCCTCurve2DProjectPointAll(OCCTCurve2DRef curve, double px, double py,
+                                   OCCTCurve2DProjection* out, int32_t max);
+
+// Extrema
+typedef struct {
+    double p1x, p1y, p2x, p2y, u1, u2, distance;
+} OCCTCurve2DExtrema;
+
+OCCTCurve2DExtrema OCCTCurve2DMinDistance(OCCTCurve2DRef c1, OCCTCurve2DRef c2);
+int32_t OCCTCurve2DAllExtrema(OCCTCurve2DRef c1, OCCTCurve2DRef c2,
+                              OCCTCurve2DExtrema* out, int32_t max);
+
+// Conversion
+OCCTCurve2DRef OCCTCurve2DToBSpline(OCCTCurve2DRef curve, double tolerance);
+int32_t OCCTCurve2DBSplineToBeziers(OCCTCurve2DRef curve, OCCTCurve2DRef* out, int32_t max);
+void OCCTCurve2DFreeArray(OCCTCurve2DRef* curves, int32_t count);
+OCCTCurve2DRef OCCTCurve2DJoinToBSpline(const OCCTCurve2DRef* curves, int32_t count,
+                                        double tolerance);
+
+
 #ifdef __cplusplus
 }
 #endif

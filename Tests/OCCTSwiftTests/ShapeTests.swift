@@ -3485,3 +3485,458 @@ extension SIMD3 where Scalar == Double {
         return SIMD3(x/len, y/len, z/len)
     }
 }
+
+// MARK: - Curve2D Tests
+
+@Suite("Curve2D Tests")
+struct Curve2DTests {
+
+    @Test("Create segment and verify endpoints")
+    func createSegment() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 5))
+        #expect(seg != nil)
+        if let seg = seg {
+            let start = seg.startPoint
+            let end = seg.endPoint
+            #expect(abs(start.x - 0) < 1e-10)
+            #expect(abs(start.y - 0) < 1e-10)
+            #expect(abs(end.x - 10) < 1e-10)
+            #expect(abs(end.y - 5) < 1e-10)
+        }
+    }
+
+    @Test("Segment degenerate returns nil")
+    func segmentDegenerate() {
+        let seg = Curve2D.segment(from: SIMD2(5, 5), to: SIMD2(5, 5))
+        #expect(seg == nil)
+    }
+
+    @Test("Create circle and verify closed/periodic")
+    func createCircle() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)
+        #expect(circle != nil)
+        if let circle = circle {
+            #expect(circle.isClosed)
+            #expect(circle.isPeriodic)
+            #expect(circle.period != nil)
+        }
+    }
+
+    @Test("Circle zero radius returns nil")
+    func circleZeroRadius() {
+        let circle = Curve2D.circle(center: .zero, radius: 0)
+        #expect(circle == nil)
+        let circleNeg = Curve2D.circle(center: .zero, radius: -1)
+        #expect(circleNeg == nil)
+    }
+
+    @Test("Arc of circle is not closed")
+    func arcOfCircle() {
+        let arc = Curve2D.arcOfCircle(center: .zero, radius: 5,
+                                       startAngle: 0, endAngle: .pi / 2)
+        #expect(arc != nil)
+        if let arc = arc {
+            #expect(!arc.isClosed)
+        }
+    }
+
+    @Test("Arc through 3 points")
+    func arcThrough() {
+        let arc = Curve2D.arcThrough(SIMD2(0, 0), SIMD2(5, 5), SIMD2(10, 0))
+        #expect(arc != nil)
+        if let arc = arc {
+            let start = arc.startPoint
+            #expect(abs(start.x - 0) < 1e-6)
+            #expect(abs(start.y - 0) < 1e-6)
+        }
+    }
+
+    @Test("Create ellipse and verify closed")
+    func createEllipse() {
+        let ell = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5)
+        #expect(ell != nil)
+        if let ell = ell {
+            #expect(ell.isClosed)
+            #expect(ell.isPeriodic)
+        }
+    }
+
+    @Test("Ellipse minor > major returns nil")
+    func ellipseInvalid() {
+        let ell = Curve2D.ellipse(center: .zero, majorRadius: 5, minorRadius: 10)
+        #expect(ell == nil)
+    }
+
+    @Test("Infinite line")
+    func infiniteLine() {
+        let line = Curve2D.line(through: .zero, direction: SIMD2(1, 0))
+        #expect(line != nil)
+        if let line = line {
+            #expect(!line.isClosed)
+        }
+    }
+
+    @Test("Parabola creation")
+    func createParabola() {
+        let p = Curve2D.parabola(focus: SIMD2(1, 0), direction: SIMD2(1, 0), focalLength: 1)
+        #expect(p != nil)
+    }
+
+    @Test("Hyperbola creation")
+    func createHyperbola() {
+        let h = Curve2D.hyperbola(center: .zero, majorRadius: 5, minorRadius: 3)
+        #expect(h != nil)
+    }
+
+    @Test("Evaluate segment midpoint")
+    func evaluateSegmentMidpoint() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let domain = seg.domain
+        let mid = (domain.lowerBound + domain.upperBound) / 2
+        let p = seg.point(at: mid)
+        #expect(abs(p.x - 5) < 1e-10)
+        #expect(abs(p.y - 0) < 1e-10)
+    }
+
+    @Test("Circle point at 0 and pi/2")
+    func circlePoints() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let p0 = circle.point(at: 0)
+        let pHalfPi = circle.point(at: .pi / 2)
+        #expect(abs(p0.x - 5) < 1e-10)
+        #expect(abs(p0.y - 0) < 1e-10)
+        #expect(abs(pHalfPi.x - 0) < 1e-10)
+        #expect(abs(pHalfPi.y - 5) < 1e-10)
+    }
+
+    @Test("D1 returns non-zero tangent")
+    func d1Tangent() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 5))!
+        let result = seg.d1(at: seg.domain.lowerBound)
+        let tangentLen = sqrt(result.tangent.x * result.tangent.x + result.tangent.y * result.tangent.y)
+        #expect(tangentLen > 0)
+    }
+
+    @Test("Adaptive draw on circle produces at least 10 points")
+    func adaptiveDrawCircle() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let points = circle.drawAdaptive()
+        #expect(points.count >= 10)
+    }
+
+    @Test("Uniform draw produces exact count")
+    func uniformDraw() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let points = circle.drawUniform(pointCount: 32)
+        #expect(points.count == 32)
+    }
+
+    @Test("Deflection draw produces points")
+    func deflectionDraw() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let points = circle.drawDeflection(deflection: 0.1)
+        #expect(points.count >= 4)
+    }
+
+    @Test("Adaptive draw on segment produces at least 2 points")
+    func adaptiveDrawSegment() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 5))!
+        let points = seg.drawAdaptive()
+        #expect(points.count >= 2)
+    }
+
+    @Test("Draw arc of ellipse")
+    func drawArcOfEllipse() {
+        let arc = Curve2D.arcOfEllipse(center: .zero, majorRadius: 10, minorRadius: 5,
+                                        startAngle: 0, endAngle: .pi)
+        #expect(arc != nil)
+        if let arc = arc {
+            let points = arc.drawAdaptive()
+            #expect(points.count >= 3)
+        }
+    }
+}
+
+@Suite("Curve2D BSpline Tests")
+struct Curve2DBSplineTests {
+
+    @Test("Create quadratic Bezier")
+    func quadraticBezier() {
+        let bez = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 0)])
+        #expect(bez != nil)
+        if let bez = bez {
+            #expect(bez.degree == 2)
+            #expect(bez.poleCount == 3)
+        }
+    }
+
+    @Test("Create cubic BSpline")
+    func cubicBSpline() {
+        let bsp = Curve2D.bspline(
+            poles: [SIMD2(0, 0), SIMD2(2, 5), SIMD2(5, 5), SIMD2(8, 2), SIMD2(10, 0)],
+            knots: [0, 1, 2, 3],
+            multiplicities: [3, 1, 1, 3],
+            degree: 2
+        )
+        #expect(bsp != nil)
+    }
+
+    @Test("Interpolate through points")
+    func interpolate() {
+        let curve = Curve2D.interpolate(through: [
+            SIMD2(0, 0), SIMD2(3, 4), SIMD2(6, 1), SIMD2(10, 5)
+        ])
+        #expect(curve != nil)
+        if let curve = curve {
+            // Should pass through the first point
+            let start = curve.startPoint
+            #expect(abs(start.x - 0) < 1e-6)
+            #expect(abs(start.y - 0) < 1e-6)
+        }
+    }
+
+    @Test("Interpolate with end tangents")
+    func interpolateWithTangents() {
+        let curve = Curve2D.interpolate(through: [
+            SIMD2(0, 0), SIMD2(5, 5), SIMD2(10, 0)
+        ], startTangent: SIMD2(1, 1), endTangent: SIMD2(1, -1))
+        #expect(curve != nil)
+    }
+
+    @Test("Fit points with tolerance")
+    func fitPoints() {
+        let pts: [SIMD2<Double>] = (0..<20).map { i in
+            let t = Double(i) / 19.0 * 10.0
+            return SIMD2(t, sin(t))
+        }
+        let curve = Curve2D.fit(through: pts)
+        #expect(curve != nil)
+    }
+
+    @Test("Pole count query")
+    func poleCountQuery() {
+        let bez = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 5), SIMD2(15, 0)])!
+        #expect(bez.poleCount == 4)
+        #expect(bez.degree == 3)
+    }
+
+    @Test("Poles roundtrip")
+    func polesRoundtrip() {
+        let original: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 0)]
+        let bez = Curve2D.bezier(poles: original)!
+        let retrieved = bez.poles!
+        #expect(retrieved.count == 3)
+        for i in 0..<3 {
+            #expect(abs(retrieved[i].x - original[i].x) < 1e-10)
+            #expect(abs(retrieved[i].y - original[i].y) < 1e-10)
+        }
+    }
+
+    @Test("Draw interpolated curve")
+    func drawInterpolated() {
+        let curve = Curve2D.interpolate(through: [
+            SIMD2(0, 0), SIMD2(5, 5), SIMD2(10, 0)
+        ])!
+        let points = curve.drawAdaptive()
+        #expect(points.count >= 3)
+    }
+}
+
+@Suite("Curve2D Operations Tests")
+struct Curve2DOperationsTests {
+
+    @Test("Trim circle to quarter arc")
+    func trimCircle() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let arc = circle.trimmed(from: 0, to: .pi / 2)
+        #expect(arc != nil)
+        if let arc = arc {
+            #expect(!arc.isClosed)
+            let start = arc.startPoint
+            let end = arc.endPoint
+            #expect(abs(start.x - 5) < 1e-10)
+            #expect(abs(end.y - 5) < 1e-10)
+        }
+    }
+
+    @Test("Offset segment")
+    func offsetSegment() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let offset = seg.offset(by: 2.0)
+        #expect(offset != nil)
+    }
+
+    @Test("Reverse segment swaps endpoints")
+    func reverseSegment() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 5))!
+        let rev = seg.reversed()!
+        let revStart = rev.startPoint
+        let revEnd = rev.endPoint
+        #expect(abs(revStart.x - 10) < 1e-10)
+        #expect(abs(revStart.y - 5) < 1e-10)
+        #expect(abs(revEnd.x - 0) < 1e-10)
+        #expect(abs(revEnd.y - 0) < 1e-10)
+    }
+
+    @Test("Translate segment")
+    func translateSegment() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let moved = seg.translated(by: SIMD2(5, 5))!
+        let start = moved.startPoint
+        #expect(abs(start.x - 5) < 1e-10)
+        #expect(abs(start.y - 5) < 1e-10)
+    }
+
+    @Test("Rotate quarter turn")
+    func rotateQuarterTurn() {
+        let seg = Curve2D.segment(from: SIMD2(1, 0), to: SIMD2(2, 0))!
+        let rotated = seg.rotated(around: .zero, angle: .pi / 2)!
+        let start = rotated.startPoint
+        #expect(abs(start.x - 0) < 1e-10)
+        #expect(abs(start.y - 1) < 1e-10)
+    }
+
+    @Test("Scale by 2x")
+    func scaleTwice() {
+        let seg = Curve2D.segment(from: SIMD2(1, 0), to: SIMD2(3, 0))!
+        let scaled = seg.scaled(from: .zero, factor: 2)!
+        let start = scaled.startPoint
+        let end = scaled.endPoint
+        #expect(abs(start.x - 2) < 1e-10)
+        #expect(abs(end.x - 6) < 1e-10)
+    }
+
+    @Test("Mirror across X axis")
+    func mirrorAcrossXAxis() {
+        let seg = Curve2D.segment(from: SIMD2(0, 1), to: SIMD2(10, 1))!
+        let mirrored = seg.mirrored(acrossLine: .zero, direction: SIMD2(1, 0))!
+        let start = mirrored.startPoint
+        #expect(abs(start.y - (-1)) < 1e-10)
+    }
+
+    @Test("Mirror across point")
+    func mirrorAcrossPoint() {
+        let seg = Curve2D.segment(from: SIMD2(1, 1), to: SIMD2(2, 1))!
+        let mirrored = seg.mirrored(acrossPoint: .zero)!
+        let start = mirrored.startPoint
+        #expect(abs(start.x - (-1)) < 1e-10)
+        #expect(abs(start.y - (-1)) < 1e-10)
+    }
+
+    @Test("Circle length approximately 2*pi*r")
+    func circleLength() {
+        let r = 5.0
+        let circle = Curve2D.circle(center: .zero, radius: r)!
+        let len = circle.length!
+        #expect(abs(len - 2 * .pi * r) < 1e-6)
+    }
+
+    @Test("Segment length approximately Euclidean distance")
+    func segmentLength() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(3, 4))!
+        let len = seg.length!
+        #expect(abs(len - 5) < 1e-10)
+    }
+}
+
+@Suite("Curve2D Analysis Tests")
+struct Curve2DAnalysisTests {
+
+    @Test("Line-circle intersection finds 2 points")
+    func lineCircleIntersection() {
+        let line = Curve2D.segment(from: SIMD2(-10, 0), to: SIMD2(10, 0))!
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let ints = line.intersections(with: circle)
+        #expect(ints.count == 2)
+    }
+
+    @Test("Non-intersecting curves return empty")
+    func noIntersection() {
+        let seg1 = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let seg2 = Curve2D.segment(from: SIMD2(0, 5), to: SIMD2(10, 5))!
+        let ints = seg1.intersections(with: seg2)
+        #expect(ints.isEmpty)
+    }
+
+    @Test("Project point onto segment")
+    func projectOnSegment() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let proj = seg.project(point: SIMD2(5, 3))
+        #expect(proj != nil)
+        if let proj = proj {
+            #expect(abs(proj.point.x - 5) < 1e-6)
+            #expect(abs(proj.point.y - 0) < 1e-6)
+            #expect(abs(proj.distance - 3) < 1e-6)
+        }
+    }
+
+    @Test("Project point onto circle")
+    func projectOnCircle() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let proj = circle.project(point: SIMD2(10, 0))
+        #expect(proj != nil)
+        if let proj = proj {
+            #expect(abs(proj.point.x - 5) < 1e-6)
+            #expect(abs(proj.distance - 5) < 1e-6)
+        }
+    }
+
+    @Test("Min distance between circle and point-like segment")
+    func minDistanceCircleSegment() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let seg = Curve2D.segment(from: SIMD2(10, -1), to: SIMD2(10, 1))!
+        let result = circle.minDistance(to: seg)
+        #expect(result != nil)
+        if let result = result {
+            #expect(abs(result.distance - 5) < 0.5)
+        }
+    }
+
+    @Test("Convert circle to BSpline")
+    func circleToBSpline() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let bsp = circle.toBSpline()
+        #expect(bsp != nil)
+        if let bsp = bsp {
+            #expect(bsp.poleCount != nil)
+            #expect(bsp.degree != nil)
+        }
+    }
+
+    @Test("Split BSpline to Beziers")
+    func bsplineToBeziers() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let bsp = circle.toBSpline()!
+        let beziers = bsp.toBezierSegments()
+        #expect(beziers != nil)
+        if let beziers = beziers {
+            #expect(beziers.count >= 2)
+        }
+    }
+
+    @Test("Join segments into BSpline")
+    func joinSegments() {
+        let seg1 = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(5, 5))!
+        let seg2 = Curve2D.segment(from: SIMD2(5, 5), to: SIMD2(10, 0))!
+        let joined = Curve2D.join([seg1, seg2])
+        #expect(joined != nil)
+        if let joined = joined {
+            let start = joined.startPoint
+            let end = joined.endPoint
+            #expect(abs(start.x - 0) < 1e-6)
+            #expect(abs(end.x - 10) < 1e-6)
+        }
+    }
+
+    @Test("All projections of point onto ellipse")
+    func allProjectionsEllipse() {
+        let ellipse = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5)!
+        // A point at origin projects to multiple points on the ellipse
+        let projs = ellipse.allProjections(of: SIMD2(0, 0))
+        // At minimum there should be nearest and farthest projections
+        #expect(projs.count >= 1)
+        for p in projs {
+            #expect(p.distance > 0)
+        }
+    }
+}

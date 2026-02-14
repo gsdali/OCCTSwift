@@ -6675,3 +6675,780 @@ void OCCTZLayerSettingsGetOrigin(OCCTZLayerSettingsRef s, double* x, double* y, 
     *y = origin.Y();
     *z = origin.Z();
 }
+
+
+// MARK: - 2D Curve (Geom2d) — v0.16.0
+
+#include <Geom2d_Curve.hxx>
+#include <Geom2d_Line.hxx>
+#include <Geom2d_Circle.hxx>
+#include <Geom2d_Ellipse.hxx>
+#include <Geom2d_Parabola.hxx>
+#include <Geom2d_Hyperbola.hxx>
+#include <Geom2d_TrimmedCurve.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom2d_BezierCurve.hxx>
+#include <Geom2d_OffsetCurve.hxx>
+#include <GCE2d_MakeSegment.hxx>
+#include <GCE2d_MakeCircle.hxx>
+#include <GCE2d_MakeArcOfCircle.hxx>
+#include <GCE2d_MakeEllipse.hxx>
+#include <GCE2d_MakeArcOfEllipse.hxx>
+#include <GCE2d_MakeParabola.hxx>
+#include <GCE2d_MakeHyperbola.hxx>
+#include <Geom2dAdaptor_Curve.hxx>
+#include <GCPnts_TangentialDeflection.hxx>
+#include <GCPnts_UniformAbscissa.hxx>
+#include <GCPnts_UniformDeflection.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
+#include <Geom2dAPI_Interpolate.hxx>
+#include <Geom2dAPI_PointsToBSpline.hxx>
+#include <Geom2dAPI_InterCurveCurve.hxx>
+#include <Geom2dAPI_ExtremaCurveCurve.hxx>
+#include <Geom2dAPI_ProjectPointOnCurve.hxx>
+#include <Geom2dConvert.hxx>
+#include <Geom2dConvert_BSplineCurveToBezierCurve.hxx>
+#include <Geom2dConvert_CompCurveToBSplineCurve.hxx>
+#include <gp_Pnt2d.hxx>
+#include <gp_Vec2d.hxx>
+#include <gp_Dir2d.hxx>
+#include <gp_Ax2d.hxx>
+#include <gp_Ax22d.hxx>
+#include <gp_Trsf2d.hxx>
+#include <gp_Parab2d.hxx>
+#include <gp_Hypr2d.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
+#include <TColgp_HArray1OfPnt2d.hxx>
+#include <TColStd_HArray1OfReal.hxx>
+
+struct OCCTCurve2D {
+    Handle(Geom2d_Curve) curve;
+
+    OCCTCurve2D() {}
+    OCCTCurve2D(const Handle(Geom2d_Curve)& c) : curve(c) {}
+};
+
+void OCCTCurve2DRelease(OCCTCurve2DRef c) {
+    delete c;
+}
+
+// Properties
+
+void OCCTCurve2DGetDomain(OCCTCurve2DRef c, double* first, double* last) {
+    if (!c || c->curve.IsNull() || !first || !last) return;
+    *first = c->curve->FirstParameter();
+    *last = c->curve->LastParameter();
+}
+
+bool OCCTCurve2DIsClosed(OCCTCurve2DRef c) {
+    if (!c || c->curve.IsNull()) return false;
+    return c->curve->IsClosed() == Standard_True;
+}
+
+bool OCCTCurve2DIsPeriodic(OCCTCurve2DRef c) {
+    if (!c || c->curve.IsNull()) return false;
+    return c->curve->IsPeriodic() == Standard_True;
+}
+
+double OCCTCurve2DGetPeriod(OCCTCurve2DRef c) {
+    if (!c || c->curve.IsNull()) return 0.0;
+    if (!c->curve->IsPeriodic()) return 0.0;
+    return c->curve->Period();
+}
+
+// Evaluation
+
+void OCCTCurve2DGetPoint(OCCTCurve2DRef c, double u, double* x, double* y) {
+    if (!c || c->curve.IsNull() || !x || !y) return;
+    gp_Pnt2d p = c->curve->Value(u);
+    *x = p.X();
+    *y = p.Y();
+}
+
+void OCCTCurve2DD1(OCCTCurve2DRef c, double u,
+                   double* px, double* py, double* vx, double* vy) {
+    if (!c || c->curve.IsNull() || !px || !py || !vx || !vy) return;
+    gp_Pnt2d p;
+    gp_Vec2d v;
+    c->curve->D1(u, p, v);
+    *px = p.X(); *py = p.Y();
+    *vx = v.X(); *vy = v.Y();
+}
+
+void OCCTCurve2DD2(OCCTCurve2DRef c, double u,
+                   double* px, double* py,
+                   double* v1x, double* v1y, double* v2x, double* v2y) {
+    if (!c || c->curve.IsNull() || !px || !py || !v1x || !v1y || !v2x || !v2y) return;
+    gp_Pnt2d p;
+    gp_Vec2d v1, v2;
+    c->curve->D2(u, p, v1, v2);
+    *px = p.X(); *py = p.Y();
+    *v1x = v1.X(); *v1y = v1.Y();
+    *v2x = v2.X(); *v2y = v2.Y();
+}
+
+// Primitives
+
+OCCTCurve2DRef OCCTCurve2DCreateLine(double px, double py, double dx, double dy) {
+    try {
+        gp_Pnt2d p(px, py);
+        gp_Dir2d d(dx, dy);
+        Handle(Geom2d_Line) line = new Geom2d_Line(p, d);
+        return new OCCTCurve2D(line);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateSegment(double p1x, double p1y, double p2x, double p2y) {
+    try {
+        gp_Pnt2d p1(p1x, p1y);
+        gp_Pnt2d p2(p2x, p2y);
+        GCE2d_MakeSegment maker(p1, p2);
+        if (maker.Status() != gce_Done) return nullptr;
+        return new OCCTCurve2D(maker.Value());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateCircle(double cx, double cy, double radius) {
+    try {
+        if (radius <= 0) return nullptr;
+        gp_Pnt2d center(cx, cy);
+        gp_Ax2d axis(center, gp_Dir2d(1, 0));
+        Handle(Geom2d_Circle) circle = new Geom2d_Circle(axis, radius);
+        return new OCCTCurve2D(circle);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateArcOfCircle(double cx, double cy, double radius,
+                                            double startAngle, double endAngle) {
+    try {
+        if (radius <= 0) return nullptr;
+        gp_Pnt2d center(cx, cy);
+        gp_Ax2d axis(center, gp_Dir2d(1, 0));
+        Handle(Geom2d_Circle) circle = new Geom2d_Circle(axis, radius);
+        Handle(Geom2d_TrimmedCurve) arc = new Geom2d_TrimmedCurve(circle, startAngle, endAngle);
+        return new OCCTCurve2D(arc);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateArcThrough(double p1x, double p1y,
+                                           double p2x, double p2y,
+                                           double p3x, double p3y) {
+    try {
+        gp_Pnt2d p1(p1x, p1y);
+        gp_Pnt2d p2(p2x, p2y);
+        gp_Pnt2d p3(p3x, p3y);
+        GCE2d_MakeArcOfCircle maker(p1, p2, p3);
+        if (maker.Status() != gce_Done) return nullptr;
+        return new OCCTCurve2D(maker.Value());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateEllipse(double cx, double cy,
+                                        double majorR, double minorR, double rotation) {
+    try {
+        if (majorR <= 0 || minorR <= 0 || minorR > majorR) return nullptr;
+        gp_Pnt2d center(cx, cy);
+        gp_Dir2d majorDir(cos(rotation), sin(rotation));
+        gp_Ax22d axes(center, majorDir);
+        Handle(Geom2d_Ellipse) ellipse = new Geom2d_Ellipse(axes, majorR, minorR);
+        return new OCCTCurve2D(ellipse);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateArcOfEllipse(double cx, double cy,
+                                             double majorR, double minorR,
+                                             double rotation,
+                                             double startAngle, double endAngle) {
+    try {
+        if (majorR <= 0 || minorR <= 0 || minorR > majorR) return nullptr;
+        gp_Pnt2d center(cx, cy);
+        gp_Dir2d majorDir(cos(rotation), sin(rotation));
+        gp_Ax22d axes(center, majorDir);
+        Handle(Geom2d_Ellipse) ellipse = new Geom2d_Ellipse(axes, majorR, minorR);
+        Handle(Geom2d_TrimmedCurve) arc = new Geom2d_TrimmedCurve(ellipse, startAngle, endAngle);
+        return new OCCTCurve2D(arc);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateParabola(double fx, double fy,
+                                         double dx, double dy, double focal) {
+    try {
+        if (focal <= 0) return nullptr;
+        gp_Pnt2d mirrorP(fx - dx * focal, fy - dy * focal);
+        gp_Dir2d dir(dx, dy);
+        gp_Ax2d axis(mirrorP, dir);
+        Handle(Geom2d_Parabola) parab = new Geom2d_Parabola(axis, focal);
+        return new OCCTCurve2D(parab);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateHyperbola(double cx, double cy,
+                                          double majorR, double minorR,
+                                          double rotation) {
+    try {
+        if (majorR <= 0 || minorR <= 0) return nullptr;
+        gp_Pnt2d center(cx, cy);
+        gp_Dir2d majorDir(cos(rotation), sin(rotation));
+        gp_Ax22d axes(center, majorDir);
+        Handle(Geom2d_Hyperbola) hyp = new Geom2d_Hyperbola(axes, majorR, minorR);
+        return new OCCTCurve2D(hyp);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// Draw (discretization)
+
+int32_t OCCTCurve2DDrawAdaptive(OCCTCurve2DRef c, double angularDefl, double chordalDefl,
+                                double* outXY, int32_t maxPoints) {
+    if (!c || c->curve.IsNull() || !outXY || maxPoints <= 0) return 0;
+    try {
+        Geom2dAdaptor_Curve adaptor(c->curve);
+        GCPnts_TangentialDeflection sampler(adaptor, angularDefl, chordalDefl);
+        int32_t n = std::min((int32_t)sampler.NbPoints(), maxPoints);
+        for (int32_t i = 0; i < n; i++) {
+            double u = sampler.Parameter(i + 1);
+            gp_Pnt2d p = adaptor.Value(u);
+            outXY[i * 2] = p.X();
+            outXY[i * 2 + 1] = p.Y();
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTCurve2DDrawUniform(OCCTCurve2DRef c, int32_t pointCount, double* outXY) {
+    if (!c || c->curve.IsNull() || !outXY || pointCount <= 0) return 0;
+    try {
+        Geom2dAdaptor_Curve adaptor(c->curve);
+        GCPnts_UniformAbscissa sampler(adaptor, pointCount);
+        if (!sampler.IsDone()) return 0;
+        int32_t n = sampler.NbPoints();
+        for (int32_t i = 0; i < n; i++) {
+            double u = sampler.Parameter(i + 1);
+            gp_Pnt2d p = adaptor.Value(u);
+            outXY[i * 2] = p.X();
+            outXY[i * 2 + 1] = p.Y();
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTCurve2DDrawDeflection(OCCTCurve2DRef c, double deflection,
+                                  double* outXY, int32_t maxPoints) {
+    if (!c || c->curve.IsNull() || !outXY || maxPoints <= 0) return 0;
+    try {
+        Geom2dAdaptor_Curve adaptor(c->curve);
+        GCPnts_UniformDeflection sampler(adaptor, deflection);
+        if (!sampler.IsDone()) return 0;
+        int32_t n = std::min((int32_t)sampler.NbPoints(), maxPoints);
+        for (int32_t i = 0; i < n; i++) {
+            double u = sampler.Parameter(i + 1);
+            gp_Pnt2d p = adaptor.Value(u);
+            outXY[i * 2] = p.X();
+            outXY[i * 2 + 1] = p.Y();
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// BSpline & Bezier
+
+OCCTCurve2DRef OCCTCurve2DCreateBSpline(const double* poles, int32_t poleCount,
+                                        const double* weights,
+                                        const double* knots, int32_t knotCount,
+                                        const int32_t* multiplicities, int32_t degree) {
+    if (!poles || poleCount < 2 || !knots || knotCount < 2 || degree < 1) return nullptr;
+    try {
+        TColgp_Array1OfPnt2d polesArr(1, poleCount);
+        for (int i = 0; i < poleCount; i++) {
+            polesArr.SetValue(i + 1, gp_Pnt2d(poles[i * 2], poles[i * 2 + 1]));
+        }
+
+        TColStd_Array1OfReal weightsArr(1, poleCount);
+        for (int i = 0; i < poleCount; i++) {
+            weightsArr.SetValue(i + 1, weights ? weights[i] : 1.0);
+        }
+
+        TColStd_Array1OfReal knotsArr(1, knotCount);
+        for (int i = 0; i < knotCount; i++) {
+            knotsArr.SetValue(i + 1, knots[i]);
+        }
+
+        TColStd_Array1OfInteger multsArr(1, knotCount);
+        for (int i = 0; i < knotCount; i++) {
+            multsArr.SetValue(i + 1, multiplicities ? multiplicities[i] : 1);
+        }
+
+        Handle(Geom2d_BSplineCurve) bsp = new Geom2d_BSplineCurve(
+            polesArr, weightsArr, knotsArr, multsArr, degree);
+        return new OCCTCurve2D(bsp);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DCreateBezier(const double* poles, int32_t poleCount,
+                                       const double* weights) {
+    if (!poles || poleCount < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt2d polesArr(1, poleCount);
+        for (int i = 0; i < poleCount; i++) {
+            polesArr.SetValue(i + 1, gp_Pnt2d(poles[i * 2], poles[i * 2 + 1]));
+        }
+
+        Handle(Geom2d_BezierCurve) bez;
+        if (weights) {
+            TColStd_Array1OfReal weightsArr(1, poleCount);
+            for (int i = 0; i < poleCount; i++) {
+                weightsArr.SetValue(i + 1, weights[i]);
+            }
+            bez = new Geom2d_BezierCurve(polesArr, weightsArr);
+        } else {
+            bez = new Geom2d_BezierCurve(polesArr);
+        }
+        return new OCCTCurve2D(bez);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// Interpolation & Fitting
+
+OCCTCurve2DRef OCCTCurve2DInterpolate(const double* points, int32_t count,
+                                      bool closed, double tolerance) {
+    if (!points || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt2d) pts = new TColgp_HArray1OfPnt2d(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(points[i * 2], points[i * 2 + 1]));
+        }
+        Geom2dAPI_Interpolate interp(pts, closed ? Standard_True : Standard_False, tolerance);
+        interp.Perform();
+        if (!interp.IsDone()) return nullptr;
+        return new OCCTCurve2D(interp.Curve());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DInterpolateWithTangents(const double* points, int32_t count,
+                                                  double stx, double sty,
+                                                  double etx, double ety,
+                                                  double tolerance) {
+    if (!points || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt2d) pts = new TColgp_HArray1OfPnt2d(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(points[i * 2], points[i * 2 + 1]));
+        }
+        Geom2dAPI_Interpolate interp(pts, Standard_False, tolerance);
+        gp_Vec2d startTan(stx, sty);
+        gp_Vec2d endTan(etx, ety);
+        interp.Load(startTan, endTan);
+        interp.Perform();
+        if (!interp.IsDone()) return nullptr;
+        return new OCCTCurve2D(interp.Curve());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DFitPoints(const double* points, int32_t count,
+                                    int32_t minDeg, int32_t maxDeg, double tolerance) {
+    if (!points || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt2d pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt2d(points[i * 2], points[i * 2 + 1]));
+        }
+        Geom2dAPI_PointsToBSpline fitter(pts, minDeg, maxDeg, GeomAbs_C2, tolerance);
+        if (!fitter.IsDone()) return nullptr;
+        return new OCCTCurve2D(fitter.Curve());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// BSpline queries
+
+int32_t OCCTCurve2DGetPoleCount(OCCTCurve2DRef c) {
+    if (!c || c->curve.IsNull()) return 0;
+    Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(c->curve);
+    if (bsp.IsNull()) {
+        Handle(Geom2d_BezierCurve) bez = Handle(Geom2d_BezierCurve)::DownCast(c->curve);
+        if (bez.IsNull()) return 0;
+        return bez->NbPoles();
+    }
+    return bsp->NbPoles();
+}
+
+int32_t OCCTCurve2DGetPoles(OCCTCurve2DRef c, double* outXY) {
+    if (!c || c->curve.IsNull() || !outXY) return 0;
+    Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(c->curve);
+    if (!bsp.IsNull()) {
+        int n = bsp->NbPoles();
+        for (int i = 1; i <= n; i++) {
+            gp_Pnt2d p = bsp->Pole(i);
+            outXY[(i - 1) * 2] = p.X();
+            outXY[(i - 1) * 2 + 1] = p.Y();
+        }
+        return n;
+    }
+    Handle(Geom2d_BezierCurve) bez = Handle(Geom2d_BezierCurve)::DownCast(c->curve);
+    if (!bez.IsNull()) {
+        int n = bez->NbPoles();
+        for (int i = 1; i <= n; i++) {
+            gp_Pnt2d p = bez->Pole(i);
+            outXY[(i - 1) * 2] = p.X();
+            outXY[(i - 1) * 2 + 1] = p.Y();
+        }
+        return n;
+    }
+    return 0;
+}
+
+int32_t OCCTCurve2DGetDegree(OCCTCurve2DRef c) {
+    if (!c || c->curve.IsNull()) return -1;
+    Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(c->curve);
+    if (!bsp.IsNull()) return bsp->Degree();
+    Handle(Geom2d_BezierCurve) bez = Handle(Geom2d_BezierCurve)::DownCast(c->curve);
+    if (!bez.IsNull()) return bez->Degree();
+    return -1;
+}
+
+// Operations
+
+OCCTCurve2DRef OCCTCurve2DTrim(OCCTCurve2DRef c, double u1, double u2) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_TrimmedCurve) trimmed = new Geom2d_TrimmedCurve(c->curve, u1, u2);
+        return new OCCTCurve2D(trimmed);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DOffset(OCCTCurve2DRef c, double distance) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_OffsetCurve) oc = new Geom2d_OffsetCurve(c->curve, distance);
+        return new OCCTCurve2D(oc);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DReversed(OCCTCurve2DRef c) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_Curve) rev = Handle(Geom2d_Curve)::DownCast(c->curve->Reversed());
+        return new OCCTCurve2D(rev);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DTranslate(OCCTCurve2DRef c, double dx, double dy) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_Curve) copy = Handle(Geom2d_Curve)::DownCast(c->curve->Copy());
+        gp_Vec2d v(dx, dy);
+        copy->Translate(v);
+        return new OCCTCurve2D(copy);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DRotate(OCCTCurve2DRef c, double cx, double cy, double angle) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_Curve) copy = Handle(Geom2d_Curve)::DownCast(c->curve->Copy());
+        gp_Pnt2d center(cx, cy);
+        copy->Rotate(center, angle);
+        return new OCCTCurve2D(copy);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DScale(OCCTCurve2DRef c, double cx, double cy, double factor) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_Curve) copy = Handle(Geom2d_Curve)::DownCast(c->curve->Copy());
+        gp_Pnt2d center(cx, cy);
+        copy->Scale(center, factor);
+        return new OCCTCurve2D(copy);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DMirrorAxis(OCCTCurve2DRef c, double px, double py,
+                                     double dx, double dy) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_Curve) copy = Handle(Geom2d_Curve)::DownCast(c->curve->Copy());
+        gp_Ax2d axis(gp_Pnt2d(px, py), gp_Dir2d(dx, dy));
+        copy->Mirror(axis);
+        return new OCCTCurve2D(copy);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DMirrorPoint(OCCTCurve2DRef c, double px, double py) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_Curve) copy = Handle(Geom2d_Curve)::DownCast(c->curve->Copy());
+        gp_Pnt2d pt(px, py);
+        copy->Mirror(pt);
+        return new OCCTCurve2D(copy);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+double OCCTCurve2DGetLength(OCCTCurve2DRef c) {
+    if (!c || c->curve.IsNull()) return -1.0;
+    try {
+        Geom2dAdaptor_Curve adaptor(c->curve);
+        return GCPnts_AbscissaPoint::Length(adaptor);
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+double OCCTCurve2DGetLengthBetween(OCCTCurve2DRef c, double u1, double u2) {
+    if (!c || c->curve.IsNull()) return -1.0;
+    try {
+        Geom2dAdaptor_Curve adaptor(c->curve);
+        return GCPnts_AbscissaPoint::Length(adaptor, u1, u2);
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+// Intersection
+
+int32_t OCCTCurve2DIntersect(OCCTCurve2DRef c1, OCCTCurve2DRef c2, double tolerance,
+                             OCCTCurve2DIntersection* out, int32_t max) {
+    if (!c1 || c1->curve.IsNull() || !c2 || c2->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        Geom2dAPI_InterCurveCurve inter(c1->curve, c2->curve, tolerance);
+        int32_t n = std::min((int32_t)inter.NbPoints(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Pnt2d p = inter.Point(i + 1);
+            out[i].x = p.X();
+            out[i].y = p.Y();
+            // Parameters not directly available from this API for all intersection types
+            out[i].u1 = 0;
+            out[i].u2 = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTCurve2DSelfIntersect(OCCTCurve2DRef c, double tolerance,
+                                 OCCTCurve2DIntersection* out, int32_t max) {
+    if (!c || c->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        Geom2dAPI_InterCurveCurve inter(c->curve, tolerance);
+        int32_t n = std::min((int32_t)inter.NbPoints(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Pnt2d p = inter.Point(i + 1);
+            out[i].x = p.X();
+            out[i].y = p.Y();
+            out[i].u1 = 0;
+            out[i].u2 = 0;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// Projection
+
+OCCTCurve2DProjection OCCTCurve2DProjectPoint(OCCTCurve2DRef c, double px, double py) {
+    OCCTCurve2DProjection result = {0, 0, 0, -1};
+    if (!c || c->curve.IsNull()) return result;
+    try {
+        gp_Pnt2d point(px, py);
+        Geom2dAPI_ProjectPointOnCurve proj(point, c->curve);
+        if (proj.NbPoints() == 0) return result;
+        gp_Pnt2d nearest = proj.NearestPoint();
+        result.x = nearest.X();
+        result.y = nearest.Y();
+        result.parameter = proj.LowerDistanceParameter();
+        result.distance = proj.LowerDistance();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+int32_t OCCTCurve2DProjectPointAll(OCCTCurve2DRef c, double px, double py,
+                                   OCCTCurve2DProjection* out, int32_t max) {
+    if (!c || c->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        gp_Pnt2d point(px, py);
+        Geom2dAPI_ProjectPointOnCurve proj(point, c->curve);
+        int32_t n = std::min((int32_t)proj.NbPoints(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Pnt2d p = proj.Point(i + 1);
+            out[i].x = p.X();
+            out[i].y = p.Y();
+            out[i].parameter = proj.Parameter(i + 1);
+            out[i].distance = proj.Distance(i + 1);
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// Extrema
+
+OCCTCurve2DExtrema OCCTCurve2DMinDistance(OCCTCurve2DRef c1, OCCTCurve2DRef c2) {
+    OCCTCurve2DExtrema result = {0, 0, 0, 0, 0, 0, -1};
+    if (!c1 || c1->curve.IsNull() || !c2 || c2->curve.IsNull()) return result;
+    try {
+        double u1min = c1->curve->FirstParameter();
+        double u1max = c1->curve->LastParameter();
+        double u2min = c2->curve->FirstParameter();
+        double u2max = c2->curve->LastParameter();
+        // Clamp infinite parameters for extrema computation
+        if (u1min < -1e10) u1min = -1e10;
+        if (u1max > 1e10) u1max = 1e10;
+        if (u2min < -1e10) u2min = -1e10;
+        if (u2max > 1e10) u2max = 1e10;
+        Geom2dAPI_ExtremaCurveCurve ext(c1->curve, c2->curve,
+                                        u1min, u1max, u2min, u2max);
+        if (ext.NbExtrema() == 0) return result;
+        gp_Pnt2d p1, p2;
+        ext.NearestPoints(p1, p2);
+        result.p1x = p1.X(); result.p1y = p1.Y();
+        result.p2x = p2.X(); result.p2y = p2.Y();
+        double u1, u2;
+        ext.LowerDistanceParameters(u1, u2);
+        result.u1 = u1;
+        result.u2 = u2;
+        result.distance = ext.LowerDistance();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+int32_t OCCTCurve2DAllExtrema(OCCTCurve2DRef c1, OCCTCurve2DRef c2,
+                              OCCTCurve2DExtrema* out, int32_t max) {
+    if (!c1 || c1->curve.IsNull() || !c2 || c2->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        double u1min = c1->curve->FirstParameter();
+        double u1max = c1->curve->LastParameter();
+        double u2min = c2->curve->FirstParameter();
+        double u2max = c2->curve->LastParameter();
+        if (u1min < -1e10) u1min = -1e10;
+        if (u1max > 1e10) u1max = 1e10;
+        if (u2min < -1e10) u2min = -1e10;
+        if (u2max > 1e10) u2max = 1e10;
+        Geom2dAPI_ExtremaCurveCurve ext(c1->curve, c2->curve,
+                                        u1min, u1max, u2min, u2max);
+        int32_t n = std::min((int32_t)ext.NbExtrema(), max);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Pnt2d p1, p2;
+            ext.Points(i + 1, p1, p2);
+            out[i].p1x = p1.X(); out[i].p1y = p1.Y();
+            out[i].p2x = p2.X(); out[i].p2y = p2.Y();
+            double u1, u2;
+            ext.Parameters(i + 1, u1, u2);
+            out[i].u1 = u1;
+            out[i].u2 = u2;
+            out[i].distance = ext.Distance(i + 1);
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// Conversion
+
+OCCTCurve2DRef OCCTCurve2DToBSpline(OCCTCurve2DRef c, double tolerance) {
+    if (!c || c->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Geom2dConvert::CurveToBSplineCurve(c->curve);
+        if (bsp.IsNull()) return nullptr;
+        return new OCCTCurve2D(bsp);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTCurve2DBSplineToBeziers(OCCTCurve2DRef c, OCCTCurve2DRef* out, int32_t max) {
+    if (!c || c->curve.IsNull() || !out || max <= 0) return 0;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(c->curve);
+        if (bsp.IsNull()) return 0;
+        Geom2dConvert_BSplineCurveToBezierCurve converter(bsp);
+        int32_t n = std::min((int32_t)converter.NbArcs(), max);
+        for (int32_t i = 0; i < n; i++) {
+            Handle(Geom2d_BezierCurve) arc = converter.Arc(i + 1);
+            out[i] = new OCCTCurve2D(arc);
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+void OCCTCurve2DFreeArray(OCCTCurve2DRef* curves, int32_t count) {
+    if (!curves) return;
+    for (int32_t i = 0; i < count; i++) {
+        delete curves[i];
+    }
+}
+
+OCCTCurve2DRef OCCTCurve2DJoinToBSpline(const OCCTCurve2DRef* curves, int32_t count,
+                                        double tolerance) {
+    if (!curves || count <= 0) return nullptr;
+    try {
+        Geom2dConvert_CompCurveToBSplineCurve joiner;
+        for (int32_t i = 0; i < count; i++) {
+            if (!curves[i] || curves[i]->curve.IsNull()) continue;
+            Handle(Geom2d_BSplineCurve) bsp = Geom2dConvert::CurveToBSplineCurve(curves[i]->curve);
+            if (bsp.IsNull()) continue;
+            joiner.Add(bsp, tolerance);
+        }
+        Handle(Geom2d_BSplineCurve) result = joiner.BSplineCurve();
+        if (result.IsNull()) return nullptr;
+        return new OCCTCurve2D(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
