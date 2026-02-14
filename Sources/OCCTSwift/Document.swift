@@ -264,6 +264,94 @@ public final class AssemblyNode: @unchecked Sendable {
     }
 }
 
+// MARK: - GD&T / Dimensions and Tolerances (v0.21.0)
+
+/// Dimension information from STEP GD&T data
+public struct DimensionInfo: Sendable {
+    /// Dimension type (maps to XCAFDimTolObjects_DimensionType)
+    public let type: Int32
+    /// Primary dimension value
+    public let value: Double
+    /// Lower tolerance
+    public let lowerTolerance: Double
+    /// Upper tolerance
+    public let upperTolerance: Double
+}
+
+/// Geometric tolerance information from STEP GD&T data
+public struct GeomToleranceInfo: Sendable {
+    /// Tolerance type (maps to XCAFDimTolObjects_GeomToleranceType)
+    public let type: Int32
+    /// Tolerance value
+    public let value: Double
+}
+
+/// Datum reference information from STEP GD&T data
+public struct DatumInfo: Sendable {
+    /// Datum identifier (e.g. "A", "B", "C")
+    public let name: String
+}
+
+extension Document {
+    /// Number of dimensions defined in this document
+    public var dimensionCount: Int {
+        Int(OCCTDocumentGetDimensionCount(handle))
+    }
+
+    /// Number of geometric tolerances defined in this document
+    public var geomToleranceCount: Int {
+        Int(OCCTDocumentGetGeomToleranceCount(handle))
+    }
+
+    /// Number of datums defined in this document
+    public var datumCount: Int {
+        Int(OCCTDocumentGetDatumCount(handle))
+    }
+
+    /// Get dimension info at the given index
+    public func dimension(at index: Int) -> DimensionInfo? {
+        let info = OCCTDocumentGetDimensionInfo(handle, Int32(index))
+        guard info.isValid else { return nil }
+        return DimensionInfo(type: info.type, value: info.value,
+                             lowerTolerance: info.lowerTol,
+                             upperTolerance: info.upperTol)
+    }
+
+    /// Get geometric tolerance info at the given index
+    public func geomTolerance(at index: Int) -> GeomToleranceInfo? {
+        let info = OCCTDocumentGetGeomToleranceInfo(handle, Int32(index))
+        guard info.isValid else { return nil }
+        return GeomToleranceInfo(type: info.type, value: info.value)
+    }
+
+    /// Get datum info at the given index
+    public func datum(at index: Int) -> DatumInfo? {
+        var info = OCCTDocumentGetDatumInfo(handle, Int32(index))
+        guard info.isValid else { return nil }
+        let name = withUnsafePointer(to: &info.name) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: 64) { charPtr in
+                String(cString: charPtr)
+            }
+        }
+        return DatumInfo(name: name)
+    }
+
+    /// All dimensions in this document
+    public var dimensions: [DimensionInfo] {
+        (0..<dimensionCount).compactMap { dimension(at: $0) }
+    }
+
+    /// All geometric tolerances in this document
+    public var geomTolerances: [GeomToleranceInfo] {
+        (0..<geomToleranceCount).compactMap { geomTolerance(at: $0) }
+    }
+
+    /// All datums in this document
+    public var datums: [DatumInfo] {
+        (0..<datumCount).compactMap { datum(at: $0) }
+    }
+}
+
 // MARK: - Errors
 
 /// Errors that can occur when working with XDE documents

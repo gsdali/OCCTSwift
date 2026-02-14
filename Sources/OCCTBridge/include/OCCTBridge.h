@@ -2154,6 +2154,90 @@ int32_t OCCTSurfaceGetUDegree(OCCTSurfaceRef surface);
 int32_t OCCTSurfaceGetVDegree(OCCTSurfaceRef surface);
 
 
+// MARK: - Law Functions (v0.21.0)
+
+typedef struct OCCTLawFunction* OCCTLawFunctionRef;
+
+void OCCTLawFunctionRelease(OCCTLawFunctionRef law);
+
+/// Evaluate law value at parameter
+double OCCTLawFunctionValue(OCCTLawFunctionRef law, double param);
+
+/// Get law parameter bounds
+void OCCTLawFunctionBounds(OCCTLawFunctionRef law, double* first, double* last);
+
+/// Create a constant law: value is constant over [first, last]
+OCCTLawFunctionRef OCCTLawCreateConstant(double value, double first, double last);
+
+/// Create a linear law: linearly interpolates from (first, startVal) to (last, endVal)
+OCCTLawFunctionRef OCCTLawCreateLinear(double first, double startVal,
+                                        double last, double endVal);
+
+/// Create an S-curve law: smooth sigmoid between (first, startVal) and (last, endVal)
+OCCTLawFunctionRef OCCTLawCreateS(double first, double startVal,
+                                   double last, double endVal);
+
+/// Create an interpolated law from (parameter, value) pairs
+/// points is array of [param0, val0, param1, val1, ...]
+OCCTLawFunctionRef OCCTLawCreateInterpolate(const double* paramValues,
+                                             int32_t count, bool periodic);
+
+/// Create a BSpline law
+OCCTLawFunctionRef OCCTLawCreateBSpline(const double* poles, int32_t poleCount,
+                                         const double* knots, int32_t knotCount,
+                                         const int32_t* multiplicities,
+                                         int32_t degree);
+
+/// Create pipe shell with law-based scaling along spine
+/// profile: wire cross-section, spine: wire path, law: scaling evolution
+OCCTShapeRef OCCTShapeCreatePipeShellWithLaw(OCCTWireRef spine,
+                                              OCCTWireRef profile,
+                                              OCCTLawFunctionRef law,
+                                              bool solid);
+
+// MARK: - XDE GD&T / Dimension Tolerance (v0.21.0)
+
+/// Get count of dimension labels in document
+int32_t OCCTDocumentGetDimensionCount(OCCTDocumentRef doc);
+
+/// Get count of geometric tolerance labels in document
+int32_t OCCTDocumentGetGeomToleranceCount(OCCTDocumentRef doc);
+
+/// Get count of datum labels in document
+int32_t OCCTDocumentGetDatumCount(OCCTDocumentRef doc);
+
+/// Dimension info result
+typedef struct {
+    int32_t type;         // XCAFDimTolObjects_DimensionType enum
+    double value;         // primary value
+    double lowerTol;      // lower tolerance
+    double upperTol;      // upper tolerance
+    bool isValid;
+} OCCTDimensionInfo;
+
+/// Get dimension info at index
+OCCTDimensionInfo OCCTDocumentGetDimensionInfo(OCCTDocumentRef doc, int32_t index);
+
+/// Geometric tolerance info result
+typedef struct {
+    int32_t type;         // XCAFDimTolObjects_GeomToleranceType enum
+    double value;         // tolerance value
+    bool isValid;
+} OCCTGeomToleranceInfo;
+
+/// Get geometric tolerance info at index
+OCCTGeomToleranceInfo OCCTDocumentGetGeomToleranceInfo(OCCTDocumentRef doc, int32_t index);
+
+/// Datum info result
+typedef struct {
+    char name[64];        // datum identifier (A, B, C, etc.)
+    bool isValid;
+} OCCTDatumInfo;
+
+/// Get datum info at index
+OCCTDatumInfo OCCTDocumentGetDatumInfo(OCCTDocumentRef doc, int32_t index);
+
+
 #ifdef __cplusplus
 }
 #endif

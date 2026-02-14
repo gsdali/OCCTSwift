@@ -1494,6 +1494,24 @@ extension Shape {
         return Shape(handle: shapeRef)
     }
 
+    // MARK: - Variable-Section Sweep (v0.21.0)
+
+    /// Create a pipe shell with a law function controlling cross-section scaling.
+    ///
+    /// The law function defines how the profile scales along the spine.
+    /// A law value of 1.0 means no scaling; 2.0 means double size, etc.
+    public static func pipeShellWithLaw(
+        spine: Wire,
+        profile: Wire,
+        law: LawFunction,
+        solid: Bool = true
+    ) -> Shape? {
+        guard let result = OCCTShapeCreatePipeShellWithLaw(
+            spine.handle, profile.handle, law.handle, solid)
+        else { return nil }
+        return Shape(handle: result)
+    }
+
     // MARK: - Surface Creation (v0.9.0)
 
     /// Create a B-spline surface from a grid of control points.
