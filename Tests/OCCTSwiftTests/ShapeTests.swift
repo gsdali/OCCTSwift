@@ -5739,3 +5739,442 @@ struct Curve3DLocalPropertiesTests {
         }
     }
 }
+
+// MARK: - Surface Tests (v0.20.0)
+
+@Suite("Surface Analytic Primitives")
+struct SurfaceAnalyticTests {
+    @Test("Create plane and evaluate point")
+    func planeEvaluation() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let dom = plane.domain
+        // Plane is infinite, domain should be very large
+        #expect(dom.uMin < -1e5)
+
+        // Evaluate at (0, 0) should give origin
+        let p = plane.point(atU: 0, v: 0)
+        #expect(abs(p.x) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+        #expect(abs(p.z) < 1e-10)
+    }
+
+    @Test("Plane normal is consistent")
+    func planeNormal() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let n = plane.normal(atU: 0, v: 0)
+        #expect(n != nil)
+        if let n = n {
+            #expect(abs(abs(n.z) - 1.0) < 1e-10)
+        }
+    }
+
+    @Test("Create sphere and check properties")
+    func sphereProperties() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        // Sphere is U-periodic (wraps around) and V-closed (pole to pole)
+        #expect(sphere.isUPeriodic == true)
+        let period = sphere.uPeriod
+        #expect(period != nil)
+        if let period = period {
+            #expect(abs(period - 2 * .pi) < 1e-10)
+        }
+    }
+
+    @Test("Sphere point evaluation")
+    func sphereEvaluation() {
+        let r: Double = 5
+        let sphere = Surface.sphere(center: .zero, radius: r)!
+        // At u=0, v=0 → should be on equator at (r, 0, 0) in standard parametrization
+        let p = sphere.point(atU: 0, v: 0)
+        let dist = simd_length(p)
+        #expect(abs(dist - r) < 1e-10)
+    }
+
+    @Test("Create cylinder")
+    func cylinderCreation() {
+        let cyl = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 3)
+        #expect(cyl != nil)
+        if let cyl = cyl {
+            #expect(cyl.isUPeriodic == true)
+            let p = cyl.point(atU: 0, v: 0)
+            // At u=0, v=0 should be at radius distance from Z axis
+            let rDist = sqrt(p.x * p.x + p.y * p.y)
+            #expect(abs(rDist - 3.0) < 1e-10)
+        }
+    }
+
+    @Test("Create cone")
+    func coneCreation() {
+        let cone = Surface.cone(origin: .zero, axis: SIMD3(0, 0, 1),
+                                radius: 5, semiAngle: .pi / 6)
+        #expect(cone != nil)
+    }
+
+    @Test("Create torus")
+    func torusCreation() {
+        let torus = Surface.torus(origin: .zero, axis: SIMD3(0, 0, 1),
+                                  majorRadius: 10, minorRadius: 3)
+        #expect(torus != nil)
+        if let torus = torus {
+            #expect(torus.isUPeriodic == true)
+            #expect(torus.isVPeriodic == true)
+        }
+    }
+
+    @Test("Sphere Gaussian curvature = 1/r²")
+    func sphereGaussianCurvature() {
+        let r: Double = 5
+        let sphere = Surface.sphere(center: .zero, radius: r)!
+        let gc = sphere.gaussianCurvature(atU: 0.5, v: 0.3)
+        let expected: Double = 1.0 / (r * r)
+        #expect(abs(gc - expected) < 1e-10)
+    }
+
+    @Test("Sphere mean curvature = 1/r")
+    func sphereMeanCurvature() {
+        let r: Double = 5
+        let sphere = Surface.sphere(center: .zero, radius: r)!
+        let mc = sphere.meanCurvature(atU: 0.5, v: 0.3)
+        let expected: Double = 1.0 / r
+        #expect(abs(abs(mc) - expected) < 1e-10)
+    }
+
+    @Test("Plane Gaussian curvature = 0")
+    func planeGaussianCurvature() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let gc = plane.gaussianCurvature(atU: 0, v: 0)
+        #expect(abs(gc) < 1e-10)
+    }
+
+    @Test("Cylinder principal curvatures = (0, 1/r)")
+    func cylinderPrincipalCurvatures() {
+        let r: Double = 4.0
+        let cyl = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: r)!
+        let pc = cyl.principalCurvatures(atU: 0.5, v: 1.0)
+        #expect(pc != nil)
+        if let pc = pc {
+            let minK = min(abs(pc.kMin), abs(pc.kMax))
+            let maxK = max(abs(pc.kMin), abs(pc.kMax))
+            #expect(abs(minK) < 1e-10) // 0 along axis
+            #expect(abs(maxK - 1.0/r) < 1e-10) // 1/r around circumference
+        }
+    }
+}
+
+@Suite("Surface Swept")
+struct SurfaceSweptTests {
+    @Test("Extrusion of line creates ruled surface")
+    func linearExtrusion() {
+        let line = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let ext = Surface.extrusion(profile: line, direction: SIMD3(0, 0, 5))
+        #expect(ext != nil)
+        if let ext = ext {
+            // Evaluate at midpoint of profile, half height
+            let dom = ext.domain
+            let uMid = (dom.uMin + dom.uMax) / 2
+            let p = ext.point(atU: uMid, v: 2.5)
+            #expect(abs(p.x - 5.0) < 1e-6)
+            #expect(abs(p.z - 2.5) < 1e-6)
+        }
+    }
+
+    @Test("Revolution of line creates cylinder-like surface")
+    func revolution() {
+        // Line at x=5, parallel to Z axis → revolve around Z → cylinder r=5
+        let line = Curve3D.segment(from: SIMD3(5, 0, 0), to: SIMD3(5, 0, 10))!
+        let rev = Surface.revolution(meridian: line,
+                                     axisOrigin: .zero,
+                                     axisDirection: SIMD3(0, 0, 1))
+        #expect(rev != nil)
+        if let rev = rev {
+            #expect(rev.isUPeriodic == true)
+            // At u=0, v at start → (5, 0, 0)
+            let dom = rev.domain
+            let p = rev.point(atU: 0, v: dom.vMin)
+            let rDist = sqrt(p.x * p.x + p.y * p.y)
+            #expect(abs(rDist - 5.0) < 1e-6)
+        }
+    }
+}
+
+@Suite("Surface Freeform")
+struct SurfaceFreeformTests {
+    @Test("Bezier surface from 3x3 control points")
+    func bezierSurface() {
+        // Simple 3x3 bilinear-ish surface
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(5, 0, 0), SIMD3(10, 0, 0)],
+            [SIMD3(0, 5, 2), SIMD3(5, 5, 3), SIMD3(10, 5, 2)],
+            [SIMD3(0, 10, 0), SIMD3(5, 10, 0), SIMD3(10, 10, 0)]
+        ]
+        let bez = Surface.bezier(poles: poles)
+        #expect(bez != nil)
+        if let bez = bez {
+            #expect(bez.uPoleCount == 3)
+            #expect(bez.vPoleCount == 3)
+            #expect(bez.uDegree == 2)
+            #expect(bez.vDegree == 2)
+
+            // Corner at (0,0) = first pole
+            let p00 = bez.point(atU: 0, v: 0)
+            #expect(abs(p00.x) < 1e-10)
+            #expect(abs(p00.y) < 1e-10)
+
+            // Corner at (1,1) = last pole
+            let p11 = bez.point(atU: 1, v: 1)
+            #expect(abs(p11.x - 10) < 1e-10)
+            #expect(abs(p11.y - 10) < 1e-10)
+        }
+    }
+
+    @Test("BSpline surface creation")
+    func bsplineSurface() {
+        // 4x4 control grid, degree 3x3
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0,0,0), SIMD3(3,0,0), SIMD3(7,0,0), SIMD3(10,0,0)],
+            [SIMD3(0,3,1), SIMD3(3,3,2), SIMD3(7,3,2), SIMD3(10,3,1)],
+            [SIMD3(0,7,1), SIMD3(3,7,2), SIMD3(7,7,2), SIMD3(10,7,1)],
+            [SIMD3(0,10,0), SIMD3(3,10,0), SIMD3(7,10,0), SIMD3(10,10,0)]
+        ]
+        let bsp = Surface.bspline(poles: poles,
+                                   knotsU: [0, 1], multiplicitiesU: [4, 4],
+                                   knotsV: [0, 1], multiplicitiesV: [4, 4],
+                                   degreeU: 3, degreeV: 3)
+        #expect(bsp != nil)
+        if let bsp = bsp {
+            #expect(bsp.uDegree == 3)
+            #expect(bsp.vDegree == 3)
+            let p = bsp.poles
+            #expect(p.count == 4)
+            #expect(p[0].count == 4)
+        }
+    }
+
+    @Test("Bezier surface poles round-trip")
+    func bezierPolesRoundTrip() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(5, 0, 1)],
+            [SIMD3(0, 5, 1), SIMD3(5, 5, 0)]
+        ]
+        let bez = Surface.bezier(poles: poles)!
+        let retrieved = bez.poles
+        #expect(retrieved.count == 2)
+        #expect(retrieved[0].count == 2)
+        for i in 0..<2 {
+            for j in 0..<2 {
+                let diff = simd_length(retrieved[i][j] - poles[i][j])
+                #expect(diff < 1e-10)
+            }
+        }
+    }
+}
+
+@Suite("Surface Operations")
+struct SurfaceOperationsTests {
+    @Test("Trim sphere surface")
+    func trimSurface() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let dom = sphere.domain
+        let uMid = (dom.uMin + dom.uMax) / 2
+        let vMid = (dom.vMin + dom.vMax) / 2
+        let trimmed = sphere.trimmed(u1: dom.uMin, u2: uMid,
+                                      v1: dom.vMin, v2: vMid)
+        #expect(trimmed != nil)
+        if let trimmed = trimmed {
+            let tDom = trimmed.domain
+            #expect(abs(tDom.uMax - uMid) < 1e-10)
+            #expect(abs(tDom.vMax - vMid) < 1e-10)
+        }
+    }
+
+    @Test("Offset surface")
+    func offsetSurface() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let offset = sphere.offset(distance: 2)
+        #expect(offset != nil)
+        if let offset = offset {
+            // Point on offset sphere should be at distance 7 from center
+            let p = offset.point(atU: 0, v: 0)
+            let dist = simd_length(p)
+            #expect(abs(dist - 7.0) < 1e-6)
+        }
+    }
+
+    @Test("Translate surface")
+    func translateSurface() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let shifted = sphere.translated(by: SIMD3(10, 0, 0))
+        #expect(shifted != nil)
+        if let shifted = shifted {
+            let p = shifted.point(atU: 0, v: 0)
+            let pOrig = sphere.point(atU: 0, v: 0)
+            #expect(abs(p.x - pOrig.x - 10.0) < 1e-10)
+        }
+    }
+
+    @Test("Scale surface")
+    func scaleSurface() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let scaled = sphere.scaled(center: .zero, factor: 2)
+        #expect(scaled != nil)
+        if let scaled = scaled {
+            let p = scaled.point(atU: 0, v: 0)
+            let dist = simd_length(p)
+            #expect(abs(dist - 10.0) < 1e-6)
+        }
+    }
+
+    @Test("Mirror surface across XY plane")
+    func mirrorSurface() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 5), radius: 2)!
+        let mirrored = sphere.mirrored(planeOrigin: .zero, planeNormal: SIMD3(0, 0, 1))
+        #expect(mirrored != nil)
+        if let mirrored = mirrored {
+            // Center should now be at (0, 0, -5)
+            // Check a point on the mirrored sphere
+            let p = mirrored.point(atU: 0, v: 0)
+            // Original point at u=0,v=0 has z≈5+2=7 (on equator)
+            // Mirrored should have z≈-7
+            let pOrig = sphere.point(atU: 0, v: 0)
+            #expect(abs(p.z + pOrig.z) < 1e-6)
+        }
+    }
+}
+
+@Suite("Surface Conversion")
+struct SurfaceConversionTests {
+    @Test("Sphere to BSpline conversion")
+    func sphereToBSpline() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let bsp = sphere.toBSpline()
+        #expect(bsp != nil)
+        if let bsp = bsp {
+            #expect(bsp.uDegree > 0)
+            #expect(bsp.vDegree > 0)
+            // Both share same parametrization; evaluate at domain midpoint
+            let dom = sphere.domain
+            let uMid = (dom.uMin + dom.uMax) / 2
+            let vMid = (dom.vMin + dom.vMax) / 2
+            let pOrig = sphere.point(atU: uMid, v: vMid)
+            let pBsp = bsp.point(atU: uMid, v: vMid)
+            let diff = simd_length(pOrig - pBsp)
+            #expect(diff < 0.01)
+            // Both should be on sphere surface
+            #expect(abs(simd_length(pOrig) - 5.0) < 1e-6)
+            #expect(abs(simd_length(pBsp) - 5.0) < 0.01)
+        }
+    }
+
+    @Test("Approximate surface")
+    func approximateSurface() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let approx = sphere.approximated(tolerance: 0.001)
+        #expect(approx != nil)
+    }
+
+    @Test("U-iso curve from sphere")
+    func uIsoCurve() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let iso = sphere.uIso(at: 0)
+        #expect(iso != nil)
+        if let iso = iso {
+            // U-iso at u=0 is a meridian (half-circle)
+            let p = iso.startPoint
+            let dist = simd_length(p)
+            #expect(abs(dist - 5.0) < 1e-6)
+        }
+    }
+
+    @Test("V-iso curve from sphere")
+    func vIsoCurve() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let iso = sphere.vIso(at: 0)
+        #expect(iso != nil)
+        if let iso = iso {
+            // V-iso at v=0 is the equator (circle)
+            #expect(iso.isClosed == true)
+        }
+    }
+}
+
+@Suite("Surface Draw Methods")
+struct SurfaceDrawTests {
+    @Test("Draw grid returns iso lines")
+    func drawGrid() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let grid = sphere.drawGrid(uLineCount: 5, vLineCount: 5, pointsPerLine: 20)
+        #expect(grid.count == 10) // 5 U-iso + 5 V-iso lines
+        for line in grid {
+            #expect(line.count == 20)
+            // All points should be on sphere
+            for p in line {
+                let dist = simd_length(p)
+                #expect(abs(dist - 5.0) < 0.5) // allow some tolerance for polar regions
+            }
+        }
+    }
+
+    @Test("Draw mesh returns grid points")
+    func drawMesh() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let mesh = sphere.drawMesh(uCount: 10, vCount: 10)
+        #expect(mesh.count == 10)
+        #expect(mesh[0].count == 10)
+    }
+}
+
+@Suite("Surface Pipe")
+struct SurfacePipeTests {
+    @Test("Pipe with circular cross-section")
+    func pipeCircular() {
+        let path = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(0, 0, 10))!
+        let pipe = Surface.pipe(path: path, radius: 2)
+        #expect(pipe != nil)
+        if let pipe = pipe {
+            let dom = pipe.domain
+            #expect(dom.uMin < dom.uMax)
+            #expect(dom.vMin < dom.vMax)
+        }
+    }
+
+    @Test("Pipe with section curve")
+    func pipeWithSection() {
+        let path = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(0, 0, 10))!
+        let section = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 3)!
+        let pipe = Surface.pipe(path: path, section: section)
+        #expect(pipe != nil)
+    }
+}
+
+@Suite("Surface Bounding Box")
+struct SurfaceBoundingBoxTests {
+    @Test("Sphere bounding box")
+    func sphereBoundingBox() {
+        let r: Double = 5
+        let sphere = Surface.sphere(center: SIMD3(10, 0, 0), radius: r)!
+        let bb = sphere.boundingBox
+        #expect(bb != nil)
+        if let bb = bb {
+            #expect(bb.min.x < 10 - r + 0.1)
+            #expect(bb.max.x > 10 + r - 0.1)
+            #expect(bb.min.y < -r + 0.1)
+            #expect(bb.max.y > r - 0.1)
+        }
+    }
+
+    @Test("Bezier surface bounding box")
+    func bezierBoundingBox() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(10, 0, 0)],
+            [SIMD3(0, 10, 5), SIMD3(10, 10, 5)]
+        ]
+        let bez = Surface.bezier(poles: poles)!
+        let bb = bez.boundingBox
+        #expect(bb != nil)
+        if let bb = bb {
+            #expect(bb.min.x < 0.1)
+            #expect(bb.max.x > 9.9)
+            #expect(bb.max.z > 4.9)
+        }
+    }
+}

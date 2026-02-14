@@ -1,0 +1,528 @@
+import Foundation
+import simd
+import OCCTBridge
+
+/// A parametric surface backed by OpenCASCADE Handle(Geom_Surface).
+///
+/// Wraps analytic surfaces (plane, cylinder, cone, sphere, torus),
+/// swept surfaces (extrusion, revolution), freeform surfaces (Bezier, BSpline),
+/// and derived surfaces (trimmed, offset) polymorphically.
+public final class Surface: @unchecked Sendable {
+    internal let handle: OCCTSurfaceRef
+
+    internal init(handle: OCCTSurfaceRef) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTSurfaceRelease(handle)
+    }
+
+    // MARK: - Properties
+
+    /// Parameter domain (uMin, uMax, vMin, vMax)
+    public var domain: (uMin: Double, uMax: Double, vMin: Double, vMax: Double) {
+        var uMin: Double = 0, uMax: Double = 0, vMin: Double = 0, vMax: Double = 0
+        OCCTSurfaceGetDomain(handle, &uMin, &uMax, &vMin, &vMax)
+        return (uMin, uMax, vMin, vMax)
+    }
+
+    /// Whether the surface is closed in U direction
+    public var isUClosed: Bool {
+        OCCTSurfaceIsUClosed(handle)
+    }
+
+    /// Whether the surface is closed in V direction
+    public var isVClosed: Bool {
+        OCCTSurfaceIsVClosed(handle)
+    }
+
+    /// Whether the surface is periodic in U direction
+    public var isUPeriodic: Bool {
+        OCCTSurfaceIsUPeriodic(handle)
+    }
+
+    /// Whether the surface is periodic in V direction
+    public var isVPeriodic: Bool {
+        OCCTSurfaceIsVPeriodic(handle)
+    }
+
+    /// Period in U direction (nil if not periodic)
+    public var uPeriod: Double? {
+        guard isUPeriodic else { return nil }
+        return OCCTSurfaceGetUPeriod(handle)
+    }
+
+    /// Period in V direction (nil if not periodic)
+    public var vPeriod: Double? {
+        guard isVPeriodic else { return nil }
+        return OCCTSurfaceGetVPeriod(handle)
+    }
+
+    // MARK: - Evaluation
+
+    /// Evaluate surface point at (u, v)
+    public func point(atU u: Double, v: Double) -> SIMD3<Double> {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        OCCTSurfaceGetPoint(handle, u, v, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// First-order derivatives at (u, v)
+    public func d1(atU u: Double, v: Double) -> (point: SIMD3<Double>, du: SIMD3<Double>, dv: SIMD3<Double>) {
+        var px: Double = 0, py: Double = 0, pz: Double = 0
+        var dux: Double = 0, duy: Double = 0, duz: Double = 0
+        var dvx: Double = 0, dvy: Double = 0, dvz: Double = 0
+        OCCTSurfaceD1(handle, u, v, &px, &py, &pz, &dux, &duy, &duz, &dvx, &dvy, &dvz)
+        return (SIMD3(px, py, pz), SIMD3(dux, duy, duz), SIMD3(dvx, dvy, dvz))
+    }
+
+    /// Second-order derivatives at (u, v)
+    public func d2(atU u: Double, v: Double) -> (
+        point: SIMD3<Double>,
+        d1u: SIMD3<Double>, d1v: SIMD3<Double>,
+        d2u: SIMD3<Double>, d2v: SIMD3<Double>, d2uv: SIMD3<Double>
+    ) {
+        var px: Double = 0, py: Double = 0, pz: Double = 0
+        var d1ux: Double = 0, d1uy: Double = 0, d1uz: Double = 0
+        var d1vx: Double = 0, d1vy: Double = 0, d1vz: Double = 0
+        var d2ux: Double = 0, d2uy: Double = 0, d2uz: Double = 0
+        var d2vx: Double = 0, d2vy: Double = 0, d2vz: Double = 0
+        var d2uvx: Double = 0, d2uvy: Double = 0, d2uvz: Double = 0
+        OCCTSurfaceD2(handle, u, v, &px, &py, &pz,
+                       &d1ux, &d1uy, &d1uz, &d1vx, &d1vy, &d1vz,
+                       &d2ux, &d2uy, &d2uz, &d2vx, &d2vy, &d2vz,
+                       &d2uvx, &d2uvy, &d2uvz)
+        return (SIMD3(px, py, pz),
+                SIMD3(d1ux, d1uy, d1uz), SIMD3(d1vx, d1vy, d1vz),
+                SIMD3(d2ux, d2uy, d2uz), SIMD3(d2vx, d2vy, d2vz),
+                SIMD3(d2uvx, d2uvy, d2uvz))
+    }
+
+    /// Surface normal at (u, v)
+    public func normal(atU u: Double, v: Double) -> SIMD3<Double>? {
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        guard OCCTSurfaceGetNormal(handle, u, v, &nx, &ny, &nz) else { return nil }
+        return SIMD3(nx, ny, nz)
+    }
+
+    // MARK: - Analytic Surfaces
+
+    /// Create an infinite plane from a point and normal direction
+    public static func plane(origin: SIMD3<Double>, normal: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTSurfaceCreatePlane(origin.x, origin.y, origin.z,
+                                              normal.x, normal.y, normal.z)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a cylindrical surface
+    public static func cylinder(origin: SIMD3<Double>, axis: SIMD3<Double>,
+                                radius: Double) -> Surface? {
+        guard let h = OCCTSurfaceCreateCylinder(origin.x, origin.y, origin.z,
+                                                 axis.x, axis.y, axis.z, radius)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a conical surface
+    public static func cone(origin: SIMD3<Double>, axis: SIMD3<Double>,
+                            radius: Double, semiAngle: Double) -> Surface? {
+        guard let h = OCCTSurfaceCreateCone(origin.x, origin.y, origin.z,
+                                             axis.x, axis.y, axis.z,
+                                             radius, semiAngle)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a spherical surface
+    public static func sphere(center: SIMD3<Double>, radius: Double) -> Surface? {
+        guard let h = OCCTSurfaceCreateSphere(center.x, center.y, center.z, radius)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a toroidal surface
+    public static func torus(origin: SIMD3<Double>, axis: SIMD3<Double>,
+                             majorRadius: Double, minorRadius: Double) -> Surface? {
+        guard let h = OCCTSurfaceCreateTorus(origin.x, origin.y, origin.z,
+                                              axis.x, axis.y, axis.z,
+                                              majorRadius, minorRadius)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    // MARK: - Swept Surfaces
+
+    /// Create a surface by extruding a curve along a direction
+    public static func extrusion(profile: Curve3D, direction: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTSurfaceCreateExtrusion(profile.handle,
+                                                  direction.x, direction.y, direction.z)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a surface of revolution by revolving a curve around an axis
+    public static func revolution(meridian: Curve3D,
+                                  axisOrigin: SIMD3<Double>,
+                                  axisDirection: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTSurfaceCreateRevolution(meridian.handle,
+                                                   axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                                                   axisDirection.x, axisDirection.y, axisDirection.z)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    // MARK: - Freeform Surfaces
+
+    /// Create a Bezier surface from control points
+    /// - Parameters:
+    ///   - poles: 2D array of control points [uRow][vCol]
+    ///   - weights: Optional 2D array of weights (same dimensions as poles)
+    public static func bezier(poles: [[SIMD3<Double>]],
+                              weights: [[Double]]? = nil) -> Surface? {
+        let uCount = Int32(poles.count)
+        guard uCount >= 2 else { return nil }
+        let vCount = Int32(poles[0].count)
+        guard vCount >= 2 else { return nil }
+
+        var flatPoles = [Double]()
+        flatPoles.reserveCapacity(Int(uCount * vCount) * 3)
+        for row in poles {
+            for p in row {
+                flatPoles.append(p.x)
+                flatPoles.append(p.y)
+                flatPoles.append(p.z)
+            }
+        }
+
+        if let w = weights {
+            var flatWeights = [Double]()
+            flatWeights.reserveCapacity(Int(uCount * vCount))
+            for row in w {
+                flatWeights.append(contentsOf: row)
+            }
+            let h = flatPoles.withUnsafeBufferPointer { pPtr in
+                flatWeights.withUnsafeBufferPointer { wPtr in
+                    OCCTSurfaceCreateBezier(pPtr.baseAddress, uCount, vCount,
+                                            wPtr.baseAddress)
+                }
+            }
+            guard let h = h else { return nil }
+            return Surface(handle: h)
+        } else {
+            let h = flatPoles.withUnsafeBufferPointer { pPtr in
+                OCCTSurfaceCreateBezier(pPtr.baseAddress, uCount, vCount, nil)
+            }
+            guard let h = h else { return nil }
+            return Surface(handle: h)
+        }
+    }
+
+    /// Create a BSpline surface
+    /// - Parameters:
+    ///   - poles: 2D array of control points [uRow][vCol]
+    ///   - weights: Optional 2D array of weights
+    ///   - knotsU: Knot values in U direction
+    ///   - multiplicitiesU: Knot multiplicities in U direction
+    ///   - knotsV: Knot values in V direction
+    ///   - multiplicitiesV: Knot multiplicities in V direction
+    ///   - degreeU: Polynomial degree in U
+    ///   - degreeV: Polynomial degree in V
+    public static func bspline(poles: [[SIMD3<Double>]],
+                               weights: [[Double]]? = nil,
+                               knotsU: [Double], multiplicitiesU: [Int32],
+                               knotsV: [Double], multiplicitiesV: [Int32],
+                               degreeU: Int, degreeV: Int) -> Surface? {
+        let uCount = Int32(poles.count)
+        guard uCount >= 2 else { return nil }
+        let vCount = Int32(poles[0].count)
+        guard vCount >= 2 else { return nil }
+
+        var flatPoles = [Double]()
+        flatPoles.reserveCapacity(Int(uCount * vCount) * 3)
+        for row in poles {
+            for p in row {
+                flatPoles.append(p.x)
+                flatPoles.append(p.y)
+                flatPoles.append(p.z)
+            }
+        }
+
+        let result: OCCTSurfaceRef? = flatPoles.withUnsafeBufferPointer { pPtr in
+            knotsU.withUnsafeBufferPointer { kuPtr in
+                knotsV.withUnsafeBufferPointer { kvPtr in
+                    multiplicitiesU.withUnsafeBufferPointer { muPtr in
+                        multiplicitiesV.withUnsafeBufferPointer { mvPtr in
+                            if let w = weights {
+                                var flatWeights = [Double]()
+                                flatWeights.reserveCapacity(Int(uCount * vCount))
+                                for row in w { flatWeights.append(contentsOf: row) }
+                                return flatWeights.withUnsafeBufferPointer { wPtr in
+                                    OCCTSurfaceCreateBSpline(
+                                        pPtr.baseAddress, uCount, vCount,
+                                        wPtr.baseAddress,
+                                        kuPtr.baseAddress, Int32(knotsU.count),
+                                        kvPtr.baseAddress, Int32(knotsV.count),
+                                        muPtr.baseAddress, mvPtr.baseAddress,
+                                        Int32(degreeU), Int32(degreeV))
+                                }
+                            } else {
+                                return OCCTSurfaceCreateBSpline(
+                                    pPtr.baseAddress, uCount, vCount,
+                                    nil,
+                                    kuPtr.baseAddress, Int32(knotsU.count),
+                                    kvPtr.baseAddress, Int32(knotsV.count),
+                                    muPtr.baseAddress, mvPtr.baseAddress,
+                                    Int32(degreeU), Int32(degreeV))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        guard let h = result else { return nil }
+        return Surface(handle: h)
+    }
+
+    // MARK: - Operations
+
+    /// Create a rectangular trim of this surface
+    public func trimmed(u1: Double, u2: Double, v1: Double, v2: Double) -> Surface? {
+        guard let h = OCCTSurfaceTrim(handle, u1, u2, v1, v2) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create an offset surface at a given distance from this surface
+    public func offset(distance: Double) -> Surface? {
+        guard let h = OCCTSurfaceOffset(handle, distance) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Translated copy
+    public func translated(by delta: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTSurfaceTranslate(handle, delta.x, delta.y, delta.z) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Rotated copy around an axis
+    public func rotated(axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>,
+                        angle: Double) -> Surface? {
+        guard let h = OCCTSurfaceRotate(handle,
+                                         axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                                         axisDirection.x, axisDirection.y, axisDirection.z,
+                                         angle)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Scaled copy from a center point
+    public func scaled(center: SIMD3<Double>, factor: Double) -> Surface? {
+        guard let h = OCCTSurfaceScale(handle, center.x, center.y, center.z, factor)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Mirrored copy across a plane
+    public func mirrored(planeOrigin: SIMD3<Double>, planeNormal: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTSurfaceMirrorPlane(handle,
+                                              planeOrigin.x, planeOrigin.y, planeOrigin.z,
+                                              planeNormal.x, planeNormal.y, planeNormal.z)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    // MARK: - Conversion
+
+    /// Convert to BSpline representation
+    public func toBSpline() -> Surface? {
+        guard let h = OCCTSurfaceToBSpline(handle) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Approximate as a BSpline surface within tolerance
+    public func approximated(tolerance: Double = 0.01, continuity: Int = 2,
+                             maxSegments: Int = 100, maxDegree: Int = 10) -> Surface? {
+        guard let h = OCCTSurfaceApproximate(handle, tolerance, Int32(continuity),
+                                              Int32(maxSegments), Int32(maxDegree))
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    // MARK: - Iso Curves
+
+    /// Extract a U-iso curve (constant U, varying V)
+    public func uIso(at u: Double) -> Curve3D? {
+        guard let h = OCCTSurfaceUIso(handle, u) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Extract a V-iso curve (constant V, varying U)
+    public func vIso(at v: Double) -> Curve3D? {
+        guard let h = OCCTSurfaceVIso(handle, v) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    // MARK: - Pipe Surfaces
+
+    /// Create a pipe surface by sweeping a circle along a path
+    public static func pipe(path: Curve3D, radius: Double) -> Surface? {
+        guard let h = OCCTSurfaceCreatePipe(path.handle, radius) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a pipe surface by sweeping a section curve along a path
+    public static func pipe(path: Curve3D, section: Curve3D) -> Surface? {
+        guard let h = OCCTSurfaceCreatePipeWithSection(path.handle, section.handle)
+        else { return nil }
+        return Surface(handle: h)
+    }
+
+    // MARK: - Draw Methods
+
+    /// Draw iso-parameter grid lines for Metal visualization
+    /// - Parameters:
+    ///   - uLineCount: Number of U-iso lines
+    ///   - vLineCount: Number of V-iso lines
+    ///   - pointsPerLine: Points per iso line
+    /// - Returns: Array of polylines, each a [SIMD3<Double>]
+    public func drawGrid(uLineCount: Int = 10, vLineCount: Int = 10,
+                         pointsPerLine: Int = 50) -> [[SIMD3<Double>]] {
+        let maxLines = uLineCount + vLineCount
+        let maxPoints = maxLines * pointsPerLine
+        var buffer = [Double](repeating: 0, count: maxPoints * 3)
+        var lineLengths = [Int32](repeating: 0, count: maxLines)
+
+        let totalPoints = Int(OCCTSurfaceDrawGrid(
+            handle, Int32(uLineCount), Int32(vLineCount), Int32(pointsPerLine),
+            &buffer, Int32(maxPoints), &lineLengths, Int32(maxLines)))
+
+        guard totalPoints > 0 else { return [] }
+
+        var result = [[SIMD3<Double>]]()
+        var offset = 0
+        for i in 0..<maxLines {
+            let count = Int(lineLengths[i])
+            if count == 0 { continue }
+            var line = [SIMD3<Double>]()
+            line.reserveCapacity(count)
+            for j in 0..<count {
+                let idx = (offset + j) * 3
+                line.append(SIMD3(buffer[idx], buffer[idx + 1], buffer[idx + 2]))
+            }
+            result.append(line)
+            offset += count
+        }
+        return result
+    }
+
+    /// Sample a uniform mesh grid of points for Metal visualization
+    /// - Returns: 2D array [uIndex][vIndex] of surface points
+    public func drawMesh(uCount: Int = 20, vCount: Int = 20) -> [[SIMD3<Double>]] {
+        let total = uCount * vCount
+        var buffer = [Double](repeating: 0, count: total * 3)
+        let n = Int(OCCTSurfaceDrawMesh(handle, Int32(uCount), Int32(vCount), &buffer))
+        guard n == total else { return [] }
+
+        var grid = [[SIMD3<Double>]]()
+        grid.reserveCapacity(uCount)
+        for i in 0..<uCount {
+            var row = [SIMD3<Double>]()
+            row.reserveCapacity(vCount)
+            for j in 0..<vCount {
+                let idx = (i * vCount + j) * 3
+                row.append(SIMD3(buffer[idx], buffer[idx + 1], buffer[idx + 2]))
+            }
+            grid.append(row)
+        }
+        return grid
+    }
+
+    // MARK: - Local Properties
+
+    /// Gaussian curvature at (u, v)
+    public func gaussianCurvature(atU u: Double, v: Double) -> Double {
+        OCCTSurfaceGetGaussianCurvature(handle, u, v)
+    }
+
+    /// Mean curvature at (u, v)
+    public func meanCurvature(atU u: Double, v: Double) -> Double {
+        OCCTSurfaceGetMeanCurvature(handle, u, v)
+    }
+
+    /// Principal curvature result
+    public struct PrincipalCurvatures: Sendable {
+        public let kMin: Double
+        public let kMax: Double
+        public let dirMin: SIMD3<Double>
+        public let dirMax: SIMD3<Double>
+    }
+
+    /// Principal curvatures and directions at (u, v)
+    public func principalCurvatures(atU u: Double, v: Double) -> PrincipalCurvatures? {
+        var kMin: Double = 0, kMax: Double = 0
+        var d1x: Double = 0, d1y: Double = 0, d1z: Double = 0
+        var d2x: Double = 0, d2y: Double = 0, d2z: Double = 0
+        guard OCCTSurfaceGetPrincipalCurvatures(handle, u, v, &kMin, &kMax,
+                                                 &d1x, &d1y, &d1z,
+                                                 &d2x, &d2y, &d2z)
+        else { return nil }
+        return PrincipalCurvatures(kMin: kMin, kMax: kMax,
+                                   dirMin: SIMD3(d1x, d1y, d1z),
+                                   dirMax: SIMD3(d2x, d2y, d2z))
+    }
+
+    // MARK: - Bounding Box
+
+    /// Axis-aligned bounding box (nil for infinite surfaces)
+    public var boundingBox: (min: SIMD3<Double>, max: SIMD3<Double>)? {
+        var xMin: Double = 0, yMin: Double = 0, zMin: Double = 0
+        var xMax: Double = 0, yMax: Double = 0, zMax: Double = 0
+        guard OCCTSurfaceGetBoundingBox(handle, &xMin, &yMin, &zMin,
+                                         &xMax, &yMax, &zMax)
+        else { return nil }
+        return (SIMD3(xMin, yMin, zMin), SIMD3(xMax, yMax, zMax))
+    }
+
+    // MARK: - BSpline/Bezier Queries
+
+    /// Number of control points in U direction (0 if not BSpline/Bezier)
+    public var uPoleCount: Int {
+        Int(OCCTSurfaceGetUPoleCount(handle))
+    }
+
+    /// Number of control points in V direction (0 if not BSpline/Bezier)
+    public var vPoleCount: Int {
+        Int(OCCTSurfaceGetVPoleCount(handle))
+    }
+
+    /// Control points as 2D array [uRow][vCol] (empty if not BSpline/Bezier)
+    public var poles: [[SIMD3<Double>]] {
+        let uCount = uPoleCount
+        let vCount = vPoleCount
+        guard uCount > 0 && vCount > 0 else { return [] }
+        var buffer = [Double](repeating: 0, count: uCount * vCount * 3)
+        let n = Int(OCCTSurfaceGetPoles(handle, &buffer))
+        guard n == uCount * vCount else { return [] }
+        var result = [[SIMD3<Double>]]()
+        for i in 0..<uCount {
+            var row = [SIMD3<Double>]()
+            for j in 0..<vCount {
+                let idx = (i * vCount + j) * 3
+                row.append(SIMD3(buffer[idx], buffer[idx + 1], buffer[idx + 2]))
+            }
+            result.append(row)
+        }
+        return result
+    }
+
+    /// Polynomial degree in U direction (0 if not BSpline/Bezier)
+    public var uDegree: Int {
+        Int(OCCTSurfaceGetUDegree(handle))
+    }
+
+    /// Polynomial degree in V direction (0 if not BSpline/Bezier)
+    public var vDegree: Int {
+        Int(OCCTSurfaceGetVDegree(handle))
+    }
+}

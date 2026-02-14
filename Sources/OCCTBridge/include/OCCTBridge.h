@@ -2018,6 +2018,142 @@ bool OCCTCurve3DGetBoundingBox(OCCTCurve3DRef curve,
                                 double* xMax, double* yMax, double* zMax);
 
 
+// MARK: - Surface: Parametric Surfaces (v0.20.0)
+
+typedef struct OCCTSurface* OCCTSurfaceRef;
+
+void OCCTSurfaceRelease(OCCTSurfaceRef surface);
+
+// Properties
+void   OCCTSurfaceGetDomain(OCCTSurfaceRef surface,
+                             double* uMin, double* uMax,
+                             double* vMin, double* vMax);
+bool   OCCTSurfaceIsUClosed(OCCTSurfaceRef surface);
+bool   OCCTSurfaceIsVClosed(OCCTSurfaceRef surface);
+bool   OCCTSurfaceIsUPeriodic(OCCTSurfaceRef surface);
+bool   OCCTSurfaceIsVPeriodic(OCCTSurfaceRef surface);
+double OCCTSurfaceGetUPeriod(OCCTSurfaceRef surface);
+double OCCTSurfaceGetVPeriod(OCCTSurfaceRef surface);
+
+// Evaluation
+void OCCTSurfaceGetPoint(OCCTSurfaceRef surface, double u, double v,
+                          double* x, double* y, double* z);
+void OCCTSurfaceD1(OCCTSurfaceRef surface, double u, double v,
+                    double* px, double* py, double* pz,
+                    double* dux, double* duy, double* duz,
+                    double* dvx, double* dvy, double* dvz);
+void OCCTSurfaceD2(OCCTSurfaceRef surface, double u, double v,
+                    double* px, double* py, double* pz,
+                    double* d1ux, double* d1uy, double* d1uz,
+                    double* d1vx, double* d1vy, double* d1vz,
+                    double* d2ux, double* d2uy, double* d2uz,
+                    double* d2vx, double* d2vy, double* d2vz,
+                    double* d2uvx, double* d2uvy, double* d2uvz);
+bool OCCTSurfaceGetNormal(OCCTSurfaceRef surface, double u, double v,
+                           double* nx, double* ny, double* nz);
+
+// Analytic Surfaces
+OCCTSurfaceRef OCCTSurfaceCreatePlane(double px, double py, double pz,
+                                       double nx, double ny, double nz);
+OCCTSurfaceRef OCCTSurfaceCreateCylinder(double px, double py, double pz,
+                                          double dx, double dy, double dz,
+                                          double radius);
+OCCTSurfaceRef OCCTSurfaceCreateCone(double px, double py, double pz,
+                                      double dx, double dy, double dz,
+                                      double radius, double semiAngle);
+OCCTSurfaceRef OCCTSurfaceCreateSphere(double cx, double cy, double cz,
+                                        double radius);
+OCCTSurfaceRef OCCTSurfaceCreateTorus(double px, double py, double pz,
+                                       double dx, double dy, double dz,
+                                       double majorRadius, double minorRadius);
+
+// Swept Surfaces
+OCCTSurfaceRef OCCTSurfaceCreateExtrusion(OCCTCurve3DRef profile,
+                                           double dx, double dy, double dz);
+OCCTSurfaceRef OCCTSurfaceCreateRevolution(OCCTCurve3DRef meridian,
+                                            double px, double py, double pz,
+                                            double dx, double dy, double dz);
+
+// Freeform Surfaces
+OCCTSurfaceRef OCCTSurfaceCreateBezier(const double* poles,
+                                        int32_t uCount, int32_t vCount,
+                                        const double* weights);
+OCCTSurfaceRef OCCTSurfaceCreateBSpline(const double* poles,
+                                         int32_t uPoleCount, int32_t vPoleCount,
+                                         const double* weights,
+                                         const double* uKnots, int32_t uKnotCount,
+                                         const double* vKnots, int32_t vKnotCount,
+                                         const int32_t* uMults, const int32_t* vMults,
+                                         int32_t uDegree, int32_t vDegree);
+
+// Operations
+OCCTSurfaceRef OCCTSurfaceTrim(OCCTSurfaceRef surface,
+                                double u1, double u2, double v1, double v2);
+OCCTSurfaceRef OCCTSurfaceOffset(OCCTSurfaceRef surface, double distance);
+OCCTSurfaceRef OCCTSurfaceTranslate(OCCTSurfaceRef surface,
+                                     double dx, double dy, double dz);
+OCCTSurfaceRef OCCTSurfaceRotate(OCCTSurfaceRef surface,
+                                  double axOx, double axOy, double axOz,
+                                  double axDx, double axDy, double axDz,
+                                  double angle);
+OCCTSurfaceRef OCCTSurfaceScale(OCCTSurfaceRef surface,
+                                 double cx, double cy, double cz, double factor);
+OCCTSurfaceRef OCCTSurfaceMirrorPlane(OCCTSurfaceRef surface,
+                                       double px, double py, double pz,
+                                       double nx, double ny, double nz);
+
+// Conversion
+OCCTSurfaceRef OCCTSurfaceToBSpline(OCCTSurfaceRef surface);
+OCCTSurfaceRef OCCTSurfaceApproximate(OCCTSurfaceRef surface, double tolerance,
+                                       int32_t continuity, int32_t maxSegments,
+                                       int32_t maxDegree);
+
+// Iso Curves (returns Curve3D)
+OCCTCurve3DRef OCCTSurfaceUIso(OCCTSurfaceRef surface, double u);
+OCCTCurve3DRef OCCTSurfaceVIso(OCCTSurfaceRef surface, double v);
+
+// Pipe Surface (GeomFill_Pipe)
+OCCTSurfaceRef OCCTSurfaceCreatePipe(OCCTCurve3DRef path, double radius);
+OCCTSurfaceRef OCCTSurfaceCreatePipeWithSection(OCCTCurve3DRef path,
+                                                 OCCTCurve3DRef section);
+
+// Draw Methods (discretization for Metal)
+/// Draw iso-parameter grid lines: uCount U-iso lines + vCount V-iso lines
+/// Returns total point count. outXYZ[pointIndex*3..+3] for coordinates.
+/// outLineLengths[lineIndex] = number of points in that line.
+int32_t OCCTSurfaceDrawGrid(OCCTSurfaceRef surface,
+                             int32_t uCount, int32_t vCount,
+                             int32_t pointsPerLine,
+                             double* outXYZ, int32_t maxPoints,
+                             int32_t* outLineLengths, int32_t maxLines);
+
+/// Sample a uniform grid of points for mesh triangulation
+/// Returns total point count (uCount * vCount)
+int32_t OCCTSurfaceDrawMesh(OCCTSurfaceRef surface,
+                             int32_t uCount, int32_t vCount,
+                             double* outXYZ);
+
+// Local Properties (GeomLProp_SLProps)
+double OCCTSurfaceGetGaussianCurvature(OCCTSurfaceRef surface, double u, double v);
+double OCCTSurfaceGetMeanCurvature(OCCTSurfaceRef surface, double u, double v);
+bool   OCCTSurfaceGetPrincipalCurvatures(OCCTSurfaceRef surface, double u, double v,
+                                          double* kMin, double* kMax,
+                                          double* d1x, double* d1y, double* d1z,
+                                          double* d2x, double* d2y, double* d2z);
+
+// Bounding Box
+bool OCCTSurfaceGetBoundingBox(OCCTSurfaceRef surface,
+                                double* xMin, double* yMin, double* zMin,
+                                double* xMax, double* yMax, double* zMax);
+
+// BSpline Queries
+int32_t OCCTSurfaceGetUPoleCount(OCCTSurfaceRef surface);
+int32_t OCCTSurfaceGetVPoleCount(OCCTSurfaceRef surface);
+int32_t OCCTSurfaceGetPoles(OCCTSurfaceRef surface, double* outXYZ);
+int32_t OCCTSurfaceGetUDegree(OCCTSurfaceRef surface);
+int32_t OCCTSurfaceGetVDegree(OCCTSurfaceRef surface);
+
+
 #ifdef __cplusplus
 }
 #endif
