@@ -1129,6 +1129,252 @@ OCCTShapeRef OCCTShapeRemoveSmallFaces(OCCTShapeRef shape, double minArea);
 /// @return Simplified shape, or NULL on failure
 OCCTShapeRef OCCTShapeSimplify(OCCTShapeRef shape, double tolerance);
 
+// MARK: - Camera (Metal Visualization)
+
+typedef struct OCCTCamera* OCCTCameraRef;
+
+OCCTCameraRef OCCTCameraCreate(void);
+void          OCCTCameraDestroy(OCCTCameraRef cam);
+
+void OCCTCameraSetEye(OCCTCameraRef cam, double x, double y, double z);
+void OCCTCameraGetEye(OCCTCameraRef cam, double* x, double* y, double* z);
+void OCCTCameraSetCenter(OCCTCameraRef cam, double x, double y, double z);
+void OCCTCameraGetCenter(OCCTCameraRef cam, double* x, double* y, double* z);
+void OCCTCameraSetUp(OCCTCameraRef cam, double x, double y, double z);
+void OCCTCameraGetUp(OCCTCameraRef cam, double* x, double* y, double* z);
+
+void OCCTCameraSetProjectionType(OCCTCameraRef cam, int type);
+int  OCCTCameraGetProjectionType(OCCTCameraRef cam);
+void OCCTCameraSetFOV(OCCTCameraRef cam, double degrees);
+double OCCTCameraGetFOV(OCCTCameraRef cam);
+void OCCTCameraSetScale(OCCTCameraRef cam, double scale);
+double OCCTCameraGetScale(OCCTCameraRef cam);
+void OCCTCameraSetZRange(OCCTCameraRef cam, double zNear, double zFar);
+void OCCTCameraGetZRange(OCCTCameraRef cam, double* zNear, double* zFar);
+void OCCTCameraSetAspect(OCCTCameraRef cam, double aspect);
+
+void OCCTCameraGetProjectionMatrix(OCCTCameraRef cam, float* out16);
+void OCCTCameraGetViewMatrix(OCCTCameraRef cam, float* out16);
+
+void OCCTCameraProject(OCCTCameraRef cam, double wX, double wY, double wZ,
+                       double* sX, double* sY, double* sZ);
+void OCCTCameraUnproject(OCCTCameraRef cam, double sX, double sY, double sZ,
+                         double* wX, double* wY, double* wZ);
+
+void OCCTCameraFitBBox(OCCTCameraRef cam, double xMin, double yMin, double zMin,
+                       double xMax, double yMax, double zMax);
+
+// MARK: - Presentation Mesh (Metal Visualization)
+
+typedef struct {
+    float* vertices;
+    int32_t vertexCount;
+    int32_t* indices;
+    int32_t triangleCount;
+} OCCTShadedMeshData;
+
+typedef struct {
+    float* vertices;
+    int32_t vertexCount;
+    int32_t* segmentStarts;
+    int32_t segmentCount;
+} OCCTEdgeMeshData;
+
+bool OCCTShapeGetShadedMesh(OCCTShapeRef shape, double deflection, OCCTShadedMeshData* out);
+void OCCTShadedMeshDataFree(OCCTShadedMeshData* data);
+
+bool OCCTShapeGetEdgeMesh(OCCTShapeRef shape, double deflection, OCCTEdgeMeshData* out);
+void OCCTEdgeMeshDataFree(OCCTEdgeMeshData* data);
+
+// MARK: - Selector (Metal Visualization)
+
+typedef struct OCCTSelector* OCCTSelectorRef;
+
+typedef struct {
+    int32_t shapeId;
+    double depth;
+    double pointX, pointY, pointZ;
+    int32_t subShapeType;   // TopAbs_ShapeEnum: 7=VERTEX, 6=EDGE, 5=WIRE, 4=FACE, 8=SHAPE
+    int32_t subShapeIndex;  // 1-based index of sub-shape within parent, 0 if whole shape
+} OCCTPickResult;
+
+OCCTSelectorRef OCCTSelectorCreate(void);
+void            OCCTSelectorDestroy(OCCTSelectorRef sel);
+
+bool OCCTSelectorAddShape(OCCTSelectorRef sel, OCCTShapeRef shape, int32_t shapeId);
+bool OCCTSelectorRemoveShape(OCCTSelectorRef sel, int32_t shapeId);
+void OCCTSelectorClear(OCCTSelectorRef sel);
+
+/// Activate a selection mode for a shape (0=shape, 1=vertex, 2=edge, 3=wire, 4=face).
+/// Mode 0 is activated automatically when adding a shape.
+void OCCTSelectorActivateMode(OCCTSelectorRef sel, int32_t shapeId, int32_t mode);
+
+/// Deactivate a selection mode for a shape. Pass -1 to deactivate all modes.
+void OCCTSelectorDeactivateMode(OCCTSelectorRef sel, int32_t shapeId, int32_t mode);
+
+/// Check if a selection mode is active for a shape.
+bool OCCTSelectorIsModeActive(OCCTSelectorRef sel, int32_t shapeId, int32_t mode);
+
+/// Set pixel tolerance for picking near edges/vertices (default 2).
+void OCCTSelectorSetPixelTolerance(OCCTSelectorRef sel, int32_t tolerance);
+int32_t OCCTSelectorGetPixelTolerance(OCCTSelectorRef sel);
+
+int32_t OCCTSelectorPick(OCCTSelectorRef sel, OCCTCameraRef cam,
+                         double viewW, double viewH,
+                         double pixelX, double pixelY,
+                         OCCTPickResult* out, int32_t maxResults);
+
+int32_t OCCTSelectorPickRect(OCCTSelectorRef sel, OCCTCameraRef cam,
+                             double viewW, double viewH,
+                             double xMin, double yMin, double xMax, double yMax,
+                             OCCTPickResult* out, int32_t maxResults);
+
+/// Polyline (lasso) pick: select shapes within a closed polygon defined by 2D pixel points.
+/// polyXY is an array of x,y pairs (length = pointCount * 2).
+int32_t OCCTSelectorPickPoly(OCCTSelectorRef sel, OCCTCameraRef cam,
+                             double viewW, double viewH,
+                             const double* polyXY, int32_t pointCount,
+                             OCCTPickResult* out, int32_t maxResults);
+
+// MARK: - Drawer-Aware Mesh Extraction
+
+typedef struct OCCTDrawer* OCCTDrawerRef;
+
+/// Extract shaded mesh using a DisplayDrawer for tessellation control.
+bool OCCTShapeGetShadedMeshWithDrawer(OCCTShapeRef shape, OCCTDrawerRef drawer, OCCTShadedMeshData* out);
+bool OCCTShapeGetEdgeMeshWithDrawer(OCCTShapeRef shape, OCCTDrawerRef drawer, OCCTEdgeMeshData* out);
+
+// MARK: - Display Drawer (Metal Visualization)
+
+OCCTDrawerRef OCCTDrawerCreate(void);
+void OCCTDrawerDestroy(OCCTDrawerRef drawer);
+
+/// Chordal deviation coefficient (relative to bounding box). Default ~0.001.
+void OCCTDrawerSetDeviationCoefficient(OCCTDrawerRef drawer, double coeff);
+double OCCTDrawerGetDeviationCoefficient(OCCTDrawerRef drawer);
+
+/// Angular deviation in radians. Default 20 degrees (M_PI/9).
+void OCCTDrawerSetDeviationAngle(OCCTDrawerRef drawer, double angle);
+double OCCTDrawerGetDeviationAngle(OCCTDrawerRef drawer);
+
+/// Maximal chordal deviation (absolute). Applies when type of deflection is absolute.
+void OCCTDrawerSetMaximalChordialDeviation(OCCTDrawerRef drawer, double deviation);
+double OCCTDrawerGetMaximalChordialDeviation(OCCTDrawerRef drawer);
+
+/// Type of deflection: 0=relative (default), 1=absolute.
+void OCCTDrawerSetTypeOfDeflection(OCCTDrawerRef drawer, int32_t type);
+int32_t OCCTDrawerGetTypeOfDeflection(OCCTDrawerRef drawer);
+
+/// Auto-triangulation on/off. Default true.
+void OCCTDrawerSetAutoTriangulation(OCCTDrawerRef drawer, bool on);
+bool OCCTDrawerGetAutoTriangulation(OCCTDrawerRef drawer);
+
+/// Number of iso-parameter lines (U and V). Default 1.
+void OCCTDrawerSetIsoOnTriangulation(OCCTDrawerRef drawer, bool on);
+bool OCCTDrawerGetIsoOnTriangulation(OCCTDrawerRef drawer);
+
+/// Discretisation (number of points for curves). Default 30.
+void OCCTDrawerSetDiscretisation(OCCTDrawerRef drawer, int32_t value);
+int32_t OCCTDrawerGetDiscretisation(OCCTDrawerRef drawer);
+
+/// Face boundary display on/off. Default false.
+void OCCTDrawerSetFaceBoundaryDraw(OCCTDrawerRef drawer, bool on);
+bool OCCTDrawerGetFaceBoundaryDraw(OCCTDrawerRef drawer);
+
+/// Wire frame display on/off. Default true.
+void OCCTDrawerSetWireDraw(OCCTDrawerRef drawer, bool on);
+bool OCCTDrawerGetWireDraw(OCCTDrawerRef drawer);
+
+// MARK: - Clip Plane (Metal Visualization)
+
+typedef struct OCCTClipPlane* OCCTClipPlaneRef;
+
+/// Create a clip plane from an equation Ax + By + Cz + D = 0
+OCCTClipPlaneRef OCCTClipPlaneCreate(double a, double b, double c, double d);
+void OCCTClipPlaneDestroy(OCCTClipPlaneRef plane);
+
+void OCCTClipPlaneSetEquation(OCCTClipPlaneRef plane, double a, double b, double c, double d);
+void OCCTClipPlaneGetEquation(OCCTClipPlaneRef plane, double* a, double* b, double* c, double* d);
+
+/// Get the reversed equation (for back-face clipping)
+void OCCTClipPlaneGetReversedEquation(OCCTClipPlaneRef plane, double* a, double* b, double* c, double* d);
+
+void OCCTClipPlaneSetOn(OCCTClipPlaneRef plane, bool on);
+bool OCCTClipPlaneIsOn(OCCTClipPlaneRef plane);
+
+void OCCTClipPlaneSetCapping(OCCTClipPlaneRef plane, bool on);
+bool OCCTClipPlaneIsCapping(OCCTClipPlaneRef plane);
+
+void OCCTClipPlaneSetCappingColor(OCCTClipPlaneRef plane, double r, double g, double b);
+void OCCTClipPlaneGetCappingColor(OCCTClipPlaneRef plane, double* r, double* g, double* b);
+
+/// Set capping hatch style (see Aspect_HatchStyle values)
+void OCCTClipPlaneSetCappingHatch(OCCTClipPlaneRef plane, int32_t style);
+int32_t OCCTClipPlaneGetCappingHatch(OCCTClipPlaneRef plane);
+void OCCTClipPlaneSetCappingHatchOn(OCCTClipPlaneRef plane, bool on);
+bool OCCTClipPlaneIsCappingHatchOn(OCCTClipPlaneRef plane);
+
+/// Probe a point against the clip plane chain. Returns: 0=Out, 1=In, 2=On
+int32_t OCCTClipPlaneProbePoint(OCCTClipPlaneRef plane, double x, double y, double z);
+
+/// Probe an axis-aligned bounding box against the clip plane chain. Returns: 0=Out, 1=In, 2=On
+int32_t OCCTClipPlaneProbeBox(OCCTClipPlaneRef plane,
+                               double xMin, double yMin, double zMin,
+                               double xMax, double yMax, double zMax);
+
+/// Chain another plane for logical AND clipping (conjunction)
+void OCCTClipPlaneSetChainNext(OCCTClipPlaneRef plane, OCCTClipPlaneRef next);
+/// Get the number of planes in the forward chain (including this one)
+int32_t OCCTClipPlaneChainLength(OCCTClipPlaneRef plane);
+
+// MARK: - Z-Layer Settings (Metal Visualization)
+
+typedef struct OCCTZLayerSettings* OCCTZLayerSettingsRef;
+
+OCCTZLayerSettingsRef OCCTZLayerSettingsCreate(void);
+void OCCTZLayerSettingsDestroy(OCCTZLayerSettingsRef settings);
+
+void OCCTZLayerSettingsSetName(OCCTZLayerSettingsRef settings, const char* name);
+
+void OCCTZLayerSettingsSetDepthTest(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetDepthTest(OCCTZLayerSettingsRef settings);
+void OCCTZLayerSettingsSetDepthWrite(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetDepthWrite(OCCTZLayerSettingsRef settings);
+void OCCTZLayerSettingsSetClearDepth(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetClearDepth(OCCTZLayerSettingsRef settings);
+
+/// Set polygon offset: mode (0=Off,1=Fill,2=Line,4=Point,7=All), factor, units
+void OCCTZLayerSettingsSetPolygonOffset(OCCTZLayerSettingsRef settings, int32_t mode, float factor, float units);
+void OCCTZLayerSettingsGetPolygonOffset(OCCTZLayerSettingsRef settings, int32_t* mode, float* factor, float* units);
+
+/// Convenience: set minimal positive depth offset (factor=1, units=1)
+void OCCTZLayerSettingsSetDepthOffsetPositive(OCCTZLayerSettingsRef settings);
+/// Convenience: set minimal negative depth offset (factor=1, units=-1)
+void OCCTZLayerSettingsSetDepthOffsetNegative(OCCTZLayerSettingsRef settings);
+
+void OCCTZLayerSettingsSetImmediate(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetImmediate(OCCTZLayerSettingsRef settings);
+void OCCTZLayerSettingsSetRaytracable(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetRaytracable(OCCTZLayerSettingsRef settings);
+
+void OCCTZLayerSettingsSetEnvironmentTexture(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetEnvironmentTexture(OCCTZLayerSettingsRef settings);
+
+void OCCTZLayerSettingsSetRenderInDepthPrepass(OCCTZLayerSettingsRef settings, bool on);
+bool OCCTZLayerSettingsGetRenderInDepthPrepass(OCCTZLayerSettingsRef settings);
+
+/// Set culling distance (set to negative or zero to disable)
+void OCCTZLayerSettingsSetCullingDistance(OCCTZLayerSettingsRef settings, double distance);
+double OCCTZLayerSettingsGetCullingDistance(OCCTZLayerSettingsRef settings);
+
+/// Set culling size (set to negative or zero to disable)
+void OCCTZLayerSettingsSetCullingSize(OCCTZLayerSettingsRef settings, double size);
+double OCCTZLayerSettingsGetCullingSize(OCCTZLayerSettingsRef settings);
+
+/// Set layer origin (for coordinate precision in large scenes)
+void OCCTZLayerSettingsSetOrigin(OCCTZLayerSettingsRef settings, double x, double y, double z);
+void OCCTZLayerSettingsGetOrigin(OCCTZLayerSettingsRef settings, double* x, double* y, double* z);
+
 // MARK: - Advanced Blends & Surface Filling (v0.14.0)
 
 /// Apply variable radius fillet to a specific edge

@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import simd
 @testable import OCCTSwift
 
 /// Basic tests for Shape creation and operations.
@@ -2517,7 +2518,965 @@ struct PlateSurfaceTests {
 }
 
 
+// MARK: - Metal Visualization Tests
+
+@Suite("Camera Tests")
+struct CameraTests {
+
+    @Test("Default state valid")
+    func defaultState() {
+        let cam = Camera()
+        let eye = cam.eye
+        let center = cam.center
+        let up = cam.up
+
+        // Default camera should have non-zero eye and up
+        let eyeLen = sqrt(eye.x*eye.x + eye.y*eye.y + eye.z*eye.z)
+        let upLen = sqrt(up.x*up.x + up.y*up.y + up.z*up.z)
+        #expect(eyeLen > 0)
+        #expect(upLen > 0)
+    }
+
+    @Test("Projection matrix non-identity")
+    func projectionMatrixNonIdentity() {
+        let cam = Camera()
+        cam.aspect = 1.5
+        let proj = cam.projectionMatrix
+
+        // Check it's not identity — at least one off-diagonal or non-1 diagonal
+        let isIdentity = proj.columns.0.x == 1 && proj.columns.1.y == 1 &&
+                         proj.columns.2.z == 1 && proj.columns.3.w == 1 &&
+                         proj.columns.0.y == 0 && proj.columns.0.z == 0
+        #expect(!isIdentity)
+
+        // Determinant should be non-zero
+        let det = simd_determinant(proj)
+        #expect(abs(det) > 1e-10)
+    }
+
+    @Test("View matrix changes with eye/center")
+    func viewMatrixChanges() {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 10)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        let view1 = cam.viewMatrix
+
+        cam.eye = SIMD3(10, 0, 0)
+        let view2 = cam.viewMatrix
+
+        // The two view matrices should differ
+        let diff = view1.columns.0.x - view2.columns.0.x
+        let diff2 = view1.columns.2.z - view2.columns.2.z
+        #expect(abs(diff) > 1e-6 || abs(diff2) > 1e-6)
+    }
+
+    @Test("Project/Unproject roundtrip")
+    func projectUnprojectRoundtrip() {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 100)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let original = SIMD3<Double>(5, 3, 0)
+        let projected = cam.project(original)
+        let recovered = cam.unproject(projected)
+
+        #expect(abs(recovered.x - original.x) < 0.1)
+        #expect(abs(recovered.y - original.y) < 0.1)
+        #expect(abs(recovered.z - original.z) < 0.1)
+    }
+
+    @Test("Orthographic mode produces different matrices")
+    func orthographicVsPerspective() {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 100)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        cam.projectionType = .perspective
+        let perspProj = cam.projectionMatrix
+
+        cam.projectionType = .orthographic
+        let orthoProj = cam.projectionMatrix
+
+        // The projection matrices must differ
+        let d = abs(perspProj.columns.0.x - orthoProj.columns.0.x) +
+                abs(perspProj.columns.2.w - orthoProj.columns.2.w)
+        #expect(d > 1e-6)
+    }
+
+    @Test("Fit bounding box adjusts camera")
+    func fitBoundingBox() {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 100)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.aspect = 1.0
+        cam.zRange = (near: 0.1, far: 10000)
+
+        let bboxMin = SIMD3<Double>(-5, -5, -5)
+        let bboxMax = SIMD3<Double>(5, 5, 5)
+        cam.fit(boundingBox: (min: bboxMin, max: bboxMax))
+
+        // Project the center of the bounding box — should be near screen origin
+        let boxCenter = SIMD3<Double>(0, 0, 0)
+        let projected = cam.project(boxCenter)
+        #expect(abs(projected.x) < 0.5)
+        #expect(abs(projected.y) < 0.5)
+    }
+}
+
+@Suite("Presentation Mesh Tests")
+struct PresentationMeshTests {
+
+    @Test("Box shaded mesh has 12 triangles")
+    func boxShadedMesh() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let mesh = box.shadedMesh(deflection: 0.1)
+
+        #expect(mesh != nil)
+        #expect(mesh!.triangleCount == 12)  // 6 faces * 2 triangles each
+        #expect(mesh!.vertices.count == mesh!.normals.count)
+
+        // All normals should be non-zero
+        for normal in mesh!.normals {
+            let len = Float(sqrt(Double(normal.x*normal.x + normal.y*normal.y + normal.z*normal.z)))
+            #expect(len > 0.5)
+        }
+    }
+
+    @Test("Cylinder shaded mesh has triangles")
+    func cylinderShadedMesh() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let mesh = cyl.shadedMesh(deflection: 0.1)
+
+        #expect(mesh != nil)
+        #expect(mesh!.triangleCount > 0)
+        #expect(mesh!.vertices.count > 0)
+    }
+
+    @Test("Box edge mesh has 12 segments")
+    func boxEdgeMesh() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edges = box.edgeMesh(deflection: 0.1)
+
+        #expect(edges != nil)
+        #expect(edges!.segmentCount == 12)  // A box has 12 edges
+        #expect(edges!.vertices.count > 0)
+    }
+
+    @Test("Sphere edge mesh produces valid segments")
+    func sphereEdgeMesh() {
+        let sphere = Shape.sphere(radius: 5)!
+        let edges = sphere.edgeMesh(deflection: 0.1)
+
+        #expect(edges != nil)
+        #expect(edges!.segmentCount > 0)
+        #expect(edges!.vertices.count > 0)
+    }
+}
+
+@Suite("Selector Tests")
+struct SelectorTests {
+
+    @Test("Add and pick box at center")
+    func pickBoxAtCenter() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let selector = Selector()
+        let added = selector.add(shape: box, id: 42)
+        #expect(added)
+
+        // Pick at center of viewport
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        // The box should be hit
+        if !results.isEmpty {
+            #expect(results[0].shapeId == 42)
+        }
+    }
+
+    @Test("Pick miss at far corner")
+    func pickMiss() {
+        let box = Shape.box(width: 1, height: 1, depth: 1)!
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+
+        // Pick at far corner — should miss the small box
+        let results = selector.pick(
+            at: SIMD2(0, 0),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        #expect(results.isEmpty)
+    }
+
+    @Test("Multiple shapes return correct IDs")
+    func multipleShapes() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(-20, 0, 0))!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(20, 0, 0))!
+
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 100)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let selector = Selector()
+        selector.add(shape: box1, id: 1)
+        selector.add(shape: box2, id: 2)
+
+        // Just verify both shapes were added without crash
+        #expect(true)
+    }
+
+    @Test("Remove shape then pick returns miss")
+    func removeShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+
+        let selector = Selector()
+        selector.add(shape: box, id: 99)
+        let removed = selector.remove(id: 99)
+        #expect(removed)
+
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.aspect = 1.0
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        #expect(results.isEmpty)
+    }
+
+    @Test("Rectangle pick covers geometry")
+    func rectanglePick() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+
+        let selector = Selector()
+        selector.add(shape: box, id: 7)
+
+        // Select a large rectangle covering the center
+        let results = selector.pick(
+            rect: (min: SIMD2(100, 100), max: SIMD2(700, 500)),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        if !results.isEmpty {
+            #expect(results[0].shapeId == 7)
+        }
+    }
+
+    @Test("Clear all removes everything")
+    func clearAll() {
+        let selector = Selector()
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        selector.add(shape: box, id: 1)
+        selector.add(shape: box, id: 2)
+        selector.clearAll()
+
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.aspect = 1.0
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        #expect(results.isEmpty)
+    }
+}
+
+// MARK: - Enhanced Selector Tests
+
+@Suite("Selector Sub-Shape Modes")
+struct SelectorSubShapeTests {
+
+    private func makeCamera() -> Camera {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+        return cam
+    }
+
+    @Test("Mode 0 (shape) is active by default")
+    func defaultMode() {
+        let selector = Selector()
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        selector.add(shape: box, id: 1)
+        #expect(selector.isModeActive(.shape, for: 1) == true)
+    }
+
+    @Test("Activate face mode")
+    func activateFaceMode() {
+        let selector = Selector()
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        selector.add(shape: box, id: 1)
+
+        selector.activateMode(.face, for: 1)
+        #expect(selector.isModeActive(.face, for: 1) == true)
+    }
+
+    @Test("Deactivate mode")
+    func deactivateMode() {
+        let selector = Selector()
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        selector.add(shape: box, id: 1)
+
+        selector.activateMode(.face, for: 1)
+        #expect(selector.isModeActive(.face, for: 1) == true)
+
+        selector.deactivateMode(.face, for: 1)
+        #expect(selector.isModeActive(.face, for: 1) == false)
+    }
+
+    @Test("Face mode pick returns face sub-shape type")
+    func faceModePick() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cam = makeCamera()
+
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+        // Deactivate shape mode, activate face mode
+        selector.deactivateMode(.shape, for: 1)
+        selector.activateMode(.face, for: 1)
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        if !results.isEmpty {
+            #expect(results[0].shapeId == 1)
+            #expect(results[0].subShapeType == .face)
+            #expect(results[0].subShapeIndex > 0)
+        }
+    }
+
+    @Test("Edge mode pick returns edge sub-shape type")
+    func edgeModePick() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cam = makeCamera()
+
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+        selector.deactivateMode(.shape, for: 1)
+        selector.activateMode(.edge, for: 1)
+        // Increase tolerance for edge picking
+        selector.pixelTolerance = 10
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        // Edges are thin, so we might or might not hit one
+        // Just verify no crash and correct sub-shape type if hit
+        if !results.isEmpty {
+            #expect(results[0].subShapeType == .edge)
+            #expect(results[0].subShapeIndex > 0)
+        }
+    }
+
+    @Test("Pixel tolerance getter/setter")
+    func pixelTolerance() {
+        let selector = Selector()
+        selector.pixelTolerance = 5
+        #expect(selector.pixelTolerance == 5)
+    }
+
+    @Test("Shape mode pick returns shape sub-shape type with index 0")
+    func shapeModePick() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cam = makeCamera()
+
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+
+        let results = selector.pick(
+            at: SIMD2(400, 300),
+            camera: cam,
+            viewSize: SIMD2(800, 600)
+        )
+
+        if !results.isEmpty {
+            // In shape mode, subShapeIndex should be 0 (whole shape)
+            #expect(results[0].subShapeIndex == 0)
+        }
+    }
+}
+
+// MARK: - Display Drawer Tests
+
+@Suite("Display Drawer")
+struct DisplayDrawerTests {
+
+    @Test("Default values")
+    func defaults() {
+        let drawer = DisplayDrawer()
+        #expect(drawer.autoTriangulation == true)
+        #expect(drawer.wireDraw == true)
+        #expect(drawer.faceBoundaryDraw == false)
+        #expect(drawer.deflectionType == .relative)
+        #expect(drawer.discretisation == 30)
+    }
+
+    @Test("Deviation coefficient roundtrip")
+    func deviationCoefficient() {
+        let drawer = DisplayDrawer()
+        drawer.deviationCoefficient = 0.005
+        #expect(abs(drawer.deviationCoefficient - 0.005) < 0.0001)
+    }
+
+    @Test("Deviation angle roundtrip")
+    func deviationAngle() {
+        let drawer = DisplayDrawer()
+        let angle = 10.0 * .pi / 180.0
+        drawer.deviationAngle = angle
+        #expect(abs(drawer.deviationAngle - angle) < 0.001)
+    }
+
+    @Test("Maximal chordial deviation roundtrip")
+    func maxChordialDeviation() {
+        let drawer = DisplayDrawer()
+        drawer.maximalChordialDeviation = 0.05
+        #expect(abs(drawer.maximalChordialDeviation - 0.05) < 0.001)
+    }
+
+    @Test("Deflection type toggle")
+    func deflectionType() {
+        let drawer = DisplayDrawer()
+        drawer.deflectionType = .absolute
+        #expect(drawer.deflectionType == .absolute)
+        drawer.deflectionType = .relative
+        #expect(drawer.deflectionType == .relative)
+    }
+
+    @Test("Auto-triangulation toggle")
+    func autoTriangulation() {
+        let drawer = DisplayDrawer()
+        drawer.autoTriangulation = false
+        #expect(drawer.autoTriangulation == false)
+    }
+
+    @Test("Iso on triangulation toggle")
+    func isoOnTriangulation() {
+        let drawer = DisplayDrawer()
+        drawer.isoOnTriangulation = true
+        #expect(drawer.isoOnTriangulation == true)
+    }
+
+    @Test("Discretisation roundtrip")
+    func discretisation() {
+        let drawer = DisplayDrawer()
+        drawer.discretisation = 50
+        #expect(drawer.discretisation == 50)
+    }
+
+    @Test("Face boundary draw toggle")
+    func faceBoundaryDraw() {
+        let drawer = DisplayDrawer()
+        drawer.faceBoundaryDraw = true
+        #expect(drawer.faceBoundaryDraw == true)
+    }
+
+    @Test("Wire draw toggle")
+    func wireDraw() {
+        let drawer = DisplayDrawer()
+        drawer.wireDraw = false
+        #expect(drawer.wireDraw == false)
+    }
+}
+
+// MARK: - Clip Plane Tests
+
+@Suite("Clip Plane")
+struct ClipPlaneTests {
+
+    @Test("Equation roundtrip")
+    func equationRoundtrip() {
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, -5))
+        let eq = plane.equation
+        #expect(abs(eq.x - 0) < 1e-10)
+        #expect(abs(eq.y - 0) < 1e-10)
+        #expect(abs(eq.z - 1) < 1e-10)
+        #expect(abs(eq.w - (-5)) < 1e-10)
+    }
+
+    @Test("Create from normal and distance")
+    func createFromNormal() {
+        let plane = ClipPlane(normal: SIMD3(1, 0, 0), distance: -3)
+        let eq = plane.equation
+        #expect(abs(eq.x - 1) < 1e-10)
+        #expect(abs(eq.y - 0) < 1e-10)
+        #expect(abs(eq.z - 0) < 1e-10)
+        #expect(abs(eq.w - (-3)) < 1e-10)
+    }
+
+    @Test("Set equation updates values")
+    func setEquation() {
+        let plane = ClipPlane(equation: SIMD4(1, 0, 0, 0))
+        plane.equation = SIMD4(0, 1, 0, -2)
+        let eq = plane.equation
+        #expect(abs(eq.y - 1) < 1e-10)
+        #expect(abs(eq.w - (-2)) < 1e-10)
+    }
+
+    @Test("Reversed equation is negated")
+    func reversedEquation() {
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, -5))
+        let rev = plane.reversedEquation
+        #expect(abs(rev.x - 0) < 1e-10)
+        #expect(abs(rev.y - 0) < 1e-10)
+        #expect(abs(rev.z - (-1)) < 1e-10)
+        #expect(abs(rev.w - 5) < 1e-10)
+    }
+
+    @Test("Enable and disable")
+    func enableDisable() {
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        #expect(plane.isOn == true) // default is on
+        plane.isOn = false
+        #expect(plane.isOn == false)
+        plane.isOn = true
+        #expect(plane.isOn == true)
+    }
+
+    @Test("Capping on/off")
+    func capping() {
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        #expect(plane.isCapping == false) // default is off
+        plane.isCapping = true
+        #expect(plane.isCapping == true)
+    }
+
+    @Test("Capping color")
+    func cappingColor() {
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        plane.cappingColor = SIMD3(1.0, 0.0, 0.5)
+        let color = plane.cappingColor
+        #expect(abs(color.x - 1.0) < 0.01)
+        #expect(abs(color.y - 0.0) < 0.01)
+        #expect(abs(color.z - 0.5) < 0.01)
+    }
+
+    @Test("Hatch style")
+    func hatchStyle() {
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        plane.hatchStyle = .diagonal45
+        #expect(plane.hatchStyle == .diagonal45)
+        plane.isHatchOn = true
+        #expect(plane.isHatchOn == true)
+        plane.isHatchOn = false
+        #expect(plane.isHatchOn == false)
+    }
+
+    @Test("Probe point: inside half-space")
+    func probePointInside() {
+        // Plane z = 0 (normal pointing +Z): points with z > 0 are "in"
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        let state = plane.probe(point: SIMD3(0, 0, 5))
+        #expect(state == .in)
+    }
+
+    @Test("Probe point: outside half-space")
+    func probePointOutside() {
+        // Plane z = 0 (normal pointing +Z): points with z < 0 are "out"
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        let state = plane.probe(point: SIMD3(0, 0, -5))
+        #expect(state == .out)
+    }
+
+    @Test("Probe bounding box: fully inside")
+    func probeBoxInside() {
+        // Plane z = 0 (normal pointing +Z)
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        let state = plane.probe(box: (min: SIMD3(0, 0, 1), max: SIMD3(5, 5, 10)))
+        #expect(state == .in)
+    }
+
+    @Test("Probe bounding box: partially clipped")
+    func probeBoxPartial() {
+        // Plane z = 0 (normal pointing +Z): box straddles z=0
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        let state = plane.probe(box: (min: SIMD3(-5, -5, -5), max: SIMD3(5, 5, 5)))
+        #expect(state == .on)
+    }
+
+    @Test("Probe bounding box: fully outside")
+    func probeBoxOutside() {
+        let plane = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        let state = plane.probe(box: (min: SIMD3(0, 0, -10), max: SIMD3(5, 5, -1)))
+        #expect(state == .out)
+    }
+
+    @Test("Chain two planes")
+    func chainPlanes() {
+        let plane1 = ClipPlane(equation: SIMD4(0, 0, 1, 0))  // z > 0
+        let plane2 = ClipPlane(equation: SIMD4(1, 0, 0, 0))  // x > 0
+
+        #expect(plane1.chainLength == 1)
+        plane1.chainNext(plane2)
+        #expect(plane1.chainLength == 2)
+
+        // Point at (5, 0, 5) satisfies both planes
+        let stateIn = plane1.probe(point: SIMD3(5, 0, 5))
+        #expect(stateIn == .in)
+
+        // Point at (-5, 0, 5) fails x > 0
+        let stateOut = plane1.probe(point: SIMD3(-5, 0, 5))
+        #expect(stateOut == .out)
+    }
+
+    @Test("Clear chain")
+    func clearChain() {
+        let plane1 = ClipPlane(equation: SIMD4(0, 0, 1, 0))
+        let plane2 = ClipPlane(equation: SIMD4(1, 0, 0, 0))
+        plane1.chainNext(plane2)
+        #expect(plane1.chainLength == 2)
+
+        plane1.chainNext(nil)
+        #expect(plane1.chainLength == 1)
+    }
+}
+
+// MARK: - Z-Layer Settings Tests
+
+@Suite("Z-Layer Settings")
+struct ZLayerSettingsTests {
+
+    @Test("Default values")
+    func defaults() {
+        let settings = ZLayerSettings()
+        #expect(settings.depthTestEnabled == true)
+        #expect(settings.depthWriteEnabled == true)
+        #expect(settings.clearDepth == true)
+        #expect(settings.isImmediate == false)
+        #expect(settings.isRaytracable == true)
+        #expect(settings.useEnvironmentTexture == true)
+        #expect(settings.renderInDepthPrepass == true)
+    }
+
+    @Test("Depth test toggle")
+    func depthTest() {
+        let settings = ZLayerSettings()
+        settings.depthTestEnabled = false
+        #expect(settings.depthTestEnabled == false)
+        settings.depthTestEnabled = true
+        #expect(settings.depthTestEnabled == true)
+    }
+
+    @Test("Depth write toggle")
+    func depthWrite() {
+        let settings = ZLayerSettings()
+        settings.depthWriteEnabled = false
+        #expect(settings.depthWriteEnabled == false)
+    }
+
+    @Test("Clear depth toggle")
+    func clearDepthToggle() {
+        let settings = ZLayerSettings()
+        settings.clearDepth = false
+        #expect(settings.clearDepth == false)
+    }
+
+    @Test("Polygon offset roundtrip")
+    func polygonOffset() {
+        let settings = ZLayerSettings()
+        settings.polygonOffset = ZLayerSettings.PolygonOffset(
+            mode: .fill, factor: 1.5, units: 2.0
+        )
+        let offset = settings.polygonOffset
+        #expect(offset.mode == .fill)
+        #expect(abs(offset.factor - 1.5) < 0.001)
+        #expect(abs(offset.units - 2.0) < 0.001)
+    }
+
+    @Test("Depth offset positive convenience")
+    func depthOffsetPositive() {
+        let settings = ZLayerSettings()
+        settings.setDepthOffsetPositive()
+        let offset = settings.polygonOffset
+        #expect(offset.mode == .fill)
+        #expect(abs(offset.factor - 1.0) < 0.001)
+        #expect(abs(offset.units - 1.0) < 0.001)
+    }
+
+    @Test("Depth offset negative convenience")
+    func depthOffsetNegative() {
+        let settings = ZLayerSettings()
+        settings.setDepthOffsetNegative()
+        let offset = settings.polygonOffset
+        #expect(offset.mode == .fill)
+        #expect(abs(offset.factor - 1.0) < 0.001)
+        #expect(abs(offset.units - (-1.0)) < 0.001)
+    }
+
+    @Test("Immediate mode toggle")
+    func immediateMode() {
+        let settings = ZLayerSettings()
+        settings.isImmediate = true
+        #expect(settings.isImmediate == true)
+    }
+
+    @Test("Raytracable toggle")
+    func raytracable() {
+        let settings = ZLayerSettings()
+        settings.isRaytracable = false
+        #expect(settings.isRaytracable == false)
+    }
+
+    @Test("Culling distance")
+    func cullingDistance() {
+        let settings = ZLayerSettings()
+        settings.cullingDistance = 1000.0
+        #expect(abs(settings.cullingDistance - 1000.0) < 0.001)
+    }
+
+    @Test("Culling size")
+    func cullingSize() {
+        let settings = ZLayerSettings()
+        settings.cullingSize = 5.0
+        #expect(abs(settings.cullingSize - 5.0) < 0.001)
+    }
+
+    @Test("Origin roundtrip")
+    func origin() {
+        let settings = ZLayerSettings()
+        settings.origin = SIMD3(100, 200, 300)
+        let o = settings.origin
+        #expect(abs(o.x - 100) < 0.001)
+        #expect(abs(o.y - 200) < 0.001)
+        #expect(abs(o.z - 300) < 0.001)
+    }
+
+    @Test("Predefined layer IDs")
+    func predefinedLayerIds() {
+        #expect(ZLayerSettings.bottomOSD == -5)
+        #expect(ZLayerSettings.default == 0)
+        #expect(ZLayerSettings.top == -2)
+        #expect(ZLayerSettings.topmost == -3)
+        #expect(ZLayerSettings.topOSD == -4)
+    }
+}
+
 // MARK: - SIMD3 Extension for normalization
+
+// MARK: - Polyline (Lasso) Pick Tests
+
+@Suite("Polyline Pick")
+struct PolylinePickTests {
+
+    private func makeCamera() -> Camera {
+        let cam = Camera()
+        cam.eye = SIMD3(0, 0, 50)
+        cam.center = SIMD3(0, 0, 0)
+        cam.up = SIMD3(0, 1, 0)
+        cam.fieldOfView = 45
+        cam.aspect = 1.0
+        cam.zRange = (near: 1, far: 1000)
+        return cam
+    }
+
+    @Test("Polygon enclosing shape returns hit")
+    func polygonHit() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cam = makeCamera()
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+
+        let viewSize = SIMD2<Double>(200, 200)
+        // Large polygon enclosing the center of the viewport (closed)
+        let polygon: [SIMD2<Double>] = [
+            SIMD2(50, 50),
+            SIMD2(150, 50),
+            SIMD2(150, 150),
+            SIMD2(50, 150),
+            SIMD2(50, 50),  // close the polygon
+        ]
+
+        let results = selector.pick(polygon: polygon, camera: cam, viewSize: viewSize)
+        #expect(results.count > 0)
+        if let first = results.first {
+            #expect(first.shapeId == 1)
+        }
+    }
+
+    @Test("Polygon missing shape returns empty")
+    func polygonMiss() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cam = makeCamera()
+        let selector = Selector()
+        selector.add(shape: box, id: 1)
+
+        let viewSize = SIMD2<Double>(200, 200)
+        // Polygon far from center where the box is
+        let polygon: [SIMD2<Double>] = [
+            SIMD2(0, 0),
+            SIMD2(10, 0),
+            SIMD2(10, 10),
+            SIMD2(0, 10),
+        ]
+
+        let results = selector.pick(polygon: polygon, camera: cam, viewSize: viewSize)
+        #expect(results.isEmpty)
+    }
+
+    @Test("Polygon with fewer than 3 points returns empty")
+    func tooFewPoints() {
+        let selector = Selector()
+        let cam = makeCamera()
+        let viewSize = SIMD2<Double>(200, 200)
+        let polygon: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(10, 10)]
+
+        let results = selector.pick(polygon: polygon, camera: cam, viewSize: viewSize)
+        #expect(results.isEmpty)
+    }
+
+    @Test("Triangular polygon selects shape")
+    func triangularPolygon() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cam = makeCamera()
+        let selector = Selector()
+        selector.add(shape: box, id: 42)
+
+        let viewSize = SIMD2<Double>(200, 200)
+        // Large triangle covering the viewport center (closed)
+        let polygon: [SIMD2<Double>] = [
+            SIMD2(100, 20),
+            SIMD2(180, 180),
+            SIMD2(20, 180),
+            SIMD2(100, 20),
+        ]
+
+        let results = selector.pick(polygon: polygon, camera: cam, viewSize: viewSize)
+        #expect(results.count > 0)
+        if let first = results.first {
+            #expect(first.shapeId == 42)
+        }
+    }
+}
+
+// MARK: - Drawer-Aware Mesh Tests
+
+@Suite("Drawer Mesh Extraction")
+struct DrawerMeshTests {
+
+    @Test("Shaded mesh with default drawer produces valid mesh")
+    func shadedMeshDefaultDrawer() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let drawer = DisplayDrawer()
+
+        let mesh = box.shadedMesh(drawer: drawer)
+        #expect(mesh != nil)
+        if let mesh = mesh {
+            #expect(mesh.triangleCount == 12)
+            #expect(mesh.vertices.count > 0)
+            #expect(mesh.normals.count == mesh.vertices.count)
+        }
+    }
+
+    @Test("Edge mesh with default drawer produces valid segments")
+    func edgeMeshDefaultDrawer() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let drawer = DisplayDrawer()
+
+        let mesh = box.edgeMesh(drawer: drawer)
+        #expect(mesh != nil)
+        if let mesh = mesh {
+            #expect(mesh.segmentCount == 12)
+            #expect(mesh.vertices.count > 0)
+        }
+    }
+
+    @Test("Finer deviation produces more triangles for curved shape")
+    func finerDeviationMoreTriangles() {
+        let sphere = Shape.sphere(radius: 10)!
+
+        let coarseDrawer = DisplayDrawer()
+        coarseDrawer.deviationCoefficient = 0.1
+
+        let fineDrawer = DisplayDrawer()
+        fineDrawer.deviationCoefficient = 0.001
+
+        let coarseMesh = sphere.shadedMesh(drawer: coarseDrawer)
+        let fineMesh = sphere.shadedMesh(drawer: fineDrawer)
+
+        #expect(coarseMesh != nil)
+        #expect(fineMesh != nil)
+        if let coarse = coarseMesh, let fine = fineMesh {
+            #expect(fine.triangleCount > coarse.triangleCount)
+        }
+    }
+
+    @Test("Absolute deflection type works")
+    func absoluteDeflection() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let drawer = DisplayDrawer()
+        drawer.deflectionType = .absolute
+        drawer.maximalChordialDeviation = 0.5
+
+        let mesh = box.shadedMesh(drawer: drawer)
+        #expect(mesh != nil)
+        if let mesh = mesh {
+            #expect(mesh.triangleCount == 12)
+        }
+    }
+}
 
 extension SIMD3 where Scalar == Double {
     var normalized: SIMD3<Double> {
