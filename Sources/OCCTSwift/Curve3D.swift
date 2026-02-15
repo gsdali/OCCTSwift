@@ -235,19 +235,19 @@ public final class Curve3D: @unchecked Sendable {
 
     // MARK: - BSpline Queries
 
-    /// Number of poles (control points) for BSpline/Bezier curves
-    public var poleCount: Int {
-        Int(OCCTCurve3DGetPoleCount(handle))
+    /// Number of poles (control points), or `nil` if not a BSpline/Bezier.
+    public var poleCount: Int? {
+        let n = Int(OCCTCurve3DGetPoleCount(handle))
+        return n > 0 ? n : nil
     }
 
     /// Get poles (control points) for BSpline/Bezier curves
     public var poles: [SIMD3<Double>]? {
-        let n = poleCount
-        guard n > 0 else { return nil }
+        guard let n = poleCount else { return nil }
         var buffer = [Double](repeating: 0, count: n * 3)
         let actual = Int(OCCTCurve3DGetPoles(handle, &buffer))
         guard actual > 0 else { return nil }
-        return (0..<actual).map { SIMD3(buffer[$0*3], buffer[$0*3+1], buffer[$0*3+2]) }
+        return (0..<actual).map { i in SIMD3(buffer[i*3], buffer[i*3+1], buffer[i*3+2]) }
     }
 
     /// Degree of BSpline/Bezier curve (-1 if not applicable)

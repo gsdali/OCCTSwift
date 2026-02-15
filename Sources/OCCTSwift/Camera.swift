@@ -7,13 +7,17 @@ import OCCTBridge
 /// Provides projection/view matrices in Metal-compatible format (column-major,
 /// zero-to-one depth range) and project/unproject utilities for coordinate conversion.
 public final class Camera: @unchecked Sendable {
-    let handle: OCCTCameraRef
+    internal let handle: OCCTCameraRef
 
+    /// Camera projection mode.
     public enum ProjectionType: Int32, Sendable {
+        /// Perspective projection (objects farther away appear smaller).
         case perspective = 0
+        /// Orthographic projection (no perspective foreshortening).
         case orthographic = 1
     }
 
+    /// Create a new camera with default settings.
     public init() {
         handle = OCCTCameraCreate()
     }
@@ -24,6 +28,7 @@ public final class Camera: @unchecked Sendable {
 
     // MARK: - Position
 
+    /// Camera eye (observer) position in world coordinates.
     public var eye: SIMD3<Double> {
         get {
             var x = 0.0, y = 0.0, z = 0.0
@@ -35,6 +40,7 @@ public final class Camera: @unchecked Sendable {
         }
     }
 
+    /// Camera look-at target in world coordinates.
     public var center: SIMD3<Double> {
         get {
             var x = 0.0, y = 0.0, z = 0.0
@@ -46,6 +52,7 @@ public final class Camera: @unchecked Sendable {
         }
     }
 
+    /// Camera up direction vector.
     public var up: SIMD3<Double> {
         get {
             var x = 0.0, y = 0.0, z = 0.0
@@ -59,6 +66,7 @@ public final class Camera: @unchecked Sendable {
 
     // MARK: - Projection Parameters
 
+    /// Projection type (perspective or orthographic).
     public var projectionType: ProjectionType {
         get {
             ProjectionType(rawValue: Int32(OCCTCameraGetProjectionType(handle))) ?? .perspective
@@ -68,16 +76,19 @@ public final class Camera: @unchecked Sendable {
         }
     }
 
+    /// Vertical field of view in degrees (perspective mode).
     public var fieldOfView: Double {
         get { OCCTCameraGetFOV(handle) }
         set { OCCTCameraSetFOV(handle, newValue) }
     }
 
+    /// Camera scale factor (orthographic mode).
     public var scale: Double {
         get { OCCTCameraGetScale(handle) }
         set { OCCTCameraSetScale(handle, newValue) }
     }
 
+    /// Near and far clipping plane distances.
     public var zRange: (near: Double, far: Double) {
         get {
             var zNear = 0.0, zFar = 0.0
@@ -89,13 +100,15 @@ public final class Camera: @unchecked Sendable {
         }
     }
 
+    /// Aspect ratio (width / height).
     public var aspect: Double {
-        get { 1.0 } // Write-only in OCCT; getter not exposed
+        get { OCCTCameraGetAspect(handle) }
         set { OCCTCameraSetAspect(handle, newValue) }
     }
 
     // MARK: - Matrices (Metal-compatible, column-major, [0,1] depth)
 
+    /// Projection matrix as column-major simd_float4x4 with Metal [0,1] depth range.
     public var projectionMatrix: simd_float4x4 {
         var data = [Float](repeating: 0, count: 16)
         OCCTCameraGetProjectionMatrix(handle, &data)
@@ -107,6 +120,7 @@ public final class Camera: @unchecked Sendable {
         )
     }
 
+    /// View (camera) matrix as column-major simd_float4x4.
     public var viewMatrix: simd_float4x4 {
         var data = [Float](repeating: 0, count: 16)
         OCCTCameraGetViewMatrix(handle, &data)

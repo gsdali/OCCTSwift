@@ -74,7 +74,7 @@ public struct MedialAxisArc: Sendable {
 /// }
 /// ```
 public final class MedialAxis: @unchecked Sendable {
-    let handle: OCCTMedialAxisRef
+    internal let handle: OCCTMedialAxisRef
 
     /// Compute the medial axis of a planar face.
     ///

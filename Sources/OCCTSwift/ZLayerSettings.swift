@@ -11,7 +11,7 @@ import OCCTBridge
 /// - `setDepthBias()` on `MTLRenderCommandEncoder` (polygon offset)
 /// - Render pass ordering (layer priority)
 public final class ZLayerSettings: @unchecked Sendable {
-    let handle: OCCTZLayerSettingsRef
+    internal let handle: OCCTZLayerSettingsRef
 
     // MARK: - Predefined Layer IDs
 

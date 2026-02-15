@@ -206,10 +206,10 @@ public final class TextLabel: @unchecked Sendable {
         get {
             var info = OCCTTextLabelInfo()
             guard OCCTTextLabelGetInfo(handle, &info) else { return "" }
-            return withUnsafePointer(to: &info.text) { ptr in
-                ptr.withMemoryRebound(to: CChar.self, capacity: 256) { charPtr in
-                    String(cString: charPtr)
-                }
+            return withUnsafeBytes(of: &info.text) { rawBuffer in
+                guard let baseAddress = rawBuffer.baseAddress else { return "" }
+                let charPtr = baseAddress.assumingMemoryBound(to: CChar.self)
+                return String(cString: charPtr)
             }
         }
         set { OCCTTextLabelSetText(handle, newValue) }

@@ -287,6 +287,7 @@ void OCCTMeshGetIndices(OCCTMeshRef mesh, uint32_t* outIndices);
 // MARK: - Export
 
 bool OCCTExportSTL(OCCTShapeRef shape, const char* path, double deflection);
+bool OCCTExportSTLWithMode(OCCTShapeRef shape, const char* path, double deflection, bool ascii);
 bool OCCTExportSTEP(OCCTShapeRef shape, const char* path);
 bool OCCTExportSTEPWithName(OCCTShapeRef shape, const char* path, const char* name);
 
@@ -1152,6 +1153,7 @@ double OCCTCameraGetScale(OCCTCameraRef cam);
 void OCCTCameraSetZRange(OCCTCameraRef cam, double zNear, double zFar);
 void OCCTCameraGetZRange(OCCTCameraRef cam, double* zNear, double* zFar);
 void OCCTCameraSetAspect(OCCTCameraRef cam, double aspect);
+double OCCTCameraGetAspect(OCCTCameraRef cam);
 
 void OCCTCameraGetProjectionMatrix(OCCTCameraRef cam, float* out16);
 void OCCTCameraGetViewMatrix(OCCTCameraRef cam, float* out16);

@@ -137,7 +137,7 @@ public final class Document: @unchecked Sendable {
 /// - Children (for assemblies)
 /// - Shape (for parts)
 public final class AssemblyNode: @unchecked Sendable {
-    private let document: Document
+    unowned let document: Document
     internal let labelId: Int64
 
     internal init(document: Document, labelId: Int64) {
@@ -328,10 +328,10 @@ extension Document {
     public func datum(at index: Int) -> DatumInfo? {
         var info = OCCTDocumentGetDatumInfo(handle, Int32(index))
         guard info.isValid else { return nil }
-        let name = withUnsafePointer(to: &info.name) { ptr in
-            ptr.withMemoryRebound(to: CChar.self, capacity: 64) { charPtr in
-                String(cString: charPtr)
-            }
+        let name = withUnsafeBytes(of: &info.name) { rawBuffer in
+            guard let baseAddress = rawBuffer.baseAddress else { return "" }
+            let charPtr = baseAddress.assumingMemoryBound(to: CChar.self)
+            return String(cString: charPtr)
         }
         return DatumInfo(name: name)
     }

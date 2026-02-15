@@ -10,7 +10,7 @@ import OCCTBridge
 /// For Metal rendering, the equation maps directly to `[[clip_distance]]` in the
 /// vertex shader. Apple Silicon supports up to 8 hardware-accelerated clip distances.
 public final class ClipPlane: @unchecked Sendable {
-    let handle: OCCTClipPlaneRef
+    internal let handle: OCCTClipPlaneRef
 
     /// Result of probing a point or bounding box against the clip plane.
     public enum ClipState: Int32, Sendable {

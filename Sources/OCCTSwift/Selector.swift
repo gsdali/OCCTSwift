@@ -9,7 +9,7 @@ import OCCTBridge
 /// Supports sub-shape selection modes for picking individual faces,
 /// edges, or vertices within a shape.
 public final class Selector: @unchecked Sendable {
-    let handle: OCCTSelectorRef
+    internal let handle: OCCTSelectorRef
 
     /// Selection modes controlling what level of sub-shape is selectable.
     ///

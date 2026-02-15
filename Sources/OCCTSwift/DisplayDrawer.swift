@@ -7,7 +7,7 @@ import OCCTBridge
 /// and displayed. In a Metal renderer, these settings affect mesh generation
 /// quality and which edge types are extracted.
 public final class DisplayDrawer: @unchecked Sendable {
-    let handle: OCCTDrawerRef
+    internal let handle: OCCTDrawerRef
 
     /// Type of deflection control for tessellation.
     public enum DeflectionType: Int32, Sendable {

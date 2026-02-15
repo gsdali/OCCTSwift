@@ -96,7 +96,7 @@ public enum Exporter {
             throw ExportError.invalidPath
         }
 
-        let success = OCCTExportSTL(shape.handle, path, deflection)
+        let success = OCCTExportSTLWithMode(shape.handle, path, deflection, ascii)
         if !success {
             throw ExportError.exportFailed("STL export to \(url.lastPathComponent) failed")
         }
