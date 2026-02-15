@@ -329,7 +329,10 @@ public final class Shape: @unchecked Sendable {
         deflection: Double = 0.1,
         maxPointsPerEdge: Int = 1000
     ) -> [[SIMD3<Double>]] {
-        // Get edge count directly from C API
+        // Build 3D curves for all edges upfront. Lofted/swept shapes may only
+        // have pcurves; this ensures explicit 3D curves exist before discretization.
+        OCCTShapeBuildCurves3d(handle)
+
         let count = Int(OCCTShapeGetTotalEdgeCount(handle))
         var result: [[SIMD3<Double>]] = []
         result.reserveCapacity(count)

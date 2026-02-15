@@ -77,6 +77,8 @@
 #include <BRepOffsetAPI_MakeOffset.hxx>
 #include <TopTools_ListOfShape.hxx>
 #include <TopTools_HSequenceOfShape.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include <TopTools_ListIteratorOfListOfShape.hxx>
 #include <ShapeAnalysis_FreeBounds.hxx>
 #include <GeomAbs_JoinType.hxx>
 
@@ -1180,6 +1182,13 @@ OCCTMeshRef OCCTShapeCreateMeshWithParams(OCCTShapeRef shape, OCCTMeshParameters
 
 // MARK: - Edge Discretization
 
+void OCCTShapeBuildCurves3d(OCCTShapeRef shape) {
+    if (!shape) return;
+    try {
+        BRepLib::BuildCurves3d(shape->shape);
+    } catch (...) {}
+}
+
 int32_t OCCTShapeGetEdgePolyline(OCCTShapeRef shape, int32_t edgeIndex, double deflection, double* outPoints, int32_t maxPoints) {
     if (!shape || !outPoints || maxPoints < 2 || edgeIndex < 0) return -1;
 
@@ -1192,26 +1201,61 @@ int32_t OCCTShapeGetEdgePolyline(OCCTShapeRef shape, int32_t edgeIndex, double d
 
         TopoDS_Edge edge = TopoDS::Edge(edgeMap(edgeIndex + 1));  // OCCT is 1-based
 
-        // Ensure 3D curve exists (lofted shapes may only have pcurves)
-        BRepLib::BuildCurves3d(edge);
+        // Skip degenerate edges (zero-length, e.g. poles of spheres)
+        if (BRep_Tool::Degenerated(edge)) return -1;
 
-        // Use BRepAdaptor_Curve for edge geometry
-        BRepAdaptor_Curve curve(edge);
+        // Try primary path: BRepAdaptor_Curve + TangentialDeflection
+        try {
+            BRepAdaptor_Curve curve(edge);
+            GCPnts_TangentialDeflection discretizer(curve, deflection, 0.1);
 
-        // Use GCPnts_TangentialDeflection for adaptive discretization
-        GCPnts_TangentialDeflection discretizer(curve, deflection, 0.1);  // deflection, angular
-
-        if (discretizer.NbPoints() < 2) return -1;
-
-        int32_t numPoints = std::min(discretizer.NbPoints(), maxPoints);
-        for (int32_t i = 0; i < numPoints; i++) {
-            gp_Pnt pt = discretizer.Value(i + 1);  // 1-indexed
-            outPoints[i * 3 + 0] = pt.X();
-            outPoints[i * 3 + 1] = pt.Y();
-            outPoints[i * 3 + 2] = pt.Z();
+            if (discretizer.NbPoints() >= 2) {
+                int32_t numPoints = std::min(discretizer.NbPoints(), maxPoints);
+                for (int32_t i = 0; i < numPoints; i++) {
+                    gp_Pnt pt = discretizer.Value(i + 1);
+                    outPoints[i * 3 + 0] = pt.X();
+                    outPoints[i * 3 + 1] = pt.Y();
+                    outPoints[i * 3 + 2] = pt.Z();
+                }
+                return numPoints;
+            }
+        } catch (...) {
+            // BRepAdaptor_Curve failed — fall through to pcurve fallback
         }
 
-        return numPoints;
+        // Fallback: evaluate pcurve on parent surface
+        // Find a face that owns this edge and use its pcurve + surface
+        TopTools_IndexedDataMapOfShapeListOfShape edgeFaceMap;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_EDGE, TopAbs_FACE, edgeFaceMap);
+
+        int32_t mapIndex = edgeFaceMap.FindIndex(edge);
+        if (mapIndex > 0) {
+            const TopTools_ListOfShape& faces = edgeFaceMap(mapIndex);
+            if (!faces.IsEmpty()) {
+                TopoDS_Face face = TopoDS::Face(faces.First());
+                Standard_Real first, last;
+                Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(edge, face, first, last);
+                if (!pcurve.IsNull()) {
+                    Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+                    if (!surface.IsNull()) {
+                        int32_t numPoints = std::min(maxPoints, (int32_t)50);
+                        if (numPoints < 2) numPoints = 2;
+                        for (int32_t i = 0; i < numPoints; i++) {
+                            double t = (numPoints == 1) ? first : first + (last - first) * i / (numPoints - 1);
+                            gp_Pnt2d uv = pcurve->Value(t);
+                            gp_Pnt pt;
+                            surface->D0(uv.X(), uv.Y(), pt);
+                            outPoints[i * 3 + 0] = pt.X();
+                            outPoints[i * 3 + 1] = pt.Y();
+                            outPoints[i * 3 + 2] = pt.Z();
+                        }
+                        return numPoints;
+                    }
+                }
+            }
+        }
+
+        return -1;
     } catch (...) {
         return -1;
     }

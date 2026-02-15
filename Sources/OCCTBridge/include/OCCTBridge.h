@@ -169,6 +169,11 @@ OCCTMeshParameters OCCTMeshParametersDefault(void);
 
 // MARK: - Edge Discretization
 
+/// Ensure all edges in a shape have explicit 3D curves.
+/// Call before allEdgePolylines on lofted/swept shapes where edges may only have pcurves.
+/// Safe to call multiple times — only builds missing curves.
+void OCCTShapeBuildCurves3d(OCCTShapeRef shape);
+
 /// Get discretized edge as polyline points
 /// @param shape The shape containing edges
 /// @param edgeIndex Index of the edge (0-based)
