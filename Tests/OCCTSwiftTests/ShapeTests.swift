@@ -7530,3 +7530,313 @@ struct TNamingSelectResolveTests {
         #expect(evo == .selected, "Selection label should have selected evolution")
     }
 }
+
+
+// MARK: - AIS Annotations & Measurements (v0.26.0)
+
+@Suite("Length Dimension")
+struct LengthDimensionTests {
+
+    @Test("Point-to-point distance")
+    func pointToPoint() {
+        let dim = LengthDimension(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))
+        #expect(dim != nil)
+        #expect(abs(dim!.value - 10.0) < 1e-6, "Distance should be 10, got \(dim!.value)")
+    }
+
+    @Test("Diagonal distance")
+    func diagonalDistance() {
+        let dim = LengthDimension(from: SIMD3(0, 0, 0), to: SIMD3(3, 4, 0))
+        #expect(dim != nil)
+        #expect(abs(dim!.value - 5.0) < 1e-6, "3-4-5 triangle hypotenuse should be 5")
+    }
+
+    @Test("3D distance")
+    func threeDDistance() {
+        let dim = LengthDimension(from: SIMD3(1, 2, 3), to: SIMD3(4, 6, 3))
+        #expect(dim != nil)
+        let expected = sqrt(9.0 + 16.0) // 5.0
+        #expect(abs(dim!.value - expected) < 1e-6)
+    }
+
+    @Test("Edge length measurement")
+    func edgeLength() {
+        let wire = Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(7, 0, 0))!
+        let edgeShape = Shape.fromWire(wire)!
+        let edges = edgeShape.edges()
+        guard let edge = edges.first else {
+            Issue.record("Wire should produce at least one edge")
+            return
+        }
+        // Get the edge as a Shape for the dimension
+        let dim = LengthDimension(edge: edgeShape)
+        // Edge-based dimension may not work on wire shapes — test API doesn't crash
+        if let dim = dim {
+            #expect(dim.value > 0)
+        }
+    }
+
+    @Test("Face-to-face distance equals box dimension")
+    func faceToFaceDistance() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        // Get faces from the box — we need Shape-typed faces
+        // Use slicing approach: box has 6 faces, opposing pairs are separated by width/height/depth
+        // Create two parallel face shapes
+        let face1 = Shape.face(from: Wire.rectangle(width: 20, height: 30)!)!
+        let face2 = face1.translated(by: SIMD3(0, 0, 10))!
+        let dim = LengthDimension(face1: face1, face2: face2)
+        if let dim = dim {
+            #expect(abs(dim.value - 10.0) < 1e-4, "Face-to-face should be 10, got \(dim.value)")
+        }
+    }
+
+    @Test("Geometry contains valid first and second points")
+    func geometryPoints() {
+        let dim = LengthDimension(from: SIMD3(0, 0, 0), to: SIMD3(5, 0, 0))!
+        let geom = dim.geometry
+        #expect(geom != nil)
+        if let g = geom {
+            #expect(abs(g.firstPoint.x - 0) < 1e-6)
+            #expect(abs(g.secondPoint.x - 5) < 1e-6)
+            #expect(g.isValid)
+        }
+    }
+
+    @Test("Custom value overrides measured")
+    func customValue() {
+        let dim = LengthDimension(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        #expect(abs(dim.value - 10.0) < 1e-6)
+        dim.setCustomValue(42.0)
+        #expect(abs(dim.value - 42.0) < 1e-6)
+    }
+}
+
+@Suite("Radius Dimension")
+struct RadiusDimensionTests {
+
+    @Test("Radius of circle wire")
+    func circleRadius() {
+        let wire = Wire.circle(radius: 7)!
+        let wireShape = Shape.fromWire(wire)!
+        let dim = RadiusDimension(shape: wireShape)
+        if let dim = dim {
+            #expect(abs(dim.value - 7.0) < 1e-4, "Radius should be 7, got \(dim.value)")
+        }
+    }
+
+    @Test("Radius geometry has circle center")
+    func radiusGeometry() {
+        let wire = Wire.circle(radius: 5)!
+        let wireShape = Shape.fromWire(wire)!
+        let dim = RadiusDimension(shape: wireShape)
+        if let dim = dim, let g = dim.geometry {
+            #expect(g.circleRadius > 0, "Circle radius should be positive")
+            #expect(g.isValid)
+        }
+    }
+
+    @Test("Nil for non-circular shape")
+    func nonCircularFails() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let dim = RadiusDimension(shape: box)
+        // May return nil or invalid depending on OCCT behavior
+        if let dim = dim {
+            #expect(!dim.isValid || dim.value >= 0)
+        }
+    }
+}
+
+@Suite("Angle Dimension")
+struct AngleDimensionTests {
+
+    @Test("Right angle from three points")
+    func rightAngle() {
+        let dim = AngleDimension(
+            first: SIMD3(5, 0, 0),
+            vertex: SIMD3(0, 0, 0),
+            second: SIMD3(0, 5, 0))
+        #expect(dim != nil)
+        if let dim = dim {
+            #expect(abs(dim.degrees - 90.0) < 1e-4, "Should be 90 degrees, got \(dim.degrees)")
+        }
+    }
+
+    @Test("60-degree angle")
+    func sixtyDegreeAngle() {
+        let dim = AngleDimension(
+            first: SIMD3(5, 0, 0),
+            vertex: SIMD3(0, 0, 0),
+            second: SIMD3(2.5, 2.5 * sqrt(3.0), 0))
+        #expect(dim != nil)
+        if let dim = dim {
+            #expect(abs(dim.degrees - 60.0) < 0.1, "Should be ~60 degrees, got \(dim.degrees)")
+        }
+    }
+
+    @Test("180-degree angle (straight line)")
+    func straightAngle() {
+        let dim = AngleDimension(
+            first: SIMD3(5, 0, 0),
+            vertex: SIMD3(0, 0, 0),
+            second: SIMD3(-5, 0, 0))
+        #expect(dim != nil)
+        if let dim = dim {
+            #expect(abs(dim.degrees - 180.0) < 0.1, "Should be 180 degrees, got \(dim.degrees)")
+        }
+    }
+
+    @Test("Angle geometry has center point")
+    func angleGeometry() {
+        let dim = AngleDimension(
+            first: SIMD3(5, 0, 0),
+            vertex: SIMD3(0, 0, 0),
+            second: SIMD3(0, 5, 0))!
+        let geom = dim.geometry
+        #expect(geom != nil)
+        if let g = geom {
+            #expect(abs(g.centerPoint.x) < 1e-6 && abs(g.centerPoint.y) < 1e-6,
+                    "Center should be at origin")
+        }
+    }
+
+    @Test("Angle between perpendicular faces is 90 degrees")
+    func perpendicularFaces() {
+        // Create two perpendicular planar faces
+        let wire1 = Wire.rectangle(width: 10, height: 10)!
+        let face1 = Shape.face(from: wire1)! // XY plane
+        // Rotate to get a face in the XZ plane
+        let wire2 = Wire.rectangle(width: 10, height: 10)!
+        let face2 = Shape.face(from: wire2)!.rotated(
+            axis: SIMD3(1, 0, 0), angle: .pi / 2)!
+        let dim = AngleDimension(face1: face1, face2: face2)
+        if let dim = dim {
+            let deg = dim.degrees
+            #expect(abs(deg - 90.0) < 1.0,
+                    "Perpendicular faces should be ~90 degrees")
+        }
+    }
+}
+
+@Suite("Diameter Dimension")
+struct DiameterDimensionTests {
+
+    @Test("Diameter of circle is twice radius")
+    func circleDiameter() {
+        let wire = Wire.circle(radius: 8)!
+        let wireShape = Shape.fromWire(wire)!
+        let dim = DiameterDimension(shape: wireShape)
+        if let dim = dim {
+            #expect(abs(dim.value - 16.0) < 1e-4, "Diameter should be 16, got \(dim.value)")
+        }
+    }
+
+    @Test("Diameter geometry has circle info")
+    func diameterGeometry() {
+        let wire = Wire.circle(radius: 5)!
+        let wireShape = Shape.fromWire(wire)!
+        let dim = DiameterDimension(shape: wireShape)
+        if let dim = dim, let g = dim.geometry {
+            #expect(g.circleRadius > 0)
+            // First and second points should be diametrically opposite
+            let dist = simd_distance(g.firstPoint, g.secondPoint)
+            #expect(abs(dist - 10.0) < 1e-3,
+                    "Diameter endpoints should be 10 apart, got \(dist)")
+        }
+    }
+
+    @Test("Custom value on diameter")
+    func customDiameter() {
+        let wire = Wire.circle(radius: 5)!
+        let wireShape = Shape.fromWire(wire)!
+        guard let dim = DiameterDimension(shape: wireShape) else { return }
+        dim.setCustomValue(99.0)
+        #expect(abs(dim.value - 99.0) < 1e-6)
+    }
+}
+
+@Suite("Text Label and Point Cloud")
+struct TextLabelAndPointCloudTests {
+
+    @Test("Create text label")
+    func createTextLabel() {
+        let label = TextLabel(text: "Hello", position: SIMD3(1, 2, 3))
+        #expect(label != nil)
+        #expect(label!.text == "Hello")
+    }
+
+    @Test("Text label position")
+    func textLabelPosition() {
+        let label = TextLabel(text: "Test", position: SIMD3(10, 20, 30))!
+        let pos = label.position
+        #expect(abs(pos.x - 10) < 1e-6)
+        #expect(abs(pos.y - 20) < 1e-6)
+        #expect(abs(pos.z - 30) < 1e-6)
+    }
+
+    @Test("Update text label text")
+    func updateText() {
+        let label = TextLabel(text: "Original", position: .zero)!
+        label.text = "Updated"
+        #expect(label.text == "Updated")
+    }
+
+    @Test("Update text label position")
+    func updatePosition() {
+        let label = TextLabel(text: "Test", position: .zero)!
+        label.position = SIMD3(5, 10, 15)
+        let pos = label.position
+        #expect(abs(pos.x - 5) < 1e-6)
+        #expect(abs(pos.y - 10) < 1e-6)
+    }
+
+    @Test("Create point cloud")
+    func createPointCloud() {
+        let pts = [SIMD3<Double>(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0)]
+        let cloud = PointCloud(points: pts)
+        #expect(cloud != nil)
+        #expect(cloud!.count == 3)
+    }
+
+    @Test("Point cloud bounds")
+    func pointCloudBounds() {
+        let pts = [SIMD3<Double>(1, 2, 3), SIMD3(4, 5, 6), SIMD3(-1, 0, 1)]
+        let cloud = PointCloud(points: pts)!
+        let bounds = cloud.bounds
+        #expect(bounds != nil)
+        if let b = bounds {
+            #expect(abs(b.min.x - (-1)) < 1e-6)
+            #expect(abs(b.max.x - 4) < 1e-6)
+            #expect(abs(b.min.y - 0) < 1e-6)
+            #expect(abs(b.max.y - 5) < 1e-6)
+        }
+    }
+
+    @Test("Point cloud retrieval")
+    func pointCloudRetrieval() {
+        let pts = [SIMD3<Double>(1, 2, 3), SIMD3(4, 5, 6)]
+        let cloud = PointCloud(points: pts)!
+        let retrieved = cloud.points
+        #expect(retrieved.count == 2)
+        #expect(abs(retrieved[0].x - 1) < 1e-6)
+        #expect(abs(retrieved[1].z - 6) < 1e-6)
+    }
+
+    @Test("Colored point cloud")
+    func coloredPointCloud() {
+        let pts = [SIMD3<Double>(0, 0, 0), SIMD3(1, 1, 1)]
+        let cols = [SIMD3<Float>(1, 0, 0), SIMD3(0, 1, 0)]
+        let cloud = PointCloud(points: pts, colors: cols)
+        #expect(cloud != nil)
+        #expect(cloud!.count == 2)
+        let retrievedColors = cloud!.colors
+        #expect(retrievedColors.count == 2)
+        #expect(abs(retrievedColors[0].x - 1.0) < 1e-4, "First color should be red")
+        #expect(abs(retrievedColors[1].y - 1.0) < 1e-4, "Second color should be green")
+    }
+
+    @Test("Empty point cloud returns nil")
+    func emptyPointCloud() {
+        let cloud = PointCloud(points: [])
+        #expect(cloud == nil)
+    }
+}

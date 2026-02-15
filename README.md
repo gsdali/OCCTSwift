@@ -36,7 +36,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Presentation Mesh** | 2 | shadedMesh, edgeMesh |
 | **Medial Axis** | 12 | compute, arcCount, nodeCount, basicElementCount, node(at:), arc(at:), nodes, arcs, minThickness, distanceToBoundary, drawArc, drawAll |
 | **Topological Naming** | 12 | createLabel, recordNaming, currentShape, storedShape, namingEvolution, namingHistory, oldShape, newShape, tracedForward, tracedBackward, selectShape, resolveShape |
-| **Total** | **396** | |
+| **Length Dimension** | 7 | fromPoints, fromEdge, fromFaces, value, isValid, geometry, setCustomValue |
+| **Radius Dimension** | 4 | fromShape, value, geometry, setCustomValue |
+| **Angle Dimension** | 7 | fromEdges, fromPoints, fromFaces, value, degrees, geometry, setCustomValue |
+| **Diameter Dimension** | 4 | fromShape, value, geometry, setCustomValue |
+| **Text Label** | 5 | create, text, position, setHeight, getInfo |
+| **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
+| **Total** | **429** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -62,6 +68,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **NLPlate Surface Deformation**: Non-linear plate solver for G0 (positional) and G0+G1 (positional + tangent) surface deformation
 - **Medial Axis Transform**: Voronoi skeleton of planar faces — arc/node graph traversal, bisector curve drawing, inscribed circle radius, minimum wall thickness
 - **Topological Naming**: TNaming history tracking — record primitive/generated/modify/delete evolutions, forward/backward tracing through naming graph, persistent named selections with resolve
+- **Annotations & Measurements**: Length/radius/angle/diameter dimensions with geometry extraction for Metal rendering, 3D text labels, colored point clouds
 - **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)
 - **Presentation Mesh**: GPU-ready triangulated mesh and edge wireframe extraction from shapes
@@ -88,7 +95,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.25.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.26.0")
 ]
 ```
 
@@ -363,6 +370,7 @@ OCCTSwift/
 │   │   ├── LawFunction.swift# Evolution functions for sweeps
 │   │   ├── Document.swift   # XDE assembly + GD&T + TNaming
 │   │   ├── MedialAxis.swift # Medial axis / Voronoi skeleton
+│   │   ├── Annotation.swift # Dimensions, text labels, point clouds
 │   │   ├── Mesh.swift       # Triangulated mesh data
 │   │   └── Exporter.swift   # Multi-format export
 │   └── OCCTBridge/          # Objective-C++ bridge to OCCT
@@ -534,6 +542,21 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `document.selectShape(_:context:on:)` | `TNaming_Selector::Select` |
 | `document.resolveShape(on:)` | `TNaming_Selector::Solve` |
 
+#### Annotations & Measurements (v0.26.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `LengthDimension(from:to:)` | `PrsDim_LengthDimension` |
+| `LengthDimension(edge:)` | `PrsDim_LengthDimension` |
+| `LengthDimension(face1:face2:)` | `PrsDim_LengthDimension` |
+| `RadiusDimension(shape:)` | `PrsDim_RadiusDimension` |
+| `AngleDimension(edge1:edge2:)` | `PrsDim_AngleDimension` |
+| `AngleDimension(first:vertex:second:)` | `PrsDim_AngleDimension` |
+| `AngleDimension(face1:face2:)` | `PrsDim_AngleDimension` |
+| `DiameterDimension(shape:)` | `PrsDim_DiameterDimension` |
+| `TextLabel(text:position:)` | `AIS_TextLabel` |
+| `PointCloud(points:)` / `PointCloud(points:colors:)` | `AIS_PointCloud` |
+| `dimension.geometry` → `DimensionGeometry` | Extracted line segments + text position for Metal |
+
 #### Import
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -600,6 +623,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
 > - v0.24.0: Medial axis transform — Voronoi skeleton, arc/node graph, bisector curves, wall thickness
 > - v0.23.0: NLPlate — advanced plate surfaces, non-linear G0/G1 surface deformation
@@ -640,9 +664,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.25.0
+### Current Status: v0.26.0
 
-OCCTSwift now wraps **396 OCCT operations** across 30 categories with 518 tests across 93 suites.
+OCCTSwift now wraps **429 OCCT operations** across 36 categories with 545 tests across 98 suites.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 
