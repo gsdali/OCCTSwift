@@ -19,7 +19,7 @@
 set -e
 
 OCCT_VERSION="8.0.0"
-OCCT_RC="rc3"
+OCCT_RC="rc4"
 # RC tags use format V8_0_0_rc3, release uses V8_0_0
 if [ -n "$OCCT_RC" ]; then
     OCCT_TAG="V${OCCT_VERSION//./_}_${OCCT_RC}"
