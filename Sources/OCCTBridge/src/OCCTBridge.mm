@@ -7,6 +7,12 @@
 
 #import "../include/OCCTBridge.h"
 
+// Suppress OCCT 8.0.0 header deprecation warnings (typedef aliases still work).
+// Full migration to NCollection types is tracked for a future release.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-W#pragma-messages"
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 // OCCT Foundation Classes
 #include <Standard.hxx>
 #include <gp_Pnt.hxx>
@@ -78,7 +84,7 @@
 #include <TopTools_ListOfShape.hxx>
 #include <TopTools_HSequenceOfShape.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
-#include <TopTools_ListIteratorOfListOfShape.hxx>
+// TopTools_ListIteratorOfListOfShape.hxx removed in OCCT 8.0
 #include <ShapeAnalysis_FreeBounds.hxx>
 #include <GeomAbs_JoinType.hxx>
 
@@ -212,7 +218,7 @@
 #include <Graphic3d_Camera.hxx>
 
 // SelectMgr (Metal Visualization)
-#include <SelectMgr_ViewerSelector3d.hxx>
+#include <SelectMgr_ViewerSelector.hxx>
 #include <SelectMgr_SelectableObject.hxx>
 #include <SelectMgr_SelectionManager.hxx>
 #include <SelectMgr_EntityOwner.hxx>
@@ -220,6 +226,12 @@
 #include <StdSelect_BRepSelectionTool.hxx>
 #include <StdSelect_BRepOwner.hxx>
 #include <NCollection_DataMap.hxx>
+#include <NCollection_Sequence.hxx>
+#include <NCollection_IndexedDataMap.hxx>
+#include <NCollection_Map.hxx>
+#include <NCollection_PackedMap.hxx>
+#include <TCollection_AsciiString.hxx>
+#include <TColStd_PackedMapOfInteger.hxx>
 #include <Graphic3d_Mat4.hxx>
 #include <Graphic3d_Mat4d.hxx>
 #include <Poly_Connect.hxx>
@@ -2777,7 +2789,7 @@ void OCCTEdgeGetEndpoints(OCCTEdgeRef edge, double* startX, double* startY, doub
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopExp.hxx>
 #include <TopTools_ListOfShape.hxx>
-#include <TopTools_ListIteratorOfListOfShape.hxx>
+// TopTools_ListIteratorOfListOfShape.hxx removed in OCCT 8.0
 
 int32_t OCCTEdgeGetAdjacentFaces(OCCTShapeRef shape, OCCTEdgeRef edge, OCCTFaceRef* outFace1, OCCTFaceRef* outFace2) {
     if (!shape || !edge || !outFace1 || !outFace2) return 0;
@@ -2798,7 +2810,7 @@ int32_t OCCTEdgeGetAdjacentFaces(OCCTShapeRef shape, OCCTEdgeRef edge, OCCTFaceR
         const TopTools_ListOfShape& faces = edgeFaceMap.FindFromKey(edge->edge);
         int32_t count = 0;
         
-        TopTools_ListIteratorOfListOfShape it(faces);
+        TopTools_ListOfShape::Iterator it(faces);
         for (; it.More() && count < 2; it.Next()) {
             TopoDS_Face face = TopoDS::Face(it.Value());
             if (count == 0) {
@@ -7774,7 +7786,7 @@ int32_t OCCTCurve2DToArcsAndSegments(OCCTCurve2DRef c, double tolerance,
         // Approximate with arcs/segments using adaptor
         Geom2dAdaptor_Curve adaptor(c->curve);
         Geom2dConvert_ApproxArcsSegments converter(adaptor, tolerance, angleTol);
-        const TColGeom2d_SequenceOfCurve& result = converter.GetResult();
+        const auto& result = converter.GetResult();
         int32_t n = std::min((int32_t)result.Size(), max);
         for (int32_t i = 0; i < n; i++) {
             out[i] = new OCCTCurve2D(result.Value(i + 1));
@@ -8275,7 +8287,14 @@ bool OCCTExportOBJ(OCCTShapeRef shape, const char* path, double deflection) {
 
         // Write OBJ
         RWObj_CafWriter writer(path);
-        bool success = writer.Perform(doc, TColStd_IndexedDataMapOfStringString(), Message_ProgressRange());
+        NCollection_Sequence<TDF_Label> rootLabels;
+        TDF_LabelSequence freeShapes;
+        shapeTool->GetFreeShapes(freeShapes);
+        for (int i = 1; i <= freeShapes.Length(); ++i) {
+            rootLabels.Append(freeShapes.Value(i));
+        }
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        bool success = writer.Perform(doc, rootLabels, nullptr, fileInfo, Message_ProgressRange());
 
         app->Close(doc);
         return success;
@@ -8308,7 +8327,14 @@ bool OCCTExportPLY(OCCTShapeRef shape, const char* path, double deflection) {
         // Write PLY
         RWPly_CafWriter writer(path);
         writer.SetNormals(true);
-        bool success = writer.Perform(doc, TColStd_IndexedDataMapOfStringString(), Message_ProgressRange());
+        NCollection_Sequence<TDF_Label> rootLabels;
+        TDF_LabelSequence freeShapes;
+        shapeTool->GetFreeShapes(freeShapes);
+        for (int i = 1; i <= freeShapes.Length(); ++i) {
+            rootLabels.Append(freeShapes.Value(i));
+        }
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        bool success = writer.Perform(doc, rootLabels, nullptr, fileInfo, Message_ProgressRange());
 
         app->Close(doc);
         return success;
@@ -9032,14 +9058,14 @@ int32_t OCCTShapeProximity(OCCTShapeRef shape1, OCCTShapeRef shape2,
         if (!prox.IsDone()) return 0;
 
         // Get overlapping face indices
-        const BRepExtrema_MapOfIntegerPackedMapOfInteger& overlaps1 = prox.OverlapSubShapes1();
+        const auto& overlaps1 = prox.OverlapSubShapes1();
         int32_t count = 0;
 
-        for (BRepExtrema_MapOfIntegerPackedMapOfInteger::Iterator it(overlaps1);
+        for (NCollection_DataMap<int, TColStd_PackedMapOfInteger>::Iterator it(overlaps1);
              it.More() && count < maxPairs; it.Next()) {
             int32_t face1Idx = (int32_t)it.Key();
             const TColStd_PackedMapOfInteger& face2Set = it.Value();
-            for (TColStd_MapIteratorOfPackedMapOfInteger it2(face2Set);
+            for (TColStd_PackedMapOfInteger::Iterator it2(face2Set);
                  it2.More() && count < maxPairs; it2.Next()) {
                 outPairs[count].face1Index = face1Idx;
                 outPairs[count].face2Index = (int32_t)it2.Key();
