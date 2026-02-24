@@ -2646,6 +2646,104 @@ int32_t OCCTPointCloudGetColors(OCCTPointCloudRef cloud,
                                  float* outColors, int32_t maxCount);
 
 
+// MARK: - Helix Curves (v0.28.0)
+
+/// Create a helical wire (constant radius).
+/// @param originX/Y/Z Helix axis origin
+/// @param axisX/Y/Z Helix axis direction
+/// @param radius Helix radius
+/// @param pitch Distance between consecutive turns
+/// @param turns Number of turns
+/// @param clockwise true for clockwise, false for counter-clockwise
+OCCTWireRef OCCTWireCreateHelix(double originX, double originY, double originZ,
+                                 double axisX, double axisY, double axisZ,
+                                 double radius, double pitch, double turns,
+                                 bool clockwise);
+
+/// Create a tapered (conical) helical wire.
+/// @param startRadius Radius at the start
+/// @param endRadius Radius at the end
+OCCTWireRef OCCTWireCreateHelixTapered(double originX, double originY, double originZ,
+                                        double axisX, double axisY, double axisZ,
+                                        double startRadius, double endRadius,
+                                        double pitch, double turns,
+                                        bool clockwise);
+
+// MARK: - KD-Tree Spatial Queries (v0.28.0)
+
+/// Opaque handle to a KD-tree for 3D point queries.
+typedef struct OCCTKDTree* OCCTKDTreeRef;
+
+/// Build a KD-tree from 3D points.
+/// @param coords Flat array of xyz coordinates (3 * count doubles)
+/// @param count Number of points
+OCCTKDTreeRef OCCTKDTreeBuild(const double* coords, int32_t count);
+
+/// Release a KD-tree.
+void OCCTKDTreeRelease(OCCTKDTreeRef tree);
+
+/// Find the nearest point in the tree to a query point.
+/// @param outDistance If non-null, receives the distance (not squared)
+/// @return 0-based index of the nearest point, or -1 on error
+int32_t OCCTKDTreeNearestPoint(OCCTKDTreeRef tree,
+                                double qx, double qy, double qz,
+                                double* outDistance);
+
+/// Find the K nearest points.
+/// @param outIndices Buffer for 0-based indices (must hold at least k entries)
+/// @param outSqDistances Buffer for squared distances (may be null)
+/// @param k Number of neighbors to find
+/// @return Number of points found
+int32_t OCCTKDTreeKNearest(OCCTKDTreeRef tree,
+                            double qx, double qy, double qz,
+                            int32_t k,
+                            int32_t* outIndices,
+                            double* outSqDistances);
+
+/// Find all points within a sphere of given radius.
+/// @param outIndices Buffer for 0-based indices
+/// @param maxResults Maximum number of results
+/// @return Number of points found
+int32_t OCCTKDTreeRangeSearch(OCCTKDTreeRef tree,
+                               double qx, double qy, double qz,
+                               double radius,
+                               int32_t* outIndices, int32_t maxResults);
+
+/// Find all points within an axis-aligned bounding box.
+int32_t OCCTKDTreeBoxSearch(OCCTKDTreeRef tree,
+                             double minX, double minY, double minZ,
+                             double maxX, double maxY, double maxZ,
+                             int32_t* outIndices, int32_t maxResults);
+
+// MARK: - STEP Optimization (v0.28.0)
+
+/// Optimize a STEP file by merging duplicate entities.
+/// Reads a STEP file, deduplicates geometric entities, and writes the result.
+/// @param inputPath Path to input STEP file
+/// @param outputPath Path to output STEP file
+/// @return true on success
+bool OCCTStepTidyOptimize(const char* inputPath, const char* outputPath);
+
+// MARK: - Batch Curve2D Evaluation (v0.28.0)
+
+/// Evaluate a 2D curve at multiple parameter values (batch).
+/// @param curve The curve to evaluate
+/// @param params Array of parameter values
+/// @param paramCount Number of parameters
+/// @param outXY Output buffer for xy pairs (must hold 2 * paramCount doubles)
+/// @return Number of points evaluated
+int32_t OCCTCurve2DEvaluateGrid(OCCTCurve2DRef curve,
+                                 const double* params, int32_t paramCount,
+                                 double* outXY);
+
+/// Evaluate a 2D curve and its first derivative at multiple parameters (batch).
+/// @param outXY Output buffer for point xy pairs (2 * paramCount doubles)
+/// @param outDXDY Output buffer for derivative xy pairs (2 * paramCount doubles)
+/// @return Number of points evaluated
+int32_t OCCTCurve2DEvaluateGridD1(OCCTCurve2DRef curve,
+                                   const double* params, int32_t paramCount,
+                                   double* outXY, double* outDXDY);
+
 #ifdef __cplusplus
 }
 #endif

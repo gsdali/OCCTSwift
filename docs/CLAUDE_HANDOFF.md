@@ -1,7 +1,7 @@
 # OCCTSwift - Claude Handoff Documentation
 
-> **Last Updated**: 2026-01-23
-> **Current Version**: v0.14.0 (with safe API additions)
+> **Last Updated**: 2026-02-25
+> **Current Version**: v0.28.0
 > **Repository**: https://github.com/gsdali/OCCTSwift
 
 This document provides complete context for a new Claude instance to manage this repository.
@@ -17,8 +17,8 @@ This document provides complete context for a new Claude instance to manage this
 - **Platforms**: iOS 15+, macOS 12+
 - **OCCT Version**: 8.0.0-rc4
 - **License**: LGPL-2.1
-- **Operations**: 429 wrapped OCCT operations across 36 categories
-- **Tests**: 574 unit tests across 106 suites
+- **Operations**: 453 wrapped OCCT operations across 38 categories
+- **Tests**: 603 unit tests across 110 suites
 
 ### Primary Use Cases
 - CAD/CAM applications
@@ -39,7 +39,8 @@ OCCTSwift/
 │   │   ├── Face.swift       # Face extraction and analysis
 │   │   ├── Edge.swift       # Edge access and discretization
 │   │   ├── Mesh.swift       # Triangulated mesh, RealityKit conversion
-│   │   ├── Exporter.swift   # STL/STEP export
+│   │   ├── KDTree.swift     # KD-tree spatial queries
+│   │   ├── Exporter.swift   # Multi-format export + STEP optimization
 │   │   ├── Selection.swift  # Ray-casting, index access
 │   │   └── FeatureRecognition.swift  # AAG, pocket detection
 │   │

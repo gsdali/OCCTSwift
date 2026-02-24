@@ -1,5 +1,55 @@
 # OCCTSwift Changelog
 
+## [v0.28.0] - 2026-02-25
+
+### New OCCT 8.0.0-rc4 Features
+
+Wraps 4 new APIs introduced in OCCT 8.0.0-rc4: helix curve generation, KD-tree spatial queries, STEP file optimization, and batch 2D curve evaluation. 29 new tests across 4 new suites. 603 tests passing across 110 suites.
+
+#### Helix Curves
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Wire.helix(origin:axis:radius:pitch:turns:clockwise:)` | `HelixBRep_BuilderHelix` |
+| `Wire.helixTapered(origin:axis:startRadius:endRadius:pitch:turns:clockwise:)` | `HelixBRep_BuilderHelix` |
+
+Constant-radius and tapered (conical) helical wires. Useful for springs, threads, coils, and helical sweep paths.
+
+#### KD-Tree Spatial Queries
+| Swift API | OCCT Class |
+|-----------|------------|
+| `KDTree(points:)` | `NCollection_KDTree<gp_Pnt, 3>::Build` |
+| `tree.nearest(to:)` | `NCollection_KDTree::NearestPoint` |
+| `tree.kNearest(to:k:)` | `NCollection_KDTree::KNearestPoints` |
+| `tree.rangeSearch(center:radius:)` | `NCollection_KDTree::RangeSearch` |
+| `tree.boxSearch(min:max:)` | `NCollection_KDTree::BoxSearch` |
+
+New `KDTree` class for fast spatial queries on 3D point sets. Indices are 0-based (converted from OCCT's 1-based convention).
+
+#### STEP Optimization
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Exporter.optimizeSTEP(input:output:)` | `StepTidy_DuplicateCleaner` |
+
+Reads a STEP file, merges duplicate geometric entities, and writes the optimized result.
+
+#### Batch Curve2D Evaluation
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve.evaluateGrid(_:)` | `Geom2dGridEval_Curve::EvaluateGrid` |
+| `curve.evaluateGridD1(_:)` | `Geom2dGridEval_Curve::EvaluateGridD1` |
+
+Evaluate 2D curves at many parameter values in a single call using OCCT's optimized grid evaluators. Results match individual `point(at:)` / `d1(at:)` calls but with better throughput.
+
+#### New Files
+- `Sources/OCCTSwift/KDTree.swift` — KD-tree spatial query wrapper
+
+### Statistics
+- 603 tests passing across 110 suites (29 new tests across 4 new suites)
+- 453 wrapped operations across 38 categories
+- +1 new Swift type (`KDTree`)
+
+---
+
 ## [v0.27.0] - 2026-02-25
 
 ### OCCT 8.0.0-rc4 Upgrade

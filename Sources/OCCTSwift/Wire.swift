@@ -956,3 +956,77 @@ extension Wire {
         return Wire(handle: result)
     }
 }
+
+// MARK: - Helix Curves (v0.28.0)
+
+extension Wire {
+    /// Create a helical wire with constant radius.
+    ///
+    /// - Parameters:
+    ///   - origin: Center point of the helix axis
+    ///   - axis: Direction of the helix axis (default: Z-up)
+    ///   - radius: Helix radius
+    ///   - pitch: Distance between consecutive turns
+    ///   - turns: Number of turns
+    ///   - clockwise: Winding direction (default: false = counter-clockwise)
+    /// - Returns: A helical wire, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let spring = Wire.helix(radius: 5, pitch: 2, turns: 10)
+    /// ```
+    public static func helix(
+        origin: SIMD3<Double> = .zero,
+        axis: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double,
+        pitch: Double,
+        turns: Double,
+        clockwise: Bool = false
+    ) -> Wire? {
+        guard radius > 0, pitch > 0, turns > 0 else { return nil }
+        guard let handle = OCCTWireCreateHelix(
+            origin.x, origin.y, origin.z,
+            axis.x, axis.y, axis.z,
+            radius, pitch, turns, clockwise
+        ) else { return nil }
+        return Wire(handle: handle)
+    }
+
+    /// Create a tapered (conical) helical wire.
+    ///
+    /// The radius varies linearly from `startRadius` to `endRadius` along the axis.
+    ///
+    /// - Parameters:
+    ///   - origin: Center point of the helix axis
+    ///   - axis: Direction of the helix axis (default: Z-up)
+    ///   - startRadius: Radius at the start
+    ///   - endRadius: Radius at the end
+    ///   - pitch: Distance between consecutive turns
+    ///   - turns: Number of turns
+    ///   - clockwise: Winding direction (default: false = counter-clockwise)
+    /// - Returns: A tapered helical wire, or nil on failure
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let cone = Wire.helixTapered(startRadius: 10, endRadius: 2, pitch: 3, turns: 5)
+    /// ```
+    public static func helixTapered(
+        origin: SIMD3<Double> = .zero,
+        axis: SIMD3<Double> = SIMD3(0, 0, 1),
+        startRadius: Double,
+        endRadius: Double,
+        pitch: Double,
+        turns: Double,
+        clockwise: Bool = false
+    ) -> Wire? {
+        guard startRadius > 0, endRadius > 0, pitch > 0, turns > 0 else { return nil }
+        guard let handle = OCCTWireCreateHelixTapered(
+            origin.x, origin.y, origin.z,
+            axis.x, axis.y, axis.z,
+            startRadius, endRadius, pitch, turns, clockwise
+        ) else { return nil }
+        return Wire(handle: handle)
+    }
+}

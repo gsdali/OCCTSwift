@@ -910,3 +910,44 @@ public enum Curve2DGcc {
         }
     }
 }
+
+// MARK: - Batch Evaluation (v0.28.0)
+
+extension Curve2D {
+    /// Evaluate the curve at multiple parameters in one call.
+    ///
+    /// Uses OCCT's optimized grid evaluator for better performance than
+    /// calling `point(at:)` repeatedly.
+    ///
+    /// - Parameter parameters: Array of parameter values
+    /// - Returns: Array of evaluated 2D points
+    ///
+    /// ## Example
+    ///
+    /// ```swift
+    /// let circle = Curve2D.circle(center: .zero, radius: 5)!
+    /// let params = stride(from: 0.0, through: 2 * .pi, by: 0.01).map { $0 }
+    /// let points = circle.evaluateGrid(params)
+    /// ```
+    public func evaluateGrid(_ parameters: [Double]) -> [SIMD2<Double>] {
+        guard !parameters.isEmpty else { return [] }
+        var outXY = [Double](repeating: 0, count: parameters.count * 2)
+        let n = Int(OCCTCurve2DEvaluateGrid(handle, parameters, Int32(parameters.count), &outXY))
+        return (0..<n).map { i in SIMD2(outXY[i * 2], outXY[i * 2 + 1]) }
+    }
+
+    /// Evaluate the curve and its first derivative at multiple parameters in one call.
+    ///
+    /// - Parameter parameters: Array of parameter values
+    /// - Returns: Array of tuples with point and tangent vector
+    public func evaluateGridD1(_ parameters: [Double]) -> [(point: SIMD2<Double>, tangent: SIMD2<Double>)] {
+        guard !parameters.isEmpty else { return [] }
+        var outXY = [Double](repeating: 0, count: parameters.count * 2)
+        var outDXDY = [Double](repeating: 0, count: parameters.count * 2)
+        let n = Int(OCCTCurve2DEvaluateGridD1(handle, parameters, Int32(parameters.count), &outXY, &outDXDY))
+        return (0..<n).map { i in
+            (point: SIMD2(outXY[i * 2], outXY[i * 2 + 1]),
+             tangent: SIMD2(outDXDY[i * 2], outDXDY[i * 2 + 1]))
+        }
+    }
+}

@@ -8227,3 +8227,326 @@ struct EdgePolylineTests {
         #expect(bad == nil)
     }
 }
+
+// MARK: - v0.28.0 New Features
+
+@Suite("Helix Curves")
+struct HelixTests {
+
+    @Test("Create basic helix")
+    func basicHelix() {
+        let helix = Wire.helix(radius: 5, pitch: 2, turns: 3)
+        #expect(helix != nil)
+    }
+
+    @Test("Helix with custom origin and axis")
+    func helixCustomAxis() {
+        let helix = Wire.helix(
+            origin: SIMD3(10, 20, 30),
+            axis: SIMD3(0, 0, 1),
+            radius: 10,
+            pitch: 5,
+            turns: 2
+        )
+        #expect(helix != nil)
+    }
+
+    @Test("Helix clockwise vs counter-clockwise")
+    func helixDirection() {
+        let ccw = Wire.helix(radius: 5, pitch: 2, turns: 1, clockwise: false)
+        let cw = Wire.helix(radius: 5, pitch: 2, turns: 1, clockwise: true)
+        #expect(ccw != nil)
+        #expect(cw != nil)
+    }
+
+    @Test("Invalid helix parameters return nil")
+    func invalidHelix() {
+        #expect(Wire.helix(radius: 0, pitch: 2, turns: 1) == nil)
+        #expect(Wire.helix(radius: 5, pitch: 0, turns: 1) == nil)
+        #expect(Wire.helix(radius: 5, pitch: 2, turns: 0) == nil)
+        #expect(Wire.helix(radius: -1, pitch: 2, turns: 1) == nil)
+    }
+
+    @Test("Helix can be used as sweep path")
+    func helixSweep() {
+        let helix = Wire.helix(radius: 10, pitch: 5, turns: 3)!
+        let profile = Wire.circle(radius: 0.5)!
+        let spring = Shape.sweep(profile: profile, along: helix)
+        #expect(spring != nil)
+        #expect(spring!.isValid)
+    }
+
+    @Test("Create tapered helix")
+    func taperedHelix() {
+        let helix = Wire.helixTapered(
+            startRadius: 10,
+            endRadius: 3,
+            pitch: 4,
+            turns: 4
+        )
+        #expect(helix != nil)
+    }
+
+    @Test("Invalid tapered helix returns nil")
+    func invalidTaperedHelix() {
+        #expect(Wire.helixTapered(startRadius: 0, endRadius: 5, pitch: 2, turns: 1) == nil)
+        #expect(Wire.helixTapered(startRadius: 5, endRadius: 0, pitch: 2, turns: 1) == nil)
+    }
+
+    @Test("Helix with fractional turns")
+    func fractionalTurns() {
+        let helix = Wire.helix(radius: 5, pitch: 10, turns: 0.5)
+        #expect(helix != nil)
+    }
+
+    @Test("Helix with many turns")
+    func manyTurns() {
+        let helix = Wire.helix(radius: 5, pitch: 1, turns: 20)
+        #expect(helix != nil)
+    }
+}
+
+@Suite("KD-Tree Spatial Queries")
+struct KDTreeTests {
+
+    let testPoints: [SIMD3<Double>] = [
+        SIMD3(0, 0, 0),   // 0
+        SIMD3(1, 0, 0),   // 1
+        SIMD3(0, 1, 0),   // 2
+        SIMD3(0, 0, 1),   // 3
+        SIMD3(1, 1, 1),   // 4
+        SIMD3(5, 5, 5),   // 5
+        SIMD3(10, 10, 10) // 6
+    ]
+
+    @Test("Build KD-tree")
+    func buildTree() {
+        let tree = KDTree(points: testPoints)
+        #expect(tree != nil)
+    }
+
+    @Test("Empty points returns nil")
+    func emptyTree() {
+        let tree = KDTree(points: [])
+        #expect(tree == nil)
+    }
+
+    @Test("Nearest point - exact match")
+    func nearestExact() {
+        let tree = KDTree(points: testPoints)!
+        let result = tree.nearest(to: SIMD3(0, 0, 0))
+        #expect(result != nil)
+        #expect(result!.index == 0)
+        #expect(result!.distance < 1e-10)
+    }
+
+    @Test("Nearest point - closest to query")
+    func nearestClosest() {
+        let tree = KDTree(points: testPoints)!
+        let result = tree.nearest(to: SIMD3(0.9, 0.1, 0.1))
+        #expect(result != nil)
+        #expect(result!.index == 1) // Closest to (1,0,0)
+    }
+
+    @Test("K-nearest returns correct count")
+    func kNearestCount() {
+        let tree = KDTree(points: testPoints)!
+        let results = tree.kNearest(to: SIMD3(0, 0, 0), k: 3)
+        #expect(results.count == 3)
+    }
+
+    @Test("K-nearest includes self when exact")
+    func kNearestSelf() {
+        let tree = KDTree(points: testPoints)!
+        let results = tree.kNearest(to: SIMD3(0, 0, 0), k: 1)
+        #expect(results.count == 1)
+        #expect(results[0].index == 0)
+        #expect(results[0].squaredDistance < 1e-10)
+    }
+
+    @Test("K larger than point count returns all")
+    func kNearestAll() {
+        let tree = KDTree(points: testPoints)!
+        let results = tree.kNearest(to: .zero, k: 100)
+        #expect(results.count == testPoints.count)
+    }
+
+    @Test("Range search - finds nearby points")
+    func rangeSearch() {
+        let tree = KDTree(points: testPoints)!
+        // Points within distance 1.1 of origin: (0,0,0), (1,0,0), (0,1,0), (0,0,1)
+        let results = tree.rangeSearch(center: .zero, radius: 1.1)
+        #expect(results.count == 4)
+        #expect(results.contains(0))
+        #expect(results.contains(1))
+        #expect(results.contains(2))
+        #expect(results.contains(3))
+    }
+
+    @Test("Range search - small radius finds only nearest")
+    func rangeSearchSmall() {
+        let tree = KDTree(points: testPoints)!
+        let results = tree.rangeSearch(center: .zero, radius: 0.1)
+        #expect(results.count == 1)
+        #expect(results[0] == 0)
+    }
+
+    @Test("Box search - finds points in AABB")
+    func boxSearch() {
+        let tree = KDTree(points: testPoints)!
+        let results = tree.boxSearch(
+            min: SIMD3(-0.5, -0.5, -0.5),
+            max: SIMD3(1.5, 1.5, 1.5)
+        )
+        // Should find: (0,0,0), (1,0,0), (0,1,0), (0,0,1), (1,1,1)
+        #expect(results.count == 5)
+        #expect(!results.contains(5)) // (5,5,5) outside
+        #expect(!results.contains(6)) // (10,10,10) outside
+    }
+
+    @Test("Box search - entire space")
+    func boxSearchAll() {
+        let tree = KDTree(points: testPoints)!
+        let results = tree.boxSearch(
+            min: SIMD3(-100, -100, -100),
+            max: SIMD3(100, 100, 100)
+        )
+        #expect(results.count == testPoints.count)
+    }
+
+    @Test("Large point set performance")
+    func largePointSet() {
+        var points: [SIMD3<Double>] = []
+        for i in 0..<1000 {
+            let x = Double(i % 10)
+            let y = Double((i / 10) % 10)
+            let z = Double(i / 100)
+            points.append(SIMD3(x, y, z))
+        }
+        let tree = KDTree(points: points)
+        #expect(tree != nil)
+
+        let result = tree!.nearest(to: SIMD3(4.5, 4.5, 4.5))
+        #expect(result != nil)
+    }
+}
+
+@Suite("STEP Optimization")
+struct StepTidyTests {
+
+    @Test("Optimize STEP file round-trip")
+    func optimizeRoundTrip() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let tempDir = FileManager.default.temporaryDirectory
+        let inputURL = tempDir.appendingPathComponent("tidy_input.step")
+        let outputURL = tempDir.appendingPathComponent("tidy_output.step")
+
+        defer {
+            try? FileManager.default.removeItem(at: inputURL)
+            try? FileManager.default.removeItem(at: outputURL)
+        }
+
+        // Write a STEP file
+        try Exporter.writeSTEP(shape: box, to: inputURL)
+        #expect(FileManager.default.fileExists(atPath: inputURL.path))
+
+        // Optimize it
+        try Exporter.optimizeSTEP(input: inputURL, output: outputURL)
+        #expect(FileManager.default.fileExists(atPath: outputURL.path))
+
+        // Output should be a valid file with content
+        let data = try Data(contentsOf: outputURL)
+        #expect(data.count > 0)
+    }
+
+    @Test("Optimize non-existent file throws")
+    func optimizeNonExistent() {
+        let bogus = URL(fileURLWithPath: "/tmp/nonexistent_step_tidy.step")
+        let output = URL(fileURLWithPath: "/tmp/tidy_out.step")
+        #expect(throws: Exporter.ExportError.self) {
+            try Exporter.optimizeSTEP(input: bogus, output: output)
+        }
+    }
+}
+
+@Suite("Batch Curve2D Evaluation")
+struct BatchCurve2DTests {
+
+    @Test("Evaluate grid on circle")
+    func evalGridCircle() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let params = stride(from: 0.0, to: 2 * Double.pi, by: Double.pi / 4).map { $0 }
+        let points = circle.evaluateGrid(params)
+        #expect(points.count == params.count)
+
+        // First point should be at (5, 0)
+        #expect(abs(points[0].x - 5.0) < 1e-10)
+        #expect(abs(points[0].y) < 1e-10)
+    }
+
+    @Test("Evaluate grid D1 on circle")
+    func evalGridD1Circle() {
+        let circle = Curve2D.circle(center: .zero, radius: 5)!
+        let params = [0.0, Double.pi / 2, Double.pi]
+        let results = circle.evaluateGridD1(params)
+        #expect(results.count == 3)
+
+        // At t=0: point=(5,0), tangent=(0,5)
+        #expect(abs(results[0].point.x - 5.0) < 1e-10)
+        #expect(abs(results[0].point.y) < 1e-10)
+        #expect(abs(results[0].tangent.x) < 1e-10)
+        #expect(abs(results[0].tangent.y - 5.0) < 1e-10)
+    }
+
+    @Test("Empty parameters returns empty")
+    func emptyParams() {
+        let line = Curve2D.segment(from: .zero, to: SIMD2(10, 0))!
+        #expect(line.evaluateGrid([]).isEmpty)
+        #expect(line.evaluateGridD1([]).isEmpty)
+    }
+
+    @Test("Grid evaluation matches individual evaluation")
+    func gridMatchesIndividual() {
+        let circle = Curve2D.circle(center: .zero, radius: 3)!
+        let params = stride(from: 0.0, to: 2 * Double.pi, by: 0.5).map { $0 }
+
+        let gridPoints = circle.evaluateGrid(params)
+        let individualPoints = params.map { circle.point(at: $0) }
+
+        #expect(gridPoints.count == individualPoints.count)
+        for i in 0..<gridPoints.count {
+            #expect(abs(gridPoints[i].x - individualPoints[i].x) < 1e-10)
+            #expect(abs(gridPoints[i].y - individualPoints[i].y) < 1e-10)
+        }
+    }
+
+    @Test("Grid D1 matches individual D1")
+    func gridD1MatchesIndividual() {
+        let circle = Curve2D.circle(center: .zero, radius: 3)!
+        let params = [0.0, 1.0, 2.0, 3.0]
+
+        let gridResults = circle.evaluateGridD1(params)
+        let individualResults = params.map { circle.d1(at: $0) }
+
+        #expect(gridResults.count == individualResults.count)
+        for i in 0..<gridResults.count {
+            #expect(abs(gridResults[i].point.x - individualResults[i].point.x) < 1e-10)
+            #expect(abs(gridResults[i].point.y - individualResults[i].point.y) < 1e-10)
+            #expect(abs(gridResults[i].tangent.x - individualResults[i].tangent.x) < 1e-10)
+            #expect(abs(gridResults[i].tangent.y - individualResults[i].tangent.y) < 1e-10)
+        }
+    }
+
+    @Test("Segment batch evaluation")
+    func segmentBatchEval() {
+        let segment = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 5))!
+        let domain = segment.domain
+        let params = [domain.lowerBound, (domain.lowerBound + domain.upperBound) / 2, domain.upperBound]
+        let points = segment.evaluateGrid(params)
+        #expect(points.count == 3)
+
+        // Midpoint should be at (5, 2.5)
+        #expect(abs(points[1].x - 5.0) < 1e-6)
+        #expect(abs(points[1].y - 2.5) < 1e-6)
+    }
+}

@@ -399,6 +399,29 @@ public enum Exporter {
             throw ExportError.exportFailed("PLY export to \(url.lastPathComponent) failed")
         }
     }
+
+    // MARK: - STEP Optimization (v0.28.0)
+
+    /// Optimize a STEP file by merging duplicate geometric entities.
+    ///
+    /// Reads a STEP file, deduplicates shared geometry (surfaces, curves, etc.),
+    /// and writes the optimized result. This can significantly reduce file size
+    /// for models with repeated geometry.
+    ///
+    /// - Parameters:
+    ///   - input: URL of the input STEP file
+    ///   - output: URL for the optimized output STEP file
+    /// - Throws: `ExportError` if optimization fails
+    public static func optimizeSTEP(input: URL, output: URL) throws {
+        let inPath = input.path
+        let outPath = output.path
+        guard !inPath.isEmpty, !outPath.isEmpty else {
+            throw ExportError.invalidPath
+        }
+        if !OCCTStepTidyOptimize(inPath, outPath) {
+            throw ExportError.exportFailed("STEP optimization failed")
+        }
+    }
 }
 
 // MARK: - Convenience Extensions

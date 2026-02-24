@@ -11,9 +11,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
 | **Modifications** | 9 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, shell, offset, draft, defeature |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
-| **Wires** | 17 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D |
+| **Wires** | 19 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D, helix, helixTapered |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
-| **2D Curves (Curve2D)** | 55 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw |
+| **2D Curves (Curve2D)** | 57 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw, evaluateGrid, evaluateGridD1 |
 | **3D Curves (Curve3D)** | 51 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection, projectedOnPlane |
 | **Surfaces (Surface)** | 47 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1 |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
@@ -24,7 +24,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
 | **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
-| **Import/Export** | 16 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; mesh |
+| **Import/Export** | 17 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; STEP optimize; mesh |
 | **Geometry Construction** | 9 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed |
 | **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
@@ -42,7 +42,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Diameter Dimension** | 4 | fromShape, value, geometry, setCustomValue |
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
-| **Total** | **429** | |
+| **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
+| **Total** | **453** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -72,6 +73,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)
 - **Presentation Mesh**: GPU-ready triangulated mesh and edge wireframe extraction from shapes
+- **Helix Curves**: Constant-radius and tapered (conical) helical wires for springs, threads, coils
+- **KD-Tree Spatial Queries**: Fast nearest-neighbor, k-nearest, sphere range, and box queries on 3D point sets
+- **STEP Optimization**: Deduplicate geometric entities in STEP files (StepTidy)
+- **Batch Curve Evaluation**: Evaluate 2D curves at many parameters in one call using optimized grid evaluators
 - **Curve Interpolation**: Create smooth curves through specific points
 - **Import Formats**: STL, STEP, IGES, BREP, OBJ (mesh and CAD)
 - **Export Formats**: STL, STEP, IGES, BREP, OBJ, PLY (3D printing, CAD, visualization)
@@ -95,7 +100,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.27.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.28.0")
 ]
 ```
 
@@ -371,8 +376,9 @@ OCCTSwift/
 │   │   ├── Document.swift   # XDE assembly + GD&T + TNaming
 │   │   ├── MedialAxis.swift # Medial axis / Voronoi skeleton
 │   │   ├── Annotation.swift # Dimensions, text labels, point clouds
+│   │   ├── KDTree.swift     # KD-tree spatial queries
 │   │   ├── Mesh.swift       # Triangulated mesh data
-│   │   └── Exporter.swift   # Multi-format export
+│   │   └── Exporter.swift   # Multi-format export + STEP optimization
 │   └── OCCTBridge/          # Objective-C++ bridge to OCCT
 └── Libraries/
     └── OCCT.xcframework     # Pre-built OCCT libraries
@@ -609,6 +615,28 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `shape.writeBREP(to:)` | `BRepTools::Write` |
 | `shape.writeOBJ(to:deflection:)` | `RWObj_CafWriter` |
 | `shape.writePLY(to:deflection:)` | `RWPly_CafWriter` |
+| `Exporter.optimizeSTEP(input:output:)` | `StepTidy_DuplicateCleaner` |
+
+#### Helix Curves
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Wire.helix(radius:pitch:turns:)` | `HelixBRep_BuilderHelix` |
+| `Wire.helixTapered(startRadius:endRadius:pitch:turns:)` | `HelixBRep_BuilderHelix` |
+
+#### KD-Tree Spatial Queries
+| Swift API | OCCT Class |
+|-----------|------------|
+| `KDTree(points:)` | `NCollection_KDTree<gp_Pnt, 3>` |
+| `tree.nearest(to:)` | `NCollection_KDTree::NearestPoint` |
+| `tree.kNearest(to:k:)` | `NCollection_KDTree::KNearestPoints` |
+| `tree.rangeSearch(center:radius:)` | `NCollection_KDTree::RangeSearch` |
+| `tree.boxSearch(min:max:)` | `NCollection_KDTree::BoxSearch` |
+
+#### Batch Curve Evaluation
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve2d.evaluateGrid(_:)` | `Geom2dGridEval_Curve::EvaluateGrid` |
+| `curve2d.evaluateGridD1(_:)` | `Geom2dGridEval_Curve::EvaluateGridD1` |
 
 #### Validation
 | Swift API | OCCT Class |
@@ -623,6 +651,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.28.0: **New rc4 APIs** — helix curves, KD-tree spatial queries, STEP optimization, batch curve evaluation
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
@@ -665,9 +694,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.27.0
+### Current Status: v0.28.0
 
-OCCTSwift now wraps **429 OCCT operations** across 36 categories with 574 tests across 106 suites.
+OCCTSwift now wraps **453 OCCT operations** across 38 categories with 603 tests across 110 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 
