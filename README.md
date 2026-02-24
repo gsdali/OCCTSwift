@@ -95,7 +95,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.26.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.27.0")
 ]
 ```
 
@@ -623,6 +623,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
 > - v0.24.0: Medial axis transform — Voronoi skeleton, arc/node graph, bisector curves, wall thickness
@@ -664,9 +665,11 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.26.0
+### Current Status: v0.27.0
 
-OCCTSwift now wraps **429 OCCT operations** across 36 categories with 545 tests across 98 suites.
+OCCTSwift now wraps **429 OCCT operations** across 36 categories with 574 tests across 106 suites.
+
+Built on **OCCT 8.0.0-rc4**.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 
@@ -693,10 +696,10 @@ See [docs/DEMO_APP_PROPOSAL.md](docs/DEMO_APP_PROPOSAL.md) for details.
 
 | Issue | Description |
 |-------|-------------|
-| [#1](https://github.com/gsdali/OCCTSwift/issues/1) | SPM header path fix |
 | [#2](https://github.com/gsdali/OCCTSwift/issues/2) | CAM: Wire offsetting |
 | [#3](https://github.com/gsdali/OCCTSwift/issues/3) | CAM: Coordinate systems |
 | [#4](https://github.com/gsdali/OCCTSwift/issues/4) | CAM: Swept tool solids |
+| [#25](https://github.com/gsdali/OCCTSwift/issues/25) | Demo App: Playground with scripting |
 
 ## License
 

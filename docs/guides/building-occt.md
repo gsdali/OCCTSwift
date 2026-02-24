@@ -17,10 +17,10 @@ cd /path/to/OCCTSwift
 ```
 
 This will:
-1. Download OCCT 7.8.1 source
+1. Download OCCT 8.0.0-rc4 source from GitHub tag `V8_0_0_rc4`
 2. Build for iOS (arm64) and iOS Simulator (arm64)
 3. Build for macOS (arm64)
-4. Create `Libraries/OCCT.xcframework`
+4. Create `Libraries/OCCT.xcframework` (~568MB with all 3 slices)
 
 ## Manual Build Steps
 
@@ -29,13 +29,13 @@ This will:
 ```bash
 cd /path/to/OCCTSwift/Libraries
 
-# Download from official source
-curl -L -o occt-7.8.1.tar.gz \
-    https://git.dev.opencascade.org/gitweb/?p=occt.git;a=snapshot;h=refs/tags/V7_8_1;sf=tgz
+# Clone from GitHub (recommended for RC releases)
+git clone --depth 1 --branch V8_0_0_rc4 \
+    https://github.com/Open-Cascade-SAS/OCCT.git occt-src
 
-# Or clone the repository
-git clone --depth 1 --branch V7_8_1 \
-    https://git.dev.opencascade.org/repos/occt.git occt-src
+# Or for stable releases, use the official repo:
+# git clone --depth 1 --branch V8_0_0 \
+#     https://git.dev.opencascade.org/repos/occt.git occt-src
 ```
 
 ### 2. Configure CMake for iOS
@@ -268,101 +268,18 @@ void testOCCT() {
 
 ## Automated Build Script
 
-Save as `Scripts/build-occt.sh`:
+The actual build script is at `Scripts/build-occt.sh`. It handles:
+
+- Downloading OCCT source (GitHub for RCs, official repo for stable releases)
+- Building for all 3 platforms with proper cross-compilation flags
+- Combining 48 static libraries per platform into a single fat library
+- Creating the XCFramework with 7,005 headers
+
+To update the OCCT version, edit the variables at the top of the script:
 
 ```bash
-#!/bin/bash
-set -e
-
-OCCT_VERSION="7.8.1"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
-LIBRARIES_DIR="$PROJECT_DIR/Libraries"
-
-echo "Building OCCT $OCCT_VERSION for iOS and macOS..."
-
-cd "$LIBRARIES_DIR"
-
-# Download if needed
-if [ ! -d "occt-src" ]; then
-    echo "Downloading OCCT source..."
-    git clone --depth 1 --branch "V${OCCT_VERSION//./_}" \
-        https://git.dev.opencascade.org/repos/occt.git occt-src
-fi
-
-# Common CMake options
-CMAKE_COMMON_OPTS=(
-    -DBUILD_SHARED_LIBS=OFF
-    -DBUILD_MODULE_Draw=OFF
-    -DBUILD_MODULE_Visualization=OFF
-    -DUSE_FREETYPE=OFF
-    -DUSE_FREEIMAGE=OFF
-    -DUSE_RAPIDJSON=OFF
-    -DUSE_TBB=OFF
-    -DUSE_VTK=OFF
-    -DUSE_OPENGL=OFF
-    -DCMAKE_BUILD_TYPE=Release
-)
-
-# Build for iOS device
-echo "Building for iOS..."
-mkdir -p occt-build-ios && cd occt-build-ios
-cmake ../occt-src \
-    "${CMAKE_COMMON_OPTS[@]}" \
-    -DCMAKE_SYSTEM_NAME=iOS \
-    -DCMAKE_OSX_ARCHITECTURES=arm64 \
-    -DCMAKE_OSX_SYSROOT="$(xcrun --sdk iphoneos --show-sdk-path)" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
-    -DCMAKE_INSTALL_PREFIX=../occt-install-ios
-cmake --build . --config Release --parallel "$(sysctl -n hw.ncpu)"
-cmake --install .
-cd ..
-
-# Build for iOS Simulator
-echo "Building for iOS Simulator..."
-mkdir -p occt-build-sim && cd occt-build-sim
-cmake ../occt-src \
-    "${CMAKE_COMMON_OPTS[@]}" \
-    -DCMAKE_SYSTEM_NAME=iOS \
-    -DCMAKE_OSX_ARCHITECTURES=arm64 \
-    -DCMAKE_OSX_SYSROOT="$(xcrun --sdk iphonesimulator --show-sdk-path)" \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
-    -DCMAKE_INSTALL_PREFIX=../occt-install-sim
-cmake --build . --config Release --parallel "$(sysctl -n hw.ncpu)"
-cmake --install .
-cd ..
-
-# Build for macOS
-echo "Building for macOS..."
-mkdir -p occt-build-macos && cd occt-build-macos
-cmake ../occt-src \
-    "${CMAKE_COMMON_OPTS[@]}" \
-    -DCMAKE_OSX_ARCHITECTURES=arm64 \
-    -DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 \
-    -DCMAKE_INSTALL_PREFIX=../occt-install-macos
-cmake --build . --config Release --parallel "$(sysctl -n hw.ncpu)"
-cmake --install .
-cd ..
-
-# Create combined libraries
-echo "Creating combined libraries..."
-libtool -static -o libOCCT-ios.a occt-install-ios/lib/*.a
-libtool -static -o libOCCT-sim.a occt-install-sim/lib/*.a
-libtool -static -o libOCCT-macos.a occt-install-macos/lib/*.a
-
-# Create XCFramework
-echo "Creating XCFramework..."
-rm -rf OCCT.xcframework
-xcodebuild -create-xcframework \
-    -library libOCCT-ios.a -headers occt-install-ios/include \
-    -library libOCCT-sim.a -headers occt-install-sim/include \
-    -library libOCCT-macos.a -headers occt-install-macos/include \
-    -output OCCT.xcframework
-
-# Cleanup
-rm -f libOCCT-ios.a libOCCT-sim.a libOCCT-macos.a
-
-echo "Done! OCCT.xcframework created in $LIBRARIES_DIR"
+OCCT_VERSION="8.0.0"
+OCCT_RC="rc4"       # Clear this for stable releases
 ```
 
 Make executable:

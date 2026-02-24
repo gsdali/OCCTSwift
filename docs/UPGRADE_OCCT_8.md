@@ -1,89 +1,125 @@
 # Upgrading OCCTSwift to OCCT 8.0
 
-## Overview
+## Current Status
 
-This branch (`occt-8.0`) prepares OCCTSwift for OpenCASCADE Technology 8.0.
+**v0.27.0** — Built on OCCT **8.0.0-rc4** (released 2026-02-25)
 
-**Current version:** 8.0.0-rc3 (December 15, 2024)
-**Expected stable release:** February 2025 (based on OCCT release patterns)
+### Upgrade History
 
-## Why Upgrade?
+| Version | OCCT Version | Date | Notes |
+|---------|-------------|------|-------|
+| v0.27.0 | 8.0.0-rc4 | 2026-02-25 | 111 improvements, 4 breaking changes fixed |
+| v0.26.0 | 8.0.0-rc3 | 2026-02-22 | Initial OCCT 8.0 adoption |
+| v0.16.0 | 7.8.1 | 2026-02-14 | Original release |
 
-1. **Fixes STEP export segfault** (bug #33656) - Crash during program exit with complex geometry
-2. **RTTI modernization** - Standard C++ type_info instead of custom system
-3. **Performance improvements** - Math functions, threading, BSpline computation
-4. **Modern C++** - Move semantics, constexpr, noexcept throughout
+## Breaking Changes Fixed in rc3 → rc4
 
-## Breaking Changes to Address
+| Change | Impact | Fix |
+|--------|--------|-----|
+| `SelectMgr_ViewerSelector3d` removed | Used in headless selector subclass | Replaced include with `SelectMgr_ViewerSelector.hxx` |
+| `TopTools_ListIteratorOfListOfShape` removed | Used for adjacent face iteration | Replaced with `TopTools_ListOfShape::Iterator` |
+| `BRepExtrema_MapOfIntegerPackedMapOfInteger` removed | Used in shape proximity | Migrated to `NCollection_DataMap<int, TColStd_PackedMapOfInteger>` |
+| `TColStd_MapIteratorOfPackedMapOfInteger` removed | Used in proximity iteration | Replaced with `TColStd_PackedMapOfInteger::Iterator` |
+| `RWObj_CafWriter::Perform()` signature changed | OBJ export broken | Migrated to 5-arg overload with `GetFreeShapes()` root labels |
+| `RWPly_CafWriter::Perform()` signature changed | PLY export broken | Same fix as OBJ |
 
-### 1. StepType() API Change
+## Deprecated Typedefs (Suppressed)
 
-`StepData_ReadWriteModule::StepType()` now returns `std::string_view` instead of `TCollection_AsciiString`.
+OCCT 8.0.0 deprecates many collection typedefs in favor of direct `NCollection` template usage. These are currently **suppressed via pragma** in `OCCTBridge.mm`. The old typedefs still function correctly — they are just `typedef` aliases for the `NCollection` types.
 
-**Impact:** We don't use this API directly - no changes needed.
+Full migration is tracked for a future release. When migrating, replace:
 
-### 2. Deprecated Math Functions
+### Collection Headers
+| Deprecated | Replacement |
+|------------|-------------|
+| `TColgp_Array1OfPnt` | `NCollection_Array1<gp_Pnt>` |
+| `TColgp_Array2OfPnt` | `NCollection_Array2<gp_Pnt>` |
+| `TColgp_Array1OfPnt2d` | `NCollection_Array1<gp_Pnt2d>` |
+| `TColgp_HArray1OfPnt` | `NCollection_HArray1<gp_Pnt>` |
+| `TColgp_HArray1OfPnt2d` | `NCollection_HArray1<gp_Pnt2d>` |
+| `TColStd_Array1OfReal` | `NCollection_Array1<double>` |
+| `TColStd_Array1OfInteger` | `NCollection_Array1<int>` |
+| `TColStd_Array2OfReal` | `NCollection_Array2<double>` |
+| `TColStd_HArray1OfReal` | `NCollection_HArray1<double>` |
+| `TopTools_ListOfShape` | `NCollection_List<TopoDS_Shape>` |
+| `TopTools_HSequenceOfShape` | `NCollection_HSequence<TopoDS_Shape>` |
+| `TopTools_IndexedMapOfShape` | `NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher>` |
+| `TopTools_IndexedDataMapOfShapeListOfShape` | `NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher>` |
+| `TopTools_SequenceOfShape` | `NCollection_Sequence<TopoDS_Shape>` |
+| `TDF_LabelSequence` | `NCollection_Sequence<TDF_Label>` |
+| `TDF_LabelMap` | `NCollection_Map<TDF_Label>` |
+| `TColGeom2d_SequenceOfCurve` | `NCollection_Sequence<Handle(Geom2d_Curve)>` |
 
-Functions like `Sqrt()`, `Cos()`, `Sin()` are deprecated in favor of `std::sqrt()`, etc.
+### Graphic Headers
+| Deprecated | Replacement |
+|------------|-------------|
+| `Graphic3d_Mat4` | `NCollection_Mat4<float>` |
+| `Graphic3d_Mat4d` | `NCollection_Mat4<double>` |
+| `Graphic3d_Vec3` | `NCollection_Vec3<float>` |
+| `Graphic3d_Vec4` | `NCollection_Vec4<float>` |
 
-**Impact:** Checked - we don't use these in OCCTBridge - no changes needed.
+### Primitive Types
+| Deprecated | Replacement |
+|------------|-------------|
+| `Standard_Integer` | `int` |
+| `Standard_Real` | `double` |
+| `Standard_Boolean` | `bool` |
+| `Standard_True` | `true` |
+| `Standard_False` | `false` |
 
-### 3. Standard_Mutex Deprecated
+### MAT Types
+| Deprecated | Replacement |
+|------------|-------------|
+| `MAT_SequenceOfArc` | `NCollection_Sequence<Handle(MAT_Arc)>` |
+| `MAT_SequenceOfBasicElt` | `NCollection_Sequence<Handle(MAT_BasicElt)>` |
 
-Replace with `std::mutex`.
+## Known Behavioral Changes in rc4
 
-**Impact:** We don't use this - no changes needed.
+- **Polygon (lasso) pick**: `InitPolylineSelectingVolume` produces different selection results in headless mode. Point pick and rectangle pick work correctly. Polygon pick tests are disabled pending investigation.
 
-### 4. Removed Classes
+## Performance Improvements from rc4
 
-- `OSD_MAllocHook` - memory debugging (not used)
-- `PLib_Base` and `PLib_DoubleJacobiPolynomial` - polynomial utilities (not used)
-- `TopTools_MutexForShapeProvider` - threading (not used)
+These are internal OCCT changes that benefit OCCTSwift automatically:
 
-**Impact:** None of these are used in OCCTBridge.
+- Devirtualized geometry evaluation on hot paths (BSpline, Bezier, analytic surfaces)
+- Direct array members in BSpline/Bezier (no heap indirection)
+- Thread-local error handling (no mutex contention in parallel code)
+- Contiguous TShape child storage (faster topology iteration)
+- Cache-friendly matrix multiplication
+- Optimized atomic reference counting
+- Robin Hood hash maps for internal collections
+
+## New APIs Available in rc4 (Future Wrapping)
+
+| Feature | OCCT Classes | Potential Swift API |
+|---------|-------------|---------------------|
+| KD-Tree spatial queries | `NCollection_KDTree` | Point cloud nearest-neighbor |
+| Batch 2D curve evaluation | `Geom2dGridEval` | Faster curve discretization |
+| Fast geometry eval | `Geom_Curve::EvalD0()` etc. | Faster point evaluation |
+| Insertion-order maps | `NCollection_OrderedMap` | Internal use |
 
 ## Build Instructions
 
 ```bash
 # Remove old OCCT build artifacts
 cd Libraries
-rm -rf occt-src occt-build-* occt-install-* OCCT.xcframework
+rm -rf occt-src occt-build-* occt-install-*
 
-# Build OCCT 8.0.0-rc3 for iOS/macOS
-./Scripts/build-occt.sh
+# Build OCCT 8.0.0-rc4 for iOS/macOS
+cd Scripts && ./build-occt.sh
 ```
 
-Build time: ~30-60 minutes
+The build script downloads from GitHub tag `V8_0_0_rc4`, builds for iOS arm64, iOS Simulator arm64, macOS arm64, and creates `Libraries/OCCT.xcframework`.
 
-## Testing Checklist
+Build time: ~30-60 minutes depending on hardware.
 
-- [x] Full rebuild of OCCT.xcframework (546MB total)
-- [x] Swift package builds (6.55s)
-- [x] All 23 tests pass
-- [x] STEP export without segfault at exit (**Exit code 0!**)
-- [x] STL export works
-- [x] Face analysis works
-- [x] Wire offset works
-- [x] Boolean operations work
+## Migration Scripts
 
-**Verified 2025-12-31**: OCCT 8.0.0-rc3 build successful. Segfault at exit is fixed.
+OCCT 8.0.0-rc4 includes migration scripts at `Libraries/occt-src/adm/scripts/migration_800/` that can automate some of the typedef replacements. These can be used when performing the full NCollection migration.
 
-## Version Notes
+## When to Update to 8.0.0 Final
 
-### 8.0.0-rc3 Changes (from rc2)
-- 157 improvements and bug fixes
-- Math functions migrated to C++ standard library
-- Threading improvements (std::mutex)
-- Performance optimizations
-
-### When to Update to 8.0.0 Final
-
-1. Wait for 8.0.0 stable release (expected February 2025)
-2. Update `OCCT_VERSION` and clear `OCCT_RC` in build script
+1. Wait for 8.0.0 stable release
+2. Update `OCCT_RC=""` (clear the RC suffix) in `Scripts/build-occt.sh`
 3. Full rebuild and test
-4. Merge to main
-
-## Files Changed
-
-- `Scripts/build-occt.sh` - Updated version and GitHub clone for RCs
-- `docs/UPGRADE_OCCT_8.md` - This file
+4. Merge to main and tag release

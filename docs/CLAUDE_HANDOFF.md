@@ -13,12 +13,12 @@ This document provides complete context for a new Claude instance to manage this
 **OCCTSwift** is a Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/), providing B-Rep solid modeling capabilities for iOS and macOS applications.
 
 ### Key Facts
-- **Language**: Swift 6.0 with Objective-C++ bridge
-- **Platforms**: iOS 18+, macOS 15+
-- **OCCT Version**: 8.0.0-rc3
+- **Language**: Swift 6.1 with Objective-C++ bridge
+- **Platforms**: iOS 15+, macOS 12+
+- **OCCT Version**: 8.0.0-rc4
 - **License**: LGPL-2.1
-- **Operations**: 120 wrapped OCCT operations across 17 categories
-- **Tests**: 159 unit tests
+- **Operations**: 429 wrapped OCCT operations across 36 categories
+- **Tests**: 574 unit tests across 106 suites
 
 ### Primary Use Cases
 - CAD/CAM applications
