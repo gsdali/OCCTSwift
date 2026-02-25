@@ -2439,3 +2439,206 @@ extension Shape {
         OCCTShapeSelfIntersects(handle)
     }
 }
+
+// MARK: - Wedge Primitive (v0.29.0)
+
+extension Shape {
+    /// Create a wedge (tapered box).
+    ///
+    /// A wedge is a box whose top face is narrowed in the X direction.
+    /// When `ltx` equals `dx`, the result is a regular box.
+    /// When `ltx` is 0, the result is a pyramid.
+    ///
+    /// - Parameters:
+    ///   - dx: Width in X
+    ///   - dy: Height in Y
+    ///   - dz: Depth in Z
+    ///   - ltx: Width of top face in X (0 to dx)
+    /// - Returns: A wedge solid, or nil on failure
+    public static func wedge(dx: Double, dy: Double, dz: Double, ltx: Double) -> Shape? {
+        guard dx > 0, dy > 0, dz > 0, ltx >= 0 else { return nil }
+        guard let h = OCCTShapeCreateWedge(dx, dy, dz, ltx) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create an advanced wedge with custom top face bounds.
+    ///
+    /// - Parameters:
+    ///   - dx, dy, dz: Box dimensions
+    ///   - xmin, zmin, xmax, zmax: Top face bounds within the box
+    /// - Returns: A wedge solid, or nil on failure
+    public static func wedge(dx: Double, dy: Double, dz: Double,
+                             xmin: Double, zmin: Double,
+                             xmax: Double, zmax: Double) -> Shape? {
+        guard dx > 0, dy > 0, dz > 0 else { return nil }
+        guard let h = OCCTShapeCreateWedgeAdvanced(dx, dy, dz, xmin, zmin, xmax, zmax)
+        else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - NURBS Conversion (v0.29.0)
+
+extension Shape {
+    /// Convert all curves and surfaces to NURBS representation.
+    ///
+    /// Useful for ensuring uniform representation before export
+    /// or for algorithms that require NURBS geometry.
+    ///
+    /// - Returns: A new shape with all geometry converted to NURBS, or nil on failure
+    public func convertedToNURBS() -> Shape? {
+        guard let h = OCCTShapeConvertToNURBS(handle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Fast Sewing (v0.29.0)
+
+extension Shape {
+    /// Sew faces using the fast sewing algorithm.
+    ///
+    /// Faster than `sewn(tolerance:)` for large models, but may handle
+    /// fewer edge cases.
+    ///
+    /// - Parameter tolerance: Sewing tolerance (default: 1e-6)
+    /// - Returns: The sewn shape, or nil on failure
+    public func fastSewn(tolerance: Double = 1e-6) -> Shape? {
+        guard let h = OCCTShapeFastSewn(handle, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Normal Projection (v0.29.0)
+
+extension Shape {
+    /// Project a wire or edge onto this shape along surface normals.
+    ///
+    /// - Parameters:
+    ///   - wireOrEdge: The wire or edge to project
+    ///   - tolerance3D: 3D tolerance (default: 1e-4)
+    ///   - tolerance2D: 2D tolerance (default: 1e-5)
+    ///   - maxDegree: Maximum BSpline degree (default: 14)
+    ///   - maxSegments: Maximum BSpline segments (default: 16)
+    /// - Returns: The projected shape, or nil on failure
+    public func normalProjection(of wireOrEdge: Shape,
+                                  tolerance3D: Double = 1e-4,
+                                  tolerance2D: Double = 1e-5,
+                                  maxDegree: Int = 14,
+                                  maxSegments: Int = 16) -> Shape? {
+        guard let h = OCCTShapeNormalProjection(wireOrEdge.handle, handle,
+                                                 tolerance3D, tolerance2D,
+                                                 Int32(maxDegree), Int32(maxSegments))
+        else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Half-Space (v0.29.0)
+
+extension Shape {
+    /// Create a half-space solid from a face.
+    ///
+    /// A half-space is an infinite solid on one side of a face.
+    /// The reference point indicates which side is solid.
+    ///
+    /// - Parameters:
+    ///   - face: A shape containing the dividing face
+    ///   - referencePoint: A point on the solid side
+    /// - Returns: A half-space solid, or nil on failure
+    public static func halfSpace(face: Shape, referencePoint: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeCreateHalfSpace(face.handle,
+                                                referencePoint.x, referencePoint.y, referencePoint.z)
+        else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Sub-Shape Replacement (v0.29.0)
+
+extension Shape {
+    /// Replace a sub-shape within this shape.
+    ///
+    /// - Parameters:
+    ///   - oldSubShape: The sub-shape to replace
+    ///   - newSubShape: The replacement sub-shape
+    /// - Returns: The modified shape, or nil on failure
+    public func replacingSubShape(_ oldSubShape: Shape, with newSubShape: Shape) -> Shape? {
+        guard let h = OCCTShapeReplaceSubShape(handle, oldSubShape.handle, newSubShape.handle)
+        else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Remove a sub-shape from this shape.
+    ///
+    /// - Parameter subShape: The sub-shape to remove
+    /// - Returns: The modified shape, or nil on failure
+    public func removingSubShape(_ subShape: Shape) -> Shape? {
+        guard let h = OCCTShapeRemoveSubShape(handle, subShape.handle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Periodic Shapes (v0.29.0)
+
+extension Shape {
+    /// Make this shape periodic in one or more directions.
+    ///
+    /// - Parameters:
+    ///   - xPeriod: Period in X (nil = not periodic in X)
+    ///   - yPeriod: Period in Y (nil = not periodic in Y)
+    ///   - zPeriod: Period in Z (nil = not periodic in Z)
+    /// - Returns: A periodic shape, or nil on failure
+    public func makePeriodic(xPeriod: Double? = nil,
+                              yPeriod: Double? = nil,
+                              zPeriod: Double? = nil) -> Shape? {
+        guard let h = OCCTShapeMakePeriodic(
+            handle,
+            xPeriod != nil, xPeriod ?? 0,
+            yPeriod != nil, yPeriod ?? 0,
+            zPeriod != nil, zPeriod ?? 0
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Repeat this shape periodically in one or more directions.
+    ///
+    /// - Parameters:
+    ///   - xPeriod: Period in X (nil = no repetition in X)
+    ///   - yPeriod: Period in Y (nil = no repetition in Y)
+    ///   - zPeriod: Period in Z (nil = no repetition in Z)
+    ///   - xCount: Number of repetitions in X
+    ///   - yCount: Number of repetitions in Y
+    ///   - zCount: Number of repetitions in Z
+    /// - Returns: The repeated shape, or nil on failure
+    public func repeated(xPeriod: Double? = nil, xCount: Int = 0,
+                          yPeriod: Double? = nil, yCount: Int = 0,
+                          zPeriod: Double? = nil, zCount: Int = 0) -> Shape? {
+        guard let h = OCCTShapeRepeat(
+            handle,
+            xPeriod != nil, xPeriod ?? 0,
+            yPeriod != nil, yPeriod ?? 0,
+            zPeriod != nil, zPeriod ?? 0,
+            Int32(xCount), Int32(yCount), Int32(zCount)
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Draft from Shape (v0.29.0)
+
+extension Shape {
+    /// Create a draft shell by sweeping this shape along a direction with taper angle.
+    ///
+    /// - Parameters:
+    ///   - direction: Draft direction
+    ///   - angle: Taper angle in radians
+    ///   - length: Maximum draft length
+    /// - Returns: A draft shell shape, or nil on failure
+    public func draft(direction: SIMD3<Double>, angle: Double, length: Double) -> Shape? {
+        guard let h = OCCTShapeMakeDraft(handle,
+                                          direction.x, direction.y, direction.z,
+                                          angle, length)
+        else { return nil }
+        return Shape(handle: h)
+    }
+}

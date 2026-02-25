@@ -1,7 +1,7 @@
 # OCCTSwift - Claude Handoff Documentation
 
 > **Last Updated**: 2026-02-25
-> **Current Version**: v0.28.0
+> **Current Version**: v0.29.0
 > **Repository**: https://github.com/gsdali/OCCTSwift
 
 This document provides complete context for a new Claude instance to manage this repository.
@@ -17,8 +17,8 @@ This document provides complete context for a new Claude instance to manage this
 - **Platforms**: iOS 15+, macOS 12+
 - **OCCT Version**: 8.0.0-rc4
 - **License**: LGPL-2.1
-- **Operations**: 453 wrapped OCCT operations across 38 categories
-- **Tests**: 603 unit tests across 110 suites
+- **Operations**: 473 wrapped OCCT operations across 41 categories
+- **Tests**: 639 unit tests across 124 suites
 
 ### Primary Use Cases
 - CAD/CAM applications

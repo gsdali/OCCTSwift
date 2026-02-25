@@ -459,3 +459,43 @@ public final class Curve3D: @unchecked Sendable {
         return Curve3D(handle: h)
     }
 }
+
+// MARK: - Batch Evaluation (v0.29.0)
+
+extension Curve3D {
+    /// Evaluate the curve at multiple parameters in one call.
+    ///
+    /// - Parameter parameters: Array of parameter values
+    /// - Returns: Array of evaluated 3D points
+    public func evaluateGrid(_ parameters: [Double]) -> [SIMD3<Double>] {
+        guard !parameters.isEmpty else { return [] }
+        var outXYZ = [Double](repeating: 0, count: parameters.count * 3)
+        let n = Int(OCCTCurve3DEvaluateGrid(handle, parameters, Int32(parameters.count), &outXYZ))
+        return (0..<n).map { i in SIMD3(outXYZ[i * 3], outXYZ[i * 3 + 1], outXYZ[i * 3 + 2]) }
+    }
+
+    /// Evaluate the curve and its first derivative at multiple parameters in one call.
+    ///
+    /// - Parameter parameters: Array of parameter values
+    /// - Returns: Array of tuples with point and tangent vector
+    public func evaluateGridD1(_ parameters: [Double]) -> [(point: SIMD3<Double>, tangent: SIMD3<Double>)] {
+        guard !parameters.isEmpty else { return [] }
+        var outXYZ = [Double](repeating: 0, count: parameters.count * 3)
+        var outDXDYDZ = [Double](repeating: 0, count: parameters.count * 3)
+        let n = Int(OCCTCurve3DEvaluateGridD1(handle, parameters, Int32(parameters.count), &outXYZ, &outDXDYDZ))
+        return (0..<n).map { i in
+            (point: SIMD3(outXYZ[i * 3], outXYZ[i * 3 + 1], outXYZ[i * 3 + 2]),
+             tangent: SIMD3(outDXDYDZ[i * 3], outDXDYDZ[i * 3 + 1], outDXDYDZ[i * 3 + 2]))
+        }
+    }
+
+    /// Check if this curve is planar.
+    ///
+    /// - Parameter tolerance: Planarity tolerance (default: 0)
+    /// - Returns: The plane normal if planar, or nil if not planar
+    public func planeNormal(tolerance: Double = 0) -> SIMD3<Double>? {
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        guard OCCTCurve3DIsPlanar(handle, tolerance, &nx, &ny, &nz) else { return nil }
+        return SIMD3(nx, ny, nz)
+    }
+}

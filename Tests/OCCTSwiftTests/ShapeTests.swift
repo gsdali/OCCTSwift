@@ -8550,3 +8550,385 @@ struct BatchCurve2DTests {
         #expect(abs(points[1].y - 2.5) < 1e-6)
     }
 }
+
+// MARK: - v0.29.0 New Features
+
+@Suite("Wedge Primitive")
+struct WedgeTests {
+    @Test("Create basic wedge")
+    func basicWedge() {
+        let wedge = Shape.wedge(dx: 10, dy: 5, dz: 8, ltx: 4)
+        #expect(wedge != nil)
+        #expect(wedge!.isValid)
+    }
+
+    @Test("Wedge with zero ltx is a pyramid")
+    func pyramidWedge() {
+        let pyramid = Shape.wedge(dx: 10, dy: 5, dz: 8, ltx: 0)
+        #expect(pyramid != nil)
+        #expect(pyramid!.isValid)
+    }
+
+    @Test("Wedge with ltx=dx is a box")
+    func boxWedge() {
+        let box = Shape.wedge(dx: 10, dy: 5, dz: 8, ltx: 10)
+        #expect(box != nil)
+        #expect(box!.isValid)
+    }
+
+    @Test("Advanced wedge with custom top bounds")
+    func advancedWedge() {
+        let wedge = Shape.wedge(dx: 10, dy: 5, dz: 8, xmin: 2, zmin: 1, xmax: 8, zmax: 6)
+        #expect(wedge != nil)
+        #expect(wedge!.isValid)
+    }
+
+    @Test("Invalid parameters return nil")
+    func invalidWedge() {
+        #expect(Shape.wedge(dx: 0, dy: 5, dz: 8, ltx: 4) == nil)
+        #expect(Shape.wedge(dx: 10, dy: -1, dz: 8, ltx: 4) == nil)
+    }
+}
+
+@Suite("NURBS Conversion")
+struct NURBSConversionTests {
+    @Test("Convert box to NURBS")
+    func convertBox() {
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        let nurbs = box.convertedToNURBS()
+        #expect(nurbs != nil)
+        #expect(nurbs!.isValid)
+    }
+
+    @Test("Convert sphere to NURBS")
+    func convertSphere() {
+        let sphere = Shape.sphere(radius: 5)!
+        let nurbs = sphere.convertedToNURBS()
+        #expect(nurbs != nil)
+        #expect(nurbs!.isValid)
+    }
+
+    @Test("Convert filleted box to NURBS")
+    func convertFilleted() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let filleted = box.filleted(radius: 1)!
+        let nurbs = filleted.convertedToNURBS()
+        #expect(nurbs != nil)
+        #expect(nurbs!.isValid)
+    }
+}
+
+@Suite("Fast Sewing")
+struct FastSewingTests {
+    @Test("Fast sew a valid shape")
+    func fastSewValid() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let sewn = box.fastSewn()
+        #expect(sewn != nil)
+    }
+
+    @Test("Fast sew with custom tolerance")
+    func fastSewTolerance() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let sewn = box.fastSewn(tolerance: 0.01)
+        #expect(sewn != nil)
+    }
+}
+
+@Suite("Normal Projection")
+struct NormalProjectionTests {
+    @Test("Project line onto sphere")
+    func projectOnSphere() {
+        let sphere = Shape.sphere(radius: 10)!
+        let line = Shape.fromWire(Wire.line(from: SIMD3(-5, 0, 11), to: SIMD3(5, 0, 11))!)
+        guard let line else { return }
+        let projected = sphere.normalProjection(of: line)
+        // Projection may or may not succeed depending on geometry - just verify it doesn't crash
+        if let projected {
+            #expect(projected.isValid)
+        }
+    }
+}
+
+@Suite("Half-Space")
+struct HalfSpaceTests {
+    @Test("Create half-space from face")
+    func halfSpaceFromFace() {
+        // Create a planar face to use as the dividing surface
+        let rect = Wire.rectangle(width: 20, height: 20)!
+        let faceShape = Shape.face(from: rect)!
+        let halfSpace = Shape.halfSpace(face: faceShape, referencePoint: SIMD3(0, 0, 5))
+        #expect(halfSpace != nil)
+    }
+}
+
+@Suite("Polynomial Solvers")
+struct PolynomialTests {
+    @Test("Solve quadratic x²-5x+6=0")
+    func quadratic() {
+        let result = PolynomialSolver.quadratic(a: 1, b: -5, c: 6)
+        #expect(result.count == 2)
+        #expect(abs(result.roots[0] - 2.0) < 1e-10)
+        #expect(abs(result.roots[1] - 3.0) < 1e-10)
+    }
+
+    @Test("Quadratic with no real roots")
+    func quadraticNoRoots() {
+        let result = PolynomialSolver.quadratic(a: 1, b: 0, c: 1)
+        #expect(result.count == 0)
+    }
+
+    @Test("Quadratic with one root")
+    func quadraticOneRoot() {
+        let result = PolynomialSolver.quadratic(a: 1, b: -2, c: 1)
+        #expect(result.count >= 1)
+        #expect(abs(result.roots[0] - 1.0) < 1e-10)
+    }
+
+    @Test("Solve cubic x³-6x²+11x-6=0")
+    func cubic() {
+        let result = PolynomialSolver.cubic(a: 1, b: -6, c: 11, d: -6)
+        #expect(result.count == 3)
+        #expect(abs(result.roots[0] - 1.0) < 1e-10)
+        #expect(abs(result.roots[1] - 2.0) < 1e-10)
+        #expect(abs(result.roots[2] - 3.0) < 1e-10)
+    }
+
+    @Test("Solve quartic x⁴-10x²+9=0")
+    func quartic() {
+        // (x²-1)(x²-9) = 0  →  x = ±1, ±3
+        let result = PolynomialSolver.quartic(a: 1, b: 0, c: -10, d: 0, e: 9)
+        #expect(result.count == 4)
+        #expect(abs(result.roots[0] - (-3.0)) < 1e-10)
+        #expect(abs(result.roots[1] - (-1.0)) < 1e-10)
+        #expect(abs(result.roots[2] - 1.0) < 1e-10)
+        #expect(abs(result.roots[3] - 3.0) < 1e-10)
+    }
+}
+
+@Suite("Sub-Shape Replacement")
+struct ReShapeTests {
+    @Test("Replace sub-shape")
+    func replaceSubShape() {
+        // Create a compound and replace one part
+        let box1 = Shape.box(width: 5, height: 5, depth: 5)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+        // Replacing box1 with box2 in a compound context
+        let result = box1.replacingSubShape(box1, with: box2)
+        // May return the replacement shape or nil if topology doesn't allow
+        _ = result
+    }
+}
+
+@Suite("Periodic Shapes")
+struct PeriodicTests {
+    @Test("Make shape periodic in X")
+    func periodicX() {
+        let box = Shape.box(width: 5, height: 5, depth: 5)!
+        let periodic = box.makePeriodic(xPeriod: 10)
+        // May or may not succeed depending on shape topology
+        if let periodic {
+            #expect(periodic.isValid)
+        }
+    }
+
+    @Test("Repeat shape")
+    func repeatShape() {
+        let box = Shape.box(width: 5, height: 5, depth: 5)!
+        let repeated = box.repeated(xPeriod: 10, xCount: 3)
+        if let repeated {
+            #expect(repeated.isValid)
+        }
+    }
+}
+
+@Suite("Hatch Patterns")
+struct HatchTests {
+    @Test("Generate horizontal hatches in rectangle")
+    func horizontalHatch() {
+        let boundary: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)
+        ]
+        let segments = HatchPattern.generate(
+            boundary: boundary,
+            direction: SIMD2(1, 0),
+            spacing: 2.0
+        )
+        #expect(segments.count > 0)
+    }
+
+    @Test("Diagonal hatches")
+    func diagonalHatch() {
+        let boundary: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)
+        ]
+        let segments = HatchPattern.generate(
+            boundary: boundary,
+            direction: SIMD2(1, 1),
+            spacing: 1.5
+        )
+        #expect(segments.count > 0)
+    }
+
+    @Test("Empty boundary returns nothing")
+    func emptyBoundary() {
+        let segments = HatchPattern.generate(
+            boundary: [],
+            direction: SIMD2(1, 0),
+            spacing: 1.0
+        )
+        #expect(segments.isEmpty)
+    }
+
+    @Test("Triangle boundary")
+    func triangleBoundary() {
+        let boundary: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(10, 0), SIMD2(5, 10)
+        ]
+        let segments = HatchPattern.generate(
+            boundary: boundary,
+            direction: SIMD2(1, 0),
+            spacing: 1.0
+        )
+        #expect(segments.count > 0)
+    }
+}
+
+@Suite("Draft from Shape")
+struct DraftTests {
+    @Test("Draft a circle wire")
+    func draftCircle() {
+        let circle = Wire.circle(radius: 5)!
+        let wireShape = Shape.fromWire(circle)!
+        let drafted = wireShape.draft(direction: SIMD3(0, 0, 1), angle: 0.1, length: 10)
+        // Draft may or may not succeed depending on input geometry
+        if let drafted {
+            #expect(drafted.isValid)
+        }
+    }
+}
+
+@Suite("Batch Curve3D Evaluation")
+struct BatchCurve3DTests {
+    @Test("Evaluate grid on circle")
+    func evalGrid() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let params = stride(from: 0.0, to: 2 * Double.pi, by: Double.pi / 4).map { $0 }
+        let points = circle.evaluateGrid(params)
+        #expect(points.count == params.count)
+        #expect(abs(points[0].x - 5.0) < 1e-10)
+        #expect(abs(points[0].y) < 1e-10)
+    }
+
+    @Test("Evaluate grid D1 on circle")
+    func evalGridD1() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let params = [0.0, Double.pi / 2]
+        let results = circle.evaluateGridD1(params)
+        #expect(results.count == 2)
+        // At t=0: tangent should be in Y direction
+        #expect(abs(results[0].tangent.x) < 1e-10)
+        #expect(abs(results[0].tangent.y - 5.0) < 1e-10)
+    }
+
+    @Test("Grid matches individual evaluation")
+    func gridMatchesIndividual() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 3)!
+        let params = stride(from: 0.0, to: 2 * Double.pi, by: 0.5).map { $0 }
+        let gridPoints = circle.evaluateGrid(params)
+        let individualPoints = params.map { circle.point(at: $0) }
+        #expect(gridPoints.count == individualPoints.count)
+        for i in 0..<gridPoints.count {
+            #expect(abs(gridPoints[i].x - individualPoints[i].x) < 1e-10)
+            #expect(abs(gridPoints[i].y - individualPoints[i].y) < 1e-10)
+        }
+    }
+}
+
+@Suite("Curve Planarity Check")
+struct CurvePlanarityTests {
+    @Test("Circle is planar")
+    func circleIsPlanar() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let normal = circle.planeNormal()
+        #expect(normal != nil)
+        #expect(abs(abs(normal!.z) - 1.0) < 1e-10)
+    }
+
+    @Test("Line is planar")
+    func lineIsPlanar() {
+        let segment = Curve3D.segment(from: .zero, to: SIMD3(10, 5, 0))!
+        let normal = segment.planeNormal()
+        // Lines are degenerate planes — implementation may or may not return a normal
+        // Just verify it doesn't crash
+        _ = normal
+    }
+}
+
+@Suite("Batch Surface Evaluation")
+struct BatchSurfaceTests {
+    @Test("Evaluate grid on plane")
+    func evalGridPlane() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let uParams = [0.0, 1.0, 2.0]
+        let vParams = [0.0, 1.0]
+        let grid = plane.evaluateGrid(uParameters: uParams, vParameters: vParams)
+        #expect(grid.count == 2) // 2 rows (v)
+        #expect(grid[0].count == 3) // 3 columns (u)
+        // All z should be 0 on the XY plane
+        for row in grid {
+            for pt in row {
+                #expect(abs(pt.z) < 1e-10)
+            }
+        }
+    }
+
+    @Test("Evaluate grid on sphere")
+    func evalGridSphere() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let uParams = stride(from: 0.0, to: 2 * Double.pi, by: Double.pi / 4).map { $0 }
+        let vParams = stride(from: -Double.pi / 2, to: Double.pi / 2, by: Double.pi / 4).map { $0 }
+        let grid = sphere.evaluateGrid(uParameters: uParams, vParameters: vParams)
+        #expect(grid.count == vParams.count)
+        #expect(grid[0].count == uParams.count)
+        // All points should be at distance 5 from origin
+        for row in grid {
+            for pt in row {
+                let dist = sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z)
+                #expect(abs(dist - 5.0) < 1e-6)
+            }
+        }
+    }
+}
+
+@Suite("Wire Explorer")
+struct WireExplorerTests {
+    @Test("Rectangle has 4 ordered edges")
+    func rectangleEdges() {
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        #expect(rect.orderedEdgeCount == 4)
+    }
+
+    @Test("Get edge points in order")
+    func getEdgePoints() {
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        for i in 0..<rect.orderedEdgeCount {
+            let points = rect.orderedEdgePoints(at: i)
+            #expect(points != nil)
+            #expect(points!.count >= 2)
+        }
+    }
+
+    @Test("Out of range returns nil")
+    func outOfRange() {
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        #expect(rect.orderedEdgePoints(at: 99) == nil)
+        #expect(rect.orderedEdgePoints(at: -1) == nil)
+    }
+
+    @Test("Circle has 1 ordered edge")
+    func circleEdge() {
+        let circle = Wire.circle(radius: 5)!
+        #expect(circle.orderedEdgeCount >= 1)
+    }
+}

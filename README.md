@@ -6,25 +6,28 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 
 | Category | Count | Examples |
 |----------|-------|----------|
-| **Primitives** | 7 | box, cylinder, cylinder(at:), sphere, cone, torus, surface |
+| **Primitives** | 9 | box, cylinder, cylinder(at:), sphere, cone, torus, surface, wedge, halfSpace |
 | **Sweeps** | 7 | pipe sweep, pipeShell, pipeShellWithLaw, extrude, revolve, loft, ruled |
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
-| **Modifications** | 9 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, shell, offset, draft, defeature |
+| **Modifications** | 11 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, shell, offset, draft, defeature, convertToNURBS, makeDraft |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
-| **Wires** | 19 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D, helix, helixTapered |
+| **Wires** | 21 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D, helix, helixTapered, orderedEdgeCount, orderedEdgePoints |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **2D Curves (Curve2D)** | 57 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw, evaluateGrid, evaluateGridD1 |
-| **3D Curves (Curve3D)** | 51 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection, projectedOnPlane |
-| **Surfaces (Surface)** | 47 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1 |
+| **3D Curves (Curve3D)** | 54 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection, projectedOnPlane, evaluateGrid, evaluateGridD1, planeNormal |
+| **Surfaces (Surface)** | 48 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, evaluateGrid |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 10 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
-| **Healing/Analysis** | 16 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded |
+| **Healing/Analysis** | 18 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
 | **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
 | **Import/Export** | 17 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; STEP optimize; mesh |
+| **Shape Editing** | 4 | replacingSubShape, removingSubShape, makePeriodic, repeated |
+| **Polynomial Solver** | 3 | quadratic, cubic, quartic |
+| **Hatch Pattern** | 1 | generate |
 | **Geometry Construction** | 9 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed |
 | **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
@@ -43,7 +46,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **453** | |
+| **Total** | **473** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -76,7 +79,18 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Helix Curves**: Constant-radius and tapered (conical) helical wires for springs, threads, coils
 - **KD-Tree Spatial Queries**: Fast nearest-neighbor, k-nearest, sphere range, and box queries on 3D point sets
 - **STEP Optimization**: Deduplicate geometric entities in STEP files (StepTidy)
-- **Batch Curve Evaluation**: Evaluate 2D curves at many parameters in one call using optimized grid evaluators
+- **Batch Curve Evaluation**: Evaluate 2D/3D curves and surfaces at many parameters in one call using optimized grid evaluators
+- **Wedge Primitives**: Wedge-shaped solids with configurable top face dimensions
+- **NURBS Conversion**: Convert any shape to NURBS representation
+- **Fast Sewing**: High-performance shape sewing for mesh repair
+- **Normal Projection**: Project wires onto shape surfaces along normals
+- **Half-Space Solids**: Semi-infinite solids for cutting operations
+- **Shape Editing**: Sub-shape replacement, removal, periodic shapes with repetition
+- **Draft Extrusion**: Ruled shell extrusions with draft angles
+- **Wire Explorer**: Ordered edge traversal with discretization
+- **Polynomial Solver**: Analytical quadratic/cubic/quartic root finding
+- **Hatch Pattern Generation**: 2D polygon hatching with parallel line segments
+- **Curve Planarity Analysis**: Check if 3D curves lie in a plane
 - **Curve Interpolation**: Create smooth curves through specific points
 - **Import Formats**: STL, STEP, IGES, BREP, OBJ (mesh and CAD)
 - **Export Formats**: STL, STEP, IGES, BREP, OBJ, PLY (3D printing, CAD, visualization)
@@ -100,7 +114,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.28.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.29.0")
 ]
 ```
 
@@ -377,6 +391,8 @@ OCCTSwift/
 │   │   ├── MedialAxis.swift # Medial axis / Voronoi skeleton
 │   │   ├── Annotation.swift # Dimensions, text labels, point clouds
 │   │   ├── KDTree.swift     # KD-tree spatial queries
+│   │   ├── PolynomialSolver.swift # Analytical root finding
+│   │   ├── HatchPattern.swift     # 2D hatch pattern generation
 │   │   ├── Mesh.swift       # Triangulated mesh data
 │   │   └── Exporter.swift   # Multi-format export + STEP optimization
 │   └── OCCTBridge/          # Objective-C++ bridge to OCCT
@@ -632,11 +648,60 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `tree.rangeSearch(center:radius:)` | `NCollection_KDTree::RangeSearch` |
 | `tree.boxSearch(min:max:)` | `NCollection_KDTree::BoxSearch` |
 
-#### Batch Curve Evaluation
+#### Batch Curve/Surface Evaluation
 | Swift API | OCCT Class |
 |-----------|------------|
 | `curve2d.evaluateGrid(_:)` | `Geom2dGridEval_Curve::EvaluateGrid` |
 | `curve2d.evaluateGridD1(_:)` | `Geom2dGridEval_Curve::EvaluateGridD1` |
+| `curve3d.evaluateGrid(_:)` | `GeomGridEval_Curve::EvaluateGrid` |
+| `curve3d.evaluateGridD1(_:)` | `GeomGridEval_Curve::EvaluateGridD1` |
+| `surface.evaluateGrid(uParameters:vParameters:)` | `GeomGridEval_Surface::EvaluateGrid` |
+
+#### Wedge & Half-Space Primitives (v0.29.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.wedge(dx:dy:dz:ltx:)` | `BRepPrimAPI_MakeWedge` |
+| `Shape.wedge(dx:dy:dz:xmin:zmin:xmax:zmax:)` | `BRepPrimAPI_MakeWedge` |
+| `Shape.halfSpace(face:referencePoint:)` | `BRepPrimAPI_MakeHalfSpace` |
+
+#### Shape Conversion & Sewing (v0.29.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.convertedToNURBS()` | `BRepBuilderAPI_NurbsConvert` |
+| `shape.fastSewn(tolerance:)` | `BRepBuilderAPI_FastSewing` |
+| `shape.normalProjection(of:)` | `BRepOffsetAPI_NormalProjection` |
+| `shape.draft(direction:angle:length:)` | `BRepOffsetAPI_MakeDraft` |
+
+#### Shape Editing (v0.29.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.replacingSubShape(_:with:)` | `BRepTools_ReShape` |
+| `shape.removingSubShape(_:)` | `BRepTools_ReShape` |
+| `shape.makePeriodic(xPeriod:yPeriod:zPeriod:)` | `BOPAlgo_MakePeriodic` |
+| `shape.repeated(...)` | `BOPAlgo_MakePeriodic` |
+
+#### Wire Explorer (v0.29.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `wire.orderedEdgeCount` | `BRepTools_WireExplorer` |
+| `wire.orderedEdgePoints(at:maxPoints:)` | `BRepTools_WireExplorer` + `BRepAdaptor_Curve` |
+
+#### Curve Planarity (v0.29.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve3d.planeNormal(tolerance:)` | `ShapeAnalysis_Curve::IsPlanar` |
+
+#### Polynomial Solver (v0.29.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `PolynomialSolver.quadratic(a:b:c:)` | `math_DirectPolynomialRoots` |
+| `PolynomialSolver.cubic(a:b:c:d:)` | `math_DirectPolynomialRoots` |
+| `PolynomialSolver.quartic(a:b:c:d:e:)` | `math_DirectPolynomialRoots` |
+
+#### Hatch Pattern (v0.29.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `HatchPattern.generate(boundary:direction:spacing:)` | `Hatch_Hatcher` |
 
 #### Validation
 | Swift API | OCCT Class |
@@ -651,6 +716,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.29.0: **Comprehensive audit wrap** — wedge primitives, NURBS conversion, fast sewing, normal projection, half-space, shape editing, draft extrusion, wire explorer, batch 3D curve/surface evaluation, polynomial solver, hatch patterns, planarity analysis
 > - v0.28.0: **New rc4 APIs** — helix curves, KD-tree spatial queries, STEP optimization, batch curve evaluation
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
@@ -694,9 +760,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.28.0
+### Current Status: v0.29.0
 
-OCCTSwift now wraps **453 OCCT operations** across 38 categories with 603 tests across 110 suites.
+OCCTSwift now wraps **473 OCCT operations** across 41 categories with 639 tests across 124 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

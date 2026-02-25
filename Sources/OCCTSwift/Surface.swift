@@ -710,3 +710,36 @@ public final class Surface: @unchecked Sendable {
         return Surface(handle: h)
     }
 }
+
+// MARK: - Batch Evaluation (v0.29.0)
+
+extension Surface {
+    /// Evaluate the surface at a UV grid in one call.
+    ///
+    /// Returns points in row-major order (u varies fastest).
+    ///
+    /// - Parameters:
+    ///   - uParameters: Array of U parameter values
+    ///   - vParameters: Array of V parameter values
+    /// - Returns: 2D array of evaluated 3D points [v][u]
+    public func evaluateGrid(uParameters: [Double], vParameters: [Double]) -> [[SIMD3<Double>]] {
+        guard !uParameters.isEmpty, !vParameters.isEmpty else { return [] }
+        let total = uParameters.count * vParameters.count
+        var outXYZ = [Double](repeating: 0, count: total * 3)
+        let n = Int(OCCTSurfaceEvaluateGrid(handle,
+                                             uParameters, Int32(uParameters.count),
+                                             vParameters, Int32(vParameters.count),
+                                             &outXYZ))
+        guard n == total else { return [] }
+        var result = [[SIMD3<Double>]]()
+        for v in 0..<vParameters.count {
+            var row = [SIMD3<Double>]()
+            for u in 0..<uParameters.count {
+                let i = v * uParameters.count + u
+                row.append(SIMD3(outXYZ[i * 3], outXYZ[i * 3 + 1], outXYZ[i * 3 + 2]))
+            }
+            result.append(row)
+        }
+        return result
+    }
+}

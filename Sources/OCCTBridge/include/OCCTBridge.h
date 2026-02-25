@@ -2744,6 +2744,225 @@ int32_t OCCTCurve2DEvaluateGridD1(OCCTCurve2DRef curve,
                                    const double* params, int32_t paramCount,
                                    double* outXY, double* outDXDY);
 
+
+// MARK: - Wedge Primitive (v0.29.0)
+
+/// Create a wedge (tapered box) primitive.
+/// @param dx, dy, dz Full dimensions in X, Y, Z
+/// @param ltx X dimension at the top (0 for a full taper to a ridge)
+/// @return Wedge shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateWedge(double dx, double dy, double dz, double ltx);
+
+/// Create a wedge primitive with min/max control on the top face.
+/// @param dx, dy, dz Full dimensions in X, Y, Z
+/// @param xmin, zmin, xmax, zmax Bounds of the top face within the base
+/// @return Wedge shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateWedgeAdvanced(double dx, double dy, double dz,
+                                           double xmin, double zmin, double xmax, double zmax);
+
+
+// MARK: - NURBS Conversion (v0.29.0)
+
+/// Convert all geometry in a shape to NURBS representation.
+/// @param shape The shape to convert
+/// @return NURBS shape, or NULL on failure
+OCCTShapeRef OCCTShapeConvertToNURBS(OCCTShapeRef shape);
+
+
+// MARK: - Fast Sewing (v0.29.0)
+
+/// Sew faces using the fast sewing algorithm (less robust but faster).
+/// @param shape The shape to sew
+/// @param tolerance Sewing tolerance
+/// @return Sewn shape, or NULL on failure
+OCCTShapeRef OCCTShapeFastSewn(OCCTShapeRef shape, double tolerance);
+
+
+// MARK: - Normal Projection (v0.29.0)
+
+/// Project a wire or edge normally onto a surface shape.
+/// @param wireOrEdge Wire or edge to project
+/// @param surface Surface shape to project onto
+/// @param tol3d 3D tolerance
+/// @param tol2d 2D tolerance
+/// @param maxDegree Maximum degree of resulting curve
+/// @param maxSeg Maximum segments of resulting curve
+/// @return Projected shape, or NULL on failure
+OCCTShapeRef OCCTShapeNormalProjection(OCCTShapeRef wireOrEdge, OCCTShapeRef surface,
+                                        double tol3d, double tol2d, int maxDegree, int maxSeg);
+
+
+// MARK: - Batch Curve3D Evaluation (v0.29.0)
+
+/// Evaluate a 3D curve at multiple parameter values (batch).
+/// @param curve The curve to evaluate
+/// @param params Array of parameter values
+/// @param paramCount Number of parameters
+/// @param outXYZ Output buffer for xyz triples (must hold 3 * paramCount doubles)
+/// @return Number of points evaluated
+int32_t OCCTCurve3DEvaluateGrid(OCCTCurve3DRef curve, const double* params, int32_t paramCount,
+                                 double* outXYZ);
+
+/// Evaluate a 3D curve and its first derivative at multiple parameters (batch).
+/// @param outXYZ Output buffer for point xyz triples (3 * paramCount doubles)
+/// @param outDXDYDZ Output buffer for derivative xyz triples (3 * paramCount doubles)
+/// @return Number of points evaluated
+int32_t OCCTCurve3DEvaluateGridD1(OCCTCurve3DRef curve, const double* params, int32_t paramCount,
+                                   double* outXYZ, double* outDXDYDZ);
+
+
+// MARK: - Batch Surface Evaluation (v0.29.0)
+
+/// Evaluate a surface at a grid of UV parameter values (batch).
+/// Output is row-major (u varies fastest): outXYZ[(iv * uCount + iu) * 3 + {0,1,2}].
+/// @param surface The surface to evaluate
+/// @param uParams Array of U parameter values
+/// @param uCount Number of U parameters
+/// @param vParams Array of V parameter values
+/// @param vCount Number of V parameters
+/// @param outXYZ Output buffer for xyz triples (must hold 3 * uCount * vCount doubles)
+/// @return Number of points evaluated (uCount * vCount on success)
+int32_t OCCTSurfaceEvaluateGrid(OCCTSurfaceRef surface,
+                                 const double* uParams, int32_t uCount,
+                                 const double* vParams, int32_t vCount,
+                                 double* outXYZ);
+
+
+// MARK: - Wire Explorer (v0.29.0)
+
+/// Get the number of edges in a wire by ordered traversal.
+/// @param wire The wire to explore
+/// @return Number of edges
+int32_t OCCTWireExplorerEdgeCount(OCCTWireRef wire);
+
+/// Get a discretized edge from a wire by ordered traversal index.
+/// @param wire The wire to explore
+/// @param index 0-based edge index
+/// @param outPoints Output buffer for xyz triples [x,y,z,...]
+/// @param maxPoints Maximum number of points to output
+/// @param outPointCount Output: actual number of points written
+/// @return true on success
+bool OCCTWireExplorerGetEdge(OCCTWireRef wire, int32_t index,
+                              double* outPoints, int32_t maxPoints, int32_t* outPointCount);
+
+
+// MARK: - Half-Space (v0.29.0)
+
+/// Create a half-space solid from a face and a reference point.
+/// The half-space is the solid containing the reference point.
+/// @param faceShape Shape containing a face (first face is used)
+/// @param refX, refY, refZ Reference point in the desired half-space
+/// @return Half-space solid, or NULL on failure
+OCCTShapeRef OCCTShapeCreateHalfSpace(OCCTShapeRef faceShape, double refX, double refY, double refZ);
+
+
+// MARK: - Polynomial Solvers (v0.29.0)
+
+/// Result of a polynomial root finding operation.
+typedef struct {
+    int32_t count;
+    double roots[4];
+} OCCTPolynomialRoots;
+
+/// Solve a quadratic equation: a*x^2 + b*x + c = 0
+OCCTPolynomialRoots OCCTSolveQuadratic(double a, double b, double c);
+
+/// Solve a cubic equation: a*x^3 + b*x^2 + c*x + d = 0
+OCCTPolynomialRoots OCCTSolveCubic(double a, double b, double c, double d);
+
+/// Solve a quartic equation: a*x^4 + b*x^3 + c*x^2 + d*x + e = 0
+OCCTPolynomialRoots OCCTSolveQuartic(double a, double b, double c, double d, double e);
+
+
+// MARK: - Sub-Shape Replacement (v0.29.0)
+
+/// Replace a sub-shape within a shape.
+/// @param shape The parent shape
+/// @param oldSub Sub-shape to replace
+/// @param newSub Replacement sub-shape
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef OCCTShapeReplaceSubShape(OCCTShapeRef shape, OCCTShapeRef oldSub, OCCTShapeRef newSub);
+
+/// Remove a sub-shape from a shape.
+/// @param shape The parent shape
+/// @param subToRemove Sub-shape to remove
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef OCCTShapeRemoveSubShape(OCCTShapeRef shape, OCCTShapeRef subToRemove);
+
+
+// MARK: - Periodic Shapes (v0.29.0)
+
+/// Make a shape periodic in one or more directions.
+/// @param shape The shape to make periodic
+/// @param xPeriodic, yPeriodic, zPeriodic Enable periodicity in each direction
+/// @param xPeriod, yPeriod, zPeriod Period value in each direction
+/// @return Periodic shape, or NULL on failure
+OCCTShapeRef OCCTShapeMakePeriodic(OCCTShapeRef shape,
+                                    bool xPeriodic, double xPeriod,
+                                    bool yPeriodic, double yPeriod,
+                                    bool zPeriodic, double zPeriod);
+
+/// Repeat a periodic shape in one or more directions.
+/// @param shape The base shape (should be made periodic first)
+/// @param xPeriodic, yPeriodic, zPeriodic Enable repetition in each direction
+/// @param xPeriod, yPeriod, zPeriod Period value for repetition
+/// @param xTimes, yTimes, zTimes Number of repetitions in each direction
+/// @return Repeated shape, or NULL on failure
+OCCTShapeRef OCCTShapeRepeat(OCCTShapeRef shape,
+                              bool xPeriodic, double xPeriod,
+                              bool yPeriodic, double yPeriod,
+                              bool zPeriodic, double zPeriod,
+                              int32_t xTimes, int32_t yTimes, int32_t zTimes);
+
+
+// MARK: - Hatch Patterns (v0.29.0)
+
+/// Generate hatch line segments within a 2D polygon boundary.
+/// @param boundaryXY Flat array of (x,y) pairs defining the boundary polygon
+/// @param boundaryCount Number of boundary points
+/// @param dirX, dirY Hatch line direction
+/// @param spacing Distance between hatch lines
+/// @param offset Offset of the first hatch line from origin
+/// @param outSegments Output buffer: pairs of (x1,y1,x2,y2) per segment (4 doubles each)
+/// @param maxSegments Maximum number of output segments
+/// @return Number of segments written
+int32_t OCCTHatchLines(const double* boundaryXY, int32_t boundaryCount,
+                        double dirX, double dirY, double spacing, double offset,
+                        double* outSegments, int32_t maxSegments);
+
+
+// MARK: - Draft from Shape (v0.29.0)
+
+/// Create a draft shell by sweeping a shape along a direction with taper angle.
+/// @param shape Wire or edge to draft from
+/// @param dirX, dirY, dirZ Draft direction
+/// @param angle Taper angle in radians
+/// @param lengthMax Maximum draft length
+/// @return Draft shell shape, or NULL on failure
+OCCTShapeRef OCCTShapeMakeDraft(OCCTShapeRef shape, double dirX, double dirY, double dirZ,
+                                 double angle, double lengthMax);
+
+
+// MARK: - Curve Planarity Check (v0.29.0)
+
+/// Check if a 3D curve is planar.
+/// @param curve The curve to check
+/// @param tolerance Planarity tolerance
+/// @param outNX, outNY, outNZ Output: normal of the plane (if planar)
+/// @return true if the curve is planar
+bool OCCTCurve3DIsPlanar(OCCTCurve3DRef curve, double tolerance,
+                          double* outNX, double* outNY, double* outNZ);
+
+
+// MARK: - Revolution Feature (v0.29.0)
+
+// NOTE: BRepFeat_MakeRevol is complex (requires sketch face identification).
+// This function is omitted because identifying the correct sketch face from the
+// profile shape is highly context-dependent and error-prone in a generic C bridge.
+// Users should instead use OCCTShapeCreateRevolution (sweep-based) for revolution solids,
+// or BRepAlgoAPI_Fuse/Cut for adding/subtracting revolved material.
+
+
 #ifdef __cplusplus
 }
 #endif

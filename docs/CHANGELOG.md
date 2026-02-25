@@ -1,5 +1,68 @@
 # OCCTSwift Changelog
 
+## [v0.29.0] - 2026-02-25
+
+### Comprehensive Audit Wrap
+
+Wraps 20 additional OCCT operations identified through a comprehensive API audit: wedge primitives, NURBS conversion, fast sewing, normal projection, half-space solids, shape editing (sub-shape replacement/removal), periodic shapes, draft extrusion, wire explorer, batch 3D curve/surface evaluation, polynomial root finding, hatch pattern generation, and curve planarity analysis. 36 new tests across 14 new suites. 639 tests passing across 124 suites.
+
+#### Wedge & Half-Space Primitives
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.wedge(dx:dy:dz:ltx:)` | `BRepPrimAPI_MakeWedge` |
+| `Shape.wedge(dx:dy:dz:xmin:zmin:xmax:zmax:)` | `BRepPrimAPI_MakeWedge` |
+| `Shape.halfSpace(face:referencePoint:)` | `BRepPrimAPI_MakeHalfSpace` |
+
+#### Shape Conversion & Sewing
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.convertedToNURBS()` | `BRepBuilderAPI_NurbsConvert` |
+| `shape.fastSewn(tolerance:)` | `BRepBuilderAPI_FastSewing` |
+| `shape.normalProjection(of:tolerance3D:tolerance2D:)` | `BRepOffsetAPI_NormalProjection` |
+| `shape.draft(direction:angle:length:)` | `BRepOffsetAPI_MakeDraft` |
+
+#### Shape Editing
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.replacingSubShape(_:with:)` | `BRepTools_ReShape` |
+| `shape.removingSubShape(_:)` | `BRepTools_ReShape` |
+| `shape.makePeriodic(xPeriod:yPeriod:zPeriod:)` | `BOPAlgo_MakePeriodic` |
+| `shape.repeated(xPeriod:xCount:yPeriod:yCount:zPeriod:zCount:)` | `BOPAlgo_MakePeriodic` |
+
+#### Wire Explorer
+| Swift API | OCCT Class |
+|-----------|------------|
+| `wire.orderedEdgeCount` | `BRepTools_WireExplorer` |
+| `wire.orderedEdgePoints(at:maxPoints:)` | `BRepTools_WireExplorer` + `BRepAdaptor_Curve` |
+
+#### Batch 3D Curve/Surface Evaluation
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve3d.evaluateGrid(_:)` | `GeomGridEval_Curve::EvaluateGrid` |
+| `curve3d.evaluateGridD1(_:)` | `GeomGridEval_Curve::EvaluateGridD1` |
+| `surface.evaluateGrid(uParameters:vParameters:)` | `GeomGridEval_Surface::EvaluateGrid` |
+
+#### Curve Planarity
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve3d.planeNormal(tolerance:)` | `ShapeAnalysis_Curve::IsPlanar` |
+
+#### Polynomial Solver
+| Swift API | OCCT Class |
+|-----------|------------|
+| `PolynomialSolver.quadratic(a:b:c:)` | `math_DirectPolynomialRoots` |
+| `PolynomialSolver.cubic(a:b:c:d:)` | `math_DirectPolynomialRoots` |
+| `PolynomialSolver.quartic(a:b:c:d:e:)` | `math_DirectPolynomialRoots` |
+
+#### Hatch Pattern Generation
+| Swift API | OCCT Class |
+|-----------|------------|
+| `HatchPattern.generate(boundary:direction:spacing:)` | `Hatch_Hatcher` |
+
+New Swift files: `PolynomialSolver.swift`, `HatchPattern.swift`.
+
+---
+
 ## [v0.28.0] - 2026-02-25
 
 ### New OCCT 8.0.0-rc4 Features

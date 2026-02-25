@@ -1030,3 +1030,31 @@ extension Wire {
         return Wire(handle: handle)
     }
 }
+
+// MARK: - Wire Explorer (v0.29.0)
+
+extension Wire {
+    /// Number of edges in this wire, traversed in order.
+    public var orderedEdgeCount: Int {
+        Int(OCCTWireExplorerEdgeCount(handle))
+    }
+
+    /// Get the discretized points of an edge by its ordered index.
+    ///
+    /// Uses `BRepTools_WireExplorer` for ordered traversal, ensuring
+    /// edges are visited in connected sequence.
+    ///
+    /// - Parameters:
+    ///   - index: 0-based edge index in traversal order
+    ///   - maxPoints: Maximum points to return (default: 200)
+    /// - Returns: Array of 3D points along the edge, or nil if index is out of range
+    public func orderedEdgePoints(at index: Int, maxPoints: Int = 200) -> [SIMD3<Double>]? {
+        guard index >= 0, maxPoints > 0 else { return nil }
+        var buffer = [Double](repeating: 0, count: maxPoints * 3)
+        var pointCount: Int32 = 0
+        guard OCCTWireExplorerGetEdge(handle, Int32(index), &buffer, Int32(maxPoints), &pointCount)
+        else { return nil }
+        let n = Int(pointCount)
+        return (0..<n).map { i in SIMD3(buffer[i * 3], buffer[i * 3 + 1], buffer[i * 3 + 2]) }
+    }
+}

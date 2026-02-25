@@ -1,0 +1,63 @@
+import Foundation
+import simd
+import OCCTBridge
+
+/// A line segment in a 2D hatch pattern.
+public struct HatchSegment: Sendable {
+    /// Start point of the hatch line segment.
+    public let start: SIMD2<Double>
+    /// End point of the hatch line segment.
+    public let end: SIMD2<Double>
+}
+
+/// Generate 2D hatch patterns within polygon boundaries.
+///
+/// Hatch patterns fill a closed 2D polygon with parallel line segments
+/// at a given spacing. Useful for cross-hatching in technical drawings
+/// and toolpath generation in CAM.
+///
+/// ## Example
+///
+/// ```swift
+/// // Hatch a rectangle with horizontal lines spaced 2mm apart
+/// let boundary: [SIMD2<Double>] = [
+///     SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 5), SIMD2(0, 5)
+/// ]
+/// let segments = HatchPattern.generate(
+///     boundary: boundary,
+///     direction: SIMD2(1, 0),
+///     spacing: 2.0
+/// )
+/// ```
+public enum HatchPattern {
+    /// Generate hatch line segments within a 2D polygon boundary.
+    ///
+    /// - Parameters:
+    ///   - boundary: Closed polygon boundary (vertices in order)
+    ///   - direction: Direction of hatch lines
+    ///   - spacing: Distance between hatch lines
+    ///   - offset: Offset of the first hatch line from origin (default: 0)
+    ///   - maxSegments: Maximum output segments (default: 10000)
+    /// - Returns: Array of hatch line segments
+    public static func generate(
+        boundary: [SIMD2<Double>],
+        direction: SIMD2<Double>,
+        spacing: Double,
+        offset: Double = 0,
+        maxSegments: Int = 10000
+    ) -> [HatchSegment] {
+        guard boundary.count >= 3, spacing > 0, maxSegments > 0 else { return [] }
+        let flat = boundary.flatMap { [$0.x, $0.y] }
+        var outBuf = [Double](repeating: 0, count: maxSegments * 4)
+        let n = Int(OCCTHatchLines(flat, Int32(boundary.count),
+                                    direction.x, direction.y, spacing, offset,
+                                    &outBuf, Int32(maxSegments)))
+        return (0..<n).map { i in
+            let base = i * 4
+            return HatchSegment(
+                start: SIMD2(outBuf[base], outBuf[base + 1]),
+                end: SIMD2(outBuf[base + 2], outBuf[base + 3])
+            )
+        }
+    }
+}
