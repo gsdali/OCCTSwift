@@ -3361,6 +3361,132 @@ OCCTShapeRef OCCTShapeAddLinearRib(OCCTShapeRef shape, OCCTWireRef profile,
                                     bool fuse);
 
 
+// MARK: - Asymmetric Chamfer (v0.32.0)
+
+/// Chamfer specific edges with two different distances (asymmetric).
+/// @param shape The shape to chamfer
+/// @param edgeIndices Array of 0-based edge indices
+/// @param faceIndices Array of 0-based face indices (one per edge, identifies reference face)
+/// @param dist1 Array of first distances (measured on the reference face)
+/// @param dist2 Array of second distances (measured on the other face)
+/// @param count Number of edges to chamfer
+/// @return Chamfered shape, or NULL on failure
+OCCTShapeRef OCCTShapeChamferTwoDistances(OCCTShapeRef shape,
+                                           const int32_t* edgeIndices,
+                                           const int32_t* faceIndices,
+                                           const double* dist1,
+                                           const double* dist2,
+                                           int32_t count);
+
+/// Chamfer specific edges with distance + angle.
+/// @param shape The shape to chamfer
+/// @param edgeIndices Array of 0-based edge indices
+/// @param faceIndices Array of 0-based face indices (one per edge, identifies reference face)
+/// @param distances Array of distances (measured on the reference face)
+/// @param anglesDeg Array of angles in degrees (must be between 0 and 90, exclusive)
+/// @param count Number of edges to chamfer
+/// @return Chamfered shape, or NULL on failure
+OCCTShapeRef OCCTShapeChamferDistAngle(OCCTShapeRef shape,
+                                        const int32_t* edgeIndices,
+                                        const int32_t* faceIndices,
+                                        const double* distances,
+                                        const double* anglesDeg,
+                                        int32_t count);
+
+
+// MARK: - Loft Improvements (v0.32.0)
+
+/// Create a lofted shape with ruled/smooth control and optional vertex endpoints.
+/// @param profiles Array of wire profiles
+/// @param profileCount Number of wire profiles
+/// @param solid Whether to create a solid (true) or shell (false)
+/// @param ruled Whether to use ruled surfaces (true) or smooth B-spline (false)
+/// @param firstVertexX,Y,Z If not NaN, use as starting vertex (cone tip)
+/// @param lastVertexX,Y,Z If not NaN, use as ending vertex (cone tip)
+/// @return Lofted shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateLoftAdvanced(const OCCTWireRef* profiles, int32_t profileCount,
+                                          bool solid, bool ruled,
+                                          double firstVertexX, double firstVertexY, double firstVertexZ,
+                                          double lastVertexX, double lastVertexY, double lastVertexZ);
+
+
+// MARK: - Offset with Join Type (v0.32.0)
+
+/// Offset shape using the proper PerformByJoin algorithm.
+/// @param shape The shape to offset
+/// @param distance Offset distance (positive = outward, negative = inward)
+/// @param tolerance Coincidence tolerance (typically 1e-7)
+/// @param joinType Join type: 0=Arc (rounded gaps), 1=Tangent, 2=Intersection (sharp)
+/// @param removeInternalEdges Whether to remove internal edges from result
+/// @return Offset shape, or NULL on failure
+OCCTShapeRef OCCTShapeOffsetByJoin(OCCTShapeRef shape, double distance,
+                                    double tolerance, int32_t joinType,
+                                    bool removeInternalEdges);
+
+
+// MARK: - Revolution Form Feature (v0.32.0)
+
+/// Add a revolution form (revolved rib/groove) to a shape.
+/// @param shape The base shape
+/// @param profile The wire profile of the rib
+/// @param axOX,axOY,axOZ Origin of revolution axis
+/// @param axDX,axDY,axDZ Direction of revolution axis
+/// @param height1 Height on one side
+/// @param height2 Height on the other side
+/// @param fuse true for rib, false for groove
+/// @return Shape with revolution form, or NULL on failure
+OCCTShapeRef OCCTShapeAddRevolutionForm(OCCTShapeRef shape, OCCTWireRef profile,
+                                         double axOX, double axOY, double axOZ,
+                                         double axDX, double axDY, double axDZ,
+                                         double height1, double height2,
+                                         bool fuse);
+
+
+// MARK: - Draft Prism Feature (v0.32.0)
+
+/// Add a draft prism (tapered extrusion) to a shape, extruded to a given height.
+/// @param shape The base shape
+/// @param profileFace 0-based face index on shape to use as sketch/profile face
+/// @param profile Wire profile to extrude
+/// @param angleDeg Draft angle in degrees
+/// @param height Extrusion height
+/// @param fuse true to add material, false to cut
+/// @return Shape with draft prism, or NULL on failure
+OCCTShapeRef OCCTShapeDraftPrism(OCCTShapeRef shape, int32_t profileFace,
+                                  OCCTWireRef profile, double angleDeg,
+                                  double height, bool fuse);
+
+/// Add a draft prism, extruded through the entire shape.
+OCCTShapeRef OCCTShapeDraftPrismThruAll(OCCTShapeRef shape, int32_t profileFace,
+                                         OCCTWireRef profile, double angleDeg,
+                                         bool fuse);
+
+
+// MARK: - Revolution Feature (v0.32.0)
+
+/// Add a revolved feature (boss/pocket) to a shape, revolving to a given angle.
+/// @param shape The base shape
+/// @param profileFace 0-based face index on shape to use as sketch face
+/// @param profile Wire profile to revolve
+/// @param axOX,axOY,axOZ Origin of revolution axis
+/// @param axDX,axDY,axDZ Direction of revolution axis
+/// @param angleDeg Rotation angle in degrees
+/// @param fuse true to add material, false to cut
+/// @return Shape with revolved feature, or NULL on failure
+OCCTShapeRef OCCTShapeRevolFeature(OCCTShapeRef shape, int32_t profileFace,
+                                    OCCTWireRef profile,
+                                    double axOX, double axOY, double axOZ,
+                                    double axDX, double axDY, double axDZ,
+                                    double angleDeg, bool fuse);
+
+/// Add a revolved feature, revolving through 360 degrees.
+OCCTShapeRef OCCTShapeRevolFeatureThruAll(OCCTShapeRef shape, int32_t profileFace,
+                                           OCCTWireRef profile,
+                                           double axOX, double axOY, double axOZ,
+                                           double axDX, double axDY, double axDZ,
+                                           bool fuse);
+
+
 #ifdef __cplusplus
 }
 #endif

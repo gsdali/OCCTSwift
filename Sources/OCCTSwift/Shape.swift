@@ -130,6 +130,30 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Loft through profile wires with advanced options.
+    ///
+    /// - Parameters:
+    ///   - profiles: Wire profiles to loft through
+    ///   - solid: Whether to create a solid (true) or shell (false)
+    ///   - ruled: Whether to use ruled surfaces (true) or smooth B-spline (false)
+    ///   - firstVertex: Optional starting vertex (for cone/taper tips)
+    ///   - lastVertex: Optional ending vertex (for cone/taper tips)
+    /// - Returns: Lofted shape, or nil on failure
+    public static func loft(profiles: [Wire], solid: Bool = true, ruled: Bool,
+                            firstVertex: SIMD3<Double>? = nil,
+                            lastVertex: SIMD3<Double>? = nil) -> Shape? {
+        let handles: [OCCTWireRef?] = profiles.map { $0.handle }
+        let fv = firstVertex ?? SIMD3<Double>(Double.nan, Double.nan, Double.nan)
+        let lv = lastVertex ?? SIMD3<Double>(Double.nan, Double.nan, Double.nan)
+        guard let handle = handles.withUnsafeBufferPointer({ buffer in
+            OCCTShapeCreateLoftAdvanced(buffer.baseAddress, Int32(profiles.count),
+                                        solid, ruled,
+                                        fv.x, fv.y, fv.z,
+                                        lv.x, lv.y, lv.z)
+        }) else { return nil }
+        return Shape(handle: handle)
+    }
+
     // MARK: - Boolean Operations
 
     /// Union (add) two shapes together
@@ -164,6 +188,40 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Chamfer specific edges with two different distances (asymmetric).
+    ///
+    /// Each entry specifies an edge, a reference face adjacent to that edge,
+    /// and two distances. `dist1` is measured on the reference face side,
+    /// `dist2` on the opposite side.
+    ///
+    /// - Parameter edges: Array of (edgeIndex, faceIndex, dist1, dist2) tuples
+    /// - Returns: Chamfered shape, or nil on failure
+    public func chamferedTwoDistances(_ edges: [(edgeIndex: Int, faceIndex: Int, dist1: Double, dist2: Double)]) -> Shape? {
+        let ei = edges.map { Int32($0.edgeIndex) }
+        let fi = edges.map { Int32($0.faceIndex) }
+        let d1 = edges.map { $0.dist1 }
+        let d2 = edges.map { $0.dist2 }
+        guard let h = OCCTShapeChamferTwoDistances(handle, ei, fi, d1, d2, Int32(edges.count)) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Chamfer specific edges with distance + angle.
+    ///
+    /// Each entry specifies an edge, a reference face adjacent to that edge,
+    /// a distance measured on the reference face, and a chamfer angle in degrees
+    /// (must be between 0 and 90, exclusive).
+    ///
+    /// - Parameter edges: Array of (edgeIndex, faceIndex, distance, angleDegrees) tuples
+    /// - Returns: Chamfered shape, or nil on failure
+    public func chamferedDistAngle(_ edges: [(edgeIndex: Int, faceIndex: Int, distance: Double, angleDegrees: Double)]) -> Shape? {
+        let ei = edges.map { Int32($0.edgeIndex) }
+        let fi = edges.map { Int32($0.faceIndex) }
+        let d = edges.map { $0.distance }
+        let a = edges.map { $0.angleDegrees }
+        guard let h = OCCTShapeChamferDistAngle(handle, ei, fi, d, a, Int32(edges.count)) else { return nil }
+        return Shape(handle: h)
+    }
+
     /// Create a hollow shell by removing material from inside
     public func shelled(thickness: Double) -> Shape? {
         guard let handle = OCCTShapeShell(self.handle, thickness) else { return nil }
@@ -174,6 +232,25 @@ public final class Shape: @unchecked Sendable {
     public func offset(by distance: Double) -> Shape? {
         guard let handle = OCCTShapeOffset(self.handle, distance) else { return nil }
         return Shape(handle: handle)
+    }
+
+    /// Offset all faces using the proper join algorithm.
+    ///
+    /// This uses `PerformByJoin` which is more robust than the simple offset.
+    /// It handles gap filling between parallel faces using the specified join type.
+    ///
+    /// - Parameters:
+    ///   - distance: Offset distance (positive = outward, negative = inward)
+    ///   - tolerance: Coincidence tolerance (default: 1e-7)
+    ///   - joinType: How to fill gaps between offset faces
+    ///   - removeInternalEdges: Whether to clean up internal edges
+    /// - Returns: Offset shape, or nil on failure
+    public func offset(by distance: Double, tolerance: Double = 1e-7,
+                       joinType: OffsetJoinType = .arc,
+                       removeInternalEdges: Bool = false) -> Shape? {
+        guard let h = OCCTShapeOffsetByJoin(handle, distance, tolerance,
+                                             joinType.rawValue, removeInternalEdges) else { return nil }
+        return Shape(handle: h)
     }
 
     // MARK: - Transformations
@@ -2992,6 +3069,141 @@ extension Shape {
             direction.x, direction.y, direction.z,
             draftDirection.x, draftDirection.y, draftDirection.z,
             fuse) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Offset Join Type (v0.32.0)
+
+/// Join type for offset operations.
+public enum OffsetJoinType: Int32, Sendable {
+    /// Arc — fill gaps with pipe arcs and spheres (smooth, rounded)
+    case arc = 0
+    /// Tangent — tangent extension of faces
+    case tangent = 1
+    /// Intersection — extend and intersect adjacent faces (sharp edges)
+    case intersection = 2
+}
+
+// MARK: - Revolution Form Feature (v0.32.0)
+
+extension Shape {
+    /// Add a revolution form (revolved rib or groove) to a shape.
+    ///
+    /// Similar to `addingLinearRib`, but the rib follows a rotational
+    /// path around the given axis.
+    ///
+    /// - Parameters:
+    ///   - profile: Wire profile of the rib
+    ///   - axisOrigin: Origin of the revolution axis
+    ///   - axisDirection: Direction of the revolution axis
+    ///   - height1: Height on one side
+    ///   - height2: Height on the other side
+    ///   - fuse: true for rib (add material), false for groove (remove material)
+    /// - Returns: Shape with revolution form, or nil on failure
+    public func addingRevolutionForm(profile: Wire,
+                                     axisOrigin: SIMD3<Double>,
+                                     axisDirection: SIMD3<Double>,
+                                     height1: Double, height2: Double,
+                                     fuse: Bool = true) -> Shape? {
+        guard let h = OCCTShapeAddRevolutionForm(
+            handle, profile.handle,
+            axisOrigin.x, axisOrigin.y, axisOrigin.z,
+            axisDirection.x, axisDirection.y, axisDirection.z,
+            height1, height2, fuse) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Draft Prism Feature (v0.32.0)
+
+extension Shape {
+    /// Add a draft prism (tapered extrusion) to a shape.
+    ///
+    /// Creates a boss or pocket with draft angle (taper), commonly used
+    /// in injection mold design.
+    ///
+    /// - Parameters:
+    ///   - profile: Wire profile to extrude
+    ///   - sketchFaceIndex: 0-based index of the face on which the profile sits
+    ///   - draftAngle: Draft angle in degrees
+    ///   - height: Extrusion height
+    ///   - fuse: true to add material (boss), false to cut (pocket)
+    /// - Returns: Shape with draft prism, or nil on failure
+    public func addingDraftPrism(profile: Wire, sketchFaceIndex: Int,
+                                 draftAngle: Double, height: Double,
+                                 fuse: Bool = true) -> Shape? {
+        guard let h = OCCTShapeDraftPrism(handle, Int32(sketchFaceIndex),
+                                           profile.handle, draftAngle,
+                                           height, fuse) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Add a draft prism that extends through the entire shape.
+    ///
+    /// - Parameters:
+    ///   - profile: Wire profile to extrude
+    ///   - sketchFaceIndex: 0-based index of the face on which the profile sits
+    ///   - draftAngle: Draft angle in degrees
+    ///   - fuse: true to add material, false to cut
+    /// - Returns: Shape with draft prism, or nil on failure
+    public func addingDraftPrismThruAll(profile: Wire, sketchFaceIndex: Int,
+                                        draftAngle: Double,
+                                        fuse: Bool = true) -> Shape? {
+        guard let h = OCCTShapeDraftPrismThruAll(handle, Int32(sketchFaceIndex),
+                                                  profile.handle, draftAngle,
+                                                  fuse) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Revolution Feature (v0.32.0)
+
+extension Shape {
+    /// Add a revolved feature (boss or pocket) to a shape.
+    ///
+    /// Revolves a profile around an axis to add or remove material.
+    /// Commonly used for turned parts (lathe operations).
+    ///
+    /// - Parameters:
+    ///   - profile: Wire profile to revolve
+    ///   - sketchFaceIndex: 0-based index of the face on which the profile sits
+    ///   - axisOrigin: Origin of the revolution axis
+    ///   - axisDirection: Direction of the revolution axis
+    ///   - angle: Revolution angle in degrees
+    ///   - fuse: true to add material (boss), false to cut (pocket)
+    /// - Returns: Shape with revolved feature, or nil on failure
+    public func addingRevolvedFeature(profile: Wire, sketchFaceIndex: Int,
+                                      axisOrigin: SIMD3<Double>,
+                                      axisDirection: SIMD3<Double>,
+                                      angle: Double = 360,
+                                      fuse: Bool = true) -> Shape? {
+        guard let h = OCCTShapeRevolFeature(handle, Int32(sketchFaceIndex),
+                                             profile.handle,
+                                             axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                                             axisDirection.x, axisDirection.y, axisDirection.z,
+                                             angle, fuse) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Add a revolved feature that revolves through 360 degrees.
+    ///
+    /// - Parameters:
+    ///   - profile: Wire profile to revolve
+    ///   - sketchFaceIndex: 0-based index of the face on which the profile sits
+    ///   - axisOrigin: Origin of the revolution axis
+    ///   - axisDirection: Direction of the revolution axis
+    ///   - fuse: true to add material, false to cut
+    /// - Returns: Shape with revolved feature, or nil on failure
+    public func addingRevolvedFeatureThruAll(profile: Wire, sketchFaceIndex: Int,
+                                             axisOrigin: SIMD3<Double>,
+                                             axisDirection: SIMD3<Double>,
+                                             fuse: Bool = true) -> Shape? {
+        guard let h = OCCTShapeRevolFeatureThruAll(handle, Int32(sketchFaceIndex),
+                                                    profile.handle,
+                                                    axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                                                    axisDirection.x, axisDirection.y, axisDirection.z,
+                                                    fuse) else { return nil }
         return Shape(handle: h)
     }
 }

@@ -1,5 +1,38 @@
 # OCCTSwift Changelog
 
+## [v0.32.0] - 2026-02-25
+
+### OCCT Test Suite Audit, Round 1
+
+Systematic traversal of the OCCT test suite (`tests/feat`, `tests/chamfer`, `tests/thrusection`, `tests/offset`) revealed 9 missing operations in 6 categories. Implements asymmetric chamfer modes, loft improvements (ruled surfaces + vertex endpoints), proper offset algorithm with join type control, and three new BRepFeat feature classes. 20 new tests across 8 new suites. 706 tests passing across 158 suites.
+
+#### Asymmetric Chamfer
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.chamferedTwoDistances(_:)` | `BRepFilletAPI_MakeChamfer.Add(d1,d2,E,F)` |
+| `shape.chamferedDistAngle(_:)` | `BRepFilletAPI_MakeChamfer.AddDA(d,a,E,F)` |
+
+#### Loft Improvements
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.loft(profiles:solid:ruled:firstVertex:lastVertex:)` | `BRepOffsetAPI_ThruSections` |
+
+#### Offset by Join
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.offset(by:tolerance:joinType:removeInternalEdges:)` | `BRepOffsetAPI_MakeOffsetShape.PerformByJoin` |
+
+#### Feature Operations
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.addingRevolutionForm(profile:...)` | `BRepFeat_MakeRevolutionForm` |
+| `shape.addingDraftPrism(profile:sketchFaceIndex:draftAngle:height:fuse:)` | `BRepFeat_MakeDPrism` |
+| `shape.addingDraftPrismThruAll(...)` | `BRepFeat_MakeDPrism.PerformThruAll` |
+| `shape.addingRevolvedFeature(profile:sketchFaceIndex:...)` | `BRepFeat_MakeRevol` |
+| `shape.addingRevolvedFeatureThruAll(...)` | `BRepFeat_MakeRevol.PerformThruAll` |
+
+---
+
 ## [v0.31.0] - 2026-02-25
 
 ### Medium/Low Priority Audit Wrap

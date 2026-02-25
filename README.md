@@ -7,9 +7,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | Category | Count | Examples |
 |----------|-------|----------|
 | **Primitives** | 12 | box, cylinder, cylinder(at:), sphere, cone, torus, surface, wedge, halfSpace, vertex, shell(from surface), nonUniformScale |
-| **Sweeps** | 8 | pipe sweep, pipeShell, pipeShellWithLaw, extrude, revolve, loft, ruled, revolutionFromCurve |
+| **Sweeps** | 9 | pipe sweep, pipeShell, pipeShellWithLaw, extrude, revolve, loft, loft(ruled+vertex), ruled, revolutionFromCurve |
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
-| **Modifications** | 11 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, shell, offset, draft, defeature, convertToNURBS, makeDraft |
+| **Modifications** | 14 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, chamferTwoDistances, chamferDistAngle, shell, offset, offsetByJoin, draft, defeature, convertToNURBS, makeDraft |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
 | **Wires** | 21 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D, helix, helixTapered, orderedEdgeCount, orderedEdgePoints |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
@@ -18,7 +18,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Surfaces (Surface)** | 52 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, evaluateGrid, intersections, toAnalytical, bezierFill(4-curve), bezierFill(2-curve) |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 13 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam |
-| **Feature-Based** | 11 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern, linearRib |
+| **Feature-Based** | 15 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll |
 | **Healing/Analysis** | 25 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
@@ -48,7 +48,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **513** | |
+| **Total** | **522** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -119,6 +119,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Document Layers**: Read layer names from STEP/XCAF documents
 - **Document Materials**: Read material names, descriptions, and densities from STEP/XCAF documents
 - **Linear Rib Feature**: Add reinforcement ribs or slots to shapes
+- **Asymmetric Chamfer**: Two-distance and distance-angle chamfer modes for per-edge control
+- **Loft Improvements**: Ruled surface mode and vertex endpoints for cone/taper shapes
+- **Offset by Join**: Proper offset algorithm with arc, tangent, or intersection gap filling
+- **Revolution Form**: Revolved rib/groove features on solids
+- **Draft Prism**: Tapered (draft-angle) extrusion features for injection mold design
+- **Revolution Feature**: Revolved boss/pocket features for turned parts
 - **Curve Interpolation**: Create smooth curves through specific points
 - **Import Formats**: STL, STEP, IGES, BREP, OBJ (mesh and CAD)
 - **Export Formats**: STL, STEP, IGES, BREP, OBJ, PLY (3D printing, CAD, visualization)
@@ -142,7 +148,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.31.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.32.0")
 ]
 ```
 
@@ -826,6 +832,31 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 |-----------|------------|
 | `shape.addingLinearRib(profile:direction:draftDirection:fuse:)` | `BRepFeat_MakeLinearForm` |
 
+#### Asymmetric Chamfer (v0.32.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.chamferedTwoDistances(_:)` | `BRepFilletAPI_MakeChamfer.Add(d1,d2,E,F)` |
+| `shape.chamferedDistAngle(_:)` | `BRepFilletAPI_MakeChamfer.AddDA(d,a,E,F)` |
+
+#### Loft Improvements (v0.32.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.loft(profiles:solid:ruled:firstVertex:lastVertex:)` | `BRepOffsetAPI_ThruSections(solid,ruled)` |
+
+#### Offset by Join (v0.32.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.offset(by:tolerance:joinType:removeInternalEdges:)` | `BRepOffsetAPI_MakeOffsetShape.PerformByJoin` |
+
+#### Feature Operations (v0.32.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.addingRevolutionForm(profile:...)` | `BRepFeat_MakeRevolutionForm` |
+| `shape.addingDraftPrism(profile:sketchFaceIndex:draftAngle:height:fuse:)` | `BRepFeat_MakeDPrism` |
+| `shape.addingDraftPrismThruAll(...)` | `BRepFeat_MakeDPrism.PerformThruAll` |
+| `shape.addingRevolvedFeature(profile:sketchFaceIndex:...)` | `BRepFeat_MakeRevol` |
+| `shape.addingRevolvedFeatureThruAll(...)` | `BRepFeat_MakeRevol.PerformThruAll` |
+
 #### Validation
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -839,6 +870,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.32.0: **OCCT test suite audit** — asymmetric chamfer (two-distance + distance-angle), ruled loft with vertex endpoints, offset by join with join type control, revolution form, draft prism, revolved feature
 > - v0.31.0: **Medium/low priority audit wrap** — quasi-uniform curve sampling (arc-length & deflection), Bezier surface fill, quilt faces, fix small faces, remove locations, revolution from curve, document layers/materials, linear rib feature
 > - v0.30.0: **Deep audit wrap** — non-uniform scale, shell/vertex creation, simple offset, middle path, edge fusion, make volume, make connected, curve-curve/curve-surface/surface-surface distance & intersection, analytical recognition, shape contents census, canonical form recognition, edge analysis, find surface, wireframe fixing, internal wire removal, document length unit
 > - v0.29.0: **Comprehensive audit wrap** — wedge primitives, NURBS conversion, fast sewing, normal projection, half-space, shape editing, draft extrusion, wire explorer, batch 3D curve/surface evaluation, polynomial solver, hatch patterns, planarity analysis

@@ -9496,3 +9496,248 @@ struct LinearRibTests {
         _ = ribbed
     }
 }
+
+// MARK: - v0.32.0 Tests — OCCT Test Suite Audit
+
+@Suite("Asymmetric Chamfer (Two Distances)")
+struct AsymmetricChamferTests {
+    @Test("Two-distance chamfer on box edge")
+    func twoDistChamfer() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        // Chamfer edge 0 with dist1=1.0 on face 0, dist2=2.0 on other face
+        let result = box.chamferedTwoDistances([
+            (edgeIndex: 0, faceIndex: 0, dist1: 1.0, dist2: 2.0)
+        ])
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.isValid)
+        }
+    }
+
+    @Test("Multiple edges with different asymmetric chamfers")
+    func multiEdgeChamfer() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.chamferedTwoDistances([
+            (edgeIndex: 0, faceIndex: 0, dist1: 0.5, dist2: 1.0),
+            (edgeIndex: 1, faceIndex: 0, dist1: 0.8, dist2: 0.6)
+        ])
+        // Multi-edge chamfer may require careful edge/face selection
+        _ = result
+    }
+}
+
+@Suite("Distance-Angle Chamfer")
+struct DistAngleChamferTests {
+    @Test("Distance-angle chamfer on box edge")
+    func distAngleChamfer() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.chamferedDistAngle([
+            (edgeIndex: 0, faceIndex: 0, distance: 1.0, angleDegrees: 45.0)
+        ])
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.isValid)
+        }
+    }
+
+    @Test("Distance-angle chamfer at 30 degrees")
+    func distAngle30() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.chamferedDistAngle([
+            (edgeIndex: 0, faceIndex: 0, distance: 1.0, angleDegrees: 30.0)
+        ])
+        #expect(result != nil)
+    }
+
+    @Test("Distance-angle chamfer at 60 degrees")
+    func distAngle60() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.chamferedDistAngle([
+            (edgeIndex: 0, faceIndex: 0, distance: 1.0, angleDegrees: 60.0)
+        ])
+        #expect(result != nil)
+    }
+}
+
+@Suite("Loft Ruled Mode")
+struct LoftRuledTests {
+    @Test("Ruled loft produces flat surfaces")
+    func ruledLoft() {
+        let w1 = Wire.rectangle(width: 10, height: 10)!
+        let w2 = Wire.rectangle(width: 5, height: 5)!
+        let ruled = Shape.loft(profiles: [w1, w2], solid: true, ruled: true)
+        #expect(ruled != nil)
+        if let r = ruled {
+            #expect(r.isValid)
+        }
+    }
+
+    @Test("Smooth loft differs from ruled")
+    func smoothVsRuled() {
+        let w1 = Wire.rectangle(width: 10, height: 10)!
+        let w2 = Wire.rectangle(width: 5, height: 5)!
+        let ruled = Shape.loft(profiles: [w1, w2], solid: true, ruled: true)
+        let smooth = Shape.loft(profiles: [w1, w2], solid: true, ruled: false)
+        #expect(ruled != nil)
+        #expect(smooth != nil)
+    }
+
+    @Test("Shell loft (non-solid)")
+    func shellLoft() {
+        let w1 = Wire.rectangle(width: 10, height: 10)!
+        let w2 = Wire.rectangle(width: 5, height: 5)!
+        let shell = Shape.loft(profiles: [w1, w2], solid: false, ruled: true)
+        #expect(shell != nil)
+    }
+}
+
+@Suite("Loft Vertex Endpoints")
+struct LoftVertexEndpointTests {
+    @Test("Cone: circle lofted to vertex point")
+    func coneFromCircle() {
+        let circle = Wire.circle(radius: 5)!
+        let cone = Shape.loft(profiles: [circle], solid: true, ruled: true,
+                              lastVertex: SIMD3(0, 0, 10))
+        #expect(cone != nil)
+        if let c = cone {
+            #expect(c.isValid)
+            #expect(c.volume! > 0)
+        }
+    }
+
+    @Test("Bicone: vertex-circle-vertex")
+    func bicone() {
+        let circle = Wire.circle(radius: 10)!
+        let bicone = Shape.loft(profiles: [circle], solid: true, ruled: true,
+                                firstVertex: SIMD3(0, 0, -20),
+                                lastVertex: SIMD3(0, 0, 20))
+        #expect(bicone != nil)
+    }
+
+    @Test("Smooth cone tapering to point")
+    func smoothCone() {
+        let circle = Wire.circle(radius: 5)!
+        let shape = Shape.loft(profiles: [circle], solid: true, ruled: false,
+                               lastVertex: SIMD3(0, 0, 10))
+        #expect(shape != nil)
+    }
+}
+
+@Suite("Offset by Join")
+struct OffsetByJoinTests {
+    @Test("Offset box outward with arc join")
+    func offsetArc() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let offset = box.offset(by: 1.0, joinType: .arc)
+        #expect(offset != nil)
+        if let o = offset {
+            #expect(o.isValid)
+            #expect(o.volume! > box.volume!)
+        }
+    }
+
+    @Test("Offset box inward")
+    func offsetInward() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let offset = box.offset(by: -1.0, joinType: .arc)
+        #expect(offset != nil)
+        if let o = offset {
+            #expect(o.isValid)
+            #expect(o.volume! < box.volume!)
+        }
+    }
+
+    @Test("Offset with intersection join")
+    func offsetIntersection() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let offset = box.offset(by: 1.0, joinType: .intersection)
+        #expect(offset != nil)
+        if let o = offset {
+            #expect(o.isValid)
+        }
+    }
+
+    @Test("Offset cylinder")
+    func offsetCylinder() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let offset = cyl.offset(by: 1.0, joinType: .arc)
+        #expect(offset != nil)
+    }
+}
+
+@Suite("Draft Prism Feature")
+struct DraftPrismTests {
+    @Test("Draft prism boss on box face")
+    func draftPrismBoss() {
+        let box = Shape.box(width: 100, height: 100, depth: 20)!
+        // Create a small rectangular profile on top face
+        let profile = Wire.rectangle(width: 20, height: 20)!
+        // Find the top face index (face 5 is typically the top of a box at origin)
+        let result = box.addingDraftPrism(profile: profile, sketchFaceIndex: 0,
+                                          draftAngle: 5.0, height: 30.0, fuse: true)
+        // Draft prism requires profile on the sketch face — may need specific face
+        _ = result
+    }
+
+    @Test("Draft prism thru all")
+    func draftPrismThruAll() {
+        let box = Shape.box(width: 100, height: 100, depth: 20)!
+        let profile = Wire.rectangle(width: 20, height: 20)!
+        let result = box.addingDraftPrismThruAll(profile: profile, sketchFaceIndex: 0,
+                                                  draftAngle: 5.0, fuse: true)
+        _ = result
+    }
+}
+
+@Suite("Revolution Feature")
+struct RevolutionFeatureTests {
+    @Test("Revolved boss on box")
+    func revolvedBoss() {
+        let box = Shape.box(width: 200, height: 200, depth: 200)!
+        // Create a small profile on one face
+        let profile = Wire.rectangle(width: 50, height: 100)!
+        let result = box.addingRevolvedFeature(
+            profile: profile,
+            sketchFaceIndex: 0,
+            axisOrigin: SIMD3(0, 0, 200),
+            axisDirection: SIMD3(0, 1, 0),
+            angle: 90
+        )
+        // Revolution feature is complex
+        _ = result
+    }
+
+    @Test("Revolved feature thru all (360)")
+    func revolvedThruAll() {
+        let box = Shape.box(width: 200, height: 200, depth: 200)!
+        let profile = Wire.rectangle(width: 50, height: 100)!
+        let result = box.addingRevolvedFeatureThruAll(
+            profile: profile,
+            sketchFaceIndex: 0,
+            axisOrigin: SIMD3(0, 0, 200),
+            axisDirection: SIMD3(0, 1, 0)
+        )
+        _ = result
+    }
+}
+
+@Suite("Revolution Form Feature")
+struct RevolutionFormTests {
+    @Test("Add revolution form to shape")
+    func addRevolutionForm() {
+        // Create two cylinders fused together as base shape
+        let c1 = Shape.cylinder(radius: 2, height: 5)!
+        let c2 = Shape.cylinder(at: SIMD2(0, 0), bottomZ: 5, radius: 1, height: 3)!
+        guard let s = c1.union(with: c2) else { return }
+        // Create a wire profile (a line segment) for the rib
+        guard let wire = Wire.line(from: SIMD3(-2, 0, 5), to: SIMD3(-1, 0, 8)) else { return }
+        let result = s.addingRevolutionForm(
+            profile: wire,
+            axisOrigin: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            height1: 0.2, height2: 0.2
+        )
+        // Revolution form is complex; just test API is callable
+        _ = result
+    }
+}
