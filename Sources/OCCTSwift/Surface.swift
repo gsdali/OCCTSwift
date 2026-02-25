@@ -743,3 +743,35 @@ extension Surface {
         return result
     }
 }
+
+// MARK: - Surface Intersection & Conversion (v0.30.0)
+
+extension Surface {
+    /// Intersect this surface with another surface.
+    ///
+    /// - Parameters:
+    ///   - other: The other surface
+    ///   - tolerance: Intersection tolerance
+    ///   - maxCurves: Maximum number of intersection curves
+    /// - Returns: Array of intersection curves
+    public func intersections(with other: Surface, tolerance: Double = 1e-6, maxCurves: Int = 50) -> [Curve3D] {
+        var handles = [OCCTCurve3DRef?](repeating: nil, count: maxCurves)
+        let n = Int(OCCTSurfaceIntersect(handle, other.handle, tolerance, &handles, Int32(maxCurves)))
+        return (0..<n).compactMap { i in
+            guard let h = handles[i] else { return nil }
+            return Curve3D(handle: h)
+        }
+    }
+
+    /// Convert this freeform surface to an analytical surface if possible.
+    ///
+    /// Recognizes if the surface is actually a plane, cylinder, cone,
+    /// sphere, or torus within the given tolerance.
+    ///
+    /// - Parameter tolerance: Recognition tolerance
+    /// - Returns: The analytical surface, or nil if not recognizable
+    public func toAnalytical(tolerance: Double = 1e-4) -> Surface? {
+        guard let h = OCCTSurfaceToAnalytical(handle, tolerance) else { return nil }
+        return Surface(handle: h)
+    }
+}

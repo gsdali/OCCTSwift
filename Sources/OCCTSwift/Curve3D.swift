@@ -499,3 +499,95 @@ extension Curve3D {
         return SIMD3(nx, ny, nz)
     }
 }
+
+// MARK: - Curve Distance & Intersection (v0.30.0)
+
+/// Extremal distance result between two curves.
+public struct CurveExtremaResult: Sendable {
+    public let distance: Double
+    public let point1: SIMD3<Double>
+    public let point2: SIMD3<Double>
+    public let parameter1: Double
+    public let parameter2: Double
+}
+
+/// Curve-surface intersection point.
+public struct CurveSurfaceHit: Sendable {
+    public let point: SIMD3<Double>
+    public let curveParameter: Double
+    public let surfaceU: Double
+    public let surfaceV: Double
+}
+
+extension Curve3D {
+    /// Minimum distance from this curve to another curve.
+    ///
+    /// - Parameter other: The other curve
+    /// - Returns: The minimum distance, or nil on failure
+    public func minDistance(to other: Curve3D) -> Double? {
+        let d = OCCTCurve3DMinDistanceToCurve(handle, other.handle)
+        return d >= 0 ? d : nil
+    }
+
+    /// Find all extremal distances between this curve and another.
+    ///
+    /// Returns closest and farthest point pairs between two curves.
+    ///
+    /// - Parameters:
+    ///   - other: The other curve
+    ///   - maxCount: Maximum number of extrema to return
+    /// - Returns: Array of extremal distance results
+    public func extrema(with other: Curve3D, maxCount: Int = 20) -> [CurveExtremaResult] {
+        var buffer = [OCCTCurveExtrema](repeating: OCCTCurveExtrema(), count: maxCount)
+        let n = Int(OCCTCurve3DExtrema(handle, other.handle, &buffer, Int32(maxCount)))
+        return (0..<n).map { i in
+            let e = buffer[i]
+            return CurveExtremaResult(
+                distance: e.distance,
+                point1: SIMD3(e.point1.0, e.point1.1, e.point1.2),
+                point2: SIMD3(e.point2.0, e.point2.1, e.point2.2),
+                parameter1: e.param1, parameter2: e.param2
+            )
+        }
+    }
+
+    /// Find intersection points between this curve and a surface.
+    ///
+    /// - Parameters:
+    ///   - surface: The surface to intersect with
+    ///   - maxHits: Maximum number of hits to return
+    /// - Returns: Array of intersection points with parameters
+    public func intersections(with surface: Surface, maxHits: Int = 100) -> [CurveSurfaceHit] {
+        var buffer = [OCCTCurveSurfaceIntersection](repeating: OCCTCurveSurfaceIntersection(), count: maxHits)
+        let n = Int(OCCTCurve3DIntersectSurface(handle, surface.handle, &buffer, Int32(maxHits)))
+        return (0..<n).map { i in
+            let h = buffer[i]
+            return CurveSurfaceHit(
+                point: SIMD3(h.point.0, h.point.1, h.point.2),
+                curveParameter: h.paramCurve,
+                surfaceU: h.paramU, surfaceV: h.paramV
+            )
+        }
+    }
+
+    /// Minimum distance from this curve to a surface.
+    ///
+    /// - Parameter surface: The surface
+    /// - Returns: The minimum distance, or nil on failure
+    public func minDistance(to surface: Surface) -> Double? {
+        let d = OCCTCurve3DDistanceToSurface(handle, surface.handle)
+        return d >= 0 ? d : nil
+    }
+
+    /// Convert this freeform curve to an analytical curve if possible.
+    ///
+    /// Recognizes if the curve is actually a line, circle, or ellipse
+    /// within the given tolerance and returns the analytical representation.
+    ///
+    /// - Parameter tolerance: Recognition tolerance
+    /// - Returns: The analytical curve, or nil if not recognizable
+    public func toAnalytical(tolerance: Double = 1e-4) -> Curve3D? {
+        guard let h = OCCTCurve3DToAnalytical(handle, tolerance) else { return nil }
+        return Curve3D(handle: h)
+    }
+}

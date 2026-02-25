@@ -6,7 +6,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 
 | Category | Count | Examples |
 |----------|-------|----------|
-| **Primitives** | 9 | box, cylinder, cylinder(at:), sphere, cone, torus, surface, wedge, halfSpace |
+| **Primitives** | 12 | box, cylinder, cylinder(at:), sphere, cone, torus, surface, wedge, halfSpace, vertex, shell(from surface), nonUniformScale |
 | **Sweeps** | 7 | pipe sweep, pipeShell, pipeShellWithLaw, extrude, revolve, loft, ruled |
 | **Booleans** | 3 | union (+), subtract (-), intersect (&) |
 | **Modifications** | 11 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, shell, offset, draft, defeature, convertToNURBS, makeDraft |
@@ -14,25 +14,27 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Wires** | 21 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D, helix, helixTapered, orderedEdgeCount, orderedEdgePoints |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **2D Curves (Curve2D)** | 57 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw, evaluateGrid, evaluateGridD1 |
-| **3D Curves (Curve3D)** | 54 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection, projectedOnPlane, evaluateGrid, evaluateGridD1, planeNormal |
-| **Surfaces (Surface)** | 48 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, evaluateGrid |
+| **3D Curves (Curve3D)** | 59 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection, projectedOnPlane, evaluateGrid, evaluateGridD1, planeNormal, minDistance(toCurve), extrema, intersectSurface, distanceToSurface, toAnalytical |
+| **Surfaces (Surface)** | 50 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, evaluateGrid, intersections, toAnalytical |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
-| **Edge Analysis** | 10 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project |
+| **Edge Analysis** | 13 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam |
 | **Feature-Based** | 10 | boss, pocket, prism, drilled, split, glue, evolved, linearPattern, circularPattern |
-| **Healing/Analysis** | 18 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection |
+| **Healing/Analysis** | 22 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
 | **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
 | **Import/Export** | 17 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; STEP optimize; mesh |
-| **Shape Editing** | 4 | replacingSubShape, removingSubShape, makePeriodic, repeated |
+| **Shape Editing** | 7 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath |
 | **Polynomial Solver** | 3 | quadratic, cubic, quartic |
 | **Hatch Pattern** | 1 | generate |
 | **Geometry Construction** | 9 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed |
 | **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
-| **XDE/Document** | 19 | Document.load, rootNodes, AssemblyNode, colors, materials, dimensions, geomTolerances, datums |
+| **XDE/Document** | 20 | Document.load, rootNodes, AssemblyNode, colors, materials, dimensions, geomTolerances, datums, lengthUnit |
+| **Shape Census** | 2 | contents, recognizeCanonical |
+| **Find Surface** | 2 | findSurface, contiguousEdgeCount |
 | **2D Drawing** | 5 | project, topView, frontView, visibleEdges, hiddenEdges |
 | **Camera** | 14 | eye, center, up, projectionType, fieldOfView, scale, zRange, aspect, projectionMatrix, viewMatrix, project, unproject, fit |
 | **Selection** | 11 | add, remove, clear, activateMode, deactivateMode, isModeActive, pixelTolerance, pick, pickRect, pickPoly |
@@ -46,7 +48,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **473** | |
+| **Total** | **498** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -91,6 +93,23 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Polynomial Solver**: Analytical quadratic/cubic/quartic root finding
 - **Hatch Pattern Generation**: 2D polygon hatching with parallel line segments
 - **Curve Planarity Analysis**: Check if 3D curves lie in a plane
+- **Non-Uniform Scaling**: Scale shapes differently along X, Y, Z axes via general affine transforms
+- **Curve-Curve Distance**: Minimum distance and all extremal point pairs between 3D curves
+- **Curve-Surface Intersection**: Find intersection points between curves and surfaces with parameters
+- **Surface-Surface Intersection**: Compute intersection curves between two surfaces
+- **Analytical Recognition**: Convert freeform curves/surfaces to analytical forms (line, circle, plane, cylinder)
+- **Canonical Form Recognition**: Identify canonical geometric forms in shapes (plane, cylinder, cone, sphere)
+- **Shape Census**: Count all sub-shapes by type with ShapeAnalysis complexity metrics
+- **Edge Analysis**: Check for 3D curves, closure, seam edges
+- **Shell & Vertex Creation**: Build topology from surfaces and points
+- **Middle Path**: Extract spine from pipe-like shapes for reverse engineering
+- **Edge Fusion**: Merge redundant split edges after boolean operations
+- **Volume from Faces**: Create solid volumes from face/shell soups
+- **Connected Shapes**: Share geometry at coincident boundaries
+- **Simple Offset**: Fast surface-level offset without fillet intersection handling
+- **Wireframe Fixing**: Fix small edges and wire gaps
+- **Internal Wire Removal**: Remove small holes from faces by area threshold
+- **Document Units**: Read length unit from STEP files
 - **Curve Interpolation**: Create smooth curves through specific points
 - **Import Formats**: STL, STEP, IGES, BREP, OBJ (mesh and CAD)
 - **Export Formats**: STL, STEP, IGES, BREP, OBJ, PLY (3D printing, CAD, visualization)
@@ -114,7 +133,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.29.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.30.0")
 ]
 ```
 
@@ -703,6 +722,66 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 |-----------|------------|
 | `HatchPattern.generate(boundary:direction:spacing:)` | `Hatch_Hatcher` |
 
+#### Non-Uniform Scale (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.nonUniformScaled(sx:sy:sz:)` | `BRepBuilderAPI_GTransform` |
+
+#### Shell & Vertex Creation (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.shell(from:)` | `BRepBuilderAPI_MakeShell` |
+| `Shape.vertex(at:)` | `BRepBuilderAPI_MakeVertex` |
+
+#### Simple Offset & Middle Path (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.simpleOffset(by:)` | `BRepOffset_MakeSimpleOffset` |
+| `shape.middlePath(start:end:)` | `BRepOffsetAPI_MiddlePath` |
+
+#### Edge Fusion & Volume (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.fusedEdges()` | `BRepLib_FuseEdges` |
+| `Shape.makeVolume(from:)` | `BOPAlgo_MakerVolume` |
+| `Shape.makeConnected(_:)` | `BOPAlgo_MakeConnected` |
+
+#### Curve-Curve & Curve-Surface (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve.minDistance(to: otherCurve)` | `GeomAPI_ExtremaCurveCurve` |
+| `curve.extrema(with:)` | `GeomAPI_ExtremaCurveCurve` |
+| `curve.intersections(with: surface)` | `GeomAPI_IntCS` |
+| `curve.minDistance(to: surface)` | `GeomAPI_ExtremaCurveSurface` |
+| `surface.intersections(with: otherSurface)` | `GeomAPI_IntSS` |
+
+#### Analytical Recognition (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve.toAnalytical(tolerance:)` | `GeomConvert_CurveToAnaCurve` |
+| `surface.toAnalytical(tolerance:)` | `GeomConvert_SurfToAnaSurf` |
+| `shape.recognizeCanonical(tolerance:)` | `ShapeAnalysis_CanonicalRecognition` |
+
+#### Shape Census & Edge Analysis (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.contents` | `ShapeAnalysis_ShapeContents` |
+| `edge.hasCurve3D` / `edge.isClosed3D` | `ShapeAnalysis_Edge` |
+| `edge.isSeam(on:)` | `ShapeAnalysis_Edge` |
+| `shape.findSurface(tolerance:)` | `BRepLib_FindSurface` |
+
+#### Healing & Diagnostics (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.fixedWireframe(tolerance:)` | `ShapeFix_Wireframe` |
+| `shape.removingInternalWires(minArea:)` | `ShapeUpgrade_RemoveInternalWires` |
+| `shape.contiguousEdgeCount(tolerance:)` | `BRepOffsetAPI_FindContigousEdges` |
+
+#### Document Units (v0.30.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `document.lengthUnit` | `XCAFDoc_LengthUnit` |
+
 #### Validation
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -716,6 +795,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.30.0: **Deep audit wrap** — non-uniform scale, shell/vertex creation, simple offset, middle path, edge fusion, make volume, make connected, curve-curve/curve-surface/surface-surface distance & intersection, analytical recognition, shape contents census, canonical form recognition, edge analysis, find surface, wireframe fixing, internal wire removal, document length unit
 > - v0.29.0: **Comprehensive audit wrap** — wedge primitives, NURBS conversion, fast sewing, normal projection, half-space, shape editing, draft extrusion, wire explorer, batch 3D curve/surface evaluation, polynomial solver, hatch patterns, planarity analysis
 > - v0.28.0: **New rc4 APIs** — helix curves, KD-tree spatial queries, STEP optimization, batch curve evaluation
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
@@ -760,9 +840,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.29.0
+### Current Status: v0.30.0
 
-OCCTSwift now wraps **473 OCCT operations** across 41 categories with 639 tests across 124 suites.
+OCCTSwift now wraps **498 OCCT operations** across 44 categories with 665 tests across 140 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

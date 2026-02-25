@@ -2642,3 +2642,258 @@ extension Shape {
         return Shape(handle: h)
     }
 }
+
+// MARK: - Non-Uniform Scale (v0.30.0)
+
+extension Shape {
+    /// Scale this shape non-uniformly along each axis.
+    ///
+    /// Unlike `scaled(by:)` which applies uniform scaling, this allows
+    /// different scale factors for X, Y, and Z axes.
+    ///
+    /// - Parameters:
+    ///   - sx: Scale factor along X axis
+    ///   - sy: Scale factor along Y axis
+    ///   - sz: Scale factor along Z axis
+    /// - Returns: The scaled shape, or nil on failure
+    public func nonUniformScaled(sx: Double, sy: Double, sz: Double) -> Shape? {
+        guard let h = OCCTShapeNonUniformScale(handle, sx, sy, sz) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Shell & Vertex Creation (v0.30.0)
+
+extension Shape {
+    /// Create a shell from a parametric surface.
+    ///
+    /// Converts a `Surface` to a topological shell shape.
+    ///
+    /// - Parameter surface: The parametric surface to convert
+    /// - Returns: A shell shape, or nil on failure
+    public static func shell(from surface: Surface) -> Shape? {
+        guard let h = OCCTShapeCreateShellFromSurface(surface.handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create a vertex shape at a point.
+    ///
+    /// - Parameter point: The 3D point position
+    /// - Returns: A vertex shape
+    public static func vertex(at point: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeCreateVertex(point.x, point.y, point.z) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Simple Offset (v0.30.0)
+
+extension Shape {
+    /// Create a simple surface-level offset of this shape.
+    ///
+    /// Moves each face by a constant distance without filleting intersections.
+    /// Faster than `offset(by:)` for thin-wall operations.
+    ///
+    /// - Parameter distance: Offset distance (positive = outward)
+    /// - Returns: The offset shape, or nil on failure
+    public func simpleOffset(by distance: Double) -> Shape? {
+        guard let h = OCCTShapeSimpleOffset(handle, distance) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Middle Path (v0.30.0)
+
+extension Shape {
+    /// Extract the middle (spine) path from a pipe-like shape.
+    ///
+    /// Given two end faces/wires of a pipe-like shape, computes the
+    /// spine wire running through the middle. Useful for reverse-engineering
+    /// sweep operations from imported geometry.
+    ///
+    /// - Parameters:
+    ///   - startShape: One end of the pipe (face or wire)
+    ///   - endShape: Other end of the pipe (face or wire)
+    /// - Returns: The middle path wire, or nil on failure
+    public func middlePath(start startShape: Shape, end endShape: Shape) -> Shape? {
+        guard let h = OCCTShapeMiddlePath(handle, startShape.handle, endShape.handle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Fuse Edges (v0.30.0)
+
+extension Shape {
+    /// Merge connected edges that lie on the same curve.
+    ///
+    /// Removes unnecessary edge splits introduced by boolean operations
+    /// or other operations, simplifying the topology.
+    ///
+    /// - Returns: Shape with fused edges, or nil on failure
+    public func fusedEdges() -> Shape? {
+        guard let h = OCCTShapeFuseEdges(handle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Volume from Faces (v0.30.0)
+
+extension Shape {
+    /// Create a solid volume from a set of overlapping faces/shells.
+    ///
+    /// Useful for closing open geometry or creating solids from imported face soups.
+    ///
+    /// - Parameter shapes: Array of face/shell shapes
+    /// - Returns: A solid shape, or nil on failure
+    public static func makeVolume(from shapes: [Shape]) -> Shape? {
+        var handles = shapes.map { $0.handle as OCCTShapeRef? }
+        guard let h = OCCTShapeMakeVolume(&handles, Int32(shapes.count)) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Connect separate shapes by making them share common geometry.
+    ///
+    /// Makes shapes share geometry at coincident boundaries.
+    /// Useful for finite element mesh preparation.
+    ///
+    /// - Parameter shapes: Array of shapes to connect
+    /// - Returns: Connected shape, or nil on failure
+    public static func makeConnected(_ shapes: [Shape]) -> Shape? {
+        var handles = shapes.map { $0.handle as OCCTShapeRef? }
+        guard let h = OCCTShapeMakeConnected(&handles, Int32(shapes.count)) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Shape Contents (v0.30.0)
+
+/// Census of sub-shape counts in a shape.
+public struct ShapeContents: Sendable {
+    public let solids: Int
+    public let shells: Int
+    public let faces: Int
+    public let wires: Int
+    public let edges: Int
+    public let vertices: Int
+    public let freeEdges: Int
+    public let freeWires: Int
+    public let freeFaces: Int
+}
+
+extension Shape {
+    /// Get a census of sub-shape counts in this shape.
+    ///
+    /// Reports topology complexity metrics: counts of solids, shells,
+    /// faces, wires, edges, vertices, and free (unconnected) elements.
+    public var contents: ShapeContents {
+        let c = OCCTShapeGetContents(handle)
+        return ShapeContents(
+            solids: Int(c.nbSolids), shells: Int(c.nbShells),
+            faces: Int(c.nbFaces), wires: Int(c.nbWires),
+            edges: Int(c.nbEdges), vertices: Int(c.nbVertices),
+            freeEdges: Int(c.nbFreeEdges), freeWires: Int(c.nbFreeWires),
+            freeFaces: Int(c.nbFreeFaces)
+        )
+    }
+}
+
+// MARK: - Canonical Recognition (v0.30.0)
+
+/// Recognized canonical geometric form.
+public struct CanonicalForm: Sendable {
+    /// Type of the recognized form.
+    public enum FormType: Int32, Sendable {
+        case unknown = 0
+        case plane = 1
+        case cylinder = 2
+        case cone = 3
+        case sphere = 4
+        case line = 5
+        case circle = 6
+        case ellipse = 7
+    }
+
+    public let type: FormType
+    public let origin: SIMD3<Double>
+    public let direction: SIMD3<Double>
+    public let radius: Double
+    public let radius2: Double
+    public let gap: Double
+}
+
+extension Shape {
+    /// Recognize canonical geometric forms in this shape.
+    ///
+    /// Identifies whether the shape's geometry matches a canonical
+    /// form (plane, cylinder, cone, sphere, line, circle, ellipse).
+    ///
+    /// - Parameter tolerance: Recognition tolerance
+    /// - Returns: The recognized form, or nil if no canonical form found
+    public func recognizeCanonical(tolerance: Double = 1e-4) -> CanonicalForm? {
+        let r = OCCTShapeRecognizeCanonical(handle, tolerance)
+        guard let formType = CanonicalForm.FormType(rawValue: r.type), formType != .unknown else { return nil }
+        return CanonicalForm(
+            type: formType,
+            origin: SIMD3(r.origin.0, r.origin.1, r.origin.2),
+            direction: SIMD3(r.direction.0, r.direction.1, r.direction.2),
+            radius: r.radius, radius2: r.radius2, gap: r.gap
+        )
+    }
+}
+
+// MARK: - Find Surface (v0.30.0)
+
+extension Shape {
+    /// Find the underlying surface of a shape (edges or wire).
+    ///
+    /// Determines the best-fit surface for a set of edges or a wire.
+    /// Useful for reconstructing faces from imported wireframes.
+    ///
+    /// - Parameter tolerance: Surface fitting tolerance
+    /// - Returns: The found surface, or nil
+    public func findSurface(tolerance: Double = -1) -> Surface? {
+        guard let h = OCCTShapeFindSurface(handle, tolerance) else { return nil }
+        return Surface(handle: h)
+    }
+}
+
+// MARK: - Fix Wireframe (v0.30.0)
+
+extension Shape {
+    /// Fix wireframe issues (small edges, gaps).
+    ///
+    /// - Parameter tolerance: Fixing tolerance
+    /// - Returns: Shape with fixed wireframe, or nil on failure
+    public func fixedWireframe(tolerance: Double = 1e-4) -> Shape? {
+        guard let h = OCCTShapeFixWireframe(handle, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Remove Internal Wires (v0.30.0)
+
+extension Shape {
+    /// Remove internal wires (holes) smaller than a minimum area.
+    ///
+    /// - Parameter minArea: Minimum area threshold for holes to keep
+    /// - Returns: Shape with small holes removed, or nil on failure
+    public func removingInternalWires(minArea: Double) -> Shape? {
+        guard let h = OCCTShapeRemoveInternalWires(handle, minArea) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Contiguous Edges (v0.30.0)
+
+extension Shape {
+    /// Find pairs of edges that are coincident within tolerance.
+    ///
+    /// Useful for pre-sewing diagnostics to identify edges that
+    /// could be merged.
+    ///
+    /// - Parameter tolerance: Contiguity tolerance
+    /// - Returns: Number of contiguous edge pairs found
+    public func contiguousEdgeCount(tolerance: Double = 1e-6) -> Int {
+        Int(OCCTShapeFindContiguousEdges(handle, tolerance))
+    }
+}

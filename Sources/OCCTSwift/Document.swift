@@ -529,3 +529,29 @@ public enum DocumentError: Error, LocalizedError {
         }
     }
 }
+
+// MARK: - Length Unit (v0.30.0)
+
+/// Length unit information from a document.
+public struct LengthUnit: Sendable {
+    /// Scale factor (e.g., 1.0 for mm, 25.4 for inch)
+    public let scale: Double
+    /// Unit name (e.g., "mm", "inch", "m")
+    public let name: String
+}
+
+extension Document {
+    /// Get the length unit of this document.
+    ///
+    /// Returns the unit scale and name stored in the STEP file.
+    /// Common values: 1.0 = mm, 10.0 = cm, 1000.0 = m, 25.4 = inch.
+    public var lengthUnit: LengthUnit? {
+        var scale: Double = 0
+        var nameBuf = [CChar](repeating: 0, count: 64)
+        guard OCCTDocumentGetLengthUnit(handle, &scale, &nameBuf, 64) else { return nil }
+        let name = nameBuf.withUnsafeBufferPointer { buf in
+            String(decoding: buf.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        }
+        return LengthUnit(scale: scale, name: name)
+    }
+}

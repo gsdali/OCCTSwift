@@ -1,5 +1,60 @@
 # OCCTSwift Changelog
 
+## [v0.30.0] - 2026-02-25
+
+### Deep Audit Wrap
+
+Wraps 25 additional OCCT operations from comprehensive header audit: non-uniform scaling, shell/vertex creation, simple offset, middle path extraction, edge fusion, volume from faces, connected shapes, curve-curve/curve-surface/surface-surface distance & intersection, analytical curve/surface recognition, canonical form recognition, shape contents census, edge analysis, find surface, wireframe fixing, internal wire removal, contiguous edge detection, document length units. 26 new tests across 16 new suites. 665 tests passing across 140 suites.
+
+#### Non-Uniform Transform
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.nonUniformScaled(sx:sy:sz:)` | `BRepBuilderAPI_GTransform` |
+
+#### Shell & Vertex Creation
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.shell(from:)` | `BRepBuilderAPI_MakeShell` |
+| `Shape.vertex(at:)` | `BRepBuilderAPI_MakeVertex` |
+
+#### Offset, Path & Topology
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.simpleOffset(by:)` | `BRepOffset_MakeSimpleOffset` |
+| `shape.middlePath(start:end:)` | `BRepOffsetAPI_MiddlePath` |
+| `shape.fusedEdges()` | `BRepLib_FuseEdges` |
+| `Shape.makeVolume(from:)` | `BOPAlgo_MakerVolume` |
+| `Shape.makeConnected(_:)` | `BOPAlgo_MakeConnected` |
+
+#### Curve-Curve & Curve-Surface
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve.minDistance(to: otherCurve)` | `GeomAPI_ExtremaCurveCurve` |
+| `curve.extrema(with:)` | `GeomAPI_ExtremaCurveCurve` |
+| `curve.intersections(with: surface)` | `GeomAPI_IntCS` |
+| `curve.minDistance(to: surface)` | `GeomAPI_ExtremaCurveSurface` |
+| `surface.intersections(with:)` | `GeomAPI_IntSS` |
+
+#### Analytical Recognition
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve.toAnalytical(tolerance:)` | `GeomConvert_CurveToAnaCurve` |
+| `surface.toAnalytical(tolerance:)` | `GeomConvert_SurfToAnaSurf` |
+| `shape.recognizeCanonical(tolerance:)` | `ShapeAnalysis_CanonicalRecognition` |
+
+#### Shape Analysis & Healing
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.contents` | `ShapeAnalysis_ShapeContents` |
+| `edge.hasCurve3D` / `edge.isClosed3D` / `edge.isSeam(on:)` | `ShapeAnalysis_Edge` |
+| `shape.findSurface(tolerance:)` | `BRepLib_FindSurface` |
+| `shape.fixedWireframe(tolerance:)` | `ShapeFix_Wireframe` |
+| `shape.removingInternalWires(minArea:)` | `ShapeUpgrade_RemoveInternalWires` |
+| `shape.contiguousEdgeCount(tolerance:)` | `BRepOffsetAPI_FindContigousEdges` |
+| `document.lengthUnit` | `XCAFDoc_LengthUnit` |
+
+---
+
 ## [v0.29.0] - 2026-02-25
 
 ### Comprehensive Audit Wrap

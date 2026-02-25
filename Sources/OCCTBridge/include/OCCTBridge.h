@@ -2963,6 +2963,272 @@ bool OCCTCurve3DIsPlanar(OCCTCurve3DRef curve, double tolerance,
 // or BRepAlgoAPI_Fuse/Cut for adding/subtracting revolved material.
 
 
+// MARK: - Non-Uniform Transform (v0.30.0)
+
+/// Apply non-uniform scaling to a shape using BRepBuilderAPI_GTransform.
+/// @param shape The shape to scale
+/// @param sx Scale factor in X direction
+/// @param sy Scale factor in Y direction
+/// @param sz Scale factor in Z direction
+/// @return Scaled shape, or NULL on failure
+OCCTShapeRef OCCTShapeNonUniformScale(OCCTShapeRef shape, double sx, double sy, double sz);
+
+
+// MARK: - Make Shell (v0.30.0)
+
+/// Create a shell from a surface using BRepBuilderAPI_MakeShell.
+/// @param surface The surface to convert to a shell
+/// @return Shell shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateShellFromSurface(OCCTSurfaceRef surface);
+
+
+// MARK: - Make Vertex (v0.30.0)
+
+/// Create a vertex at a point using BRepBuilderAPI_MakeVertex.
+/// @param x X coordinate
+/// @param y Y coordinate
+/// @param z Z coordinate
+/// @return Vertex shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateVertex(double x, double y, double z);
+
+
+// MARK: - Simple Offset (v0.30.0)
+
+/// Create a simple offset of a shape using BRepOffset_MakeSimpleOffset.
+/// @param shape The shape to offset
+/// @param offsetValue Offset distance (positive = outward)
+/// @return Offset shape, or NULL on failure
+OCCTShapeRef OCCTShapeSimpleOffset(OCCTShapeRef shape, double offsetValue);
+
+
+// MARK: - Middle Path (v0.30.0)
+
+/// Compute the middle path between two sub-shapes using BRepOffsetAPI_MiddlePath.
+/// @param shape The main shape (typically a solid or shell)
+/// @param startShape Start sub-shape (wire or edge on the shape)
+/// @param endShape End sub-shape (wire or edge on the shape)
+/// @return Middle path wire, or NULL on failure
+OCCTShapeRef OCCTShapeMiddlePath(OCCTShapeRef shape, OCCTShapeRef startShape, OCCTShapeRef endShape);
+
+
+// MARK: - Fuse Edges (v0.30.0)
+
+/// Fuse connected edges sharing the same geometry using BRepLib_FuseEdges.
+/// @param shape The shape containing edges to fuse
+/// @return Shape with fused edges, or NULL on failure
+OCCTShapeRef OCCTShapeFuseEdges(OCCTShapeRef shape);
+
+
+// MARK: - Maker Volume (v0.30.0)
+
+/// Create a solid volume from a set of shapes using BOPAlgo_MakerVolume.
+/// @param shapes Array of shape references
+/// @param count Number of shapes
+/// @return Volume solid, or NULL on failure
+OCCTShapeRef OCCTShapeMakeVolume(OCCTShapeRef* shapes, int32_t count);
+
+
+// MARK: - Make Connected (v0.30.0)
+
+/// Make a set of shapes connected using BOPAlgo_MakeConnected.
+/// @param shapes Array of shape references
+/// @param count Number of shapes
+/// @return Connected shape, or NULL on failure
+OCCTShapeRef OCCTShapeMakeConnected(OCCTShapeRef* shapes, int32_t count);
+
+
+// MARK: - Curve-Curve Extrema (v0.30.0)
+
+/// Result structure for curve-curve extrema computation.
+typedef struct {
+    double distance;    ///< Distance between closest points
+    double point1[3];   ///< Closest point on curve 1 (x, y, z)
+    double point2[3];   ///< Closest point on curve 2 (x, y, z)
+    double param1;      ///< Parameter on curve 1
+    double param2;      ///< Parameter on curve 2
+} OCCTCurveExtrema;
+
+/// Compute the minimum distance between two 3D curves.
+/// @param c1 First curve
+/// @param c2 Second curve
+/// @return Minimum distance, or -1.0 on failure
+double OCCTCurve3DMinDistanceToCurve(OCCTCurve3DRef c1, OCCTCurve3DRef c2);
+
+/// Compute all extrema (closest/farthest point pairs) between two 3D curves.
+/// @param c1 First curve
+/// @param c2 Second curve
+/// @param outExtrema Output buffer for extrema results
+/// @param maxCount Maximum number of results to write
+/// @return Number of extrema found, or 0 on failure
+int32_t OCCTCurve3DExtrema(OCCTCurve3DRef c1, OCCTCurve3DRef c2, OCCTCurveExtrema* outExtrema, int32_t maxCount);
+
+
+// MARK: - Curve-Surface Intersection (v0.30.0)
+
+/// Result structure for curve-surface intersection.
+typedef struct {
+    double point[3];    ///< Intersection point (x, y, z)
+    double paramCurve;  ///< W parameter on the curve
+    double paramU;      ///< U parameter on the surface
+    double paramV;      ///< V parameter on the surface
+} OCCTCurveSurfaceIntersection;
+
+/// Compute intersection points between a 3D curve and a surface.
+/// @param curve The 3D curve
+/// @param surface The surface
+/// @param outHits Output buffer for intersection results
+/// @param maxHits Maximum number of results to write
+/// @return Number of intersections found, or 0 on failure
+int32_t OCCTCurve3DIntersectSurface(OCCTCurve3DRef curve, OCCTSurfaceRef surface,
+                                     OCCTCurveSurfaceIntersection* outHits, int32_t maxHits);
+
+
+// MARK: - Surface-Surface Intersection (v0.30.0)
+
+/// Compute intersection curves between two surfaces.
+/// @param s1 First surface
+/// @param s2 Second surface
+/// @param tolerance Intersection tolerance
+/// @param outCurves Output buffer for intersection curve references
+/// @param maxCurves Maximum number of curves to write
+/// @return Number of intersection curves found, or 0 on failure
+int32_t OCCTSurfaceIntersect(OCCTSurfaceRef s1, OCCTSurfaceRef s2, double tolerance,
+                              OCCTCurve3DRef* outCurves, int32_t maxCurves);
+
+
+// MARK: - Curve-Surface Distance (v0.30.0)
+
+/// Compute the minimum distance between a 3D curve and a surface.
+/// @param curve The 3D curve
+/// @param surface The surface
+/// @return Minimum distance, or -1.0 on failure
+double OCCTCurve3DDistanceToSurface(OCCTCurve3DRef curve, OCCTSurfaceRef surface);
+
+
+// MARK: - Curve to Analytical (v0.30.0)
+
+/// Convert a curve to its analytical (canonical) form if possible.
+/// @param curve The input curve
+/// @param tolerance Conversion tolerance
+/// @return Analytical curve, or NULL if conversion is not possible
+OCCTCurve3DRef OCCTCurve3DToAnalytical(OCCTCurve3DRef curve, double tolerance);
+
+
+// MARK: - Surface to Analytical (v0.30.0)
+
+/// Convert a surface to its analytical (canonical) form if possible.
+/// @param surface The input surface
+/// @param tolerance Conversion tolerance
+/// @return Analytical surface, or NULL if conversion is not possible
+OCCTSurfaceRef OCCTSurfaceToAnalytical(OCCTSurfaceRef surface, double tolerance);
+
+
+// MARK: - Shape Contents (v0.30.0)
+
+/// Structure containing counts of topological entities in a shape.
+typedef struct {
+    int32_t nbSolids;      ///< Number of solids
+    int32_t nbShells;      ///< Number of shells
+    int32_t nbFaces;       ///< Number of faces
+    int32_t nbWires;       ///< Number of wires
+    int32_t nbEdges;       ///< Number of edges
+    int32_t nbVertices;    ///< Number of vertices
+    int32_t nbFreeEdges;   ///< Number of free (unattached) edges
+    int32_t nbFreeWires;   ///< Number of free (unattached) wires
+    int32_t nbFreeFaces;   ///< Number of free (unattached) faces
+} OCCTShapeContents;
+
+/// Analyze shape contents and return counts of topological entities.
+/// @param shape The shape to analyze
+/// @return Structure with entity counts (all zeros on failure)
+OCCTShapeContents OCCTShapeGetContents(OCCTShapeRef shape);
+
+
+// MARK: - Canonical Recognition (v0.30.0)
+
+/// Structure describing a recognized canonical geometric form.
+typedef struct {
+    int32_t type;       ///< 0=unknown, 1=plane, 2=cylinder, 3=cone, 4=sphere, 5=line, 6=circle, 7=ellipse
+    double origin[3];   ///< Origin point (x, y, z)
+    double direction[3];///< Direction or normal (x, y, z)
+    double radius;      ///< Primary radius (for cylinder/cone/sphere/circle)
+    double radius2;     ///< Secondary radius (for cone/ellipse)
+    double gap;         ///< Approximation gap
+} OCCTCanonicalForm;
+
+/// Attempt to recognize a shape as a canonical geometric form.
+/// @param shape The shape to recognize (face, edge, etc.)
+/// @param tolerance Recognition tolerance
+/// @return Recognized form (type=0 if unrecognized)
+OCCTCanonicalForm OCCTShapeRecognizeCanonical(OCCTShapeRef shape, double tolerance);
+
+
+// MARK: - Edge Analysis (v0.30.0)
+
+/// Check if an edge has a 3D curve representation.
+/// @param edge The edge shape
+/// @return true if the edge has a 3D curve
+bool OCCTEdgeHasCurve3D(OCCTShapeRef edge);
+
+/// Check if an edge is closed (start == end) in 3D.
+/// @param edge The edge shape
+/// @return true if the edge is closed
+bool OCCTEdgeIsClosed3D(OCCTShapeRef edge);
+
+/// Check if an edge is a seam edge on a face.
+/// @param edge The edge shape
+/// @param face The face shape
+/// @return true if the edge is a seam edge on the face
+bool OCCTEdgeIsSeam(OCCTShapeRef edge, OCCTShapeRef face);
+
+
+// MARK: - Find Surface (v0.30.0)
+
+/// Find a surface that approximates a shape (wire, set of edges, etc.).
+/// @param shape The shape to find a surface for
+/// @param tolerance Approximation tolerance
+/// @return Surface reference, or NULL if not found
+OCCTSurfaceRef OCCTShapeFindSurface(OCCTShapeRef shape, double tolerance);
+
+
+// MARK: - Contiguous Edges (v0.30.0)
+
+/// Find contiguous edge pairs in a shape.
+/// @param shape The shape to analyze
+/// @param tolerance Contiguity tolerance
+/// @return Number of contiguous edge pairs found, or 0 on failure
+int32_t OCCTShapeFindContiguousEdges(OCCTShapeRef shape, double tolerance);
+
+
+// MARK: - Shape Fix Wireframe (v0.30.0)
+
+/// Fix wireframe issues (small edges, wire gaps) in a shape.
+/// @param shape The shape to fix
+/// @param tolerance Precision for fixing
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef OCCTShapeFixWireframe(OCCTShapeRef shape, double tolerance);
+
+
+// MARK: - Remove Internal Wires (v0.30.0)
+
+/// Remove internal wires (holes) below a minimum area from a shape.
+/// @param shape The shape to process
+/// @param minArea Minimum area threshold; wires enclosing less area are removed
+/// @return Shape with internal wires removed, or NULL on failure
+OCCTShapeRef OCCTShapeRemoveInternalWires(OCCTShapeRef shape, double minArea);
+
+
+// MARK: - Document Length Unit (v0.30.0)
+
+/// Get the length unit information from an XDE document.
+/// @param doc The document to query
+/// @param unitScale Output: the scale factor relative to mm (e.g. 1.0 for mm, 10.0 for cm)
+/// @param unitName Output: buffer for unit name string
+/// @param maxNameLen Maximum length of the unitName buffer
+/// @return true if length unit information was found
+bool OCCTDocumentGetLengthUnit(OCCTDocumentRef doc, double* unitScale, char* unitName, int32_t maxNameLen);
+
+
 #ifdef __cplusplus
 }
 #endif

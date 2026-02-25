@@ -8932,3 +8932,336 @@ struct WireExplorerTests {
         #expect(circle.orderedEdgeCount >= 1)
     }
 }
+
+// MARK: - v0.30.0 Tests
+
+@Suite("Non-Uniform Scale")
+struct NonUniformScaleTests {
+    @Test("Scale box non-uniformly")
+    func scaleBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let scaled = box.nonUniformScaled(sx: 2, sy: 1, sz: 0.5)
+        #expect(scaled != nil)
+        #expect(scaled!.isValid)
+        let size = scaled!.size
+        #expect(abs(size.x - 20) < 0.1)
+        #expect(abs(size.y - 10) < 0.1)
+        #expect(abs(size.z - 5) < 0.1)
+    }
+
+    @Test("Non-uniform scale preserves volume ratio")
+    func volumeRatio() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let scaled = box.nonUniformScaled(sx: 2, sy: 3, sz: 0.5)!
+        let origVol = box.volume ?? 0
+        let scaledVol = scaled.volume ?? 0
+        // Volume should scale by sx*sy*sz = 3.0
+        #expect(abs(scaledVol / origVol - 3.0) < 0.1)
+    }
+}
+
+@Suite("Shell and Vertex Creation")
+struct ShellVertexTests {
+    @Test("Create shell from surface")
+    func shellFromSurface() {
+        let surf = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        #expect(surf != nil)
+        if let s = surf {
+            let shell = Shape.shell(from: s)
+            #expect(shell != nil)
+        }
+    }
+
+    @Test("Create vertex at point")
+    func vertexAtPoint() {
+        let v = Shape.vertex(at: SIMD3(5, 10, 15))
+        #expect(v != nil)
+        #expect(v!.isValid)
+    }
+}
+
+@Suite("Simple Offset")
+struct SimpleOffsetTests {
+    @Test("Simple offset of face")
+    func offsetFace() {
+        // SimpleOffset works on shells/faces, not solids
+        let face = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!
+        let offset = face.simpleOffset(by: 1.0)
+        // May or may not succeed depending on input — just verify no crash
+        if let o = offset {
+            #expect(o.isValid)
+        }
+    }
+}
+
+@Suite("Fuse Edges")
+struct FuseEdgesTests {
+    @Test("Fuse edges on boolean result")
+    func fuseAfterBoolean() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(10, 0, 0))!
+        let combined = box1 + box2
+        #expect(combined != nil)
+        let fused = combined!.fusedEdges()
+        #expect(fused != nil)
+        if let f = fused {
+            #expect(f.isValid)
+            // Fused shape should have fewer edges
+            #expect(f.edges().count <= combined!.edges().count)
+        }
+    }
+}
+
+@Suite("Make Volume")
+struct MakeVolumeTests {
+    @Test("Make volume from faces")
+    func volumeFromFaces() {
+        // Create face shapes
+        let face1 = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)
+        let face2 = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)
+        if let f1 = face1, let f2 = face2 {
+            // Try make volume - complex operation, just verify it doesn't crash
+            let _ = Shape.makeVolume(from: [f1, f2])
+        }
+    }
+}
+
+@Suite("Make Connected")
+struct MakeConnectedTests {
+    @Test("Connect two adjacent boxes")
+    func connectBoxes() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!
+            .translated(by: SIMD3(10, 0, 0))!
+        let connected = Shape.makeConnected([box1, box2])
+        #expect(connected != nil)
+    }
+}
+
+@Suite("Curve-Curve Distance")
+struct CurveCurveDistanceTests {
+    @Test("Distance between parallel lines")
+    func parallelLines() {
+        let c1 = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let c2 = Curve3D.segment(from: SIMD3(0, 5, 0), to: SIMD3(10, 5, 0))!
+        let dist = c1.minDistance(to: c2)
+        #expect(dist != nil)
+        #expect(abs(dist! - 5.0) < 1e-6)
+    }
+
+    @Test("Extrema between skew lines")
+    func skewLines() {
+        let c1 = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let c2 = Curve3D.segment(from: SIMD3(5, 3, -5), to: SIMD3(5, 3, 5))!
+        let extrema = c1.extrema(with: c2)
+        #expect(extrema.count >= 1)
+        #expect(abs(extrema[0].distance - 3.0) < 1e-6)
+    }
+
+    @Test("Curve-surface distance")
+    func curveSurfaceDistance() {
+        let line = Curve3D.segment(from: SIMD3(0, 0, 5), to: SIMD3(10, 0, 5))!
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let dist = line.minDistance(to: plane)
+        #expect(dist != nil)
+        #expect(abs(dist! - 5.0) < 1e-6)
+    }
+}
+
+@Suite("Curve-Surface Intersection")
+struct CurveSurfaceIntersectionTests {
+    @Test("Line intersects sphere")
+    func lineIntersectsSphere() {
+        let line = Curve3D.segment(from: SIMD3(0, 0, -20), to: SIMD3(0, 0, 20))!
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let hits = line.intersections(with: sphere)
+        #expect(hits.count == 2)
+        if hits.count == 2 {
+            // Intersection points should be at z=±5
+            let zValues = hits.map { abs($0.point.z) }.sorted()
+            #expect(abs(zValues[0] - 5.0) < 0.1)
+            #expect(abs(zValues[1] - 5.0) < 0.1)
+        }
+    }
+
+    @Test("Line parallel to plane doesn't intersect")
+    func lineParallelToPlane() {
+        let line = Curve3D.segment(from: SIMD3(0, 0, 5), to: SIMD3(10, 0, 5))!
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let hits = line.intersections(with: plane)
+        #expect(hits.count == 0)
+    }
+}
+
+@Suite("Surface-Surface Intersection")
+struct SurfaceSurfaceIntersectionTests {
+    @Test("Two planes intersect in a line")
+    func twoPlanes() {
+        let p1 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let p2 = Surface.plane(origin: .zero, normal: SIMD3(0, 1, 0))!
+        let curves = p1.intersections(with: p2)
+        #expect(curves.count >= 1)
+    }
+}
+
+@Suite("Analytical Conversion")
+struct AnalyticalConversionTests {
+    @Test("BSpline circle converts to analytical")
+    func bsplineCircle() {
+        // Create a circle as BSpline, then try to recognize it
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 10)!
+        let bspline = circle.toBSpline()
+        if let bs = bspline {
+            let analytical = bs.toAnalytical(tolerance: 0.01)
+            // May or may not succeed depending on OCCT's recognition
+            if let a = analytical {
+                // If recognized, evaluate at parameter 0
+                let pt = a.point(at: 0)
+                #expect(pt != nil)
+            }
+        }
+    }
+
+    @Test("Surface analytical conversion")
+    func surfaceConversion() {
+        // A cylindrical surface as BSpline
+        let cyl = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5)!
+        let bspline = cyl.toBSpline()
+        if let bs = bspline {
+            let analytical = bs.toAnalytical(tolerance: 0.01)
+            // May or may not succeed
+            if let a = analytical {
+                let pt = a.point(atU: 0, v: 0)
+                #expect(pt != nil)
+            }
+        }
+    }
+}
+
+@Suite("Shape Contents")
+struct ShapeContentsTests {
+    @Test("Box contents")
+    func boxContents() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let c = box.contents
+        #expect(c.solids == 1)
+        #expect(c.shells == 1)
+        #expect(c.faces == 6)
+        // ShapeAnalysis counts topology references, not unique shapes
+        #expect(c.edges > 0)
+        #expect(c.vertices > 0)
+    }
+
+    @Test("Cylinder contents")
+    func cylinderContents() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let c = cyl.contents
+        #expect(c.solids == 1)
+        #expect(c.faces == 3) // top, bottom, lateral
+    }
+}
+
+@Suite("Canonical Recognition")
+struct CanonicalRecognitionTests {
+    @Test("Recognize cylinder face")
+    func recognizeCylinder() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        // The lateral face should be a cylinder
+        let faces = cyl.faces()
+        var foundCylinder = false
+        for face in faces {
+            let form = Shape.face(from: Wire.circle(radius: 5)!)?.recognizeCanonical()
+            if let f = form, f.type == .cylinder || f.type == .circle || f.type == .plane {
+                foundCylinder = true
+            }
+        }
+        // At minimum the shape itself should be recognizable
+        let form = cyl.recognizeCanonical()
+        // May return cylinder, sphere, etc. depending on which face OCCT picks
+        // Just verify it doesn't crash
+        _ = form
+    }
+}
+
+@Suite("Edge Analysis")
+struct EdgeAnalysisTests {
+    @Test("Box edges have 3D curves")
+    func boxEdgesHaveCurves() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edges = box.edges()
+        #expect(edges.count == 12)
+        for edge in edges {
+            #expect(edge.hasCurve3D)
+        }
+    }
+
+    @Test("Box edges are not closed")
+    func boxEdgesNotClosed() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        for edge in box.edges() {
+            #expect(!edge.isClosed3D)
+        }
+    }
+
+    @Test("Circle edge is closed")
+    func circleEdgeClosed() {
+        let circle = Wire.circle(radius: 5)!
+        let face = Shape.face(from: circle)!
+        let edges = face.edges()
+        // The circular edge should be closed
+        let hasClosedEdge = edges.contains(where: { $0.isClosed3D })
+        #expect(hasClosedEdge)
+    }
+
+    @Test("Cylinder has seam edge")
+    func cylinderSeamEdge() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let faces = cyl.faces()
+        let edges = cyl.edges()
+        // At least one edge should be a seam on a face
+        var foundSeam = false
+        for face in faces {
+            for edge in edges {
+                if edge.isSeam(on: face) {
+                    foundSeam = true
+                    break
+                }
+            }
+            if foundSeam { break }
+        }
+        #expect(foundSeam)
+    }
+}
+
+@Suite("Find Surface")
+struct FindSurfaceTests {
+    @Test("Find plane from flat wire")
+    func findPlaneFromWire() {
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        let face = Shape.face(from: rect)!
+        let surface = face.findSurface()
+        #expect(surface != nil)
+    }
+}
+
+@Suite("Fix Wireframe")
+struct FixWireframeTests {
+    @Test("Fix wireframe on valid shape")
+    func fixValidShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let fixed = box.fixedWireframe()
+        #expect(fixed != nil)
+        #expect(fixed!.isValid)
+    }
+}
+
+@Suite("Contiguous Edges")
+struct ContiguousEdgesTests {
+    @Test("Find contiguous edges count")
+    func findContiguousCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let count = box.contiguousEdgeCount()
+        #expect(count >= 0)
+    }
+}

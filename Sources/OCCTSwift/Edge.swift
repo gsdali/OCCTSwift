@@ -208,3 +208,28 @@ extension Shape {
         return edges
     }
 }
+
+// MARK: - Edge Analysis (v0.30.0)
+
+extension Edge {
+    /// Whether this edge has an underlying 3D curve.
+    public var hasCurve3D: Bool {
+        OCCTEdgeHasCurve3D(handle)
+    }
+
+    /// Whether this edge is closed (start and end vertices coincide).
+    public var isClosed3D: Bool {
+        OCCTEdgeIsClosed3D(handle)
+    }
+
+    /// Whether this edge is a seam edge on the given face.
+    ///
+    /// A seam edge appears twice on a face with different orientations
+    /// (e.g., the seam of a cylindrical face).
+    ///
+    /// - Parameter face: The face to check against
+    /// - Returns: true if this edge is a seam on the face
+    public func isSeam(on face: Face) -> Bool {
+        OCCTEdgeIsSeam(handle, face.handle)
+    }
+}
