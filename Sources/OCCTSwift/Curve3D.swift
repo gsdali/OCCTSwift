@@ -590,4 +590,37 @@ extension Curve3D {
         guard let h = OCCTCurve3DToAnalytical(handle, tolerance) else { return nil }
         return Curve3D(handle: h)
     }
+
+    // MARK: - Quasi-Uniform Sampling (v0.31.0)
+
+    /// Sample parameter values at quasi-uniform arc-length intervals.
+    ///
+    /// Uses `GCPnts_QuasiUniformAbscissa` to distribute sample points
+    /// approximately evenly along the curve's arc length.
+    ///
+    /// - Parameter count: Desired number of sample points
+    /// - Returns: Array of parameter values, or empty array on failure
+    public func quasiUniformParameters(count: Int) -> [Double] {
+        var params = [Double](repeating: 0, count: count)
+        let n = Int(OCCTCurve3DQuasiUniformAbscissa(handle, Int32(count), &params))
+        return Array(params.prefix(n))
+    }
+
+    /// Sample points at quasi-uniform deflection intervals.
+    ///
+    /// Uses `GCPnts_QuasiUniformDeflection` to distribute sample points
+    /// such that the chord deviation from the curve stays within the
+    /// given deflection tolerance.
+    ///
+    /// - Parameters:
+    ///   - deflection: Maximum allowed chord deviation
+    ///   - maxPoints: Maximum number of points to return
+    /// - Returns: Array of 3D points, or empty array on failure
+    public func quasiUniformDeflectionPoints(deflection: Double, maxPoints: Int = 500) -> [SIMD3<Double>] {
+        var xyz = [Double](repeating: 0, count: maxPoints * 3)
+        let n = Int(OCCTCurve3DQuasiUniformDeflection(handle, deflection, &xyz, Int32(maxPoints)))
+        return (0..<n).map { i in
+            SIMD3<Double>(xyz[i*3], xyz[i*3+1], xyz[i*3+2])
+        }
+    }
 }

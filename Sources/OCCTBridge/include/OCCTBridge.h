@@ -3229,6 +3229,138 @@ OCCTShapeRef OCCTShapeRemoveInternalWires(OCCTShapeRef shape, double minArea);
 bool OCCTDocumentGetLengthUnit(OCCTDocumentRef doc, double* unitScale, char* unitName, int32_t maxNameLen);
 
 
+// MARK: - Quasi-Uniform Curve Sampling (v0.31.0)
+
+/// Sample curve parameters using quasi-uniform abscissa distribution.
+/// @param curve The curve to sample
+/// @param nbPoints Desired number of sample points
+/// @param outParams Output array for parameter values (must hold nbPoints doubles)
+/// @return Actual number of parameters written, or 0 on failure
+int32_t OCCTCurve3DQuasiUniformAbscissa(OCCTCurve3DRef curve, int32_t nbPoints, double* outParams);
+
+
+// MARK: - Quasi-Uniform Deflection Sampling (v0.31.0)
+
+/// Sample curve points using quasi-uniform deflection distribution.
+/// @param curve The curve to sample
+/// @param deflection Maximum deflection tolerance
+/// @param outXYZ Output array for point coordinates (x,y,z triples; must hold maxPoints*3 doubles)
+/// @param maxPoints Maximum number of points to return
+/// @return Actual number of points written, or 0 on failure
+int32_t OCCTCurve3DQuasiUniformDeflection(OCCTCurve3DRef curve, double deflection, double* outXYZ, int32_t maxPoints);
+
+
+// MARK: - Bezier Surface Fill (v0.31.0)
+
+/// Create a Bezier surface by filling 4 Bezier boundary curves.
+/// @param c1, c2, c3, c4 The four boundary curves (must be Bezier curves)
+/// @param fillStyle Filling style: 0=stretch, 1=coons, 2=curved
+/// @return Surface reference, or NULL on failure
+OCCTSurfaceRef OCCTSurfaceBezierFill4(OCCTCurve3DRef c1, OCCTCurve3DRef c2,
+                                        OCCTCurve3DRef c3, OCCTCurve3DRef c4,
+                                        int32_t fillStyle);
+
+/// Create a Bezier surface by filling 2 Bezier boundary curves.
+/// @param c1, c2 The two boundary curves (must be Bezier curves)
+/// @param fillStyle Filling style: 0=stretch, 1=coons, 2=curved
+/// @return Surface reference, or NULL on failure
+OCCTSurfaceRef OCCTSurfaceBezierFill2(OCCTCurve3DRef c1, OCCTCurve3DRef c2,
+                                        int32_t fillStyle);
+
+
+// MARK: - Quilt Faces (v0.31.0)
+
+/// Quilt multiple shapes (faces/shells) together into a single shell.
+/// @param shapes Array of shape references to quilt
+/// @param count Number of shapes in the array
+/// @return Resulting shell shape, or NULL on failure
+OCCTShapeRef OCCTShapeQuilt(OCCTShapeRef* shapes, int32_t count);
+
+
+// MARK: - Fix Small Faces (v0.31.0)
+
+/// Fix small faces in a shape by removing or merging them.
+/// @param shape The shape to fix
+/// @param tolerance Precision tolerance for identifying small faces
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef OCCTShapeFixSmallFaces(OCCTShapeRef shape, double tolerance);
+
+
+// MARK: - Remove Locations (v0.31.0)
+
+/// Remove all locations (transformations) from a shape, baking them into geometry.
+/// @param shape The shape to process
+/// @return Shape with locations removed, or NULL on failure
+OCCTShapeRef OCCTShapeRemoveLocations(OCCTShapeRef shape);
+
+
+// MARK: - Revolution from Curve (v0.31.0)
+
+/// Create a solid of revolution from a meridian curve.
+/// @param meridian The curve to revolve (meridian profile)
+/// @param axOX, axOY, axOZ Origin of the revolution axis
+/// @param axDX, axDY, axDZ Direction of the revolution axis
+/// @param angle Revolution angle in radians (use 2*pi for full revolution)
+/// @return Revolved shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateRevolutionFromCurve(OCCTCurve3DRef meridian,
+                                                 double axOX, double axOY, double axOZ,
+                                                 double axDX, double axDY, double axDZ,
+                                                 double angle);
+
+
+// MARK: - Document Layers (v0.31.0)
+
+/// Get the number of layers in a document.
+/// @param doc The document to query
+/// @return Number of layers, or 0 on failure
+int32_t OCCTDocumentGetLayerCount(OCCTDocumentRef doc);
+
+/// Get the name of a layer by index.
+/// @param doc The document to query
+/// @param index Zero-based layer index
+/// @param outName Output buffer for the layer name
+/// @param maxLen Maximum length of the output buffer
+/// @return true if the layer name was retrieved successfully
+bool OCCTDocumentGetLayerName(OCCTDocumentRef doc, int32_t index, char* outName, int32_t maxLen);
+
+
+// MARK: - Document Materials (v0.31.0)
+
+/// Material info structure returned by OCCTDocumentGetMaterialInfo.
+typedef struct {
+    char name[128];
+    char description[256];
+    double density;
+} OCCTMaterialInfo;
+
+/// Get the number of materials in a document.
+/// @param doc The document to query
+/// @return Number of materials, or 0 on failure
+int32_t OCCTDocumentGetMaterialCount(OCCTDocumentRef doc);
+
+/// Get material information by index.
+/// @param doc The document to query
+/// @param index Zero-based material index
+/// @param outInfo Output material info structure
+/// @return true if the material info was retrieved successfully
+bool OCCTDocumentGetMaterialInfo(OCCTDocumentRef doc, int32_t index, OCCTMaterialInfo* outInfo);
+
+
+// MARK: - Linear Rib Feature (v0.31.0)
+
+/// Add a linear rib feature to a shape.
+/// @param shape The base shape to add the rib to
+/// @param profile The wire profile of the rib
+/// @param dirX, dirY, dirZ Direction of the rib extrusion
+/// @param dir1X, dir1Y, dir1Z Secondary direction (draft direction)
+/// @param fuse true to fuse (add material), false to cut (remove material)
+/// @return Shape with rib added, or NULL on failure
+OCCTShapeRef OCCTShapeAddLinearRib(OCCTShapeRef shape, OCCTWireRef profile,
+                                    double dirX, double dirY, double dirZ,
+                                    double dir1X, double dir1Y, double dir1Z,
+                                    bool fuse);
+
+
 #ifdef __cplusplus
 }
 #endif

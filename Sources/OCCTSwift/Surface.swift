@@ -775,3 +775,50 @@ extension Surface {
         return Surface(handle: h)
     }
 }
+
+// MARK: - Bezier Surface Fill (v0.31.0)
+
+/// Filling style for Bezier surface construction.
+public enum BezierFillStyle: Int32, Sendable {
+    /// Stretch style — minimal surface area
+    case stretch = 0
+    /// Coons style — bilinear blending
+    case coons = 1
+    /// Curved style — smooth curved interpolation
+    case curved = 2
+}
+
+extension Surface {
+    /// Create a Bezier surface by filling 4 Bezier boundary curves.
+    ///
+    /// The four curves must be Bezier curves forming a closed boundary.
+    ///
+    /// - Parameters:
+    ///   - c1: First boundary curve
+    ///   - c2: Second boundary curve
+    ///   - c3: Third boundary curve
+    ///   - c4: Fourth boundary curve
+    ///   - style: Filling style
+    /// - Returns: Bezier surface, or nil on failure
+    public static func bezierFill(_ c1: Curve3D, _ c2: Curve3D, _ c3: Curve3D, _ c4: Curve3D,
+                                  style: BezierFillStyle = .stretch) -> Surface? {
+        guard let h = OCCTSurfaceBezierFill4(c1.handle, c2.handle, c3.handle, c4.handle,
+                                              style.rawValue) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a Bezier surface by filling 2 Bezier boundary curves.
+    ///
+    /// The two curves are used as opposite edges of the surface.
+    ///
+    /// - Parameters:
+    ///   - c1: First boundary curve
+    ///   - c2: Second boundary curve
+    ///   - style: Filling style
+    /// - Returns: Bezier surface, or nil on failure
+    public static func bezierFill(_ c1: Curve3D, _ c2: Curve3D,
+                                  style: BezierFillStyle = .stretch) -> Surface? {
+        guard let h = OCCTSurfaceBezierFill2(c1.handle, c2.handle, style.rawValue) else { return nil }
+        return Surface(handle: h)
+    }
+}

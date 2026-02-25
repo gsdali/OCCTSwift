@@ -555,3 +555,73 @@ extension Document {
         return LengthUnit(scale: scale, name: name)
     }
 }
+
+// MARK: - Layers (v0.31.0)
+
+extension Document {
+    /// Number of layers in this document.
+    public var layerCount: Int {
+        Int(OCCTDocumentGetLayerCount(handle))
+    }
+
+    /// Get the name of a layer by index.
+    ///
+    /// - Parameter index: Zero-based layer index
+    /// - Returns: Layer name, or nil if index is out of range
+    public func layerName(at index: Int) -> String? {
+        var buf = [CChar](repeating: 0, count: 256)
+        guard OCCTDocumentGetLayerName(handle, Int32(index), &buf, 256) else { return nil }
+        return buf.withUnsafeBufferPointer { ptr in
+            String(decoding: ptr.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        }
+    }
+
+    /// All layer names in this document.
+    public var layerNames: [String] {
+        (0..<layerCount).compactMap { layerName(at: $0) }
+    }
+}
+
+// MARK: - Materials (v0.31.0)
+
+/// Material information from a document.
+public struct MaterialInfo: Sendable {
+    /// Material name
+    public let name: String
+    /// Material description
+    public let description: String
+    /// Material density
+    public let density: Double
+}
+
+extension Document {
+    /// Number of materials in this document.
+    public var materialCount: Int {
+        Int(OCCTDocumentGetMaterialCount(handle))
+    }
+
+    /// Get material info by index.
+    ///
+    /// - Parameter index: Zero-based material index
+    /// - Returns: Material info, or nil if index is out of range
+    public func materialInfo(at index: Int) -> MaterialInfo? {
+        var info = OCCTMaterialInfo()
+        guard OCCTDocumentGetMaterialInfo(handle, Int32(index), &info) else { return nil }
+        let name = withUnsafePointer(to: info.name) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: 128) { buf in
+                String(cString: buf)
+            }
+        }
+        let desc = withUnsafePointer(to: info.description) { ptr in
+            ptr.withMemoryRebound(to: CChar.self, capacity: 256) { buf in
+                String(cString: buf)
+            }
+        }
+        return MaterialInfo(name: name, description: desc, density: info.density)
+    }
+
+    /// All materials in this document.
+    public var materials: [MaterialInfo] {
+        (0..<materialCount).compactMap { materialInfo(at: $0) }
+    }
+}

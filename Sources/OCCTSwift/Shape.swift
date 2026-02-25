@@ -2897,3 +2897,101 @@ extension Shape {
         Int(OCCTShapeFindContiguousEdges(handle, tolerance))
     }
 }
+
+// MARK: - Quilt Faces (v0.31.0)
+
+extension Shape {
+    /// Quilt multiple shapes (faces/shells) together into a single shell.
+    ///
+    /// Joins faces that share common edges into a connected shell.
+    ///
+    /// - Parameter shapes: Array of shapes to quilt together
+    /// - Returns: Quilted shell, or nil on failure
+    public static func quilt(_ shapes: [Shape]) -> Shape? {
+        var handles = shapes.map { $0.handle as OCCTShapeRef? }
+        guard let h = OCCTShapeQuilt(&handles, Int32(shapes.count)) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Fix Small Faces (v0.31.0)
+
+extension Shape {
+    /// Fix small faces by removing or merging them.
+    ///
+    /// - Parameter tolerance: Precision tolerance for identifying small faces
+    /// - Returns: Shape with small faces fixed, or nil on failure
+    public func fixingSmallFaces(tolerance: Double = 1e-4) -> Shape? {
+        guard let h = OCCTShapeFixSmallFaces(handle, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Remove Locations (v0.31.0)
+
+extension Shape {
+    /// Remove all location transforms, baking them into the geometry.
+    ///
+    /// Converts a shape with nested transforms into an equivalent shape
+    /// where all geometry coordinates are in the global frame.
+    ///
+    /// - Returns: Shape with locations removed, or nil on failure
+    public func removingLocations() -> Shape? {
+        guard let h = OCCTShapeRemoveLocations(handle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Revolution from Curve (v0.31.0)
+
+extension Shape {
+    /// Create a solid of revolution by revolving a meridian curve.
+    ///
+    /// Unlike `revolution(profile:...)` which takes a wire profile,
+    /// this creates a revolution directly from a `Geom_Curve`.
+    ///
+    /// - Parameters:
+    ///   - meridian: The curve to revolve
+    ///   - axisOrigin: Origin point of the revolution axis
+    ///   - axisDirection: Direction of the revolution axis
+    ///   - angle: Revolution angle in radians (default: full revolution)
+    /// - Returns: Revolved shape, or nil on failure
+    public static func revolution(meridian: Curve3D,
+                                  axisOrigin: SIMD3<Double> = .zero,
+                                  axisDirection: SIMD3<Double> = SIMD3<Double>(0, 0, 1),
+                                  angle: Double = 2 * .pi) -> Shape? {
+        guard let h = OCCTShapeCreateRevolutionFromCurve(
+            meridian.handle,
+            axisOrigin.x, axisOrigin.y, axisOrigin.z,
+            axisDirection.x, axisDirection.y, axisDirection.z,
+            angle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Linear Rib Feature (v0.31.0)
+
+extension Shape {
+    /// Add a linear rib feature to a shape.
+    ///
+    /// Creates a rib (reinforcement) or slot by extruding a wire profile
+    /// in the given direction on the base shape.
+    ///
+    /// - Parameters:
+    ///   - profile: The wire profile of the rib
+    ///   - direction: Extrusion direction of the rib
+    ///   - draftDirection: Secondary direction controlling draft angle
+    ///   - fuse: true to add material (rib), false to remove material (slot)
+    /// - Returns: Shape with rib/slot added, or nil on failure
+    public func addingLinearRib(profile: Wire,
+                                direction: SIMD3<Double>,
+                                draftDirection: SIMD3<Double>,
+                                fuse: Bool = true) -> Shape? {
+        guard let h = OCCTShapeAddLinearRib(
+            handle, profile.handle,
+            direction.x, direction.y, direction.z,
+            draftDirection.x, draftDirection.y, draftDirection.z,
+            fuse) else { return nil }
+        return Shape(handle: h)
+    }
+}

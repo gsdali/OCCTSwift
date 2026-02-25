@@ -1,5 +1,48 @@
 # OCCTSwift Changelog
 
+## [v0.31.0] - 2026-02-25
+
+### Medium/Low Priority Audit Wrap
+
+Wraps 15 additional OCCT operations from medium/low priority audit categories: quasi-uniform curve sampling (arc-length and deflection-based), Bezier surface filling from boundary curves, face quilting, small face fixing, location removal, revolution from curve, document layer/material queries, and linear rib features. 21 new tests across 10 new suites. 686 tests passing across 150 suites.
+
+#### Quasi-Uniform Curve Sampling
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve.quasiUniformParameters(count:)` | `GCPnts_QuasiUniformAbscissa` |
+| `curve.quasiUniformDeflectionPoints(deflection:maxPoints:)` | `GCPnts_QuasiUniformDeflection` |
+
+#### Bezier Surface Fill
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Surface.bezierFill(_:_:_:_:style:)` | `GeomFill_BezierCurves` |
+| `Surface.bezierFill(_:_:style:)` | `GeomFill_BezierCurves` |
+
+#### Shape Healing & Topology
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.quilt(_:)` | `BRepTools_Quilt` |
+| `shape.fixingSmallFaces(tolerance:)` | `ShapeFix_FixSmallFace` |
+| `shape.removingLocations()` | `ShapeUpgrade_RemoveLocations` |
+
+#### Revolution from Curve
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.revolution(meridian:axisOrigin:axisDirection:angle:)` | `BRepPrimAPI_MakeRevolution` |
+
+#### Document Layers & Materials
+| Swift API | OCCT Class |
+|-----------|------------|
+| `document.layerCount` / `layerName(at:)` / `layerNames` | `XCAFDoc_LayerTool` |
+| `document.materialCount` / `materialInfo(at:)` / `materials` | `XCAFDoc_MaterialTool` |
+
+#### Linear Rib Feature
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.addingLinearRib(profile:direction:draftDirection:fuse:)` | `BRepFeat_MakeLinearForm` |
+
+---
+
 ## [v0.30.0] - 2026-02-25
 
 ### Deep Audit Wrap
