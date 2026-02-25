@@ -3487,6 +3487,62 @@ OCCTShapeRef OCCTShapeRevolFeatureThruAll(OCCTShapeRef shape, int32_t profileFac
                                            bool fuse);
 
 
+// MARK: - Evolved Shape Advanced (v0.33.0)
+
+/// Create an evolved shape with full parameter control.
+/// @param spine The spine shape (wire or face)
+/// @param profile The profile wire
+/// @param joinType Join type: 0=Arc, 1=Tangent, 2=Intersection
+/// @param axeProf true if profile is in global coords, false for local
+/// @param solid true to produce a solid
+/// @param volume true for volume mode (remove self-intersections via BOPAlgo)
+/// @param tolerance Tolerance for evolved shape creation
+/// @return Evolved shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateEvolvedAdvanced(OCCTShapeRef spine, OCCTWireRef profile,
+                                             int32_t joinType, bool axeProf,
+                                             bool solid, bool volume,
+                                             double tolerance);
+
+
+// MARK: - Pipe Shell with Transition Mode (v0.33.0)
+
+/// Create a pipe shell with transition mode control.
+/// @param spine The spine wire
+/// @param profile The profile wire
+/// @param mode Sweep mode: 0=Frenet, 1=CorrectedFrenet
+/// @param transitionMode Transition: 0=Transformed, 1=RightCorner, 2=RoundCorner
+/// @param solid true to produce a solid
+/// @return Pipe shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreatePipeShellWithTransition(OCCTWireRef spine, OCCTWireRef profile,
+                                                     int32_t mode, int32_t transitionMode,
+                                                     bool solid);
+
+
+// MARK: - Face from Surface with UV Bounds (v0.33.0)
+
+/// Create a face from a surface with specific UV parameter bounds.
+/// @param surface The surface to create a face from
+/// @param uMin Minimum U parameter
+/// @param uMax Maximum U parameter
+/// @param vMin Minimum V parameter
+/// @param vMax Maximum V parameter
+/// @param tolerance Tolerance for face creation
+/// @return Face shape, or NULL on failure
+OCCTShapeRef OCCTShapeCreateFaceFromSurface(OCCTSurfaceRef surface,
+                                             double uMin, double uMax,
+                                             double vMin, double vMax,
+                                             double tolerance);
+
+
+// MARK: - Edges to Faces (v0.33.0)
+
+/// Reconstruct faces from a compound of loose edges.
+/// @param compound Shape containing edges
+/// @param isOnlyPlane true to only create planar faces
+/// @return Compound of faces, or NULL on failure
+OCCTShapeRef OCCTShapeEdgesToFaces(OCCTShapeRef compound, bool isOnlyPlane);
+
+
 #ifdef __cplusplus
 }
 #endif

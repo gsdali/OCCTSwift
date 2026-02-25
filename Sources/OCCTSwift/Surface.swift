@@ -821,4 +821,27 @@ extension Surface {
         guard let h = OCCTSurfaceBezierFill2(c1.handle, c2.handle, style.rawValue) else { return nil }
         return Surface(handle: h)
     }
+
+    // MARK: - Face from Surface (v0.33.0)
+
+    /// Create a face from this surface using its full parameter domain.
+    ///
+    /// - Parameter tolerance: Tolerance for face creation
+    /// - Returns: Face shape, or nil on failure
+    public func toFace(tolerance: Double = 1e-6) -> Shape? {
+        let d = domain
+        return Shape.face(from: self, uRange: d.uMin...d.uMax, vRange: d.vMin...d.vMax, tolerance: tolerance)
+    }
+
+    /// Create a face from this surface with specific UV parameter bounds.
+    ///
+    /// - Parameters:
+    ///   - uRange: U parameter range
+    ///   - vRange: V parameter range
+    ///   - tolerance: Tolerance for face creation
+    /// - Returns: Face shape, or nil on failure
+    public func toFace(uRange: ClosedRange<Double>, vRange: ClosedRange<Double>,
+                       tolerance: Double = 1e-6) -> Shape? {
+        return Shape.face(from: self, uRange: uRange, vRange: vRange, tolerance: tolerance)
+    }
 }

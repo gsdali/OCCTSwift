@@ -1,5 +1,35 @@
 # OCCTSwift Changelog
 
+## [v0.33.0] - 2026-02-25
+
+### OCCT Test Suite Audit, Round 2
+
+Second pass through the OCCT test suite (`tests/evolved`, `tests/pipe`, `tests/mkface`, `tests/geometry`) adds 4 new bridge functions covering evolved shapes with full parameter control, pipe shell transition modes, face creation from parametric surfaces, and edge-to-face reconstruction. 13 new tests across 5 new suites. 719 tests passing across 162 suites.
+
+#### Evolved Shape Advanced
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.evolvedAdvanced(spine:profile:joinType:axeProf:solid:volume:tolerance:)` | `BRepOffsetAPI_MakeEvolved` (full constructor) |
+
+#### Pipe Shell Transition
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.pipeShellWithTransition(spine:profile:mode:transition:solid:)` | `BRepOffsetAPI_MakePipeShell.SetTransitionMode` |
+| `PipeTransitionMode` enum (transformed, rightCorner, roundCorner) | `BRepBuilderAPI_TransitionMode` |
+
+#### Face from Surface
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.face(from:uRange:vRange:tolerance:)` | `BRepBuilderAPI_MakeFace(surface, u1, u2, v1, v2, tol)` |
+| `surface.toFace()` / `surface.toFace(uRange:vRange:)` | Convenience wrappers |
+
+#### Edges to Faces
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.facesFromEdges(_:onlyPlanar:)` | `BRepBuilderAPI_MakeWire` + `BRepBuilderAPI_MakeFace` |
+
+---
+
 ## [v0.32.0] - 2026-02-25
 
 ### OCCT Test Suite Audit, Round 1

@@ -942,6 +942,32 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Create an evolved shape with full parameter control.
+    ///
+    /// Extends the basic `evolved` method with control over join type, coordinate
+    /// system, solid/volume mode, and tolerance.
+    ///
+    /// - Parameters:
+    ///   - spine: Path wire to sweep along
+    ///   - profile: Profile wire to sweep
+    ///   - joinType: How to join offset edges (default: .arc)
+    ///   - axeProf: If true, profile is in global coordinates; if false, local to spine
+    ///   - solid: If true, produce a solid result
+    ///   - volume: If true, use volume mode (removes self-intersections)
+    ///   - tolerance: Tolerance for evolved shape creation
+    /// - Returns: Evolved shape, or nil on failure
+    public static func evolvedAdvanced(spine: Shape, profile: Wire,
+                                       joinType: OffsetJoinType = .arc,
+                                       axeProf: Bool = true,
+                                       solid: Bool = true,
+                                       volume: Bool = false,
+                                       tolerance: Double = 1e-4) -> Shape? {
+        guard let h = OCCTShapeCreateEvolvedAdvanced(spine.handle, profile.handle,
+                                                      joinType.rawValue, axeProf,
+                                                      solid, volume, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+
     /// Create a linear pattern of the shape
     ///
     /// - Parameters:
@@ -1413,6 +1439,16 @@ public enum PipeSweepMode: Sendable {
     case auxiliary(spine: Wire)
 }
 
+/// Transition mode for pipe shell at spine discontinuities (corners).
+public enum PipeTransitionMode: Int32, Sendable {
+    /// Transformed — smooth transition (default)
+    case transformed = 0
+    /// Right corner — sharp right-angle transitions
+    case rightCorner = 1
+    /// Round corner — filleted transitions
+    case roundCorner = 2
+}
+
 extension Shape {
     // MARK: - Selective Fillet
 
@@ -1572,6 +1608,36 @@ extension Shape {
 
         guard let shapeRef = result else { return nil }
         return Shape(handle: shapeRef)
+    }
+
+    /// Create a pipe shell with transition mode control.
+    ///
+    /// Controls how the profile transitions at discontinuities (corners) in the spine.
+    ///
+    /// - Parameters:
+    ///   - spine: Path wire along which to sweep
+    ///   - profile: Profile wire to sweep
+    ///   - mode: Sweep mode controlling profile orientation
+    ///   - transition: How to handle transitions at spine corners
+    ///   - solid: If true, create a solid; if false, create a shell
+    /// - Returns: Swept shape, or nil on failure
+    public static func pipeShellWithTransition(
+        spine: Wire,
+        profile: Wire,
+        mode: PipeSweepMode = .frenet,
+        transition: PipeTransitionMode = .transformed,
+        solid: Bool = true
+    ) -> Shape? {
+        let modeInt: Int32 = {
+            switch mode {
+            case .correctedFrenet: return 1
+            default: return 0
+            }
+        }()
+        guard let h = OCCTShapeCreatePipeShellWithTransition(
+            spine.handle, profile.handle, modeInt, transition.rawValue, solid
+        ) else { return nil }
+        return Shape(handle: h)
     }
 
     // MARK: - Variable-Section Sweep (v0.21.0)
@@ -3204,6 +3270,47 @@ extension Shape {
                                                     axisOrigin.x, axisOrigin.y, axisOrigin.z,
                                                     axisDirection.x, axisDirection.y, axisDirection.z,
                                                     fuse) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Face from Surface (v0.33.0)
+
+extension Shape {
+    /// Create a face from a surface with specific UV parameter bounds.
+    ///
+    /// - Parameters:
+    ///   - surface: The parametric surface
+    ///   - uRange: U parameter range (uMin, uMax)
+    ///   - vRange: V parameter range (vMin, vMax)
+    ///   - tolerance: Tolerance for face creation
+    /// - Returns: Face shape, or nil on failure
+    public static func face(from surface: Surface,
+                            uRange: ClosedRange<Double>,
+                            vRange: ClosedRange<Double>,
+                            tolerance: Double = 1e-6) -> Shape? {
+        guard let h = OCCTShapeCreateFaceFromSurface(surface.handle,
+                                                      uRange.lowerBound, uRange.upperBound,
+                                                      vRange.lowerBound, vRange.upperBound,
+                                                      tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Edges to Faces (v0.33.0)
+
+extension Shape {
+    /// Reconstruct faces from a compound of loose edges.
+    ///
+    /// Takes a shape containing edges and tries to build closed wires,
+    /// then creates faces from those wires.
+    ///
+    /// - Parameters:
+    ///   - compound: Shape containing edges to assemble into faces
+    ///   - onlyPlanar: If true, only create planar faces
+    /// - Returns: Compound of faces, or nil on failure
+    public static func facesFromEdges(_ compound: Shape, onlyPlanar: Bool = true) -> Shape? {
+        guard let h = OCCTShapeEdgesToFaces(compound.handle, onlyPlanar) else { return nil }
         return Shape(handle: h)
     }
 }

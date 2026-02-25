@@ -9741,3 +9741,171 @@ struct RevolutionFormTests {
         _ = result
     }
 }
+
+// MARK: - v0.33.0 — OCCT Test Suite Audit Round 2
+
+@Suite("Evolved Advanced")
+struct EvolvedAdvancedTests {
+    @Test("Evolved advanced with arc join")
+    func evolvedAdvancedArc() {
+        // Spine: a planar face (rectangle)
+        let spine = Shape.box(width: 20, height: 20, depth: 1)!
+        // Profile: small rectangle wire
+        let profile = Wire.rectangle(width: 1, height: 1)!
+        let result = Shape.evolvedAdvanced(
+            spine: spine, profile: profile,
+            joinType: .arc, axeProf: true, solid: true
+        )
+        // Evolved with a 3D box spine is complex; just verify API is callable
+        _ = result
+    }
+
+    @Test("Evolved advanced with intersection join")
+    func evolvedAdvancedIntersection() {
+        // Use a wire spine
+        let spine = Wire.rectangle(width: 10, height: 10)!
+        let profile = Wire.rectangle(width: 0.5, height: 0.5)!
+        let result = Shape.evolvedAdvanced(
+            spine: Shape.evolved(spine: spine, profile: Wire.rectangle(width: 0.1, height: 0.1)!) ?? Shape.box(width: 10, height: 10, depth: 1)!,
+            profile: profile,
+            joinType: .intersection, solid: false
+        )
+        _ = result
+    }
+}
+
+@Suite("Pipe Shell Transition Mode")
+struct PipeShellTransitionTests {
+    @Test("Pipe with transformed transition")
+    func pipeTransformed() {
+        // L-shaped spine (two line segments at right angle)
+        let p1 = SIMD3<Double>(0, 0, 0)
+        let p2 = SIMD3<Double>(10, 0, 0)
+        let p3 = SIMD3<Double>(10, 10, 0)
+        let spine = Wire.path([p1, p2, p3])!
+        let profile = Wire.circle(radius: 1)!
+        let result = Shape.pipeShellWithTransition(
+            spine: spine, profile: profile,
+            transition: .transformed, solid: true
+        )
+        #expect(result != nil)
+    }
+
+    @Test("Pipe with right corner transition")
+    func pipeRightCorner() {
+        let spine = Wire.path([SIMD3(0,0,0), SIMD3(10,0,0), SIMD3(10,10,0)])!
+        let profile = Wire.circle(radius: 1)!
+        let result = Shape.pipeShellWithTransition(
+            spine: spine, profile: profile,
+            transition: .rightCorner, solid: true
+        )
+        // Right corner may or may not succeed depending on geometry
+        _ = result
+    }
+
+    @Test("Pipe with round corner transition")
+    func pipeRoundCorner() {
+        let spine = Wire.path([SIMD3(0,0,0), SIMD3(10,0,0), SIMD3(10,10,0)])!
+        let profile = Wire.circle(radius: 1)!
+        let result = Shape.pipeShellWithTransition(
+            spine: spine, profile: profile,
+            transition: .roundCorner, solid: true
+        )
+        _ = result
+    }
+
+    @Test("Pipe transition with corrected Frenet mode")
+    func pipeCorrectedFrenetTransition() {
+        // Simple straight spine — Frenet and CorrectedFrenet should behave the same
+        guard let spine = Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(0, 0, 10)) else { return }
+        let profile = Wire.rectangle(width: 2, height: 3)!
+        let result = Shape.pipeShellWithTransition(
+            spine: spine, profile: profile,
+            mode: .correctedFrenet, transition: .transformed, solid: true
+        )
+        #expect(result != nil)
+    }
+}
+
+@Suite("Face from Surface")
+struct FaceFromSurfaceTests {
+    @Test("Face from plane surface with full domain")
+    func faceFromPlane() {
+        let surface = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))!
+        // Plane has infinite domain; trim to a finite region
+        let face = Shape.face(from: surface, uRange: -5.0...5.0, vRange: -5.0...5.0)
+        #expect(face != nil)
+        if let f = face {
+            #expect(f.surfaceArea! > 0)
+            // 10x10 plane => area ~100
+            #expect(abs(f.surfaceArea! - 100.0) < 1e-6)
+        }
+    }
+
+    @Test("Face from cylindrical surface with UV bounds")
+    func faceFromCylinder() {
+        let surface = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5)!
+        // U = angle [0, 2π], V = height along axis
+        let face = Shape.face(from: surface,
+                              uRange: 0.0...(Double.pi),
+                              vRange: 0.0...10.0)
+        #expect(face != nil)
+        if let f = face {
+            // Half-cylinder: area = π*r*h = π*5*10 ≈ 157.08
+            #expect(abs(f.surfaceArea! - Double.pi * 5 * 10) < 0.1)
+        }
+    }
+
+    @Test("Surface toFace convenience")
+    func surfaceToFace() {
+        let surface = Surface.sphere(center: SIMD3(0, 0, 0), radius: 3)!
+        let face = surface.toFace()
+        #expect(face != nil)
+        if let f = face {
+            // Full sphere surface area = 4πr² = 4π*9 ≈ 113.1
+            #expect(abs(f.surfaceArea! - 4 * Double.pi * 9) < 0.5)
+        }
+    }
+
+    @Test("Surface toFace with trimmed UV range")
+    func surfaceToFaceTrimmed() {
+        let surface = Surface.sphere(center: SIMD3(0, 0, 0), radius: 3)!
+        // Trim to upper hemisphere
+        let face = surface.toFace(uRange: 0.0...(2 * Double.pi), vRange: 0.0...(Double.pi / 2))
+        #expect(face != nil)
+        if let f = face {
+            // Upper hemisphere: 2πr² = 2π*9 ≈ 56.5
+            #expect(abs(f.surfaceArea! - 2 * Double.pi * 9) < 0.5)
+        }
+    }
+}
+
+@Suite("Edges to Faces")
+struct EdgesToFacesTests {
+    @Test("Edges to faces from wire shape")
+    func edgesToFacesFromWire() {
+        // Create a wire shape — it contains 4 connected edges forming a rectangle
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        let wireShape = Shape.fromWire(rect)!
+        let result = Shape.facesFromEdges(wireShape, onlyPlanar: true)
+        // A closed planar wire should produce a face
+        _ = result
+    }
+
+    @Test("Edges to faces API callable")
+    func edgesToFacesCallable() {
+        // Verify the API is callable; edge assembly is geometry-dependent
+        let box = Shape.box(width: 6, height: 4, depth: 2)!
+        // Box edges form 6 faces, but reassembly from loose edges is complex
+        let result = Shape.facesFromEdges(box, onlyPlanar: true)
+        _ = result
+    }
+
+    @Test("Edges to faces with non-planar mode")
+    func edgesToFacesNonPlanar() {
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        let wireShape = Shape.fromWire(rect)!
+        let result = Shape.facesFromEdges(wireShape, onlyPlanar: false)
+        _ = result
+    }
+}

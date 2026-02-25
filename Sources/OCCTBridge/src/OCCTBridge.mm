@@ -14253,3 +14253,147 @@ OCCTShapeRef OCCTShapeRevolFeatureThruAll(OCCTShapeRef shape, int32_t profileFac
         return nullptr;
     }
 }
+
+// MARK: - Evolved Shape Advanced (v0.33.0)
+
+OCCTShapeRef OCCTShapeCreateEvolvedAdvanced(OCCTShapeRef spine, OCCTWireRef profile,
+                                             int32_t joinType, bool axeProf,
+                                             bool solid, bool volume,
+                                             double tolerance) {
+    if (!spine || !profile) return nullptr;
+    try {
+        GeomAbs_JoinType join = GeomAbs_Arc;
+        if (joinType == 1) join = GeomAbs_Tangent;
+        else if (joinType == 2) join = GeomAbs_Intersection;
+        BRepOffsetAPI_MakeEvolved evolved(spine->shape, profile->wire, join,
+                                           axeProf, solid, false, tolerance, volume, false);
+        if (!evolved.IsDone()) return nullptr;
+        TopoDS_Shape result = evolved.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Pipe Shell with Transition Mode (v0.33.0)
+
+#include <BRepBuilderAPI_TransitionMode.hxx>
+
+OCCTShapeRef OCCTShapeCreatePipeShellWithTransition(OCCTWireRef spine, OCCTWireRef profile,
+                                                     int32_t mode, int32_t transitionMode,
+                                                     bool solid) {
+    if (!spine || !profile) return nullptr;
+    try {
+        BRepOffsetAPI_MakePipeShell pipeShell(spine->wire);
+        // Set sweep mode
+        if (mode == 1) {
+            pipeShell.SetMode(Standard_True);   // Corrected Frenet
+        } else {
+            pipeShell.SetMode(Standard_False);  // Frenet
+        }
+        // Set transition mode
+        if (transitionMode == 1) {
+            pipeShell.SetTransitionMode(BRepBuilderAPI_RightCorner);
+        } else if (transitionMode == 2) {
+            pipeShell.SetTransitionMode(BRepBuilderAPI_RoundCorner);
+        } else {
+            pipeShell.SetTransitionMode(BRepBuilderAPI_Transformed);
+        }
+        pipeShell.Add(profile->wire);
+        pipeShell.Build();
+        if (!pipeShell.IsDone()) return nullptr;
+        TopoDS_Shape result = pipeShell.Shape();
+        if (solid) {
+            pipeShell.MakeSolid();
+            if (pipeShell.IsDone()) {
+                result = pipeShell.Shape();
+            }
+        }
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Face from Surface with UV Bounds (v0.33.0)
+
+OCCTShapeRef OCCTShapeCreateFaceFromSurface(OCCTSurfaceRef surface,
+                                             double uMin, double uMax,
+                                             double vMin, double vMax,
+                                             double tolerance) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeFace maker(surface->surface, uMin, uMax, vMin, vMax, tolerance);
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Face());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Edges to Faces (v0.33.0)
+
+OCCTShapeRef OCCTShapeEdgesToFaces(OCCTShapeRef compound, bool isOnlyPlane) {
+    if (!compound) return nullptr;
+    try {
+        // Collect all edges from the input shape
+        TopTools_ListOfShape edgeList;
+        TopExp_Explorer explorer(compound->shape, TopAbs_EDGE);
+        while (explorer.More()) {
+            edgeList.Append(explorer.Current());
+            explorer.Next();
+        }
+        if (edgeList.IsEmpty()) return nullptr;
+
+        // Build wires from edges, then faces from wires
+        BRep_Builder builder;
+        TopoDS_Compound result;
+        builder.MakeCompound(result);
+
+        // Try to build wires and faces
+        TopTools_ListOfShape remainingEdges;
+        remainingEdges.Assign(edgeList);
+        bool anyFace = false;
+
+        while (!remainingEdges.IsEmpty()) {
+            BRepBuilderAPI_MakeWire wireBuilder;
+            // Try adding edges to the wire
+            bool added = true;
+            while (added && !remainingEdges.IsEmpty()) {
+                added = false;
+                TopTools_ListIteratorOfListOfShape it(remainingEdges);
+                while (it.More()) {
+                    wireBuilder.Add(TopoDS::Edge(it.Value()));
+                    if (wireBuilder.Error() == BRepBuilderAPI_WireDone) {
+                        added = true;
+                        remainingEdges.Remove(it);
+                    } else {
+                        wireBuilder = BRepBuilderAPI_MakeWire(wireBuilder.Wire());
+                        it.Next();
+                    }
+                }
+            }
+            if (wireBuilder.IsDone()) {
+                TopoDS_Wire wire = wireBuilder.Wire();
+                BRepBuilderAPI_MakeFace faceBuilder(wire, isOnlyPlane);
+                if (faceBuilder.IsDone()) {
+                    builder.Add(result, faceBuilder.Face());
+                    anyFace = true;
+                }
+            }
+            if (!added && !remainingEdges.IsEmpty()) {
+                // Can't connect more edges; start a new wire with first remaining
+                TopTools_ListIteratorOfListOfShape it(remainingEdges);
+                if (it.More()) {
+                    remainingEdges.Remove(it);
+                }
+            }
+        }
+
+        if (!anyFace) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
