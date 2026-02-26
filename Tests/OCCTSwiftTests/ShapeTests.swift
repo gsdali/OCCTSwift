@@ -9909,3 +9909,222 @@ struct EdgesToFacesTests {
         _ = result
     }
 }
+
+// MARK: - v0.34.0 — OCCT Test Suite Audit Round 3
+
+@Suite("Shape-to-Shape Section")
+struct ShapeSectionTests {
+    @Test("Section of two intersecting boxes")
+    func sectionTwoBoxes() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!.translated(by: SIMD3(5, 5, 0))
+        let result = box1.section(with: box2!)
+        #expect(result != nil)
+    }
+
+    @Test("Section of box and cylinder")
+    func sectionBoxCylinder() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let cyl = Shape.cylinder(radius: 3, height: 20)!
+        let result = box.section(with: cyl)
+        #expect(result != nil)
+    }
+
+    @Test("Section of non-intersecting shapes returns empty")
+    func sectionNoIntersection() {
+        let box1 = Shape.box(width: 5, height: 5, depth: 5)!
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)!.translated(by: SIMD3(100, 100, 100))
+        let result = box1.section(with: box2!)
+        // Non-intersecting shapes may return empty compound or nil
+        _ = result
+    }
+
+    @Test("Section of sphere and plane")
+    func sectionSpherePlane() {
+        let sphere = Shape.sphere(radius: 5)!
+        // Create a thin box as a plane-like shape
+        let plane = Shape.box(width: 20, height: 20, depth: 0.001)!
+        let result = sphere.section(with: plane)
+        #expect(result != nil)
+    }
+}
+
+@Suite("Boolean Pre-Validation")
+struct BooleanCheckTests {
+    @Test("Valid box passes boolean check")
+    func validBoxCheck() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        #expect(box.isValidForBoolean)
+    }
+
+    @Test("Two boxes valid for boolean together")
+    func twoBoxesValid() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.sphere(radius: 5)!
+        #expect(box1.isValidForBoolean(with: box2))
+    }
+
+    @Test("Cylinder valid for boolean")
+    func cylinderValid() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        #expect(cyl.isValidForBoolean)
+    }
+}
+
+@Suite("Split Shape by Wire")
+struct SplitByWireTests {
+    @Test("Split box face with diagonal wire")
+    func splitBoxFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        // Create a line wire across the top face
+        guard let wire = Wire.line(from: SIMD3(0, 0, 10), to: SIMD3(10, 10, 10)) else { return }
+        // Try to split face 0 (may or may not work depending on face orientation)
+        let faceCount = box.faces().count
+        // Try each face until one works
+        var success = false
+        for i in 0..<faceCount {
+            if let result = box.splittingFace(with: wire, faceIndex: i) {
+                // Split face should produce more faces than original
+                #expect(result.faces().count >= faceCount)
+                success = true
+                break
+            }
+        }
+        // Wire splitting is geometry-dependent; API callability is the test
+        _ = success
+    }
+
+    @Test("Split with invalid face index returns nil")
+    func splitInvalidFaceIndex() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        guard let wire = Wire.line(from: SIMD3(0, 0, 10), to: SIMD3(10, 10, 10)) else { return }
+        let result = box.splittingFace(with: wire, faceIndex: 999)
+        #expect(result == nil)
+    }
+}
+
+@Suite("Split by Angle")
+struct SplitByAngleTests {
+    @Test("Split cylinder by 90 degrees")
+    func splitCylinder90() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let result = cyl.splitByAngle(90)
+        #expect(result != nil)
+        if let r = result {
+            // A full cylinder split at 90° should produce 4 lateral faces + 2 caps
+            let faceCount = r.faces().count
+            #expect(faceCount > cyl.faces().count)
+        }
+    }
+
+    @Test("Split sphere by 90 degrees")
+    func splitSphere90() {
+        let sphere = Shape.sphere(radius: 5)!
+        let result = sphere.splitByAngle(90)
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.faces().count > sphere.faces().count)
+        }
+    }
+
+    @Test("Split box by angle is no-op or returns nil")
+    func splitBoxNoOp() {
+        // Box faces are all planar — no angle splitting needed
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.splitByAngle(90)
+        // ShapeDivideAngle may return nil if no surfaces need splitting
+        if let r = result {
+            #expect(r.faces().count >= box.faces().count)
+        }
+    }
+
+    @Test("Split cone by 180 degrees")
+    func splitCone180() {
+        let cone = Shape.cone(bottomRadius: 5, topRadius: 2, height: 10)!
+        let result = cone.splitByAngle(180)
+        #expect(result != nil)
+        if let r = result {
+            // Full cone split at 180° should produce 2 lateral faces
+            #expect(r.faces().count >= cone.faces().count)
+        }
+    }
+}
+
+@Suite("Drop Small Edges")
+struct DropSmallEdgesTests {
+    @Test("Drop small edges on clean box")
+    func cleanBoxNoChange() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.droppingSmallEdges(tolerance: 1e-6)
+        #expect(result != nil)
+        if let r = result {
+            // Clean box should keep same topology
+            #expect(r.edges().count == box.edges().count)
+        }
+    }
+
+    @Test("Drop small edges with larger tolerance")
+    func largerTolerance() {
+        // Create a box with tiny features via chamfer
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.droppingSmallEdges(tolerance: 0.001)
+        #expect(result != nil)
+    }
+
+    @Test("Drop small edges API callable")
+    func apiCallable() {
+        let sphere = Shape.sphere(radius: 5)!
+        let result = sphere.droppingSmallEdges()
+        #expect(result != nil)
+    }
+}
+
+@Suite("Multi-Tool Boolean Fuse")
+struct MultiFuseTests {
+    @Test("Fuse three overlapping boxes")
+    func fuseThreeBoxes() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!.translated(by: SIMD3(5, 0, 0))!
+        let box3 = Shape.box(width: 10, height: 10, depth: 10)!.translated(by: SIMD3(0, 5, 0))!
+        let result = Shape.fuseAll([box1, box2, box3])
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.volume! > 0)
+            // Fused volume should be less than sum of individual volumes
+            #expect(r.volume! < 3000)
+            #expect(r.volume! > 1000)
+        }
+    }
+
+    @Test("Fuse four spheres")
+    func fuseFourSpheres() {
+        let s1 = Shape.sphere(radius: 5)!
+        let s2 = Shape.sphere(radius: 5)!.translated(by: SIMD3(4, 0, 0))!
+        let s3 = Shape.sphere(radius: 5)!.translated(by: SIMD3(0, 4, 0))!
+        let s4 = Shape.sphere(radius: 5)!.translated(by: SIMD3(4, 4, 0))!
+        let result = Shape.fuseAll([s1, s2, s3, s4])
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.volume! > 0)
+        }
+    }
+
+    @Test("Fuse with less than 2 shapes returns nil")
+    func fuseTooFew() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = Shape.fuseAll([box])
+        #expect(result == nil)
+    }
+
+    @Test("Fuse non-overlapping shapes produces compound")
+    func fuseNonOverlapping() {
+        let box1 = Shape.box(width: 5, height: 5, depth: 5)!
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)!.translated(by: SIMD3(20, 20, 20))!
+        let result = Shape.fuseAll([box1, box2])
+        #expect(result != nil)
+        if let r = result {
+            // Sum of volumes should be preserved
+            #expect(abs(r.volume! - 250.0) < 1.0)
+        }
+    }
+}

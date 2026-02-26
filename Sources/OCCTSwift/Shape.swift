@@ -3314,3 +3314,108 @@ extension Shape {
         return Shape(handle: h)
     }
 }
+
+// MARK: - Shape-to-Shape Section (v0.34.0)
+
+extension Shape {
+    /// Compute the intersection curves/edges between two shapes.
+    ///
+    /// Returns the intersection geometry (edges/wires) where the two shapes overlap.
+    /// Useful for finding contact curves, trim boundaries, and interference analysis.
+    ///
+    /// - Parameter other: The second shape to intersect with
+    /// - Returns: Shape containing intersection edges, or nil on failure
+    public func section(with other: Shape) -> Shape? {
+        guard let h = OCCTShapeSection(handle, other.handle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Boolean Pre-Validation (v0.34.0)
+
+extension Shape {
+    /// Check whether this shape is valid for boolean operations.
+    ///
+    /// - Returns: true if the shape is suitable for boolean operations
+    public var isValidForBoolean: Bool {
+        OCCTShapeBooleanCheck(handle, nil)
+    }
+
+    /// Check whether two shapes are valid for boolean operations with each other.
+    ///
+    /// - Parameter other: The other shape to check compatibility with
+    /// - Returns: true if both shapes are suitable for boolean operations together
+    public func isValidForBoolean(with other: Shape) -> Bool {
+        OCCTShapeBooleanCheck(handle, other.handle)
+    }
+}
+
+// MARK: - Split Shape by Wire (v0.34.0)
+
+extension Shape {
+    /// Split a face by imprinting a wire onto it.
+    ///
+    /// The wire is projected/imprinted onto the specified face, dividing it
+    /// into multiple faces. Useful for mesh preparation and feature line imprinting.
+    ///
+    /// - Parameters:
+    ///   - wire: Wire to imprint onto the face
+    ///   - faceIndex: 0-based index of the face to split
+    /// - Returns: Shape with the face split by the wire, or nil on failure
+    public func splittingFace(with wire: Wire, faceIndex: Int) -> Shape? {
+        guard let h = OCCTShapeSplitByWire(handle, wire.handle, Int32(faceIndex)) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Split by Angle (v0.34.0)
+
+extension Shape {
+    /// Split surfaces that span more than a specified angle.
+    ///
+    /// Useful for export to systems that cannot handle full 360° surfaces
+    /// (e.g., splitting a full cylinder into quarter-cylinders with maxAngle=90).
+    ///
+    /// - Parameter maxAngleDegrees: Maximum angle in degrees (e.g., 90 for quarter-turns)
+    /// - Returns: Shape with surfaces split at angle boundaries, or nil on failure
+    public func splitByAngle(_ maxAngleDegrees: Double) -> Shape? {
+        guard let h = OCCTShapeSplitByAngle(handle, maxAngleDegrees) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Drop Small Edges (v0.34.0)
+
+extension Shape {
+    /// Remove degenerate/tiny edges from a shape.
+    ///
+    /// Useful for cleaning up imported geometry with tolerance issues.
+    ///
+    /// - Parameter tolerance: Tolerance below which edges are considered small
+    /// - Returns: Shape with small edges removed, or nil on failure
+    public func droppingSmallEdges(tolerance: Double = 1e-6) -> Shape? {
+        guard let h = OCCTShapeDropSmallEdges(handle, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Multi-Tool Boolean Fuse (v0.34.0)
+
+extension Shape {
+    /// Fuse multiple shapes simultaneously.
+    ///
+    /// More robust than sequential pairwise `union(with:)` calls, as it avoids
+    /// intermediate tolerance issues and processes all intersections at once.
+    ///
+    /// - Parameter shapes: Array of shapes to fuse together
+    /// - Returns: Fused shape, or nil on failure
+    public static func fuseAll(_ shapes: [Shape]) -> Shape? {
+        guard shapes.count >= 2 else { return nil }
+        let handles: [OCCTShapeRef?] = shapes.map { $0.handle }
+        let result = handles.withUnsafeBufferPointer { buffer in
+            OCCTShapeFuseMulti(buffer.baseAddress, Int32(shapes.count))
+        }
+        guard let h = result else { return nil }
+        return Shape(handle: h)
+    }
+}

@@ -1,5 +1,44 @@
 # OCCTSwift Changelog
 
+## [v0.34.0] - 2026-02-25
+
+### OCCT Test Suite Audit, Round 3
+
+Third pass through the OCCT test suite (`tests/boolean`, `tests/blend`, `tests/heal`, `tests/lowalgos`) adds 6 new operations covering shape-to-shape section curves, boolean pre-validation, wire imprinting on faces, angle-based surface splitting, small edge removal, and multi-tool boolean fuse. 20 new tests across 6 new suites. 739 tests passing across 168 suites.
+
+#### Shape-to-Shape Section
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.section(with:)` | `BRepAlgoAPI_Section` |
+
+#### Boolean Pre-Validation
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.isValidForBoolean` | `BRepAlgoAPI_Check` (self-check) |
+| `shape.isValidForBoolean(with:)` | `BRepAlgoAPI_Check` (pair check) |
+
+#### Split Shape by Wire
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.splittingFace(with:faceIndex:)` | `BRepFeat_SplitShape` |
+
+#### Split by Angle
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.splitByAngle(_:)` | `ShapeUpgrade_ShapeDivideAngle` |
+
+#### Drop Small Edges
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.droppingSmallEdges(tolerance:)` | `ShapeFix_Wireframe.FixSmallEdges` (drop mode) |
+
+#### Multi-Tool Boolean Fuse
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.fuseAll(_:)` | `BRepAlgoAPI_BuilderAlgo` |
+
+---
+
 ## [v0.33.0] - 2026-02-25
 
 ### OCCT Test Suite Audit, Round 2

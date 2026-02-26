@@ -3543,6 +3543,62 @@ OCCTShapeRef OCCTShapeCreateFaceFromSurface(OCCTSurfaceRef surface,
 OCCTShapeRef OCCTShapeEdgesToFaces(OCCTShapeRef compound, bool isOnlyPlane);
 
 
+// MARK: - Shape-to-Shape Section (v0.34.0)
+
+/// Compute the intersection curves/edges between two shapes.
+/// @param shape1 First shape
+/// @param shape2 Second shape
+/// @return Shape containing intersection edges/wires, or NULL on failure
+OCCTShapeRef OCCTShapeSection(OCCTShapeRef shape1, OCCTShapeRef shape2);
+
+
+// MARK: - Boolean Pre-Validation (v0.34.0)
+
+/// Check whether shapes are valid for boolean operations.
+/// @param shape1 First shape (argument)
+/// @param shape2 Second shape (tool), may be NULL for self-check
+/// @return true if shapes are valid for booleans
+bool OCCTShapeBooleanCheck(OCCTShapeRef shape1, OCCTShapeRef shape2);
+
+
+// MARK: - Split Shape by Wire (v0.34.0)
+
+/// Split faces of a shape by imprinting a wire onto a face.
+/// @param shape The shape to modify
+/// @param wire The wire to imprint
+/// @param faceIndex 0-based index of the face to split
+/// @return Modified shape with split faces, or NULL on failure
+OCCTShapeRef OCCTShapeSplitByWire(OCCTShapeRef shape, OCCTWireRef wire, int32_t faceIndex);
+
+
+// MARK: - Split Shape by Angle (v0.34.0)
+
+/// Split surfaces that span more than a specified angle.
+/// Useful for export to systems that cannot handle full 360° surfaces.
+/// @param shape The shape to split
+/// @param maxAngleDegrees Maximum angle in degrees (e.g. 90 = quarter-turns)
+/// @return Shape with split surfaces, or NULL on failure
+OCCTShapeRef OCCTShapeSplitByAngle(OCCTShapeRef shape, double maxAngleDegrees);
+
+
+// MARK: - Drop Small Edges (v0.34.0)
+
+/// Remove degenerate/tiny edges from a shape.
+/// @param shape The shape to clean
+/// @param tolerance Tolerance for identifying small edges
+/// @return Shape with small edges removed, or NULL on failure
+OCCTShapeRef OCCTShapeDropSmallEdges(OCCTShapeRef shape, double tolerance);
+
+
+// MARK: - Multi-Tool Boolean Fuse (v0.34.0)
+
+/// Fuse multiple shapes simultaneously (more robust than sequential pairwise union).
+/// @param shapes Array of shape references
+/// @param count Number of shapes
+/// @return Fused shape, or NULL on failure
+OCCTShapeRef OCCTShapeFuseMulti(const OCCTShapeRef* shapes, int32_t count);
+
+
 #ifdef __cplusplus
 }
 #endif

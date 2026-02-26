@@ -14254,6 +14254,129 @@ OCCTShapeRef OCCTShapeRevolFeatureThruAll(OCCTShapeRef shape, int32_t profileFac
     }
 }
 
+// MARK: - Shape-to-Shape Section (v0.34.0)
+
+#include <BRepAlgoAPI_Section.hxx>
+
+OCCTShapeRef OCCTShapeSection(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1 || !shape2) return nullptr;
+    try {
+        BRepAlgoAPI_Section section(shape1->shape, shape2->shape, Standard_False);
+        section.ComputePCurveOn1(Standard_True);
+        section.Approximation(Standard_True);
+        section.Build();
+        if (!section.IsDone()) return nullptr;
+        TopoDS_Shape result = section.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Boolean Pre-Validation (v0.34.0)
+
+#include <BRepAlgoAPI_Check.hxx>
+
+bool OCCTShapeBooleanCheck(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1) return false;
+    try {
+        if (shape2) {
+            BRepAlgoAPI_Check checker(shape1->shape, shape2->shape);
+            return checker.IsValid();
+        } else {
+            BRepAlgoAPI_Check checker(shape1->shape);
+            return checker.IsValid();
+        }
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Split Shape by Wire (v0.34.0)
+
+#include <BRepFeat_SplitShape.hxx>
+
+OCCTShapeRef OCCTShapeSplitByWire(OCCTShapeRef shape, OCCTWireRef wire, int32_t faceIndex) {
+    if (!shape || !wire) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        int32_t idx = faceIndex + 1; // Convert 0-based to 1-based
+        if (idx < 1 || idx > faceMap.Extent()) return nullptr;
+        TopoDS_Face face = TopoDS::Face(faceMap(idx));
+        BRepFeat_SplitShape splitter(shape->shape);
+        splitter.Add(wire->wire, face);
+        splitter.Build();
+        if (!splitter.IsDone()) return nullptr;
+        TopoDS_Shape result = splitter.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Split Shape by Angle (v0.34.0)
+
+#include <ShapeUpgrade_ShapeDivideAngle.hxx>
+
+OCCTShapeRef OCCTShapeSplitByAngle(OCCTShapeRef shape, double maxAngleDegrees) {
+    if (!shape) return nullptr;
+    try {
+        double maxAngleRadians = maxAngleDegrees * M_PI / 180.0;
+        ShapeUpgrade_ShapeDivideAngle divider(maxAngleRadians, shape->shape);
+        if (!divider.Perform()) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Drop Small Edges (v0.34.0)
+
+OCCTShapeRef OCCTShapeDropSmallEdges(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_Wireframe) wireframe = new ShapeFix_Wireframe(shape->shape);
+        wireframe->SetPrecision(tolerance);
+        wireframe->ModeDropSmallEdges() = true;
+        wireframe->FixSmallEdges();
+        TopoDS_Shape result = wireframe->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Multi-Tool Boolean Fuse (v0.34.0)
+
+#include <BRepAlgoAPI_BuilderAlgo.hxx>
+
+OCCTShapeRef OCCTShapeFuseMulti(const OCCTShapeRef* shapes, int32_t count) {
+    if (!shapes || count < 2) return nullptr;
+    try {
+        TopTools_ListOfShape arguments;
+        for (int32_t i = 0; i < count; ++i) {
+            if (!shapes[i]) return nullptr;
+            arguments.Append(shapes[i]->shape);
+        }
+        BRepAlgoAPI_BuilderAlgo builder;
+        builder.SetArguments(arguments);
+        builder.SetRunParallel(Standard_True);
+        builder.Build();
+        if (!builder.IsDone()) return nullptr;
+        TopoDS_Shape result = builder.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // MARK: - Evolved Shape Advanced (v0.33.0)
 
 OCCTShapeRef OCCTShapeCreateEvolvedAdvanced(OCCTShapeRef spine, OCCTWireRef profile,

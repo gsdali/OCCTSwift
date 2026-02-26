@@ -8,7 +8,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 |----------|-------|----------|
 | **Primitives** | 12 | box, cylinder, cylinder(at:), sphere, cone, torus, surface, wedge, halfSpace, vertex, shell(from surface), nonUniformScale |
 | **Sweeps** | 10 | pipe sweep, pipeShell, pipeShellWithTransition, pipeShellWithLaw, extrude, revolve, loft, loft(ruled+vertex), ruled, revolutionFromCurve |
-| **Booleans** | 3 | union (+), subtract (-), intersect (&) |
+| **Booleans** | 6 | union (+), subtract (-), intersect (&), section, booleanCheck, fuseAll |
 | **Modifications** | 14 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, chamferTwoDistances, chamferDistAngle, shell, offset, offsetByJoin, draft, defeature, convertToNURBS, makeDraft |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
 | **Wires** | 21 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D, helix, helixTapered, orderedEdgeCount, orderedEdgePoints |
@@ -19,7 +19,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 13 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam |
 | **Feature-Based** | 16 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll |
-| **Healing/Analysis** | 25 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt |
+| **Healing/Analysis** | 28 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace |
 | **Measurement** | 7 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
@@ -48,14 +48,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **528** | |
+| **Total** | **534** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
 ## Features
 
 - **B-Rep Solid Modeling**: Full boundary representation geometry
-- **Boolean Operations**: Union, subtraction, intersection
+- **Boolean Operations**: Union, subtraction, intersection, section curves, multi-tool fuse, pre-validation
 - **Sweep Operations**: Pipe sweeps, extrusions, revolutions, lofts, variable-section sweeps with law functions
 - **Modifications**: Fillet (uniform, selective, variable radius), chamfer, shell, offset, draft, defeaturing
 - **Advanced Blends**: Variable radius fillets, multi-edge blends with individual radii
@@ -68,7 +68,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Law Functions**: Constant, linear, S-curve, interpolated, BSpline evolution functions for variable-section sweeps
 - **Feature-Based Modeling**: Boss, pocket, drilling, splitting, gluing, evolved surfaces
 - **Pattern Operations**: Linear and circular arrays of shapes
-- **Shape Healing**: Analysis, fixing, unification, simplification
+- **Shape Healing**: Analysis, fixing, unification, simplification, angle splitting, small edge removal, wire imprinting
 - **Geometry Construction**: Face from wire, face from surface (UV-trimmed), face with holes, sewing, solid from shell, surface filling, edges to faces
 - **Surface Creation**: N-sided boundary filling, plate surfaces through points or curves, advanced plates with per-point constraint orders, mixed point/curve constraints
 - **NLPlate Surface Deformation**: Non-linear plate solver for G0 (positional) and G0+G1 (positional + tangent) surface deformation
@@ -832,6 +832,37 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 |-----------|------------|
 | `shape.addingLinearRib(profile:direction:draftDirection:fuse:)` | `BRepFeat_MakeLinearForm` |
 
+#### Shape-to-Shape Section (v0.34.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.section(with:)` | `BRepAlgoAPI_Section` |
+
+#### Boolean Pre-Validation (v0.34.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.isValidForBoolean` | `BRepAlgoAPI_Check` (self-check) |
+| `shape.isValidForBoolean(with:)` | `BRepAlgoAPI_Check` (pair check) |
+
+#### Wire Imprinting (v0.34.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.splittingFace(with:faceIndex:)` | `BRepFeat_SplitShape` |
+
+#### Split by Angle (v0.34.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.splitByAngle(_:)` | `ShapeUpgrade_ShapeDivideAngle` |
+
+#### Drop Small Edges (v0.34.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.droppingSmallEdges(tolerance:)` | `ShapeFix_Wireframe.FixSmallEdges` (drop mode) |
+
+#### Multi-Tool Boolean Fuse (v0.34.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.fuseAll(_:)` | `BRepAlgoAPI_BuilderAlgo` |
+
 #### Evolved Shape Advanced (v0.33.0)
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -891,6 +922,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.34.0: **OCCT test suite audit, round 3** — shape-to-shape section, boolean pre-validation, wire imprinting, angle splitting, small edge removal, multi-tool fuse
 > - v0.33.0: **OCCT test suite audit, round 2** — evolved shapes with full parameter control, pipe shell transition modes, face creation from parametric surfaces, edge-to-face reconstruction
 > - v0.32.0: **OCCT test suite audit** — asymmetric chamfer (two-distance + distance-angle), ruled loft with vertex endpoints, offset by join with join type control, revolution form, draft prism, revolved feature
 > - v0.31.0: **Medium/low priority audit wrap** — quasi-uniform curve sampling (arc-length & deflection), Bezier surface fill, quilt faces, fix small faces, remove locations, revolution from curve, document layers/materials, linear rib feature
@@ -941,7 +973,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.30.0
 
-OCCTSwift now wraps **528 OCCT operations** across 49 categories with 719 tests across 162 suites.
+OCCTSwift now wraps **534 OCCT operations** across 49 categories with 739 tests across 168 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 
