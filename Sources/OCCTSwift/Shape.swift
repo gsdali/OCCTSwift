@@ -3581,3 +3581,70 @@ extension Shape {
         return BooleanResult(shape: fused, modifiedFaces: modified)
     }
 }
+
+// MARK: - Thick Solid / Hollowing (v0.37.0)
+
+extension Shape {
+    /// Create a hollowed (thick) solid by removing faces and offsetting inward.
+    ///
+    /// Removes the specified faces and creates a shell with uniform wall thickness.
+    /// The removed faces become openings in the resulting hollow shape.
+    ///
+    /// - Parameters:
+    ///   - faceIndices: 0-based indices of faces to remove (become openings)
+    ///   - thickness: Wall thickness (positive = offset inward)
+    ///   - tolerance: Tolerance for the operation
+    ///   - joinType: How to join offset edges (default: .arc)
+    /// - Returns: Hollowed solid, or nil on failure
+    public func hollowed(removingFaces faceIndices: [Int],
+                         thickness: Double,
+                         tolerance: Double = 1e-3,
+                         joinType: OffsetJoinType = .arc) -> Shape? {
+        guard !faceIndices.isEmpty else { return nil }
+        let indices = faceIndices.map { Int32($0) }
+        let result = indices.withUnsafeBufferPointer { buf in
+            OCCTShapeMakeThickSolid(handle, buf.baseAddress, Int32(faceIndices.count),
+                                     thickness, tolerance, joinType.rawValue)
+        }
+        guard let h = result else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Shell from Surface (v0.37.0)
+
+extension Shape {
+    /// Create a shell from a parametric surface with UV bounds.
+    ///
+    /// - Parameters:
+    ///   - surface: The parametric surface
+    ///   - uRange: U parameter range
+    ///   - vRange: V parameter range
+    /// - Returns: Shell shape, or nil on failure
+    public static func shell(from surface: Surface,
+                             uRange: ClosedRange<Double>,
+                             vRange: ClosedRange<Double>) -> Shape? {
+        guard let h = OCCTShapeMakeShell(surface.handle,
+                                          uRange.lowerBound, uRange.upperBound,
+                                          vRange.lowerBound, vRange.upperBound) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Multi-Tool Boolean Common (v0.37.0)
+
+extension Shape {
+    /// Compute the common (intersection) of multiple shapes simultaneously.
+    ///
+    /// - Parameter shapes: Array of shapes to intersect
+    /// - Returns: Common shape (intersection of all), or nil on failure
+    public static func commonAll(_ shapes: [Shape]) -> Shape? {
+        guard shapes.count >= 2 else { return nil }
+        let handles: [OCCTShapeRef?] = shapes.map { $0.handle }
+        let result = handles.withUnsafeBufferPointer { buffer in
+            OCCTShapeCommonMulti(buffer.baseAddress, Int32(shapes.count))
+        }
+        guard let h = result else { return nil }
+        return Shape(handle: h)
+    }
+}

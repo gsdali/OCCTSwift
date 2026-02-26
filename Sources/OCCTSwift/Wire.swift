@@ -1058,3 +1058,48 @@ extension Wire {
         return (0..<n).map { i in SIMD3(buffer[i * 3], buffer[i * 3 + 1], buffer[i * 3 + 2]) }
     }
 }
+
+// MARK: - Wire Topology Analysis (v0.37.0)
+
+/// Result of wire topology analysis.
+public struct WireAnalysis: Sendable {
+    /// Whether the wire forms a closed loop
+    public var isClosed: Bool
+    /// Whether the wire has small/degenerate edges
+    public var hasSmallEdges: Bool
+    /// Whether there are 3D gaps between edges
+    public var hasGaps: Bool
+    /// Whether the wire self-intersects
+    public var hasSelfIntersection: Bool
+    /// Whether edges are properly ordered
+    public var isOrdered: Bool
+    /// Minimum 3D gap distance
+    public var minGap: Double
+    /// Maximum 3D gap distance
+    public var maxGap: Double
+    /// Number of edges
+    public var edgeCount: Int
+}
+
+extension Wire {
+    /// Analyze wire topology for potential issues.
+    ///
+    /// Checks closure, edge connectivity, gaps, self-intersection, and ordering.
+    ///
+    /// - Parameter tolerance: Analysis tolerance
+    /// - Returns: Analysis results, or nil if analysis fails
+    public func analyze(tolerance: Double = 1e-6) -> WireAnalysis? {
+        var result = OCCTWireAnalysisResult()
+        guard OCCTWireAnalyze(handle, tolerance, &result) else { return nil }
+        return WireAnalysis(
+            isClosed: result.isClosed,
+            hasSmallEdges: result.hasSmallEdges,
+            hasGaps: result.hasGaps3d,
+            hasSelfIntersection: result.hasSelfIntersection,
+            isOrdered: result.isOrdered,
+            minGap: result.minDistance3d,
+            maxGap: result.maxDistance3d,
+            edgeCount: Int(result.edgeCount)
+        )
+    }
+}

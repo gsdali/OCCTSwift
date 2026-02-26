@@ -3729,6 +3729,79 @@ int32_t OCCTShapeFuseWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
                                   OCCTShapeRef* outModified, int32_t maxModified);
 
 
+// MARK: - Thick Solid / Hollowing (v0.37.0)
+
+/// Create a hollowed (thick) solid by removing faces and offsetting inward.
+/// @param shape The solid to hollow
+/// @param faceIndices 0-based indices of faces to remove (openings)
+/// @param faceCount Number of faces to remove
+/// @param offset Wall thickness (positive = inward)
+/// @param tolerance Tolerance
+/// @param joinType Join type: 0=Arc, 1=Tangent, 2=Intersection
+/// @return Hollowed solid, or NULL on failure
+OCCTShapeRef OCCTShapeMakeThickSolid(OCCTShapeRef shape, const int32_t* faceIndices,
+                                      int32_t faceCount, double offset, double tolerance,
+                                      int32_t joinType);
+
+
+// MARK: - Wire Analysis (v0.37.0)
+
+/// Result of wire topology analysis.
+typedef struct {
+    bool isClosed;
+    bool hasSmallEdges;
+    bool hasGaps3d;
+    bool hasSelfIntersection;
+    bool isOrdered;
+    double minDistance3d;
+    double maxDistance3d;
+    int32_t edgeCount;
+} OCCTWireAnalysisResult;
+
+/// Analyze wire topology for potential issues.
+/// @param wire The wire to analyze
+/// @param tolerance Analysis tolerance
+/// @param result Output analysis result
+/// @return true if analysis completed
+bool OCCTWireAnalyze(OCCTWireRef wire, double tolerance, OCCTWireAnalysisResult* result);
+
+
+// MARK: - Surface Singularity Analysis (v0.37.0)
+
+/// Check if a surface has singularities (poles/degenerate points).
+/// @param surface The surface to check
+/// @param tolerance Precision for singularity detection
+/// @return Number of singularities found (0 = none)
+int32_t OCCTSurfaceSingularityCount(OCCTSurfaceRef surface, double tolerance);
+
+/// Check if a surface is degenerated at a given point.
+/// @param surface The surface
+/// @param x, y, z The 3D point to check
+/// @param tolerance Precision
+/// @return true if the point is at a degenerate region
+bool OCCTSurfaceIsDegenerated(OCCTSurfaceRef surface, double x, double y, double z, double tolerance);
+
+
+// MARK: - Shell from Surface (v0.37.0)
+
+/// Create a shell from a parametric surface with UV bounds.
+/// @param surface The surface
+/// @param uMin, uMax, vMin, vMax UV parameter bounds
+/// @return Shell shape, or NULL on failure
+OCCTShapeRef OCCTShapeMakeShell(OCCTSurfaceRef surface,
+                                 double uMin, double uMax,
+                                 double vMin, double vMax);
+
+
+// MARK: - Multi-Tool Boolean Common (v0.37.0)
+
+/// Compute the common (intersection) of multiple shapes simultaneously.
+/// @param shapes Array of shape references
+/// @param count Number of shapes (must be >= 2)
+/// @return Common shape (intersection of all), or NULL on failure
+OCCTShapeRef OCCTShapeCommonMulti(const OCCTShapeRef* shapes, int32_t count);
+
+
 #ifdef __cplusplus
 }
 #endif

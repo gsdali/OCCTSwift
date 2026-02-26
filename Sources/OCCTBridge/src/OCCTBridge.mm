@@ -14655,6 +14655,139 @@ int32_t OCCTShapeFuseWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
     }
 }
 
+// MARK: - Thick Solid / Hollowing (v0.37.0)
+
+#include <BRepOffsetAPI_MakeThickSolid.hxx>
+
+OCCTShapeRef OCCTShapeMakeThickSolid(OCCTShapeRef shape, const int32_t* faceIndices,
+                                      int32_t faceCount, double offset, double tolerance,
+                                      int32_t joinType) {
+    if (!shape || !faceIndices || faceCount < 1) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+
+        TopTools_ListOfShape closingFaces;
+        for (int32_t i = 0; i < faceCount; ++i) {
+            int32_t idx = faceIndices[i] + 1; // 0-based to 1-based
+            if (idx < 1 || idx > faceMap.Extent()) return nullptr;
+            closingFaces.Append(faceMap(idx));
+        }
+
+        GeomAbs_JoinType join = GeomAbs_Arc;
+        if (joinType == 1) join = GeomAbs_Tangent;
+        else if (joinType == 2) join = GeomAbs_Intersection;
+
+        BRepOffsetAPI_MakeThickSolid maker;
+        maker.MakeThickSolidByJoin(shape->shape, closingFaces, offset, tolerance,
+                                    BRepOffset_Skin, false, false, join);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        TopoDS_Shape result = maker.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Wire Analysis (v0.37.0)
+
+#include <ShapeAnalysis_Wire.hxx>
+#include <ShapeExtend_WireData.hxx>
+
+bool OCCTWireAnalyze(OCCTWireRef wire, double tolerance, OCCTWireAnalysisResult* result) {
+    if (!wire || !result) return false;
+    try {
+        // Create a dummy planar face for wire analysis
+        TopoDS_Face face;
+        ShapeAnalysis_Wire analyzer;
+        analyzer.Load(wire->wire);
+        analyzer.SetPrecision(tolerance);
+
+        result->edgeCount = analyzer.NbEdges();
+        // CheckClosed returns true when there IS a problem, so negate it
+        result->isClosed = wire->wire.Closed() || !analyzer.CheckClosed(tolerance);
+        result->hasSmallEdges = analyzer.CheckSmall(tolerance);
+        result->hasGaps3d = analyzer.CheckGaps3d();
+        result->hasSelfIntersection = analyzer.CheckSelfIntersection();
+        result->isOrdered = !analyzer.CheckOrder();
+        result->minDistance3d = analyzer.MinDistance3d();
+        result->maxDistance3d = analyzer.MaxDistance3d();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Surface Singularity Analysis (v0.37.0)
+
+#include <ShapeAnalysis_Surface.hxx>
+
+int32_t OCCTSurfaceSingularityCount(OCCTSurfaceRef surface, double tolerance) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    try {
+        ShapeAnalysis_Surface analyzer(surface->surface);
+        return analyzer.NbSingularities(tolerance);
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTSurfaceIsDegenerated(OCCTSurfaceRef surface, double x, double y, double z, double tolerance) {
+    if (!surface || surface->surface.IsNull()) return false;
+    try {
+        ShapeAnalysis_Surface analyzer(surface->surface);
+        gp_Pnt point(x, y, z);
+        return analyzer.IsDegenerated(point, tolerance);
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Shell from Surface (v0.37.0)
+
+#include <BRepBuilderAPI_MakeShell.hxx>
+
+OCCTShapeRef OCCTShapeMakeShell(OCCTSurfaceRef surface,
+                                 double uMin, double uMax,
+                                 double vMin, double vMax) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeShell maker(surface->surface, uMin, uMax, vMin, vMax);
+        if (!maker.IsDone()) return nullptr;
+        TopoDS_Shell shell = maker.Shell();
+        if (shell.IsNull()) return nullptr;
+        return new OCCTShape(shell);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Multi-Tool Boolean Common (v0.37.0)
+
+#include <BRepAlgoAPI_Common.hxx>
+
+OCCTShapeRef OCCTShapeCommonMulti(const OCCTShapeRef* shapes, int32_t count) {
+    if (!shapes || count < 2) return nullptr;
+    try {
+        // Start with the common of first two shapes, then iteratively intersect with rest
+        for (int32_t i = 0; i < count; ++i) {
+            if (!shapes[i]) return nullptr;
+        }
+        TopoDS_Shape result = shapes[0]->shape;
+        for (int32_t i = 1; i < count; ++i) {
+            BRepAlgoAPI_Common common(result, shapes[i]->shape);
+            if (!common.IsDone()) return nullptr;
+            result = common.Shape();
+            if (result.IsNull()) return nullptr;
+        }
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // MARK: - Evolved Shape Advanced (v0.33.0)
 
 OCCTShapeRef OCCTShapeCreateEvolvedAdvanced(OCCTShapeRef spine, OCCTWireRef profile,

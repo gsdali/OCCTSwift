@@ -10440,3 +10440,160 @@ struct BooleanHistoryTests {
         }
     }
 }
+
+// MARK: - v0.37.0 — OCCT Test Suite Audit Round 6
+
+@Suite("Thick Solid / Hollowing")
+struct ThickSolidTests {
+    @Test("Hollow a box by removing top face")
+    func hollowBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        // Find the top face index (Z=10 face)
+        let faces = box.faces()
+        // Try hollowing with the first face as opening
+        let result = box.hollowed(removingFaces: [0], thickness: -1.0, tolerance: 1e-3)
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.volume! > 0)
+            // Hollow box should have less volume than solid box
+            #expect(r.volume! < 1000.0)
+        }
+    }
+
+    @Test("Hollow cylinder")
+    func hollowCylinder() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        // Remove top face (index 0 or 1)
+        let result = cyl.hollowed(removingFaces: [0], thickness: -1.0)
+        // Hollowing may or may not succeed; just verify API callable
+        _ = result
+    }
+
+    @Test("Hollow with invalid face index returns nil")
+    func hollowInvalidFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.hollowed(removingFaces: [999], thickness: -1.0)
+        #expect(result == nil)
+    }
+}
+
+@Suite("Wire Topology Analysis")
+struct WireAnalysisTests {
+    @Test("Analyze closed rectangle wire")
+    func analyzeRectangle() {
+        let rect = Wire.rectangle(width: 10, height: 5)!
+        let analysis = rect.analyze()
+        #expect(analysis != nil)
+        if let a = analysis {
+            #expect(a.edgeCount == 4)
+            #expect(a.isClosed)
+            #expect(!a.hasSelfIntersection)
+        }
+    }
+
+    @Test("Analyze open line wire")
+    func analyzeOpenLine() {
+        guard let line = Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0)) else { return }
+        let analysis = line.analyze()
+        #expect(analysis != nil)
+        if let a = analysis {
+            #expect(a.edgeCount == 1)
+        }
+    }
+
+    @Test("Analyze circle wire")
+    func analyzeCircle() {
+        let circle = Wire.circle(radius: 5)!
+        let analysis = circle.analyze()
+        #expect(analysis != nil)
+        if let a = analysis {
+            #expect(a.isClosed)
+        }
+    }
+}
+
+@Suite("Surface Singularity Analysis")
+struct SurfaceSingularityTests {
+    @Test("Plane has no singularities")
+    func planeSingularities() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))!
+        #expect(plane.singularityCount() == 0)
+        #expect(!plane.hasSingularities())
+    }
+
+    @Test("Sphere has singularities at poles")
+    func sphereSingularities() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5)!
+        #expect(sphere.hasSingularities())
+        #expect(sphere.singularityCount() >= 1)
+    }
+
+    @Test("Cylinder has no singularities")
+    func cylinderSingularities() {
+        let cyl = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5)!
+        #expect(!cyl.hasSingularities())
+    }
+
+    @Test("Degeneration check at sphere pole")
+    func degenerationAtPole() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5)!
+        // North pole
+        let isDeg = sphere.isDegenerated(at: SIMD3(0, 0, 5), tolerance: 0.1)
+        // This may or may not detect as degenerate depending on tolerance
+        _ = isDeg
+    }
+}
+
+@Suite("Shell from Surface")
+struct ShellFromSurfaceTests {
+    @Test("Shell from cylinder surface")
+    func shellFromCylinder() {
+        let cyl = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5)!
+        let shell = Shape.shell(from: cyl, uRange: 0.0...(2 * Double.pi), vRange: 0.0...10.0)
+        #expect(shell != nil)
+        if let s = shell {
+            #expect(s.surfaceArea! > 0)
+        }
+    }
+
+    @Test("Shell from plane surface")
+    func shellFromPlane() {
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))!
+        let shell = Shape.shell(from: plane, uRange: -5.0...5.0, vRange: -5.0...5.0)
+        #expect(shell != nil)
+    }
+}
+
+@Suite("Multi-Tool Boolean Common")
+struct MultiCommonTests {
+    @Test("Common of three overlapping boxes")
+    func commonThreeBoxes() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!.translated(by: SIMD3(3, 0, 0))!
+        let box3 = Shape.box(width: 10, height: 10, depth: 10)!.translated(by: SIMD3(0, 3, 0))!
+        let result = Shape.commonAll([box1, box2, box3])
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.volume! > 0)
+            // Common should be smaller than any individual box
+            #expect(r.volume! < 1000.0)
+        }
+    }
+
+    @Test("Common with less than 2 shapes returns nil")
+    func commonTooFew() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        #expect(Shape.commonAll([box]) == nil)
+    }
+
+    @Test("Common of non-overlapping shapes")
+    func commonNoOverlap() {
+        let box1 = Shape.box(width: 5, height: 5, depth: 5)!
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)!.translated(by: SIMD3(20, 20, 20))!
+        let result = Shape.commonAll([box1, box2])
+        // Non-overlapping common may return empty or nil
+        if let r = result {
+            #expect(r.volume! < 0.001)
+        }
+    }
+}

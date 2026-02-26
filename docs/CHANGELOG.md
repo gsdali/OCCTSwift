@@ -1,5 +1,40 @@
 # OCCTSwift Changelog
 
+## [v0.37.0] - 2026-02-26
+
+### OCCT Test Suite Audit, Round 6
+
+Sixth pass adds 6 new operations: thick/hollow solids via face removal, wire topology analysis (closure/gaps/self-intersection), surface singularity detection, shell creation from parametric surfaces, and multi-tool common (N-way boolean intersection). 15 new tests across 5 new suites. 782 tests passing across 184 suites.
+
+#### Thick/Hollow Solid
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.hollowed(removingFaces:thickness:...)` | `BRepOffsetAPI_MakeThickSolid` |
+
+#### Wire Topology Analysis
+| Swift API | OCCT Class |
+|-----------|------------|
+| `wire.analyze(tolerance:)` → `WireAnalysis` | `ShapeAnalysis_Wire` |
+
+#### Surface Singularity Detection
+| Swift API | OCCT Class |
+|-----------|------------|
+| `surface.singularityCount(tolerance:)` | `ShapeAnalysis_Surface.NbSingularities` |
+| `surface.isDegenerated(at:tolerance:)` | `ShapeAnalysis_Surface.IsDegenerated` |
+| `surface.hasSingularities(tolerance:)` | `ShapeAnalysis_Surface.NbSingularities` |
+
+#### Shell from Parametric Surface
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.shell(from:uRange:vRange:)` | `BRepBuilderAPI_MakeShell` |
+
+#### Multi-Tool Common
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.commonAll(_:)` | `BRepAlgoAPI_Common` (iterative) |
+
+---
+
 ## [v0.36.0] - 2026-02-26
 
 ### OCCT Test Suite Audit, Round 5

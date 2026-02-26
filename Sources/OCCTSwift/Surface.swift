@@ -912,6 +912,31 @@ extension Surface {
     /// is first converted to B-spline if needed.
     ///
     /// - Returns: Array of Bezier surface patches, or empty if conversion fails
+    // MARK: - Surface Singularity Analysis (v0.37.0)
+
+    /// Count the number of singularities (poles/degenerate regions) on this surface.
+    ///
+    /// - Parameter tolerance: Precision for singularity detection
+    /// - Returns: Number of singularities found (0 = none)
+    public func singularityCount(tolerance: Double = 1e-6) -> Int {
+        Int(OCCTSurfaceSingularityCount(handle, tolerance))
+    }
+
+    /// Check if a 3D point lies at a degenerate region of this surface.
+    ///
+    /// - Parameters:
+    ///   - point: The 3D point to check
+    ///   - tolerance: Precision for degeneration detection
+    /// - Returns: true if the point is at a degenerate region
+    public func isDegenerated(at point: SIMD3<Double>, tolerance: Double = 1e-6) -> Bool {
+        OCCTSurfaceIsDegenerated(handle, point.x, point.y, point.z, tolerance)
+    }
+
+    /// Whether this surface has any singularities at the given tolerance.
+    public func hasSingularities(tolerance: Double = 1e-6) -> Bool {
+        singularityCount(tolerance: tolerance) > 0
+    }
+
     public func toBezierPatches() -> [Surface] {
         let maxPatches: Int32 = 256
         var patchRefs = [OCCTSurfaceRef?](repeating: nil, count: Int(maxPatches))
