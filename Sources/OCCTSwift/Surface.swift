@@ -902,3 +902,25 @@ extension Curve3D {
         }
     }
 }
+
+// MARK: - Surface to Bezier Patches (v0.36.0)
+
+extension Surface {
+    /// Convert this surface to an array of Bezier surface patches.
+    ///
+    /// Decomposes a B-spline surface into a grid of Bezier patches. The surface
+    /// is first converted to B-spline if needed.
+    ///
+    /// - Returns: Array of Bezier surface patches, or empty if conversion fails
+    public func toBezierPatches() -> [Surface] {
+        let maxPatches: Int32 = 256
+        var patchRefs = [OCCTSurfaceRef?](repeating: nil, count: Int(maxPatches))
+        let count = patchRefs.withUnsafeMutableBufferPointer { buf in
+            OCCTSurfaceToBezierPatches(handle, buf.baseAddress, maxPatches)
+        }
+        return (0..<Int(count)).compactMap { i in
+            guard let ref = patchRefs[i] else { return nil }
+            return Surface(handle: ref)
+        }
+    }
+}

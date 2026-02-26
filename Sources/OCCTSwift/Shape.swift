@@ -3483,3 +3483,101 @@ extension Shape {
         return Shape(handle: h)
     }
 }
+
+// MARK: - Conical Projection (v0.36.0)
+
+extension Shape {
+    /// Project a wire/edge shape onto another shape from a point (conical projection).
+    ///
+    /// Unlike cylindrical projection (parallel rays), conical projection fans out
+    /// from a point source, like a spotlight or perspective camera.
+    ///
+    /// - Parameters:
+    ///   - wire: Wire or edge shape to project
+    ///   - target: Target shape to project onto
+    ///   - eye: Point source of projection rays
+    /// - Returns: Compound of projected wires, or nil on failure
+    public static func projectWireConical(_ wire: Shape, onto target: Shape,
+                                          eye: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeProjectWireConical(wire.handle, target.handle,
+                                                   eye.x, eye.y, eye.z) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Encode Regularity (v0.36.0)
+
+extension Shape {
+    /// Mark smooth (G1-continuous) edges as "regular."
+    ///
+    /// Downstream algorithms can skip regular edges for better performance.
+    /// The angular tolerance controls what is considered "smooth."
+    ///
+    /// - Parameter toleranceDegrees: Angular tolerance in degrees (default: 1e-10)
+    /// - Returns: Shape with regularity encoded, or nil on failure
+    public func encodingRegularity(toleranceDegrees: Double = 1e-10) -> Shape? {
+        guard let h = OCCTShapeEncodeRegularity(handle, toleranceDegrees) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Update Tolerances (v0.36.0)
+
+extension Shape {
+    /// Recalculate and update geometric tolerances on the shape.
+    ///
+    /// - Parameter verifyFaces: Whether to verify and correct face tolerances
+    /// - Returns: Shape with updated tolerances, or nil on failure
+    public func updatingTolerances(verifyFaces: Bool = true) -> Shape? {
+        guard let h = OCCTShapeUpdateTolerances(handle, verifyFaces) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Divide by Number (v0.36.0)
+
+extension Shape {
+    /// Split faces into approximately the specified number of patches.
+    ///
+    /// Useful for mesh preparation and parametric surface subdivision.
+    ///
+    /// - Parameter parts: Approximate number of patches per face
+    /// - Returns: Shape with divided faces, or nil on failure
+    public func dividedByNumber(_ parts: Int) -> Shape? {
+        guard parts > 1 else { return nil }
+        guard let h = OCCTShapeDivideByNumber(handle, Int32(parts), 1) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Boolean with History (v0.36.0)
+
+/// Result of a boolean operation with shape tracking.
+public struct BooleanResult: Sendable {
+    /// The result shape
+    public let shape: Shape
+    /// Shapes in the result that are modifications of faces from the first operand
+    public let modifiedFaces: [Shape]
+}
+
+extension Shape {
+    /// Fuse this shape with another and track which faces were modified.
+    ///
+    /// - Parameter other: Shape to fuse with
+    /// - Returns: Boolean result with modified face tracking, or nil on failure
+    public func fuseWithHistory(_ other: Shape) -> BooleanResult? {
+        let maxModified: Int32 = 256
+        var modRefs = [OCCTShapeRef?](repeating: nil, count: Int(maxModified))
+        let count = modRefs.withUnsafeMutableBufferPointer { buf in
+            OCCTShapeFuseWithHistory(handle, other.handle, buf.baseAddress, maxModified)
+        }
+        guard count >= 0 else { return nil }
+        // The fuse result is the union
+        guard let fused = self.union(with: other) else { return nil }
+        let modified = (0..<Int(count)).compactMap { i -> Shape? in
+            guard let ref = modRefs[i] else { return nil }
+            return Shape(handle: ref)
+        }
+        return BooleanResult(shape: fused, modifiedFaces: modified)
+    }
+}

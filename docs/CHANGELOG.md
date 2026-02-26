@@ -1,5 +1,39 @@
 # OCCTSwift Changelog
 
+## [v0.36.0] - 2026-02-26
+
+### OCCT Test Suite Audit, Round 5
+
+Fifth pass adds 7 new operations: conical wire projection, edge regularity encoding, tolerance recalculation, face division by number, surface-to-Bezier patch decomposition, boolean with history tracking, and same-parameter enforcement. 12 new tests across 7 new suites. 767 tests passing across 179 suites.
+
+#### Conical Projection
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.projectWireConical(_:onto:eye:)` | `BRepProj_Projection(Wire, Shape, gp_Pnt)` |
+
+#### Shape Consistency
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.encodingRegularity(toleranceDegrees:)` | `BRepLib::EncodeRegularity` |
+| `shape.updatingTolerances(verifyFaces:)` | `BRepLib::UpdateTolerances` |
+
+#### Face Division
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.dividedByNumber(_:)` | `ShapeUpgrade_ShapeDivide` + `FaceDivideArea` |
+
+#### Surface to Bezier
+| Swift API | OCCT Class |
+|-----------|------------|
+| `surface.toBezierPatches()` | `GeomConvert_BSplineSurfaceToBezierSurface` |
+
+#### Boolean with History
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.fuseWithHistory(_:)` → `BooleanResult` | `BRepAlgoAPI_Fuse` + `Modified()` |
+
+---
+
 ## [v0.35.0] - 2026-02-25
 
 ### OCCT Test Suite Audit, Round 4

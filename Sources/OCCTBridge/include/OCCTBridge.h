@@ -3667,6 +3667,68 @@ OCCTShapeRef OCCTShapeProjectWire(OCCTShapeRef wire, OCCTShapeRef shape,
 OCCTShapeRef OCCTShapeSameParameter(OCCTShapeRef shape, double tolerance);
 
 
+// MARK: - Conical Projection (v0.36.0)
+
+/// Project a wire onto a shape from a point (conical projection).
+/// @param wire Wire/edge to project
+/// @param shape Target shape to project onto
+/// @param eyeX, eyeY, eyeZ Point of projection (eye/viewpoint)
+/// @return Compound of projected wires, or NULL on failure
+OCCTShapeRef OCCTShapeProjectWireConical(OCCTShapeRef wire, OCCTShapeRef shape,
+                                          double eyeX, double eyeY, double eyeZ);
+
+
+// MARK: - Encode Regularity (v0.36.0)
+
+/// Mark smooth (G1) edges as "regular" so downstream algorithms can skip them.
+/// @param shape The shape to process
+/// @param toleranceAngleDegrees Angular tolerance for smoothness (degrees)
+/// @return Shape with regularity encoded, or NULL on failure
+OCCTShapeRef OCCTShapeEncodeRegularity(OCCTShapeRef shape, double toleranceAngleDegrees);
+
+
+// MARK: - Update Tolerances (v0.36.0)
+
+/// Recalculate and update geometric tolerances on a shape.
+/// @param shape The shape to update
+/// @param verifyFaceTolerance Whether to verify and correct face tolerances
+/// @return Shape with updated tolerances, or NULL on failure
+OCCTShapeRef OCCTShapeUpdateTolerances(OCCTShapeRef shape, bool verifyFaceTolerance);
+
+
+// MARK: - Shape Divide by Number (v0.36.0)
+
+/// Split faces of a shape into a specified number of patches in U and V.
+/// @param shape The shape to divide
+/// @param nbU Number of segments in U direction
+/// @param nbV Number of segments in V direction
+/// @return Shape with divided faces, or NULL on failure
+OCCTShapeRef OCCTShapeDivideByNumber(OCCTShapeRef shape, int32_t nbU, int32_t nbV);
+
+
+// MARK: - Surface to Bezier Patches (v0.36.0)
+
+/// Convert a BSpline surface to an array of Bezier surface patches.
+/// @param surface The BSpline surface
+/// @param outPatches Output array of surface refs (caller must release each)
+/// @param maxPatches Maximum number of output patches
+/// @return Number of Bezier patches produced
+int32_t OCCTSurfaceToBezierPatches(OCCTSurfaceRef surface,
+                                    OCCTSurfaceRef* outPatches, int32_t maxPatches);
+
+
+// MARK: - Boolean with Modified Shapes (v0.36.0)
+
+/// Perform a boolean fuse and return modified shapes from shape1.
+/// @param shape1 First shape (argument)
+/// @param shape2 Second shape (tool)
+/// @param outModified Output array for shapes in result that are modifications of shape1 faces
+/// @param maxModified Maximum number of output shapes
+/// @return Number of modified shapes found, or -1 on failure
+int32_t OCCTShapeFuseWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                  OCCTShapeRef* outModified, int32_t maxModified);
+
+
 #ifdef __cplusplus
 }
 #endif

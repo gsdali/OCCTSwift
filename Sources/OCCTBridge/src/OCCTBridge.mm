@@ -14511,6 +14511,150 @@ OCCTShapeRef OCCTShapeSameParameter(OCCTShapeRef shape, double tolerance) {
     }
 }
 
+// MARK: - Conical Projection (v0.36.0)
+
+OCCTShapeRef OCCTShapeProjectWireConical(OCCTShapeRef wire, OCCTShapeRef shape,
+                                          double eyeX, double eyeY, double eyeZ) {
+    if (!wire || !shape) return nullptr;
+    try {
+        gp_Pnt eye(eyeX, eyeY, eyeZ);
+        BRepProj_Projection projection(wire->shape, shape->shape, eye);
+        if (!projection.IsDone()) return nullptr;
+        TopoDS_Compound result = projection.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Encode Regularity (v0.36.0)
+
+OCCTShapeRef OCCTShapeEncodeRegularity(OCCTShapeRef shape, double toleranceAngleDegrees) {
+    if (!shape) return nullptr;
+    try {
+        BRepBuilderAPI_Copy copier(shape->shape);
+        if (!copier.IsDone()) return nullptr;
+        TopoDS_Shape result = copier.Shape();
+        double tolAngle = toleranceAngleDegrees * M_PI / 180.0;
+        BRepLib::EncodeRegularity(result, tolAngle);
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Update Tolerances (v0.36.0)
+
+OCCTShapeRef OCCTShapeUpdateTolerances(OCCTShapeRef shape, bool verifyFaceTolerance) {
+    if (!shape) return nullptr;
+    try {
+        BRepBuilderAPI_Copy copier(shape->shape);
+        if (!copier.IsDone()) return nullptr;
+        TopoDS_Shape result = copier.Shape();
+        BRepLib::UpdateTolerances(result, verifyFaceTolerance);
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Shape Divide by Number (v0.36.0)
+
+#include <ShapeUpgrade_ShapeDivide.hxx>
+#include <ShapeUpgrade_FaceDivideArea.hxx>
+
+OCCTShapeRef OCCTShapeDivideByNumber(OCCTShapeRef shape, int32_t nbU, int32_t nbV) {
+    if (!shape || nbU < 1 || nbV < 1) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivide divider(shape->shape);
+        // Use FaceDivideArea with splitting-by-number mode
+        Handle(ShapeUpgrade_FaceDivideArea) faceDivide = new ShapeUpgrade_FaceDivideArea();
+        faceDivide->SetSplittingByNumber(true);
+        faceDivide->NbParts() = nbU * nbV;
+        divider.SetSplitFaceTool(faceDivide);
+        if (!divider.Perform()) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Surface to Bezier Patches (v0.36.0)
+
+#include <GeomConvert_BSplineSurfaceToBezierSurface.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BezierSurface.hxx>
+
+int32_t OCCTSurfaceToBezierPatches(OCCTSurfaceRef surface,
+                                    OCCTSurfaceRef* outPatches, int32_t maxPatches) {
+    if (!surface || !outPatches || maxPatches < 1) return 0;
+    if (surface->surface.IsNull()) return 0;
+    try {
+        // First convert to BSpline if needed
+        Handle(Geom_BSplineSurface) bspline = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bspline.IsNull()) {
+            // Try approximate conversion
+            Handle(Geom_Surface) surf = surface->surface;
+            // Use ShapeConstruct to convert
+            bspline = GeomConvert::SurfaceToBSplineSurface(surf);
+            if (bspline.IsNull()) return 0;
+        }
+        GeomConvert_BSplineSurfaceToBezierSurface converter(bspline);
+        int32_t nbU = converter.NbUPatches();
+        int32_t nbV = converter.NbVPatches();
+        int32_t total = nbU * nbV;
+        int32_t count = std::min(total, maxPatches);
+        int32_t idx = 0;
+        for (int32_t i = 1; i <= nbU && idx < count; ++i) {
+            for (int32_t j = 1; j <= nbV && idx < count; ++j) {
+                Handle(Geom_BezierSurface) patch = converter.Patch(i, j);
+                if (!patch.IsNull()) {
+                    outPatches[idx] = new OCCTSurface(patch);
+                    idx++;
+                } else {
+                    outPatches[idx] = nullptr;
+                    idx++;
+                }
+            }
+        }
+        return idx;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Boolean with Modified Shapes (v0.36.0)
+
+#include <BRepAlgoAPI_Fuse.hxx>
+
+int32_t OCCTShapeFuseWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                  OCCTShapeRef* outModified, int32_t maxModified) {
+    if (!shape1 || !shape2 || !outModified || maxModified < 1) return -1;
+    try {
+        BRepAlgoAPI_Fuse fuse(shape1->shape, shape2->shape);
+        if (!fuse.IsDone()) return -1;
+        // Collect modified shapes from shape1's faces
+        int32_t count = 0;
+        TopExp_Explorer explorer(shape1->shape, TopAbs_FACE);
+        while (explorer.More() && count < maxModified) {
+            const TopTools_ListOfShape& modified = fuse.Modified(explorer.Current());
+            TopTools_ListIteratorOfListOfShape it(modified);
+            while (it.More() && count < maxModified) {
+                outModified[count] = new OCCTShape(it.Value());
+                count++;
+                it.Next();
+            }
+            explorer.Next();
+        }
+        return count;
+    } catch (...) {
+        return -1;
+    }
+}
+
 // MARK: - Evolved Shape Advanced (v0.33.0)
 
 OCCTShapeRef OCCTShapeCreateEvolvedAdvanced(OCCTShapeRef spine, OCCTWireRef profile,

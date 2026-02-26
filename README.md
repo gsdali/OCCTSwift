@@ -48,7 +48,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **540** | |
+| **Total** | **547** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -832,6 +832,24 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 |-----------|------------|
 | `shape.addingLinearRib(profile:direction:draftDirection:fuse:)` | `BRepFeat_MakeLinearForm` |
 
+#### Conical Projection (v0.36.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.projectWireConical(_:onto:eye:)` | `BRepProj_Projection(Wire, Shape, gp_Pnt)` |
+
+#### Shape Consistency (v0.36.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.encodingRegularity(toleranceDegrees:)` | `BRepLib::EncodeRegularity` |
+| `shape.updatingTolerances(verifyFaces:)` | `BRepLib::UpdateTolerances` |
+| `shape.dividedByNumber(_:)` | `ShapeUpgrade_FaceDivideArea` |
+| `surface.toBezierPatches()` | `GeomConvert_BSplineSurfaceToBezierSurface` |
+
+#### Boolean with History (v0.36.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.fuseWithHistory(_:)` → `BooleanResult` | `BRepAlgoAPI_Fuse.Modified()` |
+
 #### Multi-Offset Wire (v0.35.0)
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -947,6 +965,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.36.0: **OCCT test suite audit, round 5** — conical projection, encode regularity, update tolerances, face division, surface-to-Bezier, boolean history
 > - v0.35.0: **OCCT test suite audit, round 4** — multi-offset wire, surface-surface intersection, curve-surface intersection, cylindrical projection, same-parameter enforcement
 > - v0.34.0: **OCCT test suite audit, round 3** — shape-to-shape section, boolean pre-validation, wire imprinting, angle splitting, small edge removal, multi-tool fuse
 > - v0.33.0: **OCCT test suite audit, round 2** — evolved shapes with full parameter control, pipe shell transition modes, face creation from parametric surfaces, edge-to-face reconstruction
@@ -999,7 +1018,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.30.0
 
-OCCTSwift now wraps **540 OCCT operations** across 49 categories with 755 tests across 173 suites.
+OCCTSwift now wraps **547 OCCT operations** across 49 categories with 767 tests across 179 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 
