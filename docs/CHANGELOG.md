@@ -1,5 +1,47 @@
 # OCCTSwift Changelog
 
+## [v0.38.0] - 2026-02-26
+
+### OCCT Test Suite Audit, Round 7
+
+Seventh pass adds 13 new operations: oriented bounding box (OBB), deep shape copy, sub-shape extraction (solids/shells/wires with counts), fuse-and-blend, cut-and-blend, multi-edge evolving fillet, and per-face variable offset. 23 new tests across 6 new suites. 805 tests passing across 190 suites.
+
+#### Oriented Bounding Box
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.orientedBoundingBox(optimal:)` | `BRepBndLib::AddOBB` + `Bnd_OBB` |
+| `shape.orientedBoundingBoxCorners(optimal:)` | `Bnd_OBB` corner computation |
+
+#### Deep Shape Copy
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.copy(copyGeometry:copyMesh:)` | `BRepBuilderAPI_Copy` |
+
+#### Sub-Shape Extraction
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.solids` / `shape.solidCount` | `TopExp_Explorer(TopAbs_SOLID)` |
+| `shape.shells` / `shape.shellCount` | `TopExp_Explorer(TopAbs_SHELL)` |
+| `shape.wires` / `shape.wireCount` | `TopExp_Explorer(TopAbs_WIRE)` |
+
+#### Fuse and Blend
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.fusedAndBlended(with:radius:)` | `BRepAlgoAPI_Fuse` + `BRepFilletAPI_MakeFillet` |
+| `shape.cutAndBlended(with:radius:)` | `BRepAlgoAPI_Cut` + `BRepFilletAPI_MakeFillet` |
+
+#### Evolving Fillet
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.filletEvolving(_:)` | `BRepFilletAPI_MakeFillet.SetRadius(UandR)` |
+
+#### Per-Face Variable Offset
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.offsetPerFace(defaultOffset:faceOffsets:...)` | `BRepOffset_MakeOffset.SetOffsetOnFace` |
+
+---
+
 ## [v0.37.0] - 2026-02-26
 
 ### OCCT Test Suite Audit, Round 6

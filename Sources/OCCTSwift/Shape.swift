@@ -3648,3 +3648,211 @@ extension Shape {
         return Shape(handle: h)
     }
 }
+
+// MARK: - Oriented Bounding Box (v0.38.0)
+
+/// An oriented (rotated) bounding box that fits tightly around a shape.
+public struct OrientedBoundingBox: Sendable {
+    /// Center of the bounding box.
+    public var center: SIMD3<Double>
+    /// X-axis direction of the box.
+    public var xDirection: SIMD3<Double>
+    /// Y-axis direction of the box.
+    public var yDirection: SIMD3<Double>
+    /// Z-axis direction of the box.
+    public var zDirection: SIMD3<Double>
+    /// Half-dimensions along each axis.
+    public var halfSizes: SIMD3<Double>
+
+    /// Volume of the bounding box.
+    public var volume: Double { 8.0 * halfSizes.x * halfSizes.y * halfSizes.z }
+
+    /// Full dimensions of the bounding box.
+    public var dimensions: SIMD3<Double> { 2.0 * halfSizes }
+}
+
+extension Shape {
+    /// Compute an oriented (tight-fit, rotated) bounding box.
+    ///
+    /// - Parameter optimal: If true, compute a tighter OBB (slower). Default is false.
+    /// - Returns: The oriented bounding box, or nil on failure.
+    public func orientedBoundingBox(optimal: Bool = false) -> OrientedBoundingBox? {
+        var result = OCCTOrientedBoundingBox()
+        guard OCCTShapeOrientedBoundingBox(handle, optimal, &result) else { return nil }
+        return OrientedBoundingBox(
+            center: SIMD3(result.centerX, result.centerY, result.centerZ),
+            xDirection: SIMD3(result.xDirX, result.xDirY, result.xDirZ),
+            yDirection: SIMD3(result.yDirX, result.yDirY, result.yDirZ),
+            zDirection: SIMD3(result.zDirX, result.zDirY, result.zDirZ),
+            halfSizes: SIMD3(result.halfX, result.halfY, result.halfZ)
+        )
+    }
+
+    /// Get the 8 corners of the oriented bounding box.
+    ///
+    /// - Parameter optimal: If true, compute a tighter OBB. Default is false.
+    /// - Returns: Array of 8 corner points, or nil on failure.
+    public func orientedBoundingBoxCorners(optimal: Bool = false) -> [SIMD3<Double>]? {
+        var obb = OCCTOrientedBoundingBox()
+        guard OCCTShapeOrientedBoundingBox(handle, optimal, &obb) else { return nil }
+        var corners = [Double](repeating: 0, count: 24)
+        OCCTOrientedBoundingBoxCorners(&obb, &corners)
+        var result = [SIMD3<Double>]()
+        result.reserveCapacity(8)
+        for i in stride(from: 0, to: 24, by: 3) {
+            result.append(SIMD3(corners[i], corners[i+1], corners[i+2]))
+        }
+        return result
+    }
+}
+
+// MARK: - Deep Shape Copy (v0.38.0)
+
+extension Shape {
+    /// Create a deep, independent copy of this shape.
+    ///
+    /// - Parameters:
+    ///   - copyGeometry: If true, copy the underlying geometry (default: true).
+    ///   - copyMesh: If true, also copy mesh data (default: false).
+    /// - Returns: A new independent shape, or nil on failure.
+    public func copy(copyGeometry: Bool = true, copyMesh: Bool = false) -> Shape? {
+        guard let h = OCCTShapeCopy(handle, copyGeometry, copyMesh) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Sub-Shape Extraction (v0.38.0)
+
+extension Shape {
+    /// Number of solid sub-shapes.
+    public var solidCount: Int { Int(OCCTShapeGetSolidCount(handle)) }
+
+    /// Extract all solid sub-shapes.
+    public var solids: [Shape] {
+        let count = OCCTShapeGetSolidCount(handle)
+        guard count > 0 else { return [] }
+        var handles = [OCCTShapeRef?](repeating: nil, count: Int(count))
+        let actual = OCCTShapeGetSolids(handle, &handles, count)
+        return handles.prefix(Int(actual)).compactMap { h in
+            h.map { Shape(handle: $0) }
+        }
+    }
+
+    /// Number of shell sub-shapes.
+    public var shellCount: Int { Int(OCCTShapeGetShellCount(handle)) }
+
+    /// Extract all shell sub-shapes.
+    public var shells: [Shape] {
+        let count = OCCTShapeGetShellCount(handle)
+        guard count > 0 else { return [] }
+        var handles = [OCCTShapeRef?](repeating: nil, count: Int(count))
+        let actual = OCCTShapeGetShells(handle, &handles, count)
+        return handles.prefix(Int(actual)).compactMap { h in
+            h.map { Shape(handle: $0) }
+        }
+    }
+
+    /// Number of wire sub-shapes.
+    public var wireCount: Int { Int(OCCTShapeGetWireCount(handle)) }
+
+    /// Extract all wire sub-shapes.
+    public var wires: [Shape] {
+        let count = OCCTShapeGetWireCount(handle)
+        guard count > 0 else { return [] }
+        var handles = [OCCTShapeRef?](repeating: nil, count: Int(count))
+        let actual = OCCTShapeGetWires(handle, &handles, count)
+        return handles.prefix(Int(actual)).compactMap { h in
+            h.map { Shape(handle: $0) }
+        }
+    }
+}
+
+// MARK: - Fuse and Blend (v0.38.0)
+
+extension Shape {
+    /// Fuse with another shape and fillet the intersection edges.
+    ///
+    /// - Parameters:
+    ///   - other: Shape to fuse with.
+    ///   - radius: Fillet radius for intersection edges.
+    /// - Returns: Fused and filleted shape, or nil on failure.
+    public func fusedAndBlended(with other: Shape, radius: Double) -> Shape? {
+        guard let h = OCCTShapeFuseAndBlend(handle, other.handle, radius) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Cut another shape and fillet the intersection edges.
+    ///
+    /// - Parameters:
+    ///   - other: Shape to cut from this shape.
+    ///   - radius: Fillet radius for intersection edges.
+    /// - Returns: Cut and filleted shape, or nil on failure.
+    public func cutAndBlended(with other: Shape, radius: Double) -> Shape? {
+        guard let h = OCCTShapeCutAndBlend(handle, other.handle, radius) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Multi-Edge Evolving Fillet (v0.38.0)
+
+/// Describes an evolving radius along an edge for filleting.
+public struct EvolvingFilletEdge: Sendable {
+    /// 1-based edge index.
+    public var edgeIndex: Int
+    /// Array of (parameter, radius) pairs defining the radius evolution along the edge.
+    public var radiusPoints: [(parameter: Double, radius: Double)]
+
+    public init(edgeIndex: Int, radiusPoints: [(parameter: Double, radius: Double)]) {
+        self.edgeIndex = edgeIndex
+        self.radiusPoints = radiusPoints
+    }
+}
+
+extension Shape {
+    /// Apply evolving-radius fillets to multiple edges simultaneously.
+    ///
+    /// - Parameter edges: Array of edge specifications with radius evolution.
+    /// - Returns: Filleted shape, or nil on failure.
+    public func filletEvolving(_ edges: [EvolvingFilletEdge]) -> Shape? {
+        guard !edges.isEmpty else { return nil }
+
+        let edgeIndices = edges.map { Int32($0.edgeIndex) }
+        let pointCounts = edges.map { Int32($0.radiusPoints.count) }
+        var radiusPoints = [OCCTFilletRadiusPoint]()
+        for edge in edges {
+            for rp in edge.radiusPoints {
+                radiusPoints.append(OCCTFilletRadiusPoint(parameter: rp.parameter, radius: rp.radius))
+            }
+        }
+
+        guard let h = OCCTShapeFilletEvolving(handle, edgeIndices, Int32(edges.count),
+                                               radiusPoints, pointCounts) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Per-Face Variable Offset (v0.38.0)
+
+extension Shape {
+    /// Offset a shape with different distances per face.
+    ///
+    /// - Parameters:
+    ///   - defaultOffset: Default offset distance for all faces.
+    ///   - faceOffsets: Dictionary mapping 1-based face indices to custom offset distances.
+    ///   - tolerance: Offset tolerance (default: 1e-3).
+    ///   - joinType: Join type for offset gaps (default: .arc).
+    /// - Returns: Offset shape, or nil on failure.
+    public func offsetPerFace(defaultOffset: Double,
+                               faceOffsets: [Int: Double],
+                               tolerance: Double = 1e-3,
+                               joinType: OffsetJoinType = .arc) -> Shape? {
+        let indices = Array(faceOffsets.keys).map { Int32($0) }
+        let offsets = Array(faceOffsets.keys).map { faceOffsets[$0]! }
+
+        guard let h = OCCTShapeOffsetPerFace(handle, defaultOffset,
+                                              indices, offsets,
+                                              Int32(faceOffsets.count),
+                                              tolerance, Int32(joinType.rawValue)) else { return nil }
+        return Shape(handle: h)
+    }
+}

@@ -3802,6 +3802,132 @@ OCCTShapeRef OCCTShapeMakeShell(OCCTSurfaceRef surface,
 OCCTShapeRef OCCTShapeCommonMulti(const OCCTShapeRef* shapes, int32_t count);
 
 
+// MARK: - Oriented Bounding Box (v0.38.0)
+
+/// Oriented bounding box result
+typedef struct {
+    double centerX, centerY, centerZ;     // center point
+    double xDirX, xDirY, xDirZ;          // X-axis direction
+    double yDirX, yDirY, yDirZ;          // Y-axis direction
+    double zDirX, zDirY, zDirZ;          // Z-axis direction
+    double halfX, halfY, halfZ;           // half-dimensions along each axis
+} OCCTOrientedBoundingBox;
+
+/// Compute an oriented bounding box for a shape.
+/// @param shape The shape to bound
+/// @param optimal If true, compute tighter (but slower) OBB
+/// @param result Output OBB structure
+/// @return true on success
+bool OCCTShapeOrientedBoundingBox(OCCTShapeRef shape, bool optimal, OCCTOrientedBoundingBox* result);
+
+/// Get the volume of the oriented bounding box.
+/// @param result Pointer to an OBB structure
+/// @return Volume (8 * halfX * halfY * halfZ)
+double OCCTOrientedBoundingBoxVolume(const OCCTOrientedBoundingBox* result);
+
+/// Get the 8 corner points of the oriented bounding box.
+/// @param result Pointer to an OBB structure
+/// @param outCorners Output array of 24 doubles (8 corners * 3 coordinates)
+void OCCTOrientedBoundingBoxCorners(const OCCTOrientedBoundingBox* result, double* outCorners);
+
+
+// MARK: - Deep Shape Copy (v0.38.0)
+
+/// Create a deep copy of a shape (independent geometry).
+/// @param shape The shape to copy
+/// @param copyGeom If true, copy geometry (otherwise share it)
+/// @param copyMesh If true, also copy mesh data
+/// @return New independent shape, or NULL on failure
+OCCTShapeRef OCCTShapeCopy(OCCTShapeRef shape, bool copyGeom, bool copyMesh);
+
+
+// MARK: - Sub-Shape Extraction (v0.38.0)
+
+/// Get the number of solid sub-shapes in a shape.
+int32_t OCCTShapeGetSolidCount(OCCTShapeRef shape);
+
+/// Get solid sub-shapes from a shape.
+/// @param shape The shape to explore
+/// @param outSolids Output array for solid shape references
+/// @param maxCount Maximum number of solids to return
+/// @return Number of solids actually returned
+int32_t OCCTShapeGetSolids(OCCTShapeRef shape, OCCTShapeRef* outSolids, int32_t maxCount);
+
+/// Get the number of shell sub-shapes in a shape.
+int32_t OCCTShapeGetShellCount(OCCTShapeRef shape);
+
+/// Get shell sub-shapes from a shape.
+/// @param shape The shape to explore
+/// @param outShells Output array for shell shape references
+/// @param maxCount Maximum number of shells to return
+/// @return Number of shells actually returned
+int32_t OCCTShapeGetShells(OCCTShapeRef shape, OCCTShapeRef* outShells, int32_t maxCount);
+
+/// Get the number of wire sub-shapes in a shape.
+int32_t OCCTShapeGetWireCount(OCCTShapeRef shape);
+
+/// Get wire sub-shapes from a shape.
+/// @param shape The shape to explore
+/// @param outWires Output array for wire shape references (wrapped as OCCTShapeRef)
+/// @param maxCount Maximum number of wires to return
+/// @return Number of wires actually returned
+int32_t OCCTShapeGetWires(OCCTShapeRef shape, OCCTShapeRef* outWires, int32_t maxCount);
+
+
+// MARK: - Fuse and Blend (v0.38.0)
+
+/// Fuse two shapes and fillet the intersection edges with the given radius.
+/// @param shape1 First shape
+/// @param shape2 Second shape
+/// @param radius Fillet radius for intersection edges
+/// @return Fused and filleted shape, or NULL on failure
+OCCTShapeRef OCCTShapeFuseAndBlend(OCCTShapeRef shape1, OCCTShapeRef shape2, double radius);
+
+/// Cut shape2 from shape1 and fillet the intersection edges with the given radius.
+/// @param shape1 Base shape
+/// @param shape2 Tool shape to cut
+/// @param radius Fillet radius for intersection edges
+/// @return Cut and filleted shape, or NULL on failure
+OCCTShapeRef OCCTShapeCutAndBlend(OCCTShapeRef shape1, OCCTShapeRef shape2, double radius);
+
+
+// MARK: - Multi-Edge Evolving Fillet (v0.38.0)
+
+/// Parameter-radius pair for evolving fillets.
+typedef struct {
+    double parameter;
+    double radius;
+} OCCTFilletRadiusPoint;
+
+/// Apply evolving-radius fillets to multiple edges simultaneously.
+/// @param shape The shape
+/// @param edgeIndices Array of 1-based edge indices
+/// @param edgeCount Number of edges
+/// @param radiusPoints Array of parameter-radius pairs per edge (flattened: edge0[rp0,rp1,...], edge1[rp0,...], ...)
+/// @param pointCounts Array of how many radius points per edge
+/// @return Filleted shape, or NULL on failure
+OCCTShapeRef OCCTShapeFilletEvolving(OCCTShapeRef shape,
+                                      const int32_t* edgeIndices, int32_t edgeCount,
+                                      const OCCTFilletRadiusPoint* radiusPoints,
+                                      const int32_t* pointCounts);
+
+
+// MARK: - Per-Face Variable Offset (v0.38.0)
+
+/// Offset a shape with per-face variable distances.
+/// @param shape The shape to offset
+/// @param defaultOffset Default offset distance for all faces
+/// @param faceIndices Array of 1-based face indices with custom offsets
+/// @param faceOffsets Array of offset values for those faces
+/// @param faceCount Number of custom face offsets
+/// @param tolerance Offset tolerance
+/// @param joinType Join type (0=Arc, 1=Tangent, 2=Intersection)
+/// @return Offset shape, or NULL on failure
+OCCTShapeRef OCCTShapeOffsetPerFace(OCCTShapeRef shape, double defaultOffset,
+                                     const int32_t* faceIndices, const double* faceOffsets,
+                                     int32_t faceCount, double tolerance, int32_t joinType);
+
+
 #ifdef __cplusplus
 }
 #endif

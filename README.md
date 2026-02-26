@@ -8,8 +8,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 |----------|-------|----------|
 | **Primitives** | 13 | box, cylinder, cylinder(at:), sphere, cone, torus, surface, wedge, halfSpace, vertex, shell(from surface), shell(from Surface), nonUniformScale |
 | **Sweeps** | 10 | pipe sweep, pipeShell, pipeShellWithTransition, pipeShellWithLaw, extrude, revolve, loft, loft(ruled+vertex), ruled, revolutionFromCurve |
-| **Booleans** | 7 | union (+), subtract (-), intersect (&), section, booleanCheck, fuseAll, commonAll |
-| **Modifications** | 15 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, chamferTwoDistances, chamferDistAngle, shell, offset, offsetByJoin, draft, defeature, convertToNURBS, makeDraft, hollowed |
+| **Booleans** | 9 | union (+), subtract (-), intersect (&), section, booleanCheck, fuseAll, commonAll, fusedAndBlended, cutAndBlended |
+| **Modifications** | 17 | fillet, selective fillet, variable fillet, multi-edge blend, chamfer, chamferTwoDistances, chamferDistAngle, shell, offset, offsetByJoin, draft, defeature, convertToNURBS, makeDraft, hollowed, filletEvolving, offsetPerFace |
 | **Transforms** | 4 | translate, rotate, scale, mirror |
 | **Wires** | 22 | rectangle, circle, polygon, line, arc, bspline, nurbs, path, join, offset, offset3D, interpolate, fillet2D, filletAll2D, chamfer2D, chamferAll2D, helix, helixTapered, orderedEdgeCount, orderedEdgePoints, analyze |
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
@@ -25,11 +25,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
 | **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
 | **Import/Export** | 17 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; STEP optimize; mesh |
-| **Shape Editing** | 7 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath |
+| **Shape Editing** | 8 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath, copy |
 | **Polynomial Solver** | 3 | quadratic, cubic, quartic |
 | **Hatch Pattern** | 1 | generate |
 | **Geometry Construction** | 9 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed |
-| **Bounds/Topology** | 6 | bounds, size, center, vertices, edges, faces |
+| **Bounds/Topology** | 11 | bounds, orientedBoundingBox, orientedBoundingBoxCorners, size, center, vertices, edges, faces, solids, shells, wires |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
 | **Validation** | 2 | isValid, heal |
 | **XDE/Document** | 26 | Document.load, rootNodes, AssemblyNode, colors, materials, dimensions, geomTolerances, datums, lengthUnit, layerCount, layerName, layerNames, materialCount, materialInfo, materials |
@@ -48,7 +48,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **553** | |
+| **Total** | **566** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -125,6 +125,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Revolution Form**: Revolved rib/groove features on solids
 - **Draft Prism**: Tapered (draft-angle) extrusion features for injection mold design
 - **Revolution Feature**: Revolved boss/pocket features for turned parts
+- **Oriented Bounding Box**: Tight-fit rotated bounding box (OBB) for spatial queries, 30-70% tighter than axis-aligned
+- **Deep Shape Copy**: Independent shape cloning with optional geometry and mesh duplication
+- **Sub-Shape Extraction**: Extract solids, shells, and wires from compounds and complex shapes
+- **Fuse and Blend**: Boolean union/cut with automatic fillet at intersection edges in a single operation
+- **Evolving Fillet**: Multiple edges with independently varying radius profiles
+- **Per-Face Variable Offset**: Offset shapes with different distances per face
 - **Thick/Hollow Solids**: Remove faces and offset to create hollow shells or thick-walled parts
 - **Wire Topology Analysis**: Check wire closure, gaps, self-intersection, ordering, and edge statistics
 - **Surface Singularity Detection**: Count and locate degenerate points on parametric surfaces
@@ -835,6 +841,40 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 |-----------|------------|
 | `shape.addingLinearRib(profile:direction:draftDirection:fuse:)` | `BRepFeat_MakeLinearForm` |
 
+#### Oriented Bounding Box (v0.38.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.orientedBoundingBox(optimal:)` → `OrientedBoundingBox` | `BRepBndLib::AddOBB` + `Bnd_OBB` |
+| `shape.orientedBoundingBoxCorners(optimal:)` | `Bnd_OBB` corner computation |
+
+#### Deep Shape Copy (v0.38.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.copy(copyGeometry:copyMesh:)` | `BRepBuilderAPI_Copy` |
+
+#### Sub-Shape Extraction (v0.38.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.solids` / `shape.solidCount` | `TopExp_Explorer(TopAbs_SOLID)` |
+| `shape.shells` / `shape.shellCount` | `TopExp_Explorer(TopAbs_SHELL)` |
+| `shape.wires` / `shape.wireCount` | `TopExp_Explorer(TopAbs_WIRE)` |
+
+#### Fuse and Blend (v0.38.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.fusedAndBlended(with:radius:)` | `BRepAlgoAPI_Fuse` + `BRepFilletAPI_MakeFillet` |
+| `shape.cutAndBlended(with:radius:)` | `BRepAlgoAPI_Cut` + `BRepFilletAPI_MakeFillet` |
+
+#### Evolving Fillet (v0.38.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.filletEvolving(_:)` | `BRepFilletAPI_MakeFillet.SetRadius(UandR)` |
+
+#### Per-Face Variable Offset (v0.38.0)
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.offsetPerFace(defaultOffset:faceOffsets:...)` | `BRepOffset_MakeOffset.SetOffsetOnFace` |
+
 #### Thick/Hollow Solid (v0.37.0)
 | Swift API | OCCT Class |
 |-----------|------------|
@@ -995,6 +1035,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.38.0: **OCCT test suite audit, round 7** — oriented bounding box, deep shape copy, sub-shape extraction (solids/shells/wires), fuse-and-blend, cut-and-blend, evolving fillet, per-face variable offset
 > - v0.37.0: **OCCT test suite audit, round 6** — thick/hollow solids, wire topology analysis, surface singularity detection, shell from parametric surface, multi-tool common
 > - v0.36.0: **OCCT test suite audit, round 5** — conical projection, encode regularity, update tolerances, face division, surface-to-Bezier, boolean history
 > - v0.35.0: **OCCT test suite audit, round 4** — multi-offset wire, surface-surface intersection, curve-surface intersection, cylindrical projection, same-parameter enforcement

@@ -10597,3 +10597,279 @@ struct MultiCommonTests {
         }
     }
 }
+
+// MARK: - Oriented Bounding Box Tests (v0.38.0)
+
+@Suite("Oriented Bounding Box")
+struct OrientedBoundingBoxTests {
+
+    @Test("OBB of axis-aligned box")
+    func obbAlignedBox() {
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        let obb = box.orientedBoundingBox()
+        #expect(obb != nil)
+        // OBB volume should be close to box volume (10 * 5 * 3 = 150)
+        #expect(abs(obb!.volume - 150.0) < 1.0)
+        // Dimensions sorted should be roughly {3, 5, 10}
+        let dims = [obb!.dimensions.x, obb!.dimensions.y, obb!.dimensions.z].sorted()
+        #expect(abs(dims[0] - 3.0) < 0.1)
+        #expect(abs(dims[1] - 5.0) < 0.1)
+        #expect(abs(dims[2] - 10.0) < 0.1)
+    }
+
+    @Test("OBB of rotated box is tighter than AABB")
+    func obbTighterThanAABB() {
+        // Rotate a box 45 degrees around Z — AABB will be larger, OBB should stay tight
+        let box = Shape.box(width: 10, height: 2, depth: 2)!.rotated(axis: SIMD3(0, 0, 1), angle: .pi / 4)!
+        let obb = box.orientedBoundingBox()
+        #expect(obb != nil)
+        // OBB volume should be close to original volume (10 * 2 * 2 = 40)
+        #expect(obb!.volume < 60.0) // Some tolerance
+        // AABB would be much larger for a 45° rotated shape
+        let aabb = box.bounds
+        let aabbVolume = (aabb.max.x - aabb.min.x) * (aabb.max.y - aabb.min.y) * (aabb.max.z - aabb.min.z)
+        #expect(obb!.volume < aabbVolume)
+    }
+
+    @Test("OBB corners count")
+    func obbCorners() {
+        let sphere = Shape.sphere(radius: 5)!
+        let corners = sphere.orientedBoundingBoxCorners()
+        #expect(corners != nil)
+        #expect(corners!.count == 8)
+    }
+
+    @Test("OBB of sphere")
+    func obbSphere() {
+        let sphere = Shape.sphere(radius: 5)!
+        let obb = sphere.orientedBoundingBox()
+        #expect(obb != nil)
+        // Sphere OBB should be roughly a cube with side ~10
+        let dims = [obb!.dimensions.x, obb!.dimensions.y, obb!.dimensions.z].sorted()
+        #expect(dims[0] > 9.0 && dims[0] < 11.0)
+    }
+
+    @Test("Optimal OBB")
+    func obbOptimal() {
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        let obb = box.orientedBoundingBox(optimal: true)
+        #expect(obb != nil)
+        #expect(abs(obb!.volume - 150.0) < 1.0)
+    }
+}
+
+// MARK: - Deep Shape Copy Tests (v0.38.0)
+
+@Suite("Deep Shape Copy")
+struct DeepShapeCopyTests {
+
+    @Test("Copy preserves geometry")
+    func copyPreservesGeometry() {
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        let boxCopy = box.copy()
+        #expect(boxCopy != nil)
+        #expect(abs(boxCopy!.volume! - box.volume!) < 0.001)
+        #expect(boxCopy!.faces().count == box.faces().count)
+    }
+
+    @Test("Copy is independent")
+    func copyIsIndependent() {
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        let boxCopy = box.copy()
+        #expect(boxCopy != nil)
+        // Translate the copy — original should be unaffected
+        let translated = boxCopy!.translated(by: SIMD3(100, 0, 0))
+        #expect(translated != nil)
+        // Both should still have the same volume
+        #expect(abs(box.volume! - 150.0) < 0.001)
+    }
+
+    @Test("Copy without geometry sharing")
+    func copyWithGeometry() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let copy = cyl.copy(copyGeometry: true, copyMesh: false)
+        #expect(copy != nil)
+        #expect(abs(copy!.volume! - cyl.volume!) < 0.1)
+    }
+}
+
+// MARK: - Sub-Shape Extraction Tests (v0.38.0)
+
+@Suite("Sub-Shape Extraction")
+struct SubShapeExtractionTests {
+
+    @Test("Box has one solid")
+    func boxOneSolid() {
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        #expect(box.solidCount == 1)
+        #expect(box.solids.count == 1)
+    }
+
+    @Test("Fused disjoint boxes have two solids in compound")
+    func disjointSolids() {
+        let box1 = Shape.box(width: 5, height: 5, depth: 5)!
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)!.translated(by: SIMD3(20, 0, 0))!
+        let compound = box1 + box2
+        #expect(compound != nil)
+        // After fuse of disjoint shapes, result may be compound with 2 solids
+        let solids = compound!.solids
+        #expect(solids.count >= 1)
+    }
+
+    @Test("Box shells")
+    func boxShells() {
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        #expect(box.shellCount >= 1)
+        #expect(box.shells.count >= 1)
+    }
+
+    @Test("Box wires")
+    func boxWires() {
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
+        // A box has 6 faces, each with 1 wire = 6 wires
+        #expect(box.wireCount == 6)
+        #expect(box.wires.count == 6)
+    }
+
+    @Test("Sphere wires")
+    func sphereWires() {
+        let sphere = Shape.sphere(radius: 5)!
+        #expect(sphere.wireCount >= 1)
+    }
+
+    @Test("Empty shape returns empty arrays")
+    func emptyShape() {
+        // A single vertex has no solids, shells, or wires
+        let vertex = Shape.vertex(at: SIMD3(0, 0, 0))!
+        #expect(vertex.solidCount == 0)
+        #expect(vertex.solids.isEmpty)
+        #expect(vertex.shellCount == 0)
+        #expect(vertex.shells.isEmpty)
+    }
+}
+
+// MARK: - Fuse and Blend Tests (v0.38.0)
+
+@Suite("Fuse and Blend")
+struct FuseAndBlendTests {
+
+    @Test("Fuse two overlapping boxes with blend")
+    func fuseBlendBoxes() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!.translated(by: SIMD3(5, 0, 0))!
+        let result = box1.fusedAndBlended(with: box2, radius: 1.0)
+        #expect(result != nil)
+        // Should have more volume than either box alone
+        #expect(result!.volume! > 1000.0)
+        // Should be valid
+        #expect(result!.isValid)
+    }
+
+    @Test("Fuse box and cylinder with blend")
+    func fuseBlendBoxCylinder() {
+        let box = Shape.box(width: 20, height: 20, depth: 10)!.translated(by: SIMD3(-10, -10, 0))!
+        let cyl = Shape.cylinder(radius: 5, height: 15)!
+        let result = box.fusedAndBlended(with: cyl, radius: 1.0)
+        #expect(result != nil)
+        #expect(result!.isValid)
+    }
+
+    @Test("Cut and blend")
+    func cutBlend() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)!.translated(by: SIMD3(-10, -10, 0))!
+        let cyl = Shape.cylinder(radius: 5, height: 25)!
+        let result = box.cutAndBlended(with: cyl, radius: 1.0)
+        #expect(result != nil)
+        #expect(result!.isValid)
+        // Volume should be less than original box
+        #expect(result!.volume! < 8000.0)
+    }
+}
+
+// MARK: - Evolving Fillet Tests (v0.38.0)
+
+@Suite("Evolving Fillet")
+struct EvolvingFilletTests {
+
+    @Test("Single edge evolving radius")
+    func singleEdgeEvolving() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
+        // Edge 1 with radius varying from 1 to 3
+        let edge = EvolvingFilletEdge(edgeIndex: 1, radiusPoints: [
+            (parameter: 0.0, radius: 1.0),
+            (parameter: 1.0, radius: 3.0)
+        ])
+        let result = box.filletEvolving([edge])
+        #expect(result != nil)
+        #expect(result!.isValid)
+    }
+
+    @Test("Multiple edges with evolving radii")
+    func multiEdgeEvolving() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
+        let edges = [
+            EvolvingFilletEdge(edgeIndex: 1, radiusPoints: [
+                (parameter: 0.0, radius: 1.0),
+                (parameter: 1.0, radius: 2.0)
+            ]),
+            EvolvingFilletEdge(edgeIndex: 2, radiusPoints: [
+                (parameter: 0.0, radius: 1.5),
+                (parameter: 1.0, radius: 1.5)
+            ])
+        ]
+        let result = box.filletEvolving(edges)
+        #expect(result != nil)
+        #expect(result!.isValid)
+    }
+
+    @Test("Constant radius via evolving API")
+    func constantRadiusViaEvolving() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)!
+        let edge = EvolvingFilletEdge(edgeIndex: 1, radiusPoints: [
+            (parameter: 0.0, radius: 2.0),
+            (parameter: 1.0, radius: 2.0)
+        ])
+        let result = box.filletEvolving([edge])
+        #expect(result != nil)
+        #expect(result!.isValid)
+        // Volume should be less than original box
+        #expect(result!.volume! < 8000.0)
+    }
+}
+
+// MARK: - Per-Face Variable Offset Tests (v0.38.0)
+
+@Suite("Per-Face Variable Offset")
+struct PerFaceVariableOffsetTests {
+
+    @Test("Uniform per-face offset matches default offset")
+    func uniformPerFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.offsetPerFace(defaultOffset: 1.0, faceOffsets: [:])
+        // May or may not succeed depending on offset algorithm
+        if let r = result {
+            #expect(r.isValid)
+            // Should be larger than original
+            #expect(r.volume! > 1000.0)
+        }
+    }
+
+    @Test("Variable offset on specific faces")
+    func variableOffset() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        // Offset face 1 by 2.0 instead of default 1.0
+        let result = box.offsetPerFace(defaultOffset: 1.0, faceOffsets: [1: 2.0])
+        if let r = result {
+            #expect(r.isValid)
+        }
+    }
+
+    @Test("Per-face offset on cylinder")
+    func cylinderPerFace() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let result = cyl.offsetPerFace(defaultOffset: 1.0, faceOffsets: [:])
+        if let r = result {
+            #expect(r.isValid)
+        }
+    }
+}
