@@ -14377,6 +14377,140 @@ OCCTShapeRef OCCTShapeFuseMulti(const OCCTShapeRef* shapes, int32_t count) {
     }
 }
 
+// MARK: - Multi-Offset Wire (v0.35.0)
+
+#include <BRepOffsetAPI_MakeOffset.hxx>
+
+int32_t OCCTWireMultiOffset(OCCTShapeRef face, const double* offsets, int32_t count,
+                             int32_t joinType, OCCTWireRef* outWires, int32_t maxWires) {
+    if (!face || !offsets || count < 1 || !outWires || maxWires < 1) return 0;
+    try {
+        // Extract the face from the shape
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(face->shape, TopAbs_FACE, faceMap);
+        if (faceMap.Extent() < 1) return 0;
+        TopoDS_Face topoFace = TopoDS::Face(faceMap(1));
+
+        GeomAbs_JoinType join = GeomAbs_Arc;
+        if (joinType == 1) join = GeomAbs_Tangent;
+        else if (joinType == 2) join = GeomAbs_Intersection;
+
+        BRepOffsetAPI_MakeOffset offsetMaker(topoFace, join);
+
+        int32_t totalWires = 0;
+        for (int32_t i = 0; i < count && totalWires < maxWires; ++i) {
+            offsetMaker.Perform(offsets[i]);
+            if (!offsetMaker.IsDone()) continue;
+            TopoDS_Shape result = offsetMaker.Shape();
+            // Extract wires from the result
+            TopExp_Explorer wireExp(result, TopAbs_WIRE);
+            while (wireExp.More() && totalWires < maxWires) {
+                outWires[totalWires] = new OCCTWire(TopoDS::Wire(wireExp.Current()));
+                totalWires++;
+                wireExp.Next();
+            }
+        }
+        return totalWires;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Surface-Surface Intersection (v0.35.0)
+
+#include <GeomAPI_IntSS.hxx>
+
+int32_t OCCTSurfaceSurfaceIntersect(OCCTSurfaceRef surface1, OCCTSurfaceRef surface2,
+                                     double tolerance,
+                                     OCCTCurve3DRef* outCurves, int32_t maxCurves) {
+    if (!surface1 || !surface2 || !outCurves || maxCurves < 1) return 0;
+    if (surface1->surface.IsNull() || surface2->surface.IsNull()) return 0;
+    try {
+        GeomAPI_IntSS intersector(surface1->surface, surface2->surface, tolerance);
+        if (!intersector.IsDone()) return 0;
+        int32_t nbLines = intersector.NbLines();
+        int32_t count = std::min(nbLines, maxCurves);
+        for (int32_t i = 0; i < count; ++i) {
+            Handle(Geom_Curve) curve = intersector.Line(i + 1); // 1-based
+            if (curve.IsNull()) {
+                outCurves[i] = nullptr;
+            } else {
+                outCurves[i] = new OCCTCurve3D(curve);
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Curve-Surface Intersection (v0.35.0)
+
+#include <GeomAPI_IntCS.hxx>
+
+int32_t OCCTCurveSurfaceIntersect(OCCTCurve3DRef curve, OCCTSurfaceRef surface,
+                                   OCCTCurveSurfacePoint* outPoints, int32_t maxPoints) {
+    if (!curve || !surface || !outPoints || maxPoints < 1) return 0;
+    if (curve->curve.IsNull() || surface->surface.IsNull()) return 0;
+    try {
+        GeomAPI_IntCS intersector(curve->curve, surface->surface);
+        if (!intersector.IsDone()) return 0;
+        int32_t nbPoints = intersector.NbPoints();
+        int32_t count = std::min(nbPoints, maxPoints);
+        for (int32_t i = 0; i < count; ++i) {
+            gp_Pnt pt = intersector.Point(i + 1);
+            double u, v, w;
+            intersector.Parameters(i + 1, u, v, w);
+            outPoints[i].x = pt.X();
+            outPoints[i].y = pt.Y();
+            outPoints[i].z = pt.Z();
+            outPoints[i].u = u;
+            outPoints[i].v = v;
+            outPoints[i].w = w;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Cylindrical Projection (v0.35.0)
+
+#include <BRepProj_Projection.hxx>
+
+OCCTShapeRef OCCTShapeProjectWire(OCCTShapeRef wire, OCCTShapeRef shape,
+                                   double dirX, double dirY, double dirZ) {
+    if (!wire || !shape) return nullptr;
+    try {
+        gp_Dir direction(dirX, dirY, dirZ);
+        BRepProj_Projection projection(wire->shape, shape->shape, direction);
+        if (!projection.IsDone()) return nullptr;
+        TopoDS_Compound result = projection.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Same Parameter (v0.35.0)
+
+#include <BRepLib.hxx>
+
+OCCTShapeRef OCCTShapeSameParameter(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        // Make a copy so we don't modify the original
+        BRepBuilderAPI_Copy copier(shape->shape);
+        if (!copier.IsDone()) return nullptr;
+        TopoDS_Shape result = copier.Shape();
+        BRepLib::SameParameter(result, tolerance);
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // MARK: - Evolved Shape Advanced (v0.33.0)
 
 OCCTShapeRef OCCTShapeCreateEvolvedAdvanced(OCCTShapeRef spine, OCCTWireRef profile,

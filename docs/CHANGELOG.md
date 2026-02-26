@@ -1,5 +1,39 @@
 # OCCTSwift Changelog
 
+## [v0.35.0] - 2026-02-25
+
+### OCCT Test Suite Audit, Round 4
+
+Fourth pass through the OCCT test suite (`tests/lowalgos`, `tests/de`, `tests/bugs/modalg_*`) adds 6 new operations covering multi-offset wire generation, surface-surface intersection curves, curve-surface intersection points, cylindrical wire projection, same-parameter enforcement, and Wire.multiOffset. 16 new tests across 6 new suites. 755 tests passing across 173 suites.
+
+#### Multi-Offset Wire
+| Swift API | OCCT Class |
+|-----------|------------|
+| `face.multiOffsetWires(offsets:joinType:)` | `BRepOffsetAPI_MakeOffset.Perform` (multiple distances) |
+
+#### Surface-Surface Intersection
+| Swift API | OCCT Class |
+|-----------|------------|
+| `surface.intersectionCurves(with:tolerance:)` | `GeomAPI_IntSS` |
+
+#### Curve-Surface Intersection
+| Swift API | OCCT Class |
+|-----------|------------|
+| `curve.intersections(with:)` | `GeomAPI_IntCS` |
+| `CurveSurfaceIntersection` struct | point, surfaceUV, curveParameter |
+
+#### Cylindrical Projection
+| Swift API | OCCT Class |
+|-----------|------------|
+| `Shape.projectWire(_:onto:direction:)` | `BRepProj_Projection` |
+
+#### Same Parameter
+| Swift API | OCCT Class |
+|-----------|------------|
+| `shape.sameParameter(tolerance:)` | `BRepLib::SameParameter` |
+
+---
+
 ## [v0.34.0] - 2026-02-25
 
 ### OCCT Test Suite Audit, Round 3

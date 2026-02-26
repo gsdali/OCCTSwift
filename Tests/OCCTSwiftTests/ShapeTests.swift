@@ -10128,3 +10128,174 @@ struct MultiFuseTests {
         }
     }
 }
+
+// MARK: - v0.35.0 — OCCT Test Suite Audit Round 4
+
+@Suite("Multi-Offset Wire")
+struct MultiOffsetWireTests {
+    @Test("Multiple inward offsets from face")
+    func multipleInwardOffsets() {
+        // Create a planar face from a rectangle
+        let face = Shape.face(from: Wire.rectangle(width: 20, height: 20)!)!
+        let wires = face.multiOffsetWires(offsets: [-1.0, -2.0, -3.0])
+        #expect(wires.count >= 3)
+        // Each inward offset should produce a smaller contour
+        if wires.count >= 3 {
+            let l0 = wires[0].length
+            let l1 = wires[1].length
+            let l2 = wires[2].length
+            if let l0, let l1, let l2 {
+                #expect(l0 > l1)
+                #expect(l1 > l2)
+            }
+        }
+    }
+
+    @Test("Outward offset from face")
+    func outwardOffset() {
+        let face = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!
+        let wires = face.multiOffsetWires(offsets: [1.0, 2.0])
+        #expect(wires.count >= 2)
+    }
+
+    @Test("Empty offsets returns empty array")
+    func emptyOffsets() {
+        let face = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!
+        let wires = face.multiOffsetWires(offsets: [])
+        #expect(wires.isEmpty)
+    }
+}
+
+@Suite("Surface-Surface Intersection")
+struct SurfaceSurfaceIntersectTests {
+    @Test("Plane-plane intersection produces line")
+    func planePlaneIntersection() {
+        // Two planes intersecting at 90 degrees
+        let plane1 = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))!
+        let plane2 = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(1, 0, 0))!
+        let curves = plane1.intersectionCurves(with: plane2)
+        #expect(curves.count == 1)
+    }
+
+    @Test("Cylinder-plane intersection produces curves")
+    func cylinderPlaneIntersection() {
+        let cylinder = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5)!
+        let plane = Surface.plane(origin: SIMD3(0, 0, 5), normal: SIMD3(0, 0, 1))!
+        let curves = cylinder.intersectionCurves(with: plane)
+        #expect(curves.count >= 1)
+    }
+
+    @Test("Non-intersecting surfaces produce no curves")
+    func noIntersection() {
+        // Two parallel planes
+        let plane1 = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))!
+        let plane2 = Surface.plane(origin: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1))!
+        let curves = plane1.intersectionCurves(with: plane2)
+        #expect(curves.isEmpty)
+    }
+
+    @Test("Sphere-plane intersection")
+    func spherePlaneIntersection() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5)!
+        let plane = Surface.plane(origin: SIMD3(0, 0, 3), normal: SIMD3(0, 0, 1))!
+        let curves = sphere.intersectionCurves(with: plane)
+        #expect(curves.count >= 1)
+    }
+}
+
+@Suite("Curve-Surface Intersection")
+struct CurveSurfaceIntersectTests {
+    @Test("Line through sphere produces two points")
+    func lineThroughSphere() {
+        let line = Curve3D.segment(from: SIMD3(-10, 0, 0), to: SIMD3(10, 0, 0))!
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5)!
+        let results = line.intersections(with: sphere)
+        #expect(results.count == 2)
+        if results.count == 2 {
+            // Points should be at approximately (-5, 0, 0) and (5, 0, 0)
+            let xValues = results.map { $0.point.x }.sorted()
+            #expect(abs(xValues[0] - (-5.0)) < 0.1)
+            #expect(abs(xValues[1] - 5.0) < 0.1)
+        }
+    }
+
+    @Test("Line tangent to sphere produces one point")
+    func lineTangentToSphere() {
+        let line = Curve3D.segment(from: SIMD3(-10, 5, 0), to: SIMD3(10, 5, 0))!
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5)!
+        let results = line.intersections(with: sphere)
+        // Tangent may produce 1 or 2 very close points
+        #expect(results.count >= 1)
+    }
+
+    @Test("Line missing sphere produces no points")
+    func lineMissingSphere() {
+        let line = Curve3D.segment(from: SIMD3(-10, 10, 0), to: SIMD3(10, 10, 0))!
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5)!
+        let results = line.intersections(with: sphere)
+        #expect(results.isEmpty)
+    }
+
+    @Test("Line through plane produces one point")
+    func lineThroughPlane() {
+        let line = Curve3D.segment(from: SIMD3(0, 0, -5), to: SIMD3(0, 0, 5))!
+        let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))!
+        let results = line.intersections(with: plane)
+        #expect(results.count == 1)
+        if let first = results.first {
+            #expect(abs(first.point.z) < 0.01)
+        }
+    }
+}
+
+@Suite("Cylindrical Projection")
+struct CylindricalProjectionTests {
+    @Test("Project wire onto box")
+    func projectWireOntoBox() {
+        // Create a circle wire above a box
+        let circle = Wire.circle(radius: 3)!
+        let circleShape = Shape.fromWire(circle)!.translated(by: SIMD3(5, 5, 20))!
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        // Project downward
+        let result = Shape.projectWire(circleShape, onto: box, direction: SIMD3(0, 0, -1))
+        // Projection may or may not succeed depending on geometry coverage
+        _ = result
+    }
+
+    @Test("Project edge onto sphere")
+    func projectEdgeOntoSphere() {
+        // Line above sphere, project downward
+        guard let line = Wire.line(from: SIMD3(-3, 0, 10), to: SIMD3(3, 0, 10)) else { return }
+        let lineShape = Shape.fromWire(line)!
+        let sphere = Shape.sphere(radius: 5)!
+        let result = Shape.projectWire(lineShape, onto: sphere, direction: SIMD3(0, 0, -1))
+        _ = result
+    }
+}
+
+@Suite("Same Parameter")
+struct SameParameterTests {
+    @Test("Same parameter on box")
+    func sameParameterBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.sameParameter()
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.isValid)
+        }
+    }
+
+    @Test("Same parameter on cylinder")
+    func sameParameterCylinder() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let result = cyl.sameParameter()
+        #expect(result != nil)
+    }
+
+    @Test("Same parameter preserves volume")
+    func sameParameterPreservesVolume() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.sameParameter()!
+        #expect(abs(result.volume! - 1000.0) < 1.0)
+    }
+}

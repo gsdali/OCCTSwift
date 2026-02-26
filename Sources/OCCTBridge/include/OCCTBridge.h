@@ -3599,6 +3599,74 @@ OCCTShapeRef OCCTShapeDropSmallEdges(OCCTShapeRef shape, double tolerance);
 OCCTShapeRef OCCTShapeFuseMulti(const OCCTShapeRef* shapes, int32_t count);
 
 
+// MARK: - Multi-Offset Wire (v0.35.0)
+
+/// Generate multiple parallel offset wires from a face boundary.
+/// @param face A planar face whose outer wire defines the offset contour
+/// @param offsets Array of offset distances (positive = outward, negative = inward)
+/// @param count Number of offset distances
+/// @param joinType Join type: 0=Arc, 1=Tangent, 2=Intersection
+/// @param outWires Output array of wire refs (caller must release each)
+/// @param maxWires Maximum number of output wires
+/// @return Number of wires actually produced
+int32_t OCCTWireMultiOffset(OCCTShapeRef face, const double* offsets, int32_t count,
+                             int32_t joinType, OCCTWireRef* outWires, int32_t maxWires);
+
+
+// MARK: - Surface-Surface Intersection (v0.35.0)
+
+/// Compute intersection curves between two parametric surfaces.
+/// @param surface1 First surface
+/// @param surface2 Second surface
+/// @param tolerance Tolerance
+/// @param outCurves Output array of Curve3D refs (caller must release each)
+/// @param maxCurves Maximum number of output curves
+/// @return Number of intersection curves found
+int32_t OCCTSurfaceSurfaceIntersect(OCCTSurfaceRef surface1, OCCTSurfaceRef surface2,
+                                     double tolerance,
+                                     OCCTCurve3DRef* outCurves, int32_t maxCurves);
+
+
+// MARK: - Curve-Surface Intersection (v0.35.0)
+
+/// Intersection result point for curve-surface intersection.
+typedef struct {
+    double x, y, z;    // 3D intersection point
+    double u, v;       // Surface parameters at intersection
+    double w;          // Curve parameter at intersection
+} OCCTCurveSurfacePoint;
+
+/// Compute intersection points between a curve and a surface.
+/// @param curve The curve
+/// @param surface The surface
+/// @param outPoints Output array of intersection points
+/// @param maxPoints Maximum number of output points
+/// @return Number of intersection points found
+int32_t OCCTCurveSurfaceIntersect(OCCTCurve3DRef curve, OCCTSurfaceRef surface,
+                                   OCCTCurveSurfacePoint* outPoints, int32_t maxPoints);
+
+
+// MARK: - Cylindrical Projection (v0.35.0)
+
+/// Project a wire onto a shape along a direction (cylindrical projection).
+/// @param wire Wire/edge to project
+/// @param shape Target shape to project onto
+/// @param dirX, dirY, dirZ Projection direction
+/// @return Compound of projected wires, or NULL on failure
+OCCTShapeRef OCCTShapeProjectWire(OCCTShapeRef wire, OCCTShapeRef shape,
+                                   double dirX, double dirY, double dirZ);
+
+
+// MARK: - Same Parameter (v0.35.0)
+
+/// Enforce same-parameter consistency on a shape.
+/// Ensures 3D and 2D curve representations are consistent.
+/// @param shape The shape to fix
+/// @param tolerance Tolerance for same-parameter check
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef OCCTShapeSameParameter(OCCTShapeRef shape, double tolerance);
+
+
 #ifdef __cplusplus
 }
 #endif

@@ -844,4 +844,61 @@ extension Surface {
                        tolerance: Double = 1e-6) -> Shape? {
         return Shape.face(from: self, uRange: uRange, vRange: vRange, tolerance: tolerance)
     }
+
+    // MARK: - Surface-Surface Intersection (v0.35.0)
+
+    /// Compute intersection curves between this surface and another.
+    ///
+    /// Returns the parametric curves where the two surfaces intersect.
+    ///
+    /// - Parameters:
+    ///   - other: The other surface to intersect with
+    ///   - tolerance: Intersection tolerance
+    /// - Returns: Array of 3D intersection curves
+    public func intersectionCurves(with other: Surface, tolerance: Double = 1e-6) -> [Curve3D] {
+        let maxCurves: Int32 = 64
+        var curveRefs = [OCCTCurve3DRef?](repeating: nil, count: Int(maxCurves))
+        let count = curveRefs.withUnsafeMutableBufferPointer { buf in
+            OCCTSurfaceSurfaceIntersect(handle, other.handle, tolerance,
+                                         buf.baseAddress, maxCurves)
+        }
+        return (0..<Int(count)).compactMap { i in
+            guard let ref = curveRefs[i] else { return nil }
+            return Curve3D(handle: ref)
+        }
+    }
+}
+
+// MARK: - Curve-Surface Intersection (v0.35.0)
+
+/// Result of a curve-surface intersection point.
+public struct CurveSurfaceIntersection: Sendable {
+    /// 3D intersection point
+    public var point: SIMD3<Double>
+    /// Surface parameters (u, v) at the intersection
+    public var surfaceUV: SIMD2<Double>
+    /// Curve parameter at the intersection
+    public var curveParameter: Double
+}
+
+extension Curve3D {
+    /// Compute intersection points between this curve and a surface.
+    ///
+    /// - Parameter surface: The surface to intersect with
+    /// - Returns: Array of intersection results with 3D points, surface UV, and curve parameter
+    public func intersections(with surface: Surface) -> [CurveSurfaceIntersection] {
+        let maxPoints: Int32 = 64
+        var points = [OCCTCurveSurfacePoint](repeating: OCCTCurveSurfacePoint(), count: Int(maxPoints))
+        let count = points.withUnsafeMutableBufferPointer { buf in
+            OCCTCurveSurfaceIntersect(handle, surface.handle, buf.baseAddress, maxPoints)
+        }
+        return (0..<Int(count)).map { i in
+            let p = points[i]
+            return CurveSurfaceIntersection(
+                point: SIMD3(p.x, p.y, p.z),
+                surfaceUV: SIMD2(p.u, p.v),
+                curveParameter: p.w
+            )
+        }
+    }
 }

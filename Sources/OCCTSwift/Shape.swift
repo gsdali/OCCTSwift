@@ -3419,3 +3419,67 @@ extension Shape {
         return Shape(handle: h)
     }
 }
+
+// MARK: - Multi-Offset Wire (v0.35.0)
+
+extension Shape {
+    /// Generate multiple parallel offset wires from a planar face boundary.
+    ///
+    /// More efficient than calling `Wire.offset` multiple times, and produces
+    /// consistent results for CNC toolpath generation.
+    ///
+    /// - Parameters:
+    ///   - offsets: Array of offset distances (positive = outward, negative = inward)
+    ///   - joinType: How to join offset segments (default: .arc)
+    /// - Returns: Array of offset wires
+    public func multiOffsetWires(offsets: [Double],
+                                 joinType: OffsetJoinType = .arc) -> [Wire] {
+        guard !offsets.isEmpty else { return [] }
+        let maxWires = offsets.count * 10 // Allow for multi-contour results
+        var wireRefs = [OCCTWireRef?](repeating: nil, count: maxWires)
+        let count = offsets.withUnsafeBufferPointer { offsetBuf in
+            wireRefs.withUnsafeMutableBufferPointer { wireBuf in
+                OCCTWireMultiOffset(handle, offsetBuf.baseAddress, Int32(offsets.count),
+                                    joinType.rawValue, wireBuf.baseAddress, Int32(maxWires))
+            }
+        }
+        return (0..<Int(count)).compactMap { i in
+            guard let ref = wireRefs[i] else { return nil }
+            return Wire(handle: ref)
+        }
+    }
+}
+
+// MARK: - Cylindrical Projection (v0.35.0)
+
+extension Shape {
+    /// Project a wire/edge shape onto another shape along a direction (cylindrical projection).
+    ///
+    /// - Parameters:
+    ///   - wire: Wire or edge shape to project
+    ///   - target: Target shape to project onto
+    ///   - direction: Projection direction
+    /// - Returns: Compound of projected wires, or nil on failure
+    public static func projectWire(_ wire: Shape, onto target: Shape,
+                                   direction: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeProjectWire(wire.handle, target.handle,
+                                            direction.x, direction.y, direction.z) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Same Parameter (v0.35.0)
+
+extension Shape {
+    /// Enforce same-parameter consistency on the shape.
+    ///
+    /// Ensures 3D and 2D curve representations are consistent. Important
+    /// for imported geometry and after complex operations.
+    ///
+    /// - Parameter tolerance: Tolerance for same-parameter check
+    /// - Returns: Fixed shape, or nil on failure
+    public func sameParameter(tolerance: Double = 1e-6) -> Shape? {
+        guard let h = OCCTShapeSameParameter(handle, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+}
