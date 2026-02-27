@@ -15993,3 +15993,28 @@ bool OCCTAnalyzePointCloud(const double* coords, int32_t pointCount,
         return false;
     }
 }
+
+// MARK: - Sub-Shape Extraction (fixes #36)
+
+int32_t OCCTShapeGetSubShapeCount(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(shape->shape, static_cast<TopAbs_ShapeEnum>(type), map);
+        return map.Extent();
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTShapeRef OCCTShapeGetSubShapeByTypeIndex(OCCTShapeRef shape, int32_t type, int32_t index) {
+    if (!shape || index < 0) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(shape->shape, static_cast<TopAbs_ShapeEnum>(type), map);
+        if (index >= map.Extent()) return nullptr;
+        return new OCCTShape(map(index + 1)); // OCCT uses 1-based indexing
+    } catch (...) {
+        return nullptr;
+    }
+}

@@ -1036,6 +1036,41 @@ public final class Shape: @unchecked Sendable {
         OCCTShapeIsValidSolid(handle)
     }
 
+    // MARK: - Sub-Shape Extraction
+
+    /// Get the number of sub-shapes of a given topological type.
+    ///
+    /// - Parameter type: The topological type to count (e.g., `.face`, `.edge`, `.vertex`)
+    /// - Returns: Number of sub-shapes of that type
+    public func subShapeCount(ofType type: ShapeType) -> Int {
+        Int(OCCTShapeGetSubShapeCount(handle, Int32(type.rawValue)))
+    }
+
+    /// Get a sub-shape by type and 0-based index.
+    ///
+    /// Uses `TopExp::MapShapes` to enumerate sub-shapes of the given type,
+    /// then returns the one at the specified index as a `Shape` handle.
+    ///
+    /// - Parameters:
+    ///   - type: The topological type (e.g., `.face`, `.edge`, `.vertex`)
+    ///   - index: 0-based index into the sub-shapes of that type
+    /// - Returns: The sub-shape as a Shape, or nil if index is out of range
+    public func subShape(type: ShapeType, index: Int) -> Shape? {
+        guard let ref = OCCTShapeGetSubShapeByTypeIndex(handle, Int32(type.rawValue), Int32(index)) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+
+    /// Get all sub-shapes of a given topological type.
+    ///
+    /// - Parameter type: The topological type (e.g., `.face`, `.edge`, `.vertex`)
+    /// - Returns: Array of sub-shapes
+    public func subShapes(ofType type: ShapeType) -> [Shape] {
+        let count = subShapeCount(ofType: type)
+        return (0..<count).compactMap { subShape(type: type, index: $0) }
+    }
+
     // MARK: - Bounds
 
     /// Get the axis-aligned bounding box of the shape

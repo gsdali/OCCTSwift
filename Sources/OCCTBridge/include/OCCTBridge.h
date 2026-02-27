@@ -4191,6 +4191,21 @@ typedef struct {
 bool OCCTAnalyzePointCloud(const double* coords, int32_t pointCount,
                             double tolerance, OCCTPointCloudGeometry* outResult);
 
+// MARK: - Sub-Shape Extraction (fixes #36)
+
+/// Count sub-shapes of a given topological type
+/// @param shape The parent shape
+/// @param type TopAbs_ShapeEnum value (0=COMPOUND..7=VERTEX)
+/// @return Number of sub-shapes of that type
+int32_t OCCTShapeGetSubShapeCount(OCCTShapeRef shape, int32_t type);
+
+/// Get a sub-shape by type and 0-based index
+/// @param shape The parent shape
+/// @param type TopAbs_ShapeEnum value
+/// @param index 0-based index
+/// @return Sub-shape as OCCTShapeRef, or NULL if out of range
+OCCTShapeRef OCCTShapeGetSubShapeByTypeIndex(OCCTShapeRef shape, int32_t type, int32_t index);
+
 #ifdef __cplusplus
 }
 #endif
