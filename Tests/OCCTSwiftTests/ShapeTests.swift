@@ -1004,26 +1004,30 @@ struct AdvancedModelingTests {
 
     @Test("Remove faces from shape")
     func removeFeatures() {
-        // Create a box with a hole
+        // Create a box with a through-hole
+        // Box is centered at origin: (-10,-10,-10) to (10,10,10)
         let box = Shape.box(width: 20, height: 20, depth: 20)!
-        let hole = Shape.cylinder(radius: 3, height: 30)!
+        // Cylinder height 40 goes from z=0 to z=40, use a translated cylinder
+        // that fully penetrates the box. We use a tall cylinder and translate it down.
+        let hole = Shape.cylinder(radius: 3, height: 40)!
+            .translated(by: SIMD3(0, 0, -20))!
         let boxWithHole = box.subtracting(hole)!
 
-        // The box with hole has more faces than a simple box
+        // The box with through-hole has more faces than a simple box
         let faces = boxWithHole.faces()
         #expect(faces.count > 6)
 
-        // Find cylindrical faces (the hole)
+        // Find non-planar faces (the cylindrical hole surface)
         let cylindricalFaces = faces.filter { !$0.isPlanar }
 
-        if !cylindricalFaces.isEmpty {
-            // Try to remove the hole
-            let defeatured = boxWithHole.withoutFeatures(faces: cylindricalFaces)
-            // May or may not succeed depending on geometry complexity
-            // Just verify it doesn't crash
-            if defeatured != nil {
-                #expect(defeatured!.isValid)
-            }
+        #expect(!cylindricalFaces.isEmpty)
+        // Remove the hole — defeaturing a through-hole needs only the cylindrical face
+        let defeatured = boxWithHole.withoutFeatures(faces: cylindricalFaces)
+        #expect(defeatured != nil)
+        if let defeatured {
+            #expect(defeatured.isValid)
+            // Should recover approximately the original box volume
+            #expect(abs(defeatured.volume! - 8000.0) < 100.0)
         }
     }
 
@@ -4445,9 +4449,8 @@ struct AdvancedHealingTests {
     func directFacesBox() {
         let box = Shape.box(width: 10, height: 10, depth: 10)!
         let result = box.directFaces()
-        if let result = result {
-            #expect(result.isValid)
-        }
+        #expect(result != nil)
+        #expect(result!.isValid)
     }
 
     @Test("Scale geometry by 2x")
@@ -4455,13 +4458,12 @@ struct AdvancedHealingTests {
         let box = Shape.box(width: 10, height: 10, depth: 10)!
         let originalVolume = box.volume ?? 0
         let scaled = box.scaledGeometry(factor: 2.0)
-        if let scaled = scaled {
-            #expect(scaled.isValid)
-            if let scaledVolume = scaled.volume {
-                // Volume should be ~8x (2^3)
-                #expect(abs(scaledVolume - originalVolume * 8.0) < originalVolume * 0.1)
-            }
-        }
+        #expect(scaled != nil)
+        #expect(scaled!.isValid)
+        let scaledVolume = scaled!.volume
+        #expect(scaledVolume != nil)
+        // Volume should be ~8x (2^3)
+        #expect(abs(scaledVolume! - originalVolume * 8.0) < originalVolume * 0.1)
     }
 
     @Test("BSpline restriction on shape")
@@ -4477,18 +4479,16 @@ struct AdvancedHealingTests {
     func convertToBSpline() {
         let box = Shape.box(width: 10, height: 10, depth: 10)!
         let bspline = box.convertedToBSpline()
-        if let bspline = bspline {
-            #expect(bspline.isValid)
-        }
+        #expect(bspline != nil)
+        #expect(bspline!.isValid)
     }
 
     @Test("Swept to elementary on cylinder")
     func sweptToElementary() {
         let cyl = Shape.cylinder(radius: 5, height: 10)!
         let result = cyl.sweptToElementary()
-        if let result = result {
-            #expect(result.isValid)
-        }
+        #expect(result != nil)
+        #expect(result!.isValid)
     }
 
     @Test("Sew disconnected faces")
@@ -4496,18 +4496,16 @@ struct AdvancedHealingTests {
         // Create a box and sew it - should return a valid shape
         let box = Shape.box(width: 10, height: 10, depth: 10)!
         let sewn = box.sewn(tolerance: 1e-6)
-        if let sewn = sewn {
-            #expect(sewn.isValid)
-        }
+        #expect(sewn != nil)
+        #expect(sewn!.isValid)
     }
 
     @Test("Full upgrade pipeline")
     func upgradePipeline() {
         let box = Shape.box(width: 10, height: 10, depth: 10)!
         let upgraded = box.upgraded(tolerance: 1e-6)
-        if let upgraded = upgraded {
-            #expect(upgraded.isValid)
-        }
+        #expect(upgraded != nil)
+        #expect(upgraded!.isValid)
     }
 }
 
@@ -4560,15 +4558,18 @@ struct PointClassificationTests {
 
     @Test("Face classify UV: center of face")
     func faceClassifyUV() {
-        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let box = Shape.box(width: 10, height: 5, depth: 3)!
         let faces = box.faces()
         #expect(!faces.isEmpty)
 
         let face = faces[0]
-        // UV center should be inside the face domain
-        let result = face.classify(u: 0.0, v: 0.0, tolerance: 1e-3)
-        // The result depends on the face's UV domain - just verify it returns a valid classification
-        #expect(result == .inside || result == .outside || result == .onBoundary || result == .unknown)
+        // Get UV bounds and classify at the center
+        let uvb = face.uvBounds!
+        let uMid = (uvb.uMin + uvb.uMax) / 2.0
+        let vMid = (uvb.vMin + uvb.vMax) / 2.0
+        let result = face.classify(u: uMid, v: vMid, tolerance: 1e-6)
+        // Center of face domain should be classified as inside
+        #expect(result == .inside)
     }
 }
 
@@ -5181,7 +5182,7 @@ struct ShapeProximityTests {
 
         let pairs = box1.proximityFaces(with: box2, tolerance: 1.0)
         // BRepExtrema_ShapeProximity should detect the close face pair
-        #expect(pairs.count >= 0) // API doesn't crash
+        #expect(pairs.count >= 1) // Gap of 0.05 within tolerance 1.0 should detect proximity
 
         // Verify the gap distance is correct
         let dist = box1.distance(to: box2)
@@ -8637,16 +8638,29 @@ struct FastSewingTests {
 
 @Suite("Normal Projection")
 struct NormalProjectionTests {
-    @Test("Project line onto sphere")
+    @Test("Project line onto sphere near surface")
     func projectOnSphere() {
         let sphere = Shape.sphere(radius: 10)!
-        let line = Shape.fromWire(Wire.line(from: SIMD3(-5, 0, 11), to: SIMD3(5, 0, 11))!)
-        guard let line else { return }
-        let projected = sphere.normalProjection(of: line)
-        // Projection may or may not succeed depending on geometry - just verify it doesn't crash
+        // Line near the sphere surface (x=8, within radius 10)
+        // Normal projection projects along surface normals — works when
+        // the wire is near or outside the surface, not deep inside
+        let line = Shape.fromWire(Wire.line(from: SIMD3(8, -2, 0), to: SIMD3(8, 2, 0))!)
+        #expect(line != nil)
+        let projected = sphere.normalProjection(of: line!)
+        #expect(projected != nil)
         if let projected {
             #expect(projected.isValid)
         }
+    }
+
+    @Test("Project line outside sphere")
+    func projectOutsideSphere() {
+        let sphere = Shape.sphere(radius: 10)!
+        // Line fully outside the sphere
+        let line = Shape.fromWire(Wire.line(from: SIMD3(15, -5, 0), to: SIMD3(15, 5, 0))!)
+        #expect(line != nil)
+        let projected = sphere.normalProjection(of: line!)
+        #expect(projected != nil)
     }
 }
 
@@ -8801,7 +8815,7 @@ struct DraftTests {
         let circle = Wire.circle(radius: 5)!
         let wireShape = Shape.fromWire(circle)!
         let drafted = wireShape.draft(direction: SIMD3(0, 0, 1), angle: 0.1, length: 10)
-        // Draft may or may not succeed depending on input geometry
+        #expect(drafted != nil)
         if let drafted {
             #expect(drafted.isValid)
         }
@@ -8987,7 +9001,7 @@ struct SimpleOffsetTests {
         // SimpleOffset works on shells/faces, not solids
         let face = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!
         let offset = face.simpleOffset(by: 1.0)
-        // May or may not succeed depending on input — just verify no crash
+        #expect(offset != nil)
         if let o = offset {
             #expect(o.isValid)
         }
@@ -9164,23 +9178,24 @@ struct ShapeContentsTests {
 
 @Suite("Canonical Recognition")
 struct CanonicalRecognitionTests {
-    @Test("Recognize cylinder face")
-    func recognizeCylinder() {
-        let cyl = Shape.cylinder(radius: 5, height: 10)!
-        // The lateral face should be a cylinder
-        let faces = cyl.faces()
-        var foundCylinder = false
-        for face in faces {
-            let form = Shape.face(from: Wire.circle(radius: 5)!)?.recognizeCanonical()
-            if let f = form, f.type == .cylinder || f.type == .circle || f.type == .plane {
-                foundCylinder = true
-            }
+    @Test("Canonical recognition callable on box")
+    func recognizeCallableOnBox() {
+        // ShapeAnalysis_CanonicalRecognition is designed to identify when
+        // BSpline approximations can be converted to canonical forms (plane,
+        // cylinder, etc). On already-canonical primitive shapes it may return nil.
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let form = box.recognizeCanonical()
+        // May be nil for primitive shapes — just verify no crash
+        if let form {
+            #expect(form.type == .plane)
         }
-        // At minimum the shape itself should be recognizable
-        let form = cyl.recognizeCanonical()
-        // May return cylinder, sphere, etc. depending on which face OCCT picks
-        // Just verify it doesn't crash
-        _ = form
+    }
+
+    @Test("Canonical recognition callable on cylinder")
+    func recognizeCallableOnCylinder() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        _ = cyl.recognizeCanonical()
+        // Just verify no crash — whole-shape recognition often returns nil
     }
 }
 
@@ -9258,10 +9273,20 @@ struct FixWireframeTests {
 
 @Suite("Contiguous Edges")
 struct ContiguousEdgesTests {
-    @Test("Find contiguous edges count")
-    func findContiguousCount() {
+    @Test("Find contiguous edges count on single solid")
+    func findContiguousCountOnSolid() {
+        // FindContigousEdges returns 0 on a single solid because edges are
+        // already topologically shared by construction. The API is designed
+        // to find shared edges between separate shapes in a compound.
         let box = Shape.box(width: 10, height: 10, depth: 10)!
         let count = box.contiguousEdgeCount()
+        #expect(count == 0)
+    }
+
+    @Test("Contiguous edges API is callable")
+    func contiguousEdgesCallable() {
+        let sphere = Shape.sphere(radius: 5)!
+        let count = sphere.contiguousEdgeCount()
         #expect(count >= 0)
     }
 }
@@ -9793,25 +9818,28 @@ struct PipeShellTransitionTests {
 
     @Test("Pipe with right corner transition")
     func pipeRightCorner() {
-        let spine = Wire.path([SIMD3(0,0,0), SIMD3(10,0,0), SIMD3(10,10,0)])!
-        let profile = Wire.circle(radius: 1)!
+        // Spine goes along Z first, so default XY-plane circle profile
+        // is perpendicular to the spine tangent (required for RightCorner)
+        let spine = Wire.path([SIMD3(0,0,0), SIMD3(0,0,10), SIMD3(0,10,10)])!
+        let profile = Wire.circle(radius: 2)!
         let result = Shape.pipeShellWithTransition(
             spine: spine, profile: profile,
             transition: .rightCorner, solid: true
         )
-        // Right corner may or may not succeed depending on geometry
-        _ = result
+        #expect(result != nil)
     }
 
     @Test("Pipe with round corner transition")
     func pipeRoundCorner() {
-        let spine = Wire.path([SIMD3(0,0,0), SIMD3(10,0,0), SIMD3(10,10,0)])!
-        let profile = Wire.circle(radius: 1)!
+        // Spine goes along Z first, so default XY-plane circle profile
+        // is perpendicular to the spine tangent (required for RoundCorner)
+        let spine = Wire.path([SIMD3(0,0,0), SIMD3(0,0,10), SIMD3(0,10,10)])!
+        let profile = Wire.circle(radius: 2)!
         let result = Shape.pipeShellWithTransition(
             spine: spine, profile: profile,
             transition: .roundCorner, solid: true
         )
-        _ = result
+        #expect(result != nil)
     }
 
     @Test("Pipe transition with corrected Frenet mode")
@@ -9889,16 +9917,18 @@ struct EdgesToFacesTests {
         let wireShape = Shape.fromWire(rect)!
         let result = Shape.facesFromEdges(wireShape, onlyPlanar: true)
         // A closed planar wire should produce a face
-        _ = result
+        #expect(result != nil)
     }
 
-    @Test("Edges to faces API callable")
-    func edgesToFacesCallable() {
-        // Verify the API is callable; edge assembly is geometry-dependent
-        let box = Shape.box(width: 6, height: 4, depth: 2)!
-        // Box edges form 6 faces, but reassembly from loose edges is complex
-        let result = Shape.facesFromEdges(box, onlyPlanar: true)
-        _ = result
+    @Test("Edges to faces from compound of edges produces faces")
+    func edgesToFacesFromCompound() {
+        // A compound of edges from a closed planar loop should produce a face
+        // Note: passing a full solid (box) doesn't work because edges are shared
+        // between faces and the greedy wire-building algorithm can't reconstruct them
+        let rect = Wire.rectangle(width: 6, height: 4)!
+        let wireShape = Shape.fromWire(rect)!
+        let result = Shape.facesFromEdges(wireShape, onlyPlanar: true)
+        #expect(result != nil)
     }
 
     @Test("Edges to faces with non-planar mode")
@@ -9906,7 +9936,7 @@ struct EdgesToFacesTests {
         let rect = Wire.rectangle(width: 10, height: 5)!
         let wireShape = Shape.fromWire(rect)!
         let result = Shape.facesFromEdges(wireShape, onlyPlanar: false)
-        _ = result
+        #expect(result != nil)
     }
 }
 
@@ -9975,29 +10005,23 @@ struct BooleanCheckTests {
 struct SplitByWireTests {
     @Test("Split box face with diagonal wire")
     func splitBoxFace() {
+        // Box is centered: (-5,-5,-5) to (5,5,5)
         let box = Shape.box(width: 10, height: 10, depth: 10)!
-        // Create a line wire across the top face
-        guard let wire = Wire.line(from: SIMD3(0, 0, 10), to: SIMD3(10, 10, 10)) else { return }
-        // Try to split face 0 (may or may not work depending on face orientation)
-        let faceCount = box.faces().count
-        // Try each face until one works
-        var success = false
-        for i in 0..<faceCount {
-            if let result = box.splittingFace(with: wire, faceIndex: i) {
-                // Split face should produce more faces than original
-                #expect(result.faces().count >= faceCount)
-                success = true
-                break
-            }
+        // Top face is at z=5, index 5 (0-based). Wire must lie ON the face.
+        let wire = Wire.line(from: SIMD3(-5, -5, 5), to: SIMD3(5, 5, 5))
+        #expect(wire != nil)
+        let result = box.splittingFace(with: wire!, faceIndex: 5)
+        #expect(result != nil)
+        if let r = result {
+            // Splitting one face should produce 7 faces (6 original - 1 split + 2 halves)
+            #expect(r.faces().count > box.faces().count)
         }
-        // Wire splitting is geometry-dependent; API callability is the test
-        _ = success
     }
 
     @Test("Split with invalid face index returns nil")
     func splitInvalidFaceIndex() {
         let box = Shape.box(width: 10, height: 10, depth: 10)!
-        guard let wire = Wire.line(from: SIMD3(0, 0, 10), to: SIMD3(10, 10, 10)) else { return }
+        let wire = Wire.line(from: SIMD3(-5, -5, 5), to: SIMD3(5, 5, 5))!
         let result = box.splittingFace(with: wire, faceIndex: 999)
         #expect(result == nil)
     }
@@ -10252,24 +10276,22 @@ struct CurveSurfaceIntersectTests {
 struct CylindricalProjectionTests {
     @Test("Project wire onto box")
     func projectWireOntoBox() {
-        // Create a circle wire above a box
+        // Create a circle wire above a box, project downward onto top face
         let circle = Wire.circle(radius: 3)!
         let circleShape = Shape.fromWire(circle)!.translated(by: SIMD3(5, 5, 20))!
-        let box = Shape.box(width: 10, height: 10, depth: 10)!
-        // Project downward
+        let box = Shape.box(width: 10, height: 10, depth: 5)!
         let result = Shape.projectWire(circleShape, onto: box, direction: SIMD3(0, 0, -1))
-        // Projection may or may not succeed depending on geometry coverage
-        _ = result
+        #expect(result != nil)
     }
 
     @Test("Project edge onto sphere")
     func projectEdgeOntoSphere() {
-        // Line above sphere, project downward
-        guard let line = Wire.line(from: SIMD3(-3, 0, 10), to: SIMD3(3, 0, 10)) else { return }
+        // Line above sphere, project downward onto sphere surface
+        guard let line = Wire.line(from: SIMD3(-3, 0, 8), to: SIMD3(3, 0, 8)) else { return }
         let lineShape = Shape.fromWire(line)!
-        let sphere = Shape.sphere(radius: 5)!
+        let sphere = Shape.sphere(radius: 10)!
         let result = Shape.projectWire(lineShape, onto: sphere, direction: SIMD3(0, 0, -1))
-        _ = result
+        #expect(result != nil)
     }
 }
 
@@ -10424,7 +10446,7 @@ struct BooleanHistoryTests {
         if let r = result {
             #expect(r.shape.volume! > 0)
             // Should have some modified faces from the intersection
-            #expect(r.modifiedFaces.count >= 0)
+            #expect(r.modifiedFaces.count > 0)
         }
     }
 
@@ -10462,11 +10484,15 @@ struct ThickSolidTests {
 
     @Test("Hollow cylinder")
     func hollowCylinder() {
-        let cyl = Shape.cylinder(radius: 5, height: 10)!
-        // Remove top face (index 0 or 1)
-        let result = cyl.hollowed(removingFaces: [0], thickness: -1.0)
-        // Hollowing may or may not succeed; just verify API callable
-        _ = result
+        let cyl = Shape.cylinder(radius: 10, height: 20)!
+        // Cylinder has 3 faces: [0]=cylinder, [1]=bottom cap (plane), [2]=top cap (plane)
+        // Remove a planar cap face (index 1 = bottom cap, 0-based)
+        let result = cyl.hollowed(removingFaces: [1], thickness: -1.0, tolerance: 1e-3)
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.isValid)
+            #expect(r.volume! < cyl.volume!)
+        }
     }
 
     @Test("Hollow with invalid face index returns nil")
@@ -10846,10 +10872,9 @@ struct PerFaceVariableOffsetTests {
     func uniformPerFace() {
         let box = Shape.box(width: 10, height: 10, depth: 10)!
         let result = box.offsetPerFace(defaultOffset: 1.0, faceOffsets: [:])
-        // May or may not succeed depending on offset algorithm
+        #expect(result != nil)
         if let r = result {
             #expect(r.isValid)
-            // Should be larger than original
             #expect(r.volume! > 1000.0)
         }
     }
@@ -10859,6 +10884,7 @@ struct PerFaceVariableOffsetTests {
         let box = Shape.box(width: 10, height: 10, depth: 10)!
         // Offset face 1 by 2.0 instead of default 1.0
         let result = box.offsetPerFace(defaultOffset: 1.0, faceOffsets: [1: 2.0])
+        #expect(result != nil)
         if let r = result {
             #expect(r.isValid)
         }
