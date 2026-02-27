@@ -19,13 +19,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 13 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam |
 | **Feature-Based** | 20 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile |
-| **Healing/Analysis** | 30 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace, freeBounds, fixedFreeBounds |
-| **Measurement** | 12 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects, inertiaProperties, surfaceInertiaProperties, allDistanceSolutions, isInside, findSurfaceEx |
+| **Healing/Analysis** | 32 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace, freeBounds, fixedFreeBounds, withSurfacesAsBSpline, withSurfacesAsRevolution |
+| **Measurement** | 13 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects, inertiaProperties, surfaceInertiaProperties, allDistanceSolutions, isInside, findSurfaceEx, findPlane |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
 | **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
 | **Import/Export** | 17 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; STEP optimize; mesh |
-| **Shape Editing** | 8 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath, copy |
+| **Shape Editing** | 12 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath, copy, removingSubShapes, replacingSubShapes, dividedClosedEdges, faceRestricted |
 | **Polynomial Solver** | 3 | quadratic, cubic, quartic |
 | **Hatch Pattern** | 1 | generate |
 | **Geometry Construction** | 9 | face from wire, face with holes, solid from shell, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed |
@@ -48,7 +48,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **582** | |
+| **Total** | **589** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -150,6 +150,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **BSpline Continuity Analysis**: Find knot parameters where curve continuity drops below C0/C1/C2
 - **BSpline Bezier Patch Grid**: Decompose BSpline surfaces into Bezier patches with U/V grid dimensions
 - **Find Surface Extended**: Detect underlying geometric surface of wires/edges with plane-only option
+- **Shape Surgery**: Remove or replace sub-shapes via BRepTools_ReShape
+- **Plane Detection**: Detect if shape edges lie in a single geometric plane (BRepBuilderAPI_FindPlane)
+- **Closed Edge Splitting**: Split periodic/closed edges for downstream algorithm compatibility
+- **Surface Conversion**: Convert surfaces to BSpline or revolution form (ShapeCustom)
+- **Face Restriction**: Build restricted faces from surface and wire boundaries (BRepAlgo_FaceRestrictor)
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1099,7 +1104,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.30.0
 
-OCCTSwift now wraps **582 OCCT operations** across 49 categories with 837 tests across 200 suites.
+OCCTSwift now wraps **589 OCCT operations** across 49 categories with 848 tests across 205 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

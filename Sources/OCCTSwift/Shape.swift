@@ -4087,4 +4087,131 @@ extension Shape {
               found else { return nil }
         return Surface(handle: surfHandle)
     }
+
+    // MARK: - Shape Surgery (v0.41.0)
+
+    /// Remove sub-shapes from this shape
+    ///
+    /// Uses BRepTools_ReShape to surgically remove faces, edges, or vertices
+    /// while preserving the remaining topology.
+    /// - Parameter subShapes: Sub-shapes to remove
+    /// - Returns: Shape with sub-shapes removed, or nil on failure
+    public func removingSubShapes(_ subShapes: [Shape]) -> Shape? {
+        var handles = subShapes.map { $0.handle as OCCTShapeRef? }
+        guard let h = handles.withUnsafeMutableBufferPointer({ buf in
+            OCCTShapeRemoveSubShapes(handle, buf.baseAddress, Int32(subShapes.count))
+        }) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Replace sub-shapes in this shape
+    ///
+    /// Uses BRepTools_ReShape to replace specific sub-shapes with new ones.
+    /// - Parameter replacements: Array of (old, new) shape pairs
+    /// - Returns: Shape with replacements applied, or nil on failure
+    public func replacingSubShapes(_ replacements: [(old: Shape, new: Shape)]) -> Shape? {
+        var oldHandles = replacements.map { $0.old.handle as OCCTShapeRef? }
+        var newHandles = replacements.map { $0.new.handle as OCCTShapeRef? }
+        guard let h = oldHandles.withUnsafeMutableBufferPointer({ oldBuf in
+            newHandles.withUnsafeMutableBufferPointer({ newBuf in
+                OCCTShapeReplaceSubShapes(handle, oldBuf.baseAddress, newBuf.baseAddress,
+                                           Int32(replacements.count))
+            })
+        }) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - Plane Detection (v0.41.0)
+
+    /// Result of plane detection
+    public struct DetectedPlane {
+        /// Plane normal direction
+        public let normal: SIMD3<Double>
+        /// Plane origin point
+        public let origin: SIMD3<Double>
+    }
+
+    /// Find if this shape's edges lie in a plane
+    ///
+    /// Uses BRepBuilderAPI_FindPlane to detect if a wire, edge set, or shape
+    /// lies in a single geometric plane.
+    /// - Parameter tolerance: Tolerance for planarity check (default 1e-6)
+    /// - Returns: Detected plane, or nil if shape is not planar
+    public func findPlane(tolerance: Double = 1e-6) -> DetectedPlane? {
+        var nx = 0.0, ny = 0.0, nz = 0.0
+        var ox = 0.0, oy = 0.0, oz = 0.0
+        guard OCCTShapeFindPlane(handle, tolerance, &nx, &ny, &nz, &ox, &oy, &oz) else {
+            return nil
+        }
+        return DetectedPlane(normal: SIMD3(nx, ny, nz), origin: SIMD3(ox, oy, oz))
+    }
+
+    // MARK: - Closed Edge Splitting (v0.41.0)
+
+    /// Split closed (periodic) edges in the shape
+    ///
+    /// Periodic edges (like circles) can cause issues in some algorithms.
+    /// This splits each closed edge into segments.
+    /// - Parameter splitPoints: Number of split points per closed edge (default 1, doubles the edge count)
+    /// - Returns: Shape with closed edges split, or nil on failure
+    public func dividedClosedEdges(splitPoints: Int = 1) -> Shape? {
+        guard let h = OCCTShapeDivideClosedEdges(handle, Int32(splitPoints)) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - Geometry Conversion (v0.41.0)
+
+    /// Convert all surfaces to BSpline form
+    ///
+    /// Uses ShapeCustom::ConvertToBSpline to convert extrusion, revolution,
+    /// offset, and/or planar surfaces to BSpline representation.
+    /// - Parameters:
+    ///   - extrusion: Convert extrusion surfaces (default true)
+    ///   - revolution: Convert revolution surfaces (default true)
+    ///   - offset: Convert offset surfaces (default true)
+    ///   - plane: Convert planar surfaces (default false)
+    /// - Returns: Shape with surfaces converted, or nil on failure
+    public func withSurfacesAsBSpline(extrusion: Bool = true, revolution: Bool = true,
+                                       offset: Bool = true, plane: Bool = false) -> Shape? {
+        guard let h = OCCTShapeCustomConvertToBSpline(handle, extrusion, revolution, offset, plane) else {
+            return nil
+        }
+        return Shape(handle: h)
+    }
+
+    /// Convert surfaces to revolution form
+    ///
+    /// Uses ShapeCustom::ConvertToRevolution to convert surfaces that can be
+    /// represented as surfaces of revolution.
+    /// - Returns: Shape with surfaces converted, or nil on failure
+    public func withSurfacesAsRevolution() -> Shape? {
+        guard let h = OCCTShapeCustomConvertToRevolution(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - Face Restriction (v0.41.0)
+
+    /// Create restricted faces from a face and wire boundaries
+    ///
+    /// Uses BRepAlgo_FaceRestrictor to build faces on the underlying surface
+    /// of this shape's first face, bounded by the given wires.
+    /// - Parameter boundaries: Wire boundaries that define the restricted regions
+    /// - Returns: Array of restricted face shapes, or nil on failure
+    public func faceRestricted(by boundaries: [Wire]) -> [Shape]? {
+        let maxFaces: Int32 = 64
+        var wireHandles = boundaries.map { $0.handle as OCCTWireRef? }
+        var outFaces = [OCCTShapeRef?](repeating: nil, count: Int(maxFaces))
+
+        let count = wireHandles.withUnsafeMutableBufferPointer { wireBuf in
+            outFaces.withUnsafeMutableBufferPointer { faceBuf in
+                OCCTShapeFaceRestrict(handle, wireBuf.baseAddress, Int32(boundaries.count),
+                                       faceBuf.baseAddress, maxFaces)
+            }
+        }
+        guard count > 0 else { return nil }
+        return (0..<Int(count)).compactMap { i in
+            guard let ref = outFaces[i] else { return nil }
+            return Shape(handle: ref)
+        }
+    }
 }

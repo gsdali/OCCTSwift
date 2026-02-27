@@ -15684,3 +15684,154 @@ OCCTSurfaceRef OCCTShapeFindSurfaceEx(OCCTShapeRef shape, double tolerance,
         return nullptr;
     }
 }
+
+// MARK: - v0.41.0: Shape Surgery, Plane Detection, Geometry Conversion
+
+#include <BRepTools_ReShape.hxx>
+#include <BRepBuilderAPI_FindPlane.hxx>
+#include <Geom_Plane.hxx>
+#include <ShapeUpgrade_ShapeDivideClosedEdges.hxx>
+#include <ShapeCustom.hxx>
+#include <BRepAlgo_FaceRestrictor.hxx>
+
+OCCTShapeRef OCCTShapeRemoveSubShapes(OCCTShapeRef shape, OCCTShapeRef* subShapes, int32_t count) {
+    if (!shape || !subShapes || count <= 0) return nullptr;
+    try {
+        Handle(BRepTools_ReShape) reshaper = new BRepTools_ReShape();
+        for (int32_t i = 0; i < count; i++) {
+            if (subShapes[i]) {
+                reshaper->Remove(subShapes[i]->shape);
+            }
+        }
+        TopoDS_Shape result = reshaper->Apply(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeReplaceSubShapes(OCCTShapeRef shape,
+                                        OCCTShapeRef* oldShapes, OCCTShapeRef* newShapes,
+                                        int32_t count) {
+    if (!shape || !oldShapes || !newShapes || count <= 0) return nullptr;
+    try {
+        Handle(BRepTools_ReShape) reshaper = new BRepTools_ReShape();
+        for (int32_t i = 0; i < count; i++) {
+            if (oldShapes[i] && newShapes[i]) {
+                reshaper->Replace(oldShapes[i]->shape, newShapes[i]->shape);
+            }
+        }
+        TopoDS_Shape result = reshaper->Apply(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTShapeFindPlane(OCCTShapeRef shape, double tolerance,
+                         double* outNormalX, double* outNormalY, double* outNormalZ,
+                         double* outOriginX, double* outOriginY, double* outOriginZ) {
+    if (!shape || !outNormalX || !outNormalY || !outNormalZ ||
+        !outOriginX || !outOriginY || !outOriginZ) return false;
+    try {
+        BRepBuilderAPI_FindPlane finder(shape->shape, tolerance);
+        if (!finder.Found()) return false;
+
+        Handle(Geom_Plane) plane = finder.Plane();
+        if (plane.IsNull()) return false;
+
+        gp_Pln pln = plane->Pln();
+        gp_Dir norm = pln.Axis().Direction();
+        gp_Pnt loc = pln.Location();
+
+        *outNormalX = norm.X();
+        *outNormalY = norm.Y();
+        *outNormalZ = norm.Z();
+        *outOriginX = loc.X();
+        *outOriginY = loc.Y();
+        *outOriginZ = loc.Z();
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTShapeRef OCCTShapeDivideClosedEdges(OCCTShapeRef shape, int32_t nbSplitPoints) {
+    if (!shape || nbSplitPoints < 1) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideClosedEdges divider(shape->shape);
+        divider.SetNbSplitPoints(nbSplitPoints);
+        if (!divider.Perform()) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCustomConvertToBSpline(OCCTShapeRef shape,
+                                              bool extrusion, bool revolution,
+                                              bool offset, bool plane) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Shape result = ShapeCustom::ConvertToBSpline(
+            shape->shape, extrusion, revolution, offset, plane);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCustomConvertToRevolution(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Shape result = ShapeCustom::ConvertToRevolution(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTShapeFaceRestrict(OCCTShapeRef faceShape,
+                               OCCTWireRef* wires, int32_t wireCount,
+                               OCCTShapeRef* outFaces, int32_t maxFaces) {
+    if (!faceShape || !wires || wireCount <= 0 || !outFaces || maxFaces <= 0) return -1;
+    try {
+        // Get the face from the shape
+        TopoDS_Face face;
+        TopExp_Explorer exp(faceShape->shape, TopAbs_FACE);
+        if (exp.More()) {
+            face = TopoDS::Face(exp.Current());
+        } else {
+            return -1;
+        }
+
+        BRepAlgo_FaceRestrictor restrictor;
+        restrictor.Init(face, false, true);
+
+        for (int32_t i = 0; i < wireCount; i++) {
+            if (wires[i]) {
+                TopoDS_Wire w = wires[i]->wire;
+                restrictor.Add(w);
+            }
+        }
+        restrictor.Perform();
+        if (!restrictor.IsDone()) return -1;
+
+        int32_t count = 0;
+        for (; restrictor.More() && count < maxFaces; restrictor.Next()) {
+            TopoDS_Face resultFace = restrictor.Current();
+            outFaces[count] = new OCCTShape(resultFace);
+            count++;
+        }
+        return count;
+    } catch (...) {
+        return -1;
+    }
+}

@@ -11309,3 +11309,149 @@ struct FindSurfaceExTests {
         #expect(surface != nil)
     }
 }
+
+// MARK: - v0.41.0: Shape Surgery
+
+@Suite("Shape Surgery (ReShape)")
+struct ShapeSurgeryTests {
+    @Test("Remove shape from compound")
+    func removeFromCompound() {
+        let s1 = Shape.fromWire(Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!)!
+        let s2 = Shape.fromWire(Wire.line(from: SIMD3(0, 5, 0), to: SIMD3(10, 5, 0))!)!
+        let compound = Shape.compound([s1, s2])!
+        let result = compound.removingSubShapes([s1])
+        #expect(result != nil)
+    }
+
+    @Test("Replace shape in compound")
+    func replaceInCompound() {
+        let s1 = Shape.fromWire(Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!)!
+        let s2 = Shape.fromWire(Wire.line(from: SIMD3(0, 5, 0), to: SIMD3(10, 5, 0))!)!
+        let compound = Shape.compound([s1, s2])!
+        let result = compound.replacingSubShapes([(old: s1, new: s2)])
+        #expect(result != nil)
+    }
+}
+
+// MARK: - v0.41.0: Plane Detection
+
+@Suite("Plane Detection")
+struct PlaneDetectionTests {
+    @Test("Planar wire finds plane")
+    func planarWire() {
+        let wire = Wire.rectangle(width: 10, height: 10)!
+        let wireShape = Shape.fromWire(wire)!
+        let plane = wireShape.findPlane()
+        #expect(plane != nil)
+        if let plane {
+            // Rectangle in XY plane — normal should be along Z
+            #expect(abs(abs(plane.normal.z) - 1.0) < 0.01)
+        }
+    }
+
+    @Test("Non-planar 3D wire returns nil")
+    func nonPlanarWire() {
+        // Build a 3D wire with points not in a single plane
+        let e1 = Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let e2 = Wire.line(from: SIMD3(10, 0, 0), to: SIMD3(10, 10, 5))!
+        let e3 = Wire.line(from: SIMD3(10, 10, 5), to: SIMD3(0, 10, 10))!
+        let e4 = Wire.line(from: SIMD3(0, 10, 10), to: SIMD3(0, 0, 0))!
+        let joined = Wire.join([e1, e2, e3, e4])
+        #expect(joined != nil)
+        if let joined {
+            let wireShape = Shape.fromWire(joined)!
+            let plane = wireShape.findPlane()
+            #expect(plane == nil)
+        }
+    }
+
+    @Test("Face shape is planar")
+    func faceShapePlanar() {
+        // Create a face from a rectangle wire — the face shape should be planar
+        let face = Shape.face(from: Wire.rectangle(width: 10, height: 10)!)!
+        let plane = face.findPlane()
+        #expect(plane != nil)
+    }
+}
+
+// MARK: - v0.41.0: Closed Edge Splitting
+
+@Suite("Closed Edge Splitting")
+struct ClosedEdgeSplittingTests {
+    @Test("Cylinder closed edges are split")
+    func cylinderClosedEdges() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let edgesBefore = cyl.edges().count
+        let result = cyl.dividedClosedEdges()
+        #expect(result != nil)
+        if let result {
+            let edgesAfter = result.edges().count
+            // Should have more edges after splitting closed circular edges
+            #expect(edgesAfter > edgesBefore)
+        }
+    }
+
+    @Test("Box with no closed edges returns nil or same count")
+    func boxNoClosedEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.dividedClosedEdges()
+        // Box has no closed edges — Perform() may return false, yielding nil
+        if let result {
+            #expect(result.edges().count == box.edges().count)
+        }
+        // nil is also acceptable (no work to do)
+    }
+}
+
+// MARK: - v0.41.0: Geometry Conversion
+
+@Suite("ShapeCustom Geometry Conversion")
+struct GeometryConversionTests {
+    @Test("Convert cylinder to BSpline surfaces")
+    func cylinderToBSpline() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let result = cyl.withSurfacesAsBSpline()
+        #expect(result != nil)
+        if let result {
+            #expect(result.isValid)
+            #expect(result.faces().count == cyl.faces().count)
+        }
+    }
+
+    @Test("Convert to revolution surfaces")
+    func toRevolution() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let result = cyl.withSurfacesAsRevolution()
+        #expect(result != nil)
+        if let result {
+            #expect(result.isValid)
+        }
+    }
+
+    @Test("BSpline conversion preserves volume")
+    func bsplinePreservesVolume() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let volBefore = cyl.volume!
+        let result = cyl.withSurfacesAsBSpline()!
+        let volAfter = result.volume!
+        // Volume should be approximately preserved
+        #expect(abs(volBefore - volAfter) / volBefore < 0.01)
+    }
+}
+
+// MARK: - v0.41.0: Face Restriction
+
+@Suite("Face Restriction")
+struct FaceRestrictionTests {
+    @Test("Restrict face with outer wire")
+    func restrictWithOuterWire() {
+        let face = Shape.face(from: Wire.rectangle(width: 20, height: 20)!)!
+        let outer = Wire.rectangle(width: 20, height: 20)!
+        let inner = Wire.rectangle(width: 10, height: 10)!
+        let result = face.faceRestricted(by: [outer, inner])
+        #expect(result != nil)
+        if let result {
+            #expect(result.count >= 1)
+        }
+    }
+}

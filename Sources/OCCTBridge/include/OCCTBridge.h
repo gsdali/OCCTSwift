@@ -4077,6 +4077,68 @@ int32_t OCCTCurve3DBSplineKnotSplits(OCCTCurve3DRef curve3D, int32_t continuityO
 OCCTSurfaceRef OCCTShapeFindSurfaceEx(OCCTShapeRef shape, double tolerance,
                                        bool onlyPlane, bool* outFound);
 
+// MARK: - v0.41.0: Shape Surgery, Plane Detection, Geometry Conversion
+
+/// Remove sub-shapes from a shape using BRepTools_ReShape
+/// @param shape Base shape
+/// @param subShapes Array of sub-shape handles to remove
+/// @param count Number of sub-shapes to remove
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef OCCTShapeRemoveSubShapes(OCCTShapeRef shape, OCCTShapeRef* subShapes, int32_t count);
+
+/// Replace sub-shapes in a shape using BRepTools_ReShape
+/// @param shape Base shape
+/// @param oldShapes Array of old sub-shapes
+/// @param newShapes Array of new sub-shapes (must match oldShapes count)
+/// @param count Number of replacements
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef OCCTShapeReplaceSubShapes(OCCTShapeRef shape,
+                                        OCCTShapeRef* oldShapes, OCCTShapeRef* newShapes,
+                                        int32_t count);
+
+/// Find if a shape's edges lie in a plane
+/// @param shape Shape to analyze
+/// @param tolerance Tolerance for planarity check
+/// @param outNormalX/Y/Z Plane normal (set if found)
+/// @param outOriginX/Y/Z Plane origin (set if found)
+/// @return true if a plane was found
+bool OCCTShapeFindPlane(OCCTShapeRef shape, double tolerance,
+                         double* outNormalX, double* outNormalY, double* outNormalZ,
+                         double* outOriginX, double* outOriginY, double* outOriginZ);
+
+/// Split closed (periodic) edges in a shape
+/// @param shape Shape containing closed edges
+/// @param nbSplitPoints Number of split points per closed edge (default 1)
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef OCCTShapeDivideClosedEdges(OCCTShapeRef shape, int32_t nbSplitPoints);
+
+/// Convert all surfaces in a shape to BSpline form
+/// @param shape Shape to convert
+/// @param extrusion Convert extrusion surfaces
+/// @param revolution Convert revolution surfaces
+/// @param offset Convert offset surfaces
+/// @param plane Convert planar surfaces
+/// @return Converted shape, or NULL on failure
+OCCTShapeRef OCCTShapeCustomConvertToBSpline(OCCTShapeRef shape,
+                                              bool extrusion, bool revolution,
+                                              bool offset, bool plane);
+
+/// Convert surfaces in a shape to revolution form
+/// @param shape Shape to convert
+/// @return Converted shape, or NULL on failure
+OCCTShapeRef OCCTShapeCustomConvertToRevolution(OCCTShapeRef shape);
+
+/// Build restricted faces from a surface and wire boundaries
+/// @param faceShape Face providing the underlying surface
+/// @param wires Array of wire handles for boundaries
+/// @param wireCount Number of wires
+/// @param outFaces Pre-allocated array for result faces
+/// @param maxFaces Maximum faces to return
+/// @return Number of faces created, or -1 on failure
+int32_t OCCTShapeFaceRestrict(OCCTShapeRef faceShape,
+                               OCCTWireRef* wires, int32_t wireCount,
+                               OCCTShapeRef* outFaces, int32_t maxFaces);
+
 #ifdef __cplusplus
 }
 #endif
