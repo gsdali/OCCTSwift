@@ -4214,4 +4214,126 @@ extension Shape {
             return Shape(handle: ref)
         }
     }
+
+    // MARK: - v0.42.0: Solid Construction, 2D Fillet/Chamfer, Point Cloud Analysis
+
+    /// Create a solid from one or more shell shapes.
+    ///
+    /// Uses BRepBuilderAPI_MakeSolid to construct a solid from shells extracted from
+    /// the given shapes. The first shape provides the outer shell, and additional shapes
+    /// provide cavity (inner) shells.
+    ///
+    /// - Parameter shells: Array of shapes containing shells (first = outer, rest = cavities)
+    /// - Returns: Solid shape, or nil on failure
+    public static func solidFromShells(_ shells: [Shape]) -> Shape? {
+        guard !shells.isEmpty else { return nil }
+        var handles = shells.map { $0.handle as OCCTShapeRef? }
+        let result = handles.withUnsafeMutableBufferPointer { buffer in
+            OCCTSolidFromShells(buffer.baseAddress, Int32(shells.count))
+        }
+        guard let result = result else { return nil }
+        return Shape(handle: result)
+    }
+
+    /// Apply 2D fillets (rounded corners) to a planar face at specified vertices.
+    ///
+    /// Uses BRepFilletAPI_MakeFillet2d to round corners of a planar face.
+    /// Vertex indices are 0-based and correspond to the topological vertex order.
+    ///
+    /// - Parameters:
+    ///   - vertexIndices: 0-based indices of vertices to fillet
+    ///   - radii: Fillet radius for each vertex (must match vertexIndices count)
+    /// - Returns: Modified shape with fillets, or nil on failure
+    public func fillet2D(vertexIndices: [Int], radii: [Double]) -> Shape? {
+        guard !vertexIndices.isEmpty, vertexIndices.count == radii.count else { return nil }
+        let indices = vertexIndices.map { Int32($0) }
+        let result = indices.withUnsafeBufferPointer { idxBuf in
+            radii.withUnsafeBufferPointer { radBuf in
+                OCCTFace2DFillet(handle, idxBuf.baseAddress, radBuf.baseAddress, Int32(vertexIndices.count))
+            }
+        }
+        guard let result = result else { return nil }
+        return Shape(handle: result)
+    }
+
+    /// Apply 2D chamfers (angled cuts) to a planar face between adjacent edge pairs.
+    ///
+    /// Uses BRepFilletAPI_MakeFillet2d to add chamfers at the intersection of
+    /// adjacent edges. Edge indices are 0-based and correspond to the topological edge order.
+    ///
+    /// - Parameters:
+    ///   - edgePairs: Array of (edge1Index, edge2Index) pairs identifying adjacent edges
+    ///   - distances: Chamfer distance for each edge pair
+    /// - Returns: Modified shape with chamfers, or nil on failure
+    public func chamfer2D(edgePairs: [(Int, Int)], distances: [Double]) -> Shape? {
+        guard !edgePairs.isEmpty, edgePairs.count == distances.count else { return nil }
+        let edge1Indices = edgePairs.map { Int32($0.0) }
+        let edge2Indices = edgePairs.map { Int32($0.1) }
+        let result = edge1Indices.withUnsafeBufferPointer { e1Buf in
+            edge2Indices.withUnsafeBufferPointer { e2Buf in
+                distances.withUnsafeBufferPointer { distBuf in
+                    OCCTFace2DChamfer(handle, e1Buf.baseAddress, e2Buf.baseAddress,
+                                       distBuf.baseAddress, Int32(edgePairs.count))
+                }
+            }
+        }
+        guard let result = result else { return nil }
+        return Shape(handle: result)
+    }
+
+    /// Result of point cloud geometry analysis.
+    public enum PointCloudGeometry {
+        /// All points are coincident (within tolerance)
+        case point(SIMD3<Double>)
+        /// Points are collinear — fit a line
+        case linear(origin: SIMD3<Double>, direction: SIMD3<Double>)
+        /// Points are coplanar — fit a plane
+        case planar(origin: SIMD3<Double>, normal: SIMD3<Double>)
+        /// Points are dispersed in 3D space
+        case space
+    }
+
+    /// Analyze a set of 3D points to determine their geometric arrangement.
+    ///
+    /// Uses GProp_PEquation to classify points as coincident, collinear, coplanar,
+    /// or dispersed in 3D space. Useful for determining degeneracy of point sets
+    /// before constructing geometry.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points (minimum 1)
+    ///   - tolerance: Tolerance for classification
+    /// - Returns: Classification result, or nil on failure
+    public static func analyzePointCloud(_ points: [SIMD3<Double>], tolerance: Double = 1e-6) -> PointCloudGeometry? {
+        guard !points.isEmpty else { return nil }
+        var coords: [Double] = []
+        coords.reserveCapacity(points.count * 3)
+        for p in points {
+            coords.append(p.x)
+            coords.append(p.y)
+            coords.append(p.z)
+        }
+        var result = OCCTPointCloudGeometry()
+        let ok = coords.withUnsafeBufferPointer { buffer in
+            OCCTAnalyzePointCloud(buffer.baseAddress, Int32(points.count), tolerance, &result)
+        }
+        guard ok else { return nil }
+        switch result.type {
+        case 0:
+            return .point(SIMD3(result.pointX, result.pointY, result.pointZ))
+        case 1:
+            return .linear(
+                origin: SIMD3(result.pointX, result.pointY, result.pointZ),
+                direction: SIMD3(result.dirX, result.dirY, result.dirZ)
+            )
+        case 2:
+            return .planar(
+                origin: SIMD3(result.pointX, result.pointY, result.pointZ),
+                normal: SIMD3(result.normalX, result.normalY, result.normalZ)
+            )
+        case 3:
+            return .space
+        default:
+            return nil
+        }
+    }
 }

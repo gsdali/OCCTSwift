@@ -11455,3 +11455,231 @@ struct FaceRestrictionTests {
         }
     }
 }
+
+// MARK: - v0.42.0: Solid Construction
+
+@Suite("Solid Construction")
+struct SolidConstructionTests {
+    @Test("Solid from single box shell")
+    func solidFromSingleShell() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let solid = Shape.solidFromShells([box])
+        #expect(solid != nil)
+        if let solid {
+            #expect(solid.isValid)
+            // Volume should match the box volume
+            let vol = solid.volume!
+            #expect(abs(vol - 1000.0) < 1.0)
+        }
+    }
+
+    @Test("Solid from two box shells (outer + cavity)")
+    func solidFromTwoShells() {
+        let outer = Shape.box(width: 20, height: 20, depth: 20)!
+        let inner = Shape.box(width: 10, height: 10, depth: 10)!
+        let solid = Shape.solidFromShells([outer, inner])
+        #expect(solid != nil)
+        // The solid should be created (two shells combined)
+    }
+
+    @Test("Solid from empty array returns nil")
+    func solidFromEmptyReturnsNil() {
+        let solid = Shape.solidFromShells([])
+        #expect(solid == nil)
+    }
+}
+
+// MARK: - v0.42.0: Fast 3D Polygon
+
+@Suite("Fast 3D Polygon")
+struct Fast3DPolygonTests {
+    @Test("Closed square polygon")
+    func closedSquare() {
+        let wire = Wire.polygon3D([
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+            SIMD3(10, 10, 0), SIMD3(0, 10, 0)
+        ], closed: true)
+        #expect(wire != nil)
+        if let wire {
+            #expect(wire.orderedEdgeCount == 4)
+        }
+    }
+
+    @Test("Open triangle polygon")
+    func openTriangle() {
+        let wire = Wire.polygon3D([
+            SIMD3(0, 0, 0), SIMD3(5, 0, 3), SIMD3(10, 5, 6)
+        ], closed: false)
+        #expect(wire != nil)
+        if let wire {
+            #expect(wire.orderedEdgeCount == 2)
+        }
+    }
+
+    @Test("3D polygon wire (non-planar)")
+    func nonPlanarPolygon() {
+        let wire = Wire.polygon3D([
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+            SIMD3(10, 10, 5), SIMD3(0, 10, 10)
+        ], closed: true)
+        #expect(wire != nil)
+        if let wire {
+            #expect(wire.orderedEdgeCount == 4)
+        }
+    }
+
+    @Test("Minimum points (2) makes a single edge")
+    func twoPointPolygon() {
+        let wire = Wire.polygon3D([
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0)
+        ], closed: false)
+        #expect(wire != nil)
+        if let wire {
+            #expect(wire.orderedEdgeCount == 1)
+        }
+    }
+
+    @Test("Single point returns nil")
+    func singlePointReturnsNil() {
+        let wire = Wire.polygon3D([SIMD3(0, 0, 0)])
+        #expect(wire == nil)
+    }
+}
+
+// MARK: - v0.42.0: 2D Fillet/Chamfer
+
+@Suite("2D Fillet and Chamfer")
+struct Fillet2DTests {
+    @Test("Fillet single vertex of rectangular face")
+    func filletSingleVertex() {
+        let face = Shape.face(from: Wire.rectangle(width: 20, height: 20)!)!
+        let result = face.fillet2D(vertexIndices: [0], radii: [3.0])
+        #expect(result != nil)
+        if let result {
+            // Original rectangle has 4 edges, fillet adds 1 arc replacing corner
+            let edges = result.edgeCount
+            #expect(edges == 5)
+        }
+    }
+
+    @Test("Fillet multiple vertices")
+    func filletMultipleVertices() {
+        let face = Shape.face(from: Wire.rectangle(width: 20, height: 20)!)!
+        let result = face.fillet2D(vertexIndices: [0, 1, 2, 3], radii: [2.0, 2.0, 2.0, 2.0])
+        #expect(result != nil)
+        if let result {
+            // 4 original edges + 4 fillet arcs = 8 edges
+            let edges = result.edgeCount
+            #expect(edges == 8)
+        }
+    }
+
+    @Test("Fillet with zero count returns nil")
+    func filletEmptyReturnsNil() {
+        let face = Shape.face(from: Wire.rectangle(width: 20, height: 20)!)!
+        let result = face.fillet2D(vertexIndices: [], radii: [])
+        #expect(result == nil)
+    }
+
+    @Test("Chamfer between adjacent edges")
+    func chamferAdjacentEdges() {
+        let face = Shape.face(from: Wire.rectangle(width: 20, height: 20)!)!
+        let result = face.chamfer2D(edgePairs: [(0, 1)], distances: [2.0])
+        #expect(result != nil)
+        if let result {
+            // 4 edges + 1 chamfer = 5 edges
+            let edges = result.edgeCount
+            #expect(edges == 5)
+        }
+    }
+
+    @Test("Chamfer mismatched arrays returns nil")
+    func chamferMismatchedReturnsNil() {
+        let face = Shape.face(from: Wire.rectangle(width: 20, height: 20)!)!
+        let result = face.chamfer2D(edgePairs: [(0, 1)], distances: [])
+        #expect(result == nil)
+    }
+}
+
+// MARK: - v0.42.0: Point Cloud Analysis
+
+@Suite("Point Cloud Analysis")
+struct PointCloudAnalysisTests {
+    @Test("Coincident points detected as point")
+    func coincidentPoints() {
+        let result = Shape.analyzePointCloud([
+            SIMD3(5, 5, 5), SIMD3(5, 5, 5), SIMD3(5, 5, 5)
+        ])
+        #expect(result != nil)
+        if case .point(let pt) = result {
+            #expect(abs(pt.x - 5.0) < 0.1)
+            #expect(abs(pt.y - 5.0) < 0.1)
+            #expect(abs(pt.z - 5.0) < 0.1)
+        } else {
+            #expect(Bool(false), "Expected .point")
+        }
+    }
+
+    @Test("Collinear points detected as linear")
+    func collinearPoints() {
+        let result = Shape.analyzePointCloud([
+            SIMD3(0, 0, 0), SIMD3(5, 0, 0), SIMD3(10, 0, 0)
+        ])
+        #expect(result != nil)
+        if case .linear(let origin, let dir) = result {
+            // Direction should be along X axis
+            #expect(abs(abs(dir.x) - 1.0) < 0.01)
+            #expect(abs(dir.y) < 0.01)
+            #expect(abs(dir.z) < 0.01)
+            _ = origin // used
+        } else {
+            #expect(Bool(false), "Expected .linear")
+        }
+    }
+
+    @Test("Coplanar points detected as planar")
+    func coplanarPoints() {
+        let result = Shape.analyzePointCloud([
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+            SIMD3(10, 10, 0), SIMD3(0, 10, 0)
+        ])
+        #expect(result != nil)
+        if case .planar(_, let normal) = result {
+            // Normal should be along Z axis
+            #expect(abs(abs(normal.z) - 1.0) < 0.01)
+        } else {
+            #expect(Bool(false), "Expected .planar")
+        }
+    }
+
+    @Test("3D dispersed points detected as space")
+    func spacePoints() {
+        let result = Shape.analyzePointCloud([
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+            SIMD3(0, 10, 0), SIMD3(0, 0, 10)
+        ])
+        #expect(result != nil)
+        if case .space = result {
+            // Good — points in 3D space
+        } else {
+            #expect(Bool(false), "Expected .space")
+        }
+    }
+
+    @Test("Empty points returns nil")
+    func emptyReturnsNil() {
+        let result = Shape.analyzePointCloud([])
+        #expect(result == nil)
+    }
+
+    @Test("Single point detected as point")
+    func singlePoint() {
+        let result = Shape.analyzePointCloud([SIMD3(3, 4, 5)])
+        #expect(result != nil)
+        if case .point(let pt) = result {
+            #expect(abs(pt.x - 3.0) < 0.1)
+        } else {
+            #expect(Bool(false), "Expected .point")
+        }
+    }
+}

@@ -4139,6 +4139,58 @@ int32_t OCCTShapeFaceRestrict(OCCTShapeRef faceShape,
                                OCCTWireRef* wires, int32_t wireCount,
                                OCCTShapeRef* outFaces, int32_t maxFaces);
 
+// MARK: - v0.42.0: Solid Construction, Fast Polygon, 2D Fillet, Point Cloud Analysis
+
+/// Create a solid from one or more shell shapes
+/// @param shells Array of shell shapes (first is outer, rest are cavities)
+/// @param count Number of shells
+/// @return Solid shape, or NULL on failure
+OCCTShapeRef OCCTSolidFromShells(OCCTShapeRef* shells, int32_t count);
+
+/// Create a polygon wire from 3D points (fast, rectilinear edges)
+/// @param coords Flat array of x,y,z coordinates
+/// @param pointCount Number of points
+/// @param closed Whether to close the polygon
+/// @return Wire handle, or NULL on failure
+OCCTWireRef OCCTWireCreateFastPolygon(const double* coords, int32_t pointCount, bool closed);
+
+/// Add a 2D fillet to a planar face at specified vertex indices
+/// @param shape Face shape to fillet
+/// @param vertexIndices Array of 0-based vertex indices
+/// @param radii Array of fillet radii (one per vertex)
+/// @param count Number of fillets to add
+/// @return Filleted face shape, or NULL on failure
+OCCTShapeRef OCCTFace2DFillet(OCCTShapeRef shape, const int32_t* vertexIndices,
+                               const double* radii, int32_t count);
+
+/// Add a 2D chamfer to a planar face between adjacent edges
+/// @param shape Face shape to chamfer
+/// @param edge1Indices Array of first edge indices (0-based)
+/// @param edge2Indices Array of second edge indices (0-based)
+/// @param distances Array of chamfer distances
+/// @param count Number of chamfers to add
+/// @return Chamfered face shape, or NULL on failure
+OCCTShapeRef OCCTFace2DChamfer(OCCTShapeRef shape,
+                                const int32_t* edge1Indices, const int32_t* edge2Indices,
+                                const double* distances, int32_t count);
+
+/// Point cloud geometry analysis result
+typedef struct {
+    int32_t type; // 0=point, 1=linear, 2=planar, 3=space
+    double pointX, pointY, pointZ;        // Mean/centroid point
+    double dirX, dirY, dirZ;              // Line direction (if linear)
+    double normalX, normalY, normalZ;     // Plane normal (if planar)
+} OCCTPointCloudGeometry;
+
+/// Analyze a point cloud to determine if points are coincident, collinear, coplanar, or 3D
+/// @param coords Flat array of x,y,z coordinates
+/// @param pointCount Number of points
+/// @param tolerance Tolerance for degeneracy detection
+/// @param outResult Result structure
+/// @return true on success
+bool OCCTAnalyzePointCloud(const double* coords, int32_t pointCount,
+                            double tolerance, OCCTPointCloudGeometry* outResult);
+
 #ifdef __cplusplus
 }
 #endif

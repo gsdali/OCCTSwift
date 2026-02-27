@@ -127,6 +127,31 @@ public final class Wire: @unchecked Sendable {
         return Wire(handle: handle)
     }
 
+    /// Create a polygon wire from 3D points with straight-line edges.
+    ///
+    /// Uses BRepBuilderAPI_MakePolygon for fast construction of rectilinear polygon wires
+    /// in 3D space. For 2D polygons, use ``polygon(_:closed:)`` instead.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points (minimum 2)
+    ///   - closed: Whether to close the polygon by adding an edge from last to first point
+    /// - Returns: Wire shape, or nil if the operation fails
+    public static func polygon3D(_ points: [SIMD3<Double>], closed: Bool = true) -> Wire? {
+        guard points.count >= 2 else { return nil }
+        var coords: [Double] = []
+        coords.reserveCapacity(points.count * 3)
+        for p in points {
+            coords.append(p.x)
+            coords.append(p.y)
+            coords.append(p.z)
+        }
+        let handle = coords.withUnsafeBufferPointer { buffer in
+            OCCTWireCreateFastPolygon(buffer.baseAddress, Int32(points.count), closed)
+        }
+        guard let handle = handle else { return nil }
+        return Wire(handle: handle)
+    }
+
     // MARK: - 3D Paths (for Pipe Sweep)
 
     /// Create a straight line segment in 3D space.
