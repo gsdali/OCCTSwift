@@ -4206,6 +4206,59 @@ int32_t OCCTShapeGetSubShapeCount(OCCTShapeRef shape, int32_t type);
 /// @return Sub-shape as OCCTShapeRef, or NULL if out of range
 OCCTShapeRef OCCTShapeGetSubShapeByTypeIndex(OCCTShapeRef shape, int32_t type, int32_t index);
 
+// MARK: - v0.43.0: Face Subdivision, Small Face Detection, BSpline Fill, Location Purge
+
+/// Subdivide faces of a shape whose area exceeds a maximum threshold
+/// @param shape Input shape
+/// @param maxArea Maximum face area (faces larger than this get split)
+/// @return Subdivided shape, or NULL on failure
+OCCTShapeRef OCCTShapeDivideByArea(OCCTShapeRef shape, double maxArea);
+
+/// Subdivide faces into a target number of parts per face
+/// @param shape Input shape
+/// @param nbParts Target number of parts per face
+/// @return Subdivided shape, or NULL on failure
+OCCTShapeRef OCCTShapeDivideByParts(OCCTShapeRef shape, int32_t nbParts);
+
+/// Small face analysis result for a single face
+typedef struct {
+    bool isSpotFace;      // Face collapsed to a point
+    bool isStripFace;     // Face has negligible width
+    bool isTwisted;       // Face is twisted
+    double spotX, spotY, spotZ;   // Spot face location (if isSpotFace)
+} OCCTSmallFaceResult;
+
+/// Check a shape's faces for small/degenerate conditions
+/// @param shape Shape to analyze
+/// @param tolerance Analysis tolerance
+/// @param outResults Array to receive per-face results
+/// @param maxResults Maximum number of results
+/// @return Number of degenerate faces found (results written to outResults)
+int32_t OCCTShapeCheckSmallFaces(OCCTShapeRef shape, double tolerance,
+                                  OCCTSmallFaceResult* outResults, int32_t maxResults);
+
+/// Create a BSpline surface from 2 boundary curves (Stretch/Coons/Curved fill)
+/// @param curve1 First boundary curve (OCCTCurve3DRef)
+/// @param curve2 Second boundary curve
+/// @param fillStyle 0=Stretch, 1=Coons, 2=Curved
+/// @return Surface handle, or NULL on failure
+OCCTSurfaceRef OCCTSurfaceFillBSpline2Curves(OCCTCurve3DRef curve1, OCCTCurve3DRef curve2,
+                                               int32_t fillStyle);
+
+/// Create a BSpline surface from 4 boundary curves
+/// @param c1,c2,c3,c4 Boundary curves in order
+/// @param fillStyle 0=Stretch, 1=Coons, 2=Curved
+/// @return Surface handle, or NULL on failure
+OCCTSurfaceRef OCCTSurfaceFillBSpline4Curves(OCCTCurve3DRef c1, OCCTCurve3DRef c2,
+                                               OCCTCurve3DRef c3, OCCTCurve3DRef c4,
+                                               int32_t fillStyle);
+
+/// Purge problematic location datums from a shape
+/// Removes negative-scale and non-unit-scale transforms from sub-shapes
+/// @param shape Input shape
+/// @return Purged shape, or NULL if nothing to purge
+OCCTShapeRef OCCTShapePurgeLocations(OCCTShapeRef shape);
+
 #ifdef __cplusplus
 }
 #endif

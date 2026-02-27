@@ -16018,3 +16018,165 @@ OCCTShapeRef OCCTShapeGetSubShapeByTypeIndex(OCCTShapeRef shape, int32_t type, i
         return nullptr;
     }
 }
+
+// MARK: - v0.43.0: Face Subdivision, Small Face Detection, BSpline Fill, Location Purge
+
+#include <ShapeUpgrade_ShapeDivideArea.hxx>
+#include <ShapeAnalysis_CheckSmallFace.hxx>
+#include <GeomFill_BSplineCurves.hxx>
+#include <GeomFill_FillingStyle.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <GeomConvert.hxx>
+#include <BRepTools_PurgeLocations.hxx>
+
+OCCTShapeRef OCCTShapeDivideByArea(OCCTShapeRef shape, double maxArea) {
+    if (!shape || maxArea <= 0) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideArea divider(shape->shape);
+        divider.MaxArea() = maxArea;
+        divider.Perform();
+        // Result() is valid even when Perform returns false (nothing to split)
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeDivideByParts(OCCTShapeRef shape, int32_t nbParts) {
+    if (!shape || nbParts <= 0) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideArea divider(shape->shape);
+        divider.SetSplittingByNumber(true);
+        divider.NbParts() = nbParts;
+        if (!divider.Perform()) return nullptr;
+        return new OCCTShape(divider.Result());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTShapeCheckSmallFaces(OCCTShapeRef shape, double tolerance,
+                                  OCCTSmallFaceResult* outResults, int32_t maxResults) {
+    if (!shape || !outResults || maxResults <= 0) return 0;
+    try {
+        ShapeAnalysis_CheckSmallFace checker;
+        int32_t found = 0;
+
+        TopExp_Explorer exp(shape->shape, TopAbs_FACE);
+        int32_t faceIdx = 0;
+        while (exp.More() && found < maxResults) {
+            TopoDS_Face face = TopoDS::Face(exp.Current());
+            OCCTSmallFaceResult& r = outResults[found];
+            r.isSpotFace = false;
+            r.isStripFace = false;
+            r.isTwisted = false;
+            r.spotX = r.spotY = r.spotZ = 0;
+
+            bool isDegenerate = false;
+
+            // Check spot face
+            gp_Pnt spot;
+            double spotTol;
+            int spotResult = checker.IsSpotFace(face, spot, spotTol, tolerance);
+            if (spotResult != 0) {
+                r.isSpotFace = true;
+                r.spotX = spot.X();
+                r.spotY = spot.Y();
+                r.spotZ = spot.Z();
+                isDegenerate = true;
+            }
+
+            // Check strip face
+            if (checker.IsStripSupport(face, tolerance)) {
+                r.isStripFace = true;
+                isDegenerate = true;
+            }
+
+            // Check twisted
+            double paramu, paramv;
+            if (checker.CheckTwisted(face, paramu, paramv)) {
+                r.isTwisted = true;
+                isDegenerate = true;
+            }
+
+            if (isDegenerate) found++;
+            exp.Next();
+            faceIdx++;
+        }
+        return found;
+    } catch (...) {
+        return 0;
+    }
+}
+
+static Handle(Geom_BSplineCurve) toBSplineCurve(const Handle(Geom_Curve)& curve) {
+    Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve);
+    if (!bsc.IsNull()) {
+        // Re-convert to ensure consistent parameterization
+        return GeomConvert::CurveToBSplineCurve(curve, Convert_QuasiAngular);
+    }
+    // Convert any Geom_Curve to BSpline
+    return GeomConvert::CurveToBSplineCurve(curve, Convert_QuasiAngular);
+}
+
+OCCTSurfaceRef OCCTSurfaceFillBSpline2Curves(OCCTCurve3DRef curve1, OCCTCurve3DRef curve2,
+                                               int32_t fillStyle) {
+    if (!curve1 || !curve2) return nullptr;
+    try {
+        Handle(Geom_BSplineCurve) c1 = toBSplineCurve(curve1->curve);
+        Handle(Geom_BSplineCurve) c2 = toBSplineCurve(curve2->curve);
+        if (c1.IsNull() || c2.IsNull()) return nullptr;
+
+        GeomFill_FillingStyle style = GeomFill_StretchStyle;
+        if (fillStyle == 1) style = GeomFill_CoonsStyle;
+        else if (fillStyle == 2) style = GeomFill_CurvedStyle;
+
+        GeomFill_BSplineCurves filler(c1, c2, style);
+        Handle(Geom_BSplineSurface) surf = filler.Surface();
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceFillBSpline4Curves(OCCTCurve3DRef c1, OCCTCurve3DRef c2,
+                                               OCCTCurve3DRef c3, OCCTCurve3DRef c4,
+                                               int32_t fillStyle) {
+    if (!c1 || !c2 || !c3 || !c4) return nullptr;
+    try {
+        Handle(Geom_BSplineCurve) bc1 = toBSplineCurve(c1->curve);
+        Handle(Geom_BSplineCurve) bc2 = toBSplineCurve(c2->curve);
+        Handle(Geom_BSplineCurve) bc3 = toBSplineCurve(c3->curve);
+        Handle(Geom_BSplineCurve) bc4 = toBSplineCurve(c4->curve);
+        if (bc1.IsNull() || bc2.IsNull() || bc3.IsNull() || bc4.IsNull()) return nullptr;
+
+        GeomFill_FillingStyle style = GeomFill_StretchStyle;
+        if (fillStyle == 1) style = GeomFill_CoonsStyle;
+        else if (fillStyle == 2) style = GeomFill_CurvedStyle;
+
+        GeomFill_BSplineCurves filler(bc1, bc2, bc3, bc4, style);
+        Handle(Geom_BSplineSurface) surf = filler.Surface();
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapePurgeLocations(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        BRepTools_PurgeLocations purger;
+        purger.Perform(shape->shape);
+        if (purger.IsDone()) {
+            return new OCCTShape(purger.GetResult());
+        }
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}

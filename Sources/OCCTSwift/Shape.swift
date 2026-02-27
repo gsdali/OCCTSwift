@@ -4371,4 +4371,76 @@ extension Shape {
             return nil
         }
     }
+
+    // MARK: - v0.43.0: Face Subdivision, Small Face Detection, Location Purge
+
+    /// Subdivide faces whose area exceeds a maximum threshold.
+    ///
+    /// Uses ShapeUpgrade_ShapeDivideArea to split faces larger than the specified area.
+    /// Useful for mesh quality control and FEA preprocessing.
+    ///
+    /// - Parameter maxArea: Maximum face area — faces larger than this are split
+    /// - Returns: Shape with subdivided faces, or nil on failure
+    public func dividedByArea(maxArea: Double) -> Shape? {
+        guard let ref = OCCTShapeDivideByArea(handle, maxArea) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Subdivide faces into a target number of parts.
+    ///
+    /// Uses ShapeUpgrade_ShapeDivideArea in splitting-by-number mode.
+    ///
+    /// - Parameter parts: Target number of parts per face
+    /// - Returns: Shape with subdivided faces, or nil on failure
+    public func dividedByParts(_ parts: Int) -> Shape? {
+        guard let ref = OCCTShapeDivideByParts(handle, Int32(parts)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Result of small/degenerate face analysis.
+    public struct SmallFaceInfo: Sendable {
+        /// Whether the face is collapsed to a point
+        public let isSpotFace: Bool
+        /// Whether the face has negligible width
+        public let isStripFace: Bool
+        /// Whether the face is twisted
+        public let isTwisted: Bool
+        /// Location of spot face (if isSpotFace is true)
+        public let spotLocation: SIMD3<Double>?
+    }
+
+    /// Check faces for degenerate conditions (spot, strip, twisted).
+    ///
+    /// Uses ShapeAnalysis_CheckSmallFace to analyze each face of the shape.
+    /// Returns only faces that have at least one degenerate condition.
+    ///
+    /// - Parameter tolerance: Analysis tolerance (default 1e-6)
+    /// - Returns: Array of degenerate face descriptions, empty if none found
+    public func checkSmallFaces(tolerance: Double = 1e-6) -> [SmallFaceInfo] {
+        let maxResults: Int32 = 256
+        var results = [OCCTSmallFaceResult](repeating: OCCTSmallFaceResult(), count: Int(maxResults))
+        let count = results.withUnsafeMutableBufferPointer { buffer in
+            OCCTShapeCheckSmallFaces(handle, tolerance, buffer.baseAddress, maxResults)
+        }
+        return (0..<Int(count)).map { i in
+            let r = results[i]
+            return SmallFaceInfo(
+                isSpotFace: r.isSpotFace,
+                isStripFace: r.isStripFace,
+                isTwisted: r.isTwisted,
+                spotLocation: r.isSpotFace ? SIMD3(r.spotX, r.spotY, r.spotZ) : nil
+            )
+        }
+    }
+
+    /// Purge problematic location datums from the shape.
+    ///
+    /// Removes negative-scale and non-unit-scale transforms from the shape and all
+    /// sub-shapes. Useful for cleaning imported geometry from STEP/IGES files.
+    ///
+    /// - Returns: Cleaned shape, or nil if purge was unnecessary or failed
+    public var purgedLocations: Shape? {
+        guard let ref = OCCTShapePurgeLocations(handle) else { return nil }
+        return Shape(handle: ref)
+    }
 }

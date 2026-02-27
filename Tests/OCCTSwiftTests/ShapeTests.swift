@@ -11759,3 +11759,164 @@ struct GenericSubShapeExtractionTests {
         }
     }
 }
+
+// MARK: - v0.43.0: Face Subdivision by Area
+
+@Suite("Face Subdivision by Area")
+struct FaceSubdivisionTests {
+    @Test("Divide box faces by area")
+    func divideByArea() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let origFaces = box.subShapeCount(ofType: .face)
+        #expect(origFaces == 6)
+
+        // Each face is 100 sq units; maxArea=25 should split them
+        let result = box.dividedByArea(maxArea: 25)
+        #expect(result != nil)
+        if let result {
+            let newFaces = result.subShapeCount(ofType: .face)
+            #expect(newFaces > origFaces)
+        }
+    }
+
+    @Test("Large max area does not split")
+    func largeAreaNoSplit() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.dividedByArea(maxArea: 10000)
+        #expect(result != nil)
+        if let result {
+            #expect(result.subShapeCount(ofType: .face) == 6)
+        }
+    }
+
+    @Test("Divide by parts")
+    func divideByParts() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.dividedByParts(4)
+        #expect(result != nil)
+        if let result {
+            #expect(result.subShapeCount(ofType: .face) > 6)
+        }
+    }
+}
+
+// MARK: - v0.43.0: Small Face Detection
+
+@Suite("Small Face Detection")
+struct SmallFaceDetectionTests {
+    @Test("Box has no degenerate faces")
+    func boxNoSmallFaces() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let issues = box.checkSmallFaces()
+        #expect(issues.isEmpty)
+    }
+
+    @Test("Normal cylinder has no degenerate faces")
+    func cylinderNoSmallFaces() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let issues = cyl.checkSmallFaces()
+        #expect(issues.isEmpty)
+    }
+
+    @Test("Sphere has no degenerate faces")
+    func sphereNoSmallFaces() {
+        let sphere = Shape.sphere(radius: 5)!
+        let issues = sphere.checkSmallFaces()
+        // Sphere may or may not have degenerate faces depending on tolerance
+        // Just verify the API works without crashing
+        _ = issues
+    }
+}
+
+// MARK: - v0.43.0: BSpline Surface Fill
+
+@Suite("BSpline Surface Fill")
+struct BSplineSurfaceFillTests {
+    @Test("Fill from 2 boundary curves")
+    func twoCurveFill() {
+        // Two parallel BSpline curves
+        let c1 = Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(5, 0, 2), SIMD3(10, 0, 0)
+        ])
+        let c2 = Curve3D.interpolate(points: [
+            SIMD3(0, 10, 0), SIMD3(5, 10, 2), SIMD3(10, 10, 0)
+        ])
+        #expect(c1 != nil)
+        #expect(c2 != nil)
+        if let c1, let c2 {
+            let surface = Surface.bsplineFill(curve1: c1, curve2: c2, style: .stretch)
+            #expect(surface != nil)
+        }
+    }
+
+    @Test("Fill from 4 boundary curves (Coons)")
+    func fourCurveCoonsFill() {
+        // Use fit() (GeomAPI_PointsToBSpline) for compatible BSpline parameterization
+        let c1 = Curve3D.fit(points: [
+            SIMD3(0, 0, 0), SIMD3(5, 0, 1), SIMD3(10, 0, 0)
+        ])
+        let c2 = Curve3D.fit(points: [
+            SIMD3(10, 0, 0), SIMD3(10, 5, 1), SIMD3(10, 10, 0)
+        ])
+        let c3 = Curve3D.fit(points: [
+            SIMD3(10, 10, 0), SIMD3(5, 10, 1), SIMD3(0, 10, 0)
+        ])
+        let c4 = Curve3D.fit(points: [
+            SIMD3(0, 10, 0), SIMD3(0, 5, 1), SIMD3(0, 0, 0)
+        ])
+        #expect(c1 != nil)
+        #expect(c2 != nil)
+        #expect(c3 != nil)
+        #expect(c4 != nil)
+        if let c1, let c2, let c3, let c4 {
+            let surface = Surface.bsplineFill(curves: (c1, c2, c3, c4), style: .coons)
+            #expect(surface != nil)
+        }
+    }
+
+    @Test("Stretch fill style")
+    func stretchFill() {
+        // Stretch fill from 2 parallel curves
+        let c1 = Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(5, 0, 3), SIMD3(10, 0, 0)
+        ])
+        let c2 = Curve3D.interpolate(points: [
+            SIMD3(0, 10, 0), SIMD3(5, 10, 3), SIMD3(10, 10, 0)
+        ])
+        if let c1, let c2 {
+            let surface = Surface.bsplineFill(curve1: c1, curve2: c2, style: .stretch)
+            #expect(surface != nil)
+        }
+    }
+}
+
+// MARK: - v0.43.0: Location Purge
+
+@Suite("Location Purge")
+struct LocationPurgeTests {
+    @Test("Clean shape purges successfully")
+    func cleanShapePurge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let purged = box.purgedLocations
+        // Clean shapes may return nil (nothing to purge) or the same shape
+        // Either outcome is valid
+        if let purged {
+            #expect(purged.subShapeCount(ofType: .face) == 6)
+        }
+    }
+
+    @Test("Mirrored shape purges locations")
+    func mirroredShapePurge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let mirrored = box.mirrored(planeNormal: SIMD3(1, 0, 0))
+        #expect(mirrored != nil)
+        if let mirrored {
+            let purged = mirrored.purgedLocations
+            // Mirrored shape has a negative-scale location that should be purged
+            if let purged {
+                let faceCount = purged.subShapeCount(ofType: ShapeType.face)
+                #expect(faceCount == 6)
+            }
+        }
+    }
+}

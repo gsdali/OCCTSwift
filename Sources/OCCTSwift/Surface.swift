@@ -981,4 +981,53 @@ extension Surface {
         }
         return BezierPatchGrid(uCount: Int(nbU), vCount: Int(nbV), patches: patches)
     }
+
+    // MARK: - v0.43.0: BSpline Fill from Boundary Curves
+
+    /// Filling style for BSpline surface construction from boundary curves.
+    public enum FillStyle: Int32, Sendable {
+        /// Flattest result — minimal curvature between boundaries
+        case stretch = 0
+        /// Coons-style blending — moderate curvature
+        case coons = 1
+        /// Most curved result — maximum curvature
+        case curved = 2
+    }
+
+    /// Create a BSpline surface from 2 boundary curves.
+    ///
+    /// Uses GeomFill_BSplineCurves to construct a surface spanning between two
+    /// BSpline curves. The curves must be BSpline (created via `Curve3D.bspline` or
+    /// `Curve3D.interpolate`).
+    ///
+    /// - Parameters:
+    ///   - curve1: First boundary curve
+    ///   - curve2: Second boundary curve
+    ///   - style: Filling style (default: .coons)
+    /// - Returns: BSpline surface, or nil if curves are not BSpline or fill fails
+    public static func bsplineFill(curve1: Curve3D, curve2: Curve3D, style: FillStyle = .coons) -> Surface? {
+        guard let ref = OCCTSurfaceFillBSpline2Curves(curve1.handle, curve2.handle, style.rawValue) else {
+            return nil
+        }
+        return Surface(handle: ref)
+    }
+
+    /// Create a BSpline surface from 4 boundary curves.
+    ///
+    /// Uses GeomFill_BSplineCurves to construct a surface bounded by four BSpline curves
+    /// forming a closed boundary. The curves must be connected end-to-end in order.
+    ///
+    /// - Parameters:
+    ///   - curves: Four boundary curves in order (bottom, right, top, left)
+    ///   - style: Filling style (default: .coons)
+    /// - Returns: BSpline surface, or nil on failure
+    public static func bsplineFill(curves: (Curve3D, Curve3D, Curve3D, Curve3D), style: FillStyle = .coons) -> Surface? {
+        guard let ref = OCCTSurfaceFillBSpline4Curves(
+            curves.0.handle, curves.1.handle, curves.2.handle, curves.3.handle,
+            style.rawValue
+        ) else {
+            return nil
+        }
+        return Surface(handle: ref)
+    }
 }
