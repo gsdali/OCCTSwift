@@ -4008,6 +4008,75 @@ OCCTShapeRef OCCTShapePrismUntilFace(OCCTShapeRef baseShape, OCCTShapeRef profil
                                       double dirX, double dirY, double dirZ,
                                       int32_t fuse, int32_t untilFaceIndex);
 
+// MARK: - v0.40.0: Mass Properties, Geometry Conversion, Distance Analysis
+
+/// Inertia properties result structure
+typedef struct {
+    double volume;
+    double centerX, centerY, centerZ;
+    /// Row-major 3x3 inertia matrix (Ixx, Ixy, Ixz, Iyx, Iyy, Iyz, Izx, Izy, Izz)
+    double inertia[9];
+    /// Principal moments of inertia
+    double principalIx, principalIy, principalIz;
+    /// Principal axes (3x3, row-major: axisX, axisY, axisZ)
+    double principalAxes[9];
+    bool hasSymmetryAxis;
+    bool hasSymmetryPoint;
+} OCCTInertiaProperties;
+
+/// Compute volume-based inertia properties (volume, center of mass, inertia matrix)
+bool OCCTShapeInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outProps);
+
+/// Compute surface-area-based inertia properties
+bool OCCTShapeSurfaceInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outProps);
+
+/// Distance solution entry
+typedef struct {
+    double point1X, point1Y, point1Z;
+    double point2X, point2Y, point2Z;
+    double distance;
+} OCCTDistanceSolution;
+
+/// Compute all distance solutions between two shapes
+/// @param outSolutions Pre-allocated array for results
+/// @param maxSolutions Maximum number of solutions to return
+/// @return Number of solutions found, -1 on failure
+int32_t OCCTShapeAllDistanceSolutions(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                       OCCTDistanceSolution* outSolutions, int32_t maxSolutions);
+
+/// Check if one shape is fully inside another (inner solution)
+/// @return 1 if inner, 0 if not inner, -1 on failure
+int32_t OCCTShapeIsInnerDistance(OCCTShapeRef shape1, OCCTShapeRef shape2);
+
+/// Decompose a BSpline surface into Bezier patches
+/// @param surface BSpline surface reference
+/// @param outPatches Pre-allocated array of surface refs for output patches
+/// @param maxPatches Maximum patches to return
+/// @param outNbUPatches Number of patches in U direction
+/// @param outNbVPatches Number of patches in V direction
+/// @return Total number of patches, or -1 on failure
+int32_t OCCTSurfaceBSplineToBezierPatches(OCCTSurfaceRef surface,
+                                           OCCTSurfaceRef* outPatches, int32_t maxPatches,
+                                           int32_t* outNbUPatches, int32_t* outNbVPatches);
+
+/// Find continuity break parameters in a BSpline curve
+/// @param curve3D BSpline curve reference
+/// @param continuityOrder Minimum continuity to require (0=C0, 1=C1, 2=C2)
+/// @param outParams Pre-allocated array for break parameters
+/// @param maxParams Maximum number of parameters to return
+/// @return Number of break parameters found, or -1 on failure
+int32_t OCCTCurve3DBSplineKnotSplits(OCCTCurve3DRef curve3D, int32_t continuityOrder,
+                                       double* outParams, int32_t maxParams);
+
+/// Find the underlying geometric surface of a shape (wire, edge set) with options
+/// @param shape Shape whose edges define a surface
+/// @param tolerance Tolerance for surface detection
+/// @param onlyPlane If true, only look for planar surfaces
+/// @param outFound Set to true if a surface was found
+/// @return Surface reference, or NULL if not found
+OCCTSurfaceRef OCCTShapeFindSurfaceEx(OCCTShapeRef shape, double tolerance,
+                                       bool onlyPlane, bool* outFound);
+
 #ifdef __cplusplus
 }
 #endif

@@ -948,4 +948,37 @@ extension Surface {
             return Surface(handle: ref)
         }
     }
+
+    // MARK: - BSpline Bezier Patch Grid (v0.40.0)
+
+    /// Result of decomposing a BSpline surface into Bezier patches
+    public struct BezierPatchGrid {
+        /// Number of patches in U direction
+        public let uCount: Int
+        /// Number of patches in V direction
+        public let vCount: Int
+        /// Patches in row-major order (U varies faster)
+        public let patches: [Surface]
+    }
+
+    /// Decompose this BSpline surface into a grid of Bezier patches
+    ///
+    /// Returns the patches along with their U/V grid dimensions.
+    /// Only works on BSpline surfaces.
+    /// - Returns: Bezier patch grid, or nil if not a BSpline surface
+    public func toBezierPatchGrid() -> BezierPatchGrid? {
+        let maxPatches: Int32 = 256
+        var patchRefs = [OCCTSurfaceRef?](repeating: nil, count: Int(maxPatches))
+        var nbU: Int32 = 0
+        var nbV: Int32 = 0
+        let total = patchRefs.withUnsafeMutableBufferPointer { buf in
+            OCCTSurfaceBSplineToBezierPatches(handle, buf.baseAddress, maxPatches, &nbU, &nbV)
+        }
+        guard total > 0 else { return nil }
+        let patches = (0..<min(Int(total), Int(maxPatches))).compactMap { i -> Surface? in
+            guard let ref = patchRefs[i] else { return nil }
+            return Surface(handle: ref)
+        }
+        return BezierPatchGrid(uCount: Int(nbU), vCount: Int(nbV), patches: patches)
+    }
 }

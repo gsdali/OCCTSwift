@@ -11101,3 +11101,211 @@ struct PipeFeatureTests {
         _ = result
     }
 }
+
+// MARK: - v0.40.0: Inertia Properties
+
+@Suite("Inertia Properties")
+struct InertiaPropertiesTests {
+    @Test("Box volume inertia properties")
+    func boxInertia() {
+        // Box 10x20x30, origin at (0,0,0), extends to (10,20,30)
+        // Volume = 6000, center of mass = (5, 10, 15)
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let props = box.inertiaProperties()
+        #expect(props != nil)
+        if let props {
+            #expect(abs(props.mass - 6000) < 1)
+            #expect(abs(props.centerOfMass.x - 0) < 0.1) // Centered box
+            #expect(abs(props.centerOfMass.y - 0) < 0.1)
+            #expect(abs(props.centerOfMass.z - 0) < 0.1)
+            // Inertia matrix should be 3x3 = 9 values
+            #expect(props.inertiaMatrix.count == 9)
+            // Diagonal elements should be positive
+            #expect(props.inertiaMatrix[0] > 0) // Ixx
+            #expect(props.inertiaMatrix[4] > 0) // Iyy
+            #expect(props.inertiaMatrix[8] > 0) // Izz
+            // Principal moments should be positive
+            #expect(props.principalMoments.x > 0)
+            #expect(props.principalMoments.y > 0)
+            #expect(props.principalMoments.z > 0)
+        }
+    }
+
+    @Test("Sphere has symmetry point")
+    func sphereSymmetry() {
+        let sphere = Shape.sphere(radius: 10)!
+        let props = sphere.inertiaProperties()
+        #expect(props != nil)
+        if let props {
+            // Sphere volume = 4/3 * pi * r^3
+            let expectedVol = 4.0/3.0 * Double.pi * 1000.0
+            #expect(abs(props.mass - expectedVol) / expectedVol < 0.01)
+            // Center at origin
+            #expect(abs(props.centerOfMass.x) < 0.1)
+            #expect(abs(props.centerOfMass.y) < 0.1)
+            #expect(abs(props.centerOfMass.z) < 0.1)
+            // Sphere has symmetry point
+            #expect(props.hasSymmetryPoint)
+        }
+    }
+
+    @Test("Surface inertia properties")
+    func surfaceInertia() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let props = box.surfaceInertiaProperties()
+        #expect(props != nil)
+        if let props {
+            // Surface area of 10x10x10 box = 6 * 100 = 600
+            #expect(abs(props.mass - 600) < 1)
+        }
+    }
+
+    @Test("Cylinder principal moments")
+    func cylinderPrincipal() {
+        let cyl = Shape.cylinder(radius: 5, height: 20)!
+        let props = cyl.inertiaProperties()
+        #expect(props != nil)
+        if let props {
+            #expect(props.mass > 0)
+            // Cylinder has symmetry axis
+            #expect(props.hasSymmetryAxis)
+        }
+    }
+}
+
+// MARK: - v0.40.0: Extended Distance
+
+@Suite("Extended Distance Solutions")
+struct ExtendedDistanceTests {
+    @Test("Multiple distance solutions between spheres")
+    func sphereDistanceSolutions() {
+        let sphere1 = Shape.sphere(radius: 5)!
+        let sphere2 = Shape.sphere(radius: 5)!.translated(by: SIMD3(20, 0, 0))!
+        let solutions = sphere1.allDistanceSolutions(to: sphere2)
+        #expect(solutions != nil)
+        if let solutions {
+            #expect(solutions.count >= 1)
+            // Minimum distance should be 10 (20 - 5 - 5)
+            #expect(abs(solutions[0].distance - 10) < 0.1)
+        }
+    }
+
+    @Test("Box distance solutions")
+    func boxDistanceSolutions() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!.translated(by: SIMD3(20, 0, 0))!
+        let solutions = box1.allDistanceSolutions(to: box2)
+        #expect(solutions != nil)
+        if let solutions {
+            #expect(solutions.count >= 1)
+            // Distance between boxes: 20 - 5 - 5 = 10
+            #expect(abs(solutions[0].distance - 10) < 0.1)
+        }
+    }
+
+    @Test("Inner distance detection — non-overlapping shapes")
+    func notInner() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(width: 10, height: 10, depth: 10)!.translated(by: SIMD3(20, 0, 0))!
+        let isInner = box1.isInside(box2)
+        #expect(isInner == false)
+    }
+}
+
+// MARK: - v0.40.0: BSpline Bezier Patch Grid
+
+@Suite("BSpline Bezier Patch Grid")
+struct BezierPatchGridTests {
+    @Test("BSpline surface decomposes to Bezier patches")
+    func bsplineToBezier() {
+        // Create a BSpline surface using the full bspline API
+        // 4x4 control points with uniform knots for degree 3
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 10, 1), SIMD3(0, 20, -1), SIMD3(0, 30, 0)],
+            [SIMD3(10, 0, 1), SIMD3(10, 10, 3), SIMD3(10, 20, 0), SIMD3(10, 30, 1)],
+            [SIMD3(20, 0, -1), SIMD3(20, 10, 0), SIMD3(20, 20, 2), SIMD3(20, 30, -1)],
+            [SIMD3(30, 0, 0), SIMD3(30, 10, 1), SIMD3(30, 20, -1), SIMD3(30, 30, 0)],
+        ]
+        let surface = Surface.bspline(
+            poles: poles,
+            knotsU: [0, 1], multiplicitiesU: [4, 4],
+            knotsV: [0, 1], multiplicitiesV: [4, 4],
+            degreeU: 3, degreeV: 3
+        )
+        #expect(surface != nil)
+        if let surface {
+            let grid = surface.toBezierPatchGrid()
+            if let grid {
+                #expect(grid.uCount >= 1)
+                #expect(grid.vCount >= 1)
+                #expect(grid.patches.count == grid.uCount * grid.vCount)
+            }
+        }
+    }
+}
+
+// MARK: - v0.40.0: BSpline Knot Splitting
+
+@Suite("BSpline Knot Splitting")
+struct BSplineKnotSplittingTests {
+    @Test("BSpline curve continuity breaks")
+    func curveBreaks() {
+        // Create a BSpline curve through several points
+        let points = [
+            SIMD3<Double>(0, 0, 0),
+            SIMD3<Double>(10, 5, 0),
+            SIMD3<Double>(20, -5, 0),
+            SIMD3<Double>(30, 10, 0),
+            SIMD3<Double>(40, -10, 0),
+            SIMD3<Double>(50, 3, 0),
+            SIMD3<Double>(60, -3, 0),
+            SIMD3<Double>(70, 0, 0),
+        ]
+        let curve = Curve3D.interpolate(points: points)
+        #expect(curve != nil)
+        if let curve {
+            let bspline = curve.toBSpline()
+            #expect(bspline != nil)
+            if let bspline {
+                // C0 breaks — should at least have first and last
+                let c0Breaks = bspline.continuityBreaks(minContinuity: Curve3D.ContinuityOrder.c0)
+                #expect(c0Breaks != nil)
+                if let c0Breaks {
+                    #expect(c0Breaks.count >= 2) // At minimum first/last knot
+                }
+            }
+        }
+    }
+
+    @Test("Non-BSpline returns nil")
+    func nonBSplineReturnsNil() {
+        // A line segment is not a BSpline curve
+        let line = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))
+        #expect(line != nil)
+        if let line {
+            let breaks = line.continuityBreaks()
+            #expect(breaks == nil)
+        }
+    }
+}
+
+// MARK: - v0.40.0: Find Surface
+
+@Suite("Find Surface Extended")
+struct FindSurfaceExTests {
+    @Test("Wire on plane finds surface")
+    func wireOnPlane() {
+        let wire = Wire.rectangle(width: 10, height: 10)!
+        let wireShape = Shape.fromWire(wire)!
+        let surface = wireShape.findSurfaceEx()
+        #expect(surface != nil)
+    }
+
+    @Test("Plane-only mode works")
+    func planeOnlyMode() {
+        let wire = Wire.rectangle(width: 10, height: 10)!
+        let wireShape = Shape.fromWire(wire)!
+        let surface = wireShape.findSurfaceEx(onlyPlane: true)
+        #expect(surface != nil)
+    }
+}

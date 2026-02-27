@@ -623,4 +623,30 @@ extension Curve3D {
             SIMD3<Double>(xyz[i*3], xyz[i*3+1], xyz[i*3+2])
         }
     }
+
+    // MARK: - BSpline Knot Splitting (v0.40.0)
+
+    /// Continuity order for knot splitting analysis
+    public enum ContinuityOrder: Int32 {
+        /// C0 continuity (positional)
+        case c0 = 0
+        /// C1 continuity (tangent)
+        case c1 = 1
+        /// C2 continuity (curvature)
+        case c2 = 2
+    }
+
+    /// Find parameter values where continuity drops below a specified level
+    ///
+    /// Only works on BSpline curves. Returns knot parameters where the curve's
+    /// internal continuity is less than the requested order.
+    /// - Parameter minContinuity: Minimum continuity to require
+    /// - Returns: Array of parameter values at continuity breaks, or nil if not a BSpline
+    public func continuityBreaks(minContinuity: ContinuityOrder = .c1) -> [Double]? {
+        let maxParams: Int32 = 256
+        var params = [Double](repeating: 0, count: Int(maxParams))
+        let count = OCCTCurve3DBSplineKnotSplits(handle, minContinuity.rawValue, &params, maxParams)
+        guard count >= 0 else { return nil }
+        return Array(params.prefix(Int(count)))
+    }
 }

@@ -3955,4 +3955,136 @@ extension Shape {
         ) else { return nil }
         return Shape(handle: h)
     }
+
+    // MARK: - Inertia Properties (v0.40.0)
+
+    /// Volume-based inertia properties (volume, center of mass, inertia tensor, principal moments)
+    public struct InertiaProperties {
+        /// Volume (for volume properties) or surface area (for surface properties)
+        public let mass: Double
+        /// Center of mass
+        public let centerOfMass: SIMD3<Double>
+        /// 3x3 inertia matrix (row-major: [Ixx, Ixy, Ixz, Iyx, Iyy, Iyz, Izx, Izy, Izz])
+        public let inertiaMatrix: [Double]
+        /// Principal moments of inertia (Ix, Iy, Iz)
+        public let principalMoments: SIMD3<Double>
+        /// Principal axes of inertia (three unit vectors)
+        public let principalAxes: (SIMD3<Double>, SIMD3<Double>, SIMD3<Double>)
+        /// Whether the shape has a symmetry axis
+        public let hasSymmetryAxis: Bool
+        /// Whether the shape has a symmetry point
+        public let hasSymmetryPoint: Bool
+    }
+
+    /// Compute volume-based inertia properties
+    ///
+    /// Returns volume, center of mass, 3x3 inertia tensor, principal moments,
+    /// and principal axes of inertia.
+    /// - Returns: Inertia properties, or nil if computation fails
+    public func inertiaProperties() -> InertiaProperties? {
+        var props = OCCTInertiaProperties()
+        guard OCCTShapeInertiaProperties(handle, &props) else { return nil }
+        let mat = withUnsafeBytes(of: &props.inertia) { buf in
+            Array(buf.bindMemory(to: Double.self))
+        }
+        return InertiaProperties(
+            mass: props.volume,
+            centerOfMass: SIMD3(props.centerX, props.centerY, props.centerZ),
+            inertiaMatrix: mat,
+            principalMoments: SIMD3(props.principalIx, props.principalIy, props.principalIz),
+            principalAxes: (
+                SIMD3(props.principalAxes.0, props.principalAxes.1, props.principalAxes.2),
+                SIMD3(props.principalAxes.3, props.principalAxes.4, props.principalAxes.5),
+                SIMD3(props.principalAxes.6, props.principalAxes.7, props.principalAxes.8)
+            ),
+            hasSymmetryAxis: props.hasSymmetryAxis,
+            hasSymmetryPoint: props.hasSymmetryPoint
+        )
+    }
+
+    /// Compute surface-area-based inertia properties
+    ///
+    /// Similar to `inertiaProperties()` but uses surface area instead of volume.
+    /// The `mass` field contains surface area.
+    /// - Returns: Inertia properties, or nil if computation fails
+    public func surfaceInertiaProperties() -> InertiaProperties? {
+        var props = OCCTInertiaProperties()
+        guard OCCTShapeSurfaceInertiaProperties(handle, &props) else { return nil }
+        let mat = withUnsafeBytes(of: &props.inertia) { buf in
+            Array(buf.bindMemory(to: Double.self))
+        }
+        return InertiaProperties(
+            mass: props.volume,
+            centerOfMass: SIMD3(props.centerX, props.centerY, props.centerZ),
+            inertiaMatrix: mat,
+            principalMoments: SIMD3(props.principalIx, props.principalIy, props.principalIz),
+            principalAxes: (
+                SIMD3(props.principalAxes.0, props.principalAxes.1, props.principalAxes.2),
+                SIMD3(props.principalAxes.3, props.principalAxes.4, props.principalAxes.5),
+                SIMD3(props.principalAxes.6, props.principalAxes.7, props.principalAxes.8)
+            ),
+            hasSymmetryAxis: props.hasSymmetryAxis,
+            hasSymmetryPoint: props.hasSymmetryPoint
+        )
+    }
+
+    // MARK: - Extended Distance (v0.40.0)
+
+    /// A distance solution between two shapes
+    public struct DistanceSolution {
+        /// Closest point on the first shape
+        public let point1: SIMD3<Double>
+        /// Closest point on the second shape
+        public let point2: SIMD3<Double>
+        /// Distance between the two points
+        public let distance: Double
+    }
+
+    /// Compute all distance solutions between this shape and another
+    ///
+    /// Returns all extremal point pairs, not just the minimum distance.
+    /// Useful for finding multiple closest/farthest point pairs.
+    /// - Parameters:
+    ///   - other: The other shape
+    ///   - maxSolutions: Maximum number of solutions to return (default 32)
+    /// - Returns: Array of distance solutions, or nil on failure
+    public func allDistanceSolutions(to other: Shape, maxSolutions: Int = 32) -> [DistanceSolution]? {
+        var buffer = [OCCTDistanceSolution](repeating: OCCTDistanceSolution(), count: maxSolutions)
+        let count = OCCTShapeAllDistanceSolutions(handle, other.handle, &buffer, Int32(maxSolutions))
+        guard count >= 0 else { return nil }
+        return (0..<min(Int(count), maxSolutions)).map { i in
+            DistanceSolution(
+                point1: SIMD3(buffer[i].point1X, buffer[i].point1Y, buffer[i].point1Z),
+                point2: SIMD3(buffer[i].point2X, buffer[i].point2Y, buffer[i].point2Z),
+                distance: buffer[i].distance
+            )
+        }
+    }
+
+    /// Check if this shape is fully contained inside another shape
+    ///
+    /// Uses BRepExtrema_DistShapeShape inner solution detection.
+    /// - Parameter container: The potential container shape
+    /// - Returns: true if this shape is inside the container, nil on failure
+    public func isInside(_ container: Shape) -> Bool? {
+        let result = OCCTShapeIsInnerDistance(handle, container.handle)
+        guard result >= 0 else { return nil }
+        return result == 1
+    }
+
+    // MARK: - Find Surface (v0.40.0)
+
+    /// Find the underlying geometric surface of a shape (wire or edges)
+    ///
+    /// Analyzes the edges of a shape to determine if they lie on a common surface.
+    /// - Parameters:
+    ///   - tolerance: Tolerance for surface detection (default 1e-6)
+    ///   - onlyPlane: If true, only look for planar surfaces (default false)
+    /// - Returns: The underlying surface, or nil if none found
+    public func findSurfaceEx(tolerance: Double = 1e-6, onlyPlane: Bool = false) -> Surface? {
+        var found = false
+        guard let surfHandle = OCCTShapeFindSurfaceEx(handle, tolerance, onlyPlane, &found),
+              found else { return nil }
+        return Surface(handle: surfHandle)
+    }
 }

@@ -15479,3 +15479,208 @@ OCCTShapeRef OCCTShapePrismUntilFace(OCCTShapeRef baseShape, OCCTShapeRef profil
         return nullptr;
     }
 }
+
+// MARK: - v0.40.0: Mass Properties, Geometry Conversion, Distance Analysis
+
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
+#include <GProp_PrincipalProps.hxx>
+#include <GeomConvert_BSplineSurfaceToBezierSurface.hxx>
+#include <GeomConvert_BSplineCurveKnotSplitting.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_BezierSurface.hxx>
+#include <BRepLib_FindSurface.hxx>
+#include <BRepExtrema_DistShapeShape.hxx>
+
+bool OCCTShapeInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outProps) {
+    if (!shape || !outProps) return false;
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+
+        outProps->volume = props.Mass();
+        gp_Pnt cm = props.CentreOfMass();
+        outProps->centerX = cm.X();
+        outProps->centerY = cm.Y();
+        outProps->centerZ = cm.Z();
+
+        gp_Mat mat = props.MatrixOfInertia();
+        outProps->inertia[0] = mat(1,1); outProps->inertia[1] = mat(1,2); outProps->inertia[2] = mat(1,3);
+        outProps->inertia[3] = mat(2,1); outProps->inertia[4] = mat(2,2); outProps->inertia[5] = mat(2,3);
+        outProps->inertia[6] = mat(3,1); outProps->inertia[7] = mat(3,2); outProps->inertia[8] = mat(3,3);
+
+        GProp_PrincipalProps pp = props.PrincipalProperties();
+        double Ix, Iy, Iz;
+        pp.Moments(Ix, Iy, Iz);
+        outProps->principalIx = Ix;
+        outProps->principalIy = Iy;
+        outProps->principalIz = Iz;
+
+        gp_Vec v1 = pp.FirstAxisOfInertia();
+        gp_Vec v2 = pp.SecondAxisOfInertia();
+        gp_Vec v3 = pp.ThirdAxisOfInertia();
+        outProps->principalAxes[0] = v1.X(); outProps->principalAxes[1] = v1.Y(); outProps->principalAxes[2] = v1.Z();
+        outProps->principalAxes[3] = v2.X(); outProps->principalAxes[4] = v2.Y(); outProps->principalAxes[5] = v2.Z();
+        outProps->principalAxes[6] = v3.X(); outProps->principalAxes[7] = v3.Y(); outProps->principalAxes[8] = v3.Z();
+
+        outProps->hasSymmetryAxis = pp.HasSymmetryAxis();
+        outProps->hasSymmetryPoint = pp.HasSymmetryPoint();
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTShapeSurfaceInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outProps) {
+    if (!shape || !outProps) return false;
+    try {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(shape->shape, props);
+
+        outProps->volume = props.Mass(); // Surface area in this context
+        gp_Pnt cm = props.CentreOfMass();
+        outProps->centerX = cm.X();
+        outProps->centerY = cm.Y();
+        outProps->centerZ = cm.Z();
+
+        gp_Mat mat = props.MatrixOfInertia();
+        outProps->inertia[0] = mat(1,1); outProps->inertia[1] = mat(1,2); outProps->inertia[2] = mat(1,3);
+        outProps->inertia[3] = mat(2,1); outProps->inertia[4] = mat(2,2); outProps->inertia[5] = mat(2,3);
+        outProps->inertia[6] = mat(3,1); outProps->inertia[7] = mat(3,2); outProps->inertia[8] = mat(3,3);
+
+        GProp_PrincipalProps pp = props.PrincipalProperties();
+        double Ix, Iy, Iz;
+        pp.Moments(Ix, Iy, Iz);
+        outProps->principalIx = Ix;
+        outProps->principalIy = Iy;
+        outProps->principalIz = Iz;
+
+        gp_Vec v1 = pp.FirstAxisOfInertia();
+        gp_Vec v2 = pp.SecondAxisOfInertia();
+        gp_Vec v3 = pp.ThirdAxisOfInertia();
+        outProps->principalAxes[0] = v1.X(); outProps->principalAxes[1] = v1.Y(); outProps->principalAxes[2] = v1.Z();
+        outProps->principalAxes[3] = v2.X(); outProps->principalAxes[4] = v2.Y(); outProps->principalAxes[5] = v2.Z();
+        outProps->principalAxes[6] = v3.X(); outProps->principalAxes[7] = v3.Y(); outProps->principalAxes[8] = v3.Z();
+
+        outProps->hasSymmetryAxis = pp.HasSymmetryAxis();
+        outProps->hasSymmetryPoint = pp.HasSymmetryPoint();
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+int32_t OCCTShapeAllDistanceSolutions(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                       OCCTDistanceSolution* outSolutions, int32_t maxSolutions) {
+    if (!shape1 || !shape2 || !outSolutions || maxSolutions <= 0) return -1;
+    try {
+        BRepExtrema_DistShapeShape dist(shape1->shape, shape2->shape);
+        if (!dist.IsDone()) return -1;
+
+        int32_t nbSol = dist.NbSolution();
+        int32_t count = std::min(nbSol, maxSolutions);
+
+        for (int32_t i = 0; i < count; i++) {
+            gp_Pnt p1 = dist.PointOnShape1(i + 1);
+            gp_Pnt p2 = dist.PointOnShape2(i + 1);
+            outSolutions[i].point1X = p1.X();
+            outSolutions[i].point1Y = p1.Y();
+            outSolutions[i].point1Z = p1.Z();
+            outSolutions[i].point2X = p2.X();
+            outSolutions[i].point2Y = p2.Y();
+            outSolutions[i].point2Z = p2.Z();
+            outSolutions[i].distance = dist.Value();
+        }
+        return nbSol;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int32_t OCCTShapeIsInnerDistance(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1 || !shape2) return -1;
+    try {
+        BRepExtrema_DistShapeShape dist(shape1->shape, shape2->shape);
+        if (!dist.IsDone()) return -1;
+        return dist.InnerSolution() ? 1 : 0;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int32_t OCCTSurfaceBSplineToBezierPatches(OCCTSurfaceRef surface,
+                                           OCCTSurfaceRef* outPatches, int32_t maxPatches,
+                                           int32_t* outNbUPatches, int32_t* outNbVPatches) {
+    if (!surface || !outPatches || !outNbUPatches || !outNbVPatches || maxPatches <= 0) return -1;
+    try {
+        Handle(Geom_BSplineSurface) bspline = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bspline.IsNull()) return -1;
+
+        GeomConvert_BSplineSurfaceToBezierSurface conv(bspline);
+        int32_t nbU = conv.NbUPatches();
+        int32_t nbV = conv.NbVPatches();
+        *outNbUPatches = nbU;
+        *outNbVPatches = nbV;
+
+        int32_t total = nbU * nbV;
+        int32_t count = std::min(total, maxPatches);
+
+        int32_t idx = 0;
+        for (int32_t u = 1; u <= nbU && idx < count; u++) {
+            for (int32_t v = 1; v <= nbV && idx < count; v++) {
+                Handle(Geom_BezierSurface) patch = conv.Patch(u, v);
+                if (!patch.IsNull()) {
+                    outPatches[idx] = new OCCTSurface(patch);
+                } else {
+                    outPatches[idx] = nullptr;
+                }
+                idx++;
+            }
+        }
+        return total;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int32_t OCCTCurve3DBSplineKnotSplits(OCCTCurve3DRef curve3D, int32_t continuityOrder,
+                                       double* outParams, int32_t maxParams) {
+    if (!curve3D || !outParams || maxParams <= 0) return -1;
+    try {
+        Handle(Geom_BSplineCurve) bspline = Handle(Geom_BSplineCurve)::DownCast(curve3D->curve);
+        if (bspline.IsNull()) return -1;
+
+        GeomConvert_BSplineCurveKnotSplitting splitter(bspline, continuityOrder);
+        int32_t nbSplits = splitter.NbSplits();
+        int32_t count = std::min(nbSplits, maxParams);
+
+        for (int32_t i = 0; i < count; i++) {
+            int32_t knotIndex = splitter.SplitValue(i + 1);
+            outParams[i] = bspline->Knot(knotIndex);
+        }
+        return nbSplits;
+    } catch (...) {
+        return -1;
+    }
+}
+
+OCCTSurfaceRef OCCTShapeFindSurfaceEx(OCCTShapeRef shape, double tolerance,
+                                       bool onlyPlane, bool* outFound) {
+    if (!shape || !outFound) return nullptr;
+    try {
+        BRepLib_FindSurface finder(shape->shape, tolerance, onlyPlane);
+        *outFound = finder.Found();
+        if (!finder.Found()) return nullptr;
+
+        Handle(Geom_Surface) surf = finder.Surface();
+        if (surf.IsNull()) return nullptr;
+
+        return new OCCTSurface(surf);
+    } catch (...) {
+        *outFound = false;
+        return nullptr;
+    }
+}
