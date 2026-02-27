@@ -3855,4 +3855,104 @@ extension Shape {
                                               tolerance, Int32(joinType.rawValue)) else { return nil }
         return Shape(handle: h)
     }
+
+    // MARK: - Free Boundary Analysis (v0.39.0)
+
+    /// Result of free boundary analysis
+    public struct FreeBoundsResult: Sendable {
+        /// Compound shape containing all free boundary wires
+        public let wires: Shape
+        /// Number of closed free boundary wires
+        public let closedCount: Int
+        /// Number of open free boundary wires
+        public let openCount: Int
+    }
+
+    /// Analyze free boundary wires (open edges not shared by two faces).
+    ///
+    /// Free boundaries indicate gaps in a shell. A watertight shell has no free boundaries.
+    /// - Parameter sewingTolerance: Tolerance for grouping free edges into wires
+    /// - Returns: Free bounds result, or nil if no free boundaries found
+    public func freeBounds(sewingTolerance: Double = 1e-6) -> FreeBoundsResult? {
+        var closedCount: Int32 = 0
+        var openCount: Int32 = 0
+        guard let h = OCCTShapeFreeBounds(handle, sewingTolerance,
+                                           &closedCount, &openCount) else { return nil }
+        return FreeBoundsResult(wires: Shape(handle: h),
+                                closedCount: Int(closedCount),
+                                openCount: Int(openCount))
+    }
+
+    /// Fix free boundary wires by closing gaps.
+    ///
+    /// - Parameters:
+    ///   - sewingTolerance: Tolerance for sewing free edges
+    ///   - closingTolerance: Maximum distance to close a gap
+    /// - Returns: Tuple of (fixed shape, number of wires fixed), or nil on failure
+    public func fixedFreeBounds(sewingTolerance: Double = 1e-6,
+                                 closingTolerance: Double = 1e-4) -> (shape: Shape, fixedCount: Int)? {
+        var fixedCount: Int32 = 0
+        guard let h = OCCTShapeFixFreeBounds(handle, sewingTolerance,
+                                              closingTolerance, &fixedCount) else { return nil }
+        return (shape: Shape(handle: h), fixedCount: Int(fixedCount))
+    }
+
+    // MARK: - Pipe Feature (v0.39.0)
+
+    /// Create a pipe feature by sweeping a profile along a spine, fused with or cut from this shape.
+    ///
+    /// - Parameters:
+    ///   - profile: Profile shape (face) to sweep along the spine
+    ///   - sketchFaceIndex: Index (0-based) of the face on this shape where the profile sits
+    ///   - spine: Wire defining the sweep path
+    ///   - fuse: If true, add material; if false, remove material
+    /// - Returns: Modified shape, or nil on failure
+    public func pipeFeature(profile: Shape, sketchFaceIndex: Int,
+                            spine: Wire, fuse: Bool = true) -> Shape? {
+        guard let h = OCCTShapePipeFeatureFromProfile(
+            handle, profile.handle, Int32(sketchFaceIndex),
+            spine.handle, fuse ? 1 : 0
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - Semi-Infinite Extrusion (v0.39.0)
+
+    /// Extrude a shape semi-infinitely in a direction.
+    ///
+    /// Creates a solid that extends infinitely in one direction from the profile.
+    /// Useful for half-spaces and trimming operations.
+    /// - Parameters:
+    ///   - direction: Direction of extrusion
+    ///   - infinite: If true, extrude in both directions (infinite); if false, one direction (semi-infinite)
+    /// - Returns: Extruded shape, or nil on failure
+    public func extrudedSemiInfinite(direction: SIMD3<Double>, infinite: Bool = false) -> Shape? {
+        guard let h = OCCTShapeExtrudeSemiInfinite(handle,
+                                                    direction.x, direction.y, direction.z,
+                                                    !infinite) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - Prism Until Face (v0.39.0)
+
+    /// Extrude a profile until it reaches a target face, with automatic fuse/cut.
+    ///
+    /// Uses BRepFeat_MakePrism which is smarter than simple extrusion+boolean.
+    /// - Parameters:
+    ///   - profile: Profile face to extrude
+    ///   - sketchFaceIndex: Face on this shape where the profile sits (0-based)
+    ///   - direction: Extrusion direction
+    ///   - fuse: If true, add material; if false, remove material
+    ///   - untilFaceIndex: Face index (0-based) where extrusion stops. Pass nil for thru-all.
+    /// - Returns: Modified shape, or nil on failure
+    public func prismUntilFace(profile: Shape, sketchFaceIndex: Int,
+                               direction: SIMD3<Double>, fuse: Bool = true,
+                               untilFaceIndex: Int? = nil) -> Shape? {
+        guard let h = OCCTShapePrismUntilFace(
+            handle, profile.handle, Int32(sketchFaceIndex),
+            direction.x, direction.y, direction.z,
+            fuse ? 1 : 0, Int32(untilFaceIndex ?? -1)
+        ) else { return nil }
+        return Shape(handle: h)
+    }
 }

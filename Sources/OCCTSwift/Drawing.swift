@@ -88,6 +88,44 @@ public final class Drawing: @unchecked Sendable {
         return project(shape, direction: dir)
     }
 
+    // MARK: - Fast Polygon-Based Projection (v0.39.0)
+
+    /// Create a fast polygon-based 2D projection of a 3D shape.
+    ///
+    /// Uses the triangulation mesh rather than exact geometry for significantly faster
+    /// HLR computation. The result is approximate but perfectly adequate for interactive
+    /// previews and most technical drawing use cases.
+    /// - Parameters:
+    ///   - shape: The 3D shape to project
+    ///   - direction: View direction
+    ///   - deflection: Mesh deflection (smaller = more accurate, default 0.01)
+    /// - Returns: Drawing containing the projected edges, or nil if projection fails
+    public static func projectFast(
+        _ shape: Shape,
+        direction: SIMD3<Double>,
+        deflection: Double = 0.01
+    ) -> Drawing? {
+        guard let handle = OCCTDrawingCreatePoly(
+            shape.handle,
+            direction.x, direction.y, direction.z,
+            0, deflection
+        ) else {
+            return nil
+        }
+        return Drawing(handle: handle)
+    }
+
+    /// Create a fast top view using polygon-based HLR
+    public static func fastTopView(of shape: Shape, deflection: Double = 0.01) -> Drawing? {
+        projectFast(shape, direction: SIMD3(0, 0, 1), deflection: deflection)
+    }
+
+    /// Create a fast isometric view using polygon-based HLR
+    public static func fastIsometricView(of shape: Shape, deflection: Double = 0.01) -> Drawing? {
+        let dir = SIMD3<Double>(1, 1, 1) / sqrt(3.0)
+        return projectFast(shape, direction: dir, deflection: deflection)
+    }
+
     // MARK: - Edge Access
 
     /// Get projected edges of a specific type as a compound shape

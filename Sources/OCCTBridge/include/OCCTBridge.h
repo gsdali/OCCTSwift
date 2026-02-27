@@ -3928,6 +3928,86 @@ OCCTShapeRef OCCTShapeOffsetPerFace(OCCTShapeRef shape, double defaultOffset,
                                      int32_t faceCount, double tolerance, int32_t joinType);
 
 
+// MARK: - v0.39.0: Poly HLR, Free Bounds, Pipe Feature, Semi-Infinite Extrusion
+
+/// Create a fast polygon-based HLR (hidden-line removal) drawing.
+/// Uses the triangulation mesh rather than exact geometry — much faster but approximate.
+/// The shape must have a triangulation (mesh); if not, it will be meshed at the given deflection.
+/// @param shape The shape to project
+/// @param dirX,dirY,dirZ View direction vector
+/// @param projectionType 0=orthographic (perspective not yet supported for poly)
+/// @param deflection Mesh deflection for triangulation (smaller = more accurate, default 0.01)
+/// @return Drawing reference, or NULL on failure
+OCCTDrawingRef OCCTDrawingCreatePoly(OCCTShapeRef shape,
+                                      double dirX, double dirY, double dirZ,
+                                      int32_t projectionType, double deflection);
+
+/// Compute free boundary wires on a shape (open edges not shared by two faces).
+/// Returns a compound of wire shapes representing the free boundaries.
+/// @param shape The shape to analyze
+/// @param sewingTolerance Tolerance for grouping free edges into wires
+/// @param outClosedCount Number of closed free boundary wires (output)
+/// @param outOpenCount Number of open free boundary wires (output)
+/// @return Compound of free boundary wires, or NULL if none found
+OCCTShapeRef OCCTShapeFreeBounds(OCCTShapeRef shape, double sewingTolerance,
+                                  int32_t* outClosedCount, int32_t* outOpenCount);
+
+/// Fix free boundary wires by closing gaps.
+/// @param shape The shape whose free boundaries to fix
+/// @param sewingTolerance Tolerance for sewing free edges
+/// @param closingTolerance Maximum distance to close a gap
+/// @param outFixedCount Number of wires that were fixed (output)
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef OCCTShapeFixFreeBounds(OCCTShapeRef shape, double sewingTolerance,
+                                     double closingTolerance, int32_t* outFixedCount);
+
+/// Create a pipe feature (protrusion or depression) by sweeping a profile along a spine.
+/// The profile is swept along the spine wire and fused/cut with the base shape.
+/// @param shape Base solid shape
+/// @param profileFaceIndex Index (0-based) of the profile face to sweep
+/// @param sketchFaceIndex Index (0-based) of the face on the base solid where the profile sits
+/// @param spine Wire defining the sweep path
+/// @param fuse 1 to add material (boss), 0 to remove (pocket)
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef OCCTShapePipeFeature(OCCTShapeRef shape, int32_t profileFaceIndex,
+                                   int32_t sketchFaceIndex, OCCTWireRef spine,
+                                   int32_t fuse);
+
+/// Create a pipe feature from a standalone profile shape swept along a spine.
+/// @param baseShape Base solid shape
+/// @param profileShape Profile shape (face or wire) to sweep
+/// @param sketchFaceIndex Index (0-based) of the face on base where profile sits
+/// @param spine Wire defining the sweep path
+/// @param fuse 1 to add material (boss), 0 to remove (pocket)
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef OCCTShapePipeFeatureFromProfile(OCCTShapeRef baseShape, OCCTShapeRef profileShape,
+                                              int32_t sketchFaceIndex, OCCTWireRef spine,
+                                              int32_t fuse);
+
+/// Create a semi-infinite extrusion of a shape in a direction.
+/// The shape is extruded infinitely in the given direction from its original position.
+/// @param profile The profile shape (face, wire, or edge) to extrude
+/// @param dirX,dirY,dirZ Direction of extrusion
+/// @param semiInfinite If true, extrude in one direction only; if false, both directions (infinite)
+/// @return Extruded shape, or NULL on failure
+OCCTShapeRef OCCTShapeExtrudeSemiInfinite(OCCTShapeRef profile,
+                                           double dirX, double dirY, double dirZ,
+                                           bool semiInfinite);
+
+/// Prism feature: extrude a profile until it reaches a target face.
+/// Uses BRepFeat_MakePrism which is smarter than simple extrusion+boolean.
+/// @param baseShape Base solid shape
+/// @param profileShape Profile face to extrude
+/// @param sketchFaceIndex Face on base where profile sits (0-based)
+/// @param dirX,dirY,dirZ Extrusion direction
+/// @param fuse 1=add material, 0=remove material
+/// @param untilFaceIndex Face index (0-based) on base where extrusion stops (-1 for thru-all)
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef OCCTShapePrismUntilFace(OCCTShapeRef baseShape, OCCTShapeRef profileShape,
+                                      int32_t sketchFaceIndex,
+                                      double dirX, double dirY, double dirZ,
+                                      int32_t fuse, int32_t untilFaceIndex);
+
 #ifdef __cplusplus
 }
 #endif
