@@ -100,6 +100,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Analytical Recognition**: Convert freeform curves/surfaces to analytical forms (line, circle, plane, cylinder)
 - **Canonical Form Recognition**: Identify canonical geometric forms in shapes (plane, cylinder, cone, sphere)
 - **Shape Census**: Count all sub-shapes by type with ShapeAnalysis complexity metrics
+- **N-Side Filling Surface**: BRepFill_Filling — boundary edge + interior point constraints with G0/G1/G2 error reporting
+- **Self-Intersection Detection**: BVH-accelerated triangle mesh overlap check for detecting self-intersecting geometry
+- **Face GProp Evaluation**: BRepGProp_Face — natural parametric bounds and unnormalized normals (area element magnitude) for surface integration
+- **Wire Edge Ordering**: ShapeAnalysis_WireOrder — analyze and reorder scrambled edges into connected chains
 - **Edge Analysis**: Check for 3D curves, closure, seam edges
 - **Shell & Vertex Creation**: Build topology from surfaces and points
 - **Middle Path**: Extract spine from pipe-like shapes for reverse engineering
@@ -1049,6 +1053,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.45.0: **N-side filling, self-intersection, face GProp, wire ordering** — BRepFill_Filling with edge/point constraints, BRepExtrema_SelfIntersection via BVH, BRepGProp_Face natural bounds + unnormalized normals, ShapeAnalysis_WireOrder edge chain analysis
 > - v0.38.0: **OCCT test suite audit, round 7** — oriented bounding box, deep shape copy, sub-shape extraction (solids/shells/wires), fuse-and-blend, cut-and-blend, evolving fillet, per-face variable offset
 > - v0.37.0: **OCCT test suite audit, round 6** — thick/hollow solids, wire topology analysis, surface singularity detection, shell from parametric surface, multi-tool common
 > - v0.36.0: **OCCT test suite audit, round 5** — conical projection, encode regularity, update tolerances, face division, surface-to-Bezier, boolean history
@@ -1104,7 +1109,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.30.0
 
-OCCTSwift now wraps **603 OCCT operations** across 49 categories with 886 tests across 214 suites.
+OCCTSwift now wraps **629 OCCT operations** across 53 categories with 929 tests across 225 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

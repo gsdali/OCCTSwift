@@ -4482,6 +4482,32 @@ extension Shape {
         return Shape(handle: ref)
     }
 
+    // MARK: - Self-Intersection Detection (v0.45.0)
+
+    /// Result of a self-intersection check
+    public struct SelfIntersectionResult: Sendable {
+        /// Number of overlapping triangle pairs found
+        public let overlapCount: Int
+        /// Whether the check completed successfully
+        public let isDone: Bool
+    }
+
+    /// Check the shape for self-intersection using BVH-accelerated triangle mesh overlap.
+    ///
+    /// Meshes the shape and uses BRepExtrema_SelfIntersection to detect overlapping
+    /// triangle pairs, which indicate self-intersection.
+    ///
+    /// - Parameters:
+    ///   - tolerance: Tolerance for detecting intersections (default 0.001)
+    ///   - meshDeflection: Mesh deflection for triangulation (default 0.5)
+    /// - Returns: Self-intersection result, or nil if the check failed
+    public func selfIntersection(tolerance: Double = 0.001,
+                                  meshDeflection: Double = 0.5) -> SelfIntersectionResult? {
+        let result = OCCTShapeSelfIntersection(handle, tolerance, meshDeflection)
+        guard result.isDone else { return nil }
+        return SelfIntersectionResult(overlapCount: Int(result.overlapCount), isDone: true)
+    }
+
     // MARK: - Bezier Conversion
 
     /// Convert all curves and surfaces in the shape to Bezier representations.

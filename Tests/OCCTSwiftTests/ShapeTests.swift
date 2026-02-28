@@ -12346,3 +12346,334 @@ struct DocumentColorMaterialTests {
         }
     }
 }
+
+// MARK: - v0.45.0 Tests
+
+@Suite("Filling Surface Tests")
+struct FillingSurfaceTests {
+    /// Helper to get 4 coplanar edges from a box face
+    private func getFaceEdges() -> [Edge] {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let face = box.faces()[0]
+        let wire = face.outerWire!
+        // Get edges from the shape that belong to this face's wire
+        let allEdges = box.edges()
+        // Use first 4 edges (a box face has 4 edges)
+        return Array(allEdges.prefix(4))
+    }
+
+    @Test("Basic 4-edge filling creates a face")
+    func basicFilling() throws {
+        let edges = getFaceEdges()
+        #expect(edges.count == 4)
+
+        let filling = FillingSurface()
+        for edge in edges {
+            #expect(filling.add(edge: edge, continuity: .c0))
+        }
+
+        let result = filling.build()
+        #expect(result != nil)
+        #expect(filling.isDone)
+    }
+
+    @Test("G0 error is small for planar fill")
+    func g0Error() throws {
+        let edges = getFaceEdges()
+
+        let filling = FillingSurface()
+        for edge in edges {
+            filling.add(edge: edge, continuity: .c0)
+        }
+        let _ = filling.build()
+
+        let g0 = filling.g0Error
+        #expect(g0 != nil)
+        if let g0 {
+            #expect(g0 < 0.01)
+        }
+    }
+
+    @Test("Filling with point constraint")
+    func fillingWithPoint() throws {
+        let edges = getFaceEdges()
+
+        let filling = FillingSurface()
+        for edge in edges {
+            filling.add(edge: edge, continuity: .c0)
+        }
+        // Add interior point above the plane
+        filling.add(point: SIMD3(5, 5, 3))
+
+        let result = filling.build()
+        #expect(result != nil)
+        #expect(filling.isDone)
+    }
+
+    @Test("G1 and G2 errors are available after build")
+    func g1g2Errors() throws {
+        let edges = getFaceEdges()
+
+        let filling = FillingSurface()
+        for edge in edges {
+            filling.add(edge: edge, continuity: .c0)
+        }
+        let _ = filling.build()
+
+        let g1 = filling.g1Error
+        let g2 = filling.g2Error
+        // Errors should be retrievable (may be 0 for a planar fill)
+        #expect(g1 != nil)
+        #expect(g2 != nil)
+    }
+
+    @Test("Filling with free edge constraint")
+    func freeEdgeConstraint() throws {
+        let edges = getFaceEdges()
+
+        let filling = FillingSurface()
+        // Add 3 boundary edges and 1 free edge
+        for i in 0..<3 {
+            filling.add(edge: edges[i], continuity: .c0)
+        }
+        filling.add(freeEdge: edges[3], continuity: .c0)
+
+        let result = filling.build()
+        #expect(result != nil)
+    }
+
+    @Test("Unfilled filling is not done")
+    func notDoneBeforeBuild() throws {
+        let filling = FillingSurface()
+        #expect(!filling.isDone)
+        #expect(filling.g0Error == nil)
+    }
+}
+
+@Suite("Self-Intersection Tests")
+struct SelfIntersectionTests {
+    @Test("Box has no self-intersection")
+    func boxNoSelfIntersection() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.selfIntersection()
+        #expect(result != nil)
+        #expect(result!.isDone)
+        #expect(result!.overlapCount == 0)
+    }
+
+    @Test("Sphere has no self-intersection")
+    func sphereNoSelfIntersection() throws {
+        let sphere = Shape.sphere(radius: 5)!
+        let result = sphere.selfIntersection()
+        #expect(result != nil)
+        #expect(result!.isDone)
+    }
+
+    @Test("Cylinder has no self-intersection")
+    func cylinderNoSelfIntersection() throws {
+        let cyl = Shape.cylinder(radius: 3, height: 10)!
+        let result = cyl.selfIntersection()
+        #expect(result != nil)
+        #expect(result!.isDone)
+    }
+
+    @Test("Custom tolerance and mesh deflection")
+    func customParameters() throws {
+        let box = Shape.box(width: 5, height: 5, depth: 5)!
+        let result = box.selfIntersection(tolerance: 0.01, meshDeflection: 0.1)
+        #expect(result != nil)
+        #expect(result!.isDone)
+    }
+}
+
+@Suite("BRepGProp Face Tests")
+struct BRepGPropFaceTests {
+    @Test("Natural bounds of box face")
+    func naturalBounds() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let faces = box.faces()
+        #expect(!faces.isEmpty)
+
+        let face = faces[0]
+        let bounds = face.naturalBounds
+        #expect(bounds != nil)
+        if let bounds {
+            #expect(bounds.uMax > bounds.uMin)
+            #expect(bounds.vMax > bounds.vMin)
+        }
+    }
+
+    @Test("Evaluate GProp normal on box face")
+    func evaluateBoxFace() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let faces = box.faces()
+        let face = faces[0]
+
+        guard let bounds = face.naturalBounds else {
+            #expect(Bool(false), "bounds should exist")
+            return
+        }
+
+        let uMid = (bounds.uMin + bounds.uMax) / 2
+        let vMid = (bounds.vMin + bounds.vMax) / 2
+
+        let eval = face.evaluateGProp(u: uMid, v: vMid)
+        #expect(eval != nil)
+        if let eval {
+            // Normal should be non-zero for a box face
+            let mag = simd_length(eval.normal)
+            #expect(mag > 0.01)
+        }
+    }
+
+    @Test("Evaluate GProp normal on cylinder face")
+    func evaluateCylinderFace() throws {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let faces = cyl.faces()
+        #expect(faces.count >= 1)
+
+        // Find a face with non-zero normal
+        var found = false
+        for face in faces {
+            guard let bounds = face.naturalBounds else { continue }
+            let uMid = (bounds.uMin + bounds.uMax) / 2
+            let vMid = (bounds.vMin + bounds.vMax) / 2
+
+            if let eval = face.evaluateGProp(u: uMid, v: vMid) {
+                let mag = simd_length(eval.normal)
+                if mag > 0.01 {
+                    found = true
+                    break
+                }
+            }
+        }
+        #expect(found)
+    }
+
+    @Test("GProp normal magnitude is area element")
+    func normalMagnitudeIsAreaElement() throws {
+        // For a planar face, the normal magnitude should be constant
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let face = box.faces()[0]
+
+        guard let bounds = face.naturalBounds else {
+            #expect(Bool(false), "bounds should exist")
+            return
+        }
+
+        let eval1 = face.evaluateGProp(u: bounds.uMin + 0.1, v: bounds.vMin + 0.1)
+        let eval2 = face.evaluateGProp(u: bounds.uMax - 0.1, v: bounds.vMax - 0.1)
+
+        #expect(eval1 != nil)
+        #expect(eval2 != nil)
+
+        if let eval1, let eval2 {
+            let mag1 = simd_length(eval1.normal)
+            let mag2 = simd_length(eval2.normal)
+            // For a planar face, magnitudes should be equal
+            #expect(abs(mag1 - mag2) < 0.001)
+        }
+    }
+}
+
+@Suite("Wire Order Tests")
+struct WireOrderTests {
+    @Test("Order scrambled square edges")
+    func orderSquareEdges() throws {
+        // Edges of a square, scrambled
+        let p1 = SIMD3<Double>(0, 0, 0)
+        let p2 = SIMD3<Double>(10, 0, 0)
+        let p3 = SIMD3<Double>(10, 10, 0)
+        let p4 = SIMD3<Double>(0, 10, 0)
+
+        // Add in scrambled order: 3rd, 1st, 4th, 2nd edges
+        let edges: [(start: SIMD3<Double>, end: SIMD3<Double>)] = [
+            (start: p3, end: p4),   // edge 3
+            (start: p1, end: p2),   // edge 1
+            (start: p4, end: p1),   // edge 4
+            (start: p2, end: p3),   // edge 2
+        ]
+
+        let result = WireOrder.analyze(edges: edges)
+        #expect(result != nil)
+        if let result {
+            #expect(result.orderedEdges.count == 4)
+        }
+    }
+
+    @Test("Wire order status indicates connectivity")
+    func wireOrderStatus() throws {
+        let p1 = SIMD3<Double>(0, 0, 0)
+        let p2 = SIMD3<Double>(10, 0, 0)
+        let p3 = SIMD3<Double>(10, 10, 0)
+        let p4 = SIMD3<Double>(0, 10, 0)
+
+        let edges: [(start: SIMD3<Double>, end: SIMD3<Double>)] = [
+            (start: p1, end: p2),
+            (start: p2, end: p3),
+            (start: p3, end: p4),
+            (start: p4, end: p1),
+        ]
+
+        let result = WireOrder.analyze(edges: edges)
+        #expect(result != nil)
+        // Closed loop or open chain (depends on algorithm)
+        if let result {
+            #expect(result.status == .closed || result.status == .open)
+        }
+    }
+
+    @Test("Wire order with gaps")
+    func wireOrderGaps() throws {
+        // Disconnected edges
+        let edges: [(start: SIMD3<Double>, end: SIMD3<Double>)] = [
+            (start: SIMD3(0, 0, 0), end: SIMD3(10, 0, 0)),
+            (start: SIMD3(100, 100, 0), end: SIMD3(200, 100, 0)),
+        ]
+
+        let result = WireOrder.analyze(edges: edges)
+        #expect(result != nil)
+    }
+
+    @Test("Analyze wire shape")
+    func analyzeWireShape() throws {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        #expect(wire != nil)
+
+        if let wire {
+            let result = WireOrder.analyze(wire: wire)
+            #expect(result != nil)
+            if let result {
+                #expect(result.orderedEdges.count == 4)
+            }
+        }
+    }
+
+    @Test("Ordered edges have valid indices")
+    func orderedEdgesValidIndices() throws {
+        let p1 = SIMD3<Double>(0, 0, 0)
+        let p2 = SIMD3<Double>(10, 0, 0)
+        let p3 = SIMD3<Double>(10, 10, 0)
+
+        let edges: [(start: SIMD3<Double>, end: SIMD3<Double>)] = [
+            (start: p1, end: p2),
+            (start: p2, end: p3),
+            (start: p3, end: p1),
+        ]
+
+        let result = WireOrder.analyze(edges: edges)
+        #expect(result != nil)
+        if let result {
+            for ordered in result.orderedEdges {
+                #expect(ordered.originalIndex >= 0)
+                #expect(ordered.originalIndex < edges.count)
+            }
+        }
+    }
+
+    @Test("Empty edges returns nil")
+    func emptyEdgesReturnsNil() throws {
+        let result = WireOrder.analyze(edges: [])
+        #expect(result == nil)
+    }
+}

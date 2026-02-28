@@ -16189,6 +16189,12 @@ OCCTShapeRef OCCTShapePurgeLocations(OCCTShapeRef shape) {
 #include <gp_Elips.hxx>
 #include <ShapeFix_EdgeConnect.hxx>
 #include <ShapeUpgrade_ShapeConvertToBezier.hxx>
+// v0.45.0
+#include <BRepFill_Filling.hxx>
+#include <GeomAbs_Shape.hxx>
+#include <BRepExtrema_SelfIntersection.hxx>
+#include <BRepGProp_Face.hxx>
+#include <ShapeAnalysis_WireOrder.hxx>
 
 int32_t OCCTSurfaceExtrema(OCCTSurfaceRef s1, OCCTSurfaceRef s2,
                             double u1Min, double u1Max, double v1Min, double v1Max,
@@ -16297,6 +16303,9 @@ OCCTShapeRef OCCTShapeConnectEdges(OCCTShapeRef shape) {
     }
 }
 
+// MARK: - v0.45.0: BRepFill_Filling, BRepExtrema_SelfIntersection, BRepGProp_Face, ShapeAnalysis_WireOrder
+// (implementations at end of file)
+
 OCCTShapeRef OCCTShapeConvertToBezier(OCCTShapeRef shape) {
     if (!shape) return nullptr;
     try {
@@ -16317,5 +16326,227 @@ OCCTShapeRef OCCTShapeConvertToBezier(OCCTShapeRef shape) {
         return new OCCTShape(result);
     } catch (...) {
         return nullptr;
+    }
+}
+
+// MARK: - v0.45.0 Implementations
+
+struct OCCTFilling {
+    BRepFill_Filling filler;
+};
+
+OCCTFillingRef OCCTFillingCreate(int32_t degree, int32_t nbPtsOnCur, int32_t maxDegree,
+                                  int32_t maxSegments, double tolerance3d) {
+    try {
+        auto* filling = new OCCTFilling();
+        filling->filler.SetConstrParam(tolerance3d, tolerance3d, 0.0001, 0.1);
+        filling->filler.SetResolParam(degree, nbPtsOnCur, maxDegree, maxSegments);
+        return filling;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTFillingRelease(OCCTFillingRef filling) {
+    delete filling;
+}
+
+bool OCCTFillingAddEdge(OCCTFillingRef filling, OCCTEdgeRef edge, int32_t continuity) {
+    if (!filling || !edge) return false;
+    try {
+        GeomAbs_Shape cont = GeomAbs_C0;
+        if (continuity == 1) cont = GeomAbs_C1;
+        else if (continuity >= 2) cont = GeomAbs_C2;
+        filling->filler.Add(edge->edge, cont);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFillingAddFreeEdge(OCCTFillingRef filling, OCCTEdgeRef edge, int32_t continuity) {
+    if (!filling || !edge) return false;
+    try {
+        GeomAbs_Shape cont = GeomAbs_C0;
+        if (continuity == 1) cont = GeomAbs_C1;
+        else if (continuity >= 2) cont = GeomAbs_C2;
+        filling->filler.Add(edge->edge, cont, /*IsBound=*/false);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFillingAddPoint(OCCTFillingRef filling, double x, double y, double z) {
+    if (!filling) return false;
+    try {
+        filling->filler.Add(gp_Pnt(x, y, z));
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFillingBuild(OCCTFillingRef filling) {
+    if (!filling) return false;
+    try {
+        filling->filler.Build();
+        return filling->filler.IsDone();
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFillingIsDone(OCCTFillingRef filling) {
+    if (!filling) return false;
+    return filling->filler.IsDone();
+}
+
+OCCTShapeRef OCCTFillingGetFace(OCCTFillingRef filling) {
+    if (!filling || !filling->filler.IsDone()) return nullptr;
+    try {
+        TopoDS_Face face = filling->filler.Face();
+        if (face.IsNull()) return nullptr;
+        return new OCCTShape(face);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+double OCCTFillingG0Error(OCCTFillingRef filling) {
+    if (!filling || !filling->filler.IsDone()) return -1.0;
+    try {
+        return filling->filler.G0Error();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+double OCCTFillingG1Error(OCCTFillingRef filling) {
+    if (!filling || !filling->filler.IsDone()) return -1.0;
+    try {
+        return filling->filler.G1Error();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+double OCCTFillingG2Error(OCCTFillingRef filling) {
+    if (!filling || !filling->filler.IsDone()) return -1.0;
+    try {
+        return filling->filler.G2Error();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+OCCTSelfIntersectionResult OCCTShapeSelfIntersection(OCCTShapeRef shape, double tolerance,
+                                                      double meshDeflection) {
+    OCCTSelfIntersectionResult result = {0, false};
+    if (!shape) return result;
+    try {
+        // Ensure the shape is meshed
+        BRepMesh_IncrementalMesh mesh(shape->shape, meshDeflection);
+
+        BRepExtrema_SelfIntersection selfInt(shape->shape, tolerance);
+        selfInt.Perform();
+
+        result.isDone = selfInt.IsDone();
+        if (result.isDone) {
+            result.overlapCount = (int32_t)selfInt.OverlapElements().Size();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+bool OCCTFaceGetNaturalBounds(OCCTFaceRef face, double* uMin, double* uMax,
+                               double* vMin, double* vMax) {
+    if (!face || !uMin || !uMax || !vMin || !vMax) return false;
+    try {
+        BRepGProp_Face gpropFace(face->face);
+        gpropFace.Bounds(*uMin, *uMax, *vMin, *vMax);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFaceEvaluateNormalAtUV(OCCTFaceRef face, double u, double v,
+                                 double* px, double* py, double* pz,
+                                 double* nx, double* ny, double* nz) {
+    if (!face || !px || !py || !pz || !nx || !ny || !nz) return false;
+    try {
+        BRepGProp_Face gpropFace(face->face);
+        gp_Pnt point;
+        gp_Vec normal;
+        gpropFace.Normal(u, v, point, normal);
+        *px = point.X(); *py = point.Y(); *pz = point.Z();
+        *nx = normal.X(); *ny = normal.Y(); *nz = normal.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTWireOrderResult OCCTWireOrderAnalyze(const double* starts, const double* ends,
+                                          int32_t nbEdges, double tolerance,
+                                          OCCTWireOrderEntry* outOrder) {
+    OCCTWireOrderResult result = {-1, 0};
+    if (!starts || !ends || nbEdges <= 0 || !outOrder) return result;
+    try {
+        ShapeAnalysis_WireOrder order(true, tolerance);
+
+        for (int32_t i = 0; i < nbEdges; i++) {
+            gp_XYZ s(starts[i*3], starts[i*3+1], starts[i*3+2]);
+            gp_XYZ e(ends[i*3], ends[i*3+1], ends[i*3+2]);
+            order.Add(s, e);
+        }
+
+        order.Perform();
+        result.status = order.Status();
+        result.nbEdges = order.NbEdges();
+
+        for (int32_t i = 1; i <= result.nbEdges; i++) {
+            outOrder[i-1].originalIndex = order.Ordered(i);
+        }
+
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTWireOrderResult OCCTWireOrderAnalyzeWire(OCCTWireRef wire, double tolerance,
+                                              OCCTWireOrderEntry* outOrder, int32_t maxEntries) {
+    OCCTWireOrderResult result = {-1, 0};
+    if (!wire || !outOrder || maxEntries <= 0) return result;
+    try {
+        ShapeAnalysis_WireOrder order(true, tolerance);
+
+        // Extract edge endpoints from the wire
+        for (TopExp_Explorer exp(wire->wire, TopAbs_EDGE); exp.More(); exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            double first, last;
+            Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+            if (curve.IsNull()) continue;
+
+            gp_Pnt p1 = curve->Value(first);
+            gp_Pnt p2 = curve->Value(last);
+            order.Add(p1.XYZ(), p2.XYZ());
+        }
+
+        order.Perform();
+        result.status = order.Status();
+        result.nbEdges = std::min(order.NbEdges(), maxEntries);
+
+        for (int32_t i = 1; i <= result.nbEdges; i++) {
+            outOrder[i-1].originalIndex = order.Ordered(i);
+        }
+
+        return result;
+    } catch (...) {
+        return result;
     }
 }

@@ -289,3 +289,53 @@ extension Shape {
         return result
     }
 }
+
+// MARK: - BRepGProp_Face Evaluation (v0.45.0)
+
+extension Face {
+    /// Result of evaluating a face at a UV parameter using BRepGProp_Face.
+    public struct GPropEvaluation: Sendable {
+        /// 3D point on the surface at (u, v)
+        public let point: SIMD3<Double>
+        /// Unnormalized surface normal (dS/du x dS/dv).
+        /// The magnitude equals the local area element (Jacobian determinant).
+        public let normal: SIMD3<Double>
+    }
+
+    /// Get the natural parametric bounds of this face using BRepGProp_Face.
+    ///
+    /// Unlike `uvBounds` (which uses BRepTools::UVBounds), this uses BRepGProp_Face::Bounds
+    /// which accounts for face orientation and provides integration-ready parametric bounds.
+    ///
+    /// - Returns: UV bounds as (uMin, uMax, vMin, vMax), or nil on error
+    public var naturalBounds: (uMin: Double, uMax: Double, vMin: Double, vMax: Double)? {
+        var uMin: Double = 0, uMax: Double = 0, vMin: Double = 0, vMax: Double = 0
+        guard OCCTFaceGetNaturalBounds(handle, &uMin, &uMax, &vMin, &vMax) else {
+            return nil
+        }
+        return (uMin: uMin, uMax: uMax, vMin: vMin, vMax: vMax)
+    }
+
+    /// Evaluate the face surface at UV parameters using BRepGProp_Face.
+    ///
+    /// Returns both the 3D point and the unnormalized surface normal at (u, v).
+    /// The normal is the cross product of partial derivatives (dS/du x dS/dv),
+    /// whose magnitude equals the local surface area element. This is useful for
+    /// surface integration (e.g., computing surface area, flux integrals).
+    ///
+    /// - Parameters:
+    ///   - u: U parameter
+    ///   - v: V parameter
+    /// - Returns: Evaluation result with point and unnormalized normal, or nil on error
+    public func evaluateGProp(u: Double, v: Double) -> GPropEvaluation? {
+        var px: Double = 0, py: Double = 0, pz: Double = 0
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        guard OCCTFaceEvaluateNormalAtUV(handle, u, v, &px, &py, &pz, &nx, &ny, &nz) else {
+            return nil
+        }
+        return GPropEvaluation(
+            point: SIMD3(px, py, pz),
+            normal: SIMD3(nx, ny, nz)
+        )
+    }
+}

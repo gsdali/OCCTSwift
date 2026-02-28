@@ -4317,6 +4317,149 @@ OCCTShapeRef OCCTShapeConnectEdges(OCCTShapeRef shape);
 /// @return Converted shape, or NULL on failure
 OCCTShapeRef OCCTShapeConvertToBezier(OCCTShapeRef shape);
 
+// MARK: - v0.45.0: BRepFill_Filling, BRepExtrema_SelfIntersection, BRepGProp_Face, ShapeAnalysis_WireOrder
+
+/// N-side surface filling: create a face from boundary edges and optional point constraints.
+/// Call OCCTFillingCreate, add edges/points, then Build, get face, and Release.
+typedef struct OCCTFilling* OCCTFillingRef;
+
+/// Create a filling surface builder with specified degree and number of points.
+/// @param degree Target polynomial degree (default 3)
+/// @param nbPtsOnCur Number of discretization points on each constraint curve (default 15)
+/// @param maxDegree Maximum polynomial degree (default 8)
+/// @param maxSegments Maximum number of segments (default 9)
+/// @param tolerance3d 3D tolerance (default 1e-4)
+/// @return Filling handle
+OCCTFillingRef OCCTFillingCreate(int32_t degree, int32_t nbPtsOnCur, int32_t maxDegree,
+                                  int32_t maxSegments, double tolerance3d);
+
+/// Release a filling surface builder.
+void OCCTFillingRelease(OCCTFillingRef filling);
+
+/// Add a boundary edge constraint.
+/// @param filling Filling handle
+/// @param edge Edge to add as constraint
+/// @param continuity Continuity order: 0=C0, 1=C1, 2=C2
+/// @return true if edge was added
+bool OCCTFillingAddEdge(OCCTFillingRef filling, OCCTEdgeRef edge, int32_t continuity);
+
+/// Add a free boundary edge constraint (not required to be connected to other edges).
+/// @param filling Filling handle
+/// @param edge Edge to add
+/// @param continuity Continuity order: 0=C0, 1=C1, 2=C2
+/// @return true if edge was added
+bool OCCTFillingAddFreeEdge(OCCTFillingRef filling, OCCTEdgeRef edge, int32_t continuity);
+
+/// Add a point constraint that the filling surface must pass through.
+/// @param filling Filling handle
+/// @param x, y, z Point coordinates
+/// @return true if point was added
+bool OCCTFillingAddPoint(OCCTFillingRef filling, double x, double y, double z);
+
+/// Build the filling surface.
+/// @param filling Filling handle
+/// @return true if build succeeded
+bool OCCTFillingBuild(OCCTFillingRef filling);
+
+/// Check if the filling surface was built successfully.
+/// @param filling Filling handle
+/// @return true if done
+bool OCCTFillingIsDone(OCCTFillingRef filling);
+
+/// Get the resulting face from a successful build.
+/// @param filling Filling handle
+/// @return Face shape, or NULL if not built
+OCCTShapeRef OCCTFillingGetFace(OCCTFillingRef filling);
+
+/// Get the G0 (positional) error of the filling surface.
+/// @param filling Filling handle
+/// @return G0 error value, or -1 on error
+double OCCTFillingG0Error(OCCTFillingRef filling);
+
+/// Get the G1 (tangent) error of the filling surface.
+/// @param filling Filling handle
+/// @return G1 error value, or -1 on error
+double OCCTFillingG1Error(OCCTFillingRef filling);
+
+/// Get the G2 (curvature) error of the filling surface.
+/// @param filling Filling handle
+/// @return G2 error value, or -1 on error
+double OCCTFillingG2Error(OCCTFillingRef filling);
+
+// --- BRepExtrema_SelfIntersection ---
+
+/// Result of self-intersection check
+typedef struct {
+    int32_t overlapCount;    ///< Number of overlapping triangle pairs
+    bool isDone;             ///< Whether the check completed
+} OCCTSelfIntersectionResult;
+
+/// Check a shape for self-intersection using BVH-accelerated triangle mesh overlap.
+/// The shape should be meshed first (will be auto-meshed if not).
+/// @param shape Shape to check
+/// @param tolerance Tolerance for detecting intersections
+/// @param meshDeflection Mesh deflection for auto-meshing (default 0.5)
+/// @return Self-intersection result
+OCCTSelfIntersectionResult OCCTShapeSelfIntersection(OCCTShapeRef shape, double tolerance,
+                                                      double meshDeflection);
+
+// --- BRepGProp_Face ---
+
+/// Get the natural bounds of a face using BRepGProp_Face.
+/// Unlike OCCTFaceGetUVBounds (BRepTools::UVBounds), this uses BRepGProp_Face::Bounds
+/// which accounts for face orientation and provides parametric integration bounds.
+/// @param face Face to query
+/// @param uMin, uMax, vMin, vMax Output UV bounds
+/// @return true on success
+bool OCCTFaceGetNaturalBounds(OCCTFaceRef face, double* uMin, double* uMax,
+                               double* vMin, double* vMax);
+
+/// Evaluate a face at UV using BRepGProp_Face::Normal, returning point and unnormalized normal.
+/// Unlike OCCTFaceGetNormalAtUV which normalizes, this returns the raw cross product of
+/// partial derivatives (dS/du x dS/dv), whose magnitude equals the local area element.
+/// @param face Face to evaluate
+/// @param u, v UV parameters
+/// @param px, py, pz Output 3D point coordinates
+/// @param nx, ny, nz Output surface normal (unnormalized, magnitude = area element)
+/// @return true on success
+bool OCCTFaceEvaluateNormalAtUV(OCCTFaceRef face, double u, double v,
+                                 double* px, double* py, double* pz,
+                                 double* nx, double* ny, double* nz);
+
+// --- ShapeAnalysis_WireOrder ---
+
+/// Wire ordering result entry
+typedef struct {
+    int32_t originalIndex;  ///< Original edge index (1-based, negative if reversed)
+} OCCTWireOrderEntry;
+
+/// Result of wire ordering analysis
+typedef struct {
+    int32_t status;         ///< 0=closed, 1=open, 2=gaps, -1=failed
+    int32_t nbEdges;        ///< Number of edges in the order
+} OCCTWireOrderResult;
+
+/// Analyze the ordering of edges to form connected chains.
+/// Edges are specified by their start/end 3D points.
+/// @param starts Array of start points (x,y,z triples)
+/// @param ends Array of end points (x,y,z triples)
+/// @param nbEdges Number of edges
+/// @param tolerance Connection tolerance
+/// @param outOrder Output array for ordered edge indices (must hold nbEdges entries)
+/// @return Wire order result (status and count)
+OCCTWireOrderResult OCCTWireOrderAnalyze(const double* starts, const double* ends,
+                                          int32_t nbEdges, double tolerance,
+                                          OCCTWireOrderEntry* outOrder);
+
+/// Analyze the ordering of edges from a wire shape.
+/// @param wire Wire to analyze
+/// @param tolerance Connection tolerance
+/// @param outOrder Output array for ordered edge indices (must hold enough entries)
+/// @param maxEntries Maximum entries in outOrder
+/// @return Wire order result
+OCCTWireOrderResult OCCTWireOrderAnalyzeWire(OCCTWireRef wire, double tolerance,
+                                              OCCTWireOrderEntry* outOrder, int32_t maxEntries);
+
 #ifdef __cplusplus
 }
 #endif
