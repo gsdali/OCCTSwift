@@ -190,6 +190,44 @@ public final class AssemblyNode: @unchecked Sendable {
         return Color(red: occtColor.r, green: occtColor.g, blue: occtColor.b, alpha: occtColor.a)
     }
 
+    /// Set the surface color on this node.
+    ///
+    /// - Parameter color: The color to assign
+    public func setColor(_ color: Color) {
+        OCCTDocumentSetLabelColor(document.handle, labelId, OCCTColorTypeSurface,
+                                  color.red, color.green, color.blue)
+    }
+
+    /// Set the color on this node with a specific color type.
+    ///
+    /// - Parameters:
+    ///   - color: The color to assign
+    ///   - type: Color type — generic (0), surface (1), or curve (2)
+    public func setColor(_ color: Color, type: OCCTColorType) {
+        OCCTDocumentSetLabelColor(document.handle, labelId, type,
+                                  color.red, color.green, color.blue)
+    }
+
+    /// Set the PBR material on this node.
+    ///
+    /// - Parameter material: The material properties to assign
+    public func setMaterial(_ material: Material) {
+        var occtMat = OCCTMaterial()
+        occtMat.baseColor = OCCTColor(r: material.baseColor.red, g: material.baseColor.green,
+                                       b: material.baseColor.blue, a: material.baseColor.alpha, isSet: true)
+        occtMat.metallic = material.metallic
+        occtMat.roughness = material.roughness
+        if let emissive = material.emissive {
+            occtMat.emissive = OCCTColor(r: emissive.red, g: emissive.green,
+                                          b: emissive.blue, a: emissive.alpha, isSet: true)
+        } else {
+            occtMat.emissive = OCCTColor(r: 0, g: 0, b: 0, a: 1, isSet: false)
+        }
+        occtMat.transparency = material.transparency
+        occtMat.isSet = true
+        OCCTDocumentSetLabelMaterial(document.handle, labelId, occtMat)
+    }
+
     /// PBR material assigned to this node (if any)
     public var material: Material? {
         let occtMat = OCCTDocumentGetLabelMaterial(document.handle, labelId)

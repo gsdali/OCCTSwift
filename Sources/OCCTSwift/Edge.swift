@@ -232,4 +232,37 @@ extension Edge {
     public func isSeam(on face: Face) -> Bool {
         OCCTEdgeIsSeam(handle, face.handle)
     }
+
+    /// Get the faces adjacent to this edge within the given shape.
+    ///
+    /// Most interior edges have exactly 2 adjacent faces. Boundary edges have 1.
+    ///
+    /// - Parameter shape: The shape containing this edge
+    /// - Returns: Tuple of (face1, face2) where face2 may be nil for boundary edges,
+    ///   or nil if the edge has no adjacent faces
+    public func adjacentFaces(in shape: Shape) -> (Face, Face?)? {
+        var face1: OCCTFaceRef?
+        var face2: OCCTFaceRef?
+        let count = OCCTEdgeGetAdjacentFaces(shape.handle, handle, &face1, &face2)
+        guard count >= 1, let f1 = face1 else { return nil }
+        let firstFace = Face(handle: f1)
+        let secondFace = face2.map { Face(handle: $0) }
+        return (firstFace, secondFace)
+    }
+
+    /// Compute the dihedral angle between two faces at this edge.
+    ///
+    /// The dihedral angle is measured between the face normals at the specified
+    /// parameter along the edge curve.
+    ///
+    /// - Parameters:
+    ///   - face1: First adjacent face
+    ///   - face2: Second adjacent face
+    ///   - parameter: Parameter along edge (0.0 to 1.0) where to measure
+    /// - Returns: Dihedral angle in radians (0 to 2*PI), or nil on error
+    public func dihedralAngle(between face1: Face, and face2: Face, at parameter: Double = 0.5) -> Double? {
+        let angle = OCCTEdgeGetDihedralAngle(handle, face1.handle, face2.handle, parameter)
+        guard angle >= 0 else { return nil }
+        return angle
+    }
 }
