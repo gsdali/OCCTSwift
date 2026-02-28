@@ -266,3 +266,56 @@ extension Edge {
         return angle
     }
 }
+
+// MARK: - Curve Approximation (v0.46.0)
+
+extension Edge {
+    /// Result of curve approximation
+    public struct CurveApproximation: Sendable {
+        /// Maximum approximation error
+        public let maxError: Double
+        /// BSpline degree
+        public let degree: Int
+        /// Number of BSpline control points (poles)
+        public let poleCount: Int
+    }
+
+    /// Approximate this edge's curve as a BSpline curve.
+    ///
+    /// Uses Approx_Curve3d to convert the edge's underlying curve (any type)
+    /// into a BSpline representation with controlled tolerance and degree.
+    ///
+    /// - Parameters:
+    ///   - tolerance: Maximum allowed approximation error (default 1e-3)
+    ///   - maxSegments: Maximum number of BSpline segments (default 100)
+    ///   - maxDegree: Maximum BSpline degree (default 8)
+    /// - Returns: Approximated BSpline as a Curve3D, or nil on failure
+    public func approximatedCurve(tolerance: Double = 1e-3,
+                                    maxSegments: Int = 100,
+                                    maxDegree: Int = 8) -> Curve3D? {
+        guard let ref = OCCTEdgeApproxCurve(handle, tolerance, Int32(maxSegments), Int32(maxDegree)) else {
+            return nil
+        }
+        return Curve3D(handle: ref)
+    }
+
+    /// Get information about curve approximation without creating the curve.
+    ///
+    /// - Parameters:
+    ///   - tolerance: Maximum allowed approximation error (default 1e-3)
+    ///   - maxSegments: Maximum number of BSpline segments (default 100)
+    ///   - maxDegree: Maximum BSpline degree (default 8)
+    /// - Returns: Approximation info (error, degree, pole count), or nil on failure
+    public func curveApproximationInfo(tolerance: Double = 1e-3,
+                                        maxSegments: Int = 100,
+                                        maxDegree: Int = 8) -> CurveApproximation? {
+        var maxError: Double = 0
+        var degree: Int32 = 0
+        var nbPoles: Int32 = 0
+        guard OCCTEdgeApproxCurveInfo(handle, tolerance, Int32(maxSegments), Int32(maxDegree),
+                                       &maxError, &degree, &nbPoles) else {
+            return nil
+        }
+        return CurveApproximation(maxError: maxError, degree: Int(degree), poleCount: Int(nbPoles))
+    }
+}

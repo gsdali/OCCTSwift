@@ -4521,4 +4521,175 @@ extension Shape {
         guard let ref = OCCTShapeConvertToBezier(handle) else { return nil }
         return Shape(handle: ref)
     }
+
+    // MARK: - Edge Concavity Analysis (v0.46.0)
+
+    /// Edge concavity type from BRepOffset_Analyse
+    public enum EdgeConcavity: Sendable {
+        /// Edge connects two faces at a convex angle (outer edge of a box)
+        case convex
+        /// Edge connects two faces at a concave angle (inner edge of a groove)
+        case concave
+        /// Edge connects two faces that are tangent (smooth transition)
+        case tangent
+    }
+
+    /// Classify all edges by their concavity type using BRepOffset_Analyse.
+    ///
+    /// Analyzes the angles between adjacent faces at each edge to determine
+    /// whether each edge is convex, concave, or tangent.
+    ///
+    /// - Parameter angle: Threshold angle for tangent classification (radians, default 0.01)
+    /// - Returns: Array of (edge, concavity) pairs, or nil on error
+    public func edgeConcavities(angle: Double = 0.01) -> [(Edge, EdgeConcavity)]? {
+        let count = edgeCount
+        guard count > 0 else { return nil }
+
+        var outTypes = [OCCTEdgeConcavity](repeating: OCCTEdgeConcavity(type: OCCTConcavityConvex),
+                                            count: count)
+        let classified = OCCTShapeAnalyzeEdgeConcavity(handle, angle, &outTypes, Int32(count))
+        guard classified > 0 else { return nil }
+
+        var result = [(Edge, EdgeConcavity)]()
+        result.reserveCapacity(Int(classified))
+
+        let allEdges = edges()
+        for i in 0..<min(Int(classified), allEdges.count) {
+            let concavity: EdgeConcavity
+            switch outTypes[i].type {
+            case OCCTConcavityConvex: concavity = .convex
+            case OCCTConcavityConcave: concavity = .concave
+            case OCCTConcavityTangent: concavity = .tangent
+            default: concavity = .tangent
+            }
+            result.append((allEdges[i], concavity))
+        }
+        return result
+    }
+
+    /// Count edges of a specific concavity type.
+    ///
+    /// - Parameters:
+    ///   - type: Concavity type to count
+    ///   - angle: Threshold angle for tangent classification (radians, default 0.01)
+    /// - Returns: Number of edges of the specified type, or nil on error
+    public func edgeConcavityCount(_ type: EdgeConcavity, angle: Double = 0.01) -> Int? {
+        let typeValue: Int32
+        switch type {
+        case .convex: typeValue = 0
+        case .concave: typeValue = 1
+        case .tangent: typeValue = 2
+        }
+        let count = OCCTShapeCountEdgeConcavity(handle, angle, typeValue)
+        return count >= 0 ? Int(count) : nil
+    }
+
+    // MARK: - Local Prism (v0.46.0)
+
+    /// Create a local prism (extrusion) from this shape along a direction.
+    ///
+    /// Uses LocOpe_Prism which tracks generated shapes for each input sub-shape,
+    /// providing more detailed operation history than standard extrusion.
+    ///
+    /// - Parameter direction: Direction and distance of extrusion
+    /// - Returns: Extruded shape, or nil on failure
+    public func localPrism(direction: SIMD3<Double>) -> Shape? {
+        guard let ref = OCCTLocOpePrism(handle, direction.x, direction.y, direction.z) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+
+    /// Create a local prism with an additional translation.
+    ///
+    /// - Parameters:
+    ///   - direction: Primary direction and distance of extrusion
+    ///   - translation: Secondary translation vector
+    /// - Returns: Extruded shape, or nil on failure
+    public func localPrism(direction: SIMD3<Double>, translation: SIMD3<Double>) -> Shape? {
+        guard let ref = OCCTLocOpePrismWithTranslation(
+            handle, direction.x, direction.y, direction.z,
+            translation.x, translation.y, translation.z
+        ) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - Volume Inertia Properties (v0.46.0)
+
+    /// Volume inertia properties of a solid shape.
+    public struct VolumeInertia: Sendable {
+        /// Volume of the shape
+        public let volume: Double
+        /// Center of mass
+        public let centerOfMass: SIMD3<Double>
+        /// 3x3 inertia tensor (row-major)
+        public let inertiaTensor: [Double]
+        /// Principal moments of inertia (sorted)
+        public let principalMoments: SIMD3<Double>
+        /// Principal axes of inertia (3 unit vectors)
+        public let principalAxes: (SIMD3<Double>, SIMD3<Double>, SIMD3<Double>)
+        /// Radii of gyration about principal axes
+        public let gyrationRadii: SIMD3<Double>
+    }
+
+    /// Compute volume inertia properties of this shape.
+    ///
+    /// Returns volume, center of mass, inertia tensor, principal moments
+    /// and axes of inertia, and radii of gyration.
+    ///
+    /// - Returns: Volume inertia result, or nil on error
+    public var volumeInertia: VolumeInertia? {
+        var result = OCCTVolumeInertiaResult()
+        guard OCCTShapeVolumeInertia(handle, &result) else { return nil }
+
+        let tensor = withUnsafeBytes(of: &result.inertia) { buf in
+            Array(buf.bindMemory(to: Double.self))
+        }
+
+        return VolumeInertia(
+            volume: result.volume,
+            centerOfMass: SIMD3(result.centerX, result.centerY, result.centerZ),
+            inertiaTensor: tensor,
+            principalMoments: SIMD3(result.principalMoment1, result.principalMoment2, result.principalMoment3),
+            principalAxes: (
+                SIMD3(result.axis1X, result.axis1Y, result.axis1Z),
+                SIMD3(result.axis2X, result.axis2Y, result.axis2Z),
+                SIMD3(result.axis3X, result.axis3Y, result.axis3Z)
+            ),
+            gyrationRadii: SIMD3(result.gyrationRadius1, result.gyrationRadius2, result.gyrationRadius3)
+        )
+    }
+
+    /// Surface inertia properties of a shape.
+    public struct SurfaceInertia: Sendable {
+        /// Total surface area
+        public let area: Double
+        /// Center of mass of the surface
+        public let centerOfMass: SIMD3<Double>
+        /// 3x3 inertia tensor (row-major)
+        public let inertiaTensor: [Double]
+        /// Principal moments of inertia
+        public let principalMoments: SIMD3<Double>
+    }
+
+    /// Compute surface (area) inertia properties of this shape.
+    ///
+    /// - Returns: Surface inertia result, or nil on error
+    public var surfaceInertia: SurfaceInertia? {
+        var result = OCCTSurfaceInertiaResult()
+        guard OCCTShapeSurfaceInertia(handle, &result) else { return nil }
+
+        let tensor = withUnsafeBytes(of: &result.inertia) { buf in
+            Array(buf.bindMemory(to: Double.self))
+        }
+
+        return SurfaceInertia(
+            area: result.area,
+            centerOfMass: SIMD3(result.centerX, result.centerY, result.centerZ),
+            inertiaTensor: tensor,
+            principalMoments: SIMD3(result.principalMoment1, result.principalMoment2, result.principalMoment3)
+        )
+    }
 }

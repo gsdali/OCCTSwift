@@ -4460,6 +4460,123 @@ OCCTWireOrderResult OCCTWireOrderAnalyze(const double* starts, const double* end
 OCCTWireOrderResult OCCTWireOrderAnalyzeWire(OCCTWireRef wire, double tolerance,
                                               OCCTWireOrderEntry* outOrder, int32_t maxEntries);
 
+// MARK: - v0.46.0: BRepOffset_Analyse, Approx_Curve3d, LocOpe_Prism, Volume Inertia
+
+// --- BRepOffset_Analyse: Edge convexity classification ---
+
+/// Edge concavity type from BRepOffset_Analyse
+typedef enum {
+    OCCTConcavityConvex = 0,
+    OCCTConcavityConcave = 1,
+    OCCTConcavityTangent = 2
+} OCCTConcavityType;
+
+/// Result for a single edge classification
+typedef struct {
+    OCCTConcavityType type;
+} OCCTEdgeConcavity;
+
+/// Analyze edge convexity/concavity in a shape.
+/// @param shape Shape to analyze
+/// @param angle Threshold angle for tangent classification (radians)
+/// @param outEdgeTypes Output array of edge concavity types (must hold shapeEdgeCount entries)
+/// @param maxEntries Maximum entries in output array
+/// @return Number of edges classified, or -1 on error
+int32_t OCCTShapeAnalyzeEdgeConcavity(OCCTShapeRef shape, double angle,
+                                       OCCTEdgeConcavity* outEdgeTypes, int32_t maxEntries);
+
+/// Count edges of a specific concavity type in a shape.
+/// @param shape Shape to analyze
+/// @param angle Threshold angle for tangent classification
+/// @param type Concavity type to count (0=convex, 1=concave, 2=tangent)
+/// @return Number of edges of that type, or -1 on error
+int32_t OCCTShapeCountEdgeConcavity(OCCTShapeRef shape, double angle, int32_t type);
+
+// --- Approx_Curve3d: Curve approximation to BSpline ---
+
+/// Approximate an edge's curve as a BSpline curve.
+/// @param edge Edge whose curve to approximate
+/// @param tolerance Approximation tolerance
+/// @param maxSegments Maximum number of BSpline segments
+/// @param maxDegree Maximum BSpline degree
+/// @return New Curve3D handle (BSpline), or NULL on failure
+OCCTCurve3DRef OCCTEdgeApproxCurve(OCCTEdgeRef edge, double tolerance,
+                                     int32_t maxSegments, int32_t maxDegree);
+
+/// Get the approximation error of the last edge curve approximation.
+/// @param edge Edge whose curve was approximated
+/// @param tolerance Approximation tolerance
+/// @param maxSegments Maximum number of BSpline segments
+/// @param maxDegree Maximum BSpline degree
+/// @param outMaxError Output: maximum approximation error
+/// @param outDegree Output: BSpline degree
+/// @param outNbPoles Output: number of BSpline poles (control points)
+/// @return true if approximation succeeded
+bool OCCTEdgeApproxCurveInfo(OCCTEdgeRef edge, double tolerance,
+                              int32_t maxSegments, int32_t maxDegree,
+                              double* outMaxError, int32_t* outDegree, int32_t* outNbPoles);
+
+// --- LocOpe_Prism: Local prism with shape tracking ---
+
+/// Create a local prism (extrusion) from a face along a direction vector.
+/// Tracks generated shapes for each input sub-shape.
+/// @param face Face to extrude
+/// @param dx, dy, dz Direction vector
+/// @return Shape result, or NULL on failure
+OCCTShapeRef OCCTLocOpePrism(OCCTShapeRef face, double dx, double dy, double dz);
+
+/// Create a local prism with a secondary translation vector.
+/// @param face Face to extrude
+/// @param dx, dy, dz Primary direction vector
+/// @param tx, ty, tz Secondary translation vector
+/// @return Shape result, or NULL on failure
+OCCTShapeRef OCCTLocOpePrismWithTranslation(OCCTShapeRef face,
+                                             double dx, double dy, double dz,
+                                             double tx, double ty, double tz);
+
+// --- Volume Inertia Properties ---
+
+/// Result of volume inertia analysis
+typedef struct {
+    double volume;             ///< Volume (mass)
+    double centerX, centerY, centerZ;  ///< Center of mass
+
+    /// Matrix of inertia (3x3, row-major, about center of mass)
+    double inertia[9];
+
+    /// Principal moments of inertia
+    double principalMoment1, principalMoment2, principalMoment3;
+
+    /// Principal axes of inertia (3 unit vectors)
+    double axis1X, axis1Y, axis1Z;
+    double axis2X, axis2Y, axis2Z;
+    double axis3X, axis3Y, axis3Z;
+
+    /// Gyration radii
+    double gyrationRadius1, gyrationRadius2, gyrationRadius3;
+} OCCTVolumeInertiaResult;
+
+/// Compute volume inertia properties of a shape.
+/// Returns volume, center of mass, inertia tensor, principal moments/axes.
+/// @param shape Shape to analyze
+/// @param result Output inertia result
+/// @return true on success
+bool OCCTShapeVolumeInertia(OCCTShapeRef shape, OCCTVolumeInertiaResult* result);
+
+/// Surface inertia result (for area properties)
+typedef struct {
+    double area;
+    double centerX, centerY, centerZ;
+    double inertia[9];
+    double principalMoment1, principalMoment2, principalMoment3;
+} OCCTSurfaceInertiaResult;
+
+/// Compute surface (area) inertia properties of a shape.
+/// @param shape Shape to analyze
+/// @param result Output inertia result
+/// @return true on success
+bool OCCTShapeSurfaceInertia(OCCTShapeRef shape, OCCTSurfaceInertiaResult* result);
+
 #ifdef __cplusplus
 }
 #endif

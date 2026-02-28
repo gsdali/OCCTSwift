@@ -100,6 +100,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Analytical Recognition**: Convert freeform curves/surfaces to analytical forms (line, circle, plane, cylinder)
 - **Canonical Form Recognition**: Identify canonical geometric forms in shapes (plane, cylinder, cone, sphere)
 - **Shape Census**: Count all sub-shapes by type with ShapeAnalysis complexity metrics
+- **Edge Concavity Analysis**: BRepOffset_Analyse — classify edges as convex, concave, or tangent between adjacent faces
+- **Curve Approximation**: Approx_Curve3d — approximate any edge curve as a BSpline with controlled tolerance and degree
+- **Local Prism**: LocOpe_Prism — local extrusion with shape tracking for generated sub-shapes
+- **Volume Inertia**: Full inertia tensor, principal moments/axes, gyration radii, center of mass from BRepGProp
+- **Surface Inertia**: Area-based inertia tensor and principal moments from BRepGProp
 - **N-Side Filling Surface**: BRepFill_Filling — boundary edge + interior point constraints with G0/G1/G2 error reporting
 - **Self-Intersection Detection**: BVH-accelerated triangle mesh overlap check for detecting self-intersecting geometry
 - **Face GProp Evaluation**: BRepGProp_Face — natural parametric bounds and unnormalized normals (area element magnitude) for surface integration
@@ -1053,6 +1058,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.46.0: **Edge concavity, curve approximation, local prism, volume/surface inertia** — BRepOffset_Analyse edge classification, Approx_Curve3d BSpline approximation, LocOpe_Prism with shape tracking, full inertia tensor with principal axes
 > - v0.45.0: **N-side filling, self-intersection, face GProp, wire ordering** — BRepFill_Filling with edge/point constraints, BRepExtrema_SelfIntersection via BVH, BRepGProp_Face natural bounds + unnormalized normals, ShapeAnalysis_WireOrder edge chain analysis
 > - v0.38.0: **OCCT test suite audit, round 7** — oriented bounding box, deep shape copy, sub-shape extraction (solids/shells/wires), fuse-and-blend, cut-and-blend, evolving fillet, per-face variable offset
 > - v0.37.0: **OCCT test suite audit, round 6** — thick/hollow solids, wire topology analysis, surface singularity detection, shell from parametric surface, multi-tool common
@@ -1109,7 +1115,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.30.0
 
-OCCTSwift now wraps **629 OCCT operations** across 53 categories with 929 tests across 225 suites.
+OCCTSwift now wraps **637 OCCT operations** across 58 categories with 946 tests across 230 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

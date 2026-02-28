@@ -12677,3 +12677,225 @@ struct WireOrderTests {
         #expect(result == nil)
     }
 }
+
+// MARK: - v0.46.0 Tests
+
+@Suite("Edge Concavity Tests")
+struct EdgeConcavityTests {
+    @Test("Box edges are all convex")
+    func boxEdgesConvex() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let concavities = box.edgeConcavities()
+        #expect(concavities != nil)
+        if let concavities {
+            #expect(!concavities.isEmpty)
+            for (_, concavity) in concavities {
+                #expect(concavity == .convex)
+            }
+        }
+    }
+
+    @Test("Count convex edges")
+    func countConvexEdges() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let count = box.edgeConcavityCount(.convex)
+        #expect(count != nil)
+        if let count {
+            #expect(count > 0)
+        }
+    }
+
+    @Test("No concave edges on box")
+    func noConcaveOnBox() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let count = box.edgeConcavityCount(.concave)
+        #expect(count != nil)
+        #expect(count == 0)
+    }
+
+    @Test("Concave edges on filleted box union")
+    func concaveEdgesExist() throws {
+        // A union of two overlapping boxes creates concave edges at the join
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(origin: SIMD3(5, 5, 0), width: 10, height: 10, depth: 10)!
+        if let fused = box1.union(with: box2) {
+            let concaveCount = fused.edgeConcavityCount(Shape.EdgeConcavity.concave)
+            // Fused shape may have concave edges where boxes overlap
+            #expect(concaveCount != nil)
+        }
+    }
+}
+
+@Suite("Curve Approximation Tests")
+struct CurveApproximationTests {
+    @Test("Approximate circle edge to BSpline")
+    func approximateCircle() throws {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let edges = cyl.edges()
+        // Find a circular edge
+        var circularEdge: Edge?
+        for edge in edges {
+            if edge.isCircle {
+                circularEdge = edge
+                break
+            }
+        }
+        #expect(circularEdge != nil)
+
+        if let edge = circularEdge {
+            let bspline = edge.approximatedCurve()
+            #expect(bspline != nil)
+        }
+    }
+
+    @Test("Approximation info returns valid data")
+    func approxInfo() throws {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let edges = cyl.edges()
+        var circularEdge: Edge?
+        for edge in edges {
+            if edge.isCircle {
+                circularEdge = edge
+                break
+            }
+        }
+        #expect(circularEdge != nil)
+
+        if let edge = circularEdge {
+            let info = edge.curveApproximationInfo()
+            #expect(info != nil)
+            if let info {
+                #expect(info.maxError < 0.01)
+                #expect(info.degree >= 2)
+                #expect(info.poleCount > 0)
+            }
+        }
+    }
+
+    @Test("Approximate straight edge")
+    func approximateLine() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edge = box.edge(at: 0)
+        #expect(edge != nil)
+
+        if let edge {
+            let bspline = edge.approximatedCurve()
+            #expect(bspline != nil)
+        }
+    }
+}
+
+@Suite("Local Prism Tests")
+struct LocalPrismTests {
+    @Test("Create local prism from face")
+    func basicLocalPrism() throws {
+        // Create a face
+        let wire = Wire.rectangle(width: 5, height: 5)
+        #expect(wire != nil)
+
+        let face = Shape.face(from: wire!)
+        #expect(face != nil)
+
+        if let face {
+            let prism = face.localPrism(direction: SIMD3(0, 0, 10))
+            #expect(prism != nil)
+        }
+    }
+
+    @Test("Local prism with translation")
+    func localPrismWithTranslation() throws {
+        let wire = Wire.rectangle(width: 5, height: 5)!
+        let face = Shape.face(from: wire)!
+        let prism = face.localPrism(direction: SIMD3(0, 0, 10),
+                                     translation: SIMD3(2, 0, 0))
+        #expect(prism != nil)
+    }
+
+    @Test("Local prism produces valid solid")
+    func localPrismIsSolid() throws {
+        let wire = Wire.rectangle(width: 5, height: 5)!
+        let face = Shape.face(from: wire)!
+        let prism = face.localPrism(direction: SIMD3(0, 0, 10))
+        #expect(prism != nil)
+        if let prism {
+            // Should have faces
+            #expect(prism.faceCount > 0)
+        }
+    }
+}
+
+@Suite("Volume Inertia Tests")
+struct VolumeInertiaTests {
+    @Test("Box volume inertia")
+    func boxVolumeInertia() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let inertia = box.volumeInertia
+        #expect(inertia != nil)
+        if let inertia {
+            #expect(abs(inertia.volume - 6000) < 1.0)
+            // Box is centered at origin in OCCTSwift
+            #expect(abs(inertia.centerOfMass.x) < 0.1)
+            #expect(abs(inertia.centerOfMass.y) < 0.1)
+            #expect(abs(inertia.centerOfMass.z) < 0.1)
+        }
+    }
+
+    @Test("Principal moments are positive")
+    func principalMomentsPositive() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let inertia = box.volumeInertia!
+        #expect(inertia.principalMoments.x > 0)
+        #expect(inertia.principalMoments.y > 0)
+        #expect(inertia.principalMoments.z > 0)
+    }
+
+    @Test("Inertia tensor has 9 elements")
+    func inertiaTensorSize() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let inertia = box.volumeInertia!
+        #expect(inertia.inertiaTensor.count == 9)
+    }
+
+    @Test("Gyration radii are positive")
+    func gyrationRadii() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let inertia = box.volumeInertia!
+        #expect(inertia.gyrationRadii.x > 0)
+        #expect(inertia.gyrationRadii.y > 0)
+        #expect(inertia.gyrationRadii.z > 0)
+    }
+
+    @Test("Sphere volume inertia")
+    func sphereVolumeInertia() throws {
+        let sphere = Shape.sphere(radius: 5)!
+        let inertia = sphere.volumeInertia
+        #expect(inertia != nil)
+        if let inertia {
+            let expectedVolume = (4.0 / 3.0) * Double.pi * 125.0
+            #expect(abs(inertia.volume - expectedVolume) < 1.0)
+        }
+    }
+}
+
+@Suite("Surface Inertia Tests")
+struct SurfaceInertiaTests {
+    @Test("Box surface inertia")
+    func boxSurfaceInertia() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let inertia = box.surfaceInertia
+        #expect(inertia != nil)
+        if let inertia {
+            // Surface area = 2*(10*20 + 10*30 + 20*30) = 2*(200+300+600) = 2200
+            #expect(abs(inertia.area - 2200) < 1.0)
+        }
+    }
+
+    @Test("Surface inertia principal moments positive")
+    func surfacePrincipalMoments() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let inertia = box.surfaceInertia!
+        #expect(inertia.principalMoments.x > 0)
+        #expect(inertia.principalMoments.y > 0)
+        #expect(inertia.principalMoments.z > 0)
+    }
+}

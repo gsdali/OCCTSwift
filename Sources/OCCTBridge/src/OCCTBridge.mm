@@ -16550,3 +16550,210 @@ OCCTWireOrderResult OCCTWireOrderAnalyzeWire(OCCTWireRef wire, double tolerance,
         return result;
     }
 }
+
+// MARK: - v0.46.0 Implementations
+#include <BRepOffset_Analyse.hxx>
+#include <BRepOffset_Interval.hxx>
+#include <ChFiDS_TypeOfConcavity.hxx>
+#include <Approx_Curve3d.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <LocOpe_Prism.hxx>
+#include <GProp_PrincipalProps.hxx>
+
+int32_t OCCTShapeAnalyzeEdgeConcavity(OCCTShapeRef shape, double angle,
+                                       OCCTEdgeConcavity* outEdgeTypes, int32_t maxEntries) {
+    if (!shape || !outEdgeTypes || maxEntries <= 0) return -1;
+    try {
+        BRepOffset_Analyse analyser(shape->shape, angle);
+        if (!analyser.IsDone()) return -1;
+
+        int32_t count = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More() && count < maxEntries; exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            const auto& intervals = analyser.Type(edge);
+            // Use the first interval's type for the overall edge classification
+            for (auto it = intervals.begin(); it != intervals.end(); ++it) {
+                OCCTConcavityType type;
+                if (it->Type() == ChFiDS_Convex) type = OCCTConcavityConvex;
+                else if (it->Type() == ChFiDS_Concave) type = OCCTConcavityConcave;
+                else type = OCCTConcavityTangent;
+                outEdgeTypes[count].type = type;
+                count++;
+                break; // One classification per edge
+            }
+        }
+        return count;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int32_t OCCTShapeCountEdgeConcavity(OCCTShapeRef shape, double angle, int32_t type) {
+    if (!shape) return -1;
+    try {
+        BRepOffset_Analyse analyser(shape->shape, angle);
+        if (!analyser.IsDone()) return -1;
+
+        ChFiDS_TypeOfConcavity targetType;
+        if (type == 0) targetType = ChFiDS_Convex;
+        else if (type == 1) targetType = ChFiDS_Concave;
+        else targetType = ChFiDS_Tangential;
+
+        int32_t count = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            const auto& intervals = analyser.Type(edge);
+            for (auto it = intervals.begin(); it != intervals.end(); ++it) {
+                if (it->Type() == targetType) {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count;
+    } catch (...) {
+        return -1;
+    }
+}
+
+OCCTCurve3DRef OCCTEdgeApproxCurve(OCCTEdgeRef edge, double tolerance,
+                                     int32_t maxSegments, int32_t maxDegree) {
+    if (!edge) return nullptr;
+    try {
+        BRepAdaptor_Curve adaptorCurve(edge->edge);
+        Approx_Curve3d approx(new BRepAdaptor_Curve(adaptorCurve),
+                               tolerance, GeomAbs_C2, maxSegments, maxDegree);
+        if (!approx.IsDone() && !approx.HasResult()) return nullptr;
+        auto bspline = approx.Curve();
+        if (bspline.IsNull()) return nullptr;
+        return new OCCTCurve3D(bspline);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTEdgeApproxCurveInfo(OCCTEdgeRef edge, double tolerance,
+                              int32_t maxSegments, int32_t maxDegree,
+                              double* outMaxError, int32_t* outDegree, int32_t* outNbPoles) {
+    if (!edge || !outMaxError || !outDegree || !outNbPoles) return false;
+    try {
+        BRepAdaptor_Curve adaptorCurve(edge->edge);
+        Approx_Curve3d approx(new BRepAdaptor_Curve(adaptorCurve),
+                               tolerance, GeomAbs_C2, maxSegments, maxDegree);
+        if (!approx.IsDone() && !approx.HasResult()) return false;
+        *outMaxError = approx.MaxError();
+        auto bspline = approx.Curve();
+        if (bspline.IsNull()) return false;
+        *outDegree = bspline->Degree();
+        *outNbPoles = bspline->NbPoles();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTShapeRef OCCTLocOpePrism(OCCTShapeRef face, double dx, double dy, double dz) {
+    if (!face) return nullptr;
+    try {
+        LocOpe_Prism prism(face->shape, gp_Vec(dx, dy, dz));
+        TopoDS_Shape result = prism.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpePrismWithTranslation(OCCTShapeRef face,
+                                             double dx, double dy, double dz,
+                                             double tx, double ty, double tz) {
+    if (!face) return nullptr;
+    try {
+        LocOpe_Prism prism(face->shape, gp_Vec(dx, dy, dz), gp_Vec(tx, ty, tz));
+        TopoDS_Shape result = prism.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTShapeVolumeInertia(OCCTShapeRef shape, OCCTVolumeInertiaResult* result) {
+    if (!shape || !result) return false;
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+
+        result->volume = props.Mass();
+
+        gp_Pnt com = props.CentreOfMass();
+        result->centerX = com.X();
+        result->centerY = com.Y();
+        result->centerZ = com.Z();
+
+        // Matrix of inertia about center of mass
+        GProp_GProps comProps;
+        BRepGProp::VolumeProperties(shape->shape, comProps);
+        gp_Mat mat = comProps.MatrixOfInertia();
+        result->inertia[0] = mat(1,1); result->inertia[1] = mat(1,2); result->inertia[2] = mat(1,3);
+        result->inertia[3] = mat(2,1); result->inertia[4] = mat(2,2); result->inertia[5] = mat(2,3);
+        result->inertia[6] = mat(3,1); result->inertia[7] = mat(3,2); result->inertia[8] = mat(3,3);
+
+        // Principal properties
+        GProp_PrincipalProps principal = comProps.PrincipalProperties();
+        double I1, I2, I3;
+        principal.Moments(I1, I2, I3);
+        result->principalMoment1 = I1;
+        result->principalMoment2 = I2;
+        result->principalMoment3 = I3;
+
+        const gp_Vec& a1 = principal.FirstAxisOfInertia();
+        result->axis1X = a1.X(); result->axis1Y = a1.Y(); result->axis1Z = a1.Z();
+
+        const gp_Vec& a2 = principal.SecondAxisOfInertia();
+        result->axis2X = a2.X(); result->axis2Y = a2.Y(); result->axis2Z = a2.Z();
+
+        const gp_Vec& a3 = principal.ThirdAxisOfInertia();
+        result->axis3X = a3.X(); result->axis3Y = a3.Y(); result->axis3Z = a3.Z();
+
+        principal.RadiusOfGyration(result->gyrationRadius1,
+                                    result->gyrationRadius2,
+                                    result->gyrationRadius3);
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTShapeSurfaceInertia(OCCTShapeRef shape, OCCTSurfaceInertiaResult* result) {
+    if (!shape || !result) return false;
+    try {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(shape->shape, props);
+
+        result->area = props.Mass();
+
+        gp_Pnt com = props.CentreOfMass();
+        result->centerX = com.X();
+        result->centerY = com.Y();
+        result->centerZ = com.Z();
+
+        gp_Mat mat = props.MatrixOfInertia();
+        result->inertia[0] = mat(1,1); result->inertia[1] = mat(1,2); result->inertia[2] = mat(1,3);
+        result->inertia[3] = mat(2,1); result->inertia[4] = mat(2,2); result->inertia[5] = mat(2,3);
+        result->inertia[6] = mat(3,1); result->inertia[7] = mat(3,2); result->inertia[8] = mat(3,3);
+
+        GProp_PrincipalProps principal = props.PrincipalProperties();
+        double I1, I2, I3;
+        principal.Moments(I1, I2, I3);
+        result->principalMoment1 = I1;
+        result->principalMoment2 = I2;
+        result->principalMoment3 = I3;
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
