@@ -18,7 +18,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Surfaces (Surface)** | 59 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, evaluateGrid, intersections, toAnalytical, bezierFill(4-curve), bezierFill(2-curve), singularityCount, isDegenerated, hasSingularities, toBezierPatchGrid, bsplineFill(2-curve), bsplineFill(4-curve), extrema |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 15 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam, adjacentFaces, dihedralAngle |
-| **Feature-Based** | 20 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile |
+| **Feature-Based** | 23 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile, localRevolution, localRevolutionWithOffset, locOpeDraftPrism |
 | **Healing/Analysis** | 37 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace, freeBounds, fixedFreeBounds, withSurfacesAsBSpline, withSurfacesAsRevolution, checkSmallFaces, purgedLocations, curveOnSurfaceCheck, connectedEdges, convertedToBezier |
 | **Measurement** | 14 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects, inertiaProperties, surfaceInertiaProperties, allDistanceSolutions, isInside, findSurfaceEx, findPlane, analyzePointCloud |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
@@ -28,10 +28,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Shape Editing** | 14 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath, copy, removingSubShapes, replacingSubShapes, dividedClosedEdges, faceRestricted, dividedByArea, dividedByParts |
 | **Polynomial Solver** | 3 | quadratic, cubic, quartic |
 | **Hatch Pattern** | 1 | generate |
-| **Geometry Construction** | 10 | face from wire, face with holes, solid from shell, solidFromShells, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed |
+| **Geometry Construction** | 11 | face from wire, face with holes, solid from shell, solidFromShells, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed, constrainedFill |
 | **Bounds/Topology** | 14 | bounds, orientedBoundingBox, orientedBoundingBoxCorners, size, center, vertices, edges, faces, solids, shells, wires, subShapeCount, subShape, subShapes |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
-| **Validation** | 2 | isValid, heal |
+| **Validation** | 8 | isValid, heal, checkResult, detailedCheckStatuses, faceCheckResult, checkSolid, checkShape, checkShapeDetailed |
 | **XDE/Document** | 28 | Document.load, rootNodes, AssemblyNode, colors, materials, setColor, setMaterial, dimensions, geomTolerances, datums, lengthUnit, layerCount, layerName, layerNames, materialCount, materialInfo, materials |
 | **Shape Census** | 2 | contents, recognizeCanonical |
 | **Find Surface** | 2 | findSurface, contiguousEdgeCount |
@@ -48,7 +48,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **613** | |
+| **Total** | **623** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -133,6 +133,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Offset by Join**: Proper offset algorithm with arc, tangent, or intersection gap filling
 - **Revolution Form**: Revolved rib/groove features on solids
 - **Draft Prism**: Tapered (draft-angle) extrusion features for injection mold design
+- **Local Revolution**: LocOpe_Revol — revolve a face profile around an axis with shape tracking for generated sub-shapes
+- **Local Draft Prism**: LocOpe_DPrism — tapered extrusion of a face with dual-height and draft angle control
+- **Constrained Surface Filling**: GeomFill_ConstrainedFilling — BSpline surface from 4 boundary edge curves
+- **Shape Validity Checking**: BRepCheck_Face / BRepCheck_Solid — detailed validation with per-status error reporting
 - **Revolution Feature**: Revolved boss/pocket features for turned parts
 - **Oriented Bounding Box**: Tight-fit rotated bounding box (OBB) for spatial queries, 30-70% tighter than axis-aligned
 - **Deep Shape Copy**: Independent shape cloning with optional geometry and mesh duplication

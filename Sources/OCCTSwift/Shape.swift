@@ -4693,3 +4693,243 @@ extension Shape {
         )
     }
 }
+
+// MARK: - Local Revolution (v0.47.0)
+
+extension Shape {
+    /// Create a revolved shape by rotating a profile around an axis.
+    ///
+    /// Uses LocOpe_Revol for local revolution operations with shape tracking.
+    ///
+    /// - Parameters:
+    ///   - axisOrigin: Origin point of the rotation axis
+    ///   - axisDirection: Direction of the rotation axis
+    ///   - angle: Rotation angle in radians
+    /// - Returns: Revolved shape, or nil on failure
+    public func localRevolution(axisOrigin: SIMD3<Double>,
+                                 axisDirection: SIMD3<Double>,
+                                 angle: Double) -> Shape? {
+        guard let ref = OCCTLocOpeRevol(handle,
+                                         axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                                         axisDirection.x, axisDirection.y, axisDirection.z,
+                                         angle) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+
+    /// Create a revolved shape with angular offset.
+    ///
+    /// - Parameters:
+    ///   - axisOrigin: Origin point of the rotation axis
+    ///   - axisDirection: Direction of the rotation axis
+    ///   - angle: Rotation angle in radians
+    ///   - angularOffset: Angular offset for positioning in radians
+    /// - Returns: Revolved shape, or nil on failure
+    public func localRevolution(axisOrigin: SIMD3<Double>,
+                                 axisDirection: SIMD3<Double>,
+                                 angle: Double,
+                                 angularOffset: Double) -> Shape? {
+        guard let ref = OCCTLocOpeRevolWithOffset(handle,
+                                                   axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                                                   axisDirection.x, axisDirection.y, axisDirection.z,
+                                                   angle, angularOffset) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - Draft Prism (v0.47.0)
+
+extension Face {
+    /// Create a draft prism (tapered extrusion) from this face.
+    ///
+    /// Uses LocOpe_DPrism for creating tapered extrusions with different
+    /// heights on each end and a draft angle.
+    ///
+    /// - Parameters:
+    ///   - height1: First height
+    ///   - height2: Second height
+    ///   - angle: Draft angle in radians
+    /// - Returns: Draft prism shape, or nil on failure
+    public func draftPrism(height1: Double, height2: Double, angle: Double) -> Shape? {
+        guard let ref = OCCTLocOpeDPrism(handle, height1, height2, angle) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+
+    /// Create a draft prism with single height.
+    ///
+    /// - Parameters:
+    ///   - height: Extrusion height
+    ///   - angle: Draft angle in radians
+    /// - Returns: Draft prism shape, or nil on failure
+    public func draftPrism(height: Double, angle: Double) -> Shape? {
+        guard let ref = OCCTLocOpeDPrismSingleHeight(handle, height, angle) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - Constrained Filling (v0.47.0)
+
+extension Shape {
+    /// Information about a constrained-fill BSpline surface
+    public struct ConstrainedFillInfo: Sendable {
+        /// U-direction BSpline degree
+        public let uDegree: Int
+        /// V-direction BSpline degree
+        public let vDegree: Int
+        /// Number of control points in U
+        public let uPoles: Int
+        /// Number of control points in V
+        public let vPoles: Int
+    }
+
+    /// Create a surface by filling a region bounded by 3 or 4 edge curves.
+    ///
+    /// Uses GeomFill_ConstrainedFilling to create a BSpline surface that
+    /// interpolates the given boundary curves.
+    ///
+    /// - Parameters:
+    ///   - edge1: First boundary edge
+    ///   - edge2: Second boundary edge
+    ///   - edge3: Third boundary edge
+    ///   - edge4: Optional fourth boundary edge (nil for 3-sided fill)
+    ///   - maxDegree: Maximum BSpline degree (default 8)
+    ///   - maxSegments: Maximum number of segments (default 15)
+    /// - Returns: Face shape built on the filled surface, or nil on failure
+    public static func constrainedFill(edge1: Edge, edge2: Edge, edge3: Edge,
+                                        edge4: Edge? = nil,
+                                        maxDegree: Int = 8,
+                                        maxSegments: Int = 15) -> Shape? {
+        guard let ref = OCCTGeomFillConstrained(edge1.handle, edge2.handle,
+                                                 edge3.handle, edge4?.handle,
+                                                 Int32(maxDegree), Int32(maxSegments)) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+
+    /// Get BSpline surface info from a constrained fill result.
+    ///
+    /// - Returns: Surface info (degrees, pole counts), or nil if not a BSpline surface
+    public var constrainedFillInfo: ConstrainedFillInfo? {
+        var info = OCCTConstrainedFillingInfo()
+        guard OCCTGeomFillConstrainedInfo(handle, &info), info.isValid else { return nil }
+        return ConstrainedFillInfo(
+            uDegree: Int(info.uDegree),
+            vDegree: Int(info.vDegree),
+            uPoles: Int(info.uPoles),
+            vPoles: Int(info.vPoles)
+        )
+    }
+}
+
+// MARK: - Shape Validity Checking (v0.47.0)
+
+extension Shape {
+    /// Shape check error status codes
+    public enum CheckStatus: Int32, Sendable, CaseIterable {
+        case noError = 0
+        case invalidPointOnCurve = 1
+        case invalidPointOnCurveOnSurface = 2
+        case invalidPointOnSurface = 3
+        case no3DCurve = 4
+        case multiple3DCurve = 5
+        case invalid3DCurve = 6
+        case noCurveOnSurface = 7
+        case invalidCurveOnSurface = 8
+        case invalidCurveOnClosedSurface = 9
+        case invalidSameRangeFlag = 10
+        case invalidSameParameterFlag = 11
+        case invalidDegeneratedFlag = 12
+        case freeEdge = 13
+        case invalidMultiConnexity = 14
+        case invalidRange = 15
+        case emptyWire = 16
+        case redundantEdge = 17
+        case selfIntersectingWire = 18
+        case noSurface = 19
+        case invalidWire = 20
+        case redundantWire = 21
+        case intersectingWires = 22
+        case invalidImbricationOfWires = 23
+        case emptyShell = 24
+        case redundantFace = 25
+        case invalidImbricationOfShells = 26
+        case unorientableShape = 27
+        case notClosed = 28
+        case notConnected = 29
+        case subshapeNotInShape = 30
+        case badOrientation = 31
+        case badOrientationOfSubshape = 32
+        case invalidPolygonOnTriangulation = 33
+        case invalidToleranceValue = 34
+        case enclosedRegion = 35
+        case checkFail = 36
+    }
+
+    /// Result of a shape validity check
+    public struct CheckResult: Sendable {
+        /// Whether the shape is valid (no errors)
+        public let isValid: Bool
+        /// Number of errors found
+        public let errorCount: Int
+        /// First error status (if any)
+        public let firstError: CheckStatus?
+    }
+
+    /// Check the overall validity of this shape.
+    ///
+    /// Uses BRepCheck_Analyzer for comprehensive topology and geometry validation.
+    ///
+    /// - Returns: Check result with validity status and error details
+    public var checkResult: CheckResult {
+        let result = OCCTCheckShape(handle)
+        let status = CheckStatus(rawValue: Int32(result.firstError.rawValue))
+        return CheckResult(
+            isValid: result.isValid,
+            errorCount: Int(result.errorCount),
+            firstError: result.errorCount > 0 ? status : nil
+        )
+    }
+
+    /// Get detailed error status codes for this shape.
+    ///
+    /// Returns all individual error codes found during validation,
+    /// useful for diagnosing exactly what's wrong with an invalid shape.
+    ///
+    /// - Returns: Array of check status codes
+    public var detailedCheckStatuses: [CheckStatus] {
+        var buffer = [OCCTCheckStatus](repeating: .init(rawValue: 0), count: 256)
+        let count = OCCTCheckShapeDetailed(handle, &buffer, 256)
+        guard count > 0 else { return [] }
+        return (0..<Int(count)).compactMap { i in
+            CheckStatus(rawValue: Int32(buffer[i].rawValue))
+        }
+    }
+}
+
+// MARK: - Face Validity Checking (v0.47.0)
+
+extension Face {
+    /// Check the validity of this face using BRepCheck_Face.
+    ///
+    /// Uses BRepCheck_Face for face-specific validation including
+    /// wire intersection checks, surface validity, etc.
+    ///
+    /// - Returns: Check result
+    public var faceCheckResult: Shape.CheckResult {
+        let result = OCCTCheckFace(handle)
+        let status = Shape.CheckStatus(rawValue: Int32(result.firstError.rawValue))
+        return Shape.CheckResult(
+            isValid: result.isValid,
+            errorCount: Int(result.errorCount),
+            firstError: result.errorCount > 0 ? status : nil
+        )
+    }
+}

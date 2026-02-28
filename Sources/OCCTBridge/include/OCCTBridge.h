@@ -4577,6 +4577,154 @@ typedef struct {
 /// @return true on success
 bool OCCTShapeSurfaceInertia(OCCTShapeRef shape, OCCTSurfaceInertiaResult* result);
 
+// MARK: - v0.47.0: LocOpe_Revol, LocOpe_DPrism, GeomFill_ConstrainedFilling, BRepCheck
+
+// --- LocOpe_Revol: Local revolution with shape tracking ---
+
+/// Create a revolved shape from a profile face around an axis.
+/// Uses default constructor + Perform pattern.
+/// @param profile Face to revolve
+/// @param axisOriginX,Y,Z Origin point of rotation axis
+/// @param axisDirX,Y,Z Direction of rotation axis
+/// @param angle Rotation angle in radians
+/// @return Revolved shape, or NULL on failure
+OCCTShapeRef OCCTLocOpeRevol(OCCTShapeRef profile,
+                              double axisOriginX, double axisOriginY, double axisOriginZ,
+                              double axisDirX, double axisDirY, double axisDirZ,
+                              double angle);
+
+/// Create a revolved shape with angular offset for positioning.
+/// @param profile Face to revolve
+/// @param axisOriginX,Y,Z Origin of rotation axis
+/// @param axisDirX,Y,Z Direction of rotation axis
+/// @param angle Rotation angle in radians
+/// @param angledec Angular offset in radians
+/// @return Revolved shape, or NULL on failure
+OCCTShapeRef OCCTLocOpeRevolWithOffset(OCCTShapeRef profile,
+                                        double axisOriginX, double axisOriginY, double axisOriginZ,
+                                        double axisDirX, double axisDirY, double axisDirZ,
+                                        double angle, double angledec);
+
+// --- LocOpe_DPrism: Draft prism (tapered extrusion) ---
+
+/// Create a draft prism with two heights and a draft angle.
+/// @param spineFace Face defining the prism spine
+/// @param height1 First height
+/// @param height2 Second height
+/// @param angle Draft angle in radians
+/// @return Draft prism shape, or NULL on failure
+OCCTShapeRef OCCTLocOpeDPrism(OCCTFaceRef spineFace,
+                               double height1, double height2, double angle);
+
+/// Create a draft prism with single height and draft angle.
+/// @param spineFace Face defining the prism spine
+/// @param height Height
+/// @param angle Draft angle in radians
+/// @return Draft prism shape, or NULL on failure
+OCCTShapeRef OCCTLocOpeDPrismSingleHeight(OCCTFaceRef spineFace,
+                                            double height, double angle);
+
+// --- GeomFill_ConstrainedFilling: BSpline surface from boundary curves ---
+
+/// Result of constrained filling
+typedef struct {
+    bool isValid;
+    int32_t uDegree;
+    int32_t vDegree;
+    int32_t uPoles;
+    int32_t vPoles;
+} OCCTConstrainedFillingInfo;
+
+/// Create a BSpline surface by filling a region bounded by 3 or 4 curves.
+/// Curves are specified as edges; the function extracts their geometric curves.
+/// @param edge1,edge2,edge3 Three boundary edges (required)
+/// @param edge4 Fourth boundary edge (optional, pass NULL for 3-sided fill)
+/// @param maxDeg Maximum degree of the resulting surface
+/// @param maxSeg Maximum number of segments
+/// @return Face built on the filled surface, or NULL on failure
+OCCTShapeRef OCCTGeomFillConstrained(OCCTEdgeRef edge1, OCCTEdgeRef edge2,
+                                      OCCTEdgeRef edge3, OCCTEdgeRef edge4,
+                                      int32_t maxDeg, int32_t maxSeg);
+
+/// Get information about a constrained filling result surface.
+/// @param face Face from constrained filling
+/// @param info Output info struct
+/// @return true on success
+bool OCCTGeomFillConstrainedInfo(OCCTShapeRef face, OCCTConstrainedFillingInfo* info);
+
+// --- BRepCheck: Shape validity checking ---
+
+/// Shape validity status codes (maps to BRepCheck_Status)
+typedef enum {
+    OCCTCheckNoError = 0,
+    OCCTCheckInvalidPointOnCurve = 1,
+    OCCTCheckInvalidPointOnCurveOnSurface = 2,
+    OCCTCheckInvalidPointOnSurface = 3,
+    OCCTCheckNo3DCurve = 4,
+    OCCTCheckMultiple3DCurve = 5,
+    OCCTCheckInvalid3DCurve = 6,
+    OCCTCheckNoCurveOnSurface = 7,
+    OCCTCheckInvalidCurveOnSurface = 8,
+    OCCTCheckInvalidCurveOnClosedSurface = 9,
+    OCCTCheckInvalidSameRangeFlag = 10,
+    OCCTCheckInvalidSameParameterFlag = 11,
+    OCCTCheckInvalidDegeneratedFlag = 12,
+    OCCTCheckFreeEdge = 13,
+    OCCTCheckInvalidMultiConnexity = 14,
+    OCCTCheckInvalidRange = 15,
+    OCCTCheckEmptyWire = 16,
+    OCCTCheckRedundantEdge = 17,
+    OCCTCheckSelfIntersectingWire = 18,
+    OCCTCheckNoSurface = 19,
+    OCCTCheckInvalidWire = 20,
+    OCCTCheckRedundantWire = 21,
+    OCCTCheckIntersectingWires = 22,
+    OCCTCheckInvalidImbricationOfWires = 23,
+    OCCTCheckEmptyShell = 24,
+    OCCTCheckRedundantFace = 25,
+    OCCTCheckInvalidImbricationOfShells = 26,
+    OCCTCheckUnorientableShape = 27,
+    OCCTCheckNotClosed = 28,
+    OCCTCheckNotConnected = 29,
+    OCCTCheckSubshapeNotInShape = 30,
+    OCCTCheckBadOrientation = 31,
+    OCCTCheckBadOrientationOfSubshape = 32,
+    OCCTCheckInvalidPolygonOnTriangulation = 33,
+    OCCTCheckInvalidToleranceValue = 34,
+    OCCTCheckEnclosedRegion = 35,
+    OCCTCheckCheckFail = 36
+} OCCTCheckStatus;
+
+/// Result of shape validity check
+typedef struct {
+    bool isValid;           ///< True if no errors found
+    int32_t errorCount;     ///< Number of errors
+    OCCTCheckStatus firstError;  ///< First error code (if any)
+} OCCTShapeCheckResult;
+
+/// Check validity of a face.
+/// @param face Face to check
+/// @return Check result
+OCCTShapeCheckResult OCCTCheckFace(OCCTFaceRef face);
+
+/// Check validity of a solid.
+/// @param shape Solid shape to check
+/// @return Check result
+OCCTShapeCheckResult OCCTCheckSolid(OCCTShapeRef shape);
+
+/// Check overall validity of any shape (comprehensive check).
+/// Uses BRepCheck_Analyzer for full topology + geometry validation.
+/// @param shape Shape to check
+/// @return Check result
+OCCTShapeCheckResult OCCTCheckShape(OCCTShapeRef shape);
+
+/// Get detailed check status codes for a shape.
+/// @param shape Shape to analyze
+/// @param outStatuses Output array of status codes
+/// @param maxStatuses Max entries in output
+/// @return Number of status entries written
+int32_t OCCTCheckShapeDetailed(OCCTShapeRef shape, OCCTCheckStatus* outStatuses, int32_t maxStatuses);
+
 #ifdef __cplusplus
 }
 #endif

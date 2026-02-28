@@ -262,6 +262,18 @@
 #include <GeomAdaptor_Curve.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
 
+// v0.47.0: LocOpe_Revol, LocOpe_DPrism, GeomFill_ConstrainedFilling, BRepCheck
+#include <LocOpe_Revol.hxx>
+#include <LocOpe_DPrism.hxx>
+#include <Adaptor3d_Curve.hxx>
+#include <GeomFill_ConstrainedFilling.hxx>
+#include <GeomFill_SimpleBound.hxx>
+#include <BRepCheck_Face.hxx>
+#include <BRepCheck_Solid.hxx>
+#include <BRepCheck_Result.hxx>
+#include <BRepCheck_Status.hxx>
+#include <BRepCheck_ListOfStatus.hxx>
+
 // MARK: - Internal Structures
 
 struct OCCTShape {
@@ -16755,5 +16767,324 @@ bool OCCTShapeSurfaceInertia(OCCTShapeRef shape, OCCTSurfaceInertiaResult* resul
         return true;
     } catch (...) {
         return false;
+    }
+}
+
+// MARK: - v0.47.0: LocOpe_Revol, LocOpe_DPrism, GeomFill_ConstrainedFilling, BRepCheck
+
+// --- LocOpe_Revol ---
+
+OCCTShapeRef OCCTLocOpeRevol(OCCTShapeRef profile,
+                              double axisOriginX, double axisOriginY, double axisOriginZ,
+                              double axisDirX, double axisDirY, double axisDirZ,
+                              double angle) {
+    if (!profile) return nullptr;
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+        LocOpe_Revol revol;
+        revol.Perform(profile->shape, axis, angle);
+        TopoDS_Shape result = revol.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeRevolWithOffset(OCCTShapeRef profile,
+                                        double axisOriginX, double axisOriginY, double axisOriginZ,
+                                        double axisDirX, double axisDirY, double axisDirZ,
+                                        double angle, double angledec) {
+    if (!profile) return nullptr;
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+        LocOpe_Revol revol;
+        revol.Perform(profile->shape, axis, angle, angledec);
+        TopoDS_Shape result = revol.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- LocOpe_DPrism ---
+
+OCCTShapeRef OCCTLocOpeDPrism(OCCTFaceRef spineFace,
+                               double height1, double height2, double angle) {
+    if (!spineFace) return nullptr;
+    try {
+        LocOpe_DPrism dprism(spineFace->face, height1, height2, angle);
+        if (!dprism.IsDone()) return nullptr;
+        TopoDS_Shape result = dprism.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeDPrismSingleHeight(OCCTFaceRef spineFace,
+                                            double height, double angle) {
+    if (!spineFace) return nullptr;
+    try {
+        LocOpe_DPrism dprism(spineFace->face, height, angle);
+        if (!dprism.IsDone()) return nullptr;
+        TopoDS_Shape result = dprism.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- GeomFill_ConstrainedFilling ---
+
+OCCTShapeRef OCCTGeomFillConstrained(OCCTEdgeRef edge1, OCCTEdgeRef edge2,
+                                      OCCTEdgeRef edge3, OCCTEdgeRef edge4,
+                                      int32_t maxDeg, int32_t maxSeg) {
+    if (!edge1 || !edge2 || !edge3) return nullptr;
+    try {
+        // Extract curves from edges
+        auto getCurve = [](const TopoDS_Edge& edge) -> Handle(Geom_TrimmedCurve) {
+            double first, last;
+            Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+            if (curve.IsNull()) return nullptr;
+            return new Geom_TrimmedCurve(curve, first, last);
+        };
+
+        Handle(Geom_TrimmedCurve) c1 = getCurve(edge1->edge);
+        Handle(Geom_TrimmedCurve) c2 = getCurve(edge2->edge);
+        Handle(Geom_TrimmedCurve) c3 = getCurve(edge3->edge);
+        if (c1.IsNull() || c2.IsNull() || c3.IsNull()) return nullptr;
+
+        Handle(GeomFill_SimpleBound) b1 = new GeomFill_SimpleBound(
+            new GeomAdaptor_Curve(c1), 1e-4, 1e-4);
+        Handle(GeomFill_SimpleBound) b2 = new GeomFill_SimpleBound(
+            new GeomAdaptor_Curve(c2), 1e-4, 1e-4);
+        Handle(GeomFill_SimpleBound) b3 = new GeomFill_SimpleBound(
+            new GeomAdaptor_Curve(c3), 1e-4, 1e-4);
+
+        GeomFill_ConstrainedFilling filler(maxDeg, maxSeg);
+
+        if (edge4) {
+            Handle(Geom_TrimmedCurve) c4 = getCurve(edge4->edge);
+            if (c4.IsNull()) return nullptr;
+            Handle(GeomFill_SimpleBound) b4 = new GeomFill_SimpleBound(
+                new GeomAdaptor_Curve(c4), 1e-4, 1e-4);
+            filler.Init(b1, b2, b3, b4);
+        } else {
+            filler.Init(b1, b2, b3);
+        }
+
+        Handle(Geom_BSplineSurface) surface = filler.Surface();
+        if (surface.IsNull()) return nullptr;
+
+        // Build a face from the surface
+        BRepBuilderAPI_MakeFace faceMaker(surface, 1e-6);
+        if (!faceMaker.IsDone()) return nullptr;
+        return new OCCTShape(faceMaker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTGeomFillConstrainedInfo(OCCTShapeRef face, OCCTConstrainedFillingInfo* info) {
+    if (!face || !info) return false;
+    try {
+        // Extract the BSpline surface from the face
+        for (TopExp_Explorer exp(face->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            TopoDS_Face f = TopoDS::Face(exp.Current());
+            Handle(Geom_Surface) surf = BRep_Tool::Surface(f);
+            Handle(Geom_BSplineSurface) bspline = Handle(Geom_BSplineSurface)::DownCast(surf);
+            if (!bspline.IsNull()) {
+                info->isValid = true;
+                info->uDegree = bspline->UDegree();
+                info->vDegree = bspline->VDegree();
+                info->uPoles = bspline->NbUPoles();
+                info->vPoles = bspline->NbVPoles();
+                return true;
+            }
+        }
+        info->isValid = false;
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+// --- BRepCheck ---
+
+static OCCTCheckStatus mapBRepCheckStatus(BRepCheck_Status status) {
+    switch (status) {
+        case BRepCheck_NoError: return OCCTCheckNoError;
+        case BRepCheck_InvalidPointOnCurve: return OCCTCheckInvalidPointOnCurve;
+        case BRepCheck_InvalidPointOnCurveOnSurface: return OCCTCheckInvalidPointOnCurveOnSurface;
+        case BRepCheck_InvalidPointOnSurface: return OCCTCheckInvalidPointOnSurface;
+        case BRepCheck_No3DCurve: return OCCTCheckNo3DCurve;
+        case BRepCheck_Multiple3DCurve: return OCCTCheckMultiple3DCurve;
+        case BRepCheck_Invalid3DCurve: return OCCTCheckInvalid3DCurve;
+        case BRepCheck_NoCurveOnSurface: return OCCTCheckNoCurveOnSurface;
+        case BRepCheck_InvalidCurveOnSurface: return OCCTCheckInvalidCurveOnSurface;
+        case BRepCheck_InvalidCurveOnClosedSurface: return OCCTCheckInvalidCurveOnClosedSurface;
+        case BRepCheck_InvalidSameRangeFlag: return OCCTCheckInvalidSameRangeFlag;
+        case BRepCheck_InvalidSameParameterFlag: return OCCTCheckInvalidSameParameterFlag;
+        case BRepCheck_InvalidDegeneratedFlag: return OCCTCheckInvalidDegeneratedFlag;
+        case BRepCheck_FreeEdge: return OCCTCheckFreeEdge;
+        case BRepCheck_InvalidMultiConnexity: return OCCTCheckInvalidMultiConnexity;
+        case BRepCheck_InvalidRange: return OCCTCheckInvalidRange;
+        case BRepCheck_EmptyWire: return OCCTCheckEmptyWire;
+        case BRepCheck_RedundantEdge: return OCCTCheckRedundantEdge;
+        case BRepCheck_SelfIntersectingWire: return OCCTCheckSelfIntersectingWire;
+        case BRepCheck_NoSurface: return OCCTCheckNoSurface;
+        case BRepCheck_InvalidWire: return OCCTCheckInvalidWire;
+        case BRepCheck_RedundantWire: return OCCTCheckRedundantWire;
+        case BRepCheck_IntersectingWires: return OCCTCheckIntersectingWires;
+        case BRepCheck_InvalidImbricationOfWires: return OCCTCheckInvalidImbricationOfWires;
+        case BRepCheck_EmptyShell: return OCCTCheckEmptyShell;
+        case BRepCheck_RedundantFace: return OCCTCheckRedundantFace;
+        case BRepCheck_InvalidImbricationOfShells: return OCCTCheckInvalidImbricationOfShells;
+        case BRepCheck_UnorientableShape: return OCCTCheckUnorientableShape;
+        case BRepCheck_NotClosed: return OCCTCheckNotClosed;
+        case BRepCheck_NotConnected: return OCCTCheckNotConnected;
+        case BRepCheck_SubshapeNotInShape: return OCCTCheckSubshapeNotInShape;
+        case BRepCheck_BadOrientation: return OCCTCheckBadOrientation;
+        case BRepCheck_BadOrientationOfSubshape: return OCCTCheckBadOrientationOfSubshape;
+        case BRepCheck_InvalidPolygonOnTriangulation: return OCCTCheckInvalidPolygonOnTriangulation;
+        case BRepCheck_InvalidToleranceValue: return OCCTCheckInvalidToleranceValue;
+        case BRepCheck_EnclosedRegion: return OCCTCheckEnclosedRegion;
+        case BRepCheck_CheckFail: return OCCTCheckCheckFail;
+        default: return OCCTCheckCheckFail;
+    }
+}
+
+OCCTShapeCheckResult OCCTCheckFace(OCCTFaceRef face) {
+    OCCTShapeCheckResult result = {true, 0, OCCTCheckNoError};
+    if (!face) { result.isValid = false; result.firstError = OCCTCheckCheckFail; return result; }
+    try {
+        Handle(BRepCheck_Face) checker = new BRepCheck_Face(face->face);
+        checker->Minimum();
+        const auto& statusList = checker->Status();
+        for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+            if (*it != BRepCheck_NoError) {
+                if (result.errorCount == 0) {
+                    result.firstError = mapBRepCheckStatus(*it);
+                }
+                result.errorCount++;
+                result.isValid = false;
+            }
+        }
+        return result;
+    } catch (...) {
+        result.isValid = false;
+        result.firstError = OCCTCheckCheckFail;
+        return result;
+    }
+}
+
+OCCTShapeCheckResult OCCTCheckSolid(OCCTShapeRef shape) {
+    OCCTShapeCheckResult result = {true, 0, OCCTCheckNoError};
+    if (!shape) { result.isValid = false; result.firstError = OCCTCheckCheckFail; return result; }
+    try {
+        for (TopExp_Explorer exp(shape->shape, TopAbs_SOLID); exp.More(); exp.Next()) {
+            TopoDS_Solid solid = TopoDS::Solid(exp.Current());
+            Handle(BRepCheck_Solid) checker = new BRepCheck_Solid(solid);
+            checker->Minimum();
+            const auto& statusList = checker->Status();
+            for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+                if (*it != BRepCheck_NoError) {
+                    if (result.errorCount == 0) {
+                        result.firstError = mapBRepCheckStatus(*it);
+                    }
+                    result.errorCount++;
+                    result.isValid = false;
+                }
+            }
+        }
+        return result;
+    } catch (...) {
+        result.isValid = false;
+        result.firstError = OCCTCheckCheckFail;
+        return result;
+    }
+}
+
+OCCTShapeCheckResult OCCTCheckShape(OCCTShapeRef shape) {
+    OCCTShapeCheckResult result = {true, 0, OCCTCheckNoError};
+    if (!shape) { result.isValid = false; result.firstError = OCCTCheckCheckFail; return result; }
+    try {
+        BRepCheck_Analyzer analyzer(shape->shape, true);
+        result.isValid = analyzer.IsValid();
+        if (!result.isValid) {
+            // Count errors from sub-shapes
+            for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+                const Handle(BRepCheck_Result)& res = analyzer.Result(exp.Current());
+                if (!res.IsNull()) {
+                    const auto& statusList = res->Status();
+                    for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+                        if (*it != BRepCheck_NoError) {
+                            if (result.errorCount == 0) {
+                                result.firstError = mapBRepCheckStatus(*it);
+                            }
+                            result.errorCount++;
+                        }
+                    }
+                }
+            }
+            for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+                const Handle(BRepCheck_Result)& res = analyzer.Result(exp.Current());
+                if (!res.IsNull()) {
+                    const auto& statusList = res->Status();
+                    for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+                        if (*it != BRepCheck_NoError) {
+                            if (result.errorCount == 0) {
+                                result.firstError = mapBRepCheckStatus(*it);
+                            }
+                            result.errorCount++;
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    } catch (...) {
+        result.isValid = false;
+        result.firstError = OCCTCheckCheckFail;
+        return result;
+    }
+}
+
+int32_t OCCTCheckShapeDetailed(OCCTShapeRef shape, OCCTCheckStatus* outStatuses, int32_t maxStatuses) {
+    if (!shape || !outStatuses || maxStatuses <= 0) return 0;
+    try {
+        BRepCheck_Analyzer analyzer(shape->shape, true);
+        int32_t count = 0;
+
+        auto collectStatuses = [&](TopAbs_ShapeEnum type) {
+            for (TopExp_Explorer exp(shape->shape, type); exp.More(); exp.Next()) {
+                const Handle(BRepCheck_Result)& res = analyzer.Result(exp.Current());
+                if (!res.IsNull()) {
+                    const auto& statusList = res->Status();
+                    for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+                        if (*it != BRepCheck_NoError && count < maxStatuses) {
+                            outStatuses[count++] = mapBRepCheckStatus(*it);
+                        }
+                    }
+                }
+            }
+        };
+
+        collectStatuses(TopAbs_VERTEX);
+        collectStatuses(TopAbs_EDGE);
+        collectStatuses(TopAbs_WIRE);
+        collectStatuses(TopAbs_FACE);
+        collectStatuses(TopAbs_SHELL);
+        collectStatuses(TopAbs_SOLID);
+
+        return count;
+    } catch (...) {
+        return 0;
     }
 }

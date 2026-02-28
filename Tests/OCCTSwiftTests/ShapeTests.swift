@@ -12899,3 +12899,181 @@ struct SurfaceInertiaTests {
         #expect(inertia.principalMoments.z > 0)
     }
 }
+
+// MARK: - v0.47.0 Tests
+
+@Suite("Local Revolution Tests")
+struct LocalRevolutionTests {
+    @Test("Revolve face around Z axis")
+    func revolveAroundZ() throws {
+        // Create a small face to revolve
+        let face = Shape.box(width: 3, height: 3, depth: 0.1)!
+        let result = face.localRevolution(
+            axisOrigin: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            angle: .pi / 2
+        )
+        #expect(result != nil)
+    }
+
+    @Test("Revolve face produces solid-like shape")
+    func revolveProducesSolid() throws {
+        let face = Shape.box(width: 2, height: 2, depth: 0.1)!
+        let result = face.localRevolution(
+            axisOrigin: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            angle: .pi / 4
+        )
+        #expect(result != nil)
+        if let result {
+            #expect(result.faceCount > 0)
+        }
+    }
+
+    @Test("Revolve with angular offset")
+    func revolveWithOffset() throws {
+        let face = Shape.box(width: 2, height: 2, depth: 0.1)!
+        let result = face.localRevolution(
+            axisOrigin: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            angle: .pi / 2,
+            angularOffset: .pi / 4
+        )
+        #expect(result != nil)
+    }
+
+    @Test("Full revolution")
+    func fullRevolution() throws {
+        let face = Shape.box(width: 2, height: 2, depth: 0.1)!
+        let result = face.localRevolution(
+            axisOrigin: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            angle: 2 * .pi
+        )
+        #expect(result != nil)
+    }
+}
+
+@Suite("LocOpe Draft Prism Tests")
+struct LocOpeDPrismTests {
+    @Test("Draft prism with two heights")
+    func draftPrismTwoHeights() throws {
+        // Get a face from a box
+        let box = Shape.box(width: 10, height: 10, depth: 1)!
+        let face = box.face(at: 0)!
+        let result = face.draftPrism(height1: 5, height2: 3, angle: 0.1)
+        #expect(result != nil)
+    }
+
+    @Test("Draft prism single height")
+    func draftPrismSingleHeight() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 1)!
+        let face = box.face(at: 0)!
+        let result = face.draftPrism(height: 5, angle: 0.1)
+        #expect(result != nil)
+    }
+
+    @Test("Draft prism produces faces")
+    func draftPrismHasFaces() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 1)!
+        let face = box.face(at: 0)!
+        if let result = face.draftPrism(height1: 5, height2: 3, angle: 0.1) {
+            #expect(result.faceCount > 0)
+        }
+    }
+}
+
+@Suite("Constrained Fill Tests")
+struct ConstrainedFillTests {
+    // Helper: get 4 edges from a box's top face
+    private func boxTopEdges() -> [Edge] {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        return box.edges()
+    }
+
+    @Test("Fill with box edges")
+    func fillWithBoxEdges() throws {
+        let edges = boxTopEdges()
+        #expect(edges.count >= 4)
+        // Use 4 edges from the box
+        _ = Shape.constrainedFill(edge1: edges[0], edge2: edges[1],
+                                   edge3: edges[2], edge4: edges[3])
+        // May or may not succeed depending on edge connectivity
+        // The important thing is it doesn't crash
+    }
+
+    @Test("Fill info on box face")
+    func fillInfoOnBox() throws {
+        // Use a box directly - its faces already are valid
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        // The constrainedFillInfo looks for BSpline surfaces
+        // A box has planar faces, not BSpline
+        let info = box.constrainedFillInfo
+        // Expected: nil since box faces are planar, not BSpline
+        #expect(info == nil)
+    }
+}
+
+@Suite("Shape Check Tests")
+struct ShapeCheckTests {
+    @Test("Valid box passes check")
+    func validBoxPasses() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        #expect(box.isValid)
+        let result = box.checkResult
+        #expect(result.isValid)
+        #expect(result.errorCount == 0)
+    }
+
+    @Test("Valid sphere passes check")
+    func validSpherePasses() throws {
+        let sphere = Shape.sphere(radius: 5)!
+        #expect(sphere.isValid)
+    }
+
+    @Test("Valid cylinder passes check")
+    func validCylinderPasses() throws {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        #expect(cyl.isValid)
+    }
+
+    @Test("Check result has no first error for valid shape")
+    func checkResultNoError() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.checkResult
+        #expect(result.firstError == nil)
+    }
+
+    @Test("Detailed check on valid shape returns empty")
+    func detailedCheckEmpty() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let statuses = box.detailedCheckStatuses
+        #expect(statuses.isEmpty)
+    }
+
+    @Test("All box faces pass face check")
+    func boxFaceCheck() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        for i in 0..<box.faceCount {
+            let face = box.face(at: i)!
+            let result = face.faceCheckResult
+            #expect(result.isValid, "Face \(i) should be valid")
+        }
+    }
+
+    @Test("Solid check passes for box")
+    func solidCheckBox() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        // Use the general shape check which includes solid check
+        #expect(box.isValid)
+    }
+
+    @Test("Boolean result passes validity")
+    func booleanResultValid() throws {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10)!
+        if let fused = box1.union(with: box2) {
+            #expect(fused.isValid)
+        }
+    }
+}
