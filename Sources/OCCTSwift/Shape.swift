@@ -4443,4 +4443,56 @@ extension Shape {
         guard let ref = OCCTShapePurgeLocations(handle) else { return nil }
         return Shape(handle: ref)
     }
+
+    // MARK: - Curve-on-Surface Check
+
+    /// Result of a curve-on-surface consistency check.
+    public struct CurveOnSurfaceCheck {
+        /// Maximum deviation between 3D edge curves and their pcurves on faces
+        public let maxDistance: Double
+        /// Curve parameter where the maximum deviation occurs
+        public let maxParameter: Double
+    }
+
+    /// Check edge-on-surface consistency.
+    ///
+    /// Examines all edge-face pairs in the shape and reports the maximum deviation
+    /// between each edge's 3D curve and its parametric curve (pcurve) on the face surface.
+    /// Useful for validating imported geometry or checking repair results.
+    ///
+    /// - Returns: Check result with max distance and parameter, or nil if check fails
+    public var curveOnSurfaceCheck: CurveOnSurfaceCheck? {
+        var maxDist: Double = 0
+        var maxParam: Double = 0
+        guard OCCTShapeCheckCurveOnSurface(handle, &maxDist, &maxParam) else { return nil }
+        return CurveOnSurfaceCheck(maxDistance: maxDist, maxParameter: maxParam)
+    }
+
+    // MARK: - Edge Connection
+
+    /// Connect edges by merging shared vertices in the shape.
+    ///
+    /// Uses ShapeFix_EdgeConnect to identify edges that share geometric positions
+    /// and merges their vertices. Useful for healing imported geometry where
+    /// topologically disconnected edges actually meet at the same point.
+    ///
+    /// - Returns: Shape with connected edges, or nil on failure
+    public var connectedEdges: Shape? {
+        guard let ref = OCCTShapeConnectEdges(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - Bezier Conversion
+
+    /// Convert all curves and surfaces in the shape to Bezier representations.
+    ///
+    /// Uses ShapeUpgrade_ShapeConvertToBezier to replace BSpline curves and surfaces
+    /// with their Bezier equivalents. Converts 2D/3D curves, surfaces, lines, circles,
+    /// conics, planes, revolutions, extrusions, and BSpline entities.
+    ///
+    /// - Returns: Shape with Bezier geometry, or nil on failure
+    public var convertedToBezier: Shape? {
+        guard let ref = OCCTShapeConvertToBezier(handle) else { return nil }
+        return Shape(handle: ref)
+    }
 }

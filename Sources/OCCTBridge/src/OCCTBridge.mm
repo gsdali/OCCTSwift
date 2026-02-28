@@ -16180,3 +16180,142 @@ OCCTShapeRef OCCTShapePurgeLocations(OCCTShapeRef shape) {
         return nullptr;
     }
 }
+
+// MARK: - v0.44.0: Surface Extrema, Curve-on-Surface Check, Ellipse Arc, Edge Connect, Bezier Convert
+
+#include <GeomAPI_ExtremaSurfaceSurface.hxx>
+#include <BRepLib_CheckCurveOnSurface.hxx>
+#include <GC_MakeArcOfEllipse.hxx>
+#include <gp_Elips.hxx>
+#include <ShapeFix_EdgeConnect.hxx>
+#include <ShapeUpgrade_ShapeConvertToBezier.hxx>
+
+int32_t OCCTSurfaceExtrema(OCCTSurfaceRef s1, OCCTSurfaceRef s2,
+                            double u1Min, double u1Max, double v1Min, double v1Max,
+                            double u2Min, double u2Max, double v2Min, double v2Max,
+                            OCCTSurfaceExtremaResult* outResult) {
+    if (!s1 || !s2 || !outResult) return 0;
+    try {
+        GeomAPI_ExtremaSurfaceSurface extrema(
+            s1->surface, s2->surface,
+            u1Min, u1Max, v1Min, v1Max,
+            u2Min, u2Max, v2Min, v2Max);
+
+        int32_t nb = extrema.NbExtrema();
+        if (nb <= 0) return 0;
+
+        outResult->distance = extrema.LowerDistance();
+        gp_Pnt p1, p2;
+        extrema.NearestPoints(p1, p2);
+        outResult->p1X = p1.X(); outResult->p1Y = p1.Y(); outResult->p1Z = p1.Z();
+        outResult->p2X = p2.X(); outResult->p2Y = p2.Y(); outResult->p2Z = p2.Z();
+        extrema.LowerDistanceParameters(outResult->u1, outResult->v1,
+                                         outResult->u2, outResult->v2);
+        return nb;
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTShapeCheckCurveOnSurface(OCCTShapeRef shape, double* outMaxDist, double* outMaxParam) {
+    if (!shape || !outMaxDist || !outMaxParam) return false;
+    try {
+        double globalMaxDist = 0;
+        double globalMaxParam = 0;
+        bool anyChecked = false;
+
+        for (TopExp_Explorer fExp(shape->shape, TopAbs_FACE); fExp.More(); fExp.Next()) {
+            TopoDS_Face face = TopoDS::Face(fExp.Current());
+            for (TopExp_Explorer eExp(face, TopAbs_EDGE); eExp.More(); eExp.Next()) {
+                TopoDS_Edge edge = TopoDS::Edge(eExp.Current());
+                double f, l;
+                Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(edge, face, f, l);
+                if (pcurve.IsNull()) continue;
+
+                BRepLib_CheckCurveOnSurface checker(edge, face);
+                checker.Perform();
+                if (checker.IsDone()) {
+                    double dist = checker.MaxDistance();
+                    if (dist > globalMaxDist) {
+                        globalMaxDist = dist;
+                        globalMaxParam = checker.MaxParameter();
+                    }
+                    anyChecked = true;
+                }
+            }
+        }
+
+        *outMaxDist = globalMaxDist;
+        *outMaxParam = globalMaxParam;
+        return anyChecked;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTCurve3DRef OCCTCurve3DArcOfEllipse(double centerX, double centerY, double centerZ,
+                                         double normalX, double normalY, double normalZ,
+                                         double majorRadius, double minorRadius,
+                                         double angle1, double angle2, bool sense) {
+    try {
+        gp_Ax2 ax(gp_Pnt(centerX, centerY, centerZ), gp_Dir(normalX, normalY, normalZ));
+        gp_Elips elips(ax, majorRadius, minorRadius);
+        GC_MakeArcOfEllipse maker(elips, angle1, angle2, sense);
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTCurve3D(maker.Value());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve3DRef OCCTCurve3DArcOfEllipsePoints(double centerX, double centerY, double centerZ,
+                                               double normalX, double normalY, double normalZ,
+                                               double majorRadius, double minorRadius,
+                                               double p1X, double p1Y, double p1Z,
+                                               double p2X, double p2Y, double p2Z, bool sense) {
+    try {
+        gp_Ax2 ax(gp_Pnt(centerX, centerY, centerZ), gp_Dir(normalX, normalY, normalZ));
+        gp_Elips elips(ax, majorRadius, minorRadius);
+        GC_MakeArcOfEllipse maker(elips, gp_Pnt(p1X, p1Y, p1Z), gp_Pnt(p2X, p2Y, p2Z), sense);
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTCurve3D(maker.Value());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeConnectEdges(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        ShapeFix_EdgeConnect connector;
+        connector.Add(shape->shape);
+        connector.Build();
+        // EdgeConnect modifies edges in place, return a copy of the shape
+        return new OCCTShape(shape->shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeConvertToBezier(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeConvertToBezier converter(shape->shape);
+        converter.Set2dConversion(true);
+        converter.Set3dConversion(true);
+        converter.SetSurfaceConversion(true);
+        converter.Set3dLineConversion(true);
+        converter.Set3dCircleConversion(true);
+        converter.Set3dConicConversion(true);
+        converter.SetPlaneMode(true);
+        converter.SetRevolutionMode(true);
+        converter.SetExtrusionMode(true);
+        converter.SetBSplineMode(true);
+        if (!converter.Perform()) return nullptr;
+        TopoDS_Shape result = converter.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}

@@ -11920,3 +11920,313 @@ struct LocationPurgeTests {
         }
     }
 }
+
+// MARK: - v0.44.0: Surface Extrema, Curve-on-Surface Check, Ellipse Arc, Edge Connect, Bezier Convert
+
+@Suite("Surface Extrema Tests")
+struct SurfaceExtremaTests {
+
+    @Test("Sphere surfaces distance")
+    func sphereDistance() {
+        // Two spheres separated by known distance
+        // Sphere1 at origin radius 3, Sphere2 at (20,0,0) radius 5
+        // Min distance = 20 - 3 - 5 = 12
+        let sphere1 = Surface.sphere(center: SIMD3(0, 0, 0), radius: 3)
+        let sphere2 = Surface.sphere(center: SIMD3(20, 0, 0), radius: 5)
+        #expect(sphere1 != nil)
+        #expect(sphere2 != nil)
+
+        if let sphere1, let sphere2 {
+            let result = sphere1.extrema(
+                to: sphere2,
+                uvBounds1: (uMin: 0, uMax: 2 * .pi, vMin: -.pi/2, vMax: .pi/2),
+                uvBounds2: (uMin: 0, uMax: 2 * .pi, vMin: -.pi/2, vMax: .pi/2)
+            )
+            #expect(result != nil)
+            if let result {
+                #expect(abs(result.distance - 12.0) < 0.5)
+                // Nearest point on sphere1 should be at X~3
+                #expect(abs(result.point1.x - 3.0) < 0.5)
+                // Nearest point on sphere2 should be at X~15
+                #expect(abs(result.point2.x - 15.0) < 0.5)
+            }
+        }
+    }
+
+    @Test("Extrema returns nearest points and UV")
+    func nearestPointsAndUV() {
+        // Two spheres along X — known nearest points
+        let sphere1 = Surface.sphere(center: SIMD3(0, 0, 0), radius: 4)
+        let sphere2 = Surface.sphere(center: SIMD3(30, 0, 0), radius: 6)
+        #expect(sphere1 != nil)
+        #expect(sphere2 != nil)
+
+        if let sphere1, let sphere2 {
+            let result = sphere1.extrema(
+                to: sphere2,
+                uvBounds1: (uMin: 0, uMax: 2 * .pi, vMin: -.pi/2, vMax: .pi/2),
+                uvBounds2: (uMin: 0, uMax: 2 * .pi, vMin: -.pi/2, vMax: .pi/2)
+            )
+            #expect(result != nil)
+            if let result {
+                // Distance = 30 - 4 - 6 = 20
+                #expect(abs(result.distance - 20.0) < 0.5)
+                // Nearest point on sphere1 should be at X~4
+                #expect(abs(result.point1.x - 4.0) < 0.5)
+                // Nearest point on sphere2 should be at X~24
+                #expect(abs(result.point2.x - 24.0) < 0.5)
+            }
+        }
+    }
+
+    @Test("Cylinder and sphere distance")
+    func cylinderSphereDistance() {
+        let cyl = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5)
+        let sphere = Surface.sphere(center: SIMD3(20, 0, 0), radius: 3)
+        #expect(cyl != nil)
+        #expect(sphere != nil)
+
+        if let cyl, let sphere {
+            let result = cyl.extrema(
+                to: sphere,
+                uvBounds1: (uMin: 0, uMax: 2 * .pi, vMin: 0, vMax: 10),
+                uvBounds2: (uMin: 0, uMax: 2 * .pi, vMin: -.pi/2, vMax: .pi/2)
+            )
+            #expect(result != nil)
+            if let result {
+                // Distance = 20 - 5 - 3 = 12
+                #expect(abs(result.distance - 12.0) < 0.5)
+            }
+        }
+    }
+}
+
+@Suite("Curve-on-Surface Check Tests")
+struct CurveOnSurfaceCheckTests {
+
+    @Test("Box has consistent edge curves")
+    func boxConsistency() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let check = box.curveOnSurfaceCheck
+        #expect(check != nil)
+        if let check {
+            // Clean box should have near-zero deviation
+            #expect(check.maxDistance < 1e-5)
+        }
+    }
+
+    @Test("Sphere has consistent edge curves")
+    func sphereConsistency() {
+        let sphere = Shape.sphere(radius: 10)!
+        let check = sphere.curveOnSurfaceCheck
+        #expect(check != nil)
+        if let check {
+            #expect(check.maxDistance < 1e-4)
+        }
+    }
+
+    @Test("Cylinder has consistent edge curves")
+    func cylinderConsistency() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let check = cyl.curveOnSurfaceCheck
+        #expect(check != nil)
+        if let check {
+            #expect(check.maxDistance < 1e-4)
+        }
+    }
+
+    @Test("Fused shapes have consistent curves")
+    func fusedConsistency() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let sphere = Shape.sphere(radius: 7)!
+        let fused = box.union(with: sphere)
+        #expect(fused != nil)
+        if let fused {
+            let check = fused.curveOnSurfaceCheck
+            #expect(check != nil)
+            if let check {
+                #expect(check.maxDistance < 0.1)
+            }
+        }
+    }
+}
+
+@Suite("Ellipse Arc Tests")
+struct EllipseArcTests {
+
+    @Test("Arc of ellipse from angles")
+    func arcFromAngles() {
+        // Ellipse with major radius 10, minor radius 5 in XY plane
+        let arc = Curve3D.arcOfEllipse(
+            center: SIMD3(0, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            majorRadius: 10,
+            minorRadius: 5,
+            startAngle: 0,
+            endAngle: .pi / 2
+        )
+        #expect(arc != nil)
+        if let arc {
+            // Start point should be on major axis: (10, 0, 0)
+            let start = arc.startPoint
+            #expect(abs(start.x - 10.0) < 0.1)
+            #expect(abs(start.y) < 0.1)
+            // End point should be on minor axis: (0, 5, 0)
+            let end = arc.endPoint
+            #expect(abs(end.x) < 0.1)
+            #expect(abs(end.y - 5.0) < 0.1)
+        }
+    }
+
+    @Test("Arc of ellipse between two points")
+    func arcBetweenPoints() {
+        let arc = Curve3D.arcOfEllipse(
+            center: SIMD3(0, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            majorRadius: 10,
+            minorRadius: 5,
+            from: SIMD3(10, 0, 0),
+            to: SIMD3(-10, 0, 0)
+        )
+        #expect(arc != nil)
+        if let arc {
+            let start = arc.startPoint
+            let end = arc.endPoint
+            #expect(abs(start.x - 10.0) < 0.1)
+            #expect(abs(end.x + 10.0) < 0.1)
+        }
+    }
+
+    @Test("Full semi-ellipse arc")
+    func semiEllipse() {
+        let arc = Curve3D.arcOfEllipse(
+            center: SIMD3(0, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            majorRadius: 10,
+            minorRadius: 5,
+            startAngle: 0,
+            endAngle: .pi
+        )
+        #expect(arc != nil)
+        if let arc {
+            // Start at (10,0,0), end at (-10,0,0)
+            let start = arc.startPoint
+            let end = arc.endPoint
+            #expect(abs(start.x - 10.0) < 0.1)
+            #expect(abs(end.x + 10.0) < 0.1)
+        }
+    }
+
+    @Test("Ellipse arc properties")
+    func arcProperties() {
+        let arc = Curve3D.arcOfEllipse(
+            center: SIMD3(0, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            majorRadius: 10,
+            minorRadius: 5,
+            startAngle: 0,
+            endAngle: .pi / 2
+        )
+        #expect(arc != nil)
+        if let arc {
+            #expect(!arc.isClosed)
+            let start = arc.startPoint
+            let end = arc.endPoint
+            // Length of quarter-ellipse arc should be reasonable
+            #expect(start.x > 9.0)
+            #expect(end.y > 4.0)
+        }
+    }
+}
+
+@Suite("Edge Connect Tests")
+struct EdgeConnectTests {
+
+    @Test("Box edge connectivity")
+    func boxConnectivity() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let connected = box.connectedEdges
+        // Box edges are already connected, should still succeed
+        #expect(connected != nil)
+        if let connected {
+            let edgeCount = connected.subShapeCount(ofType: ShapeType.edge)
+            #expect(edgeCount == 12) // Box has 12 edges
+        }
+    }
+
+    @Test("Fused shape edge connectivity")
+    func fusedConnectivity() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let sphere = Shape.sphere(radius: 7)!
+        let fused = box.union(with: sphere)
+        #expect(fused != nil)
+        if let fused {
+            let connected = fused.connectedEdges
+            #expect(connected != nil)
+        }
+    }
+
+    @Test("Cylinder edge connectivity")
+    func cylinderConnectivity() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let connected = cyl.connectedEdges
+        #expect(connected != nil)
+        if let connected {
+            let faceCount = connected.subShapeCount(ofType: ShapeType.face)
+            #expect(faceCount >= 3) // top, bottom, lateral
+        }
+    }
+}
+
+@Suite("Bezier Conversion Tests")
+struct BezierConversionTests {
+
+    @Test("Cylinder converts to Bezier")
+    func cylinderToBezier() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let bezier = cyl.convertedToBezier
+        #expect(bezier != nil)
+        if let bezier {
+            let edgeCount = bezier.subShapeCount(ofType: ShapeType.edge)
+            #expect(edgeCount > 0)
+            let faceCount = bezier.subShapeCount(ofType: ShapeType.face)
+            #expect(faceCount > 0)
+        }
+    }
+
+    @Test("Sphere converts to Bezier")
+    func sphereToBezier() {
+        let sphere = Shape.sphere(radius: 10)!
+        let bezier = sphere.convertedToBezier
+        #expect(bezier != nil)
+        if let bezier {
+            let faceCount = bezier.subShapeCount(ofType: ShapeType.face)
+            #expect(faceCount > 0)
+        }
+    }
+
+    @Test("Box converts to Bezier")
+    func boxToBezier() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let bezier = box.convertedToBezier
+        #expect(bezier != nil)
+        if let bezier {
+            // Box should maintain 6 faces
+            let faceCount = bezier.subShapeCount(ofType: ShapeType.face)
+            #expect(faceCount == 6)
+            let edgeCount = bezier.subShapeCount(ofType: ShapeType.edge)
+            #expect(edgeCount == 12)
+        }
+    }
+
+    @Test("Cone converts to Bezier")
+    func coneToBezier() {
+        let cone = Shape.cone(bottomRadius: 10, topRadius: 5, height: 15)!
+        let bezier = cone.convertedToBezier
+        #expect(bezier != nil)
+        if let bezier {
+            let faceCount = bezier.subShapeCount(ofType: ShapeType.face)
+            #expect(faceCount > 0)
+        }
+    }
+}

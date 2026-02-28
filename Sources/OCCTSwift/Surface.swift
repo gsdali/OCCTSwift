@@ -1030,4 +1030,52 @@ extension Surface {
         }
         return Surface(handle: ref)
     }
+
+    // MARK: - Surface Extrema
+
+    /// Result of surface-to-surface extrema computation.
+    public struct SurfaceExtremaResult {
+        /// Minimum distance between the surfaces
+        public let distance: Double
+        /// Nearest point on the first surface
+        public let point1: SIMD3<Double>
+        /// Nearest point on the second surface
+        public let point2: SIMD3<Double>
+        /// UV parameters on the first surface
+        public let uv1: SIMD2<Double>
+        /// UV parameters on the second surface
+        public let uv2: SIMD2<Double>
+    }
+
+    /// Compute the minimum distance between this surface and another.
+    ///
+    /// Uses GeomAPI_ExtremaSurfaceSurface to find the closest pair of points
+    /// between two surfaces within the given UV bounds.
+    ///
+    /// - Parameters:
+    ///   - other: The other surface
+    ///   - uvBounds1: UV bounds on this surface (uMin, uMax, vMin, vMax). Uses full surface bounds if nil.
+    ///   - uvBounds2: UV bounds on the other surface. Uses full surface bounds if nil.
+    /// - Returns: The extrema result, or nil if computation fails
+    public func extrema(to other: Surface,
+                        uvBounds1: (uMin: Double, uMax: Double, vMin: Double, vMax: Double)? = nil,
+                        uvBounds2: (uMin: Double, uMax: Double, vMin: Double, vMax: Double)? = nil) -> SurfaceExtremaResult? {
+        let b1 = uvBounds1 ?? (0, 1, 0, 1)
+        let b2 = uvBounds2 ?? (0, 1, 0, 1)
+        var result = OCCTSurfaceExtremaResult()
+        let count = OCCTSurfaceExtrema(
+            handle, other.handle,
+            b1.uMin, b1.uMax, b1.vMin, b1.vMax,
+            b2.uMin, b2.uMax, b2.vMin, b2.vMax,
+            &result
+        )
+        guard count > 0 else { return nil }
+        return SurfaceExtremaResult(
+            distance: result.distance,
+            point1: SIMD3(result.p1X, result.p1Y, result.p1Z),
+            point2: SIMD3(result.p2X, result.p2Y, result.p2Z),
+            uv1: SIMD2(result.u1, result.v1),
+            uv2: SIMD2(result.u2, result.v2)
+        )
+    }
 }

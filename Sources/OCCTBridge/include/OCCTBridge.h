@@ -4259,6 +4259,64 @@ OCCTSurfaceRef OCCTSurfaceFillBSpline4Curves(OCCTCurve3DRef c1, OCCTCurve3DRef c
 /// @return Purged shape, or NULL if nothing to purge
 OCCTShapeRef OCCTShapePurgeLocations(OCCTShapeRef shape);
 
+// MARK: - v0.44.0: Surface Extrema, Curve-on-Surface Check, Ellipse Arc, Edge Connect, Bezier Convert
+
+/// Surface-to-surface extrema result
+typedef struct {
+    double distance;
+    double p1X, p1Y, p1Z;  // Nearest point on surface 1
+    double p2X, p2Y, p2Z;  // Nearest point on surface 2
+    double u1, v1, u2, v2;  // UV parameters on each surface
+} OCCTSurfaceExtremaResult;
+
+/// Compute min distance between two surfaces
+/// @param s1, s2 Surface handles
+/// @param u1Min..v2Max UV bounds for each surface
+/// @param outResult Result structure for the minimum distance
+/// @return Number of extrema found, or 0 on failure
+int32_t OCCTSurfaceExtrema(OCCTSurfaceRef s1, OCCTSurfaceRef s2,
+                            double u1Min, double u1Max, double v1Min, double v1Max,
+                            double u2Min, double u2Max, double v2Min, double v2Max,
+                            OCCTSurfaceExtremaResult* outResult);
+
+/// Check edge-on-surface consistency (max deviation between 3D curve and pcurve)
+/// @param shape Shape containing edges and faces
+/// @param outMaxDist Maximum distance found across all edge-face pairs
+/// @param outMaxParam Parameter at maximum distance
+/// @return true if check completed successfully
+bool OCCTShapeCheckCurveOnSurface(OCCTShapeRef shape, double* outMaxDist, double* outMaxParam);
+
+/// Create a 3D elliptical arc from angles
+/// @param centerX..centerZ Center of the ellipse
+/// @param normalX..normalZ Normal direction of the ellipse plane
+/// @param majorRadius Major radius
+/// @param minorRadius Minor radius
+/// @param angle1, angle2 Start and end angles (radians)
+/// @param sense true=counterclockwise
+/// @return Curve3D handle, or NULL on failure
+OCCTCurve3DRef OCCTCurve3DArcOfEllipse(double centerX, double centerY, double centerZ,
+                                         double normalX, double normalY, double normalZ,
+                                         double majorRadius, double minorRadius,
+                                         double angle1, double angle2, bool sense);
+
+/// Create a 3D elliptical arc between two points on the ellipse
+/// @return Curve3D handle, or NULL on failure
+OCCTCurve3DRef OCCTCurve3DArcOfEllipsePoints(double centerX, double centerY, double centerZ,
+                                               double normalX, double normalY, double normalZ,
+                                               double majorRadius, double minorRadius,
+                                               double p1X, double p1Y, double p1Z,
+                                               double p2X, double p2Y, double p2Z, bool sense);
+
+/// Connect edges by merging shared vertices in a shape
+/// @param shape Shape to process
+/// @return Shape with connected edges, or NULL on failure
+OCCTShapeRef OCCTShapeConnectEdges(OCCTShapeRef shape);
+
+/// Convert all curves and surfaces in a shape to Bezier representations
+/// @param shape Input shape
+/// @return Converted shape, or NULL on failure
+OCCTShapeRef OCCTShapeConvertToBezier(OCCTShapeRef shape);
+
 #ifdef __cplusplus
 }
 #endif

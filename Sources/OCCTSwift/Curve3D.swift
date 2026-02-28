@@ -649,4 +649,62 @@ extension Curve3D {
         guard count >= 0 else { return nil }
         return Array(params.prefix(Int(count)))
     }
+
+    // MARK: - Ellipse Arcs
+
+    /// Create an elliptical arc from angular parameters.
+    ///
+    /// Creates an arc of an ellipse in the plane defined by center and normal.
+    /// The major axis is oriented perpendicular to the normal (determined automatically).
+    ///
+    /// - Parameters:
+    ///   - center: Center of the ellipse
+    ///   - normal: Normal direction of the ellipse plane
+    ///   - majorRadius: Major radius of the ellipse
+    ///   - minorRadius: Minor radius of the ellipse
+    ///   - startAngle: Start angle in radians
+    ///   - endAngle: End angle in radians
+    ///   - counterclockwise: Arc direction (default: true)
+    /// - Returns: The elliptical arc curve, or nil on failure
+    public static func arcOfEllipse(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                     majorRadius: Double, minorRadius: Double,
+                                     startAngle: Double, endAngle: Double,
+                                     counterclockwise: Bool = true) -> Curve3D? {
+        guard let ref = OCCTCurve3DArcOfEllipse(
+            center.x, center.y, center.z,
+            normal.x, normal.y, normal.z,
+            majorRadius, minorRadius,
+            startAngle, endAngle, counterclockwise
+        ) else {
+            return nil
+        }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create an elliptical arc passing through two points on the ellipse.
+    ///
+    /// - Parameters:
+    ///   - center: Center of the ellipse
+    ///   - normal: Normal direction of the ellipse plane
+    ///   - majorRadius: Major radius of the ellipse
+    ///   - minorRadius: Minor radius of the ellipse
+    ///   - from: Start point (must lie on the ellipse)
+    ///   - to: End point (must lie on the ellipse)
+    ///   - counterclockwise: Arc direction (default: true)
+    /// - Returns: The elliptical arc curve, or nil on failure
+    public static func arcOfEllipse(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                     majorRadius: Double, minorRadius: Double,
+                                     from: SIMD3<Double>, to: SIMD3<Double>,
+                                     counterclockwise: Bool = true) -> Curve3D? {
+        guard let ref = OCCTCurve3DArcOfEllipsePoints(
+            center.x, center.y, center.z,
+            normal.x, normal.y, normal.z,
+            majorRadius, minorRadius,
+            from.x, from.y, from.z,
+            to.x, to.y, to.z, counterclockwise
+        ) else {
+            return nil
+        }
+        return Curve3D(handle: ref)
+    }
 }
