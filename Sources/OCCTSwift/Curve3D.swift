@@ -707,4 +707,100 @@ extension Curve3D {
         }
         return Curve3D(handle: ref)
     }
+
+    // MARK: - Curve joining (v0.49.0)
+
+    /// Join multiple curves into a single BSpline curve.
+    ///
+    /// Uses GeomConvert_CompCurveToBSplineCurve to concatenate curves
+    /// in order into a single BSpline. Curves must meet end-to-end
+    /// within the given tolerance.
+    ///
+    /// - Parameters:
+    ///   - curves: Array of curves to join (in order)
+    ///   - tolerance: Gap tolerance for joining endpoints (default: 1e-6)
+    /// - Returns: Joined BSpline curve, or nil on failure
+    public static func joined(curves: [Curve3D], tolerance: Double = 1e-6) -> Curve3D? {
+        guard !curves.isEmpty else { return nil }
+        var handles: [OCCTCurve3DRef?] = curves.map { $0.handle }
+        guard let ref = OCCTCurve3DJoinCurves(&handles, Int32(curves.count), tolerance) else {
+            return nil
+        }
+        return Curve3D(handle: ref)
+    }
+
+    // MARK: - ShapeAnalysis_Curve expansion (v0.49.0)
+
+    /// Result of projecting a point onto a curve
+    public struct PointProjection: Sendable {
+        /// Distance from the original point to the projection
+        public let distance: Double
+        /// Parameter on the curve at the closest point
+        public let parameter: Double
+        /// Projected point on the curve
+        public let point: SIMD3<Double>
+    }
+
+    /// Project a point onto this curve to find the closest point.
+    ///
+    /// Uses ShapeAnalysis_Curve::Project.
+    ///
+    /// - Parameters:
+    ///   - point: 3D point to project
+    ///   - precision: Projection precision (default: 1e-6)
+    /// - Returns: Projection result with distance, parameter, and projected point
+    public func projectPoint(_ point: SIMD3<Double>, precision: Double = 1e-6) -> PointProjection {
+        let result = OCCTCurve3DProjectPoint(handle, point.x, point.y, point.z, precision)
+        return PointProjection(
+            distance: result.distance,
+            parameter: result.parameter,
+            point: SIMD3(result.projX, result.projY, result.projZ)
+        )
+    }
+
+    /// Result of validating a curve parameter range
+    public struct ValidatedRange: Sendable {
+        /// Validated first parameter
+        public let first: Double
+        /// Validated last parameter
+        public let last: Double
+        /// Whether the range was adjusted
+        public let wasAdjusted: Bool
+    }
+
+    /// Validate and optionally adjust a parameter range for this curve.
+    ///
+    /// Uses ShapeAnalysis_Curve::ValidateRange to ensure the range
+    /// falls within the curve's actual parametric domain.
+    ///
+    /// - Parameters:
+    ///   - first: Desired first parameter
+    ///   - last: Desired last parameter
+    ///   - precision: Tolerance (default: 1e-6)
+    /// - Returns: Validated range (potentially adjusted)
+    public func validateRange(first: Double, last: Double, precision: Double = 1e-6) -> ValidatedRange {
+        let result = OCCTCurve3DValidateRange(handle, first, last, precision)
+        return ValidatedRange(first: result.first, last: result.last, wasAdjusted: result.wasAdjusted)
+    }
+
+    /// Get sample points along this curve.
+    ///
+    /// Uses ShapeAnalysis_Curve::GetSamplePoints to generate points
+    /// distributed along the curve between the given parameters.
+    ///
+    /// - Parameters:
+    ///   - first: Start parameter
+    ///   - last: End parameter
+    ///   - maxPoints: Maximum number of points to return (default: 1000)
+    /// - Returns: Array of 3D sample points
+    public func samplePoints(first: Double, last: Double, maxPoints: Int = 1000) -> [SIMD3<Double>] {
+        var buffer = [Double](repeating: 0, count: maxPoints * 3)
+        let count = OCCTCurve3DGetSamplePoints3D(handle, first, last, &buffer, Int32(maxPoints))
+        var points = [SIMD3<Double>]()
+        points.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            points.append(SIMD3(buffer[i*3], buffer[i*3+1], buffer[i*3+2]))
+        }
+        return points
+    }
 }

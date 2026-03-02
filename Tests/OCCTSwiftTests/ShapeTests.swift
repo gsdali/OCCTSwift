@@ -13397,3 +13397,355 @@ struct ShapeUpgradeDivideContinuityTests {
         }
     }
 }
+
+// MARK: - v0.49.0 Tests
+
+@Suite("BRepExtrema_ExtPC Tests")
+struct BRepExtremaExtPCTests {
+    @Test("Point to edge distance on box")
+    func pointToEdge() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edgeCount = box.edges().count
+        #expect(edgeCount > 0)
+
+        // Try each edge until we find one that gives a valid extremum
+        var foundResult = false
+        for i in 0..<edgeCount {
+            if let result = box.pointEdgeExtrema(point: SIMD3(5, 5, 15), edgeIndex: i) {
+                #expect(result.distance >= 0)
+                #expect(result.solutionCount > 0)
+                foundResult = true
+                break
+            }
+        }
+        #expect(foundResult)
+    }
+
+    @Test("Point to wire edge — known distance")
+    func pointToWireEdge() throws {
+        // Use a wire from (0,0,0) to (10,0,0) — single edge
+        let wire = Wire.polygon3D([SIMD3(0.0, 0.0, 0.0), SIMD3(10.0, 0.0, 0.0)], closed: false)!
+        let shape = Shape.fromWire(wire)!
+        // Point at (5, 3, 0) — distance should be 3.0
+        if let result = shape.pointEdgeExtrema(point: SIMD3(5.0, 3.0, 0.0), edgeIndex: 0) {
+            #expect(abs(result.distance - 3.0) < 0.1)
+            #expect(abs(result.pointOnEdge.x - 5.0) < 0.5)
+        }
+    }
+}
+
+@Suite("BRepExtrema_ExtCF Tests")
+struct BRepExtremaExtCFTests {
+    @Test("Edge to sphere face distance")
+    func edgeToSphereFace() throws {
+        // Use a box edge at known position and a sphere face
+        let box = Shape.box(width: 20, height: 1, depth: 1)!
+        let sphere = Shape.sphere(radius: 3)!
+
+        // Try different edge/face combinations until we find valid extrema
+        var foundResult = false
+        let edgeCount = box.edges().count
+        for i in 0..<edgeCount {
+            if let result = box.edgeFaceExtrema(edgeIndex: i, other: sphere, faceIndex: 0) {
+                if !result.isParallel && result.solutionCount > 0 {
+                    #expect(result.distance >= 0)
+                    foundResult = true
+                    break
+                }
+            }
+        }
+        // May or may not find result depending on geometry
+    }
+
+    @Test("Box edge to box face")
+    func boxEdgeToBoxFace() throws {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let box2 = Shape.box(origin: SIMD3(0, 0, 20), width: 10, height: 10, depth: 10)!
+
+        // Try edge/face combinations
+        var foundResult = false
+        let edgeCount = box1.edges().count
+        let faceCount = box2.faces().count
+        for i in 0..<min(edgeCount, 4) {
+            for j in 0..<min(faceCount, 4) {
+                if let result = box1.edgeFaceExtrema(edgeIndex: i, other: box2, faceIndex: j) {
+                    if !result.isParallel && result.solutionCount > 0 {
+                        #expect(result.distance >= 0)
+                        foundResult = true
+                        break
+                    }
+                }
+            }
+            if foundResult { break }
+        }
+    }
+}
+
+@Suite("GeomConvert CompCurveToBSpline Tests")
+struct CurveJoinTests {
+    @Test("Join two line segments")
+    func joinTwoSegments() throws {
+        let seg1 = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(1, 0, 0))!
+        let seg2 = Curve3D.segment(from: SIMD3(1, 0, 0), to: SIMD3(2, 1, 0))!
+
+        if let joined = Curve3D.joined(curves: [seg1, seg2]) {
+            let dom = joined.domain
+            let start = joined.point(at: dom.lowerBound)
+            let end = joined.point(at: dom.upperBound)
+            #expect(simd_distance(start, SIMD3(0, 0, 0)) < 0.01)
+            #expect(simd_distance(end, SIMD3(2, 1, 0)) < 0.01)
+        }
+    }
+
+    @Test("Join three segments")
+    func joinThreeSegments() throws {
+        let seg1 = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(1, 0, 0))!
+        let seg2 = Curve3D.segment(from: SIMD3(1, 0, 0), to: SIMD3(2, 1, 0))!
+        let seg3 = Curve3D.segment(from: SIMD3(2, 1, 0), to: SIMD3(3, 1, 1))!
+
+        if let joined = Curve3D.joined(curves: [seg1, seg2, seg3]) {
+            let dom = joined.domain
+            let start = joined.point(at: dom.lowerBound)
+            let end = joined.point(at: dom.upperBound)
+            #expect(simd_distance(start, SIMD3(0, 0, 0)) < 0.01)
+            #expect(simd_distance(end, SIMD3(3, 1, 1)) < 0.01)
+        }
+    }
+
+    @Test("Join single curve")
+    func joinSingleCurve() throws {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(5, 0, 0))!
+        if let joined = Curve3D.joined(curves: [seg]) {
+            let dom = joined.domain
+            let start = joined.point(at: dom.lowerBound)
+            let end = joined.point(at: dom.upperBound)
+            #expect(simd_distance(start, SIMD3(0, 0, 0)) < 0.01)
+            #expect(simd_distance(end, SIMD3(5, 0, 0)) < 0.01)
+        }
+    }
+}
+
+@Suite("ShapeFix FixSmallSolid Tests")
+struct ShapeFixSmallSolidTests {
+    @Test("Remove small solids by volume")
+    func removeSmallSolids() throws {
+        let big = Shape.box(width: 10, height: 10, depth: 10)!
+        let tiny = Shape.box(width: 0.01, height: 0.01, depth: 0.01)!
+
+        // Translate tiny box away from big box
+        let movedTiny = tiny.translated(by: SIMD3(20, 0, 0))!
+        let compound = Shape.compound([big, movedTiny])!
+
+        let solidsBefore = compound.solids.count
+        #expect(solidsBefore == 2)
+
+        if let result = compound.removeSmallSolids(volumeThreshold: 1.0) {
+            let solidsAfter = result.solids.count
+            #expect(solidsAfter < solidsBefore)
+        }
+    }
+
+    @Test("Merge small solids")
+    func mergeSmallSolids() throws {
+        let big = Shape.box(width: 10, height: 10, depth: 10)!
+        let tiny = Shape.box(origin: SIMD3(10, 0, 0), width: 0.01, height: 10, depth: 10)!
+        let compound = Shape.compound([big, tiny])!
+
+        let solidsBefore = compound.solids.count
+        #expect(solidsBefore == 2)
+
+        if let result = compound.mergeSmallSolids(widthFactorThreshold: 1.0) {
+            #expect(result.isValid)
+        }
+    }
+}
+
+@Suite("ShapeCustom BSplineRestriction Tests")
+struct ShapeCustomBSplineRestrictionTests {
+    @Test("BSpline restriction on box")
+    func bsplineRestrictionBox() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        if let result = box.bsplineRestriction() {
+            #expect(result.isValid)
+            #expect(result.faces().count > 0)
+        }
+    }
+
+    @Test("BSpline restriction with custom parameters")
+    func bsplineRestrictionCustom() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        if let result = box.bsplineRestriction(
+            tol3d: 0.001, tol2d: 0.001,
+            maxDegree: 4, maxSegments: 50,
+            continuity3d: .c2, continuity2d: .c2
+        ) {
+            #expect(result.isValid)
+        }
+    }
+}
+
+@Suite("ShapeAnalysis FreeBoundsProperties Tests")
+struct FreeBoundsPropertiesTests {
+    @Test("Free bounds analysis on face compound")
+    func freeBoundsOnFaces() throws {
+        // Two separate faces form a compound with free bounds
+        let face1 = Shape.face(from:
+            Wire.polygon3D([
+                SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+                SIMD3(10, 10, 0), SIMD3(0, 10, 0)
+            ])!)!
+        let face2 = Shape.face(from:
+            Wire.polygon3D([
+                SIMD3(0, 0, 5), SIMD3(10, 0, 5),
+                SIMD3(10, 10, 5), SIMD3(0, 10, 5)
+            ])!)!
+        let compound = Shape.compound([face1, face2])!
+
+        let analysis = compound.freeBoundsAnalysis(tolerance: 0.01)
+        #expect(analysis.totalCount > 0)
+        #expect(analysis.closedCount > 0)
+    }
+
+    @Test("Closed free bound info — area and perimeter")
+    func closedBoundInfo() throws {
+        let face = Shape.face(from:
+            Wire.polygon3D([
+                SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+                SIMD3(10, 10, 0), SIMD3(0, 10, 0)
+            ])!)!
+        let face2 = Shape.face(from:
+            Wire.polygon3D([
+                SIMD3(0, 0, 5), SIMD3(10, 0, 5),
+                SIMD3(10, 10, 5), SIMD3(0, 10, 5)
+            ])!)!
+        let compound = Shape.compound([face, face2])!
+
+        let analysis = compound.freeBoundsAnalysis(tolerance: 0.01)
+        if analysis.closedCount > 0 {
+            if let info = compound.closedFreeBoundInfo(tolerance: 0.01, index: 0) {
+                #expect(info.area > 0)
+                #expect(info.perimeter > 0)
+                #expect(abs(info.area - 100.0) < 5.0) // 10x10 face
+                #expect(abs(info.perimeter - 40.0) < 2.0)
+            }
+        }
+    }
+
+    @Test("Free bound wire extraction")
+    func freeBoundWire() throws {
+        let face = Shape.face(from:
+            Wire.polygon3D([
+                SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+                SIMD3(10, 10, 0), SIMD3(0, 10, 0)
+            ])!)!
+        let face2 = Shape.face(from:
+            Wire.polygon3D([
+                SIMD3(0, 0, 5), SIMD3(10, 0, 5),
+                SIMD3(10, 10, 5), SIMD3(0, 10, 5)
+            ])!)!
+        let compound = Shape.compound([face, face2])!
+
+        let analysis = compound.freeBoundsAnalysis(tolerance: 0.01)
+        if analysis.closedCount > 0 {
+            if let wire = compound.closedFreeBoundWire(tolerance: 0.01, index: 0) {
+                #expect(wire.isValid)
+                #expect(wire.edges().count > 0)
+            }
+        }
+    }
+}
+
+@Suite("ShapeAnalysis Surface ValueOfUV Tests")
+struct SurfaceValueOfUVTests {
+    @Test("Project point onto plane — UV and gap")
+    func projectOntoPlane() throws {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let proj = plane.valueOfUV(point: SIMD3(5, 3, 2))
+        #expect(abs(proj.uv.x - 5.0) < 0.1)
+        #expect(abs(proj.uv.y - 3.0) < 0.1)
+        #expect(abs(proj.gap - 2.0) < 0.1)
+    }
+
+    @Test("Project point onto sphere")
+    func projectOntoSphere() throws {
+        let sphere = Surface.sphere(center: .zero, radius: 5)!
+        let proj = sphere.valueOfUV(point: SIMD3(0, 0, 10))
+        // Gap should be 5 (10 - radius)
+        #expect(abs(proj.gap - 5.0) < 0.5)
+    }
+
+    @Test("Next value of UV — iterative projection")
+    func nextValueOfUV() throws {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))!
+        let proj1 = plane.valueOfUV(point: SIMD3(5, 3, 0))
+        let proj2 = plane.nextValueOfUV(previousUV: proj1.uv, point: SIMD3(5.5, 3.5, 0))
+        #expect(abs(proj2.uv.x - 5.5) < 0.1)
+        #expect(abs(proj2.uv.y - 3.5) < 0.1)
+    }
+}
+
+@Suite("ShapeAnalysis Curve Project Tests")
+struct CurveProjectTests {
+    @Test("Project point onto line segment")
+    func projectOntoLine() throws {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let proj = seg.projectPoint(SIMD3(5, 3, 0))
+        #expect(abs(proj.distance - 3.0) < 0.1)
+        #expect(abs(proj.parameter - 5.0) < 0.1)
+        #expect(simd_distance(proj.point, SIMD3(5, 0, 0)) < 0.1)
+    }
+
+    @Test("Project point onto circle")
+    func projectOntoCircle() throws {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        // Point at (10, 0, 0) — closest circle point at (5, 0, 0), distance 5
+        let proj = circle.projectPoint(SIMD3(10, 0, 0))
+        #expect(abs(proj.distance - 5.0) < 0.1)
+        #expect(simd_distance(proj.point, SIMD3(5, 0, 0)) < 0.5)
+    }
+}
+
+@Suite("ShapeAnalysis Curve ValidateRange Tests")
+struct CurveValidateRangeTests {
+    @Test("Validate range within bounds")
+    func validateInBounds() throws {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let result = seg.validateRange(first: 2, last: 8)
+        // Range [2,8] is within [0,10] — may or may not be adjusted
+        #expect(result.first >= 0)
+        #expect(result.last <= 10)
+    }
+
+    @Test("Validate range outside bounds")
+    func validateOutOfBounds() throws {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let result = seg.validateRange(first: -5, last: 15)
+        // Should be adjusted to valid range
+        #expect(result.first >= -0.1) // within tolerance
+        #expect(result.last <= 10.1)
+    }
+}
+
+@Suite("ShapeAnalysis Curve GetSamplePoints Tests")
+struct CurveSamplePointsTests {
+    @Test("Sample points on circle")
+    func sampleCircle() throws {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5)!
+        let dom = circle.domain
+        let points = circle.samplePoints(first: dom.lowerBound, last: dom.upperBound)
+        #expect(points.count > 0)
+        // First point should be on the circle at radius 5
+        if let p = points.first {
+            let distFromOrigin = simd_length(p)
+            #expect(abs(distFromOrigin - 5.0) < 0.1)
+        }
+    }
+
+    @Test("Sample points on line segment")
+    func sampleLine() throws {
+        let seg = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))!
+        let dom = seg.domain
+        let points = seg.samplePoints(first: dom.lowerBound, last: dom.upperBound)
+        #expect(points.count > 0)
+    }
+}

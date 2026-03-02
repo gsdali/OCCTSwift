@@ -17842,3 +17842,397 @@ OCCTShapeRef OCCTShapeUpgradeDivideContinuity(OCCTShapeRef shape, int32_t bounda
         return nullptr;
     }
 }
+
+// MARK: - v0.49.0: BRepExtrema_ExtPC, ExtCF, FreeBounds, ShapeCustom, ShapeFix, Surface/Curve expansion
+
+#include <BRepExtrema_ExtPC.hxx>
+#include <BRepExtrema_ExtCF.hxx>
+#include <ShapeFix_FixSmallSolid.hxx>
+#include <ShapeBuild_ReShape.hxx>
+#include <ShapeAnalysis_FreeBoundsProperties.hxx>
+#include <ShapeAnalysis_FreeBoundData.hxx>
+
+// --- BRepExtrema_ExtPC ---
+
+OCCTPointEdgeExtremaResult OCCTBRepExtremaExtPC(double px, double py, double pz,
+                                                 OCCTShapeRef shape, int32_t edgeIndex) {
+    OCCTPointEdgeExtremaResult result = {};
+    if (!shape) return result;
+    try {
+        TopoDS_Edge edge;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex) { edge = TopoDS::Edge(exp.Current()); break; }
+            idx++;
+        }
+        if (edge.IsNull()) return result;
+
+        TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(gp_Pnt(px, py, pz));
+        BRepExtrema_ExtPC ext(vertex, edge);
+        if (!ext.IsDone()) return result;
+
+        result.solutionCount = ext.NbExt();
+        if (result.solutionCount >= 1) {
+            // Find minimum distance
+            double minDist2 = ext.SquareDistance(1);
+            int minIdx = 1;
+            for (int i = 2; i <= ext.NbExt(); i++) {
+                if (ext.SquareDistance(i) < minDist2) {
+                    minDist2 = ext.SquareDistance(i);
+                    minIdx = i;
+                }
+            }
+            result.distance = sqrt(minDist2);
+            result.parameter = ext.Parameter(minIdx);
+            gp_Pnt pt = ext.Point(minIdx);
+            result.ptx = pt.X(); result.pty = pt.Y(); result.ptz = pt.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// --- BRepExtrema_ExtCF ---
+
+OCCTEdgeFaceExtremaResult OCCTBRepExtremaExtCF(OCCTShapeRef shape1, int32_t edgeIndex,
+                                                OCCTShapeRef shape2, int32_t faceIndex) {
+    OCCTEdgeFaceExtremaResult result = {};
+    if (!shape1 || !shape2) return result;
+    try {
+        TopoDS_Edge edge;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape1->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex) { edge = TopoDS::Edge(exp.Current()); break; }
+            idx++;
+        }
+        if (edge.IsNull()) return result;
+
+        TopoDS_Face face;
+        idx = 0;
+        for (TopExp_Explorer exp(shape2->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex) { face = TopoDS::Face(exp.Current()); break; }
+            idx++;
+        }
+        if (face.IsNull()) return result;
+
+        BRepExtrema_ExtCF ext(edge, face);
+        if (!ext.IsDone()) return result;
+
+        result.isParallel = ext.IsParallel();
+        if (result.isParallel) {
+            result.solutionCount = 0;
+            return result;
+        }
+
+        result.solutionCount = ext.NbExt();
+        if (result.solutionCount >= 1) {
+            // Find minimum distance
+            double minDist2 = ext.SquareDistance(1);
+            int minIdx = 1;
+            for (int i = 2; i <= ext.NbExt(); i++) {
+                if (ext.SquareDistance(i) < minDist2) {
+                    minDist2 = ext.SquareDistance(i);
+                    minIdx = i;
+                }
+            }
+            result.distance = sqrt(minDist2);
+            result.paramOnEdge = ext.ParameterOnEdge(minIdx);
+            ext.ParameterOnFace(minIdx, result.uOnFace, result.vOnFace);
+            gp_Pnt pe = ext.PointOnEdge(minIdx);
+            result.edgePtx = pe.X(); result.edgePty = pe.Y(); result.edgePtz = pe.Z();
+            gp_Pnt pf = ext.PointOnFace(minIdx);
+            result.facePtx = pf.X(); result.facePty = pf.Y(); result.facePtz = pf.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// --- GeomConvert_CompCurveToBSplineCurve ---
+
+OCCTCurve3DRef OCCTCurve3DJoinCurves(const OCCTCurve3DRef* curves, int32_t count, double tolerance) {
+    if (!curves || count < 1) return nullptr;
+    try {
+        // First curve initializes the joiner
+        Handle(Geom_BoundedCurve) first = Handle(Geom_BoundedCurve)::DownCast(curves[0]->curve);
+        if (first.IsNull()) return nullptr;
+
+        GeomConvert_CompCurveToBSplineCurve joiner(first);
+
+        for (int i = 1; i < count; i++) {
+            if (!curves[i]) return nullptr;
+            Handle(Geom_BoundedCurve) bc = Handle(Geom_BoundedCurve)::DownCast(curves[i]->curve);
+            if (bc.IsNull()) return nullptr;
+            if (!joiner.Add(bc, tolerance)) return nullptr;
+        }
+
+        Handle(Geom_BSplineCurve) bsp = joiner.BSplineCurve();
+        if (bsp.IsNull()) return nullptr;
+
+        auto* result = new OCCTCurve3D();
+        result->curve = bsp;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- ShapeFix_FixSmallSolid ---
+
+OCCTShapeRef OCCTShapeFixRemoveSmallSolids(OCCTShapeRef shape, double volumeThreshold) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_FixSmallSolid) fixer = new ShapeFix_FixSmallSolid();
+        fixer->SetFixMode(2); // volume only
+        fixer->SetVolumeThreshold(volumeThreshold);
+        Handle(ShapeBuild_ReShape) ctx = new ShapeBuild_ReShape();
+        TopoDS_Shape result = fixer->Remove(shape->shape, ctx);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFixMergeSmallSolids(OCCTShapeRef shape, double widthFactorThreshold) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_FixSmallSolid) fixer = new ShapeFix_FixSmallSolid();
+        fixer->SetFixMode(1); // width only
+        fixer->SetWidthFactorThreshold(widthFactorThreshold);
+        Handle(ShapeBuild_ReShape) ctx = new ShapeBuild_ReShape();
+        TopoDS_Shape result = fixer->Merge(shape->shape, ctx);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- ShapeCustom ---
+
+OCCTShapeRef OCCTShapeCustomDirectFaces(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Shape result = ShapeCustom::DirectFaces(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+static GeomAbs_Shape mapContinuity(int32_t val) {
+    switch (val) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C1;
+    }
+}
+
+OCCTShapeRef OCCTShapeCustomBSplineRestriction(OCCTShapeRef shape,
+    double tol3d, double tol2d, int32_t maxDegree, int32_t maxSegments,
+    int32_t continuity3d, int32_t continuity2d, bool degreePriority, bool rational) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeCustom_RestrictionParameters) params = new ShapeCustom_RestrictionParameters();
+        TopoDS_Shape result = ShapeCustom::BSplineRestriction(
+            shape->shape, tol3d, tol2d, maxDegree, maxSegments,
+            mapContinuity(continuity3d), mapContinuity(continuity2d),
+            degreePriority, rational, params);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- ShapeAnalysis_FreeBoundsProperties ---
+
+OCCTFreeBoundsResult OCCTFreeBoundsAnalyze(OCCTShapeRef shape, double tolerance) {
+    OCCTFreeBoundsResult result = {};
+    if (!shape) return result;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return result;
+        result.totalFreeBounds = fbp.NbFreeBounds();
+        result.closedFreeBounds = fbp.NbClosedFreeBounds();
+        result.openFreeBounds = fbp.NbOpenFreeBounds();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTFreeBoundInfo OCCTFreeBoundsGetClosedBoundInfo(OCCTShapeRef shape, double tolerance, int32_t index) {
+    OCCTFreeBoundInfo result = {};
+    if (!shape) return result;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return result;
+        if (index < 0 || index >= fbp.NbClosedFreeBounds()) return result;
+        Handle(ShapeAnalysis_FreeBoundData) fbd = fbp.ClosedFreeBound(index + 1); // 1-indexed
+        if (fbd.IsNull()) return result;
+        result.area = fbd->Area();
+        result.perimeter = fbd->Perimeter();
+        result.ratio = fbd->Ratio();
+        result.width = fbd->Width();
+        result.notchCount = fbd->NbNotches();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTFreeBoundInfo OCCTFreeBoundsGetOpenBoundInfo(OCCTShapeRef shape, double tolerance, int32_t index) {
+    OCCTFreeBoundInfo result = {};
+    if (!shape) return result;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return result;
+        if (index < 0 || index >= fbp.NbOpenFreeBounds()) return result;
+        Handle(ShapeAnalysis_FreeBoundData) fbd = fbp.OpenFreeBound(index + 1); // 1-indexed
+        if (fbd.IsNull()) return result;
+        result.area = fbd->Area();
+        result.perimeter = fbd->Perimeter();
+        result.ratio = fbd->Ratio();
+        result.width = fbd->Width();
+        result.notchCount = fbd->NbNotches();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTShapeRef OCCTFreeBoundsGetClosedBoundWire(OCCTShapeRef shape, double tolerance, int32_t index) {
+    if (!shape) return nullptr;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return nullptr;
+        if (index < 0 || index >= fbp.NbClosedFreeBounds()) return nullptr;
+        Handle(ShapeAnalysis_FreeBoundData) fbd = fbp.ClosedFreeBound(index + 1);
+        if (fbd.IsNull()) return nullptr;
+        TopoDS_Wire wire = fbd->FreeBound();
+        if (wire.IsNull()) return nullptr;
+        return new OCCTShape(wire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTFreeBoundsGetOpenBoundWire(OCCTShapeRef shape, double tolerance, int32_t index) {
+    if (!shape) return nullptr;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return nullptr;
+        if (index < 0 || index >= fbp.NbOpenFreeBounds()) return nullptr;
+        Handle(ShapeAnalysis_FreeBoundData) fbd = fbp.OpenFreeBound(index + 1);
+        if (fbd.IsNull()) return nullptr;
+        TopoDS_Wire wire = fbd->FreeBound();
+        if (wire.IsNull()) return nullptr;
+        return new OCCTShape(wire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- ShapeAnalysis_Surface expansion ---
+
+OCCTSurfaceUVResult OCCTSurfaceValueOfUV(OCCTSurfaceRef surface,
+    double px, double py, double pz, double precision) {
+    OCCTSurfaceUVResult result = {};
+    if (!surface) return result;
+    try {
+        Handle(ShapeAnalysis_Surface) sa = new ShapeAnalysis_Surface(surface->surface);
+        gp_Pnt2d uv = sa->ValueOfUV(gp_Pnt(px, py, pz), precision);
+        result.u = uv.X();
+        result.v = uv.Y();
+        result.gap = sa->Gap();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTSurfaceUVResult OCCTSurfaceNextValueOfUV(OCCTSurfaceRef surface,
+    double prevU, double prevV, double px, double py, double pz, double precision) {
+    OCCTSurfaceUVResult result = {};
+    if (!surface) return result;
+    try {
+        Handle(ShapeAnalysis_Surface) sa = new ShapeAnalysis_Surface(surface->surface);
+        gp_Pnt2d uv = sa->NextValueOfUV(gp_Pnt2d(prevU, prevV), gp_Pnt(px, py, pz), precision);
+        result.u = uv.X();
+        result.v = uv.Y();
+        result.gap = sa->Gap();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// --- ShapeAnalysis_Curve expansion ---
+
+OCCTCurveProjectResult OCCTCurve3DProjectPoint(OCCTCurve3DRef curve,
+    double px, double py, double pz, double precision) {
+    OCCTCurveProjectResult result = {};
+    if (!curve) return result;
+    try {
+        ShapeAnalysis_Curve sac;
+        gp_Pnt proj;
+        double param;
+        double dist = sac.Project(curve->curve, gp_Pnt(px, py, pz), precision, proj, param);
+        result.distance = dist;
+        result.parameter = param;
+        result.projX = proj.X();
+        result.projY = proj.Y();
+        result.projZ = proj.Z();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTCurveValidateRangeResult OCCTCurve3DValidateRange(OCCTCurve3DRef curve,
+    double first, double last, double precision) {
+    OCCTCurveValidateRangeResult result = {};
+    result.first = first;
+    result.last = last;
+    result.wasAdjusted = false;
+    if (!curve) return result;
+    try {
+        ShapeAnalysis_Curve sac;
+        double f = first, l = last;
+        bool adjusted = sac.ValidateRange(curve->curve, f, l, precision);
+        result.first = f;
+        result.last = l;
+        result.wasAdjusted = adjusted;
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+int32_t OCCTCurve3DGetSamplePoints3D(OCCTCurve3DRef curve, double first, double last,
+    double* outXYZ, int32_t maxPoints) {
+    if (!curve || !outXYZ || maxPoints <= 0) return 0;
+    try {
+        ShapeAnalysis_Curve sac;
+        NCollection_Sequence<gp_Pnt> pts;
+        if (!sac.GetSamplePoints(curve->curve, first, last, pts)) return 0;
+
+        int32_t count = std::min((int32_t)pts.Length(), maxPoints);
+        for (int32_t i = 0; i < count; i++) {
+            const gp_Pnt& p = pts.Value(i + 1); // 1-indexed
+            outXYZ[i * 3]     = p.X();
+            outXYZ[i * 3 + 1] = p.Y();
+            outXYZ[i * 3 + 2] = p.Z();
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}

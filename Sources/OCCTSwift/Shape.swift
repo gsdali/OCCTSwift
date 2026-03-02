@@ -5437,4 +5437,242 @@ extension Shape {
         guard let ref = OCCTShapeUpgradeDivideContinuity(handle, criterion.rawValue, tolerance) else { return nil }
         return Shape(handle: ref)
     }
+
+    // MARK: - BRepExtrema_ExtPC (Point-Edge Extrema)
+
+    /// Result of point-edge distance extrema computation
+    public struct PointEdgeExtrema: Sendable {
+        /// Minimum distance from the point to the edge
+        public let distance: Double
+        /// Parameter on edge at closest point
+        public let parameter: Double
+        /// Closest point on edge
+        public let pointOnEdge: SIMD3<Double>
+        /// Number of extrema solutions found
+        public let solutionCount: Int
+    }
+
+    /// Compute minimum distance from a point to an edge of this shape.
+    ///
+    /// Uses BRepExtrema_ExtPC to find the closest point on the specified edge.
+    ///
+    /// - Parameters:
+    ///   - point: 3D point
+    ///   - edgeIndex: 0-based edge index
+    /// - Returns: Extrema result, or nil if computation fails
+    public func pointEdgeExtrema(point: SIMD3<Double>, edgeIndex: Int) -> PointEdgeExtrema? {
+        let result = OCCTBRepExtremaExtPC(point.x, point.y, point.z, handle, Int32(edgeIndex))
+        guard result.solutionCount > 0 else { return nil }
+        return PointEdgeExtrema(
+            distance: result.distance,
+            parameter: result.parameter,
+            pointOnEdge: SIMD3(result.ptx, result.pty, result.ptz),
+            solutionCount: Int(result.solutionCount)
+        )
+    }
+
+    // MARK: - BRepExtrema_ExtCF (Edge-Face Extrema)
+
+    /// Result of edge-face distance extrema computation
+    public struct EdgeFaceExtrema: Sendable {
+        /// Minimum distance between edge and face
+        public let distance: Double
+        /// Parameter on edge at closest point
+        public let paramOnEdge: Double
+        /// UV parameters on face at closest point
+        public let faceUV: SIMD2<Double>
+        /// Closest point on edge
+        public let pointOnEdge: SIMD3<Double>
+        /// Closest point on face
+        public let pointOnFace: SIMD3<Double>
+        /// Whether edge and face are parallel
+        public let isParallel: Bool
+        /// Number of extrema solutions found
+        public let solutionCount: Int
+    }
+
+    /// Compute distance extrema between an edge and a face.
+    ///
+    /// Uses BRepExtrema_ExtCF to find the closest points between
+    /// the specified edge of this shape and a face of another shape.
+    ///
+    /// - Parameters:
+    ///   - edgeIndex: 0-based edge index in this shape
+    ///   - other: Shape containing the face
+    ///   - faceIndex: 0-based face index in the other shape
+    /// - Returns: Extrema result, or nil if parallel or computation fails
+    public func edgeFaceExtrema(edgeIndex: Int, other: Shape, faceIndex: Int) -> EdgeFaceExtrema? {
+        let result = OCCTBRepExtremaExtCF(handle, Int32(edgeIndex), other.handle, Int32(faceIndex))
+        if result.isParallel {
+            return EdgeFaceExtrema(
+                distance: 0, paramOnEdge: 0, faceUV: .zero,
+                pointOnEdge: .zero, pointOnFace: .zero,
+                isParallel: true, solutionCount: 0
+            )
+        }
+        guard result.solutionCount > 0 else { return nil }
+        return EdgeFaceExtrema(
+            distance: result.distance,
+            paramOnEdge: result.paramOnEdge,
+            faceUV: SIMD2(result.uOnFace, result.vOnFace),
+            pointOnEdge: SIMD3(result.edgePtx, result.edgePty, result.edgePtz),
+            pointOnFace: SIMD3(result.facePtx, result.facePty, result.facePtz),
+            isParallel: false,
+            solutionCount: Int(result.solutionCount)
+        )
+    }
+
+    // MARK: - ShapeFix_FixSmallSolid
+
+    /// Remove small solids from this shape based on volume threshold.
+    ///
+    /// Solids with volume below the threshold are removed entirely.
+    ///
+    /// - Parameter volumeThreshold: Volume below which solids are removed
+    /// - Returns: Shape with small solids removed, or nil on failure
+    public func removeSmallSolids(volumeThreshold: Double) -> Shape? {
+        guard let ref = OCCTShapeFixRemoveSmallSolids(handle, volumeThreshold) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Merge small solids into adjacent larger solids.
+    ///
+    /// Small solids are merged into their neighbors rather than removed.
+    ///
+    /// - Parameter widthFactorThreshold: Width factor below which solids are merged
+    /// - Returns: Shape with small solids merged, or nil on failure
+    public func mergeSmallSolids(widthFactorThreshold: Double) -> Shape? {
+        guard let ref = OCCTShapeFixMergeSmallSolids(handle, widthFactorThreshold) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeCustom
+
+    /// Continuity for BSpline restriction
+    public enum BSplineContinuity: Int32, Sendable {
+        case c0 = 0, c1 = 1, c2 = 2, c3 = 3
+    }
+
+    /// Simplify BSpline surfaces and curves by restricting degree and segment count.
+    ///
+    /// Uses ShapeCustom::BSplineRestriction to approximate geometry with simpler BSplines.
+    ///
+    /// - Parameters:
+    ///   - tol3d: 3D tolerance (default: 0.01)
+    ///   - tol2d: 2D tolerance (default: 0.01)
+    ///   - maxDegree: Maximum BSpline degree (default: 8)
+    ///   - maxSegments: Maximum number of segments (default: 100)
+    ///   - continuity3d: 3D continuity requirement (default: .c1)
+    ///   - continuity2d: 2D continuity requirement (default: .c1)
+    ///   - degreePriority: If true, prioritize degree over segments (default: true)
+    ///   - rational: Allow rational BSplines (default: false)
+    /// - Returns: Simplified shape, or nil on failure
+    public func bsplineRestriction(
+        tol3d: Double = 0.01, tol2d: Double = 0.01,
+        maxDegree: Int = 8, maxSegments: Int = 100,
+        continuity3d: BSplineContinuity = .c1, continuity2d: BSplineContinuity = .c1,
+        degreePriority: Bool = true, rational: Bool = false
+    ) -> Shape? {
+        guard let ref = OCCTShapeCustomBSplineRestriction(
+            handle, tol3d, tol2d, Int32(maxDegree), Int32(maxSegments),
+            continuity3d.rawValue, continuity2d.rawValue, degreePriority, rational
+        ) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeAnalysis_FreeBoundsProperties
+
+    /// Properties of a single free bound (boundary wire)
+    public struct FreeBoundInfo: Sendable {
+        /// Area enclosed by the bound
+        public let area: Double
+        /// Perimeter length
+        public let perimeter: Double
+        /// Aspect ratio (area / perimeter^2)
+        public let ratio: Double
+        /// Average width
+        public let width: Double
+        /// Number of notches
+        public let notchCount: Int
+    }
+
+    /// Result of free bounds analysis
+    public struct FreeBoundsAnalysis: Sendable {
+        /// Total number of free bounds
+        public let totalCount: Int
+        /// Number of closed free bounds
+        public let closedCount: Int
+        /// Number of open free bounds
+        public let openCount: Int
+    }
+
+    /// Analyze free bounds (boundary wires) of this shape.
+    ///
+    /// Free bounds are edges that belong to only one face. Uses
+    /// ShapeAnalysis_FreeBoundsProperties to find and classify them.
+    ///
+    /// - Parameter tolerance: Sewing tolerance for finding free bounds
+    /// - Returns: Analysis summary with bound counts
+    public func freeBoundsAnalysis(tolerance: Double) -> FreeBoundsAnalysis {
+        let result = OCCTFreeBoundsAnalyze(handle, tolerance)
+        return FreeBoundsAnalysis(
+            totalCount: Int(result.totalFreeBounds),
+            closedCount: Int(result.closedFreeBounds),
+            openCount: Int(result.openFreeBounds)
+        )
+    }
+
+    /// Get properties of a closed free bound.
+    ///
+    /// - Parameters:
+    ///   - tolerance: Same tolerance used for analysis
+    ///   - index: 0-based index of the closed free bound
+    /// - Returns: Properties of the bound, or nil if index is out of range
+    public func closedFreeBoundInfo(tolerance: Double, index: Int) -> FreeBoundInfo? {
+        let result = OCCTFreeBoundsGetClosedBoundInfo(handle, tolerance, Int32(index))
+        guard result.perimeter > 0 else { return nil }
+        return FreeBoundInfo(
+            area: result.area, perimeter: result.perimeter,
+            ratio: result.ratio, width: result.width,
+            notchCount: Int(result.notchCount)
+        )
+    }
+
+    /// Get properties of an open free bound.
+    ///
+    /// - Parameters:
+    ///   - tolerance: Same tolerance used for analysis
+    ///   - index: 0-based index of the open free bound
+    /// - Returns: Properties of the bound, or nil if index is out of range
+    public func openFreeBoundInfo(tolerance: Double, index: Int) -> FreeBoundInfo? {
+        let result = OCCTFreeBoundsGetOpenBoundInfo(handle, tolerance, Int32(index))
+        guard result.perimeter > 0 else { return nil }
+        return FreeBoundInfo(
+            area: result.area, perimeter: result.perimeter,
+            ratio: result.ratio, width: result.width,
+            notchCount: Int(result.notchCount)
+        )
+    }
+
+    /// Get the wire shape of a closed free bound.
+    ///
+    /// - Parameters:
+    ///   - tolerance: Same tolerance used for analysis
+    ///   - index: 0-based index of the closed free bound
+    /// - Returns: Wire as a Shape, or nil if index is out of range
+    public func closedFreeBoundWire(tolerance: Double, index: Int) -> Shape? {
+        guard let ref = OCCTFreeBoundsGetClosedBoundWire(handle, tolerance, Int32(index)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get the wire shape of an open free bound.
+    ///
+    /// - Parameters:
+    ///   - tolerance: Same tolerance used for analysis
+    ///   - index: 0-based index of the open free bound
+    /// - Returns: Wire as a Shape, or nil if index is out of range
+    public func openFreeBoundWire(tolerance: Double, index: Int) -> Shape? {
+        guard let ref = OCCTFreeBoundsGetOpenBoundWire(handle, tolerance, Int32(index)) else { return nil }
+        return Shape(handle: ref)
+    }
 }

@@ -1078,4 +1078,43 @@ extension Surface {
             uv2: SIMD2(result.u2, result.v2)
         )
     }
+
+    // MARK: - ShapeAnalysis_Surface expansion (v0.49.0)
+
+    /// Result of projecting a 3D point to surface UV parameters
+    public struct UVProjection: Sendable {
+        /// UV parameters on the surface
+        public let uv: SIMD2<Double>
+        /// Gap: distance between the 3D point and the surface at the found UV
+        public let gap: Double
+    }
+
+    /// Project a 3D point onto this surface to find UV parameters.
+    ///
+    /// Uses ShapeAnalysis_Surface::ValueOfUV.
+    ///
+    /// - Parameters:
+    ///   - point: 3D point to project
+    ///   - precision: Projection precision (default: 1e-6)
+    /// - Returns: UV coordinates and gap distance
+    public func valueOfUV(point: SIMD3<Double>, precision: Double = 1e-6) -> UVProjection {
+        let result = OCCTSurfaceValueOfUV(handle, point.x, point.y, point.z, precision)
+        return UVProjection(uv: SIMD2(result.u, result.v), gap: result.gap)
+    }
+
+    /// Project a 3D point onto this surface using a previous UV as starting hint.
+    ///
+    /// More efficient than `valueOfUV` for iterative projections along a path.
+    /// Uses ShapeAnalysis_Surface::NextValueOfUV.
+    ///
+    /// - Parameters:
+    ///   - previousUV: Previous UV result to use as hint
+    ///   - point: 3D point to project
+    ///   - precision: Projection precision (default: 1e-6)
+    /// - Returns: UV coordinates and gap distance
+    public func nextValueOfUV(previousUV: SIMD2<Double>, point: SIMD3<Double>, precision: Double = 1e-6) -> UVProjection {
+        let result = OCCTSurfaceNextValueOfUV(handle, previousUV.x, previousUV.y,
+                                               point.x, point.y, point.z, precision)
+        return UVProjection(uv: SIMD2(result.u, result.v), gap: result.gap)
+    }
 }

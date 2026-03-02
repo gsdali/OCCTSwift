@@ -5014,6 +5014,214 @@ OCCTShapeRef _Nullable OCCTShapeUpgradeDivideClosed(OCCTShapeRef shape, int32_t 
 /// @return Divided shape, or NULL on failure
 OCCTShapeRef _Nullable OCCTShapeUpgradeDivideContinuity(OCCTShapeRef shape, int32_t boundaryCriterion, double tolerance);
 
+// MARK: - v0.49.0: BRepExtrema_ExtPC, ExtCF, FreeBounds, ShapeCustom, ShapeFix, Surface/Curve expansion
+
+// --- BRepExtrema_ExtPC ---
+
+/// Point-edge extrema result
+typedef struct {
+    double distance;           // Minimum distance
+    double parameter;          // Parameter on edge at closest point
+    double ptx, pty, ptz;     // Closest point on edge
+    int32_t solutionCount;    // Number of extrema found
+} OCCTPointEdgeExtremaResult;
+
+/// Compute distance from a point to an edge.
+/// @param px,py,pz Point coordinates
+/// @param shape Shape containing the edge
+/// @param edgeIndex Edge index (0-based)
+/// @return Extrema result (minimum distance solution)
+OCCTPointEdgeExtremaResult OCCTBRepExtremaExtPC(double px, double py, double pz,
+                                                 OCCTShapeRef shape, int32_t edgeIndex);
+
+// --- BRepExtrema_ExtCF ---
+
+/// Edge-face (curve-face) extrema result
+typedef struct {
+    double distance;
+    double paramOnEdge;
+    double uOnFace, vOnFace;
+    double edgePtx, edgePty, edgePtz;
+    double facePtx, facePty, facePtz;
+    int32_t solutionCount;
+    bool isParallel;
+} OCCTEdgeFaceExtremaResult;
+
+/// Compute distance extrema between an edge and a face.
+/// @param shape1 Shape containing the edge
+/// @param edgeIndex Edge index (0-based)
+/// @param shape2 Shape containing the face
+/// @param faceIndex Face index (0-based)
+/// @return Extrema result (minimum distance solution)
+OCCTEdgeFaceExtremaResult OCCTBRepExtremaExtCF(OCCTShapeRef shape1, int32_t edgeIndex,
+                                                OCCTShapeRef shape2, int32_t faceIndex);
+
+// --- GeomConvert_CompCurveToBSplineCurve ---
+
+/// Join multiple curves into a single BSpline curve.
+/// @param curves Array of curve handles to join (in order)
+/// @param count Number of curves
+/// @param tolerance Tolerance for joining (gap between endpoints)
+/// @return Joined BSpline curve, or NULL on failure
+OCCTCurve3DRef _Nullable OCCTCurve3DJoinCurves(const OCCTCurve3DRef* curves, int32_t count, double tolerance);
+
+// --- ShapeFix_FixSmallSolid ---
+
+/// Remove small solids from a shape based on volume threshold.
+/// @param shape Shape containing solids
+/// @param volumeThreshold Volume below which solids are removed
+/// @return Shape with small solids removed, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeFixRemoveSmallSolids(OCCTShapeRef shape, double volumeThreshold);
+
+/// Merge small solids into adjacent larger solids.
+/// @param shape Shape containing solids
+/// @param widthFactorThreshold Width factor below which solids are merged
+/// @return Shape with small solids merged, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeFixMergeSmallSolids(OCCTShapeRef shape, double widthFactorThreshold);
+
+// --- ShapeCustom ---
+
+/// Redress indirect (left-handed) surfaces to direct (right-handed).
+/// @param shape Shape to process
+/// @return Shape with all surfaces made direct, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeCustomDirectFaces(OCCTShapeRef shape);
+
+/// Simplify BSpline surfaces and curves by restricting degree and segment count.
+/// @param shape Shape to process
+/// @param tol3d 3D tolerance
+/// @param tol2d 2D tolerance
+/// @param maxDegree Maximum BSpline degree
+/// @param maxSegments Maximum number of BSpline segments
+/// @param continuity3d 3D continuity (0=C0, 1=C1, 2=C2)
+/// @param continuity2d 2D continuity (0=C0, 1=C1, 2=C2)
+/// @param degreePriority If true, prioritize degree reduction over segment count
+/// @param rational If true, allow rational BSplines
+/// @return Simplified shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeCustomBSplineRestriction(OCCTShapeRef shape,
+    double tol3d, double tol2d, int32_t maxDegree, int32_t maxSegments,
+    int32_t continuity3d, int32_t continuity2d, bool degreePriority, bool rational);
+
+// --- ShapeAnalysis_FreeBoundsProperties ---
+
+/// Free bounds analysis result (summary)
+typedef struct {
+    int32_t totalFreeBounds;
+    int32_t closedFreeBounds;
+    int32_t openFreeBounds;
+} OCCTFreeBoundsResult;
+
+/// Analyze free bounds of a shape.
+/// @param shape Shape to analyze
+/// @param tolerance Sewing tolerance for finding free bounds
+/// @return Analysis result with bound counts
+OCCTFreeBoundsResult OCCTFreeBoundsAnalyze(OCCTShapeRef shape, double tolerance);
+
+/// Individual free bound properties
+typedef struct {
+    double area;
+    double perimeter;
+    double ratio;       // Area / (perimeter * perimeter)
+    double width;       // Average width
+    int32_t notchCount;
+} OCCTFreeBoundInfo;
+
+/// Get properties of a closed free bound.
+/// @param shape Shape previously analyzed
+/// @param tolerance Same tolerance used in analysis
+/// @param index 0-based index of the closed free bound
+/// @return Properties of the specified closed free bound
+OCCTFreeBoundInfo OCCTFreeBoundsGetClosedBoundInfo(OCCTShapeRef shape, double tolerance, int32_t index);
+
+/// Get properties of an open free bound.
+/// @param shape Shape previously analyzed
+/// @param tolerance Same tolerance used in analysis
+/// @param index 0-based index of the open free bound
+/// @return Properties of the specified open free bound
+OCCTFreeBoundInfo OCCTFreeBoundsGetOpenBoundInfo(OCCTShapeRef shape, double tolerance, int32_t index);
+
+/// Get the wire of a closed free bound as a shape.
+/// @param shape Shape previously analyzed
+/// @param tolerance Same tolerance used in analysis
+/// @param index 0-based index of the closed free bound
+/// @return Wire shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTFreeBoundsGetClosedBoundWire(OCCTShapeRef shape, double tolerance, int32_t index);
+
+/// Get the wire of an open free bound as a shape.
+/// @param shape Shape previously analyzed
+/// @param tolerance Same tolerance used in analysis
+/// @param index 0-based index of the open free bound
+/// @return Wire shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTFreeBoundsGetOpenBoundWire(OCCTShapeRef shape, double tolerance, int32_t index);
+
+// --- ShapeAnalysis_Surface expansion ---
+
+/// Surface UV projection result
+typedef struct {
+    double u, v;   // Projected UV parameters
+    double gap;    // Distance between 3D point and surface at (u,v)
+} OCCTSurfaceUVResult;
+
+/// Project a 3D point onto a surface to find UV parameters.
+/// @param surface Surface to project onto
+/// @param px,py,pz 3D point to project
+/// @param precision Projection precision
+/// @return UV coordinates and gap distance
+OCCTSurfaceUVResult OCCTSurfaceValueOfUV(OCCTSurfaceRef surface,
+    double px, double py, double pz, double precision);
+
+/// Project a 3D point onto a surface using a previous UV as starting hint.
+/// More efficient than ValueOfUV for iterative projections along a path.
+/// @param surface Surface to project onto
+/// @param prevU,prevV Previous UV hint
+/// @param px,py,pz 3D point to project
+/// @param precision Projection precision
+/// @return UV coordinates and gap distance
+OCCTSurfaceUVResult OCCTSurfaceNextValueOfUV(OCCTSurfaceRef surface,
+    double prevU, double prevV, double px, double py, double pz, double precision);
+
+// --- ShapeAnalysis_Curve expansion ---
+
+/// Curve point projection result
+typedef struct {
+    double distance;            // Distance from original point to projection
+    double parameter;           // Parameter on curve at closest point
+    double projX, projY, projZ; // Projected point coordinates
+} OCCTCurveProjectResult;
+
+/// Project a point onto a 3D curve.
+/// @param curve Curve to project onto
+/// @param px,py,pz Point to project
+/// @param precision Projection precision
+/// @return Projection result with distance, parameter, and projected point
+OCCTCurveProjectResult OCCTCurve3DProjectPoint(OCCTCurve3DRef curve,
+    double px, double py, double pz, double precision);
+
+/// Curve range validation result
+typedef struct {
+    double first;       // Validated first parameter
+    double last;        // Validated last parameter
+    bool wasAdjusted;   // True if the range was adjusted
+} OCCTCurveValidateRangeResult;
+
+/// Validate and optionally adjust a curve parameter range.
+/// @param curve Curve to validate against
+/// @param first Desired first parameter
+/// @param last Desired last parameter
+/// @param precision Tolerance for validation
+/// @return Validated range (adjusted if necessary)
+OCCTCurveValidateRangeResult OCCTCurve3DValidateRange(OCCTCurve3DRef curve,
+    double first, double last, double precision);
+
+/// Get sample points along a 3D curve.
+/// @param curve Curve to sample
+/// @param first Start parameter
+/// @param last End parameter
+/// @param outXYZ Output buffer (must hold maxPoints * 3 doubles)
+/// @param maxPoints Maximum number of points to return
+/// @return Actual number of points written to outXYZ
+int32_t OCCTCurve3DGetSamplePoints3D(OCCTCurve3DRef curve, double first, double last,
+    double* outXYZ, int32_t maxPoints);
+
 #ifdef __cplusplus
 }
 #endif
