@@ -4725,6 +4725,295 @@ OCCTShapeCheckResult OCCTCheckShape(OCCTShapeRef shape);
 /// @return Number of status entries written
 int32_t OCCTCheckShapeDetailed(OCCTShapeRef shape, OCCTCheckStatus* outStatuses, int32_t maxStatuses);
 
+// MARK: - v0.48.0: Comprehensive Local Operations, Validation, Fixing, Extrema
+
+// --- LocOpe_Pipe ---
+
+/// Perform a pipe sweep of a profile along a wire spine with shape tracking.
+/// @param shape Profile shape (face) to sweep
+/// @param spineWire Wire shape to use as spine
+/// @return Result swept shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpePipe(OCCTShapeRef shape, OCCTShapeRef spineWire);
+
+// --- LocOpe_LinearForm ---
+
+/// Perform a linear form (translation sweep) with shape tracking.
+/// @param shape Base shape (face) to sweep
+/// @param dx,dy,dz Direction vector
+/// @param p1x,p1y,p1z Start point
+/// @param p2x,p2y,p2z End point
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeLinearForm(OCCTShapeRef shape,
+                                             double dx, double dy, double dz,
+                                             double p1x, double p1y, double p1z,
+                                             double p2x, double p2y, double p2z);
+
+// --- LocOpe_RevolutionForm ---
+
+/// Perform a revolution form with shape tracking.
+/// @param shape Base shape (face) to revolve
+/// @param axisOriginX,Y,Z Axis origin
+/// @param axisDirX,Y,Z Axis direction
+/// @param angle Revolution angle in radians
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeRevolutionForm(OCCTShapeRef shape,
+                                                 double axisOriginX, double axisOriginY, double axisOriginZ,
+                                                 double axisDirX, double axisDirY, double axisDirZ,
+                                                 double angle);
+
+// --- LocOpe_SplitShape ---
+
+/// Split a shape by adding a wire on a face. Returns the modified shape.
+/// @param shape Shape to split
+/// @param faceIndex Index of the face to split (0-based)
+/// @param wire Wire to split the face with
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeSplitShapeByWire(OCCTShapeRef shape, int32_t faceIndex, OCCTShapeRef wire);
+
+/// Split a shape by adding a vertex on an edge. Returns the modified shape.
+/// @param shape Shape to split
+/// @param edgeIndex Index of the edge to split (0-based)
+/// @param parameter Parameter along the edge [0,1]
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeSplitShapeByVertex(OCCTShapeRef shape, int32_t edgeIndex, double parameter);
+
+// --- LocOpe_SplitDrafts ---
+
+/// Split a face with draft angles on both sides of a wire.
+/// @param shape Shape containing the face
+/// @param faceIndex Index of the face to split
+/// @param wire Wire defining the split
+/// @param dirX,dirY,dirZ Extraction direction
+/// @param planeOriginX,Y,Z Neutral plane origin
+/// @param planeNormalX,Y,Z Neutral plane normal
+/// @param angle Draft angle in radians
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeSplitDrafts(OCCTShapeRef shape, int32_t faceIndex, OCCTShapeRef wire,
+                                              double dirX, double dirY, double dirZ,
+                                              double planeOriginX, double planeOriginY, double planeOriginZ,
+                                              double planeNormalX, double planeNormalY, double planeNormalZ,
+                                              double angle);
+
+// --- LocOpe_FindEdges ---
+
+/// Find common edges between two shapes.
+/// @param shape1 First shape
+/// @param shape2 Second shape
+/// @param outEdges Output buffer for edge shapes
+/// @param maxEdges Max edges to return
+/// @return Number of common edges found
+int32_t OCCTLocOpeFindEdges(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                            OCCTShapeRef _Nullable * _Nonnull outEdges, int32_t maxEdges);
+
+// --- LocOpe_FindEdgesInFace ---
+
+/// Find edges of a shape that lie in a specific face.
+/// @param shape Shape whose edges to check
+/// @param faceIndex Face index to check against
+/// @param outEdges Output buffer for edge shapes
+/// @param maxEdges Max edges to return
+/// @return Number of edges found in the face
+int32_t OCCTLocOpeFindEdgesInFace(OCCTShapeRef shape, int32_t faceIndex,
+                                   OCCTShapeRef _Nullable * _Nonnull outEdges, int32_t maxEdges);
+
+// --- LocOpe_CSIntersector ---
+
+/// Result of a curve-shape intersection point
+typedef struct {
+    double px, py, pz;    // Intersection point
+    double parameter;     // Parameter on curve
+    double uOnFace;       // U parameter on face
+    double vOnFace;       // V parameter on face
+    int32_t orientation;  // TopAbs_Orientation value
+} OCCTCSIntersectionPoint;
+
+/// Intersect a line with a shape.
+/// @param shape Shape to intersect
+/// @param lineOriginX,Y,Z Line origin
+/// @param lineDirX,Y,Z Line direction
+/// @param outPoints Output buffer for intersection points
+/// @param maxPoints Max points to return
+/// @return Number of intersection points found
+int32_t OCCTLocOpeCSIntersectLine(OCCTShapeRef shape,
+                                   double lineOriginX, double lineOriginY, double lineOriginZ,
+                                   double lineDirX, double lineDirY, double lineDirZ,
+                                   OCCTCSIntersectionPoint* outPoints, int32_t maxPoints);
+
+// --- BRepCheck_Analyzer ---
+
+/// Perform comprehensive shape validity analysis.
+/// @param shape Shape to analyze
+/// @param geometryChecks Whether to include geometry checks
+/// @return true if shape is valid
+bool OCCTBRepCheckAnalyzerIsValid(OCCTShapeRef shape, bool geometryChecks);
+
+/// Check if a specific sub-shape is valid within its parent shape context.
+/// @param parentShape Parent shape for context
+/// @param subShapeType TopAbs_ShapeEnum type to check (0=COMPOUND, 1=COMPSOLID, 2=SOLID, 3=SHELL, 4=FACE, 5=WIRE, 6=EDGE, 7=VERTEX)
+/// @param subShapeIndex 0-based index of sub-shape of that type
+/// @return true if the sub-shape is valid
+bool OCCTBRepCheckSubShapeValid(OCCTShapeRef parentShape, int32_t subShapeType, int32_t subShapeIndex);
+
+// --- BRepCheck_Edge / Wire / Shell / Vertex ---
+
+/// Check validity of an edge by index.
+/// @param shape Parent shape
+/// @param edgeIndex 0-based edge index
+/// @return Check result
+OCCTShapeCheckResult OCCTCheckEdge(OCCTShapeRef shape, int32_t edgeIndex);
+
+/// Check validity of a wire by index.
+/// @param shape Parent shape
+/// @param wireIndex 0-based wire index
+/// @return Check result
+OCCTShapeCheckResult OCCTCheckWire(OCCTShapeRef shape, int32_t wireIndex);
+
+/// Check validity of a shell by index.
+/// @param shape Parent shape
+/// @param shellIndex 0-based shell index
+/// @return Check result
+OCCTShapeCheckResult OCCTCheckShell(OCCTShapeRef shape, int32_t shellIndex);
+
+/// Check validity of a vertex by index.
+/// @param shape Parent shape
+/// @param vertexIndex 0-based vertex index
+/// @return Check result
+OCCTShapeCheckResult OCCTCheckVertex(OCCTShapeRef shape, int32_t vertexIndex);
+
+// --- ShapeFix_ShapeTolerance ---
+
+/// Limit all tolerances in a shape to a given range.
+/// @param shape Shape to modify
+/// @param minTolerance Minimum tolerance
+/// @param maxTolerance Maximum tolerance
+/// @return true if any tolerance was changed
+bool OCCTShapeFixLimitTolerance(OCCTShapeRef shape, double minTolerance, double maxTolerance);
+
+/// Set all tolerances in a shape to a specific value.
+/// @param shape Shape to modify
+/// @param tolerance Tolerance value to set
+void OCCTShapeFixSetTolerance(OCCTShapeRef shape, double tolerance);
+
+// --- ShapeFix_SplitCommonVertex ---
+
+/// Split vertices that are shared between edges in incompatible ways.
+/// @param shape Shape to fix
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeFixSplitCommonVertex(OCCTShapeRef shape);
+
+// --- ShapeFix_FaceConnect ---
+
+/// Connect adjacent faces in a shell.
+/// @param shape Shell shape to fix
+/// @param tolerance Connection tolerance
+/// @return Fixed shell shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeFixFaceConnect(OCCTShapeRef shape, double tolerance);
+
+// --- ShapeFix_Edge ---
+
+/// Fix same-parameter inconsistencies on all edges in a shape.
+/// @param shape Shape to fix
+/// @param tolerance Tolerance for fixing (0 = default)
+/// @return Number of edges fixed
+int32_t OCCTShapeFixEdgeSameParameter(OCCTShapeRef shape, double tolerance);
+
+/// Fix vertex tolerance issues on all edges in a shape.
+/// @param shape Shape to fix
+/// @return Number of edges fixed
+int32_t OCCTShapeFixEdgeVertexTolerance(OCCTShapeRef shape);
+
+// --- ShapeFix_WireVertex ---
+
+/// Fix vertex issues in all wires of a shape.
+/// @param shape Shape to fix
+/// @param precision Precision for fixing
+/// @return Number of fixes applied
+int32_t OCCTShapeFixWireVertex(OCCTShapeRef shape, double precision);
+
+// --- BRepExtrema_ExtCC ---
+
+/// Edge-edge extrema result
+typedef struct {
+    double distance;      // Minimum distance
+    double paramOnE1;     // Parameter on first edge
+    double paramOnE2;     // Parameter on second edge
+    double pt1x, pt1y, pt1z;  // Closest point on edge 1
+    double pt2x, pt2y, pt2z;  // Closest point on edge 2
+    bool isParallel;      // Whether edges are parallel
+    int32_t solutionCount; // Number of extrema
+} OCCTEdgeEdgeExtremaResult;
+
+/// Compute distance extrema between two edges.
+/// @param shape1 Shape containing first edge
+/// @param edgeIndex1 Index of first edge (0-based)
+/// @param shape2 Shape containing second edge
+/// @param edgeIndex2 Index of second edge (0-based)
+/// @return Extrema result
+OCCTEdgeEdgeExtremaResult OCCTBRepExtremaExtCC(OCCTShapeRef shape1, int32_t edgeIndex1,
+                                                OCCTShapeRef shape2, int32_t edgeIndex2);
+
+/// Compute distance extrema between two standalone edges (from wire shapes).
+/// @param edge1 First edge shape
+/// @param edge2 Second edge shape
+/// @return Extrema result
+OCCTEdgeEdgeExtremaResult OCCTBRepExtremaExtCCEdges(OCCTShapeRef edge1, OCCTShapeRef edge2);
+
+// --- BRepExtrema_ExtPF ---
+
+/// Point-face extrema result
+typedef struct {
+    double distance;      // Minimum distance
+    double u, v;          // Parameters on face
+    double ptx, pty, ptz; // Closest point on face
+    int32_t solutionCount;
+} OCCTPointFaceExtremaResult;
+
+/// Compute distance from a point to a face.
+/// @param px,py,pz Point coordinates
+/// @param shape Shape containing the face
+/// @param faceIndex Face index (0-based)
+/// @return Extrema result
+OCCTPointFaceExtremaResult OCCTBRepExtremaExtPF(double px, double py, double pz,
+                                                 OCCTShapeRef shape, int32_t faceIndex);
+
+// --- BRepExtrema_ExtFF ---
+
+/// Face-face extrema result
+typedef struct {
+    double distance;
+    double u1, v1;        // Parameters on face 1
+    double u2, v2;        // Parameters on face 2
+    double pt1x, pt1y, pt1z;
+    double pt2x, pt2y, pt2z;
+    int32_t solutionCount;
+} OCCTFaceFaceExtremaResult;
+
+/// Compute distance extrema between two faces.
+/// @param shape1 Shape containing first face
+/// @param faceIndex1 First face index (0-based)
+/// @param shape2 Shape containing second face
+/// @param faceIndex2 Second face index (0-based)
+/// @return Extrema result
+OCCTFaceFaceExtremaResult OCCTBRepExtremaExtFF(OCCTShapeRef shape1, int32_t faceIndex1,
+                                                OCCTShapeRef shape2, int32_t faceIndex2);
+
+// --- ShapeUpgrade_ShapeDivideClosed ---
+
+/// Divide closed faces in a shape.
+/// @param shape Shape to process
+/// @param nbSplitPoints Number of split points per closed face
+/// @return Divided shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeDivideClosed(OCCTShapeRef shape, int32_t nbSplitPoints);
+
+// --- ShapeUpgrade_ShapeDivideContinuity ---
+
+/// Divide a shape at continuity breaks.
+/// @param shape Shape to process
+/// @param boundaryCriterion Minimum continuity level (0=C0, 1=C1, 2=C2, 3=C3, 4=CN, 5=G1, 6=G2)
+/// @param tolerance Tolerance for continuity check
+/// @return Divided shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeDivideContinuity(OCCTShapeRef shape, int32_t boundaryCriterion, double tolerance);
+
 #ifdef __cplusplus
 }
 #endif

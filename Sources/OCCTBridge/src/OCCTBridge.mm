@@ -274,6 +274,35 @@
 #include <BRepCheck_Status.hxx>
 #include <BRepCheck_ListOfStatus.hxx>
 
+// v0.48.0: Comprehensive LocOpe, BRepCheck, ShapeFix, BRepExtrema, ShapeUpgrade
+#include <LocOpe_Pipe.hxx>
+#include <LocOpe_LinearForm.hxx>
+#include <LocOpe_RevolutionForm.hxx>
+#include <LocOpe_SplitShape.hxx>
+#include <LocOpe_SplitDrafts.hxx>
+#include <LocOpe_FindEdges.hxx>
+#include <LocOpe_FindEdgesInFace.hxx>
+#include <LocOpe_CSIntersector.hxx>
+#include <LocOpe_PntFace.hxx>
+// #include <LocOpe_Gluer.hxx> // unused
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepCheck_Edge.hxx>
+#include <BRepCheck_Wire.hxx>
+#include <BRepCheck_Shell.hxx>
+#include <BRepCheck_Vertex.hxx>
+#include <ShapeFix_ShapeTolerance.hxx>
+#include <ShapeFix_SplitCommonVertex.hxx>
+#include <ShapeFix_FaceConnect.hxx>
+#include <ShapeFix_Edge.hxx>
+#include <ShapeFix_WireVertex.hxx>
+#include <BRepExtrema_ExtCC.hxx>
+#include <BRepExtrema_ExtFF.hxx>
+#include <BRepExtrema_ExtPF.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
+#include <ShapeUpgrade_ShapeDivideClosed.hxx>
+#include <ShapeUpgrade_ShapeDivideContinuity.hxx>
+// #include <NCollection_Sequence.hxx> // unused in v0.48
+
 // MARK: - Internal Structures
 
 struct OCCTShape {
@@ -17086,5 +17115,730 @@ int32_t OCCTCheckShapeDetailed(OCCTShapeRef shape, OCCTCheckStatus* outStatuses,
         return count;
     } catch (...) {
         return 0;
+    }
+}
+
+// MARK: - v0.48.0: Comprehensive Local Operations, Validation, Fixing, Extrema
+
+OCCTShapeRef OCCTLocOpePipe(OCCTShapeRef shape, OCCTShapeRef spineWire) {
+    if (!shape || !spineWire) return nullptr;
+    try {
+        // Extract wire from spine shape
+        TopoDS_Wire wire;
+        if (spineWire->shape.ShapeType() == TopAbs_WIRE) {
+            wire = TopoDS::Wire(spineWire->shape);
+        } else {
+            for (TopExp_Explorer exp(spineWire->shape, TopAbs_WIRE); exp.More(); exp.Next()) {
+                wire = TopoDS::Wire(exp.Current());
+                break;
+            }
+        }
+        if (wire.IsNull()) return nullptr;
+
+        LocOpe_Pipe pipe(wire, shape->shape);
+        TopoDS_Shape result = pipe.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeLinearForm(OCCTShapeRef shape,
+                                   double dx, double dy, double dz,
+                                   double p1x, double p1y, double p1z,
+                                   double p2x, double p2y, double p2z) {
+    if (!shape) return nullptr;
+    try {
+        gp_Vec direction(dx, dy, dz);
+        gp_Pnt pnt1(p1x, p1y, p1z);
+        gp_Pnt pnt2(p2x, p2y, p2z);
+
+        LocOpe_LinearForm linearForm;
+        linearForm.Perform(shape->shape, direction, pnt1, pnt2);
+
+        TopoDS_Shape result = linearForm.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeRevolutionForm(OCCTShapeRef shape,
+                                       double axisOriginX, double axisOriginY, double axisOriginZ,
+                                       double axisDirX, double axisDirY, double axisDirZ,
+                                       double angle) {
+    if (!shape) return nullptr;
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+
+        LocOpe_RevolutionForm revolForm;
+        revolForm.Perform(shape->shape, axis, angle);
+
+        TopoDS_Shape result = revolForm.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeSplitShapeByWire(OCCTShapeRef shape, int32_t faceIndex, OCCTShapeRef wire) {
+    if (!shape || !wire) return nullptr;
+    try {
+        LocOpe_SplitShape splitter(shape->shape);
+
+        // Find the target face
+        TopoDS_Face face;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex) {
+                face = TopoDS::Face(exp.Current());
+                break;
+            }
+            idx++;
+        }
+        if (face.IsNull()) return nullptr;
+
+        // Extract wire
+        TopoDS_Wire w;
+        if (wire->shape.ShapeType() == TopAbs_WIRE) {
+            w = TopoDS::Wire(wire->shape);
+        } else {
+            for (TopExp_Explorer exp(wire->shape, TopAbs_WIRE); exp.More(); exp.Next()) {
+                w = TopoDS::Wire(exp.Current());
+                break;
+            }
+        }
+        if (w.IsNull()) return nullptr;
+
+        bool added = splitter.Add(w, face);
+        if (!added) return nullptr;
+
+        // Rebuild the shape
+        // SplitShape doesn't have a Shape() method - we collect descendants
+        // Actually, we need to reconstruct. Let's use a different approach.
+        // The SplitShape modifies in place - we can use DescendantShapes to see results.
+        // For the bridge, let's return a compound of all shapes.
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+
+        // Add all descendant shapes
+        const auto& descendants = splitter.DescendantShapes(face);
+        for (auto it = descendants.begin(); it != descendants.end(); ++it) {
+            builder.Add(compound, *it);
+        }
+
+        // Add other non-split faces
+        for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            TopoDS_Face f = TopoDS::Face(exp.Current());
+            if (f.IsSame(face)) continue;
+            builder.Add(compound, f);
+        }
+
+        return new OCCTShape(compound);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeSplitShapeByVertex(OCCTShapeRef shape, int32_t edgeIndex, double parameter) {
+    if (!shape) return nullptr;
+    try {
+        LocOpe_SplitShape splitter(shape->shape);
+
+        // Find the target edge
+        TopoDS_Edge edge;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex) {
+                edge = TopoDS::Edge(exp.Current());
+                break;
+            }
+            idx++;
+        }
+        if (edge.IsNull()) return nullptr;
+
+        // Get edge parameter range
+        double first, last;
+        BRep_Tool::Range(edge, first, last);
+        double param = first + parameter * (last - first);
+
+        // Create vertex
+        gp_Pnt pnt;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+        if (curve.IsNull()) return nullptr;
+        curve->D0(param, pnt);
+
+        TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(pnt);
+        splitter.Add(vertex, param, edge);
+
+        // Rebuild
+        const auto& descendants = splitter.DescendantShapes(edge);
+        if (descendants.Size() < 2) return nullptr;
+
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+        for (auto it = descendants.begin(); it != descendants.end(); ++it) {
+            builder.Add(compound, *it);
+        }
+        return new OCCTShape(compound);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeSplitDrafts(OCCTShapeRef shape, int32_t faceIndex, OCCTShapeRef wire,
+                                    double dirX, double dirY, double dirZ,
+                                    double planeOriginX, double planeOriginY, double planeOriginZ,
+                                    double planeNormalX, double planeNormalY, double planeNormalZ,
+                                    double angle) {
+    if (!shape || !wire) return nullptr;
+    try {
+        LocOpe_SplitDrafts splitDrafts;
+        splitDrafts.Init(shape->shape);
+
+        // Find the target face
+        TopoDS_Face face;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex) {
+                face = TopoDS::Face(exp.Current());
+                break;
+            }
+            idx++;
+        }
+        if (face.IsNull()) return nullptr;
+
+        // Extract wire
+        TopoDS_Wire w;
+        if (wire->shape.ShapeType() == TopAbs_WIRE) {
+            w = TopoDS::Wire(wire->shape);
+        } else {
+            for (TopExp_Explorer exp(wire->shape, TopAbs_WIRE); exp.More(); exp.Next()) {
+                w = TopoDS::Wire(exp.Current());
+                break;
+            }
+        }
+        if (w.IsNull()) return nullptr;
+
+        gp_Dir dir(dirX, dirY, dirZ);
+        gp_Pln plane(gp_Pnt(planeOriginX, planeOriginY, planeOriginZ),
+                      gp_Dir(planeNormalX, planeNormalY, planeNormalZ));
+
+        splitDrafts.Perform(face, w, dir, plane, angle);
+
+        TopoDS_Shape result = splitDrafts.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTLocOpeFindEdges(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                            OCCTShapeRef* outEdges, int32_t maxEdges) {
+    if (!shape1 || !shape2 || !outEdges || maxEdges <= 0) return 0;
+    try {
+        LocOpe_FindEdges finder;
+        finder.Set(shape1->shape, shape2->shape);
+
+        int32_t count = 0;
+        for (finder.InitIterator(); finder.More() && count < maxEdges; finder.Next()) {
+            outEdges[count] = new OCCTShape(finder.EdgeFrom());
+            count++;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTLocOpeFindEdgesInFace(OCCTShapeRef shape, int32_t faceIndex,
+                                   OCCTShapeRef* outEdges, int32_t maxEdges) {
+    if (!shape || !outEdges || maxEdges <= 0) return 0;
+    try {
+        // Find the target face
+        TopoDS_Face face;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex) {
+                face = TopoDS::Face(exp.Current());
+                break;
+            }
+            idx++;
+        }
+        if (face.IsNull()) return 0;
+
+        LocOpe_FindEdgesInFace finder;
+        finder.Set(shape->shape, face);
+
+        int32_t count = 0;
+        for (finder.Init(); finder.More() && count < maxEdges; finder.Next()) {
+            outEdges[count] = new OCCTShape(finder.Edge());
+            count++;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTLocOpeCSIntersectLine(OCCTShapeRef shape,
+                                   double lineOriginX, double lineOriginY, double lineOriginZ,
+                                   double lineDirX, double lineDirY, double lineDirZ,
+                                   OCCTCSIntersectionPoint* outPoints, int32_t maxPoints) {
+    if (!shape || !outPoints || maxPoints <= 0) return 0;
+    try {
+        LocOpe_CSIntersector intersector(shape->shape);
+
+        NCollection_Sequence<gp_Lin> lines;
+        lines.Append(gp_Lin(gp_Pnt(lineOriginX, lineOriginY, lineOriginZ),
+                             gp_Dir(lineDirX, lineDirY, lineDirZ)));
+
+        intersector.Perform(lines);
+
+        int nbPts = intersector.NbPoints(1); // 1-indexed
+        int32_t count = 0;
+        for (int i = 1; i <= nbPts && count < maxPoints; i++) {
+            const LocOpe_PntFace& pf = intersector.Point(1, i);
+            outPoints[count].px = pf.Pnt().X();
+            outPoints[count].py = pf.Pnt().Y();
+            outPoints[count].pz = pf.Pnt().Z();
+            outPoints[count].parameter = pf.Parameter();
+            outPoints[count].uOnFace = pf.UParameter();
+            outPoints[count].vOnFace = pf.VParameter();
+            outPoints[count].orientation = (int32_t)pf.Orientation();
+            count++;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTBRepCheckAnalyzerIsValid(OCCTShapeRef shape, bool geometryChecks) {
+    if (!shape) return false;
+    try {
+        BRepCheck_Analyzer analyzer(shape->shape, geometryChecks);
+        return analyzer.IsValid();
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTBRepCheckSubShapeValid(OCCTShapeRef parentShape, int32_t subShapeType, int32_t subShapeIndex) {
+    if (!parentShape) return false;
+    try {
+        BRepCheck_Analyzer analyzer(parentShape->shape, true);
+
+        TopAbs_ShapeEnum type = (TopAbs_ShapeEnum)subShapeType;
+        int idx = 0;
+        for (TopExp_Explorer exp(parentShape->shape, type); exp.More(); exp.Next()) {
+            if (idx == subShapeIndex) {
+                return analyzer.IsValid(exp.Current());
+            }
+            idx++;
+        }
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+static OCCTShapeCheckResult checkSubShape(OCCTShapeRef shape, TopAbs_ShapeEnum type, int32_t index) {
+    OCCTShapeCheckResult result = {};
+    result.isValid = false;
+    result.firstError = OCCTCheckNoError;
+    if (!shape) return result;
+
+    try {
+        TopoDS_Shape subShape;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, type); exp.More(); exp.Next()) {
+            if (idx == index) {
+                subShape = exp.Current();
+                break;
+            }
+            idx++;
+        }
+        if (subShape.IsNull()) return result;
+
+        Handle(BRepCheck_Result) checker;
+        switch (type) {
+            case TopAbs_EDGE:
+                checker = new BRepCheck_Edge(TopoDS::Edge(subShape));
+                break;
+            case TopAbs_WIRE:
+                checker = new BRepCheck_Wire(TopoDS::Wire(subShape));
+                break;
+            case TopAbs_SHELL:
+                checker = new BRepCheck_Shell(TopoDS::Shell(subShape));
+                break;
+            case TopAbs_VERTEX:
+                checker = new BRepCheck_Vertex(TopoDS::Vertex(subShape));
+                break;
+            default:
+                return result;
+        }
+
+        checker->Minimum();
+        auto& statusList = checker->Status();
+
+        result.isValid = true;
+        for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+            if (*it != BRepCheck_NoError) {
+                result.isValid = false;
+                if (result.firstError == OCCTCheckNoError) {
+                    result.firstError = mapBRepCheckStatus(*it);
+                }
+            }
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTShapeCheckResult OCCTCheckEdge(OCCTShapeRef shape, int32_t edgeIndex) {
+    return checkSubShape(shape, TopAbs_EDGE, edgeIndex);
+}
+
+OCCTShapeCheckResult OCCTCheckWire(OCCTShapeRef shape, int32_t wireIndex) {
+    return checkSubShape(shape, TopAbs_WIRE, wireIndex);
+}
+
+OCCTShapeCheckResult OCCTCheckShell(OCCTShapeRef shape, int32_t shellIndex) {
+    return checkSubShape(shape, TopAbs_SHELL, shellIndex);
+}
+
+OCCTShapeCheckResult OCCTCheckVertex(OCCTShapeRef shape, int32_t vertexIndex) {
+    return checkSubShape(shape, TopAbs_VERTEX, vertexIndex);
+}
+
+bool OCCTShapeFixLimitTolerance(OCCTShapeRef shape, double minTolerance, double maxTolerance) {
+    if (!shape) return false;
+    try {
+        ShapeFix_ShapeTolerance tolFixer;
+        return tolFixer.LimitTolerance(shape->shape, minTolerance, maxTolerance);
+    } catch (...) {
+        return false;
+    }
+}
+
+void OCCTShapeFixSetTolerance(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return;
+    try {
+        ShapeFix_ShapeTolerance tolFixer;
+        tolFixer.SetTolerance(shape->shape, tolerance);
+    } catch (...) {
+    }
+}
+
+OCCTShapeRef OCCTShapeFixSplitCommonVertex(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        ShapeFix_SplitCommonVertex splitter;
+        splitter.Init(shape->shape);
+        splitter.Perform();
+        TopoDS_Shape result = splitter.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFixFaceConnect(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        // Get shell from shape
+        TopoDS_Shell shell;
+        if (shape->shape.ShapeType() == TopAbs_SHELL) {
+            shell = TopoDS::Shell(shape->shape);
+        } else {
+            for (TopExp_Explorer exp(shape->shape, TopAbs_SHELL); exp.More(); exp.Next()) {
+                shell = TopoDS::Shell(exp.Current());
+                break;
+            }
+        }
+        if (shell.IsNull()) return nullptr;
+
+        // Get face pairs and connect them
+        ShapeFix_FaceConnect connector;
+
+        // Collect all faces
+        std::vector<TopoDS_Face> faces;
+        for (TopExp_Explorer exp(shell, TopAbs_FACE); exp.More(); exp.Next()) {
+            faces.push_back(TopoDS::Face(exp.Current()));
+        }
+
+        // Add adjacent face pairs
+        for (size_t i = 0; i + 1 < faces.size(); i++) {
+            connector.Add(faces[i], faces[i + 1]);
+        }
+
+        TopoDS_Shell result = connector.Build(shell, tolerance, tolerance);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTShapeFixEdgeSameParameter(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return 0;
+    try {
+        Handle(ShapeFix_Edge) edgeFixer = new ShapeFix_Edge();
+        int32_t count = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            if (edgeFixer->FixSameParameter(edge, tolerance)) {
+                count++;
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTShapeFixEdgeVertexTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        Handle(ShapeFix_Edge) edgeFixer = new ShapeFix_Edge();
+        int32_t count = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            if (edgeFixer->FixVertexTolerance(edge)) {
+                count++;
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTShapeFixWireVertex(OCCTShapeRef shape, double precision) {
+    if (!shape) return 0;
+    try {
+        int32_t totalFixed = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_WIRE); exp.More(); exp.Next()) {
+            TopoDS_Wire wire = TopoDS::Wire(exp.Current());
+            ShapeFix_WireVertex wireVertex;
+            wireVertex.Init(wire, precision);
+            totalFixed += wireVertex.Fix();
+        }
+        return totalFixed;
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTEdgeEdgeExtremaResult OCCTBRepExtremaExtCC(OCCTShapeRef shape1, int32_t edgeIndex1,
+                                                OCCTShapeRef shape2, int32_t edgeIndex2) {
+    OCCTEdgeEdgeExtremaResult result = {};
+    if (!shape1 || !shape2) return result;
+    try {
+        // Find edges
+        TopoDS_Edge e1, e2;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape1->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex1) { e1 = TopoDS::Edge(exp.Current()); break; }
+            idx++;
+        }
+        idx = 0;
+        for (TopExp_Explorer exp(shape2->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex2) { e2 = TopoDS::Edge(exp.Current()); break; }
+            idx++;
+        }
+        if (e1.IsNull() || e2.IsNull()) return result;
+
+        BRepExtrema_ExtCC extCC(e1, e2);
+        if (!extCC.IsDone()) return result;
+
+        result.isParallel = extCC.IsParallel();
+        if (result.isParallel) {
+            result.solutionCount = 0;
+            return result;
+        }
+        result.solutionCount = extCC.NbExt();
+
+        if (result.solutionCount >= 1 && !result.isParallel) {
+            result.distance = sqrt(extCC.SquareDistance(1));
+            result.paramOnE1 = extCC.ParameterOnE1(1);
+            result.paramOnE2 = extCC.ParameterOnE2(1);
+            gp_Pnt p1 = extCC.PointOnE1(1);
+            gp_Pnt p2 = extCC.PointOnE2(1);
+            result.pt1x = p1.X(); result.pt1y = p1.Y(); result.pt1z = p1.Z();
+            result.pt2x = p2.X(); result.pt2y = p2.Y(); result.pt2z = p2.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTEdgeEdgeExtremaResult OCCTBRepExtremaExtCCEdges(OCCTShapeRef edge1, OCCTShapeRef edge2) {
+    OCCTEdgeEdgeExtremaResult result = {};
+    if (!edge1 || !edge2) return result;
+    try {
+        TopoDS_Edge e1, e2;
+        if (edge1->shape.ShapeType() == TopAbs_EDGE) {
+            e1 = TopoDS::Edge(edge1->shape);
+        } else {
+            for (TopExp_Explorer exp(edge1->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+                e1 = TopoDS::Edge(exp.Current()); break;
+            }
+        }
+        if (edge2->shape.ShapeType() == TopAbs_EDGE) {
+            e2 = TopoDS::Edge(edge2->shape);
+        } else {
+            for (TopExp_Explorer exp(edge2->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+                e2 = TopoDS::Edge(exp.Current()); break;
+            }
+        }
+        if (e1.IsNull() || e2.IsNull()) return result;
+
+        BRepExtrema_ExtCC extCC(e1, e2);
+        if (!extCC.IsDone()) return result;
+
+        result.isParallel = extCC.IsParallel();
+        if (result.isParallel) {
+            result.solutionCount = 0;
+            return result;
+        }
+        result.solutionCount = extCC.NbExt();
+
+        if (result.solutionCount >= 1 && !result.isParallel) {
+            result.distance = sqrt(extCC.SquareDistance(1));
+            result.paramOnE1 = extCC.ParameterOnE1(1);
+            result.paramOnE2 = extCC.ParameterOnE2(1);
+            gp_Pnt p1 = extCC.PointOnE1(1);
+            gp_Pnt p2 = extCC.PointOnE2(1);
+            result.pt1x = p1.X(); result.pt1y = p1.Y(); result.pt1z = p1.Z();
+            result.pt2x = p2.X(); result.pt2y = p2.Y(); result.pt2z = p2.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTPointFaceExtremaResult OCCTBRepExtremaExtPF(double px, double py, double pz,
+                                                 OCCTShapeRef shape, int32_t faceIndex) {
+    OCCTPointFaceExtremaResult result = {};
+    if (!shape) return result;
+    try {
+        // Find face
+        TopoDS_Face face;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex) { face = TopoDS::Face(exp.Current()); break; }
+            idx++;
+        }
+        if (face.IsNull()) return result;
+
+        TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(gp_Pnt(px, py, pz));
+        BRepExtrema_ExtPF extPF(vertex, face);
+        if (!extPF.IsDone()) return result;
+
+        result.solutionCount = extPF.NbExt();
+        if (result.solutionCount >= 1) {
+            result.distance = sqrt(extPF.SquareDistance(1));
+            gp_Pnt pt = extPF.Point(1);
+            result.ptx = pt.X(); result.pty = pt.Y(); result.ptz = pt.Z();
+            extPF.Parameter(1, result.u, result.v);
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTFaceFaceExtremaResult OCCTBRepExtremaExtFF(OCCTShapeRef shape1, int32_t faceIndex1,
+                                                OCCTShapeRef shape2, int32_t faceIndex2) {
+    OCCTFaceFaceExtremaResult result = {};
+    if (!shape1 || !shape2) return result;
+    try {
+        // Find faces
+        TopoDS_Face f1, f2;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape1->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex1) { f1 = TopoDS::Face(exp.Current()); break; }
+            idx++;
+        }
+        idx = 0;
+        for (TopExp_Explorer exp(shape2->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex2) { f2 = TopoDS::Face(exp.Current()); break; }
+            idx++;
+        }
+        if (f1.IsNull() || f2.IsNull()) return result;
+
+        BRepExtrema_ExtFF extFF(f1, f2);
+        if (!extFF.IsDone()) return result;
+
+        result.solutionCount = extFF.NbExt();
+        if (result.solutionCount >= 1) {
+            result.distance = sqrt(extFF.SquareDistance(1));
+            extFF.ParameterOnFace1(1, result.u1, result.v1);
+            extFF.ParameterOnFace2(1, result.u2, result.v2);
+            gp_Pnt p1 = extFF.PointOnFace1(1);
+            gp_Pnt p2 = extFF.PointOnFace2(1);
+            result.pt1x = p1.X(); result.pt1y = p1.Y(); result.pt1z = p1.Z();
+            result.pt2x = p2.X(); result.pt2y = p2.Y(); result.pt2z = p2.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTShapeRef OCCTShapeUpgradeDivideClosed(OCCTShapeRef shape, int32_t nbSplitPoints) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideClosed divider(shape->shape);
+        divider.SetNbSplitPoints(nbSplitPoints);
+        bool ok = divider.Perform();
+        if (!ok) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeUpgradeDivideContinuity(OCCTShapeRef shape, int32_t boundaryCriterion, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideContinuity divider(shape->shape);
+
+        GeomAbs_Shape criterion;
+        switch (boundaryCriterion) {
+            case 0: criterion = GeomAbs_C0; break;
+            case 1: criterion = GeomAbs_C1; break;
+            case 2: criterion = GeomAbs_C2; break;
+            case 3: criterion = GeomAbs_C3; break;
+            case 4: criterion = GeomAbs_CN; break;
+            case 5: criterion = GeomAbs_G1; break;
+            case 6: criterion = GeomAbs_G2; break;
+            default: criterion = GeomAbs_C1; break;
+        }
+
+        divider.SetBoundaryCriterion(criterion);
+        divider.SetTolerance(tolerance);
+        bool ok = divider.Perform();
+        if (!ok) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
     }
 }

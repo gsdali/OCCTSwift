@@ -18,20 +18,20 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Surfaces (Surface)** | 59 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, evaluateGrid, intersections, toAnalytical, bezierFill(4-curve), bezierFill(2-curve), singularityCount, isDegenerated, hasSingularities, toBezierPatchGrid, bsplineFill(2-curve), bsplineFill(4-curve), extrema |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 15 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam, adjacentFaces, dihedralAngle |
-| **Feature-Based** | 23 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile, localRevolution, localRevolutionWithOffset, locOpeDraftPrism |
-| **Healing/Analysis** | 37 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace, freeBounds, fixedFreeBounds, withSurfacesAsBSpline, withSurfacesAsRevolution, checkSmallFaces, purgedLocations, curveOnSurfaceCheck, connectedEdges, convertedToBezier |
-| **Measurement** | 14 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects, inertiaProperties, surfaceInertiaProperties, allDistanceSolutions, isInside, findSurfaceEx, findPlane, analyzePointCloud |
+| **Feature-Based** | 31 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile, localRevolution, localRevolutionWithOffset, locOpeDraftPrism, localPipe, localLinearForm, localRevolutionForm, splitFace, splitEdge, splitDrafts, commonEdges, edgesInFace |
+| **Healing/Analysis** | 44 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace, freeBounds, fixedFreeBounds, withSurfacesAsBSpline, withSurfacesAsRevolution, checkSmallFaces, purgedLocations, curveOnSurfaceCheck, connectedEdges, convertedToBezier, limitTolerance, setTolerance, splitCommonVertices, connectedFaces, fixEdgeSameParameter, fixEdgeVertexTolerance, fixWireVertices |
+| **Measurement** | 17 | volume, surfaceArea, centerOfMass, properties, distance, minDistance, intersects, inertiaProperties, surfaceInertiaProperties, allDistanceSolutions, isInside, findSurfaceEx, findPlane, analyzePointCloud, edgeEdgeExtrema, pointFaceExtrema, faceFaceExtrema |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
 | **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
 | **Import/Export** | 17 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; STEP optimize; mesh |
-| **Shape Editing** | 14 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath, copy, removingSubShapes, replacingSubShapes, dividedClosedEdges, faceRestricted, dividedByArea, dividedByParts |
+| **Shape Editing** | 17 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath, copy, removingSubShapes, replacingSubShapes, dividedClosedEdges, faceRestricted, dividedByArea, dividedByParts, dividedClosedFaces, dividedByContinuity, intersectLine |
 | **Polynomial Solver** | 3 | quadratic, cubic, quartic |
 | **Hatch Pattern** | 1 | generate |
 | **Geometry Construction** | 11 | face from wire, face with holes, solid from shell, solidFromShells, sew, fill, plateSurface, plateCurves, plateSurfaceAdvanced, plateSurfaceMixed, constrainedFill |
 | **Bounds/Topology** | 14 | bounds, orientedBoundingBox, orientedBoundingBoxCorners, size, center, vertices, edges, faces, solids, shells, wires, subShapeCount, subShape, subShapes |
 | **Slicing** | 4 | sliceAtZ, sectionWiresAtZ, edgePoints, contourPoints |
-| **Validation** | 8 | isValid, heal, checkResult, detailedCheckStatuses, faceCheckResult, checkSolid, checkShape, checkShapeDetailed |
+| **Validation** | 14 | isValid, heal, checkResult, detailedCheckStatuses, faceCheckResult, checkSolid, checkShape, checkShapeDetailed, analyzeValidity, isSubShapeValid, checkEdge, checkWire, checkShell, checkVertex |
 | **XDE/Document** | 28 | Document.load, rootNodes, AssemblyNode, colors, materials, setColor, setMaterial, dimensions, geomTolerances, datums, lengthUnit, layerCount, layerName, layerNames, materialCount, materialInfo, materials |
 | **Shape Census** | 2 | contents, recognizeCanonical |
 | **Find Surface** | 2 | findSurface, contiguousEdgeCount |
@@ -48,7 +48,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Text Label** | 5 | create, text, position, setHeight, getInfo |
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
-| **Total** | **623** | |
+| **Total** | **650** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -137,6 +137,19 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Local Draft Prism**: LocOpe_DPrism — tapered extrusion of a face with dual-height and draft angle control
 - **Constrained Surface Filling**: GeomFill_ConstrainedFilling — BSpline surface from 4 boundary edge curves
 - **Shape Validity Checking**: BRepCheck_Face / BRepCheck_Solid — detailed validation with per-status error reporting
+- **Local Pipe Sweep**: LocOpe_Pipe — sweep a face profile along a wire spine with shape tracking
+- **Local Linear/Revolution Form**: LocOpe_LinearForm / LocOpe_RevolutionForm — swept rib/groove features
+- **Shape Splitting**: LocOpe_SplitShape / LocOpe_SplitDrafts — split faces by wire or edge parameter, draft splitting
+- **Edge Finding**: LocOpe_FindEdges / LocOpe_FindEdgesInFace — find common edges between shapes, edges within a face
+- **CS Intersection**: LocOpe_CSIntersector — intersect shapes with infinite lines, get intersection points with face parameters
+- **BRepCheck Analyzer**: Full shape validity analysis with optional geometry checks, per-sub-shape validation (edge/wire/shell/vertex)
+- **Shape Tolerance Fixing**: ShapeFix_ShapeTolerance — limit or set tolerance ranges on shapes
+- **Vertex/Edge Repair**: ShapeFix_SplitCommonVertex, ShapeFix_Edge, ShapeFix_WireVertex — fix shared vertices, edge same-parameter, wire vertex precision
+- **Face Connection**: ShapeFix_FaceConnect — connect disconnected faces by tolerance
+- **Edge-Edge Extrema**: BRepExtrema_ExtCC — closest distance between two edges with parameter values and points
+- **Point-Face Extrema**: BRepExtrema_ExtPF — closest distance from a point to a face
+- **Face-Face Extrema**: BRepExtrema_ExtFF — closest distance between two faces
+- **Shape Division**: ShapeUpgrade_ShapeDivideClosed / ShapeDivideContinuity — split closed faces or divide by continuity level
 - **Revolution Feature**: Revolved boss/pocket features for turned parts
 - **Oriented Bounding Box**: Tight-fit rotated bounding box (OBB) for spatial queries, 30-70% tighter than axis-aligned
 - **Deep Shape Copy**: Independent shape cloning with optional geometry and mesh duplication

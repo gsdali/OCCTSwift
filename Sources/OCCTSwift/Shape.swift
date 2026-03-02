@@ -4933,3 +4933,508 @@ extension Face {
         )
     }
 }
+
+// MARK: - v0.48.0: Comprehensive Local Operations, Validation, Fixing, Extrema
+
+extension Shape {
+    // MARK: - LocOpe_Pipe
+
+    /// Perform a pipe sweep of this shape along a wire spine with shape tracking.
+    ///
+    /// Uses LocOpe_Pipe to sweep a face profile along a wire path.
+    /// Unlike the regular pipe sweep, this tracks generated sub-shapes.
+    ///
+    /// - Parameter spine: Wire spine to sweep along
+    /// - Returns: The swept shape, or nil on failure
+    public func localPipe(along spine: Wire) -> Shape? {
+        let spineShape = Shape(handle: OCCTShapeFromWire(spine.handle))
+        guard let ref = OCCTLocOpePipe(handle, spineShape.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - LocOpe_LinearForm
+
+    /// Perform a linear form (translation sweep) of this shape with shape tracking.
+    ///
+    /// Uses LocOpe_LinearForm to sweep a face along a direction vector.
+    ///
+    /// - Parameters:
+    ///   - direction: Direction vector of the sweep
+    ///   - from: Start point of the sweep
+    ///   - to: End point of the sweep
+    /// - Returns: The swept shape, or nil on failure
+    public func localLinearForm(direction: SIMD3<Double>,
+                                from start: SIMD3<Double>,
+                                to end: SIMD3<Double>) -> Shape? {
+        guard let ref = OCCTLocOpeLinearForm(handle,
+                                              direction.x, direction.y, direction.z,
+                                              start.x, start.y, start.z,
+                                              end.x, end.y, end.z) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - LocOpe_RevolutionForm
+
+    /// Perform a revolution form of this shape with shape tracking.
+    ///
+    /// Uses LocOpe_RevolutionForm to revolve a face around an axis.
+    ///
+    /// - Parameters:
+    ///   - axisOrigin: Origin point of the rotation axis
+    ///   - axisDirection: Direction of the rotation axis
+    ///   - angle: Rotation angle in radians
+    /// - Returns: The revolved shape, or nil on failure
+    public func localRevolutionForm(axisOrigin: SIMD3<Double>,
+                                     axisDirection: SIMD3<Double>,
+                                     angle: Double) -> Shape? {
+        guard let ref = OCCTLocOpeRevolutionForm(handle,
+                                                  axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                                                  axisDirection.x, axisDirection.y, axisDirection.z,
+                                                  angle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - LocOpe_SplitShape
+
+    /// Split a face of this shape by adding a wire on it.
+    ///
+    /// Uses LocOpe_SplitShape to split a face into multiple parts.
+    ///
+    /// - Parameters:
+    ///   - faceIndex: Index of the face to split (0-based)
+    ///   - wire: Wire that lies on the face and defines the split
+    /// - Returns: Modified shape with the face split, or nil on failure
+    public func splitFace(at faceIndex: Int, with wire: Wire) -> Shape? {
+        let wireShape = Shape(handle: OCCTShapeFromWire(wire.handle))
+        guard let ref = OCCTLocOpeSplitShapeByWire(handle, Int32(faceIndex), wireShape.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Split an edge of this shape at a parameter.
+    ///
+    /// Uses LocOpe_SplitShape to split an edge by inserting a vertex.
+    ///
+    /// - Parameters:
+    ///   - edgeIndex: Index of the edge to split (0-based)
+    ///   - parameter: Parameter along the edge (0.0 to 1.0)
+    /// - Returns: The split edge parts as a compound, or nil on failure
+    public func splitEdge(at edgeIndex: Int, parameter: Double) -> Shape? {
+        guard let ref = OCCTLocOpeSplitShapeByVertex(handle, Int32(edgeIndex), parameter) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - LocOpe_SplitDrafts
+
+    /// Split a face with draft angles on both sides of a wire.
+    ///
+    /// Uses LocOpe_SplitDrafts to create draft surfaces on a shape.
+    ///
+    /// - Parameters:
+    ///   - faceIndex: Index of the face to split (0-based)
+    ///   - wire: Wire defining the split line
+    ///   - direction: Extraction direction
+    ///   - planeOrigin: Origin of the neutral plane
+    ///   - planeNormal: Normal of the neutral plane
+    ///   - angle: Draft angle in radians
+    /// - Returns: Modified shape with draft, or nil on failure
+    public func splitDrafts(faceIndex: Int, wire: Wire,
+                            direction: SIMD3<Double>,
+                            planeOrigin: SIMD3<Double>,
+                            planeNormal: SIMD3<Double>,
+                            angle: Double) -> Shape? {
+        let wireShape = Shape(handle: OCCTShapeFromWire(wire.handle))
+        guard let ref = OCCTLocOpeSplitDrafts(handle, Int32(faceIndex), wireShape.handle,
+                                               direction.x, direction.y, direction.z,
+                                               planeOrigin.x, planeOrigin.y, planeOrigin.z,
+                                               planeNormal.x, planeNormal.y, planeNormal.z,
+                                               angle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - LocOpe_FindEdges
+
+    /// Find edges in common between this shape and another.
+    ///
+    /// Uses LocOpe_FindEdges to identify shared edges.
+    ///
+    /// - Parameter other: Shape to compare with
+    /// - Returns: Array of common edges
+    public func commonEdges(with other: Shape) -> [Edge] {
+        var buffer = [OCCTShapeRef?](repeating: nil, count: 100)
+        let count = OCCTLocOpeFindEdges(handle, other.handle, &buffer, 100)
+        var edges = [Edge]()
+        edges.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            if let ref = buffer[i] {
+                // Convert shape to edge
+                if let edgeRef = OCCTShapeGetEdgeAtIndex(ref, 0) {
+                    edges.append(Edge(handle: edgeRef, index: i))
+                }
+                OCCTShapeRelease(ref)
+            }
+        }
+        return edges
+    }
+
+    // MARK: - LocOpe_FindEdgesInFace
+
+    /// Find edges of this shape that lie in a specific face.
+    ///
+    /// Uses LocOpe_FindEdgesInFace.
+    ///
+    /// - Parameter faceIndex: Index of the face to check (0-based)
+    /// - Returns: Array of edges found in the face
+    public func edgesInFace(at faceIndex: Int) -> [Edge] {
+        var buffer = [OCCTShapeRef?](repeating: nil, count: 100)
+        let count = OCCTLocOpeFindEdgesInFace(handle, Int32(faceIndex), &buffer, 100)
+        var edges = [Edge]()
+        edges.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            if let ref = buffer[i] {
+                if let edgeRef = OCCTShapeGetEdgeAtIndex(ref, 0) {
+                    edges.append(Edge(handle: edgeRef, index: i))
+                }
+                OCCTShapeRelease(ref)
+            }
+        }
+        return edges
+    }
+
+    // MARK: - LocOpe_CSIntersector
+
+    /// Result of a curve-shape intersection
+    public struct CSIntersection: Sendable {
+        /// Intersection point
+        public let point: SIMD3<Double>
+        /// Parameter on the curve
+        public let parameter: Double
+        /// UV parameters on the intersected face
+        public let faceUV: SIMD2<Double>
+    }
+
+    /// Intersect a line with this shape to find intersection points.
+    ///
+    /// Uses LocOpe_CSIntersector to find where a line penetrates the shape.
+    ///
+    /// - Parameters:
+    ///   - origin: Line origin
+    ///   - direction: Line direction
+    /// - Returns: Array of intersection points
+    public func intersectLine(origin: SIMD3<Double>, direction: SIMD3<Double>) -> [CSIntersection] {
+        var buffer = [OCCTCSIntersectionPoint](repeating: OCCTCSIntersectionPoint(), count: 100)
+        let count = OCCTLocOpeCSIntersectLine(handle,
+                                               origin.x, origin.y, origin.z,
+                                               direction.x, direction.y, direction.z,
+                                               &buffer, 100)
+        var results = [CSIntersection]()
+        results.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            let pt = buffer[i]
+            results.append(CSIntersection(
+                point: SIMD3(pt.px, pt.py, pt.pz),
+                parameter: pt.parameter,
+                faceUV: SIMD2(pt.uOnFace, pt.vOnFace)
+            ))
+        }
+        return results
+    }
+
+    // MARK: - BRepCheck_Analyzer
+
+    /// Perform comprehensive validity analysis on this shape.
+    ///
+    /// Uses BRepCheck_Analyzer for full topology + geometry validation.
+    /// More thorough than `isValid` as it can include geometry checks.
+    ///
+    /// - Parameter geometryChecks: Whether to include geometry-level checks (default: true)
+    /// - Returns: true if the shape is valid
+    public func analyzeValidity(geometryChecks: Bool = true) -> Bool {
+        OCCTBRepCheckAnalyzerIsValid(handle, geometryChecks)
+    }
+
+    /// Check if a specific sub-shape is valid within this shape's context.
+    ///
+    /// - Parameters:
+    ///   - type: Type of sub-shape to check
+    ///   - index: 0-based index of the sub-shape
+    /// - Returns: true if the sub-shape is valid
+    public func isSubShapeValid(type: TopAbs_ShapeEnum, at index: Int) -> Bool {
+        OCCTBRepCheckSubShapeValid(handle, type.rawValue, Int32(index))
+    }
+
+    /// TopAbs_ShapeEnum for sub-shape type specification
+    public enum TopAbs_ShapeEnum: Int32, Sendable {
+        case compound = 0, compsolid = 1, solid = 2, shell = 3
+        case face = 4, wire = 5, edge = 6, vertex = 7
+    }
+
+    // MARK: - BRepCheck per sub-shape type
+
+    /// Check validity of an edge by index.
+    public func checkEdge(at index: Int) -> CheckResult {
+        let result = OCCTCheckEdge(handle, Int32(index))
+        let status = CheckStatus(rawValue: Int32(result.firstError.rawValue))
+        return CheckResult(
+            isValid: result.isValid,
+            errorCount: Int(result.errorCount),
+            firstError: result.errorCount > 0 ? status : nil
+        )
+    }
+
+    /// Check validity of a wire by index.
+    public func checkWire(at index: Int) -> CheckResult {
+        let result = OCCTCheckWire(handle, Int32(index))
+        let status = CheckStatus(rawValue: Int32(result.firstError.rawValue))
+        return CheckResult(
+            isValid: result.isValid,
+            errorCount: Int(result.errorCount),
+            firstError: result.errorCount > 0 ? status : nil
+        )
+    }
+
+    /// Check validity of a shell by index.
+    public func checkShell(at index: Int) -> CheckResult {
+        let result = OCCTCheckShell(handle, Int32(index))
+        let status = CheckStatus(rawValue: Int32(result.firstError.rawValue))
+        return CheckResult(
+            isValid: result.isValid,
+            errorCount: Int(result.errorCount),
+            firstError: result.errorCount > 0 ? status : nil
+        )
+    }
+
+    /// Check validity of a vertex by index.
+    public func checkVertex(at index: Int) -> CheckResult {
+        let result = OCCTCheckVertex(handle, Int32(index))
+        let status = CheckStatus(rawValue: Int32(result.firstError.rawValue))
+        return CheckResult(
+            isValid: result.isValid,
+            errorCount: Int(result.errorCount),
+            firstError: result.errorCount > 0 ? status : nil
+        )
+    }
+
+    // MARK: - ShapeFix_ShapeTolerance
+
+    /// Limit all tolerances in this shape to a given range.
+    ///
+    /// - Parameters:
+    ///   - min: Minimum tolerance
+    ///   - max: Maximum tolerance
+    /// - Returns: true if any tolerance was changed
+    @discardableResult
+    public func limitTolerance(min: Double, max: Double) -> Bool {
+        OCCTShapeFixLimitTolerance(handle, min, max)
+    }
+
+    /// Set all tolerances in this shape to a specific value.
+    ///
+    /// - Parameter tolerance: Tolerance value to set
+    public func setTolerance(_ tolerance: Double) {
+        OCCTShapeFixSetTolerance(handle, tolerance)
+    }
+
+    // MARK: - ShapeFix_SplitCommonVertex
+
+    /// Split vertices that are shared between edges in incompatible ways.
+    ///
+    /// Useful for fixing topology issues where vertices are improperly shared.
+    ///
+    /// - Returns: Fixed shape, or nil on failure
+    public func splitCommonVertices() -> Shape? {
+        guard let ref = OCCTShapeFixSplitCommonVertex(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeFix_FaceConnect
+
+    /// Connect adjacent faces in this shape's shell.
+    ///
+    /// - Parameter tolerance: Connection tolerance
+    /// - Returns: Fixed shape with connected faces, or nil on failure
+    public func connectedFaces(tolerance: Double = 1e-4) -> Shape? {
+        guard let ref = OCCTShapeFixFaceConnect(handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeFix_Edge
+
+    /// Fix same-parameter inconsistencies on all edges.
+    ///
+    /// - Parameter tolerance: Tolerance for fixing (0 = default)
+    /// - Returns: Number of edges fixed
+    @discardableResult
+    public func fixEdgeSameParameter(tolerance: Double = 0) -> Int {
+        Int(OCCTShapeFixEdgeSameParameter(handle, tolerance))
+    }
+
+    /// Fix vertex tolerance issues on all edges.
+    ///
+    /// - Returns: Number of edges fixed
+    @discardableResult
+    public func fixEdgeVertexTolerance() -> Int {
+        Int(OCCTShapeFixEdgeVertexTolerance(handle))
+    }
+
+    // MARK: - ShapeFix_WireVertex
+
+    /// Fix vertex issues in all wires of this shape.
+    ///
+    /// - Parameter precision: Precision for fixing
+    /// - Returns: Number of fixes applied
+    @discardableResult
+    public func fixWireVertices(precision: Double = 1e-4) -> Int {
+        Int(OCCTShapeFixWireVertex(handle, precision))
+    }
+
+    // MARK: - BRepExtrema_ExtCC (Edge-Edge Extrema)
+
+    /// Result of edge-edge distance extrema computation
+    public struct EdgeEdgeExtrema: Sendable {
+        /// Minimum distance between the edges
+        public let distance: Double
+        /// Parameter on the first edge at closest point
+        public let paramOnEdge1: Double
+        /// Parameter on the second edge at closest point
+        public let paramOnEdge2: Double
+        /// Closest point on edge 1
+        public let pointOnEdge1: SIMD3<Double>
+        /// Closest point on edge 2
+        public let pointOnEdge2: SIMD3<Double>
+        /// Whether the edges are parallel
+        public let isParallel: Bool
+        /// Number of extrema solutions
+        public let solutionCount: Int
+    }
+
+    /// Compute distance extrema between two edges by index.
+    ///
+    /// Uses BRepExtrema_ExtCC for edge-edge distance computation.
+    ///
+    /// - Parameters:
+    ///   - edgeIndex1: Index of first edge in this shape (0-based)
+    ///   - other: Shape containing the second edge
+    ///   - edgeIndex2: Index of second edge in other shape (0-based)
+    /// - Returns: Edge-edge extrema result, or nil on failure
+    public func edgeEdgeExtrema(edgeIndex1: Int, other: Shape, edgeIndex2: Int) -> EdgeEdgeExtrema? {
+        let result = OCCTBRepExtremaExtCC(handle, Int32(edgeIndex1), other.handle, Int32(edgeIndex2))
+        guard result.solutionCount > 0 else { return nil }
+        return EdgeEdgeExtrema(
+            distance: result.distance,
+            paramOnEdge1: result.paramOnE1,
+            paramOnEdge2: result.paramOnE2,
+            pointOnEdge1: SIMD3(result.pt1x, result.pt1y, result.pt1z),
+            pointOnEdge2: SIMD3(result.pt2x, result.pt2y, result.pt2z),
+            isParallel: result.isParallel,
+            solutionCount: Int(result.solutionCount)
+        )
+    }
+
+    // MARK: - BRepExtrema_ExtPF (Point-Face Extrema)
+
+    /// Result of point-face distance extrema computation
+    public struct PointFaceExtrema: Sendable {
+        /// Minimum distance from point to face
+        public let distance: Double
+        /// UV parameters on the face at closest point
+        public let faceUV: SIMD2<Double>
+        /// Closest point on the face
+        public let pointOnFace: SIMD3<Double>
+        /// Number of extrema solutions
+        public let solutionCount: Int
+    }
+
+    /// Compute distance from a point to a face.
+    ///
+    /// Uses BRepExtrema_ExtPF for point-face distance computation.
+    ///
+    /// - Parameters:
+    ///   - point: 3D point
+    ///   - faceIndex: Index of face in this shape (0-based)
+    /// - Returns: Point-face extrema result, or nil on failure
+    public func pointFaceExtrema(point: SIMD3<Double>, faceIndex: Int) -> PointFaceExtrema? {
+        let result = OCCTBRepExtremaExtPF(point.x, point.y, point.z, handle, Int32(faceIndex))
+        guard result.solutionCount > 0 else { return nil }
+        return PointFaceExtrema(
+            distance: result.distance,
+            faceUV: SIMD2(result.u, result.v),
+            pointOnFace: SIMD3(result.ptx, result.pty, result.ptz),
+            solutionCount: Int(result.solutionCount)
+        )
+    }
+
+    // MARK: - BRepExtrema_ExtFF (Face-Face Extrema)
+
+    /// Result of face-face distance extrema computation
+    public struct FaceFaceExtrema: Sendable {
+        /// Minimum distance between faces
+        public let distance: Double
+        /// UV parameters on face 1
+        public let face1UV: SIMD2<Double>
+        /// UV parameters on face 2
+        public let face2UV: SIMD2<Double>
+        /// Closest point on face 1
+        public let pointOnFace1: SIMD3<Double>
+        /// Closest point on face 2
+        public let pointOnFace2: SIMD3<Double>
+        /// Number of extrema solutions
+        public let solutionCount: Int
+    }
+
+    /// Compute distance extrema between two faces.
+    ///
+    /// Uses BRepExtrema_ExtFF for face-face distance computation.
+    ///
+    /// - Parameters:
+    ///   - faceIndex1: Index of first face in this shape (0-based)
+    ///   - other: Shape containing the second face
+    ///   - faceIndex2: Index of second face in other shape (0-based)
+    /// - Returns: Face-face extrema result, or nil on failure
+    public func faceFaceExtrema(faceIndex1: Int, other: Shape, faceIndex2: Int) -> FaceFaceExtrema? {
+        let result = OCCTBRepExtremaExtFF(handle, Int32(faceIndex1), other.handle, Int32(faceIndex2))
+        guard result.solutionCount > 0 else { return nil }
+        return FaceFaceExtrema(
+            distance: result.distance,
+            face1UV: SIMD2(result.u1, result.v1),
+            face2UV: SIMD2(result.u2, result.v2),
+            pointOnFace1: SIMD3(result.pt1x, result.pt1y, result.pt1z),
+            pointOnFace2: SIMD3(result.pt2x, result.pt2y, result.pt2z),
+            solutionCount: Int(result.solutionCount)
+        )
+    }
+
+    // MARK: - ShapeUpgrade_ShapeDivideClosed
+
+    /// Divide closed faces in this shape.
+    ///
+    /// Uses ShapeUpgrade_ShapeDivideClosed to split faces that
+    /// wrap around completely (e.g., cylinder lateral face).
+    ///
+    /// - Parameter splitPoints: Number of split points per closed face (default: 1)
+    /// - Returns: Shape with divided faces, or nil on failure
+    public func dividedClosedFaces(splitPoints: Int = 1) -> Shape? {
+        guard let ref = OCCTShapeUpgradeDivideClosed(handle, Int32(splitPoints)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeUpgrade_ShapeDivideContinuity
+
+    /// Continuity level for shape division
+    public enum ContinuityLevel: Int32, Sendable {
+        case c0 = 0, c1 = 1, c2 = 2, c3 = 3, cn = 4, g1 = 5, g2 = 6
+    }
+
+    /// Divide this shape at continuity breaks.
+    ///
+    /// Uses ShapeUpgrade_ShapeDivideContinuity to split faces/edges
+    /// at points where the geometry drops below the required continuity.
+    ///
+    /// - Parameters:
+    ///   - criterion: Minimum required continuity level (default: .c1)
+    ///   - tolerance: Tolerance for continuity check (default: 1e-4)
+    /// - Returns: Divided shape, or nil if no divisions needed or on failure
+    public func dividedByContinuity(criterion: ContinuityLevel = .c1, tolerance: Double = 1e-4) -> Shape? {
+        guard let ref = OCCTShapeUpgradeDivideContinuity(handle, criterion.rawValue, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+}
