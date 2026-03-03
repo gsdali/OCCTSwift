@@ -1117,4 +1117,251 @@ extension Surface {
                                                point.x, point.y, point.z, precision)
         return UVProjection(uv: SIMD2(result.u, result.v), gap: result.gap)
     }
+
+    // MARK: - v0.50.0: Constrained geometry construction, knot splitting, conversions
+
+    /// Create a conical surface from axis placement, semi-angle, and base radius.
+    ///
+    /// - Parameters:
+    ///   - origin: Origin of the cone axis
+    ///   - direction: Direction of the cone axis
+    ///   - semiAngle: Half-angle of the cone in radians (must be in (0, PI/2))
+    ///   - radius: Base radius at the origin
+    /// - Returns: Conical surface, or nil on failure
+    public static func conicalSurface(
+        origin: SIMD3<Double> = .zero,
+        direction: SIMD3<Double> = SIMD3(0, 0, 1),
+        semiAngle: Double,
+        radius: Double
+    ) -> Surface? {
+        guard let ref = OCCTSurfaceConicalFromAxis(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            semiAngle, radius) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a conical surface passing through two points with specified radii.
+    ///
+    /// - Parameters:
+    ///   - point1: First axis point (with radius r1)
+    ///   - point2: Second axis point (with radius r2)
+    ///   - r1: Radius at point1
+    ///   - r2: Radius at point2
+    /// - Returns: Conical surface, or nil on failure
+    public static func conicalSurface(
+        point1: SIMD3<Double>,
+        point2: SIMD3<Double>,
+        r1: Double,
+        r2: Double
+    ) -> Surface? {
+        guard let ref = OCCTSurfaceConicalFromPointsRadii(
+            point1.x, point1.y, point1.z,
+            point2.x, point2.y, point2.z,
+            r1, r2) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a cylindrical surface from axis and radius.
+    ///
+    /// - Parameters:
+    ///   - origin: Origin of the cylinder axis
+    ///   - direction: Direction of the cylinder axis
+    ///   - radius: Radius of the cylinder
+    /// - Returns: Cylindrical surface, or nil on failure
+    public static func cylindricalSurface(
+        origin: SIMD3<Double> = .zero,
+        direction: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double
+    ) -> Surface? {
+        guard let ref = OCCTSurfaceCylindricalFromAxis(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            radius) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a cylindrical surface through three points.
+    ///
+    /// The axis passes through point1 and point2. The radius is the distance
+    /// from point3 to the axis.
+    ///
+    /// - Parameters:
+    ///   - point1: First axis point
+    ///   - point2: Second axis point
+    ///   - point3: Point defining the radius
+    /// - Returns: Cylindrical surface, or nil on failure
+    public static func cylindricalSurface(
+        point1: SIMD3<Double>,
+        point2: SIMD3<Double>,
+        point3: SIMD3<Double>
+    ) -> Surface? {
+        guard let ref = OCCTSurfaceCylindricalFromPoints(
+            point1.x, point1.y, point1.z,
+            point2.x, point2.y, point2.z,
+            point3.x, point3.y, point3.z) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a plane surface through three points.
+    ///
+    /// - Parameters:
+    ///   - point1: First point
+    ///   - point2: Second point
+    ///   - point3: Third point
+    /// - Returns: Plane surface, or nil if points are collinear
+    public static func planeFromPoints(
+        _ point1: SIMD3<Double>,
+        _ point2: SIMD3<Double>,
+        _ point3: SIMD3<Double>
+    ) -> Surface? {
+        guard let ref = OCCTSurfacePlaneFromPoints(
+            point1.x, point1.y, point1.z,
+            point2.x, point2.y, point2.z,
+            point3.x, point3.y, point3.z) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a plane surface from a point and normal direction.
+    ///
+    /// - Parameters:
+    ///   - point: A point on the plane
+    ///   - normal: Normal direction of the plane
+    /// - Returns: Plane surface, or nil on failure
+    public static func planeFromPointNormal(
+        point: SIMD3<Double>,
+        normal: SIMD3<Double>
+    ) -> Surface? {
+        guard let ref = OCCTSurfacePlaneFromPointNormal(
+            point.x, point.y, point.z,
+            normal.x, normal.y, normal.z) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a trimmed conical surface between two endpoints with specified radii.
+    ///
+    /// - Parameters:
+    ///   - point1: Base center point (with radius r1)
+    ///   - point2: Top center point (with radius r2)
+    ///   - r1: Radius at point1
+    ///   - r2: Radius at point2
+    /// - Returns: Bounded trimmed conical surface, or nil on failure
+    public static func trimmedCone(
+        point1: SIMD3<Double>,
+        point2: SIMD3<Double>,
+        r1: Double,
+        r2: Double
+    ) -> Surface? {
+        guard let ref = OCCTSurfaceTrimmedCone(
+            point1.x, point1.y, point1.z,
+            point2.x, point2.y, point2.z,
+            r1, r2) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a trimmed cylindrical surface from axis, radius, and height.
+    ///
+    /// - Parameters:
+    ///   - origin: Base center of the cylinder
+    ///   - direction: Axis direction
+    ///   - radius: Cylinder radius
+    ///   - height: Height (can be negative for downward)
+    /// - Returns: Bounded trimmed cylindrical surface, or nil on failure
+    public static func trimmedCylinder(
+        origin: SIMD3<Double> = .zero,
+        direction: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double,
+        height: Double
+    ) -> Surface? {
+        guard let ref = OCCTSurfaceTrimmedCylinder(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            radius, height) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Result of BSpline surface knot splitting analysis.
+    public struct KnotSplitResult {
+        /// Number of U split indices needed for the requested continuity
+        public let uSplitCount: Int
+        /// Number of V split indices needed for the requested continuity
+        public let vSplitCount: Int
+    }
+
+    /// Analyze where a BSpline surface would need to be split to achieve
+    /// a given continuity level.
+    ///
+    /// - Parameters:
+    ///   - uContinuity: Desired U continuity (0=C0, 1=C1, 2=C2)
+    ///   - vContinuity: Desired V continuity (0=C0, 1=C1, 2=C2)
+    /// - Returns: Number of U and V splits needed
+    public func knotSplitting(uContinuity: Int = 1, vContinuity: Int = 1) -> KnotSplitResult {
+        let result = OCCTSurfaceKnotSplitting(handle, Int32(uContinuity), Int32(vContinuity))
+        return KnotSplitResult(uSplitCount: Int(result.nbUSplits), vSplitCount: Int(result.nbVSplits))
+    }
+
+    /// Join an array of Bezier surface patches into a single BSpline surface.
+    ///
+    /// The patches must form a rectangular grid where adjacent patches share
+    /// boundary curves.
+    ///
+    /// - Parameters:
+    ///   - patches: 2D array of Bezier surfaces (row-major order)
+    ///   - rows: Number of rows in the patch grid
+    ///   - cols: Number of columns in the patch grid
+    /// - Returns: Combined BSpline surface, or nil on failure
+    public static func joinBezierPatches(_ patches: [Surface], rows: Int, cols: Int) -> Surface? {
+        guard patches.count == rows * cols, rows > 0, cols > 0 else { return nil }
+        var handles: [OCCTSurfaceRef?] = patches.map { $0.handle }
+        guard let ref = OCCTSurfaceJoinBezierPatches(&handles, Int32(rows), Int32(cols)) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Result of trying to recognize an analytical surface.
+    public struct AnalyticalConversion {
+        /// Recognized analytical surface (plane, cylinder, cone, sphere, torus)
+        public let surface: Surface
+        /// Maximum deviation from the original surface
+        public let gap: Double
+    }
+
+    /// Try to recognize an analytical surface from a BSpline/Bezier surface.
+    ///
+    /// Attempts to identify if this surface is actually a plane, cylinder, cone,
+    /// sphere, or torus within the given tolerance.
+    ///
+    /// - Parameter tolerance: Recognition tolerance
+    /// - Returns: Recognized surface with gap, or nil if not recognizable
+    public func convertToAnalytical(tolerance: Double = 1e-4) -> AnalyticalConversion? {
+        let result = OCCTSurfaceConvertToAnalytical(handle, tolerance)
+        guard let surfRef = result.surface else { return nil }
+        return AnalyticalConversion(surface: Surface(handle: surfRef), gap: result.gap)
+    }
+
+    /// Result of surface continuity splitting analysis.
+    public struct ContinuitySplitResult {
+        /// Whether the surface was actually split
+        public let wasSplit: Bool
+        /// Whether the surface already meets the criterion (no split needed)
+        public let alreadyMeetsCriterion: Bool
+        /// Number of U split values
+        public let uSplitCount: Int
+        /// Number of V split values
+        public let vSplitCount: Int
+    }
+
+    /// Analyze and split a BSpline surface at continuity breaks.
+    ///
+    /// - Parameters:
+    ///   - criterion: Continuity level (0=C0, 1=C1, 2=C2, 3=C3)
+    ///   - tolerance: Tolerance for continuity checking
+    /// - Returns: Split analysis result
+    public func splitByContinuity(criterion: Int = 2, tolerance: Double = 1e-6) -> ContinuitySplitResult {
+        let result = OCCTSurfaceSplitByContinuity(handle, Int32(criterion), tolerance)
+        return ContinuitySplitResult(
+            wasSplit: result.wasSplit,
+            alreadyMeetsCriterion: result.isOk,
+            uSplitCount: Int(result.nUSplits),
+            vSplitCount: Int(result.nVSplits))
+    }
 }

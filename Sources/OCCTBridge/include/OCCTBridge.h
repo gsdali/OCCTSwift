@@ -5222,6 +5222,230 @@ OCCTCurveValidateRangeResult OCCTCurve3DValidateRange(OCCTCurve3DRef curve,
 int32_t OCCTCurve3DGetSamplePoints3D(OCCTCurve3DRef curve, double first, double last,
     double* outXYZ, int32_t maxPoints);
 
+// MARK: - v0.50.0: GC_Make* geometry construction, BRepExtrema_Poly, BRepTools_History,
+// GeomConvert knot splitting + CompBezier, ShapeAnalysis WireVertex + NearestPlane,
+// ShapeCustom Curve/Surface, ShapeUpgrade SplitCurve3d/SplitSurfaceContinuity
+
+/// Create an arc of hyperbola between two parameter values.
+/// @param majorRadius Major radius (a) of the hyperbola
+/// @param minorRadius Minor radius (b) of the hyperbola
+/// @param axisX,axisY,axisZ Center of the hyperbola
+/// @param dirX,dirY,dirZ Normal direction of the plane
+/// @param alpha1 Start parameter
+/// @param alpha2 End parameter
+/// @param sense Direction of parameterization (true = natural)
+/// @return Trimmed curve handle, or NULL on failure
+OCCTCurve3DRef _Nullable OCCTCurve3DArcOfHyperbola(
+    double majorRadius, double minorRadius,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double alpha1, double alpha2, bool sense);
+
+/// Create an arc of parabola between two parameter values.
+/// @param focalDistance Focal distance of the parabola
+/// @param axisX,axisY,axisZ Center of the parabola
+/// @param dirX,dirY,dirZ Normal direction of the plane
+/// @param alpha1 Start parameter
+/// @param alpha2 End parameter
+/// @param sense Direction of parameterization (true = natural)
+/// @return Trimmed curve handle, or NULL on failure
+OCCTCurve3DRef _Nullable OCCTCurve3DArcOfParabola(
+    double focalDistance,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double alpha1, double alpha2, bool sense);
+
+/// Create a conical surface from axis, semi-angle, and base radius.
+/// @param semiAngle Half-angle of the cone in radians (must be in (0, PI/2))
+/// @param radius Base radius of the cone
+/// @return Surface handle, or NULL on failure
+OCCTSurfaceRef _Nullable OCCTSurfaceConicalFromAxis(
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double semiAngle, double radius);
+
+/// Create a conical surface from two points and two radii.
+/// @param r1 Radius at p1, r2 Radius at p2
+/// @return Surface handle, or NULL on failure
+OCCTSurfaceRef _Nullable OCCTSurfaceConicalFromPointsRadii(
+    double p1x, double p1y, double p1z,
+    double p2x, double p2y, double p2z,
+    double r1, double r2);
+
+/// Create a cylindrical surface from axis and radius.
+OCCTSurfaceRef _Nullable OCCTSurfaceCylindricalFromAxis(
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double radius);
+
+/// Create a cylindrical surface from 3 points.
+OCCTSurfaceRef _Nullable OCCTSurfaceCylindricalFromPoints(
+    double p1x, double p1y, double p1z,
+    double p2x, double p2y, double p2z,
+    double p3x, double p3y, double p3z);
+
+/// Create a plane surface from 3 points.
+OCCTSurfaceRef _Nullable OCCTSurfacePlaneFromPoints(
+    double p1x, double p1y, double p1z,
+    double p2x, double p2y, double p2z,
+    double p3x, double p3y, double p3z);
+
+/// Create a plane surface from a point and normal direction.
+OCCTSurfaceRef _Nullable OCCTSurfacePlaneFromPointNormal(
+    double px, double py, double pz,
+    double nx, double ny, double nz);
+
+/// Create a trimmed conical surface from two endpoints and two radii.
+/// @return Rectangular trimmed surface handle, or NULL on failure
+OCCTSurfaceRef _Nullable OCCTSurfaceTrimmedCone(
+    double p1x, double p1y, double p1z,
+    double p2x, double p2y, double p2z,
+    double r1, double r2);
+
+/// Create a trimmed cylindrical surface from axis, radius, and height.
+OCCTSurfaceRef _Nullable OCCTSurfaceTrimmedCylinder(
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double height);
+
+/// Result of polyhedral distance computation.
+typedef struct {
+    double distance;    // Polyhedral distance between shapes
+    double p1x, p1y, p1z;  // Closest point on shape 1
+    double p2x, p2y, p2z;  // Closest point on shape 2
+    bool success;       // True if computation succeeded
+} OCCTPolyDistanceResult;
+
+/// Compute fast polyhedral (approximate) distance between two shapes.
+/// Shapes must be meshed beforehand (BRepMesh_IncrementalMesh).
+OCCTPolyDistanceResult OCCTShapePolyhedralDistance(OCCTShapeRef shape1, OCCTShapeRef shape2);
+
+/// Opaque handle to BRepTools_History.
+typedef void* _Nullable OCCTHistoryRef;
+
+/// Create an empty shape modification history.
+OCCTHistoryRef OCCTHistoryCreate(void);
+
+/// Record that a shape was modified into a new shape.
+void OCCTHistoryAddModified(OCCTHistoryRef history, OCCTShapeRef initial, OCCTShapeRef modified);
+
+/// Record that a shape generated a new shape.
+void OCCTHistoryAddGenerated(OCCTHistoryRef history, OCCTShapeRef initial, OCCTShapeRef generated);
+
+/// Record that a shape was removed.
+void OCCTHistoryRemove(OCCTHistoryRef history, OCCTShapeRef shape);
+
+/// Check if a shape was removed.
+bool OCCTHistoryIsRemoved(OCCTHistoryRef history, OCCTShapeRef shape);
+
+/// Query flags for history state.
+bool OCCTHistoryHasModified(OCCTHistoryRef history);
+bool OCCTHistoryHasGenerated(OCCTHistoryRef history);
+bool OCCTHistoryHasRemoved(OCCTHistoryRef history);
+
+/// Get the number of shapes that the initial shape was modified to.
+int32_t OCCTHistoryModifiedCount(OCCTHistoryRef history, OCCTShapeRef initial);
+
+/// Get the number of shapes that the initial shape generated.
+int32_t OCCTHistoryGeneratedCount(OCCTHistoryRef history, OCCTShapeRef initial);
+
+/// Destroy a history object.
+void OCCTHistoryDestroy(OCCTHistoryRef history);
+
+/// Result of BSpline surface knot splitting analysis.
+typedef struct {
+    int32_t nbUSplits;  // Number of U split indices
+    int32_t nbVSplits;  // Number of V split indices
+} OCCTSurfaceKnotSplitResult;
+
+/// Analyze BSpline surface knot splitting at a given continuity level.
+/// @param surface BSpline surface to analyze
+/// @param uContinuity Desired U continuity (0=C0, 1=C1, 2=C2)
+/// @param vContinuity Desired V continuity (0=C0, 1=C1, 2=C2)
+OCCTSurfaceKnotSplitResult OCCTSurfaceKnotSplitting(OCCTSurfaceRef surface,
+    int32_t uContinuity, int32_t vContinuity);
+
+/// Join an array of Bezier surface patches into a single BSpline surface.
+/// @param patches Array of surface handles (row-major, nRows x nCols)
+/// @param nRows Number of rows in the patch grid
+/// @param nCols Number of columns in the patch grid
+/// @return BSpline surface handle, or NULL on failure
+OCCTSurfaceRef _Nullable OCCTSurfaceJoinBezierPatches(
+    const OCCTSurfaceRef _Nullable * _Nonnull patches,
+    int32_t nRows, int32_t nCols);
+
+/// Result of wire vertex analysis.
+typedef struct {
+    int32_t nbEdges;    // Number of edges analyzed
+    bool isDone;        // True if analysis completed
+} OCCTWireVertexResult;
+
+/// Analyze wire vertex connections.
+/// @param wire Wire to analyze
+/// @param precision Tolerance for vertex analysis
+OCCTWireVertexResult OCCTShapeWireVertexAnalysis(OCCTShapeRef wire, double precision);
+
+/// Get the status of a specific vertex in a wire vertex analysis.
+/// @param wire Wire that was analyzed
+/// @param precision Same precision used in analysis
+/// @param vertexIndex 0-based vertex index
+/// @return Status code: 0=SameVertex, 1=SameCoords, 2=Close, 3=End, 4=Start, 5=Inters, -1=Disjoined
+int32_t OCCTShapeWireVertexStatus(OCCTShapeRef wire, double precision, int32_t vertexIndex);
+
+/// Result of nearest plane fitting.
+typedef struct {
+    double normalX, normalY, normalZ;  // Plane normal direction
+    double originX, originY, originZ;  // Point on the plane
+    double maxDeviation;  // Maximum distance from points to plane
+    bool success;
+} OCCTNearestPlaneResult;
+
+/// Fit the nearest plane to a set of 3D points.
+/// @param points Array of point coordinates (x,y,z triples)
+/// @param nPoints Number of points
+OCCTNearestPlaneResult OCCTShapeNearestPlane(const double* points, int32_t nPoints);
+
+/// Result of surface analytical conversion.
+typedef struct {
+    OCCTSurfaceRef _Nullable surface;  // Recognized analytical surface, or NULL
+    double gap;  // Maximum deviation from original
+} OCCTSurfaceAnalyticalResult;
+
+/// Try to recognize an analytical surface (plane, cylinder, etc.) from a BSpline.
+/// @param surface Input BSpline surface
+/// @param tolerance Recognition tolerance
+OCCTSurfaceAnalyticalResult OCCTSurfaceConvertToAnalytical(OCCTSurfaceRef surface, double tolerance);
+
+/// Convert a closed BSpline curve to periodic form.
+/// @param curve Closed BSpline curve
+/// @return Periodic curve, or NULL if conversion fails
+OCCTCurve3DRef _Nullable OCCTCurve3DConvertToPeriodic(OCCTCurve3DRef curve);
+
+/// Split a 3D curve at a specified parameter value.
+/// @param curve Curve to split
+/// @param splitParam Parameter at which to split
+/// @param outCurve1 First segment (before split point)
+/// @param outCurve2 Second segment (after split point)
+/// @return True if split succeeded
+bool OCCTCurve3DSplitAt(OCCTCurve3DRef curve, double splitParam,
+    OCCTCurve3DRef _Nullable * _Nonnull outCurve1,
+    OCCTCurve3DRef _Nullable * _Nonnull outCurve2);
+
+/// Result of surface continuity splitting.
+typedef struct {
+    bool wasSplit;      // True if the surface was actually split
+    bool isOk;          // True if no split was needed (already meets criterion)
+    int32_t nUSplits;   // Number of U split values
+    int32_t nVSplits;   // Number of V split values
+} OCCTSurfaceContinuitySplitResult;
+
+/// Split a BSpline surface at continuity breaks.
+/// @param surface BSpline surface to split
+/// @param criterion Continuity level: 0=C0, 1=C1, 2=C2, 3=C3
+/// @param tolerance Tolerance for continuity checking
+OCCTSurfaceContinuitySplitResult OCCTSurfaceSplitByContinuity(OCCTSurfaceRef surface,
+    int32_t criterion, double tolerance);
+
 #ifdef __cplusplus
 }
 #endif

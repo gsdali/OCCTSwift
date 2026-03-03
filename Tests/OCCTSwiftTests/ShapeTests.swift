@@ -13749,3 +13749,267 @@ struct CurveSamplePointsTests {
         #expect(points.count > 0)
     }
 }
+
+// MARK: - v0.50.0 Tests
+
+@Suite("GC_MakeArcOfHyperbola")
+struct ArcOfHyperbolaTests {
+    @Test("Arc of hyperbola between parameters")
+    func arcOfHyperbola() throws {
+        let arc = try #require(Curve3D.arcOfHyperbola(
+            majorRadius: 5.0, minorRadius: 3.0,
+            alpha1: -1.0, alpha2: 1.0))
+        let dom = arc.domain
+        let start = arc.point(at: dom.lowerBound)
+        let end = arc.point(at: dom.upperBound)
+        // Hyperbola: x = a*cosh(t), y = b*sinh(t)
+        let expectedX = 5.0 * cosh(1.0)
+        #expect(abs(start.x - expectedX) < 0.1)
+        #expect(abs(end.x - expectedX) < 0.1)
+        #expect(start.y < 0)
+        #expect(end.y > 0)
+    }
+}
+
+@Suite("GC_MakeArcOfParabola")
+struct ArcOfParabolaTests {
+    @Test("Arc of parabola between parameters")
+    func arcOfParabola() throws {
+        let arc = try #require(Curve3D.arcOfParabola(
+            focalDistance: 2.0,
+            alpha1: -3.0, alpha2: 3.0))
+        let mid = arc.point(at: 0.0)
+        #expect(simd_length(mid) < 0.01)
+    }
+}
+
+@Suite("GC_MakeConicalSurface")
+struct ConicalSurfaceTests {
+    @Test("Conical surface from axis and angle")
+    func fromAxis() throws {
+        let surf = try #require(Surface.conicalSurface(semiAngle: .pi / 6, radius: 5.0))
+        #expect(surf.handle != nil)
+    }
+
+    @Test("Conical surface from points and radii")
+    func fromPointsRadii() throws {
+        let surf = try #require(Surface.conicalSurface(
+            point1: SIMD3(0, 0, 0), point2: SIMD3(0, 0, 10),
+            r1: 5.0, r2: 2.0))
+        #expect(surf.handle != nil)
+    }
+}
+
+@Suite("GC_MakeCylindricalSurface")
+struct CylindricalSurfaceTests {
+    @Test("Cylindrical surface from axis and radius")
+    func fromAxis() throws {
+        let surf = try #require(Surface.cylindricalSurface(radius: 3.0))
+        #expect(surf.handle != nil)
+    }
+
+    @Test("Cylindrical surface from 3 points")
+    func fromPoints() throws {
+        let surf = try #require(Surface.cylindricalSurface(
+            point1: SIMD3(0, 0, 0), point2: SIMD3(0, 0, 10), point3: SIMD3(5, 0, 5)))
+        #expect(surf.handle != nil)
+    }
+}
+
+@Suite("GC_MakePlane")
+struct PlaneConstructionTests {
+    @Test("Plane from 3 points")
+    func fromPoints() throws {
+        let surf = try #require(Surface.planeFromPoints(
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(0, 10, 0)))
+        #expect(surf.handle != nil)
+    }
+
+    @Test("Plane from point and normal")
+    func fromPointNormal() throws {
+        let surf = try #require(Surface.planeFromPointNormal(
+            point: SIMD3(5, 5, 5), normal: SIMD3(1, 1, 1)))
+        #expect(surf.handle != nil)
+    }
+}
+
+@Suite("GC_MakeTrimmedCone")
+struct TrimmedConeTests {
+    @Test("Trimmed cone from endpoints and radii")
+    func trimmedCone() throws {
+        let surf = try #require(Surface.trimmedCone(
+            point1: SIMD3(0, 0, 0), point2: SIMD3(0, 0, 10),
+            r1: 5.0, r2: 2.0))
+        #expect(surf.handle != nil)
+    }
+}
+
+@Suite("GC_MakeTrimmedCylinder")
+struct TrimmedCylinderTests {
+    @Test("Trimmed cylinder from axis, radius, height")
+    func trimmedCylinder() throws {
+        let surf = try #require(Surface.trimmedCylinder(radius: 4.0, height: 8.0))
+        #expect(surf.handle != nil)
+    }
+}
+
+@Suite("BRepExtrema_Poly")
+struct PolyhedralDistanceTests {
+    @Test("Polyhedral distance between two shapes")
+    func polyDist() throws {
+        let s1 = try #require(Shape.sphere(radius: 5.0))
+        _ = s1.mesh(linearDeflection: 0.1)
+        let s2 = try #require(Shape.sphere(radius: 5.0)?.translated(by: SIMD3(20, 0, 0)))
+        _ = s2.mesh(linearDeflection: 0.1)
+        let result = try #require(s1.polyhedralDistance(to: s2))
+        // Spheres centered 20 apart, each radius 5 → distance ~10
+        #expect(result.distance > 8.0)
+        #expect(result.distance < 12.0)
+    }
+}
+
+@Suite("BRepTools_History")
+struct ShapeHistoryTests {
+    @Test("Track modifications and removals")
+    func history() throws {
+        let history = try #require(Shape.History())
+        let box = try #require(Shape.box(width: 10, height: 10, depth: 10))
+        let faces = box.subShapes(ofType: .face)
+        #expect(faces.count >= 6)
+        let face1 = faces[0]
+        let face2 = faces[1]
+
+        let smallBox = try #require(Shape.box(width: 5, height: 5, depth: 5))
+        let newFace = smallBox.subShapes(ofType: .face)[0]
+
+        history.addModified(initial: face1, modified: newFace)
+        history.remove(face2)
+
+        #expect(history.hasModified)
+        #expect(history.hasRemoved)
+        #expect(!history.hasGenerated)
+        #expect(history.isRemoved(face2))
+        #expect(!history.isRemoved(face1))
+        #expect(history.modifiedCount(of: face1) == 1)
+    }
+}
+
+@Suite("GeomConvert_BSplineSurfaceKnotSplitting")
+struct SurfaceKnotSplittingTests {
+    @Test("Knot splitting analysis of BSpline surface")
+    func knotSplitting() throws {
+        // Use trimmed cylinder (bounded) so it can convert to BSpline
+        let trimCyl = try #require(Surface.trimmedCylinder(radius: 5.0, height: 10.0))
+        let bspline = try #require(trimCyl.toBSpline())
+        let result = bspline.knotSplitting(uContinuity: 0, vContinuity: 0)
+        #expect(result.uSplitCount >= 1)
+        #expect(result.vSplitCount >= 1)
+    }
+}
+
+@Suite("GeomConvert_CompBezierSurfacesToBSplineSurface")
+struct JoinBezierPatchesTests {
+    @Test("Join two Bezier patches into BSpline")
+    func joinPatches() throws {
+        let patch1 = try #require(Surface.bezier(poles: [
+            [SIMD3(0, 0, 0), SIMD3(0, 10, 0)],
+            [SIMD3(5, 0, 0), SIMD3(5, 10, 0)]
+        ]))
+        let patch2 = try #require(Surface.bezier(poles: [
+            [SIMD3(5, 0, 0), SIMD3(5, 10, 0)],
+            [SIMD3(10, 0, 0), SIMD3(10, 10, 0)]
+        ]))
+        let joined = try #require(Surface.joinBezierPatches([patch1, patch2], rows: 2, cols: 1))
+        #expect(joined.handle != nil)
+    }
+}
+
+@Suite("ShapeAnalysis_WireVertex")
+struct WireVertexAnalysisTests {
+    @Test("Analyze wire vertices")
+    func wireVertex() throws {
+        let wire = try #require(Wire.polygon3D([
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 10, 0)
+        ], closed: false))
+        let shape = try #require(Shape.fromWire(wire))
+        let analysis = shape.wireVertexAnalysis(precision: 0.01)
+        #expect(analysis.isDone)
+        #expect(analysis.edgeCount == 2)
+        let status = shape.wireVertexStatus(precision: 0.01, index: 0)
+        #expect(status != .unknown)
+    }
+}
+
+@Suite("ShapeAnalysis_Geom NearestPlane")
+struct NearestPlaneTests {
+    @Test("Fit plane to nearly-coplanar points")
+    func nearestPlane() throws {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 0.1),
+            SIMD3(10, 10, -0.1),
+            SIMD3(0, 10, 0.05)
+        ]
+        let result = try #require(Shape.nearestPlane(to: points))
+        #expect(result.maxDeviation < 0.2)
+        #expect(abs(result.normal.z) > 0.9)
+    }
+}
+
+@Suite("ShapeCustom_Surface ConvertToAnalytical")
+struct SurfaceConvertToAnalyticalTests {
+    @Test("Recognize cylinder from BSpline")
+    func recognizeCylinder() throws {
+        // Use trimmed cylinder (bounded) so it can convert to BSpline
+        let trimCyl = try #require(Surface.trimmedCylinder(radius: 5.0, height: 10.0))
+        let bspline = try #require(trimCyl.toBSpline())
+        if let conversion = bspline.convertToAnalytical() {
+            #expect(conversion.gap < 1e-3)
+        }
+    }
+}
+
+@Suite("ShapeCustom_Curve ConvertToPeriodic")
+struct CurveConvertToPeriodicTests {
+    @Test("Convert closed BSpline to periodic")
+    func convertToPeriodic() throws {
+        let curve = try #require(Curve3D.interpolate(points: [
+            SIMD3(10, 0, 0), SIMD3(0, 10, 0),
+            SIMD3(-10, 0, 0), SIMD3(0, -10, 0),
+            SIMD3(10, 0, 0)
+        ]))
+        if let periodic = curve.convertToPeriodic() {
+            #expect(periodic.handle != nil)
+        }
+    }
+}
+
+@Suite("ShapeUpgrade_SplitCurve3d")
+struct CurveSplitTests {
+    @Test("Split curve at midpoint")
+    func splitCurve() throws {
+        let curve = try #require(Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(2, 5, 0),
+            SIMD3(5, 3, 0), SIMD3(8, 7, 0),
+            SIMD3(10, 0, 0)
+        ]))
+        let dom = curve.domain
+        let mid = (dom.lowerBound + dom.upperBound) / 2.0
+        let result = try #require(curve.splitAt(parameter: mid))
+        #expect(result.first.handle != nil)
+        #expect(result.second.handle != nil)
+    }
+}
+
+@Suite("ShapeUpgrade_SplitSurfaceContinuity")
+struct SurfaceSplitContinuityTests {
+    @Test("Split BSpline surface at continuity breaks")
+    func splitByContinuity() throws {
+        // Use trimmed cylinder (bounded) so it can convert to BSpline
+        let trimCyl = try #require(Surface.trimmedCylinder(radius: 5.0, height: 10.0))
+        let bspline = try #require(trimCyl.toBSpline())
+        let result = bspline.splitByContinuity(criterion: 2, tolerance: 1e-6)
+        // Either already OK or was split
+        #expect(result.alreadyMeetsCriterion || result.wasSplit)
+    }
+}

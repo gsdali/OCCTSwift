@@ -5675,4 +5675,165 @@ extension Shape {
         guard let ref = OCCTFreeBoundsGetOpenBoundWire(handle, tolerance, Int32(index)) else { return nil }
         return Shape(handle: ref)
     }
+
+    // MARK: - v0.50.0: Polyhedral distance, history tracking, wire vertex analysis, nearest plane
+
+    /// Result of a polyhedral (approximate) distance computation.
+    public struct PolyhedralDistance {
+        /// Approximate distance between the two shapes
+        public let distance: Double
+        /// Closest point on the first shape
+        public let point1: SIMD3<Double>
+        /// Closest point on the second shape
+        public let point2: SIMD3<Double>
+    }
+
+    /// Compute fast polyhedral (approximate) distance to another shape.
+    ///
+    /// Both shapes must be meshed (have triangulation). This is faster than exact
+    /// distance but less precise.
+    ///
+    /// - Parameter other: The other shape
+    /// - Returns: Distance result, or nil if computation fails
+    public func polyhedralDistance(to other: Shape) -> PolyhedralDistance? {
+        let result = OCCTShapePolyhedralDistance(handle, other.handle)
+        guard result.success else { return nil }
+        return PolyhedralDistance(
+            distance: result.distance,
+            point1: SIMD3(result.p1x, result.p1y, result.p1z),
+            point2: SIMD3(result.p2x, result.p2y, result.p2z))
+    }
+
+    /// Shape modification history for tracking what happened during operations.
+    public class History {
+        let historyRef: OCCTHistoryRef
+
+        /// Create an empty history.
+        public init?() {
+            guard let ref = OCCTHistoryCreate() else { return nil }
+            historyRef = ref
+        }
+
+        deinit {
+            OCCTHistoryDestroy(historyRef)
+        }
+
+        /// Record that an initial shape was modified into a new shape.
+        public func addModified(initial: Shape, modified: Shape) {
+            OCCTHistoryAddModified(historyRef, initial.handle, modified.handle)
+        }
+
+        /// Record that an initial shape generated a new shape.
+        public func addGenerated(initial: Shape, generated: Shape) {
+            OCCTHistoryAddGenerated(historyRef, initial.handle, generated.handle)
+        }
+
+        /// Record that a shape was removed.
+        public func remove(_ shape: Shape) {
+            OCCTHistoryRemove(historyRef, shape.handle)
+        }
+
+        /// Check if a shape was recorded as removed.
+        public func isRemoved(_ shape: Shape) -> Bool {
+            OCCTHistoryIsRemoved(historyRef, shape.handle)
+        }
+
+        /// Whether any modifications were recorded.
+        public var hasModified: Bool {
+            OCCTHistoryHasModified(historyRef)
+        }
+
+        /// Whether any generations were recorded.
+        public var hasGenerated: Bool {
+            OCCTHistoryHasGenerated(historyRef)
+        }
+
+        /// Whether any removals were recorded.
+        public var hasRemoved: Bool {
+            OCCTHistoryHasRemoved(historyRef)
+        }
+
+        /// Number of shapes the given initial shape was modified to.
+        public func modifiedCount(of shape: Shape) -> Int {
+            Int(OCCTHistoryModifiedCount(historyRef, shape.handle))
+        }
+
+        /// Number of shapes the given initial shape generated.
+        public func generatedCount(of shape: Shape) -> Int {
+            Int(OCCTHistoryGeneratedCount(historyRef, shape.handle))
+        }
+    }
+
+    /// Result of wire vertex analysis.
+    public struct WireVertexAnalysis {
+        /// Number of edges in the wire
+        public let edgeCount: Int
+        /// Whether the analysis completed successfully
+        public let isDone: Bool
+    }
+
+    /// Vertex status codes from wire vertex analysis.
+    public enum WireVertexStatus: Int32 {
+        case sameVertex = 0
+        case sameCoords = 1
+        case close = 2
+        case end = 3
+        case start = 4
+        case intersection = 5
+        case disjoined = -1
+        case unknown = -2
+    }
+
+    /// Analyze wire vertex connections for gaps, overlaps, and intersections.
+    ///
+    /// - Parameter precision: Tolerance for vertex analysis
+    /// - Returns: Analysis result with edge count
+    public func wireVertexAnalysis(precision: Double = 0.01) -> WireVertexAnalysis {
+        let result = OCCTShapeWireVertexAnalysis(handle, precision)
+        return WireVertexAnalysis(edgeCount: Int(result.nbEdges), isDone: result.isDone)
+    }
+
+    /// Get the status of a specific vertex in a wire.
+    ///
+    /// - Parameters:
+    ///   - precision: Tolerance for vertex analysis
+    ///   - index: 0-based vertex index
+    /// - Returns: Vertex status
+    public func wireVertexStatus(precision: Double = 0.01, index: Int) -> WireVertexStatus {
+        let code = OCCTShapeWireVertexStatus(handle, precision, Int32(index))
+        return WireVertexStatus(rawValue: code) ?? .unknown
+    }
+
+    /// Result of fitting a plane to a set of points.
+    public struct NearestPlane {
+        /// Normal direction of the fitted plane
+        public let normal: SIMD3<Double>
+        /// A point on the fitted plane
+        public let origin: SIMD3<Double>
+        /// Maximum distance from any input point to the fitted plane
+        public let maxDeviation: Double
+    }
+
+    /// Fit the nearest plane to a set of 3D points.
+    ///
+    /// Uses least-squares fitting to find the plane that best fits the points.
+    ///
+    /// - Parameter points: Array of 3D points (minimum 3)
+    /// - Returns: Fitted plane with deviation, or nil if fitting fails
+    public static func nearestPlane(to points: [SIMD3<Double>]) -> NearestPlane? {
+        guard points.count >= 3 else { return nil }
+        var flatPoints = [Double]()
+        flatPoints.reserveCapacity(points.count * 3)
+        for p in points {
+            flatPoints.append(p.x)
+            flatPoints.append(p.y)
+            flatPoints.append(p.z)
+        }
+        let result = OCCTShapeNearestPlane(flatPoints, Int32(points.count))
+        guard result.success else { return nil }
+        return NearestPlane(
+            normal: SIMD3(result.normalX, result.normalY, result.normalZ),
+            origin: SIMD3(result.originX, result.originY, result.originZ),
+            maxDeviation: result.maxDeviation)
+    }
 }

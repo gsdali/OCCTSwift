@@ -18236,3 +18236,510 @@ int32_t OCCTCurve3DGetSamplePoints3D(OCCTCurve3DRef curve, double first, double 
         return 0;
     }
 }
+
+// MARK: - v0.50.0
+
+#include <GC_MakeArcOfHyperbola.hxx>
+#include <GC_MakeArcOfParabola.hxx>
+#include <GC_MakeConicalSurface.hxx>
+#include <GC_MakeCylindricalSurface.hxx>
+#include <GC_MakePlane.hxx>
+#include <GC_MakeTrimmedCone.hxx>
+#include <GC_MakeTrimmedCylinder.hxx>
+#include <BRepExtrema_Poly.hxx>
+#include <BRepTools_History.hxx>
+#include <GeomConvert_BSplineSurfaceKnotSplitting.hxx>
+#include <GeomConvert_CompBezierSurfacesToBSplineSurface.hxx>
+#include <TColGeom_Array2OfBezierSurface.hxx>
+#include <ShapeAnalysis_WireVertex.hxx>
+#include <ShapeAnalysis_Geom.hxx>
+#include <ShapeCustom_Curve.hxx>
+#include <ShapeCustom_Surface.hxx>
+#include <ShapeUpgrade_SplitCurve3d.hxx>
+#include <ShapeUpgrade_SplitSurfaceContinuity.hxx>
+#include <ShapeExtend_Status.hxx>
+#include <TColGeom_HArray1OfCurve.hxx>
+#include <TColStd_HSequenceOfReal.hxx>
+#include <gp_Hypr.hxx>
+#include <gp_Parab.hxx>
+#include <gp_Circ.hxx>
+
+OCCTCurve3DRef OCCTCurve3DArcOfHyperbola(
+    double majorRadius, double minorRadius,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double alpha1, double alpha2, bool sense) {
+    try {
+        gp_Ax2 ax(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        gp_Hypr hypr(ax, majorRadius, minorRadius);
+        GC_MakeArcOfHyperbola maker(hypr, alpha1, alpha2, sense ? Standard_True : Standard_False);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_TrimmedCurve) arc = maker.Value();
+        if (arc.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D();
+        ref->curve = arc;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve3DRef OCCTCurve3DArcOfParabola(
+    double focalDistance,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double alpha1, double alpha2, bool sense) {
+    try {
+        gp_Ax2 ax(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        gp_Parab parab(ax, focalDistance);
+        GC_MakeArcOfParabola maker(parab, alpha1, alpha2, sense ? Standard_True : Standard_False);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_TrimmedCurve) arc = maker.Value();
+        if (arc.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D();
+        ref->curve = arc;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceConicalFromAxis(
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double semiAngle, double radius) {
+    try {
+        gp_Ax2 ax(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        GC_MakeConicalSurface maker(ax, semiAngle, radius);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_ConicalSurface) surf = maker.Value();
+        if (surf.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceConicalFromPointsRadii(
+    double p1x, double p1y, double p1z,
+    double p2x, double p2y, double p2z,
+    double r1, double r2) {
+    try {
+        GC_MakeConicalSurface maker(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z), r1, r2);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_ConicalSurface) surf = maker.Value();
+        if (surf.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceCylindricalFromAxis(
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double radius) {
+    try {
+        gp_Ax2 ax(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        GC_MakeCylindricalSurface maker(ax, radius);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_CylindricalSurface) surf = maker.Value();
+        if (surf.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceCylindricalFromPoints(
+    double p1x, double p1y, double p1z,
+    double p2x, double p2y, double p2z,
+    double p3x, double p3y, double p3z) {
+    try {
+        GC_MakeCylindricalSurface maker(
+            gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z), gp_Pnt(p3x, p3y, p3z));
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_CylindricalSurface) surf = maker.Value();
+        if (surf.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfacePlaneFromPoints(
+    double p1x, double p1y, double p1z,
+    double p2x, double p2y, double p2z,
+    double p3x, double p3y, double p3z) {
+    try {
+        GC_MakePlane maker(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z), gp_Pnt(p3x, p3y, p3z));
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_Plane) plane = maker.Value();
+        if (plane.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = plane;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfacePlaneFromPointNormal(
+    double px, double py, double pz,
+    double nx, double ny, double nz) {
+    try {
+        GC_MakePlane maker(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz));
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_Plane) plane = maker.Value();
+        if (plane.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = plane;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceTrimmedCone(
+    double p1x, double p1y, double p1z,
+    double p2x, double p2y, double p2z,
+    double r1, double r2) {
+    try {
+        GC_MakeTrimmedCone maker(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z), r1, r2);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_RectangularTrimmedSurface) surf = maker.Value();
+        if (surf.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceTrimmedCylinder(
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double height) {
+    try {
+        gp_Ax1 ax(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        GC_MakeTrimmedCylinder maker(ax, radius, height);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_RectangularTrimmedSurface) surf = maker.Value();
+        if (surf.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTPolyDistanceResult OCCTShapePolyhedralDistance(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    OCCTPolyDistanceResult result = {};
+    if (!shape1 || !shape2) return result;
+    try {
+        gp_Pnt p1, p2;
+        Standard_Real dist;
+        Standard_Boolean ok = BRepExtrema_Poly::Distance(
+            shape1->shape, shape2->shape, p1, p2, dist);
+        if (ok) {
+            result.success = true;
+            result.distance = dist;
+            result.p1x = p1.X(); result.p1y = p1.Y(); result.p1z = p1.Z();
+            result.p2x = p2.X(); result.p2y = p2.Y(); result.p2z = p2.Z();
+        }
+    } catch (...) {}
+    return result;
+}
+
+struct OCCTHistoryStorage {
+    Handle(BRepTools_History) history;
+};
+
+OCCTHistoryRef OCCTHistoryCreate(void) {
+    try {
+        auto* ref = new OCCTHistoryStorage();
+        ref->history = new BRepTools_History();
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTHistoryAddModified(OCCTHistoryRef history, OCCTShapeRef initial, OCCTShapeRef modified) {
+    if (!history || !initial || !modified) return;
+    try {
+        auto* h = static_cast<OCCTHistoryStorage*>(history);
+        h->history->AddModified(initial->shape, modified->shape);
+    } catch (...) {}
+}
+
+void OCCTHistoryAddGenerated(OCCTHistoryRef history, OCCTShapeRef initial, OCCTShapeRef generated) {
+    if (!history || !initial || !generated) return;
+    try {
+        auto* h = static_cast<OCCTHistoryStorage*>(history);
+        h->history->AddGenerated(initial->shape, generated->shape);
+    } catch (...) {}
+}
+
+void OCCTHistoryRemove(OCCTHistoryRef history, OCCTShapeRef shape) {
+    if (!history || !shape) return;
+    try {
+        auto* h = static_cast<OCCTHistoryStorage*>(history);
+        h->history->Remove(shape->shape);
+    } catch (...) {}
+}
+
+bool OCCTHistoryIsRemoved(OCCTHistoryRef history, OCCTShapeRef shape) {
+    if (!history || !shape) return false;
+    try {
+        auto* h = static_cast<OCCTHistoryStorage*>(history);
+        return h->history->IsRemoved(shape->shape);
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTHistoryHasModified(OCCTHistoryRef history) {
+    if (!history) return false;
+    auto* h = static_cast<OCCTHistoryStorage*>(history);
+    return h->history->HasModified();
+}
+
+bool OCCTHistoryHasGenerated(OCCTHistoryRef history) {
+    if (!history) return false;
+    auto* h = static_cast<OCCTHistoryStorage*>(history);
+    return h->history->HasGenerated();
+}
+
+bool OCCTHistoryHasRemoved(OCCTHistoryRef history) {
+    if (!history) return false;
+    auto* h = static_cast<OCCTHistoryStorage*>(history);
+    return h->history->HasRemoved();
+}
+
+int32_t OCCTHistoryModifiedCount(OCCTHistoryRef history, OCCTShapeRef initial) {
+    if (!history || !initial) return 0;
+    try {
+        auto* h = static_cast<OCCTHistoryStorage*>(history);
+        return (int32_t)h->history->Modified(initial->shape).Size();
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTHistoryGeneratedCount(OCCTHistoryRef history, OCCTShapeRef initial) {
+    if (!history || !initial) return 0;
+    try {
+        auto* h = static_cast<OCCTHistoryStorage*>(history);
+        return (int32_t)h->history->Generated(initial->shape).Size();
+    } catch (...) {
+        return 0;
+    }
+}
+
+void OCCTHistoryDestroy(OCCTHistoryRef history) {
+    if (!history) return;
+    delete static_cast<OCCTHistoryStorage*>(history);
+}
+
+OCCTSurfaceKnotSplitResult OCCTSurfaceKnotSplitting(OCCTSurfaceRef surface,
+    int32_t uContinuity, int32_t vContinuity) {
+    OCCTSurfaceKnotSplitResult result = {};
+    if (!surface) return result;
+    try {
+        Handle(Geom_BSplineSurface) bsurf = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bsurf.IsNull()) return result;
+        GeomConvert_BSplineSurfaceKnotSplitting splitter(bsurf, uContinuity, vContinuity);
+        result.nbUSplits = splitter.NbUSplits();
+        result.nbVSplits = splitter.NbVSplits();
+    } catch (...) {}
+    return result;
+}
+
+OCCTSurfaceRef OCCTSurfaceJoinBezierPatches(
+    const OCCTSurfaceRef* patches, int32_t nRows, int32_t nCols) {
+    if (!patches || nRows <= 0 || nCols <= 0) return nullptr;
+    try {
+        TColGeom_Array2OfBezierSurface bezArray(1, nRows, 1, nCols);
+        for (int32_t r = 0; r < nRows; r++) {
+            for (int32_t c = 0; c < nCols; c++) {
+                auto* sref = patches[r * nCols + c];
+                if (!sref) return nullptr;
+                Handle(Geom_BezierSurface) bez = Handle(Geom_BezierSurface)::DownCast(sref->surface);
+                if (bez.IsNull()) return nullptr;
+                bezArray.SetValue(r + 1, c + 1, bez);
+            }
+        }
+        GeomConvert_CompBezierSurfacesToBSplineSurface conv(bezArray);
+        if (!conv.IsDone()) return nullptr;
+        Handle(Geom_BSplineSurface) bsurf = new Geom_BSplineSurface(
+            conv.Poles()->Array2(),
+            conv.UKnots()->Array1(), conv.VKnots()->Array1(),
+            conv.UMultiplicities()->Array1(), conv.VMultiplicities()->Array1(),
+            conv.UDegree(), conv.VDegree());
+        if (bsurf.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = bsurf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireVertexResult OCCTShapeWireVertexAnalysis(OCCTShapeRef wire, double precision) {
+    OCCTWireVertexResult result = {};
+    if (!wire) return result;
+    try {
+        TopoDS_Wire w = TopoDS::Wire(wire->shape);
+        ShapeAnalysis_WireVertex wv;
+        wv.Init(w, precision);
+        wv.Analyze();
+        result.isDone = wv.IsDone();
+        result.nbEdges = wv.NbEdges();
+    } catch (...) {}
+    return result;
+}
+
+int32_t OCCTShapeWireVertexStatus(OCCTShapeRef wire, double precision, int32_t vertexIndex) {
+    if (!wire) return -2;
+    try {
+        TopoDS_Wire w = TopoDS::Wire(wire->shape);
+        ShapeAnalysis_WireVertex wv;
+        wv.Init(w, precision);
+        wv.Analyze();
+        if (!wv.IsDone()) return -2;
+        if (vertexIndex < 0 || vertexIndex >= wv.NbEdges()) return -2;
+        return wv.Status(vertexIndex + 1);
+    } catch (...) {
+        return -2;
+    }
+}
+
+OCCTNearestPlaneResult OCCTShapeNearestPlane(const double* points, int32_t nPoints) {
+    OCCTNearestPlaneResult result = {};
+    if (!points || nPoints < 3) return result;
+    try {
+        TColgp_Array1OfPnt pts(1, nPoints);
+        for (int32_t i = 0; i < nPoints; i++) {
+            pts.SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        gp_Pln pln;
+        Standard_Real dmax;
+        if (ShapeAnalysis_Geom::NearestPlane(pts, pln, dmax)) {
+            result.success = true;
+            result.maxDeviation = dmax;
+            gp_Dir normal = pln.Axis().Direction();
+            result.normalX = normal.X();
+            result.normalY = normal.Y();
+            result.normalZ = normal.Z();
+            gp_Pnt loc = pln.Location();
+            result.originX = loc.X();
+            result.originY = loc.Y();
+            result.originZ = loc.Z();
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTSurfaceAnalyticalResult OCCTSurfaceConvertToAnalytical(OCCTSurfaceRef surface, double tolerance) {
+    OCCTSurfaceAnalyticalResult result = {};
+    if (!surface) return result;
+    try {
+        ShapeCustom_Surface sc(surface->surface);
+        Handle(Geom_Surface) recognized = sc.ConvertToAnalytical(tolerance, Standard_False);
+        if (!recognized.IsNull()) {
+            auto* ref = new OCCTSurface();
+            ref->surface = recognized;
+            result.surface = ref;
+            result.gap = sc.Gap();
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTCurve3DRef OCCTCurve3DConvertToPeriodic(OCCTCurve3DRef curve) {
+    if (!curve) return nullptr;
+    try {
+        ShapeCustom_Curve scc(curve->curve);
+        Handle(Geom_Curve) periodic = scc.ConvertToPeriodic(Standard_False);
+        if (periodic.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D();
+        ref->curve = periodic;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTCurve3DSplitAt(OCCTCurve3DRef curve, double splitParam,
+    OCCTCurve3DRef* outCurve1, OCCTCurve3DRef* outCurve2) {
+    if (!curve || !outCurve1 || !outCurve2) return false;
+    *outCurve1 = nullptr;
+    *outCurve2 = nullptr;
+    try {
+        Handle(Geom_Curve) c = curve->curve;
+        double first = c->FirstParameter();
+        double last = c->LastParameter();
+        if (splitParam <= first || splitParam >= last) return false;
+
+        Handle(ShapeUpgrade_SplitCurve3d) splitter = new ShapeUpgrade_SplitCurve3d();
+        splitter->Init(c, first, last);
+        Handle(TColStd_HSequenceOfReal) splitVals = new TColStd_HSequenceOfReal();
+        splitVals->Append(splitParam);
+        splitter->SetSplitValues(splitVals);
+        splitter->Perform(Standard_True);
+
+        Handle(TColGeom_HArray1OfCurve) curves = splitter->GetCurves();
+        if (curves.IsNull() || curves->Length() < 2) return false;
+
+        auto* ref1 = new OCCTCurve3D();
+        ref1->curve = curves->Value(1);
+        *outCurve1 = ref1;
+
+        auto* ref2 = new OCCTCurve3D();
+        ref2->curve = curves->Value(2);
+        *outCurve2 = ref2;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTSurfaceContinuitySplitResult OCCTSurfaceSplitByContinuity(OCCTSurfaceRef surface,
+    int32_t criterion, double tolerance) {
+    OCCTSurfaceContinuitySplitResult result = {};
+    if (!surface) return result;
+    try {
+        Handle(Geom_BSplineSurface) bsurf = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bsurf.IsNull()) return result;
+
+        Handle(ShapeUpgrade_SplitSurfaceContinuity) splitter = new ShapeUpgrade_SplitSurfaceContinuity();
+        splitter->Init(bsurf);
+        GeomAbs_Shape cont = GeomAbs_C0;
+        if (criterion == 1) cont = GeomAbs_C1;
+        else if (criterion == 2) cont = GeomAbs_C2;
+        else if (criterion >= 3) cont = GeomAbs_C3;
+        splitter->SetCriterion(cont);
+        splitter->SetTolerance(tolerance);
+        splitter->Perform();
+
+        result.isOk = splitter->Status(ShapeExtend_OK);
+        result.wasSplit = splitter->Status(ShapeExtend_DONE1);
+
+        const Handle(TColStd_HSequenceOfReal)& uVals = splitter->USplitValues();
+        const Handle(TColStd_HSequenceOfReal)& vVals = splitter->VSplitValues();
+        result.nUSplits = uVals.IsNull() ? 0 : uVals->Length();
+        result.nVSplits = vVals.IsNull() ? 0 : vVals->Length();
+    } catch (...) {}
+    return result;
+}

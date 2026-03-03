@@ -803,4 +803,91 @@ extension Curve3D {
         }
         return points
     }
+
+    // MARK: - v0.50.0: Arc construction, periodic conversion, splitting
+
+    /// Create an arc of a hyperbola between two parameter values.
+    ///
+    /// - Parameters:
+    ///   - center: Center of the hyperbola
+    ///   - direction: Normal direction of the plane containing the hyperbola
+    ///   - majorRadius: Major radius (a) of the hyperbola
+    ///   - minorRadius: Minor radius (b) of the hyperbola
+    ///   - alpha1: Start parameter value
+    ///   - alpha2: End parameter value
+    ///   - sense: Direction of parameterization (true = natural)
+    /// - Returns: Trimmed curve representing the arc, or nil on failure
+    public static func arcOfHyperbola(
+        center: SIMD3<Double> = .zero,
+        direction: SIMD3<Double> = SIMD3(0, 0, 1),
+        majorRadius: Double,
+        minorRadius: Double,
+        alpha1: Double,
+        alpha2: Double,
+        sense: Bool = true
+    ) -> Curve3D? {
+        guard let ref = OCCTCurve3DArcOfHyperbola(
+            majorRadius, minorRadius,
+            center.x, center.y, center.z,
+            direction.x, direction.y, direction.z,
+            alpha1, alpha2, sense) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create an arc of a parabola between two parameter values.
+    ///
+    /// - Parameters:
+    ///   - center: Center (vertex) of the parabola
+    ///   - direction: Normal direction of the plane containing the parabola
+    ///   - focalDistance: Focal distance of the parabola
+    ///   - alpha1: Start parameter value
+    ///   - alpha2: End parameter value
+    ///   - sense: Direction of parameterization (true = natural)
+    /// - Returns: Trimmed curve representing the arc, or nil on failure
+    public static func arcOfParabola(
+        center: SIMD3<Double> = .zero,
+        direction: SIMD3<Double> = SIMD3(0, 0, 1),
+        focalDistance: Double,
+        alpha1: Double,
+        alpha2: Double,
+        sense: Bool = true
+    ) -> Curve3D? {
+        guard let ref = OCCTCurve3DArcOfParabola(
+            focalDistance,
+            center.x, center.y, center.z,
+            direction.x, direction.y, direction.z,
+            alpha1, alpha2, sense) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Convert a closed BSpline curve to periodic form.
+    ///
+    /// The curve must be closed (first point == last point). The result is a periodic
+    /// BSpline curve that seamlessly wraps around.
+    ///
+    /// - Returns: Periodic curve, or nil if conversion is not possible
+    public func convertToPeriodic() -> Curve3D? {
+        guard let ref = OCCTCurve3DConvertToPeriodic(handle) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Split result containing the two curve segments.
+    public struct SplitResult {
+        /// First segment (before split parameter)
+        public let first: Curve3D
+        /// Second segment (after split parameter)
+        public let second: Curve3D
+    }
+
+    /// Split this curve at a parameter value into two segments.
+    ///
+    /// - Parameter parameter: Parameter value at which to split
+    /// - Returns: Two curve segments, or nil if split fails
+    public func splitAt(parameter: Double) -> SplitResult? {
+        var ref1: OCCTCurve3DRef?
+        var ref2: OCCTCurve3DRef?
+        guard OCCTCurve3DSplitAt(handle, parameter, &ref1, &ref2),
+              let r1 = ref1, let r2 = ref2 else { return nil }
+        return SplitResult(first: Curve3D(handle: r1), second: Curve3D(handle: r2))
+    }
 }
