@@ -890,4 +890,38 @@ extension Curve3D {
               let r1 = ref1, let r2 = ref2 else { return nil }
         return SplitResult(first: Curve3D(handle: r1), second: Curve3D(handle: r2))
     }
+
+    // MARK: - v0.51.0: GC_MakeEllipse/Hyperbola three-point constructors
+
+    /// Create an ellipse defined by three points.
+    ///
+    /// - Parameters:
+    ///   - s1: End point of the major axis
+    ///   - s2: Point defining the minor axis extent
+    ///   - center: Center of the ellipse
+    /// - Returns: Ellipse curve, or nil on failure
+    public static func ellipseThreePoints(
+        s1: SIMD3<Double>, s2: SIMD3<Double>, center: SIMD3<Double>
+    ) -> Curve3D? {
+        guard let h = OCCTCurve3DMakeEllipseThreePoints(
+            s1.x, s1.y, s1.z, s2.x, s2.y, s2.z,
+            center.x, center.y, center.z) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Create a hyperbola defined by three points.
+    ///
+    /// - Parameters:
+    ///   - s1: End point of the major axis
+    ///   - s2: Point defining the minor axis extent
+    ///   - center: Center of the hyperbola
+    /// - Returns: Hyperbola curve, or nil on failure
+    public static func hyperbolaThreePoints(
+        s1: SIMD3<Double>, s2: SIMD3<Double>, center: SIMD3<Double>
+    ) -> Curve3D? {
+        guard let h = OCCTCurve3DMakeHyperbolaThreePoints(
+            s1.x, s1.y, s1.z, s2.x, s2.y, s2.z,
+            center.x, center.y, center.z) else { return nil }
+        return Curve3D(handle: h)
+    }
 }

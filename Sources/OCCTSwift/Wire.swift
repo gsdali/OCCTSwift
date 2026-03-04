@@ -491,6 +491,26 @@ public final class Wire: @unchecked Sendable {
         return Wire(handle: handle)
     }
 
+    // MARK: - Wire From Edges (v0.51.0)
+
+    /// Create a wire by connecting individual edges in order.
+    ///
+    /// Uses BRepLib_MakeWire to assemble edges into a connected wire.
+    /// Edges should be geometrically connectable (shared vertices or within tolerance).
+    ///
+    /// - Parameter edges: Array of edge shapes (minimum 1)
+    /// - Returns: A wire connecting the edges, or nil if construction fails
+    public static func wireFromEdges(_ edges: [Edge]) -> Wire? {
+        guard !edges.isEmpty else { return nil }
+        let handles: [OCCTEdgeRef] = edges.map { $0.handle }
+        return handles.withUnsafeBufferPointer { buffer in
+            guard let wireRef = OCCTWireMakeWireFromEdgeRefs(buffer.baseAddress!, Int32(edges.count)) else {
+                return nil
+            }
+            return Wire(handle: wireRef)
+        }
+    }
+
     // MARK: - Wire Composition
 
     /// Join multiple wires into a single connected wire.

@@ -5836,4 +5836,107 @@ extension Shape {
             origin: SIMD3(result.originX, result.originY, result.originZ),
             maxDeviation: result.maxDeviation)
     }
+
+    // MARK: - v0.51.0: BRepLib_MakeSolid, GC transforms, ChFi2d_AnaFilletAlgo
+
+    /// Create a solid from a shell shape using BRepLib_MakeSolid.
+    ///
+    /// - Parameter shell: A shape containing a shell (e.g., from shellFromSurface)
+    /// - Returns: Solid shape, or nil on failure
+    public static func solidFromShell(_ shell: Shape) -> Shape? {
+        guard let h = OCCTShapeMakeSolidFromShell(shell.handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Mirror this shape about a point (point symmetry / inversion).
+    ///
+    /// - Parameter point: The center point of the point mirror
+    /// - Returns: Mirrored shape, or nil on failure
+    public func mirroredAboutPoint(_ point: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeMirrorAboutPoint(handle, point.x, point.y, point.z) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Mirror this shape about an axis line.
+    ///
+    /// - Parameters:
+    ///   - origin: A point on the axis
+    ///   - direction: Direction of the axis
+    /// - Returns: Mirrored shape, or nil on failure
+    public func mirroredAboutAxis(origin: SIMD3<Double>, direction: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeMirrorAboutAxis(handle,
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Scale this shape about a specific center point.
+    ///
+    /// Unlike `scaled(by:)` which scales about the origin, this scales about a given point.
+    ///
+    /// - Parameters:
+    ///   - center: Center of scaling
+    ///   - factor: Scale factor
+    /// - Returns: Scaled shape, or nil on failure
+    public func scaledAboutPoint(_ center: SIMD3<Double>, factor: Double) -> Shape? {
+        guard let h = OCCTShapeScaleAboutPoint(handle,
+            center.x, center.y, center.z, factor) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Translate this shape by the vector from one point to another.
+    ///
+    /// - Parameters:
+    ///   - from: Start point of the translation vector
+    ///   - to: End point of the translation vector
+    /// - Returns: Translated shape, or nil on failure
+    public func translated(from: SIMD3<Double>, to: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeTranslateByPoints(handle,
+            from.x, from.y, from.z,
+            to.x, to.y, to.z) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Result of a 2D analytical fillet operation.
+    public struct AnaFilletResult {
+        /// The fillet arc edge
+        public let fillet: Shape
+        /// Trimmed first edge
+        public let edge1: Shape
+        /// Trimmed second edge
+        public let edge2: Shape
+    }
+
+    /// Compute a 2D analytical fillet between two edges (segments or arcs of circle).
+    ///
+    /// Uses ChFi2d_AnaFilletAlgo for fast exact fillet computation in a plane.
+    ///
+    /// - Parameters:
+    ///   - edge1: First edge shape
+    ///   - edge2: Second edge shape
+    ///   - planeOrigin: A point on the plane
+    ///   - planeNormal: Normal direction of the plane
+    ///   - radius: Fillet radius
+    /// - Returns: Fillet result with arc and trimmed edges, or nil on failure
+    public static func anaFillet(
+        edge1: Shape,
+        edge2: Shape,
+        planeOrigin: SIMD3<Double> = .zero,
+        planeNormal: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double
+    ) -> AnaFilletResult? {
+        let r = OCCTChFi2dAnaFillet(
+            edge1.handle, edge2.handle,
+            planeOrigin.x, planeOrigin.y, planeOrigin.z,
+            planeNormal.x, planeNormal.y, planeNormal.z,
+            radius)
+        guard r.success,
+              let fillet = r.fillet,
+              let e1 = r.edge1,
+              let e2 = r.edge2 else { return nil }
+        return AnaFilletResult(
+            fillet: Shape(handle: fillet),
+            edge1: Shape(handle: e1),
+            edge2: Shape(handle: e2))
+    }
 }

@@ -950,4 +950,35 @@ extension Curve2D {
              tangent: SIMD2(outDXDY[i * 2], outDXDY[i * 2 + 1]))
         }
     }
+
+    // MARK: - v0.51.0: GCE2d_MakeLine variants
+
+    /// Create a 2D infinite line passing through two points.
+    ///
+    /// Unlike `segment(from:to:)` which creates a finite segment, this creates
+    /// an infinite line through the two points.
+    ///
+    /// - Parameters:
+    ///   - p1: First point on the line
+    ///   - p2: Second point on the line
+    /// - Returns: 2D line curve, or nil if points coincide
+    public static func lineThroughPoints(_ p1: SIMD2<Double>, _ p2: SIMD2<Double>) -> Curve2D? {
+        guard let h = OCCTCurve2DMakeLineThroughPoints(p1.x, p1.y, p2.x, p2.y) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Create a 2D line parallel to a reference line at a given distance.
+    ///
+    /// - Parameters:
+    ///   - point: A point on the reference line
+    ///   - direction: Direction of the reference line
+    ///   - distance: Signed offset distance (positive = left of direction)
+    /// - Returns: 2D line curve, or nil on failure
+    public static func lineParallel(
+        point: SIMD2<Double>, direction: SIMD2<Double>, distance: Double
+    ) -> Curve2D? {
+        guard let h = OCCTCurve2DMakeLineParallel(
+            point.x, point.y, direction.x, direction.y, distance) else { return nil }
+        return Curve2D(handle: h)
+    }
 }

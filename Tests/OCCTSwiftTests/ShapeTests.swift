@@ -14013,3 +14013,191 @@ struct SurfaceSplitContinuityTests {
         #expect(result.alreadyMeetsCriterion || result.wasSplit)
     }
 }
+
+// MARK: - v0.51.0 Tests
+
+@Suite("BRepLib_MakeSolid")
+struct MakeSolidFromShellTests {
+    @Test("Create solid from box shell")
+    func solidFromBoxShell() throws {
+        let box = try #require(Shape.box(width: 10, height: 10, depth: 10))
+        let shellList = box.shells
+        #expect(!shellList.isEmpty)
+        if let shell = shellList.first {
+            let solid = Shape.solidFromShell(shell)
+            #expect(solid != nil)
+            if let s = solid {
+                #expect(s.isValid)
+            }
+        }
+    }
+}
+
+@Suite("GC_MakeMirror")
+struct ShapeMirrorTests {
+    @Test("Mirror box about point")
+    func mirrorAboutPoint() throws {
+        let box = try #require(Shape.box(width: 10, height: 10, depth: 10))
+        // Box is centered at origin (-5 to +5), mirror about (20,0,0)
+        let mirrored = box.mirroredAboutPoint(SIMD3(20, 0, 0))
+        #expect(mirrored != nil)
+        if let m = mirrored {
+            #expect(m.isValid)
+            let bb = m.bounds
+            // Box (-5..5) mirrored about x=20 gives (35..45)
+            #expect(abs(bb.min.x - 35) < 0.5)
+            #expect(abs(bb.max.x - 45) < 0.5)
+        }
+    }
+
+    @Test("Mirror box about axis")
+    func mirrorAboutAxis() throws {
+        let box = try #require(Shape.box(width: 10, height: 10, depth: 10))
+        let mirrored = box.mirroredAboutAxis(origin: SIMD3(0, 0, 0), direction: SIMD3(0, 0, 1))
+        #expect(mirrored != nil)
+        if let m = mirrored {
+            #expect(m.isValid)
+        }
+    }
+}
+
+@Suite("GC_MakeScale")
+struct ShapeScaleAboutPointTests {
+    @Test("Scale box about origin")
+    func scaleAboutOrigin() throws {
+        let box = try #require(Shape.box(width: 10, height: 10, depth: 10))
+        let scaled = box.scaledAboutPoint(SIMD3(0, 0, 0), factor: 2.0)
+        #expect(scaled != nil)
+        if let s = scaled {
+            #expect(s.isValid)
+            let size = s.size
+            #expect(abs(size.x - 20) < 0.5)
+            #expect(abs(size.y - 20) < 0.5)
+            #expect(abs(size.z - 20) < 0.5)
+        }
+    }
+
+    @Test("Scale with factor 0.5")
+    func halfScale() throws {
+        let box = try #require(Shape.box(width: 20, height: 20, depth: 20))
+        let scaled = box.scaledAboutPoint(SIMD3(0, 0, 0), factor: 0.5)
+        #expect(scaled != nil)
+        if let s = scaled {
+            #expect(s.isValid)
+            let size = s.size
+            #expect(abs(size.x - 10) < 0.5)
+        }
+    }
+}
+
+@Suite("GC_MakeTranslation")
+struct ShapeTranslateByPointsTests {
+    @Test("Translate box from point to point")
+    func translateByPoints() throws {
+        let box = try #require(Shape.box(width: 10, height: 10, depth: 10))
+        let translated = box.translated(from: SIMD3(0, 0, 0), to: SIMD3(20, 0, 0))
+        #expect(translated != nil)
+        if let t = translated {
+            #expect(t.isValid)
+            let bb = t.bounds
+            // Box centered at origin (-5..5) translated by (20,0,0) → (15..25)
+            #expect(abs(bb.min.x - 15) < 0.5)
+            #expect(abs(bb.max.x - 25) < 0.5)
+        }
+    }
+}
+
+@Suite("GC_MakeEllipse — 3 Points")
+struct EllipseThreePointsTests {
+    @Test("Create ellipse through three points")
+    func ellipseFromThreePoints() throws {
+        // S1 and S2 are points on ellipse, center is the center
+        let curve = Curve3D.ellipseThreePoints(
+            s1: SIMD3(10, 0, 0),
+            s2: SIMD3(0, 5, 0),
+            center: SIMD3(0, 0, 0)
+        )
+        #expect(curve != nil)
+        if let c = curve {
+            let dom = c.domain
+            #expect(dom.upperBound > dom.lowerBound)
+        }
+    }
+}
+
+@Suite("GC_MakeHyperbola — 3 Points")
+struct HyperbolaThreePointsTests {
+    @Test("Create hyperbola through three points")
+    func hyperbolaFromThreePoints() throws {
+        // S1, S2 on curve, center is the center
+        let curve = Curve3D.hyperbolaThreePoints(
+            s1: SIMD3(5, 0, 0),
+            s2: SIMD3(-5, 0, 0),
+            center: SIMD3(0, 0, 0)
+        )
+        #expect(curve != nil)
+        if let c = curve {
+            let dom = c.domain
+            #expect(dom.upperBound > dom.lowerBound)
+        }
+    }
+}
+
+@Suite("GCE2d_MakeLine")
+struct Curve2DLineTests {
+    @Test("Create 2D line through two points")
+    func lineThroughPoints() {
+        let line = Curve2D.lineThroughPoints(SIMD2(0, 0), SIMD2(10, 10))
+        #expect(line != nil)
+    }
+
+    @Test("Create 2D line parallel to direction at distance")
+    func lineParallel() {
+        let line = Curve2D.lineParallel(point: SIMD2(0, 0), direction: SIMD2(1, 0), distance: 5.0)
+        #expect(line != nil)
+    }
+}
+
+@Suite("BRepLib_MakeWire — Wire From Edges")
+struct WireFromEdgesTests {
+    @Test("Create wire from box edges")
+    func wireFromEdges() throws {
+        // Get edges from a box face (a planar face has 4 edges forming a loop)
+        let box = try #require(Shape.box(width: 10, height: 10, depth: 10))
+        let edges = box.edges()
+        #expect(edges.count >= 4)
+        // Take the first 4 edges (from one face) and build a wire
+        let subset = Array(edges.prefix(4))
+        let wire = Wire.wireFromEdges(subset)
+        #expect(wire != nil)
+        if let w = wire {
+            let info = w.curveInfo
+            #expect(info != nil)
+        }
+    }
+}
+
+@Suite("ChFi2d_AnaFilletAlgo")
+struct AnaFilletTests {
+    @Test("Analytical fillet between two edges in XY plane")
+    func anaFillet() throws {
+        // Create two line edges sharing a vertex at origin
+        let wire1 = try #require(Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0)))
+        let wire2 = try #require(Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(0, 10, 0)))
+        let edge1 = try #require(Shape.fromWire(wire1))
+        let edge2 = try #require(Shape.fromWire(wire2))
+        let result = Shape.anaFillet(
+            edge1: edge1,
+            edge2: edge2,
+            planeOrigin: SIMD3(0, 0, 0),
+            planeNormal: SIMD3(0, 0, 1),
+            radius: 2.0
+        )
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.fillet.isValid)
+            #expect(r.edge1.isValid)
+            #expect(r.edge2.isValid)
+        }
+    }
+}

@@ -5446,6 +5446,156 @@ typedef struct {
 OCCTSurfaceContinuitySplitResult OCCTSurfaceSplitByContinuity(OCCTSurfaceRef surface,
     int32_t criterion, double tolerance);
 
+// MARK: - v0.51.0: BRepLib makers, GC geometry, GCE2d, ChFi2d_AnaFilletAlgo
+
+// --- BRepLib_MakePolygon ---
+
+/// Create a polygonal wire from an array of 3D points.
+/// @param coords Array of point coordinates (x,y,z triples), length = nPoints * 3
+/// @param nPoints Number of points (must be >= 2)
+/// @param close If true, close the polygon
+/// @return Wire shape, or NULL on failure
+OCCTWireRef _Nullable OCCTWireMakePolygonFromPoints(const double* coords, int32_t nPoints, bool close);
+
+// --- BRepLib_MakeWire ---
+
+/// Create a wire from an array of edge shapes.
+/// @param edges Array of edge shapes
+/// @param count Number of edges
+/// @return Wire, or NULL on failure
+OCCTWireRef _Nullable OCCTWireMakeWireFromEdges(const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t count);
+
+/// Create a wire from an array of OCCTEdgeRef objects.
+/// @param edges Array of edge refs
+/// @param count Number of edges
+/// @return Wire, or NULL on failure
+OCCTWireRef _Nullable OCCTWireMakeWireFromEdgeRefs(const OCCTEdgeRef _Nonnull * _Nonnull edges, int32_t count);
+
+// --- BRepLib_MakeSolid ---
+
+/// Create a solid from a shell shape.
+/// @param shell Shape containing a shell
+/// @return Solid shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeMakeSolidFromShell(OCCTShapeRef shell);
+
+// --- GC_MakeEllipse ---
+
+/// Create a 3D ellipse curve from axis position and radii.
+/// @param cx,cy,cz Center point
+/// @param dx,dy,dz Normal direction (Z axis of the ellipse plane)
+/// @param majorRadius Major radius
+/// @param minorRadius Minor radius
+/// @return Ellipse curve, or NULL on failure
+OCCTCurve3DRef _Nullable OCCTCurve3DMakeEllipse(double cx, double cy, double cz,
+    double dx, double dy, double dz, double majorRadius, double minorRadius);
+
+/// Create a 3D ellipse curve from three points.
+/// @param s1x,s1y,s1z End of major axis
+/// @param s2x,s2y,s2z Point defining minor axis
+/// @param centerX,centerY,centerZ Center point
+/// @return Ellipse curve, or NULL on failure
+OCCTCurve3DRef _Nullable OCCTCurve3DMakeEllipseThreePoints(
+    double s1x, double s1y, double s1z,
+    double s2x, double s2y, double s2z,
+    double centerX, double centerY, double centerZ);
+
+// --- GC_MakeHyperbola ---
+
+/// Create a 3D hyperbola curve from axis position and radii.
+/// @param cx,cy,cz Center point
+/// @param dx,dy,dz Normal direction
+/// @param majorRadius Major radius
+/// @param minorRadius Minor radius
+/// @return Hyperbola curve, or NULL on failure
+OCCTCurve3DRef _Nullable OCCTCurve3DMakeHyperbola(double cx, double cy, double cz,
+    double dx, double dy, double dz, double majorRadius, double minorRadius);
+
+/// Create a 3D hyperbola curve from three points.
+/// @param s1x,s1y,s1z End of major axis
+/// @param s2x,s2y,s2z Point defining minor axis
+/// @param centerX,centerY,centerZ Center point
+/// @return Hyperbola curve, or NULL on failure
+OCCTCurve3DRef _Nullable OCCTCurve3DMakeHyperbolaThreePoints(
+    double s1x, double s1y, double s1z,
+    double s2x, double s2y, double s2z,
+    double centerX, double centerY, double centerZ);
+
+// --- GC_MakeMirror ---
+
+/// Mirror a shape about a point (point symmetry).
+/// @param shape Shape to mirror
+/// @param px,py,pz Mirror point
+/// @return Mirrored shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeMirrorAboutPoint(OCCTShapeRef shape,
+    double px, double py, double pz);
+
+/// Mirror a shape about an axis line.
+/// @param shape Shape to mirror
+/// @param ox,oy,oz Point on axis
+/// @param dx,dy,dz Axis direction
+/// @return Mirrored shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeMirrorAboutAxis(OCCTShapeRef shape,
+    double ox, double oy, double oz, double dx, double dy, double dz);
+
+// --- GC_MakeScale ---
+
+/// Scale a shape about a specific point.
+/// @param shape Shape to scale
+/// @param px,py,pz Center of scaling
+/// @param factor Scale factor
+/// @return Scaled shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeScaleAboutPoint(OCCTShapeRef shape,
+    double px, double py, double pz, double factor);
+
+// --- GC_MakeTranslation ---
+
+/// Translate a shape by the vector from point1 to point2.
+/// @param shape Shape to translate
+/// @param p1x,p1y,p1z Start point
+/// @param p2x,p2y,p2z End point
+/// @return Translated shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeTranslateByPoints(OCCTShapeRef shape,
+    double p1x, double p1y, double p1z, double p2x, double p2y, double p2z);
+
+// --- GCE2d_MakeLine ---
+
+/// Create a 2D infinite line through two points.
+/// @param p1x,p1y First point
+/// @param p2x,p2y Second point
+/// @return 2D line curve, or NULL if points coincide
+OCCTCurve2DRef _Nullable OCCTCurve2DMakeLineThroughPoints(double p1x, double p1y,
+    double p2x, double p2y);
+
+/// Create a 2D line parallel to another at a given distance.
+/// @param px,py Point on reference line
+/// @param dx,dy Direction of reference line
+/// @param distance Signed distance to offset
+/// @return 2D line curve, or NULL on failure
+OCCTCurve2DRef _Nullable OCCTCurve2DMakeLineParallel(double px, double py,
+    double dx, double dy, double distance);
+
+// --- ChFi2d_AnaFilletAlgo ---
+
+/// Result of a 2D analytical fillet operation.
+typedef struct {
+    OCCTShapeRef _Nullable fillet;   // The fillet arc edge
+    OCCTShapeRef _Nullable edge1;    // Trimmed first edge
+    OCCTShapeRef _Nullable edge2;    // Trimmed second edge
+    bool success;
+} OCCTAnaFilletResult;
+
+/// Compute a 2D analytical fillet between two edges (segments/arcs).
+/// @param edge1 First edge shape
+/// @param edge2 Second edge shape
+/// @param planeOx,planeOy,planeOz Point on the plane
+/// @param planeNx,planeNy,planeNz Plane normal direction
+/// @param radius Fillet radius
+/// @return Fillet result with fillet arc and trimmed edges
+OCCTAnaFilletResult OCCTChFi2dAnaFillet(OCCTShapeRef edge1, OCCTShapeRef edge2,
+    double planeOx, double planeOy, double planeOz,
+    double planeNx, double planeNy, double planeNz,
+    double radius);
+
 #ifdef __cplusplus
 }
 #endif
