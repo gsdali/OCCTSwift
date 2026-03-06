@@ -309,6 +309,30 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Wrap an Edge as a Shape to use it with Shape-based APIs.
+    ///
+    /// Since `TopoDS_Edge` inherits from `TopoDS_Shape` in OCCT, this is a
+    /// lightweight conversion.
+    ///
+    /// - Parameter edge: The edge to wrap.
+    /// - Returns: A Shape wrapping the edge, or `nil` on failure.
+    public static func fromEdge(_ edge: Edge) -> Shape? {
+        guard let handle = OCCTShapeFromEdge(edge.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Wrap a Face as a Shape to use it with Shape-based APIs.
+    ///
+    /// Since `TopoDS_Face` inherits from `TopoDS_Shape` in OCCT, this is a
+    /// lightweight conversion.
+    ///
+    /// - Parameter face: The face to wrap.
+    /// - Returns: A Shape wrapping the face, or `nil` on failure.
+    public static func fromFace(_ face: Face) -> Shape? {
+        guard let handle = OCCTShapeFromFace(face.handle) else { return nil }
+        return Shape(handle: handle)
+    }
+
     // MARK: - Validation
 
     /// Check if shape is valid
@@ -1419,6 +1443,44 @@ extension Shape {
     /// - Returns: true if shapes intersect or touch within tolerance
     public func intersects(_ other: Shape, tolerance: Double = 1e-6) -> Bool {
         OCCTShapeIntersects(handle, other.handle, tolerance)
+    }
+
+    // MARK: - Wire/Edge/Face Convenience Overloads
+
+    /// Get minimum distance between this shape and a wire.
+    public func distance(to wire: Wire, deflection: Double = 1e-6) -> DistanceResult? {
+        guard let s = Shape.fromWire(wire) else { return nil }
+        return distance(to: s, deflection: deflection)
+    }
+
+    /// Get minimum distance between this shape and an edge.
+    public func distance(to edge: Edge, deflection: Double = 1e-6) -> DistanceResult? {
+        guard let s = Shape.fromEdge(edge) else { return nil }
+        return distance(to: s, deflection: deflection)
+    }
+
+    /// Get minimum distance between this shape and a face.
+    public func distance(to face: Face, deflection: Double = 1e-6) -> DistanceResult? {
+        guard let s = Shape.fromFace(face) else { return nil }
+        return distance(to: s, deflection: deflection)
+    }
+
+    /// Check if this shape intersects a wire.
+    public func intersects(_ wire: Wire, tolerance: Double = 1e-6) -> Bool {
+        guard let s = Shape.fromWire(wire) else { return false }
+        return intersects(s, tolerance: tolerance)
+    }
+
+    /// Check if this shape intersects an edge.
+    public func intersects(_ edge: Edge, tolerance: Double = 1e-6) -> Bool {
+        guard let s = Shape.fromEdge(edge) else { return false }
+        return intersects(s, tolerance: tolerance)
+    }
+
+    /// Check if this shape intersects a face.
+    public func intersects(_ face: Face, tolerance: Double = 1e-6) -> Bool {
+        guard let s = Shape.fromFace(face) else { return false }
+        return intersects(s, tolerance: tolerance)
     }
 
     /// Number of vertices (corners) in the shape
@@ -3501,6 +3563,15 @@ extension Shape {
                                             direction.x, direction.y, direction.z) else { return nil }
         return Shape(handle: h)
     }
+
+    /// Project a Wire onto another shape along a direction (cylindrical projection).
+    ///
+    /// Convenience overload accepting a `Wire` directly.
+    public static func projectWire(_ wire: Wire, onto target: Shape,
+                                   direction: SIMD3<Double>) -> Shape? {
+        guard let wireShape = Shape.fromWire(wire) else { return nil }
+        return projectWire(wireShape, onto: target, direction: direction)
+    }
 }
 
 // MARK: - Same Parameter (v0.35.0)
@@ -3537,6 +3608,15 @@ extension Shape {
         guard let h = OCCTShapeProjectWireConical(wire.handle, target.handle,
                                                    eye.x, eye.y, eye.z) else { return nil }
         return Shape(handle: h)
+    }
+
+    /// Project a Wire onto another shape from a point (conical projection).
+    ///
+    /// Convenience overload accepting a `Wire` directly.
+    public static func projectWireConical(_ wire: Wire, onto target: Shape,
+                                          eye: SIMD3<Double>) -> Shape? {
+        guard let wireShape = Shape.fromWire(wire) else { return nil }
+        return projectWireConical(wireShape, onto: target, eye: eye)
     }
 }
 
@@ -5939,6 +6019,45 @@ extension Shape {
             edge1: Shape(handle: e1),
             edge2: Shape(handle: e2))
     }
+
+    /// Compute a 2D analytical fillet between two edges.
+    ///
+    /// Convenience overload accepting `Edge` objects directly.
+    public static func anaFillet(
+        edge1: Edge, edge2: Edge,
+        planeOrigin: SIMD3<Double> = .zero,
+        planeNormal: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double
+    ) -> AnaFilletResult? {
+        guard let s1 = Shape.fromEdge(edge1),
+              let s2 = Shape.fromEdge(edge2) else { return nil }
+        return anaFillet(edge1: s1, edge2: s2,
+                         planeOrigin: planeOrigin, planeNormal: planeNormal, radius: radius)
+    }
+
+    /// Compute a 2D analytical fillet between two edges of a wire.
+    ///
+    /// Extracts edges from the wire and fillets between adjacent pairs.
+    /// Edge indices are 0-based; fillet is computed between edges at `index` and `index+1`.
+    ///
+    /// - Parameters:
+    ///   - wire: Wire containing the edges
+    ///   - edgeIndex: Index of first edge (second edge is edgeIndex+1)
+    ///   - planeOrigin: A point on the plane
+    ///   - planeNormal: Normal direction of the plane
+    ///   - radius: Fillet radius
+    /// - Returns: Fillet result, or nil on failure
+    public static func anaFillet(
+        wire: Wire, edgeIndex: Int = 0,
+        planeOrigin: SIMD3<Double> = .zero,
+        planeNormal: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double
+    ) -> AnaFilletResult? {
+        let edges = wire.edges()
+        guard edgeIndex >= 0, edgeIndex + 1 < edges.count else { return nil }
+        return anaFillet(edge1: edges[edgeIndex], edge2: edges[edgeIndex + 1],
+                         planeOrigin: planeOrigin, planeNormal: planeNormal, radius: radius)
+    }
 }
 
 // MARK: - v0.52.0: BRepFill, LocOpe, Healing Utilities
@@ -6123,6 +6242,42 @@ extension Shape {
             edge1: Shape(handle: e1),
             edge2: Shape(handle: e2),
             resultCount: Int(r.resultCount))
+    }
+
+    /// Compute a 2D iterative fillet between two edges.
+    ///
+    /// Convenience overload accepting `Edge` objects directly.
+    public static func filletAlgo(
+        edge1: Edge, edge2: Edge,
+        planeOrigin: SIMD3<Double> = .zero,
+        planeNormal: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double
+    ) -> FilletAlgoResult? {
+        guard let s1 = Shape.fromEdge(edge1),
+              let s2 = Shape.fromEdge(edge2) else { return nil }
+        return filletAlgo(edge1: s1, edge2: s2,
+                          planeOrigin: planeOrigin, planeNormal: planeNormal, radius: radius)
+    }
+
+    /// Compute a 2D iterative fillet between two edges of a wire.
+    ///
+    /// - Parameters:
+    ///   - wire: Wire containing the edges
+    ///   - edgeIndex: Index of first edge (second edge is edgeIndex+1)
+    ///   - planeOrigin: A point on the working plane
+    ///   - planeNormal: Normal direction of the plane
+    ///   - radius: Fillet radius
+    /// - Returns: Fillet result, or nil on failure
+    public static func filletAlgo(
+        wire: Wire, edgeIndex: Int = 0,
+        planeOrigin: SIMD3<Double> = .zero,
+        planeNormal: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double
+    ) -> FilletAlgoResult? {
+        let edges = wire.edges()
+        guard edgeIndex >= 0, edgeIndex + 1 < edges.count else { return nil }
+        return filletAlgo(edge1: edges[edgeIndex], edge2: edges[edgeIndex + 1],
+                          planeOrigin: planeOrigin, planeNormal: planeNormal, radius: radius)
     }
 
     // MARK: - BRepTools_Substitution

@@ -15092,3 +15092,292 @@ struct EdgeSplitTests {
         #expect(bisector != nil)
     }
 }
+
+// MARK: - Issue Fix Tests
+
+@Suite("Wire.edges() — Issue #44") struct WireEdgesTests {
+    @Test("Wire.edges returns edges for rectangle")
+    func rectangleEdges() {
+        let wire = Wire.rectangle(width: 10, height: 5)
+        if let wire {
+            let edges = wire.edges()
+            #expect(edges.count == 4)
+            for edge in edges {
+                #expect(edge.length > 0)
+            }
+        }
+    }
+
+    @Test("Wire.edges returns edges for circle")
+    func circleEdges() {
+        let wire = Wire.circle(radius: 5)
+        if let wire {
+            let edges = wire.edges()
+            #expect(edges.count >= 1)
+        }
+    }
+}
+
+@Suite("Wire.allEdgePolylines — Issue #46") struct WireAllEdgePolylinesTests {
+    @Test("Wire.allEdgePolylines returns polylines for rectangle")
+    func rectanglePolylines() {
+        let wire = Wire.rectangle(width: 10, height: 5)
+        if let wire {
+            let polylines = wire.allEdgePolylines()
+            #expect(polylines.count == 4)
+            for polyline in polylines {
+                #expect(polyline.count >= 2)
+            }
+        }
+    }
+
+    @Test("Wire.allEdgePolylines returns polylines for circle")
+    func circlePolylines() {
+        let wire = Wire.circle(radius: 10)
+        if let wire {
+            let polylines = wire.allEdgePolylines()
+            #expect(polylines.count >= 1)
+            #expect(polylines.first?.count ?? 0 > 2)
+        }
+    }
+}
+
+@Suite("Shape.fromEdge — Issue #45") struct ShapeFromEdgeTests {
+    @Test("Shape.fromEdge converts edge to shape")
+    func edgeToShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let edges = box.edges()
+            #expect(edges.count > 0)
+            if let firstEdge = edges.first {
+                let shape = Shape.fromEdge(firstEdge)
+                #expect(shape != nil)
+                if let shape {
+                    #expect(shape.isValid)
+                }
+            }
+        }
+    }
+
+    @Test("anaFillet with Edge parameters")
+    func anaFilletWithEdges() {
+        let wire = Wire.polygon([
+            SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10)
+        ])
+        if let wire {
+            let edges = wire.edges()
+            if edges.count >= 2 {
+                let result = Shape.anaFillet(
+                    edge1: edges[0], edge2: edges[1], radius: 1.0)
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("anaFillet with Wire parameter")
+    func anaFilletWithWire() {
+        let wire = Wire.polygon([
+            SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10)
+        ])
+        if let wire {
+            let result = Shape.anaFillet(wire: wire, radius: 1.0)
+            #expect(result != nil)
+        }
+    }
+
+    @Test("filletAlgo with Edge parameters")
+    func filletAlgoWithEdges() {
+        let wire = Wire.polygon([
+            SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10)
+        ])
+        if let wire {
+            let edges = wire.edges()
+            if edges.count >= 2 {
+                let result = Shape.filletAlgo(
+                    edge1: edges[0], edge2: edges[1], radius: 1.0)
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("filletAlgo with Wire parameter")
+    func filletAlgoWithWire() {
+        let wire = Wire.polygon([
+            SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10)
+        ])
+        if let wire {
+            let result = Shape.filletAlgo(wire: wire, radius: 1.0)
+            #expect(result != nil)
+        }
+    }
+}
+
+@Suite("projectWire with Wire — Issue #47") struct ProjectWireWithWireTests {
+    @Test("projectWire accepts Wire directly")
+    func projectWireFromWire() {
+        let wire = Wire.circle(radius: 5)
+        let target = Shape.box(width: 20, height: 20, depth: 20)
+        if let wire, let target {
+            let result = Shape.projectWire(wire, onto: target, direction: SIMD3(0, 0, 1))
+            // Projection may or may not succeed depending on geometry
+            _ = result
+        }
+    }
+
+    @Test("projectWireConical accepts Wire directly")
+    func projectWireConicalFromWire() {
+        let wire = Wire.circle(radius: 3)
+        let target = Shape.box(width: 20, height: 20, depth: 20)
+        if let wire, let target {
+            let result = Shape.projectWireConical(wire, onto: target, eye: SIMD3(0, 0, 50))
+            _ = result
+        }
+    }
+}
+
+@Suite("orderedEdgePoints no truncation — Issue #35") struct OrderedEdgePointsTests {
+    @Test("orderedEdgePoints returns all points without truncation")
+    func noTruncation() {
+        let wire = Wire.circle(radius: 100)
+        if let wire {
+            let count = wire.orderedEdgePointCount(at: 0)
+            #expect(count > 0)
+            let points = wire.orderedEdgePoints(at: 0)
+            if let points {
+                #expect(points.count == count)
+            }
+        }
+    }
+
+    @Test("orderedEdgePoints respects explicit maxPoints")
+    func withMaxPoints() {
+        let wire = Wire.circle(radius: 100)
+        if let wire {
+            let points = wire.orderedEdgePoints(at: 0, maxPoints: 5)
+            if let points {
+                #expect(points.count <= 5)
+                #expect(points.count > 0)
+            }
+        }
+    }
+
+    @Test("orderedEdgePointCount returns count for each edge")
+    func pointCountPerEdge() {
+        let wire = Wire.rectangle(width: 10, height: 5)
+        if let wire {
+            let edgeCount = wire.orderedEdgeCount
+            #expect(edgeCount == 4)
+            for i in 0..<edgeCount {
+                let count = wire.orderedEdgePointCount(at: i)
+                #expect(count >= 2)
+            }
+        }
+    }
+}
+
+// MARK: - Audit Fix Tests
+
+@Suite("Shape.fromFace conversion") struct ShapeFromFaceTests {
+    @Test("Shape.fromFace converts face to shape")
+    func faceToShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let faces = box.faces()
+            #expect(faces.count > 0)
+            if let face = faces.first {
+                let shape = Shape.fromFace(face)
+                #expect(shape != nil)
+                if let shape {
+                    #expect(shape.isValid)
+                }
+            }
+        }
+    }
+}
+
+@Suite("Wire.bounds property") struct WireBoundsTests {
+    @Test("Wire rectangle has correct bounds")
+    func rectangleBounds() {
+        let wire = Wire.rectangle(width: 10, height: 6)
+        if let wire {
+            let b = wire.bounds
+            #expect(b.min.x < b.max.x)
+            #expect(b.min.y < b.max.y)
+            #expect(abs(b.max.x - b.min.x - 10) < 0.01)
+            #expect(abs(b.max.y - b.min.y - 6) < 0.01)
+        }
+    }
+
+    @Test("Wire circle has correct bounds")
+    func circleBounds() {
+        let wire = Wire.circle(radius: 5)
+        if let wire {
+            let b = wire.bounds
+            #expect(abs(b.max.x - b.min.x - 10) < 0.01)
+            #expect(abs(b.max.y - b.min.y - 10) < 0.01)
+        }
+    }
+}
+
+@Suite("Wire.edgePolyline") struct WireEdgePolylineTests {
+    @Test("Wire.edgePolyline returns points for single edge")
+    func singleEdge() {
+        let wire = Wire.rectangle(width: 10, height: 5)
+        if let wire {
+            let polyline = wire.edgePolyline(at: 0)
+            #expect(polyline != nil)
+            if let polyline {
+                #expect(polyline.count >= 2)
+            }
+        }
+    }
+}
+
+@Suite("Shape distance to Wire/Edge/Face") struct ShapeDistanceOverloadTests {
+    @Test("Shape distance to Wire")
+    func distanceToWire() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let wire = Wire.circle(origin: SIMD3(20, 0, 0), radius: 1)
+        if let box, let wire {
+            let result = box.distance(to: wire)
+            #expect(result != nil)
+            if let result {
+                #expect(result.distance > 0)
+            }
+        }
+    }
+
+    @Test("Shape intersects Wire")
+    func intersectsWire() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let wire = Wire.circle(origin: SIMD3(20, 0, 0), radius: 1)
+        if let box, let wire {
+            #expect(!box.intersects(wire))
+        }
+    }
+
+    @Test("Shape distance to Edge")
+    func distanceToEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let edges = box.edges()
+            if let edge = edges.first {
+                let result = box.distance(to: edge)
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("Shape distance to Face")
+    func distanceToFace() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)
+        if let box1, let box2 {
+            let faces = box2.faces()
+            if let face = faces.first {
+                let result = box1.distance(to: face)
+                #expect(result != nil)
+            }
+        }
+    }
+}

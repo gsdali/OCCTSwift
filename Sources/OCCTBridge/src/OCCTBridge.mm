@@ -1508,6 +1508,11 @@ OCCTShapeRef OCCTShapeFromWire(OCCTWireRef wireRef) {
     return new OCCTShape(wireRef->wire);
 }
 
+OCCTShapeRef OCCTShapeFromFace(OCCTFaceRef faceRef) {
+    if (!faceRef) return nullptr;
+    return new OCCTShape(faceRef->face);
+}
+
 void OCCTShapeRelease(OCCTShapeRef shape) {
     delete shape;
 }
@@ -1552,6 +1557,19 @@ OCCTWireRef OCCTWireCreateRectangle(double width, double height) {
 OCCTWireRef OCCTWireCreateCircle(double radius) {
     try {
         gp_Circ circle(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), radius);
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(circle);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateCircleEx(double radius,
+    double ox, double oy, double oz,
+    double nx, double ny, double nz) {
+    try {
+        gp_Circ circle(gp_Ax2(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz)), radius);
         TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(circle);
         BRepBuilderAPI_MakeWire wireMaker(edge);
         return new OCCTWire(wireMaker.Wire());
@@ -2587,6 +2605,11 @@ struct OCCTEdge {
     OCCTEdge() {}
     OCCTEdge(const TopoDS_Edge& e) : edge(e) {}
 };
+
+OCCTShapeRef OCCTShapeFromEdge(OCCTEdgeRef edgeRef) {
+    if (!edgeRef) return nullptr;
+    return new OCCTShape(edgeRef->edge);
+}
 
 // MARK: - Ray Casting Implementation (Issue #12)
 
@@ -12986,6 +13009,25 @@ bool OCCTWireExplorerGetEdge(OCCTWireRef wire, int32_t index,
         return false;
     } catch (...) {
         return false;
+    }
+}
+
+int32_t OCCTWireExplorerGetEdgePointCount(OCCTWireRef wire, int32_t index) {
+    if (!wire || index < 0) return 0;
+    try {
+        int32_t current = 0;
+        for (BRepTools_WireExplorer exp(wire->wire); exp.More(); exp.Next()) {
+            if (current == index) {
+                TopoDS_Edge edge = exp.Current();
+                BRepAdaptor_Curve curve(edge);
+                GCPnts_TangentialDeflection discretizer(curve, 0.01, 0.1);
+                return discretizer.NbPoints();
+            }
+            current++;
+        }
+        return 0;
+    } catch (...) {
+        return 0;
     }
 }
 

@@ -223,6 +223,7 @@ OCCTMeshRef OCCTMeshIntersect(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double defle
 // MARK: - Shape Conversion
 
 OCCTShapeRef OCCTShapeFromWire(OCCTWireRef wireRef);
+OCCTShapeRef OCCTShapeFromFace(OCCTFaceRef faceRef);
 
 // MARK: - Memory Management
 
@@ -234,6 +235,9 @@ void OCCTMeshRelease(OCCTMeshRef mesh);
 
 OCCTWireRef OCCTWireCreateRectangle(double width, double height);
 OCCTWireRef OCCTWireCreateCircle(double radius);
+OCCTWireRef OCCTWireCreateCircleEx(double radius,
+    double ox, double oy, double oz,
+    double nx, double ny, double nz);
 OCCTWireRef OCCTWireCreatePolygon(const double* points, int32_t pointCount, bool closed);
 OCCTWireRef OCCTWireCreateFromPoints3D(const double* points, int32_t pointCount, bool closed);
 
@@ -473,6 +477,9 @@ OCCTEdgeRef OCCTShapeGetEdgeAtIndex(OCCTShapeRef shape, int32_t index);
 
 /// Release an edge reference
 void OCCTEdgeRelease(OCCTEdgeRef edge);
+
+/// Convert an edge to a shape
+OCCTShapeRef OCCTShapeFromEdge(OCCTEdgeRef edgeRef);
 
 /// Get edge length
 double OCCTEdgeGetLength(OCCTEdgeRef edge);
@@ -2869,6 +2876,12 @@ int32_t OCCTWireExplorerEdgeCount(OCCTWireRef wire);
 /// @return true on success
 bool OCCTWireExplorerGetEdge(OCCTWireRef wire, int32_t index,
                               double* outPoints, int32_t maxPoints, int32_t* outPointCount);
+
+/// Get the number of discretized points for an edge in a wire.
+/// @param wire The wire to explore
+/// @param index 0-based edge index
+/// @return Number of points, or 0 on failure
+int32_t OCCTWireExplorerGetEdgePointCount(OCCTWireRef wire, int32_t index);
 
 
 // MARK: - Half-Space (v0.29.0)

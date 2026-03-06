@@ -71,13 +71,22 @@ public final class Wire: @unchecked Sendable {
         return Wire(handle: handle)
     }
 
-    /// Create a circular profile centered at origin in XY plane.
+    /// Create a circular wire.
     ///
-    /// - Parameter radius: Radius of the circle
+    /// - Parameters:
+    ///   - origin: Center of the circle (default: origin)
+    ///   - normal: Normal direction of the circle plane (default: Z axis)
+    ///   - radius: Radius of the circle
     /// - Returns: A closed circular wire, or nil if creation fails
-    public static func circle(radius: Double) -> Wire? {
+    public static func circle(
+        origin: SIMD3<Double> = .zero,
+        normal: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double
+    ) -> Wire? {
         guard radius > 0 else { return nil }
-        guard let handle = OCCTWireCreateCircle(radius) else { return nil }
+        guard let handle = OCCTWireCreateCircleEx(radius,
+            origin.x, origin.y, origin.z,
+            normal.x, normal.y, normal.z) else { return nil }
         return Wire(handle: handle)
     }
 
@@ -1125,23 +1134,100 @@ extension Wire {
         Int(OCCTWireExplorerEdgeCount(handle))
     }
 
+    /// Get the number of discretized points for an edge by its ordered index.
+    ///
+    /// - Parameter index: 0-based edge index in traversal order
+    /// - Returns: Number of points, or 0 if index is out of range
+    public func orderedEdgePointCount(at index: Int) -> Int {
+        guard index >= 0 else { return 0 }
+        return Int(OCCTWireExplorerGetEdgePointCount(handle, Int32(index)))
+    }
+
     /// Get the discretized points of an edge by its ordered index.
     ///
     /// Uses `BRepTools_WireExplorer` for ordered traversal, ensuring
     /// edges are visited in connected sequence.
     ///
+    /// When called without `maxPoints`, automatically allocates a buffer
+    /// large enough for all discretized points (no truncation).
+    ///
     /// - Parameters:
     ///   - index: 0-based edge index in traversal order
-    ///   - maxPoints: Maximum points to return (default: 200)
+    ///   - maxPoints: Maximum points to return (default: all points)
     /// - Returns: Array of 3D points along the edge, or nil if index is out of range
-    public func orderedEdgePoints(at index: Int, maxPoints: Int = 200) -> [SIMD3<Double>]? {
-        guard index >= 0, maxPoints > 0 else { return nil }
-        var buffer = [Double](repeating: 0, count: maxPoints * 3)
+    public func orderedEdgePoints(at index: Int, maxPoints: Int? = nil) -> [SIMD3<Double>]? {
+        guard index >= 0 else { return nil }
+        let limit: Int
+        if let maxPoints {
+            guard maxPoints > 0 else { return nil }
+            limit = maxPoints
+        } else {
+            let count = orderedEdgePointCount(at: index)
+            guard count > 0 else { return nil }
+            limit = count
+        }
+        var buffer = [Double](repeating: 0, count: limit * 3)
         var pointCount: Int32 = 0
-        guard OCCTWireExplorerGetEdge(handle, Int32(index), &buffer, Int32(maxPoints), &pointCount)
+        guard OCCTWireExplorerGetEdge(handle, Int32(index), &buffer, Int32(limit), &pointCount)
         else { return nil }
         let n = Int(pointCount)
         return (0..<n).map { i in SIMD3(buffer[i * 3], buffer[i * 3 + 1], buffer[i * 3 + 2]) }
+    }
+}
+
+// MARK: - Wire Edge Access
+
+extension Wire {
+    /// Get all edges from this wire as Edge objects.
+    ///
+    /// Converts the wire to a shape and extracts edges using the shape's
+    /// edge extraction facilities.
+    ///
+    /// - Returns: Array of edges, or empty array if conversion fails
+    public func edges() -> [Edge] {
+        guard let shape = Shape.fromWire(self) else { return [] }
+        return shape.edges()
+    }
+
+    /// Get all edges as discretized polylines.
+    ///
+    /// Convenience method that converts the wire to a shape and calls
+    /// `allEdgePolylines()` on it.
+    ///
+    /// - Parameters:
+    ///   - deflection: Maximum chord deviation
+    ///   - maxPointsPerEdge: Maximum points per edge
+    /// - Returns: Array of polylines, one per edge
+    public func allEdgePolylines(
+        deflection: Double = 0.1,
+        maxPointsPerEdge: Int = 1000
+    ) -> [[SIMD3<Double>]] {
+        guard let shape = Shape.fromWire(self) else { return [] }
+        return shape.allEdgePolylines(deflection: deflection, maxPointsPerEdge: maxPointsPerEdge)
+    }
+
+    /// Get a single edge's polyline by index.
+    ///
+    /// - Parameters:
+    ///   - index: 0-based edge index
+    ///   - deflection: Maximum chord deviation
+    ///   - maxPoints: Maximum points to return
+    /// - Returns: Array of 3D points along the edge, or nil if index is out of range
+    public func edgePolyline(
+        at index: Int,
+        deflection: Double = 0.1,
+        maxPoints: Int = 1000
+    ) -> [SIMD3<Double>]? {
+        guard let shape = Shape.fromWire(self) else { return nil }
+        return shape.edgePolyline(at: index, deflection: deflection, maxPoints: maxPoints)
+    }
+
+    /// Get the bounding box of this wire.
+    public var bounds: (min: SIMD3<Double>, max: SIMD3<Double>) {
+        guard let shape = Shape.fromWire(self) else {
+            return (min: .zero, max: .zero)
+        }
+        return shape.bounds
     }
 }
 
