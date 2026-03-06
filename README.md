@@ -40,9 +40,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Selection** | 11 | add, remove, clear, activateMode, deactivateMode, isModeActive, pixelTolerance, pick, pickRect, pickPoly |
 | **Presentation Mesh** | 2 | shadedMesh, edgeMesh |
 | **Medial Axis** | 12 | compute, arcCount, nodeCount, basicElementCount, node(at:), arc(at:), nodes, arcs, minThickness, distanceToBoundary, drawArc, drawAll |
-| **Topological Naming** | 12 | createLabel, recordNaming, currentShape, storedShape, namingEvolution, namingHistory, oldShape, newShape, tracedForward, tracedBackward, selectShape, resolveShape |
+| **Topological Naming** | 13 | createLabel, recordNaming, currentShape, storedShape, namingEvolution, namingHistory, oldShape, newShape, tracedForward, tracedBackward, selectShape, resolveShape, deepCopy |
 | **TDF/OCAF Framework** | 31 | mainLabel, tag, depth, isNull, isRoot, father, root, hasAttribute, attributeCount, hasChild, childCount, findChild, forgetAllAttributes, descendants, setName, setReference, referencedLabel, copyLabel, openTransaction, commitTransaction, abortTransaction, hasOpenTransaction, setUndoLimit, undoLimit, undo, redo, availableUndos, availableRedos, setModified, clearModified, isModified |
 | **TDataStd Attributes** | 25 | setInteger, integer, setReal, real, setAsciiString, asciiString, setComment, comment, initIntegerArray, setIntegerArrayValue, integerArrayValue, integerArrayBounds, initRealArray, setRealArrayValue, realArrayValue, realArrayBounds, setTreeNode, appendTreeChild, treeNodeFather, treeNodeFirstChild, treeNodeNext, treeNodeHasFather, treeNodeDepth, treeNodeChildCount, namedData(set/get/has integer/real/string) |
+| **TDataXtd Attributes** | 16 | setShapeAttr, shapeAttribute, hasShapeAttribute, setPositionAttr, positionAttribute, hasPositionAttribute, setGeometryType, geometryType, hasGeometryAttribute, setTriangulationFromShape, triangulationNodeCount, triangulationTriangleCount, triangulationDeflection, setPointAttr, setAxisAttr, setPlaneAttr |
+| **TFunction Framework** | 13 | setLogbook, logbookSetTouched, logbookSetImpacted, logbookIsModified, logbookClear, logbookIsEmpty, setGraphNode, graphNodeAddPrevious, graphNodeAddNext, setGraphNodeStatus, graphNodeStatus, graphNodeRemoveAllPrevious, graphNodeRemoveAllNext |
+| **TFunction Function** | 4 | setFunctionAttribute, functionIsFailed, functionFailure, setFunctionFailure |
 | **Length Dimension** | 7 | fromPoints, fromEdge, fromFaces, value, isValid, geometry, setCustomValue |
 | **Radius Dimension** | 4 | fromShape, value, geometry, setCustomValue |
 | **Angle Dimension** | 7 | fromEdges, fromPoints, fromFaces, value, degrees, geometry, setCustomValue |
@@ -51,7 +54,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
 | **Shape History** | 1 | History (create, addModified, addGenerated, remove, isRemoved, hasModified, hasGenerated, hasRemoved, modifiedCount, generatedCount) |
-| **Total** | **817** | |
+| **Total** | **847** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -79,6 +82,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Topological Naming**: TNaming history tracking — record primitive/generated/modify/delete evolutions, forward/backward tracing through naming graph, persistent named selections with resolve
 - **TDF/OCAF Framework**: TDF_Label properties (tag, depth, father, root, children, attributes), TDF_Reference label cross-references, TDF_CopyLabel deep copy, TDocStd transactions (open/commit/abort), full undo/redo with configurable depth, modified label tracking
 - **TDataStd Attributes**: Scalar attributes (Integer, Real, AsciiString, Comment), array attributes (IntegerArray, RealArray), TreeNode hierarchies, NamedData key-value store (integer/real/string by name)
+- **TDataXtd Attributes**: Extended geometric attributes — Shape (store/retrieve shapes on labels via TNaming), Position (3D point), Geometry type (point/line/circle/ellipse/spline/plane/cylinder), Triangulation (mesh storage from shapes with deflection), Point/Axis/Plane markers
+- **TFunction Framework**: Parametric modeling logbook (touch/impact/modify tracking, clear), function graph nodes (dependency chains with previous/next, execution status: notExecuted/executing/succeeded/failed), function attributes with failure tracking
+- **TNaming Deep Copy**: Independent shape duplication via TNaming_CopyShape::CopyTool
 - **Annotations & Measurements**: Length/radius/angle/diameter dimensions with geometry extraction for Metal rendering, 3D text labels, colored point clouds
 - **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)

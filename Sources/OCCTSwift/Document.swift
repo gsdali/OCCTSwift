@@ -1136,3 +1136,260 @@ extension AssemblyNode {
         OCCTDocumentNamedDataHasString(document.handle, labelId, name)
     }
 }
+
+// MARK: - TDataXtd Shape Attribute (v0.56.0)
+
+/// Geometry type for TDataXtd_Geometry attributes.
+public enum GeometryType: Int32 {
+    case anyGeom = 0
+    case point = 1
+    case line = 2
+    case circle = 3
+    case ellipse = 4
+    case spline = 5
+    case plane = 6
+    case cylinder = 7
+}
+
+/// Execution status for TFunction graph nodes.
+public enum ExecutionStatus: Int32 {
+    case wrongDefinition = 0
+    case notExecuted = 1
+    case executing = 2
+    case succeeded = 3
+    case failed = 4
+}
+
+extension AssemblyNode {
+
+    // MARK: - TDataXtd Shape Attribute
+
+    /// Set a shape attribute on this label (stores shape via TNaming).
+    @discardableResult
+    public func setShapeAttribute(_ shape: Shape) -> Bool {
+        OCCTDocumentSetShapeAttr(document.handle, labelId, shape.handle)
+    }
+
+    /// Get the shape stored in a TDataXtd_Shape attribute on this label.
+    public func shapeAttribute() -> Shape? {
+        guard let ref = OCCTDocumentGetShapeAttr(document.handle, labelId) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Check if this label has a TDataXtd_Shape attribute.
+    public var hasShapeAttribute: Bool {
+        OCCTDocumentHasShapeAttr(document.handle, labelId)
+    }
+
+    // MARK: - TDataXtd Position Attribute
+
+    /// Set a position (3D point) attribute on this label.
+    @discardableResult
+    public func setPositionAttribute(x: Double, y: Double, z: Double) -> Bool {
+        OCCTDocumentSetPositionAttr(document.handle, labelId, x, y, z)
+    }
+
+    /// Get the position attribute from this label.
+    public func positionAttribute() -> (x: Double, y: Double, z: Double)? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTDocumentGetPositionAttr(document.handle, labelId, &x, &y, &z) else { return nil }
+        return (x, y, z)
+    }
+
+    /// Check if this label has a TDataXtd_Position attribute.
+    public var hasPositionAttribute: Bool {
+        OCCTDocumentHasPositionAttr(document.handle, labelId)
+    }
+
+    // MARK: - TDataXtd Geometry Attribute
+
+    /// Set a geometry type attribute on this label.
+    @discardableResult
+    public func setGeometryType(_ type: GeometryType) -> Bool {
+        OCCTDocumentSetGeometryAttr(document.handle, labelId, type.rawValue)
+    }
+
+    /// Get the geometry type from this label.
+    public func geometryType() -> GeometryType? {
+        let raw = OCCTDocumentGetGeometryType(document.handle, labelId)
+        guard raw >= 0 else { return nil }
+        return GeometryType(rawValue: raw)
+    }
+
+    /// Check if this label has a TDataXtd_Geometry attribute.
+    public var hasGeometryAttribute: Bool {
+        OCCTDocumentHasGeometryAttr(document.handle, labelId)
+    }
+
+    // MARK: - TDataXtd Triangulation Attribute
+
+    /// Set a triangulation attribute on this label by meshing a shape.
+    @discardableResult
+    public func setTriangulationFromShape(_ shape: Shape, deflection: Double = 1.0) -> Bool {
+        OCCTDocumentSetTriangulationFromShape(document.handle, labelId, shape.handle, deflection)
+    }
+
+    /// Get the number of nodes in the triangulation attribute.
+    public var triangulationNodeCount: Int32 {
+        OCCTDocumentTriangulationNbNodes(document.handle, labelId)
+    }
+
+    /// Get the number of triangles in the triangulation attribute.
+    public var triangulationTriangleCount: Int32 {
+        OCCTDocumentTriangulationNbTriangles(document.handle, labelId)
+    }
+
+    /// Get the deflection of the triangulation attribute.
+    public var triangulationDeflection: Double {
+        OCCTDocumentTriangulationDeflection(document.handle, labelId)
+    }
+
+    // MARK: - TDataXtd Point/Axis/Plane Attributes
+
+    /// Set a point attribute on this label.
+    @discardableResult
+    public func setPointAttribute(x: Double, y: Double, z: Double) -> Bool {
+        OCCTDocumentSetPointAttr(document.handle, labelId, x, y, z)
+    }
+
+    /// Set an axis attribute on this label (origin + direction).
+    @discardableResult
+    public func setAxisAttribute(originX: Double, originY: Double, originZ: Double,
+                                  directionX: Double, directionY: Double, directionZ: Double) -> Bool {
+        OCCTDocumentSetAxisAttr(document.handle, labelId, originX, originY, originZ, directionX, directionY, directionZ)
+    }
+
+    /// Set a plane attribute on this label (origin + normal).
+    @discardableResult
+    public func setPlaneAttribute(originX: Double, originY: Double, originZ: Double,
+                                   normalX: Double, normalY: Double, normalZ: Double) -> Bool {
+        OCCTDocumentSetPlaneAttr(document.handle, labelId, originX, originY, originZ, normalX, normalY, normalZ)
+    }
+}
+
+// MARK: - TFunction Logbook (v0.56.0)
+
+extension AssemblyNode {
+
+    /// Create a TFunction_Logbook attribute on this label.
+    @discardableResult
+    public func setLogbook() -> Bool {
+        OCCTDocumentSetLogbook(document.handle, labelId)
+    }
+
+    /// Mark a target label as touched in this label's logbook.
+    @discardableResult
+    public func logbookSetTouched(_ target: AssemblyNode) -> Bool {
+        OCCTDocumentLogbookSetTouched(document.handle, labelId, target.labelId)
+    }
+
+    /// Mark a target label as impacted in this label's logbook.
+    @discardableResult
+    public func logbookSetImpacted(_ target: AssemblyNode) -> Bool {
+        OCCTDocumentLogbookSetImpacted(document.handle, labelId, target.labelId)
+    }
+
+    /// Check if a target label is modified (touched) in this label's logbook.
+    public func logbookIsModified(_ target: AssemblyNode) -> Bool {
+        OCCTDocumentLogbookIsModified(document.handle, labelId, target.labelId)
+    }
+
+    /// Clear this label's logbook.
+    @discardableResult
+    public func logbookClear() -> Bool {
+        OCCTDocumentLogbookClear(document.handle, labelId)
+    }
+
+    /// Check if this label's logbook is empty.
+    public var logbookIsEmpty: Bool {
+        OCCTDocumentLogbookIsEmpty(document.handle, labelId)
+    }
+}
+
+// MARK: - TFunction GraphNode (v0.56.0)
+
+extension AssemblyNode {
+
+    /// Create a TFunction_GraphNode attribute on this label.
+    @discardableResult
+    public func setGraphNode() -> Bool {
+        OCCTDocumentSetGraphNode(document.handle, labelId)
+    }
+
+    /// Add a previous dependency to this graph node (by tag ID).
+    @discardableResult
+    public func graphNodeAddPrevious(tag: Int32) -> Bool {
+        OCCTDocumentGraphNodeAddPrevious(document.handle, labelId, tag)
+    }
+
+    /// Add a next dependency to this graph node (by tag ID).
+    @discardableResult
+    public func graphNodeAddNext(tag: Int32) -> Bool {
+        OCCTDocumentGraphNodeAddNext(document.handle, labelId, tag)
+    }
+
+    /// Set the execution status of this graph node.
+    @discardableResult
+    public func setGraphNodeStatus(_ status: ExecutionStatus) -> Bool {
+        OCCTDocumentGraphNodeSetStatus(document.handle, labelId, status.rawValue)
+    }
+
+    /// Get the execution status of this graph node.
+    public func graphNodeStatus() -> ExecutionStatus? {
+        let raw = OCCTDocumentGraphNodeGetStatus(document.handle, labelId)
+        guard raw >= 0 else { return nil }
+        return ExecutionStatus(rawValue: raw)
+    }
+
+    /// Remove all previous dependencies from this graph node.
+    @discardableResult
+    public func graphNodeRemoveAllPrevious() -> Bool {
+        OCCTDocumentGraphNodeRemoveAllPrevious(document.handle, labelId)
+    }
+
+    /// Remove all next dependencies from this graph node.
+    @discardableResult
+    public func graphNodeRemoveAllNext() -> Bool {
+        OCCTDocumentGraphNodeRemoveAllNext(document.handle, labelId)
+    }
+}
+
+// MARK: - TFunction Function Attribute (v0.56.0)
+
+extension AssemblyNode {
+
+    /// Create a TFunction_Function attribute on this label.
+    @discardableResult
+    public func setFunctionAttribute() -> Bool {
+        OCCTDocumentSetFunctionAttr(document.handle, labelId)
+    }
+
+    /// Check if the function attribute on this label has failed.
+    public var functionIsFailed: Bool {
+        OCCTDocumentFunctionIsFailed(document.handle, labelId)
+    }
+
+    /// Get the failure mode of the function attribute on this label.
+    public var functionFailure: Int32? {
+        let raw = OCCTDocumentFunctionGetFailure(document.handle, labelId)
+        guard raw >= 0 else { return nil }
+        return raw
+    }
+
+    /// Set the failure mode of the function attribute on this label.
+    @discardableResult
+    public func setFunctionFailure(_ mode: Int32) -> Bool {
+        OCCTDocumentFunctionSetFailure(document.handle, labelId, mode)
+    }
+}
+
+// MARK: - TNaming CopyShape (v0.56.0)
+
+extension Shape {
+
+    /// Create a deep copy of this shape (independent copy with new topology).
+    public func deepCopy() -> Shape? {
+        guard let ref = OCCTShapeDeepCopy(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+}

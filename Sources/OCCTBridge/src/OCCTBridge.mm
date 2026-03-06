@@ -21029,3 +21029,444 @@ bool OCCTDocumentNamedDataHasString(OCCTDocumentRef doc, int64_t labelId, const 
         return nd->HasString(TCollection_AsciiString(name));
     } catch (...) { return false; }
 }
+
+// MARK: - TDataXtd Shape Attribute (v0.56.0)
+
+#include <TDataXtd_Shape.hxx>
+#include <TDataXtd_Position.hxx>
+#include <TDataXtd_Geometry.hxx>
+#include <TDataXtd_Triangulation.hxx>
+#include <TDataXtd_Point.hxx>
+#include <TDataXtd_Axis.hxx>
+#include <TDataXtd_Plane.hxx>
+#include <TFunction_Logbook.hxx>
+#include <TFunction_GraphNode.hxx>
+#include <TFunction_Function.hxx>
+#include <TFunction_ExecutionStatus.hxx>
+#include <TNaming_CopyShape.hxx>
+#include <TColStd_IndexedDataMapOfTransientTransient.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <Poly_Triangulation.hxx>
+#include <gp_Lin.hxx>
+#include <gp_Pln.hxx>
+
+bool OCCTDocumentSetShapeAttr(OCCTDocumentRef doc, int64_t labelId, OCCTShapeRef shape) {
+    if (!doc || doc->doc.IsNull() || !shape) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        // TDataXtd_Shape::New requires an empty label, so use TNaming_Builder directly
+        // to store the shape, which is what Set() does internally anyway
+        Handle(TDataXtd_Shape) attr;
+        if (!label.FindAttribute(TDataXtd_Shape::GetID(), attr)) {
+            attr = new TDataXtd_Shape();
+            label.AddAttribute(attr);
+        }
+        TNaming_Builder builder(label);
+        builder.Generated(shape->shape);
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTDocumentGetShapeAttr(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+        Handle(TDataXtd_Shape) attr;
+        if (!label.FindAttribute(TDataXtd_Shape::GetID(), attr)) return nullptr;
+        TopoDS_Shape shape = TDataXtd_Shape::Get(label);
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentHasShapeAttr(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_Shape) attr;
+        return label.FindAttribute(TDataXtd_Shape::GetID(), attr);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataXtd Position Attribute (v0.56.0)
+
+bool OCCTDocumentSetPositionAttr(OCCTDocumentRef doc, int64_t labelId, double x, double y, double z) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataXtd_Position::Set(label, gp_Pnt(x, y, z));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetPositionAttr(OCCTDocumentRef doc, int64_t labelId, double* outX, double* outY, double* outZ) {
+    if (!doc || doc->doc.IsNull() || !outX || !outY || !outZ) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        gp_Pnt pos;
+        if (!TDataXtd_Position::Get(label, pos)) return false;
+        *outX = pos.X();
+        *outY = pos.Y();
+        *outZ = pos.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasPositionAttr(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        gp_Pnt pos;
+        return TDataXtd_Position::Get(label, pos);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataXtd Geometry Attribute (v0.56.0)
+
+bool OCCTDocumentSetGeometryAttr(OCCTDocumentRef doc, int64_t labelId, int32_t geometryType) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_Geometry) geom = TDataXtd_Geometry::Set(label);
+        if (geom.IsNull()) return false;
+        geom->SetType(static_cast<TDataXtd_GeometryEnum>(geometryType));
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentGetGeometryType(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(TDataXtd_Geometry) geom;
+        if (!label.FindAttribute(TDataXtd_Geometry::GetID(), geom)) return -1;
+        return static_cast<int32_t>(geom->GetType());
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentHasGeometryAttr(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_Geometry) geom;
+        return label.FindAttribute(TDataXtd_Geometry::GetID(), geom);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataXtd Triangulation Attribute (v0.56.0)
+
+bool OCCTDocumentSetTriangulationFromShape(OCCTDocumentRef doc, int64_t labelId, OCCTShapeRef shape, double deflection) {
+    if (!doc || doc->doc.IsNull() || !shape) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        // Mesh the shape
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+
+        // Get triangulation from first face
+        TopExp_Explorer exp(shape->shape, TopAbs_FACE);
+        if (!exp.More()) return false;
+        TopoDS_Face face = TopoDS::Face(exp.Current());
+        TopLoc_Location loc;
+        Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+        if (tri.IsNull()) return false;
+
+        Handle(TDataXtd_Triangulation) attr = TDataXtd_Triangulation::Set(label, tri);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentTriangulationNbNodes(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(TDataXtd_Triangulation) attr;
+        if (!label.FindAttribute(TDataXtd_Triangulation::GetID(), attr)) return 0;
+        return attr->NbNodes();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTDocumentTriangulationNbTriangles(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(TDataXtd_Triangulation) attr;
+        if (!label.FindAttribute(TDataXtd_Triangulation::GetID(), attr)) return 0;
+        return attr->NbTriangles();
+    } catch (...) { return 0; }
+}
+
+double OCCTDocumentTriangulationDeflection(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0.0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0.0;
+        Handle(TDataXtd_Triangulation) attr;
+        if (!label.FindAttribute(TDataXtd_Triangulation::GetID(), attr)) return 0.0;
+        return attr->Deflection();
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - TDataXtd Point/Axis/Plane (v0.56.0)
+
+bool OCCTDocumentSetPointAttr(OCCTDocumentRef doc, int64_t labelId, double x, double y, double z) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_Point) attr = TDataXtd_Point::Set(label, gp_Pnt(x, y, z));
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentSetAxisAttr(OCCTDocumentRef doc, int64_t labelId, double ox, double oy, double oz, double dx, double dy, double dz) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        gp_Lin line(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        Handle(TDataXtd_Axis) attr = TDataXtd_Axis::Set(label, line);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentSetPlaneAttr(OCCTDocumentRef doc, int64_t labelId, double ox, double oy, double oz, double nx, double ny, double nz) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        gp_Pln plane(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        Handle(TDataXtd_Plane) attr = TDataXtd_Plane::Set(label, plane);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+// MARK: - TFunction Logbook (v0.56.0)
+
+bool OCCTDocumentSetLogbook(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_Logbook) logbook = TFunction_Logbook::Set(label);
+        return !logbook.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentLogbookSetTouched(OCCTDocumentRef doc, int64_t logbookLabelId, int64_t targetLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label logLabel = doc->getLabel(logbookLabelId);
+        if (logLabel.IsNull()) return false;
+        // TFunction_Logbook::Set places logbook on root, so find it there
+        Handle(TFunction_Logbook) logbook;
+        if (!logLabel.Root().FindAttribute(TFunction_Logbook::GetID(), logbook)) return false;
+        TDF_Label target = doc->getLabel(targetLabelId);
+        if (target.IsNull()) return false;
+        logbook->SetTouched(target);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentLogbookSetImpacted(OCCTDocumentRef doc, int64_t logbookLabelId, int64_t targetLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label logLabel = doc->getLabel(logbookLabelId);
+        if (logLabel.IsNull()) return false;
+        Handle(TFunction_Logbook) logbook;
+        if (!logLabel.Root().FindAttribute(TFunction_Logbook::GetID(), logbook)) return false;
+        TDF_Label target = doc->getLabel(targetLabelId);
+        if (target.IsNull()) return false;
+        logbook->SetImpacted(target);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentLogbookIsModified(OCCTDocumentRef doc, int64_t logbookLabelId, int64_t targetLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label logLabel = doc->getLabel(logbookLabelId);
+        if (logLabel.IsNull()) return false;
+        Handle(TFunction_Logbook) logbook;
+        if (!logLabel.Root().FindAttribute(TFunction_Logbook::GetID(), logbook)) return false;
+        TDF_Label target = doc->getLabel(targetLabelId);
+        if (target.IsNull()) return false;
+        return logbook->IsModified(target);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentLogbookClear(OCCTDocumentRef doc, int64_t logbookLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label logLabel = doc->getLabel(logbookLabelId);
+        if (logLabel.IsNull()) return false;
+        Handle(TFunction_Logbook) logbook;
+        if (!logLabel.Root().FindAttribute(TFunction_Logbook::GetID(), logbook)) return false;
+        logbook->Clear();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentLogbookIsEmpty(OCCTDocumentRef doc, int64_t logbookLabelId) {
+    if (!doc || doc->doc.IsNull()) return true;
+    try {
+        TDF_Label logLabel = doc->getLabel(logbookLabelId);
+        if (logLabel.IsNull()) return true;
+        Handle(TFunction_Logbook) logbook;
+        if (!logLabel.Root().FindAttribute(TFunction_Logbook::GetID(), logbook)) return true;
+        return logbook->IsEmpty();
+    } catch (...) { return true; }
+}
+
+// MARK: - TFunction GraphNode (v0.56.0)
+
+bool OCCTDocumentSetGraphNode(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_GraphNode) node = TFunction_GraphNode::Set(label);
+        return !node.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeAddPrevious(OCCTDocumentRef doc, int64_t labelId, int32_t prevTag) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_GraphNode) node;
+        if (!label.FindAttribute(TFunction_GraphNode::GetID(), node)) return false;
+        return node->AddPrevious(prevTag);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeAddNext(OCCTDocumentRef doc, int64_t labelId, int32_t nextTag) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_GraphNode) node;
+        if (!label.FindAttribute(TFunction_GraphNode::GetID(), node)) return false;
+        return node->AddNext(nextTag);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeSetStatus(OCCTDocumentRef doc, int64_t labelId, int32_t status) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_GraphNode) node;
+        if (!label.FindAttribute(TFunction_GraphNode::GetID(), node)) return false;
+        node->SetStatus(static_cast<TFunction_ExecutionStatus>(status));
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentGraphNodeGetStatus(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(TFunction_GraphNode) node;
+        if (!label.FindAttribute(TFunction_GraphNode::GetID(), node)) return -1;
+        return static_cast<int32_t>(node->GetStatus());
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentGraphNodeRemoveAllPrevious(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_GraphNode) node;
+        if (!label.FindAttribute(TFunction_GraphNode::GetID(), node)) return false;
+        node->RemoveAllPrevious();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeRemoveAllNext(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_GraphNode) node;
+        if (!label.FindAttribute(TFunction_GraphNode::GetID(), node)) return false;
+        node->RemoveAllNext();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - TFunction Function Attribute (v0.56.0)
+
+bool OCCTDocumentSetFunctionAttr(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_Function) func = TFunction_Function::Set(label);
+        return !func.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentFunctionIsFailed(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_Function) func;
+        if (!label.FindAttribute(TFunction_Function::GetID(), func)) return false;
+        return func->Failed();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentFunctionGetFailure(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(TFunction_Function) func;
+        if (!label.FindAttribute(TFunction_Function::GetID(), func)) return -1;
+        return func->GetFailure();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentFunctionSetFailure(OCCTDocumentRef doc, int64_t labelId, int32_t mode) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TFunction_Function) func;
+        if (!label.FindAttribute(TFunction_Function::GetID(), func)) return false;
+        func->SetFailure(mode);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - TNaming CopyShape (v0.56.0)
+
+OCCTShapeRef OCCTShapeDeepCopy(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        if (shape->shape.IsNull()) return nullptr;
+        TColStd_IndexedDataMapOfTransientTransient aMap;
+        TopoDS_Shape copy;
+        TNaming_CopyShape::CopyTool(shape->shape, aMap, copy);
+        if (copy.IsNull()) return nullptr;
+        return new OCCTShape(copy);
+    } catch (...) { return nullptr; }
+}

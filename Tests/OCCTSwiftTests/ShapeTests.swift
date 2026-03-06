@@ -16101,3 +16101,282 @@ struct TDataStdNamedDataTests {
         #expect(label.namedString("material") == "Steel")
     }
 }
+
+// MARK: - TDataXtd Shape Attribute Tests (v0.56.0)
+
+@Suite("TDataXtd Shape Attribute")
+struct TDataXtdShapeAttributeTests {
+
+    @Test("Set and get shape attribute on label")
+    func setGetShape() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+
+        #expect(label.setShapeAttribute(box))
+        #expect(label.hasShapeAttribute)
+        if let retrieved = label.shapeAttribute() {
+            #expect(retrieved.isValid)
+        }
+    }
+
+    @Test("Label without shape attribute")
+    func noShapeAttribute() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        #expect(!label.hasShapeAttribute)
+        #expect(label.shapeAttribute() == nil)
+    }
+}
+
+// MARK: - TDataXtd Position Attribute Tests (v0.56.0)
+
+@Suite("TDataXtd Position Attribute")
+struct TDataXtdPositionAttributeTests {
+
+    @Test("Set and get position attribute")
+    func setGetPosition() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        #expect(label.setPositionAttribute(x: 1.0, y: 2.0, z: 3.0))
+        #expect(label.hasPositionAttribute)
+        if let pos = label.positionAttribute() {
+            #expect(abs(pos.x - 1.0) < 1e-10)
+            #expect(abs(pos.y - 2.0) < 1e-10)
+            #expect(abs(pos.z - 3.0) < 1e-10)
+        }
+    }
+
+    @Test("Label without position attribute")
+    func noPositionAttribute() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        #expect(!label.hasPositionAttribute)
+        #expect(label.positionAttribute() == nil)
+    }
+}
+
+// MARK: - TDataXtd Geometry Attribute Tests (v0.56.0)
+
+@Suite("TDataXtd Geometry Attribute")
+struct TDataXtdGeometryAttributeTests {
+
+    @Test("Set and get geometry type")
+    func setGetGeometryType() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        #expect(label.setGeometryType(.point))
+        #expect(label.hasGeometryAttribute)
+        #expect(label.geometryType() == .point)
+
+        #expect(label.setGeometryType(.plane))
+        #expect(label.geometryType() == .plane)
+
+        #expect(label.setGeometryType(.cylinder))
+        #expect(label.geometryType() == .cylinder)
+    }
+
+    @Test("All geometry type values")
+    func allGeometryTypes() {
+        let doc = Document.create()!
+        let types: [GeometryType] = [.anyGeom, .point, .line, .circle, .ellipse, .spline, .plane, .cylinder]
+        for type in types {
+            let label = doc.createLabel()!
+            #expect(label.setGeometryType(type))
+            #expect(label.geometryType() == type)
+        }
+    }
+}
+
+// MARK: - TDataXtd Triangulation Attribute Tests (v0.56.0)
+
+@Suite("TDataXtd Triangulation Attribute")
+struct TDataXtdTriangulationAttributeTests {
+
+    @Test("Set triangulation from meshed shape")
+    func setTriangulation() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let sphere = Shape.sphere(radius: 10.0)!
+
+        #expect(label.setTriangulationFromShape(sphere, deflection: 1.0))
+        #expect(label.triangulationNodeCount > 0)
+        #expect(label.triangulationTriangleCount > 0)
+    }
+
+    @Test("Triangulation deflection")
+    func triangulationDeflection() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+
+        #expect(label.setTriangulationFromShape(box, deflection: 0.5))
+        #expect(label.triangulationDeflection > 0)
+    }
+}
+
+// MARK: - TDataXtd Point/Axis/Plane Attribute Tests (v0.56.0)
+
+@Suite("TDataXtd Point/Axis/Plane Attributes")
+struct TDataXtdGeometricAttrTests {
+
+    @Test("Set point attribute")
+    func setPoint() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        #expect(label.setPointAttribute(x: 5.0, y: 10.0, z: 15.0))
+    }
+
+    @Test("Set axis attribute")
+    func setAxis() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        #expect(label.setAxisAttribute(originX: 0, originY: 0, originZ: 0,
+                                        directionX: 0, directionY: 0, directionZ: 1))
+    }
+
+    @Test("Set plane attribute")
+    func setPlane() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        #expect(label.setPlaneAttribute(originX: 0, originY: 0, originZ: 0,
+                                         normalX: 0, normalY: 0, normalZ: 1))
+    }
+}
+
+// MARK: - TFunction Logbook Tests (v0.56.0)
+
+@Suite("TFunction Logbook")
+struct TFunctionLogbookTests {
+
+    @Test("Create logbook and mark labels")
+    func logbookBasic() {
+        let doc = Document.create()!
+        let logLabel = doc.createLabel()!
+        let target1 = doc.createLabel()!
+        let target2 = doc.createLabel()!
+
+        #expect(logLabel.setLogbook())
+        #expect(logLabel.logbookIsEmpty)
+
+        #expect(logLabel.logbookSetTouched(target1))
+        #expect(!logLabel.logbookIsEmpty)
+        #expect(logLabel.logbookIsModified(target1))
+        #expect(!logLabel.logbookIsModified(target2))
+    }
+
+    @Test("Logbook impacted and clear")
+    func logbookImpactedAndClear() {
+        let doc = Document.create()!
+        let logLabel = doc.createLabel()!
+        let target = doc.createLabel()!
+
+        logLabel.setLogbook()
+        #expect(logLabel.logbookSetImpacted(target))
+        #expect(logLabel.logbookClear())
+        #expect(logLabel.logbookIsEmpty)
+    }
+}
+
+// MARK: - TFunction GraphNode Tests (v0.56.0)
+
+@Suite("TFunction GraphNode")
+struct TFunctionGraphNodeTests {
+
+    @Test("Create graph node and set status")
+    func graphNodeStatus() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        #expect(label.setGraphNode())
+        #expect(label.setGraphNodeStatus(.notExecuted))
+        #expect(label.graphNodeStatus() == .notExecuted)
+
+        #expect(label.setGraphNodeStatus(.succeeded))
+        #expect(label.graphNodeStatus() == .succeeded)
+    }
+
+    @Test("Graph node dependencies")
+    func graphNodeDeps() {
+        let doc = Document.create()!
+        let node1 = doc.createLabel()!
+        let node2 = doc.createLabel()!
+
+        node1.setGraphNode()
+        node2.setGraphNode()
+
+        // Use tags for dependencies
+        #expect(node1.graphNodeAddNext(tag: node2.tag))
+        #expect(node2.graphNodeAddPrevious(tag: node1.tag))
+
+        // Remove all
+        #expect(node1.graphNodeRemoveAllNext())
+        #expect(node2.graphNodeRemoveAllPrevious())
+    }
+
+    @Test("All execution statuses")
+    func allStatuses() {
+        let doc = Document.create()!
+        let statuses: [ExecutionStatus] = [.wrongDefinition, .notExecuted, .executing, .succeeded, .failed]
+        for status in statuses {
+            let label = doc.createLabel()!
+            label.setGraphNode()
+            #expect(label.setGraphNodeStatus(status))
+            #expect(label.graphNodeStatus() == status)
+        }
+    }
+}
+
+// MARK: - TFunction Function Attribute Tests (v0.56.0)
+
+@Suite("TFunction Function Attribute")
+struct TFunctionFunctionAttrTests {
+
+    @Test("Create function attribute")
+    func createFunction() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        #expect(label.setFunctionAttribute())
+        // Initially not failed
+        #expect(!label.functionIsFailed)
+    }
+
+    @Test("Function failure mode")
+    func functionFailure() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        label.setFunctionAttribute()
+        #expect(label.setFunctionFailure(1))
+        #expect(label.functionIsFailed)
+        if let failure = label.functionFailure {
+            #expect(failure == 1)
+        }
+    }
+}
+
+// MARK: - TNaming CopyShape Tests (v0.56.0)
+
+@Suite("TNaming CopyShape")
+struct TNamingCopyShapeTests {
+
+    @Test("Deep copy a box shape")
+    func deepCopyBox() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        if let copy = box.deepCopy() {
+            #expect(copy.isValid)
+            #expect(copy !== box)
+        }
+    }
+
+    @Test("Deep copy a sphere shape")
+    func deepCopySphere() {
+        let sphere = Shape.sphere(radius: 5.0)!
+        if let copy = sphere.deepCopy() {
+            #expect(copy.isValid)
+        }
+    }
+}

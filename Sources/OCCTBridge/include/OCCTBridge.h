@@ -6309,6 +6309,128 @@ const char* OCCTDocumentNamedDataGetString(OCCTDocumentRef doc, int64_t labelId,
 /// Check if a named string exists in a NamedData attribute.
 bool OCCTDocumentNamedDataHasString(OCCTDocumentRef doc, int64_t labelId, const char* name);
 
+// MARK: - TDataXtd Shape Attribute (v0.56.0)
+
+/// Set a shape attribute on a label (stores shape via TNaming).
+bool OCCTDocumentSetShapeAttr(OCCTDocumentRef doc, int64_t labelId, OCCTShapeRef shape);
+
+/// Get the shape stored in a TDataXtd_Shape attribute on a label.
+OCCTShapeRef OCCTDocumentGetShapeAttr(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label has a TDataXtd_Shape attribute.
+bool OCCTDocumentHasShapeAttr(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - TDataXtd Position Attribute (v0.56.0)
+
+/// Set a position (3D point) attribute on a label.
+bool OCCTDocumentSetPositionAttr(OCCTDocumentRef doc, int64_t labelId, double x, double y, double z);
+
+/// Get the position attribute from a label.
+bool OCCTDocumentGetPositionAttr(OCCTDocumentRef doc, int64_t labelId, double* outX, double* outY, double* outZ);
+
+/// Check if a label has a TDataXtd_Position attribute.
+bool OCCTDocumentHasPositionAttr(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - TDataXtd Geometry Attribute (v0.56.0)
+
+/// Set a geometry type attribute on a label. Type values:
+/// 0=ANY_GEOM, 1=POINT, 2=LINE, 3=CIRCLE, 4=ELLIPSE, 5=SPLINE, 6=PLANE, 7=CYLINDER
+bool OCCTDocumentSetGeometryAttr(OCCTDocumentRef doc, int64_t labelId, int32_t geometryType);
+
+/// Get the geometry type from a label. Returns -1 if not found.
+int32_t OCCTDocumentGetGeometryType(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label has a TDataXtd_Geometry attribute.
+bool OCCTDocumentHasGeometryAttr(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - TDataXtd Triangulation Attribute (v0.56.0)
+
+/// Set a triangulation attribute on a label by meshing a shape.
+bool OCCTDocumentSetTriangulationFromShape(OCCTDocumentRef doc, int64_t labelId, OCCTShapeRef shape, double deflection);
+
+/// Get the number of nodes in a triangulation attribute.
+int32_t OCCTDocumentTriangulationNbNodes(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the number of triangles in a triangulation attribute.
+int32_t OCCTDocumentTriangulationNbTriangles(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the deflection of a triangulation attribute.
+double OCCTDocumentTriangulationDeflection(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - TDataXtd Point/Axis/Plane Attributes (v0.56.0)
+
+/// Set a point attribute on a label.
+bool OCCTDocumentSetPointAttr(OCCTDocumentRef doc, int64_t labelId, double x, double y, double z);
+
+/// Set an axis attribute on a label (origin + direction).
+bool OCCTDocumentSetAxisAttr(OCCTDocumentRef doc, int64_t labelId, double ox, double oy, double oz, double dx, double dy, double dz);
+
+/// Set a plane attribute on a label (origin + normal).
+bool OCCTDocumentSetPlaneAttr(OCCTDocumentRef doc, int64_t labelId, double ox, double oy, double oz, double nx, double ny, double nz);
+
+// MARK: - TFunction Logbook (v0.56.0)
+
+/// Create a TFunction_Logbook attribute on a label.
+bool OCCTDocumentSetLogbook(OCCTDocumentRef doc, int64_t labelId);
+
+/// Mark a label as touched in the logbook.
+bool OCCTDocumentLogbookSetTouched(OCCTDocumentRef doc, int64_t logbookLabelId, int64_t targetLabelId);
+
+/// Mark a label as impacted in the logbook.
+bool OCCTDocumentLogbookSetImpacted(OCCTDocumentRef doc, int64_t logbookLabelId, int64_t targetLabelId);
+
+/// Check if a label is modified (touched) in the logbook.
+bool OCCTDocumentLogbookIsModified(OCCTDocumentRef doc, int64_t logbookLabelId, int64_t targetLabelId);
+
+/// Clear the logbook.
+bool OCCTDocumentLogbookClear(OCCTDocumentRef doc, int64_t logbookLabelId);
+
+/// Check if the logbook is empty.
+bool OCCTDocumentLogbookIsEmpty(OCCTDocumentRef doc, int64_t logbookLabelId);
+
+// MARK: - TFunction GraphNode (v0.56.0)
+
+/// Create a TFunction_GraphNode attribute on a label.
+bool OCCTDocumentSetGraphNode(OCCTDocumentRef doc, int64_t labelId);
+
+/// Add a previous dependency to a graph node (by tag ID).
+bool OCCTDocumentGraphNodeAddPrevious(OCCTDocumentRef doc, int64_t labelId, int32_t prevTag);
+
+/// Add a next dependency to a graph node (by tag ID).
+bool OCCTDocumentGraphNodeAddNext(OCCTDocumentRef doc, int64_t labelId, int32_t nextTag);
+
+/// Set the execution status of a graph node.
+/// 0=WrongDefinition, 1=NotExecuted, 2=Executing, 3=Succeeded, 4=Failed
+bool OCCTDocumentGraphNodeSetStatus(OCCTDocumentRef doc, int64_t labelId, int32_t status);
+
+/// Get the execution status of a graph node. Returns -1 if not found.
+int32_t OCCTDocumentGraphNodeGetStatus(OCCTDocumentRef doc, int64_t labelId);
+
+/// Remove all previous dependencies from a graph node.
+bool OCCTDocumentGraphNodeRemoveAllPrevious(OCCTDocumentRef doc, int64_t labelId);
+
+/// Remove all next dependencies from a graph node.
+bool OCCTDocumentGraphNodeRemoveAllNext(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - TFunction Function Attribute (v0.56.0)
+
+/// Create a TFunction_Function attribute on a label.
+bool OCCTDocumentSetFunctionAttr(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a function attribute has failed.
+bool OCCTDocumentFunctionIsFailed(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the failure mode of a function attribute. Returns -1 if not found.
+int32_t OCCTDocumentFunctionGetFailure(OCCTDocumentRef doc, int64_t labelId);
+
+/// Set the failure mode of a function attribute.
+bool OCCTDocumentFunctionSetFailure(OCCTDocumentRef doc, int64_t labelId, int32_t mode);
+
+// MARK: - TNaming CopyShape (v0.56.0)
+
+/// Deep copy a shape (creates independent copy with new topology).
+OCCTShapeRef OCCTShapeDeepCopy(OCCTShapeRef shape);
+
 #ifdef __cplusplus
 }
 #endif
