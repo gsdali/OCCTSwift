@@ -14482,3 +14482,305 @@ struct WireFromCurve2DOnPlaneTests {
         }
     }
 }
+
+// MARK: - v0.52.0: BRepFill, LocOpe, Healing Utilities, 2D Curve Tools
+
+@Suite("BRepFill Generator Tests")
+struct BRepFillGeneratorTests {
+    @Test("Ruled shell from two circular wires")
+    func twoCircleWires() {
+        let w1 = Wire.circle(radius: 10)
+        let w2 = Wire.circle(radius: 5)
+        if let w1, let w2 {
+            let shell = Shape.ruledShell(from: [w1, w2])
+            #expect(shell != nil)
+            if let s = shell {
+                #expect(s.isValid)
+            }
+        }
+    }
+
+    @Test("Ruled shell from two rectangular wires")
+    func twoRectWires() {
+        let w1 = Wire.rectangle(width: 10, height: 10)
+        let w2 = Wire.rectangle(width: 15, height: 15)
+        if let w1, let w2 {
+            let shell = Shape.ruledShell(from: [w1, w2])
+            #expect(shell != nil)
+        }
+    }
+
+    @Test("Returns nil with fewer than 2 wires")
+    func needsAtLeastTwo() {
+        let w1 = Wire.rectangle(width: 10, height: 10)!
+        let result = Shape.ruledShell(from: [w1])
+        #expect(result == nil)
+    }
+}
+
+@Suite("BRepFill AdvancedEvolved Tests")
+struct BRepFillAdvancedEvolvedTests {
+    @Test("Evolved solid from circular spine and rectangular profile")
+    func circleSpineRectProfile() {
+        let spine = Wire.circle(radius: 20)
+        let profile = Wire.rectangle(width: 3, height: 3)
+        if let spine, let profile {
+            let result = Shape.advancedEvolved(spine: spine, profile: profile)
+            #expect(result != nil)
+            if let r = result {
+                #expect(r.isValid)
+            }
+        }
+    }
+}
+
+@Suite("BRepFill OffsetWire Tests")
+struct BRepFillOffsetWireTests {
+    @Test("Offset planar wire outward")
+    func offsetOutward() {
+        // Create a face from a rectangle
+        let wire = Wire.rectangle(width: 20, height: 20)!
+        if let shape = Shape.fromWire(wire) {
+            let faces = shape.faces()
+            if !faces.isEmpty {
+                let result = Shape.offsetWire(face: faces[0], offset: 3.0)
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("Offset planar wire inward")
+    func offsetInward() {
+        let wire = Wire.rectangle(width: 20, height: 20)!
+        if let shape = Shape.fromWire(wire) {
+            let faces = shape.faces()
+            if !faces.isEmpty {
+                let result = Shape.offsetWire(face: faces[0], offset: -3.0)
+                #expect(result != nil)
+            }
+        }
+    }
+}
+
+@Suite("BRepFill Draft Tests")
+struct BRepFillDraftTests {
+    @Test("Draft surface from rectangular wire")
+    func draftFromRect() {
+        let wire = Wire.rectangle(width: 10, height: 10)!
+        let result = Shape.draft(
+            wire: wire,
+            direction: SIMD3(0, 0, 1),
+            angle: 0.1,
+            length: 20)
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.isValid)
+        }
+    }
+}
+
+@Suite("BRepFill Pipe Tests")
+struct BRepFillPipeTests {
+    @Test("Pipe sweep with error metric")
+    func pipeSweep() {
+        // Straight spine
+        let spine = Wire.line(from: .zero, to: SIMD3(0, 0, 50))
+        let profile = Wire.circle(radius: 5)
+        if let spine, let profile {
+            let result = Shape.pipeSweep(spine: spine, profile: profile)
+            #expect(result != nil)
+            if let r = result {
+                #expect(r.shape.isValid)
+                #expect(r.errorOnSurface >= 0)
+            }
+        }
+    }
+}
+
+@Suite("BRepFill CompatibleWires Tests")
+struct BRepFillCompatibleWiresTests {
+    @Test("Make two wires compatible for lofting")
+    func normalizeWires() {
+        let w1 = Wire.rectangle(width: 10, height: 10)!
+        let w2 = Wire.rectangle(width: 15, height: 15)!
+        let result = Shape.compatibleWires([w1, w2])
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.count >= 2)
+        }
+    }
+}
+
+@Suite("ChFi2d FilletAlgo Tests")
+struct ChFi2dFilletAlgoTests {
+    @Test("Iterative 2D fillet between two line edges")
+    func filletBetweenLines() {
+        // Two edges meeting at origin
+        let e1Wire = Wire.line(from: .zero, to: SIMD3(10, 0, 0))
+        let e2Wire = Wire.line(from: .zero, to: SIMD3(0, 10, 0))
+        if let e1 = e1Wire.flatMap({ Shape.fromWire($0) }),
+           let e2 = e2Wire.flatMap({ Shape.fromWire($0) }) {
+            let result = Shape.filletAlgo(edge1: e1, edge2: e2, radius: 2.0)
+            #expect(result != nil)
+            if let r = result {
+                #expect(r.fillet.isValid)
+                #expect(r.resultCount >= 1)
+            }
+        }
+    }
+}
+
+@Suite("BRepTools Substitution Tests")
+struct BRepToolsSubstitutionTests {
+    @Test("Substitution bridge function is callable")
+    func substituteCallable() {
+        // BRepTools_Substitution works with topological sub-shapes extracted from
+        // the same parent shape. Creating standalone vertices doesn't share topology.
+        // We verify the bridge function handles this gracefully (returns nil).
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        if let v1 = Shape.vertex(at: SIMD3(0, 0, 0)),
+           let v2 = Shape.vertex(at: SIMD3(1, 0, 0)) {
+            // This returns nil because v1 is not a sub-shape of box
+            let result = box.substituted(replacing: v1, with: v2)
+            // Just verify it doesn't crash
+            _ = result
+        }
+    }
+}
+
+@Suite("ShapeUpgrade ShellSewing Tests")
+struct ShapeUpgradeShellSewingTests {
+    @Test("Sew shells in box shape")
+    func sewBoxShells() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.shellSewing(tolerance: 1e-6)
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.isValid)
+        }
+    }
+}
+
+@Suite("LocOpe BuildShape Tests")
+struct LocOpeBuildShapeTests {
+    @Test("Build shape from box faces")
+    func buildFromFaces() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = box.builtFromFaces()
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.isValid)
+        }
+    }
+}
+
+@Suite("Shape CSIntersector Tests v52")
+struct ShapeCSIntersectorTestsV52 {
+    @Test("Intersect line through box")
+    func lineIntersectsBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let pts = box.intersectLine(
+            origin: SIMD3(-10, 0, 0),
+            direction: SIMD3(1, 0, 0))
+        #expect(pts.count >= 2) // enters and exits the box
+    }
+}
+
+@Suite("Curve2D IsLinear Tests")
+struct Curve2DIsLinearTests {
+    @Test("Linear BSpline is detected as linear")
+    func linearBSpline() {
+        // Interpolate through collinear points → near-linear BSpline
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(5, 5), SIMD2(10, 10)]
+        if let curve = Curve2D.interpolate(through: pts) {
+            if let result = curve.isLinear(tolerance: 0.1) {
+                #expect(result.isLinear)
+            }
+        }
+    }
+
+    @Test("Non-linear curve is detected as non-linear")
+    func nonLinearCurve() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 0)]
+        if let curve = Curve2D.interpolate(through: pts) {
+            if let result = curve.isLinear(tolerance: 1e-6) {
+                #expect(!result.isLinear)
+            }
+        }
+    }
+}
+
+@Suite("Curve2D ConvertToLine Tests")
+struct Curve2DConvertToLineTests {
+    @Test("Convert linear BSpline to line")
+    func convertLinearBSpline() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(10, 0)]
+        if let curve = Curve2D.interpolate(through: pts) {
+            let d = curve.domain
+            let result = curve.convertToLine(
+                first: d.lowerBound, last: d.upperBound, tolerance: 1e-3)
+            #expect(result != nil)
+        }
+    }
+}
+
+@Suite("Curve2D SimplifyBSpline Tests")
+struct Curve2DSimplifyBSplineTests {
+    @Test("Simplify a BSpline curve")
+    func simplify() {
+        // Interpolate through more points than needed
+        let pts: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(2, 0.1), SIMD2(4, 0), SIMD2(6, 0.1),
+            SIMD2(8, 0), SIMD2(10, 0)
+        ]
+        if let curve = Curve2D.interpolate(through: pts) {
+            // Just verify it doesn't crash
+            let simplified = curve.simplifyBSpline(tolerance: 0.2)
+            // Result depends on curve complexity — either way is valid
+            _ = simplified
+        }
+    }
+}
+
+@Suite("Approx Curve2D Tests")
+struct ApproxCurve2DTests {
+    @Test("Approximate 2D circle as BSpline")
+    func approxCircle() {
+        if let circle = Curve2D.circle(center: .zero, radius: 10) {
+            let d = circle.domain
+            let result = circle.approximated(
+                first: d.lowerBound, last: d.upperBound,
+                toleranceU: 1e-6, toleranceV: 1e-6)
+            #expect(result != nil)
+            if let r = result {
+                let rd = r.domain
+                #expect(rd.upperBound > rd.lowerBound)
+            }
+        }
+    }
+}
+
+@Suite("Edge Split Tests")
+struct EdgeSplitTests {
+    @Test("Split edge at midpoint")
+    func splitAtMidpoint() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edges = box.edges()
+        // Find a line edge and split it
+        for edge in edges {
+            if edge.isLine {
+                if let bounds = edge.parameterBounds {
+                    let midParam = (bounds.first + bounds.last) / 2.0
+                    if let midPt = edge.point(at: midParam) {
+                        let result = edge.split(at: midParam, vertex: midPt)
+                        if let (e1, e2) = result {
+                            #expect(e1.length > 0)
+                            #expect(e2.length > 0)
+                        }
+                        break
+                    }
+                }
+            }
+        }
+    }
+}

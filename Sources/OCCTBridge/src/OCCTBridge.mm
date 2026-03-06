@@ -19101,6 +19101,386 @@ OCCTCurve2DRef _Nullable OCCTCurve2DMakeLineParallel(double px, double py,
     }
 }
 
+// MARK: - v0.52.0: BRepFill, LocOpe, Healing Utilities, 2D Curve Tools
+
+#include <BRepFill_Generator.hxx>
+#include <BRepFill_AdvancedEvolved.hxx>
+#include <BRepFill_OffsetWire.hxx>
+#include <BRepFill_Draft.hxx>
+#include <BRepFill_Pipe.hxx>
+#include <BRepFill_CompatibleWires.hxx>
+#include <ChFi2d_FilletAlgo.hxx>
+#include <BRepTools_Substitution.hxx>
+#include <ShapeUpgrade_ShellSewing.hxx>
+#include <ShapeCustom_Curve2d.hxx>
+#include <ShapeFix_SplitTool.hxx>
+#include <LocOpe_BuildShape.hxx>
+#include <LocOpe_CSIntersector.hxx>
+#include <LocOpe_PntFace.hxx>
+#include <Approx_Curve2d.hxx>
+#include <Geom2dAdaptor_Curve.hxx>
+#include <Adaptor2d_Curve2d.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <GeomFill_Trihedron.hxx>
+#include <gp_Lin.hxx>
+#include <NCollection_Sequence.hxx>
+
+// --- BRepFill_Generator ---
+
+OCCTShapeRef _Nullable OCCTBRepFillGenerator(const OCCTWireRef _Nonnull * _Nonnull wires, int32_t count) {
+    if (!wires || count < 2) return nullptr;
+    try {
+        BRepFill_Generator gen;
+        for (int i = 0; i < count; i++) {
+            if (!wires[i]) return nullptr;
+            gen.AddWire(wires[i]->wire);
+        }
+        gen.Perform();
+        TopoDS_Shell shell = gen.Shell();
+        if (shell.IsNull()) return nullptr;
+        auto* result = new OCCTShape();
+        result->shape = shell;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- BRepFill_AdvancedEvolved ---
+
+OCCTShapeRef _Nullable OCCTBRepFillAdvancedEvolved(OCCTWireRef spine, OCCTWireRef profile,
+    double tolerance, bool solidReq) {
+    if (!spine || !profile) return nullptr;
+    try {
+        BRepFill_AdvancedEvolved ae;
+        ae.Perform(spine->wire, profile->wire, tolerance, solidReq);
+        if (!ae.IsDone()) return nullptr;
+        TopoDS_Shape shape = ae.Shape();
+        if (shape.IsNull()) return nullptr;
+        auto* result = new OCCTShape();
+        result->shape = shape;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- BRepFill_OffsetWire ---
+
+OCCTShapeRef _Nullable OCCTBRepFillOffsetWire(OCCTFaceRef faceRef, double offset) {
+    if (!faceRef) return nullptr;
+    try {
+        BRepFill_OffsetWire ow(faceRef->face, GeomAbs_Arc, false);
+        ow.Perform(offset);
+        if (!ow.IsDone()) return nullptr;
+        TopoDS_Shape shape = ow.Shape();
+        if (shape.IsNull()) return nullptr;
+        auto* result = new OCCTShape();
+        result->shape = shape;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- BRepFill_Draft ---
+
+OCCTShapeRef _Nullable OCCTBRepFillDraft(OCCTWireRef wire,
+    double dirX, double dirY, double dirZ, double angle, double length) {
+    if (!wire) return nullptr;
+    try {
+        gp_Dir dir(dirX, dirY, dirZ);
+        BRepFill_Draft draft(wire->wire, dir, angle);
+        draft.Perform(length);
+        if (!draft.IsDone()) return nullptr;
+        TopoDS_Shape shape = draft.Shape();
+        if (shape.IsNull()) return nullptr;
+        auto* result = new OCCTShape();
+        result->shape = shape;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- BRepFill_Pipe ---
+
+OCCTBRepFillPipeResult OCCTBRepFillPipe(OCCTWireRef spine, OCCTWireRef profile) {
+    OCCTBRepFillPipeResult result = {};
+    if (!spine || !profile) return result;
+    try {
+        BRepFill_Pipe pipe(spine->wire, profile->wire, GeomFill_IsCorrectedFrenet, false, false);
+        TopoDS_Shape shape = pipe.Shape();
+        if (shape.IsNull()) return result;
+        result.errorOnSurface = pipe.ErrorOnSurface();
+        auto* s = new OCCTShape();
+        s->shape = shape;
+        result.shape = s;
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// --- BRepFill_CompatibleWires ---
+
+int32_t OCCTBRepFillCompatibleWires(const OCCTWireRef _Nonnull * _Nonnull wires, int32_t count,
+    OCCTWireRef _Nullable * _Nonnull outWires) {
+    if (!wires || count < 2 || !outWires) return 0;
+    try {
+        NCollection_Sequence<TopoDS_Shape> sections;
+        for (int i = 0; i < count; i++) {
+            if (!wires[i]) return 0;
+            sections.Append(wires[i]->wire);
+        }
+        BRepFill_CompatibleWires cw(sections);
+        cw.Perform();
+        if (!cw.IsDone()) return 0;
+        auto& result = cw.Shape();
+        int32_t n = (int32_t)result.Size();
+        if (n > count) n = count;
+        for (int i = 0; i < n; i++) {
+            TopoDS_Wire w = TopoDS::Wire(result.Value(i + 1)); // 1-indexed
+            auto* wireObj = new OCCTWire();
+            wireObj->wire = w;
+            outWires[i] = wireObj;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// --- ChFi2d_FilletAlgo ---
+
+OCCTChFi2dFilletResult OCCTChFi2dFilletAlgo(OCCTShapeRef edge1, OCCTShapeRef edge2,
+    double planeOx, double planeOy, double planeOz,
+    double planeNx, double planeNy, double planeNz,
+    double radius) {
+    OCCTChFi2dFilletResult result = {};
+    if (!edge1 || !edge2) return result;
+    try {
+        TopoDS_Edge e1, e2;
+        if (edge1->shape.ShapeType() == TopAbs_EDGE) {
+            e1 = TopoDS::Edge(edge1->shape);
+        } else {
+            for (TopExp_Explorer exp(edge1->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+                e1 = TopoDS::Edge(exp.Current()); break;
+            }
+        }
+        if (edge2->shape.ShapeType() == TopAbs_EDGE) {
+            e2 = TopoDS::Edge(edge2->shape);
+        } else {
+            for (TopExp_Explorer exp(edge2->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+                e2 = TopoDS::Edge(exp.Current()); break;
+            }
+        }
+        if (e1.IsNull() || e2.IsNull()) return result;
+
+        gp_Pln plane(gp_Pnt(planeOx, planeOy, planeOz), gp_Dir(planeNx, planeNy, planeNz));
+        ChFi2d_FilletAlgo fillet(e1, e2, plane);
+        if (!fillet.Perform(radius)) return result;
+
+        gp_Pnt corner;
+        // Find the intersection point of the two edges
+        double f1, l1, f2, l2;
+        Handle(Geom_Curve) c1 = BRep_Tool::Curve(e1, f1, l1);
+        Handle(Geom_Curve) c2 = BRep_Tool::Curve(e2, f2, l2);
+        if (c1.IsNull() || c2.IsNull()) return result;
+        // Try endpoints
+        gp_Pnt p1s = c1->Value(f1), p1e = c1->Value(l1);
+        gp_Pnt p2s = c2->Value(f2), p2e = c2->Value(l2);
+        if (p1s.Distance(p2s) < 1e-6) corner = p1s;
+        else if (p1s.Distance(p2e) < 1e-6) corner = p1s;
+        else if (p1e.Distance(p2s) < 1e-6) corner = p1e;
+        else if (p1e.Distance(p2e) < 1e-6) corner = p1e;
+        else corner = p1s; // fallback
+
+        int nb = fillet.NbResults(corner);
+        result.resultCount = nb;
+        if (nb < 1) return result;
+
+        TopoDS_Edge re1, re2;
+        TopoDS_Edge filletEdge = fillet.Result(corner, re1, re2);
+        if (filletEdge.IsNull()) return result;
+
+        result.success = true;
+        auto* filletShape = new OCCTShape();
+        filletShape->shape = filletEdge;
+        result.fillet = filletShape;
+
+        auto* e1Shape = new OCCTShape();
+        e1Shape->shape = re1;
+        result.edge1 = e1Shape;
+
+        auto* e2Shape = new OCCTShape();
+        e2Shape->shape = re2;
+        result.edge2 = e2Shape;
+
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// --- BRepTools_Substitution ---
+
+OCCTShapeRef _Nullable OCCTBRepToolsSubstitute(OCCTShapeRef parentShape,
+    OCCTShapeRef oldSubShape, OCCTShapeRef newSubShape) {
+    if (!parentShape || !oldSubShape || !newSubShape) return nullptr;
+    try {
+        TopTools_ListOfShape newShapes;
+        newShapes.Append(newSubShape->shape);
+        BRepTools_Substitution sub;
+        sub.Substitute(oldSubShape->shape, newShapes);
+        sub.Build(parentShape->shape);
+        if (!sub.IsCopied(parentShape->shape)) return nullptr;
+        auto& copies = sub.Copy(parentShape->shape);
+        if (copies.Size() == 0) return nullptr;
+        auto* result = new OCCTShape();
+        result->shape = copies.First();
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- ShapeUpgrade_ShellSewing ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeShellSewing(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShellSewing ss;
+        TopoDS_Shape sewn = ss.ApplySewing(shape->shape, tolerance);
+        if (sewn.IsNull()) return nullptr;
+        auto* result = new OCCTShape();
+        result->shape = sewn;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- ShapeCustom_Curve2d ---
+
+bool OCCTCurve2DIsLinear(OCCTCurve2DRef curve2D, double tolerance, double* deviation) {
+    if (!curve2D || !deviation) return false;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(curve2D->curve);
+        if (bsp.IsNull()) return false;
+        TColgp_Array1OfPnt2d poles(1, bsp->NbPoles());
+        for (int i = 1; i <= bsp->NbPoles(); i++) {
+            poles(i) = bsp->Pole(i);
+        }
+        return ShapeCustom_Curve2d::IsLinear(poles, tolerance, *deviation);
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTCurve2DRef _Nullable OCCTCurve2DConvertToLine(OCCTCurve2DRef curve2D,
+    double first, double last, double tolerance,
+    double* newFirst, double* newLast, double* deviation) {
+    if (!curve2D || !newFirst || !newLast || !deviation) return nullptr;
+    try {
+        Handle(Geom2d_Line) line = ShapeCustom_Curve2d::ConvertToLine2d(
+            curve2D->curve, first, last, tolerance, *newFirst, *newLast, *deviation);
+        if (line.IsNull()) return nullptr;
+        auto* result = new OCCTCurve2D();
+        result->curve = line;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTCurve2DSimplifyBSpline(OCCTCurve2DRef curve2D, double tolerance) {
+    if (!curve2D) return false;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(curve2D->curve);
+        if (bsp.IsNull()) return false;
+        return ShapeCustom_Curve2d::SimplifyBSpline2d(bsp, tolerance);
+    } catch (...) {
+        return false;
+    }
+}
+
+// --- ShapeFix_SplitTool ---
+
+bool OCCTShapeFixSplitEdge(OCCTEdgeRef edge, double param,
+    double vertexX, double vertexY, double vertexZ,
+    OCCTEdgeRef _Nullable * _Nonnull outEdge1,
+    OCCTEdgeRef _Nullable * _Nonnull outEdge2) {
+    if (!edge || !outEdge1 || !outEdge2) return false;
+    try {
+        TopoDS_Vertex vert = BRepBuilderAPI_MakeVertex(gp_Pnt(vertexX, vertexY, vertexZ)).Vertex();
+        // Create a minimal planar face for the split context
+        double f, l;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge->edge, f, l);
+        if (curve.IsNull()) return false;
+        gp_Pnt mid = curve->Value((f + l) / 2.0);
+        gp_Pln plane(mid, gp_Dir(0, 0, 1));
+        TopoDS_Face face = BRepBuilderAPI_MakeFace(plane, -1000, 1000, -1000, 1000).Face();
+
+        ShapeFix_SplitTool tool;
+        TopoDS_Edge newE1, newE2;
+        bool ok = tool.SplitEdge(edge->edge, param, vert, face, newE1, newE2, 1e-6, 1e-6);
+        if (!ok || newE1.IsNull() || newE2.IsNull()) return false;
+
+        auto* e1 = new OCCTEdge();
+        e1->edge = newE1;
+        *outEdge1 = e1;
+
+        auto* e2 = new OCCTEdge();
+        e2->edge = newE2;
+        *outEdge2 = e2;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// --- LocOpe_BuildShape ---
+
+OCCTShapeRef _Nullable OCCTLocOpeBuildShape(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        TopTools_ListOfShape faces;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            faces.Append(exp.Current());
+        }
+        if (faces.Size() == 0) return nullptr;
+        LocOpe_BuildShape bs(faces);
+        TopoDS_Shape result = bs.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* r = new OCCTShape();
+        r->shape = result;
+        return r;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- Approx_Curve2d ---
+
+OCCTCurve2DRef _Nullable OCCTApproxCurve2d(OCCTCurve2DRef curve2D,
+    double first, double last, double tolU, double tolV,
+    int32_t maxDegree, int32_t maxSegments) {
+    if (!curve2D) return nullptr;
+    try {
+        Handle(Adaptor2d_Curve2d) adaptor = new Geom2dAdaptor_Curve(curve2D->curve, first, last);
+        Approx_Curve2d approx(adaptor, first, last, tolU, tolV, GeomAbs_C2, maxDegree, maxSegments);
+        if (!approx.IsDone() || !approx.HasResult()) return nullptr;
+        Handle(Geom2d_BSplineCurve) bsp = approx.Curve();
+        if (bsp.IsNull()) return nullptr;
+        auto* result = new OCCTCurve2D();
+        result->curve = bsp;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // --- ChFi2d_AnaFilletAlgo ---
 
 OCCTAnaFilletResult OCCTChFi2dAnaFillet(OCCTShapeRef edge1, OCCTShapeRef edge2,

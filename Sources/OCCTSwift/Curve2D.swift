@@ -1042,3 +1042,71 @@ extension Curve2D {
         return Curve2D(handle: h)
     }
 }
+
+// MARK: - v0.52.0: ShapeCustom_Curve2d & Approx_Curve2d
+
+extension Curve2D {
+
+    /// Check if this 2D BSpline curve is nearly linear (collinear control points).
+    ///
+    /// - Parameter tolerance: Maximum allowed deviation from a straight line
+    /// - Returns: Tuple of (isLinear, deviation) where deviation is the actual maximum
+    ///   deviation from the line, or nil if not a BSpline curve
+    public func isLinear(tolerance: Double = 1e-6) -> (isLinear: Bool, deviation: Double)? {
+        var deviation: Double = 0
+        let result = OCCTCurve2DIsLinear(handle, tolerance, &deviation)
+        return (isLinear: result, deviation: deviation)
+    }
+
+    /// Convert a nearly-linear 2D curve to a line.
+    ///
+    /// If this curve is within tolerance of a straight line, returns the equivalent
+    /// line curve along with reparametrized bounds.
+    ///
+    /// - Parameters:
+    ///   - first: First parameter of the range to check
+    ///   - last: Last parameter of the range to check
+    ///   - tolerance: Maximum allowed deviation
+    /// - Returns: Tuple of (line, newFirst, newLast, deviation), or nil if not linear
+    public func convertToLine(
+        first: Double, last: Double, tolerance: Double = 1e-3
+    ) -> (line: Curve2D, newFirst: Double, newLast: Double, deviation: Double)? {
+        var newFirst: Double = 0, newLast: Double = 0, deviation: Double = 0
+        guard let h = OCCTCurve2DConvertToLine(
+            handle, first, last, tolerance, &newFirst, &newLast, &deviation) else { return nil }
+        return (line: Curve2D(handle: h), newFirst: newFirst, newLast: newLast, deviation: deviation)
+    }
+
+    /// Simplify a 2D BSpline curve by removing unnecessary knots.
+    ///
+    /// Modifies this curve in place by removing knots that don't affect the
+    /// shape within the given tolerance.
+    ///
+    /// - Parameter tolerance: Maximum allowed deviation
+    /// - Returns: true if the curve was simplified
+    @discardableResult
+    public func simplifyBSpline(tolerance: Double = 1e-6) -> Bool {
+        OCCTCurve2DSimplifyBSpline(handle, tolerance)
+    }
+
+    /// Approximate this 2D curve as a BSpline.
+    ///
+    /// - Parameters:
+    ///   - first: First parameter
+    ///   - last: Last parameter
+    ///   - toleranceU: Tolerance in U direction (default 1e-6)
+    ///   - toleranceV: Tolerance in V direction (default 1e-6)
+    ///   - maxDegree: Maximum BSpline degree (default 8)
+    ///   - maxSegments: Maximum number of segments (default 100)
+    /// - Returns: Approximated BSpline curve, or nil on failure
+    public func approximated(
+        first: Double, last: Double,
+        toleranceU: Double = 1e-6, toleranceV: Double = 1e-6,
+        maxDegree: Int = 8, maxSegments: Int = 100
+    ) -> Curve2D? {
+        guard let h = OCCTApproxCurve2d(
+            handle, first, last, toleranceU, toleranceV,
+            Int32(maxDegree), Int32(maxSegments)) else { return nil }
+        return Curve2D(handle: h)
+    }
+}

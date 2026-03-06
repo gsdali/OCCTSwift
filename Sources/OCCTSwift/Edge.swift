@@ -319,3 +319,23 @@ extension Edge {
         return CurveApproximation(maxError: maxError, degree: Int(degree), poleCount: Int(nbPoles))
     }
 }
+
+// MARK: - Edge Splitting (v0.52.0)
+
+extension Edge {
+    /// Split this edge at a parameter value.
+    ///
+    /// Divides the edge into two new edges at the specified parameter.
+    ///
+    /// - Parameters:
+    ///   - parameter: Parameter value at which to split
+    ///   - vertex: 3D position for the split vertex
+    /// - Returns: Tuple of (edge1, edge2) representing the two halves, or nil on failure
+    public func split(at parameter: Double, vertex: SIMD3<Double>) -> (Edge, Edge)? {
+        var e1: OCCTEdgeRef?
+        var e2: OCCTEdgeRef?
+        guard OCCTShapeFixSplitEdge(handle, parameter, vertex.x, vertex.y, vertex.z, &e1, &e2),
+              let edge1 = e1, let edge2 = e2 else { return nil }
+        return (Edge(handle: edge1), Edge(handle: edge2))
+    }
+}

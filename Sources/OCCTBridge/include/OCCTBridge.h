@@ -5621,6 +5621,175 @@ OCCTAnaFilletResult OCCTChFi2dAnaFillet(OCCTShapeRef edge1, OCCTShapeRef edge2,
     double planeNx, double planeNy, double planeNz,
     double radius);
 
+// MARK: - v0.52.0: BRepFill, LocOpe, Healing Utilities, 2D Curve Tools
+
+// --- BRepFill_Generator ---
+
+/// Create a ruled shell by lofting between multiple wire sections.
+/// @param wires Array of wire handles
+/// @param count Number of wires
+/// @return Shell shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFillGenerator(const OCCTWireRef _Nonnull * _Nonnull wires, int32_t count);
+
+// --- BRepFill_AdvancedEvolved ---
+
+/// Create an evolved solid from a spine wire and profile wire.
+/// @param spine Wire defining the sweep path
+/// @param profile Wire defining the cross-section
+/// @param tolerance Geometric tolerance (default 1e-3)
+/// @param solidReq Whether to produce a solid (vs shell)
+/// @return Evolved shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFillAdvancedEvolved(OCCTWireRef spine, OCCTWireRef profile,
+    double tolerance, bool solidReq);
+
+// --- BRepFill_OffsetWire ---
+
+/// Offset a planar wire on its face.
+/// @param faceRef Face containing the wire
+/// @param offset Signed offset distance (positive = outward, negative = inward)
+/// @return Offset wire shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFillOffsetWire(OCCTFaceRef faceRef, double offset);
+
+// --- BRepFill_Draft ---
+
+/// Create a draft surface from a wire along a direction with a taper angle.
+/// @param wire Wire defining the base profile
+/// @param dirX,dirY,dirZ Draft direction
+/// @param angle Taper angle in radians
+/// @param length Draft length
+/// @return Draft shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFillDraft(OCCTWireRef wire,
+    double dirX, double dirY, double dirZ, double angle, double length);
+
+// --- BRepFill_Pipe ---
+
+/// Result of a pipe sweep operation.
+typedef struct {
+    OCCTShapeRef _Nullable shape;  // The swept pipe shape
+    double errorOnSurface;         // Surface approximation error
+} OCCTBRepFillPipeResult;
+
+/// Create a pipe sweep of a profile along a spine.
+/// @param spine Wire defining the sweep path
+/// @param profile Wire defining the cross-section
+/// @return Pipe result with shape and error metric
+OCCTBRepFillPipeResult OCCTBRepFillPipe(OCCTWireRef spine, OCCTWireRef profile);
+
+// --- BRepFill_CompatibleWires ---
+
+/// Make wires compatible for lofting (same number of edges, aligned).
+/// @param wires Array of wire handles
+/// @param count Number of wires
+/// @param outWires Output array for compatible wires (must be pre-allocated to count)
+/// @return Number of compatible wires produced, or 0 on failure
+int32_t OCCTBRepFillCompatibleWires(const OCCTWireRef _Nonnull * _Nonnull wires, int32_t count,
+    OCCTWireRef _Nullable * _Nonnull outWires);
+
+// --- ChFi2d_FilletAlgo ---
+
+/// Result of a 2D iterative fillet operation.
+typedef struct {
+    OCCTShapeRef _Nullable fillet;  // The fillet arc edge
+    OCCTShapeRef _Nullable edge1;   // Trimmed first edge
+    OCCTShapeRef _Nullable edge2;   // Trimmed second edge
+    int32_t resultCount;            // Number of fillet solutions found
+    bool success;
+} OCCTChFi2dFilletResult;
+
+/// Compute a 2D iterative fillet between two edges in a plane.
+/// @param edge1 First edge shape
+/// @param edge2 Second edge shape
+/// @param planeOx,planeOy,planeOz Point on the working plane
+/// @param planeNx,planeNy,planeNz Plane normal direction
+/// @param radius Fillet radius
+/// @return Fillet result with fillet edge and trimmed input edges
+OCCTChFi2dFilletResult OCCTChFi2dFilletAlgo(OCCTShapeRef edge1, OCCTShapeRef edge2,
+    double planeOx, double planeOy, double planeOz,
+    double planeNx, double planeNy, double planeNz,
+    double radius);
+
+// --- BRepTools_Substitution ---
+
+/// Substitute a sub-shape within a parent shape.
+/// @param parentShape The shape to modify
+/// @param oldSubShape The sub-shape to replace
+/// @param newSubShape The replacement sub-shape
+/// @return Modified shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepToolsSubstitute(OCCTShapeRef parentShape,
+    OCCTShapeRef oldSubShape, OCCTShapeRef newSubShape);
+
+// --- ShapeUpgrade_ShellSewing ---
+
+/// Sew disconnected shells in a shape.
+/// @param shape Shape containing shells to sew
+/// @param tolerance Sewing tolerance
+/// @return Sewn shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeShellSewing(OCCTShapeRef shape, double tolerance);
+
+// --- ShapeCustom_Curve2d ---
+
+/// Check if a 2D curve's control points are collinear (i.e., nearly linear).
+/// @param curve2D The 2D curve to check
+/// @param tolerance Maximum deviation to consider as linear
+/// @param deviation Output: actual maximum deviation from line
+/// @return true if the curve is linear within tolerance
+bool OCCTCurve2DIsLinear(OCCTCurve2DRef curve2D, double tolerance, double* deviation);
+
+/// Convert a nearly-linear 2D curve to a Geom2d_Line.
+/// @param curve2D The 2D curve to convert
+/// @param first First parameter
+/// @param last Last parameter
+/// @param tolerance Maximum deviation tolerance
+/// @param newFirst Output: new first parameter on line
+/// @param newLast Output: new last parameter on line
+/// @param deviation Output: actual deviation
+/// @return Converted 2D line curve, or NULL if not linear
+OCCTCurve2DRef _Nullable OCCTCurve2DConvertToLine(OCCTCurve2DRef curve2D,
+    double first, double last, double tolerance,
+    double* newFirst, double* newLast, double* deviation);
+
+/// Simplify a 2D BSpline curve by removing unnecessary knots.
+/// @param curve2D The 2D BSpline curve to simplify
+/// @param tolerance Simplification tolerance
+/// @return true if the curve was simplified
+bool OCCTCurve2DSimplifyBSpline(OCCTCurve2DRef curve2D, double tolerance);
+
+// --- ShapeFix_SplitTool ---
+
+/// Split an edge at a parameter value.
+/// @param edge The edge to split
+/// @param param Parameter value at which to split
+/// @param vertexX,vertexY,vertexZ Position of split vertex
+/// @param outEdge1 Output: first half of split edge
+/// @param outEdge2 Output: second half of split edge
+/// @return true if split succeeded
+bool OCCTShapeFixSplitEdge(OCCTEdgeRef edge, double param,
+    double vertexX, double vertexY, double vertexZ,
+    OCCTEdgeRef _Nullable * _Nonnull outEdge1,
+    OCCTEdgeRef _Nullable * _Nonnull outEdge2);
+
+// --- LocOpe_BuildShape ---
+
+/// Build a shape from a list of faces.
+/// @param shape Shape containing faces
+/// @return Built shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeBuildShape(OCCTShapeRef shape);
+
+// --- Approx_Curve2d ---
+
+/// Approximate a 2D curve as a BSpline.
+/// @param curve2D The 2D curve to approximate
+/// @param first First parameter
+/// @param last Last parameter
+/// @param tolU Tolerance in U
+/// @param tolV Tolerance in V
+/// @param maxDegree Maximum BSpline degree
+/// @param maxSegments Maximum number of segments
+/// @return Approximated 2D BSpline curve, or NULL on failure
+OCCTCurve2DRef _Nullable OCCTApproxCurve2d(OCCTCurve2DRef curve2D,
+    double first, double last, double tolU, double tolV,
+    int32_t maxDegree, int32_t maxSegments);
+
 #ifdef __cplusplus
 }
 #endif

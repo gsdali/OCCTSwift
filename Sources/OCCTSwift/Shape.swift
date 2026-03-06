@@ -5940,3 +5940,232 @@ extension Shape {
             edge2: Shape(handle: e2))
     }
 }
+
+// MARK: - v0.52.0: BRepFill, LocOpe, Healing Utilities
+
+extension Shape {
+
+    // MARK: - BRepFill_Generator
+
+    /// Create a ruled shell by lofting between multiple wire sections.
+    ///
+    /// Each pair of adjacent wires generates a ruled surface between them.
+    /// Wires should have the same number of edges for best results.
+    ///
+    /// - Parameter wires: Array of at least 2 wires to loft between
+    /// - Returns: Shell shape connecting the wires, or nil on failure
+    public static func ruledShell(from wires: [Wire]) -> Shape? {
+        guard wires.count >= 2 else { return nil }
+        let handles: [OCCTWireRef] = wires.map { $0.handle }
+        return handles.withUnsafeBufferPointer { buffer in
+            guard let h = OCCTBRepFillGenerator(buffer.baseAddress!, Int32(wires.count)) else {
+                return nil
+            }
+            return Shape(handle: h)
+        }
+    }
+
+    // MARK: - BRepFill_AdvancedEvolved
+
+    /// Create an evolved solid from a spine wire and profile wire.
+    ///
+    /// The profile is swept along the spine, creating a solid. The profile is
+    /// oriented perpendicular to the spine at each point.
+    ///
+    /// - Parameters:
+    ///   - spine: Wire defining the sweep path
+    ///   - profile: Wire defining the cross-section
+    ///   - tolerance: Geometric tolerance (default 1e-3)
+    ///   - solid: Whether to produce a solid (default true)
+    /// - Returns: Evolved shape, or nil on failure
+    public static func advancedEvolved(
+        spine: Wire, profile: Wire,
+        tolerance: Double = 1e-3, solid: Bool = true
+    ) -> Shape? {
+        guard let h = OCCTBRepFillAdvancedEvolved(
+            spine.handle, profile.handle, tolerance, solid) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - BRepFill_OffsetWire
+
+    /// Offset a planar wire on its face.
+    ///
+    /// Creates a new wire offset from the edges of the given face.
+    /// Positive offset expands outward, negative shrinks inward.
+    ///
+    /// - Parameters:
+    ///   - face: Face containing the wire to offset
+    ///   - offset: Signed offset distance
+    /// - Returns: Offset wire shape, or nil on failure
+    public static func offsetWire(face: Face, offset: Double) -> Shape? {
+        guard let h = OCCTBRepFillOffsetWire(face.handle, offset) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - BRepFill_Draft
+
+    /// Create a draft surface from a wire along a direction with a taper angle.
+    ///
+    /// The wire is projected along the given direction for the specified length,
+    /// with faces tapered at the given angle from the direction.
+    ///
+    /// - Parameters:
+    ///   - wire: Wire defining the base profile
+    ///   - direction: Draft direction
+    ///   - angle: Taper angle in radians
+    ///   - length: Draft length
+    /// - Returns: Draft shape, or nil on failure
+    public static func draft(
+        wire: Wire, direction: SIMD3<Double>,
+        angle: Double, length: Double
+    ) -> Shape? {
+        guard let h = OCCTBRepFillDraft(
+            wire.handle, direction.x, direction.y, direction.z,
+            angle, length) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - BRepFill_Pipe
+
+    /// Result of a pipe sweep operation.
+    public struct PipeSweepResult {
+        /// The swept pipe shape
+        public let shape: Shape
+        /// Surface approximation error
+        public let errorOnSurface: Double
+    }
+
+    /// Create a pipe sweep of a profile along a spine with error reporting.
+    ///
+    /// Sweeps the profile wire along the spine wire using corrected Frenet trihedron.
+    ///
+    /// - Parameters:
+    ///   - spine: Wire defining the sweep path
+    ///   - profile: Wire defining the cross-section
+    /// - Returns: Pipe result with shape and error metric, or nil on failure
+    public static func pipeSweep(spine: Wire, profile: Wire) -> PipeSweepResult? {
+        let r = OCCTBRepFillPipe(spine.handle, profile.handle)
+        guard let s = r.shape else { return nil }
+        return PipeSweepResult(
+            shape: Shape(handle: s),
+            errorOnSurface: r.errorOnSurface)
+    }
+
+    // MARK: - BRepFill_CompatibleWires
+
+    /// Make wires compatible for lofting (same number of edges, aligned).
+    ///
+    /// Resamples wires so they have the same number of edges and are oriented
+    /// consistently, which improves lofting quality.
+    ///
+    /// - Parameter wires: Array of at least 2 wires to normalize
+    /// - Returns: Array of compatible wires, or nil on failure
+    public static func compatibleWires(_ wires: [Wire]) -> [Wire]? {
+        guard wires.count >= 2 else { return nil }
+        let handles: [OCCTWireRef] = wires.map { $0.handle }
+        var outHandles = [OCCTWireRef?](repeating: nil, count: wires.count)
+        let count = handles.withUnsafeBufferPointer { inBuf in
+            outHandles.withUnsafeMutableBufferPointer { outBuf in
+                OCCTBRepFillCompatibleWires(inBuf.baseAddress!, Int32(wires.count), outBuf.baseAddress!)
+            }
+        }
+        guard count > 0 else { return nil }
+        return (0..<Int(count)).compactMap { i in
+            if let h = outHandles[i] { return Wire(handle: h) }
+            return nil
+        }
+    }
+
+    // MARK: - ChFi2d_FilletAlgo
+
+    /// Result of a 2D iterative fillet operation.
+    public struct FilletAlgoResult {
+        /// The fillet arc edge
+        public let fillet: Shape
+        /// Trimmed first edge
+        public let edge1: Shape
+        /// Trimmed second edge
+        public let edge2: Shape
+        /// Number of fillet solutions found
+        public let resultCount: Int
+    }
+
+    /// Compute a 2D iterative fillet between two edges in a plane.
+    ///
+    /// Uses ChFi2d_FilletAlgo for general 2D fillet computation. Supports
+    /// any edge types (not just lines and arcs like `anaFillet`).
+    ///
+    /// - Parameters:
+    ///   - edge1: First edge shape
+    ///   - edge2: Second edge shape
+    ///   - planeOrigin: A point on the working plane
+    ///   - planeNormal: Normal direction of the plane
+    ///   - radius: Fillet radius
+    /// - Returns: Fillet result with arc and trimmed edges, or nil on failure
+    public static func filletAlgo(
+        edge1: Shape, edge2: Shape,
+        planeOrigin: SIMD3<Double> = .zero,
+        planeNormal: SIMD3<Double> = SIMD3(0, 0, 1),
+        radius: Double
+    ) -> FilletAlgoResult? {
+        let r = OCCTChFi2dFilletAlgo(
+            edge1.handle, edge2.handle,
+            planeOrigin.x, planeOrigin.y, planeOrigin.z,
+            planeNormal.x, planeNormal.y, planeNormal.z,
+            radius)
+        guard r.success,
+              let fillet = r.fillet,
+              let e1 = r.edge1,
+              let e2 = r.edge2 else { return nil }
+        return FilletAlgoResult(
+            fillet: Shape(handle: fillet),
+            edge1: Shape(handle: e1),
+            edge2: Shape(handle: e2),
+            resultCount: Int(r.resultCount))
+    }
+
+    // MARK: - BRepTools_Substitution
+
+    /// Substitute a sub-shape within this shape.
+    ///
+    /// Replaces one topological sub-shape (vertex, edge, face) with another
+    /// and rebuilds the parent shape.
+    ///
+    /// - Parameters:
+    ///   - oldSubShape: The sub-shape to replace
+    ///   - newSubShape: The replacement sub-shape
+    /// - Returns: Modified shape, or nil on failure
+    public func substituted(replacing oldSubShape: Shape, with newSubShape: Shape) -> Shape? {
+        guard let h = OCCTBRepToolsSubstitute(handle, oldSubShape.handle, newSubShape.handle) else {
+            return nil
+        }
+        return Shape(handle: h)
+    }
+
+    // MARK: - ShapeUpgrade_ShellSewing
+
+    /// Sew disconnected shells in this shape.
+    ///
+    /// Connects shells that share edges within the given tolerance.
+    ///
+    /// - Parameter tolerance: Sewing tolerance (default 1e-6)
+    /// - Returns: Sewn shape, or nil on failure
+    public func shellSewing(tolerance: Double = 1e-6) -> Shape? {
+        guard let h = OCCTShapeUpgradeShellSewing(handle, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - LocOpe_BuildShape
+
+    /// Build a shape from the faces of this shape.
+    ///
+    /// Extracts all faces and reconstructs them into a shell or solid.
+    ///
+    /// - Returns: Rebuilt shape, or nil on failure
+    public func builtFromFaces() -> Shape? {
+        guard let h = OCCTLocOpeBuildShape(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+}
