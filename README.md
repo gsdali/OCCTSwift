@@ -47,6 +47,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **TFunction Framework** | 13 | setLogbook, logbookSetTouched, logbookSetImpacted, logbookIsModified, logbookClear, logbookIsEmpty, setGraphNode, graphNodeAddPrevious, graphNodeAddNext, setGraphNodeStatus, graphNodeStatus, graphNodeRemoveAllPrevious, graphNodeRemoveAllNext |
 | **TFunction Function** | 4 | setFunctionAttribute, functionIsFailed, functionFailure, setFunctionFailure |
 | **OCAF Persistence** | 17 | defineFormatBin, defineFormatBinL, defineFormatXml, defineFormatXmlL, defineFormatBinXCAF, defineFormatXmlXCAF, defineAllFormats, saveOCAF, loadOCAF, saveOCAFInPlace, createWithFormat, isSaved, storageFormat, setStorageFormat, documentCount, readingFormats, writingFormats |
+| **STEP Full Coverage** | 25 | StepModelType enum (7 values), writeSTEP(modelType:), writeSTEP(modelType:tolerance:), writeSTEPCleanDuplicates, stepRootCount, loadSTEPRoot, loadSTEP(unitInMeters:), stepShapeCount, STEPReaderModes, STEPWriterModes, Document.loadSTEP(modes:), Document.writeSTEP(modelType:modes:), fromPath variants |
 | **Length Dimension** | 7 | fromPoints, fromEdge, fromFaces, value, isValid, geometry, setCustomValue |
 | **Radius Dimension** | 4 | fromShape, value, geometry, setCustomValue |
 | **Angle Dimension** | 7 | fromEdges, fromPoints, fromFaces, value, degrees, geometry, setCustomValue |
@@ -55,7 +56,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
 | **Shape History** | 1 | History (create, addModified, addGenerated, remove, isRemoved, hasModified, hasGenerated, hasRemoved, modifiedCount, generatedCount) |
-| **Total** | **864** | |
+| **Total** | **889** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -87,6 +88,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **TFunction Framework**: Parametric modeling logbook (touch/impact/modify tracking, clear), function graph nodes (dependency chains with previous/next, execution status: notExecuted/executing/succeeded/failed), function attributes with failure tracking
 - **TNaming Deep Copy**: Independent shape duplication via TNaming_CopyShape::CopyTool
 - **OCAF Persistence**: Save/load OCAF documents in binary (BinOcaf, BinXCAF) and XML (XmlOcaf, XmlXCAF) formats, format driver registration, document metadata (isSaved, storageFormat, format listing), create documents with specific formats, save-in-place
+- **STEP Full Coverage**: STEPControl_StepModelType enum (AsIs, ManifoldSolidBrep, BrepWithVoids, FacetedBrep, ShellBasedSurfaceModel, GeometricCurveSet), export with model type and tolerance, clean duplicate entities, root-by-root STEP import, system length unit control, shape count inspection, STEPCAFControl mode flags (color/name/layer/props/GDT/material for reader, color/name/layer/dimTol/material for writer), mode-controlled XDE round-trip
 - **Annotations & Measurements**: Length/radius/angle/diameter dimensions with geometry extraction for Metal rendering, 3D text labels, colored point clouds
 - **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)

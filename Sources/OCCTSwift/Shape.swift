@@ -466,6 +466,80 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    // MARK: - STEP Reader Control (v0.58.0)
+
+    /// Get the number of transferable roots in a STEP file.
+    ///
+    /// Use this to inspect a STEP file before importing specific roots.
+    ///
+    /// - Parameter url: URL to the STEP file
+    /// - Returns: Number of roots (0 if file can't be read)
+    public static func stepRootCount(url: URL) -> Int {
+        Int(OCCTSTEPReaderNbRoots(url.path))
+    }
+
+    /// Get the number of transferable roots in a STEP file.
+    public static func stepRootCount(path: String) -> Int {
+        Int(OCCTSTEPReaderNbRoots(path))
+    }
+
+    /// Import a specific root from a STEP file.
+    ///
+    /// - Parameters:
+    ///   - url: URL to the STEP file
+    ///   - rootIndex: 1-based root index
+    /// - Returns: The imported shape
+    /// - Throws: ImportError if import fails
+    public static func loadSTEPRoot(from url: URL, rootIndex: Int) throws -> Shape {
+        guard let handle = OCCTImportSTEPRoot(url.path, Int32(rootIndex)) else {
+            throw ImportError.importFailed("Failed to import root \(rootIndex) from: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Import a specific root from a STEP file.
+    public static func loadSTEPRoot(fromPath path: String, rootIndex: Int) throws -> Shape {
+        guard let handle = OCCTImportSTEPRoot(path, Int32(rootIndex)) else {
+            throw ImportError.importFailed("Failed to import root \(rootIndex) from: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Import a STEP file with a specific system length unit.
+    ///
+    /// - Parameters:
+    ///   - url: URL to the STEP file
+    ///   - unitInMeters: System length unit in meters (e.g. 0.001 for mm, 0.0254 for inch)
+    /// - Returns: The imported shape in the specified unit system
+    /// - Throws: ImportError if import fails
+    public static func loadSTEP(from url: URL, unitInMeters: Double) throws -> Shape {
+        guard let handle = OCCTImportSTEPWithUnit(url.path, unitInMeters) else {
+            throw ImportError.importFailed("Failed to import with unit from: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Import a STEP file with a specific system length unit.
+    public static func loadSTEP(fromPath path: String, unitInMeters: Double) throws -> Shape {
+        guard let handle = OCCTImportSTEPWithUnit(path, unitInMeters) else {
+            throw ImportError.importFailed("Failed to import with unit from: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Get the number of shapes in a STEP file after full transfer.
+    ///
+    /// - Parameter url: URL to the STEP file
+    /// - Returns: Number of shapes (0 if file can't be read)
+    public static func stepShapeCount(url: URL) -> Int {
+        Int(OCCTSTEPReaderNbShapes(url.path))
+    }
+
+    /// Get the number of shapes in a STEP file after full transfer.
+    public static func stepShapeCount(path: String) -> Int {
+        Int(OCCTSTEPReaderNbShapes(path))
+    }
+
     // MARK: - Robust STEP Import
 
     /// Load a STEP file with robust handling: sewing, solid creation, and shape healing.

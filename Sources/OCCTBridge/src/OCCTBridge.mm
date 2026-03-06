@@ -21661,3 +21661,166 @@ OCCTShapeRef OCCTShapeDeepCopy(OCCTShapeRef shape) {
         return new OCCTShape(copy);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - STEP Full Coverage — STEPControl_Writer (v0.58.0)
+
+bool OCCTExportSTEPWithMode(OCCTShapeRef shape, const char* path, int32_t modelType) {
+    if (!shape || !path) return false;
+    try {
+        STEPControl_Writer writer;
+        Interface_Static::SetCVal("write.step.schema", "AP214");
+        STEPControl_StepModelType mode = static_cast<STEPControl_StepModelType>(modelType);
+        IFSelect_ReturnStatus status = writer.Transfer(shape->shape, mode);
+        if (status != IFSelect_RetDone) return false;
+        status = writer.Write(path);
+        return status == IFSelect_RetDone;
+    } catch (...) { return false; }
+}
+
+bool OCCTExportSTEPWithModeAndTolerance(OCCTShapeRef shape, const char* path,
+                                         int32_t modelType, double tolerance) {
+    if (!shape || !path) return false;
+    try {
+        STEPControl_Writer writer;
+        Interface_Static::SetCVal("write.step.schema", "AP214");
+        writer.SetTolerance(tolerance);
+        STEPControl_StepModelType mode = static_cast<STEPControl_StepModelType>(modelType);
+        IFSelect_ReturnStatus status = writer.Transfer(shape->shape, mode);
+        if (status != IFSelect_RetDone) return false;
+        status = writer.Write(path);
+        return status == IFSelect_RetDone;
+    } catch (...) { return false; }
+}
+
+bool OCCTExportSTEPCleanDuplicates(OCCTShapeRef shape, const char* path, int32_t modelType) {
+    if (!shape || !path) return false;
+    try {
+        STEPControl_Writer writer;
+        Interface_Static::SetCVal("write.step.schema", "AP214");
+        STEPControl_StepModelType mode = static_cast<STEPControl_StepModelType>(modelType);
+        IFSelect_ReturnStatus status = writer.Transfer(shape->shape, mode);
+        if (status != IFSelect_RetDone) return false;
+        writer.CleanDuplicateEntities();
+        status = writer.Write(path);
+        return status == IFSelect_RetDone;
+    } catch (...) { return false; }
+}
+
+// MARK: - STEP Full Coverage — STEPControl_Reader (v0.58.0)
+
+int32_t OCCTSTEPReaderNbRoots(const char* path) {
+    if (!path) return 0;
+    try {
+        STEPControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return 0;
+        return reader.NbRootsForTransfer();
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTImportSTEPRoot(const char* path, int32_t rootIndex) {
+    if (!path || rootIndex < 1) return nullptr;
+    try {
+        STEPControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+        int nbRoots = reader.NbRootsForTransfer();
+        if (rootIndex > nbRoots) return nullptr;
+        if (!reader.TransferRoot(rootIndex)) return nullptr;
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTImportSTEPWithUnit(const char* path, double unitInMeters) {
+    if (!path) return nullptr;
+    try {
+        STEPControl_Reader reader;
+        reader.SetSystemLengthUnit(unitInMeters);
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+        reader.TransferRoots();
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTSTEPReaderNbShapes(const char* path) {
+    if (!path) return 0;
+    try {
+        STEPControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return 0;
+        reader.TransferRoots();
+        return reader.NbShapes();
+    } catch (...) { return 0; }
+}
+
+// MARK: - STEP Full Coverage — STEPCAFControl Modes (v0.58.0)
+
+OCCTDocumentRef OCCTDocumentLoadSTEPWithModes(const char* path,
+    bool colorMode, bool nameMode, bool layerMode,
+    bool propsMode, bool gdtMode, bool matMode) {
+    if (!path) return nullptr;
+
+    OCCTDocument* document = nullptr;
+    try {
+        document = new OCCTDocument();
+        document->app->NewDocument("MDTV-XCAF", document->doc);
+        if (document->doc.IsNull()) {
+            delete document;
+            return nullptr;
+        }
+
+        STEPCAFControl_Reader reader;
+        reader.SetColorMode(colorMode);
+        reader.SetNameMode(nameMode);
+        reader.SetLayerMode(layerMode);
+        reader.SetPropsMode(propsMode);
+        reader.SetGDTMode(gdtMode);
+        reader.SetMatMode(matMode);
+
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) {
+            delete document;
+            return nullptr;
+        }
+
+        if (!reader.Transfer(document->doc)) {
+            delete document;
+            return nullptr;
+        }
+
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+
+        return document;
+    } catch (...) {
+        delete document;
+        return nullptr;
+    }
+}
+
+bool OCCTDocumentWriteSTEPWithModes(OCCTDocumentRef doc, const char* path,
+    int32_t modelType, bool colorMode, bool nameMode, bool layerMode,
+    bool dimTolMode, bool materialMode) {
+    if (!doc || !path || doc->doc.IsNull()) return false;
+
+    try {
+        STEPCAFControl_Writer writer;
+        writer.SetColorMode(colorMode);
+        writer.SetNameMode(nameMode);
+        writer.SetLayerMode(layerMode);
+        writer.SetDimTolMode(dimTolMode);
+        writer.SetMaterialMode(materialMode);
+
+        STEPControl_StepModelType mode = static_cast<STEPControl_StepModelType>(modelType);
+        if (!writer.Transfer(doc->doc, mode)) return false;
+
+        IFSelect_ReturnStatus status = writer.Write(path);
+        return status == IFSelect_RetDone;
+    } catch (...) { return false; }
+}

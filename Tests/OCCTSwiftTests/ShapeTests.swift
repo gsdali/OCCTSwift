@@ -16575,3 +16575,341 @@ struct OCAFSaveInPlaceTests {
         #expect(status != .ok)
     }
 }
+
+// MARK: - STEP Model Type Enum Tests (v0.58.0)
+
+@Suite("StepModelType Enum")
+struct StepModelTypeEnumTests {
+
+    @Test("StepModelType raw values")
+    func rawValues() {
+        #expect(StepModelType.asIs.rawValue == 0)
+        #expect(StepModelType.manifoldSolidBrep.rawValue == 1)
+        #expect(StepModelType.brepWithVoids.rawValue == 2)
+        #expect(StepModelType.facetedBrep.rawValue == 3)
+        #expect(StepModelType.facetedBrepAndBrepWithVoids.rawValue == 4)
+        #expect(StepModelType.shellBasedSurfaceModel.rawValue == 5)
+        #expect(StepModelType.geometricCurveSet.rawValue == 6)
+    }
+
+    @Test("StepModelType init from raw value")
+    func initFromRaw() {
+        #expect(StepModelType(rawValue: 0) == .asIs)
+        #expect(StepModelType(rawValue: 1) == .manifoldSolidBrep)
+        #expect(StepModelType(rawValue: 5) == .shellBasedSurfaceModel)
+        #expect(StepModelType(rawValue: 99) == nil)
+    }
+}
+
+// MARK: - STEP Writer Export Tests (v0.58.0)
+
+@Suite("STEP Writer Export")
+struct STEPWriterExportTests {
+
+    @Test("Export with AsIs mode")
+    func exportAsIs() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_asis.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url, modelType: .asIs)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Export with ManifoldSolidBrep mode")
+    func exportManifoldSolidBrep() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_msb.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url, modelType: .manifoldSolidBrep)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Export with tolerance")
+    func exportWithTolerance() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_tol.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url, modelType: .asIs, tolerance: 0.01)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Export with clean duplicates")
+    func exportCleanDuplicates() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_clean.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEPCleanDuplicates(to: url)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Exporter static method with mode")
+    func exporterStaticWithMode() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_static.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try Exporter.writeSTEP(shape: box, to: url, modelType: .asIs)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+}
+
+// MARK: - STEP Reader Roots Tests (v0.58.0)
+
+@Suite("STEP Reader Roots")
+struct STEPReaderRootsTests {
+
+    @Test("Root count from STEP file")
+    func rootCount() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_roots.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url)
+        let count = Shape.stepRootCount(url: url)
+        #expect(count > 0)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Root count from path")
+    func rootCountFromPath() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_roots2.step"
+        try box.writeSTEP(to: URL(fileURLWithPath: tmpPath))
+        let count = Shape.stepRootCount(path: tmpPath)
+        #expect(count > 0)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Import specific root")
+    func importRoot() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_root1.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url)
+        let shape = try Shape.loadSTEPRoot(from: url, rootIndex: 1)
+        #expect(shape.isValid)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Import with system length unit")
+    func importWithUnit() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_unit.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url)
+        let shape = try Shape.loadSTEP(from: url, unitInMeters: 0.001)
+        #expect(shape.isValid)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Shape count from STEP file")
+    func shapeCount() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_count.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url)
+        let count = Shape.stepShapeCount(url: url)
+        #expect(count > 0)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Nonexistent file returns zero roots")
+    func nonexistentFile() {
+        let count = Shape.stepRootCount(path: "/nonexistent/file.step")
+        #expect(count == 0)
+    }
+}
+
+// MARK: - STEP Reader Modes Tests (v0.58.0)
+
+@Suite("STEPReaderModes")
+struct STEPReaderModesTests {
+
+    @Test("Default reader modes")
+    func defaultModes() {
+        let modes = STEPReaderModes()
+        #expect(modes.color == true)
+        #expect(modes.name == true)
+        #expect(modes.layer == true)
+        #expect(modes.props == true)
+        #expect(modes.gdt == false)
+        #expect(modes.material == true)
+    }
+
+    @Test("Custom reader modes")
+    func customModes() {
+        let modes = STEPReaderModes(color: false, name: true, layer: false,
+                                     props: false, gdt: true, material: false)
+        #expect(modes.color == false)
+        #expect(modes.name == true)
+        #expect(modes.layer == false)
+        #expect(modes.props == false)
+        #expect(modes.gdt == true)
+        #expect(modes.material == false)
+    }
+}
+
+// MARK: - STEP Writer Modes Struct Tests (v0.58.0)
+
+@Suite("STEPWriterModes")
+struct STEPWriterModesTests {
+
+    @Test("Default writer modes")
+    func defaultModes() {
+        let modes = STEPWriterModes()
+        #expect(modes.color == true)
+        #expect(modes.name == true)
+        #expect(modes.layer == true)
+        #expect(modes.dimTol == false)
+        #expect(modes.material == true)
+    }
+
+    @Test("Custom writer modes")
+    func customModes() {
+        let modes = STEPWriterModes(color: false, name: false, layer: false,
+                                     dimTol: true, material: true)
+        #expect(modes.color == false)
+        #expect(modes.name == false)
+        #expect(modes.layer == false)
+        #expect(modes.dimTol == true)
+        #expect(modes.material == true)
+    }
+}
+
+// MARK: - STEPCAFControl Mode-Controlled Import/Export Tests (v0.58.0)
+
+@Suite("STEP CAF Mode Control")
+struct STEPCAFModeControlTests {
+
+    @Test("Load STEP with default modes")
+    func loadWithDefaultModes() throws {
+        // Write a STEP file with a shape
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_caf_modes.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url)
+
+        let doc = Document.loadSTEP(from: url, modes: STEPReaderModes())
+        #expect(doc != nil)
+        if let doc = doc {
+            #expect(doc.rootNodes.count > 0)
+        }
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Load STEP with GDT mode enabled")
+    func loadWithGDTMode() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_caf_gdt.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url)
+
+        let modes = STEPReaderModes(gdt: true)
+        let doc = Document.loadSTEP(from: url, modes: modes)
+        #expect(doc != nil)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Load STEP with names disabled")
+    func loadWithNamesDisabled() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_caf_noname.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeSTEP(to: url)
+
+        let modes = STEPReaderModes(name: false)
+        let doc = Document.loadSTEP(from: url, modes: modes)
+        #expect(doc != nil)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Write STEP with model type")
+    func writeWithModelType() throws {
+        // Load a STEP file to get a document with shapes
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let srcPath = NSTemporaryDirectory() + "swift_test_v58_caf_src.step"
+        try box.writeSTEP(to: URL(fileURLWithPath: srcPath))
+        let doc = try Document.load(from: URL(fileURLWithPath: srcPath))
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_caf_write.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        let ok = doc.writeSTEP(to: url, modelType: .asIs)
+        #expect(ok)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: srcPath)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Write STEP with custom modes")
+    func writeWithCustomModes() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let srcPath = NSTemporaryDirectory() + "swift_test_v58_caf_src2.step"
+        try box.writeSTEP(to: URL(fileURLWithPath: srcPath))
+        let doc = try Document.load(from: URL(fileURLWithPath: srcPath))
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_caf_custom.step"
+        let url = URL(fileURLWithPath: tmpPath)
+        let modes = STEPWriterModes(color: false, name: true, layer: false,
+                                     dimTol: true, material: false)
+        let ok = doc.writeSTEP(to: url, modelType: .manifoldSolidBrep, modes: modes)
+        #expect(ok)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: srcPath)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Round-trip with mode control")
+    func roundTrip() throws {
+        // Create source STEP
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let srcPath = NSTemporaryDirectory() + "swift_test_v58_caf_rtsrc.step"
+        try box.writeSTEP(to: URL(fileURLWithPath: srcPath))
+        let doc = try Document.load(from: URL(fileURLWithPath: srcPath))
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_caf_rt.step"
+        let url = URL(fileURLWithPath: tmpPath)
+
+        let writerModes = STEPWriterModes(color: true, name: true)
+        let writeOk = doc.writeSTEP(to: url, modelType: .asIs, modes: writerModes)
+        #expect(writeOk)
+
+        // Read back
+        let readerModes = STEPReaderModes(color: true, name: true)
+        let doc2 = Document.loadSTEP(from: url, modes: readerModes)
+        #expect(doc2 != nil)
+        if let doc2 = doc2 {
+            #expect(doc2.rootNodes.count > 0)
+        }
+
+        try? FileManager.default.removeItem(atPath: srcPath)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Load from path with modes")
+    func loadFromPathWithModes() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_caf_path.step"
+        try box.writeSTEP(to: URL(fileURLWithPath: tmpPath))
+
+        let doc = Document.loadSTEP(fromPath: tmpPath, modes: STEPReaderModes())
+        #expect(doc != nil)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Write to path with modes")
+    func writeToPathWithModes() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let srcPath = NSTemporaryDirectory() + "swift_test_v58_caf_wsrc.step"
+        try box.writeSTEP(to: URL(fileURLWithPath: srcPath))
+        let doc = try Document.load(from: URL(fileURLWithPath: srcPath))
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v58_caf_wpath.step"
+        let ok = doc.writeSTEP(toPath: tmpPath, modelType: .asIs)
+        #expect(ok)
+        try? FileManager.default.removeItem(atPath: srcPath)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+}

@@ -6490,6 +6490,48 @@ int32_t OCCTDocumentWritingFormats(OCCTDocumentRef doc, const char** outFormats,
 /// Supported formats: "BinOcaf", "XmlOcaf", "BinLOcaf", "XmlLOcaf", "BinXCAF", "XmlXCAF".
 OCCTDocumentRef OCCTDocumentCreateWithFormat(const char* format);
 
+// MARK: - STEP Full Coverage — STEPControl_Writer (v0.58.0)
+
+/// Export shape to STEP with specific model type.
+/// modelType: 0=AsIs, 1=ManifoldSolidBrep, 2=BrepWithVoids, 3=FacetedBrep,
+///            5=ShellBasedSurfaceModel, 6=GeometricCurveSet
+bool OCCTExportSTEPWithMode(OCCTShapeRef shape, const char* path, int32_t modelType);
+
+/// Export shape to STEP with model type and tolerance.
+bool OCCTExportSTEPWithModeAndTolerance(OCCTShapeRef shape, const char* path,
+                                         int32_t modelType, double tolerance);
+
+/// Export shape to STEP and clean duplicate entities before writing.
+bool OCCTExportSTEPCleanDuplicates(OCCTShapeRef shape, const char* path, int32_t modelType);
+
+// MARK: - STEP Full Coverage — STEPControl_Reader (v0.58.0)
+
+/// Read a STEP file and return the number of transferable roots.
+int32_t OCCTSTEPReaderNbRoots(const char* path);
+
+/// Import a specific root from a STEP file (1-based index).
+OCCTShapeRef OCCTImportSTEPRoot(const char* path, int32_t rootIndex);
+
+/// Import a STEP file with a specific system length unit (in meters, e.g. 0.001 for mm).
+OCCTShapeRef OCCTImportSTEPWithUnit(const char* path, double unitInMeters);
+
+/// Read a STEP file and return the number of shapes after full transfer.
+int32_t OCCTSTEPReaderNbShapes(const char* path);
+
+// MARK: - STEP Full Coverage — STEPCAFControl Modes (v0.58.0)
+
+/// Load STEP file into XDE document with individual mode control.
+/// All mode flags: true=enabled, false=disabled.
+OCCTDocumentRef OCCTDocumentLoadSTEPWithModes(const char* path,
+    bool colorMode, bool nameMode, bool layerMode,
+    bool propsMode, bool gdtMode, bool matMode);
+
+/// Write XDE document to STEP with model type and individual mode control.
+/// modelType: 0=AsIs, 1=ManifoldSolidBrep, etc.
+bool OCCTDocumentWriteSTEPWithModes(OCCTDocumentRef doc, const char* path,
+    int32_t modelType, bool colorMode, bool nameMode, bool layerMode,
+    bool dimTolMode, bool materialMode);
+
 #ifdef __cplusplus
 }
 #endif

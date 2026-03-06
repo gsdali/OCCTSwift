@@ -400,6 +400,53 @@ public enum Exporter {
         }
     }
 
+    // MARK: - STEP Export with Model Type (v0.58.0)
+
+    /// Export a shape to STEP with a specific model type.
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to export
+    ///   - url: Destination file URL
+    ///   - modelType: STEP representation type
+    public static func writeSTEP(shape: Shape, to url: URL, modelType: StepModelType) throws {
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+        if !OCCTExportSTEPWithMode(shape.handle, path, modelType.rawValue) {
+            throw ExportError.exportFailed("STEP export with mode \(modelType) failed")
+        }
+    }
+
+    /// Export a shape to STEP with a specific model type and tolerance.
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to export
+    ///   - url: Destination file URL
+    ///   - modelType: STEP representation type
+    ///   - tolerance: Geometric tolerance for the transfer
+    public static func writeSTEP(shape: Shape, to url: URL, modelType: StepModelType, tolerance: Double) throws {
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+        if !OCCTExportSTEPWithModeAndTolerance(shape.handle, path, modelType.rawValue, tolerance) {
+            throw ExportError.exportFailed("STEP export with mode and tolerance failed")
+        }
+    }
+
+    /// Export a shape to STEP with duplicate entity cleanup.
+    ///
+    /// This merges duplicate geometric entities during export, reducing file size.
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to export
+    ///   - url: Destination file URL
+    ///   - modelType: STEP representation type (default: .asIs)
+    public static func writeSTEPCleanDuplicates(shape: Shape, to url: URL, modelType: StepModelType = .asIs) throws {
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+        if !OCCTExportSTEPCleanDuplicates(shape.handle, path, modelType.rawValue) {
+            throw ExportError.exportFailed("STEP export with clean duplicates failed")
+        }
+    }
+
     // MARK: - STEP Optimization (v0.28.0)
 
     /// Optimize a STEP file by merging duplicate geometric entities.
@@ -447,6 +494,23 @@ extension Shape {
     ///   - name: Optional name for the shape
     public func writeSTEP(to url: URL, name: String? = nil) throws {
         try Exporter.writeSTEP(shape: self, to: url, name: name)
+    }
+
+    // MARK: - STEP Export with Model Type (v0.58.0)
+
+    /// Export this shape to STEP with a specific model type.
+    public func writeSTEP(to url: URL, modelType: StepModelType) throws {
+        try Exporter.writeSTEP(shape: self, to: url, modelType: modelType)
+    }
+
+    /// Export this shape to STEP with a specific model type and tolerance.
+    public func writeSTEP(to url: URL, modelType: StepModelType, tolerance: Double) throws {
+        try Exporter.writeSTEP(shape: self, to: url, modelType: modelType, tolerance: tolerance)
+    }
+
+    /// Export this shape to STEP with duplicate entity cleanup.
+    public func writeSTEPCleanDuplicates(to url: URL, modelType: StepModelType = .asIs) throws {
+        try Exporter.writeSTEPCleanDuplicates(shape: self, to: url, modelType: modelType)
     }
 
     /// Get STL data for this shape.

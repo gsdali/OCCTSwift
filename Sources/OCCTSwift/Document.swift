@@ -1566,4 +1566,125 @@ extension Document {
         }
         return result
     }
+
+    // MARK: - STEP Mode-Controlled Import/Export (v0.58.0)
+
+    /// Load a STEP file with individual mode control for what data to import.
+    ///
+    /// Unlike `Document.load(from:)` which enables all modes, this allows fine-grained
+    /// control over which data types are imported from the STEP file.
+    ///
+    /// - Parameters:
+    ///   - url: URL to the STEP file
+    ///   - modes: Reader mode flags controlling which data to import
+    /// - Returns: Document with the requested data, or nil on failure
+    public static func loadSTEP(from url: URL, modes: STEPReaderModes) -> Document? {
+        guard let ref = OCCTDocumentLoadSTEPWithModes(url.path,
+            modes.color, modes.name, modes.layer,
+            modes.props, modes.gdt, modes.material) else { return nil }
+        return Document(handle: ref)
+    }
+
+    /// Load a STEP file with individual mode control for what data to import.
+    public static func loadSTEP(fromPath path: String, modes: STEPReaderModes) -> Document? {
+        guard let ref = OCCTDocumentLoadSTEPWithModes(path,
+            modes.color, modes.name, modes.layer,
+            modes.props, modes.gdt, modes.material) else { return nil }
+        return Document(handle: ref)
+    }
+
+    /// Write the document to a STEP file with model type and mode control.
+    ///
+    /// - Parameters:
+    ///   - url: Output file URL
+    ///   - modelType: STEP representation type (default: .asIs)
+    ///   - modes: Writer mode flags controlling which data to export
+    /// - Returns: true on success
+    @discardableResult
+    public func writeSTEP(to url: URL, modelType: StepModelType = .asIs, modes: STEPWriterModes = STEPWriterModes()) -> Bool {
+        OCCTDocumentWriteSTEPWithModes(handle, url.path,
+            modelType.rawValue,
+            modes.color, modes.name, modes.layer,
+            modes.dimTol, modes.material)
+    }
+
+    /// Write the document to a STEP file with model type and mode control.
+    @discardableResult
+    public func writeSTEP(toPath path: String, modelType: StepModelType = .asIs, modes: STEPWriterModes = STEPWriterModes()) -> Bool {
+        OCCTDocumentWriteSTEPWithModes(handle, path,
+            modelType.rawValue,
+            modes.color, modes.name, modes.layer,
+            modes.dimTol, modes.material)
+    }
+}
+
+// MARK: - STEP Model Type (v0.58.0)
+
+/// STEP representation type for controlling how shapes are written.
+public enum StepModelType: Int32, Sendable {
+    /// Write shape as-is (automatic selection)
+    case asIs = 0
+    /// Write as manifold solid B-rep
+    case manifoldSolidBrep = 1
+    /// Write as B-rep with voids
+    case brepWithVoids = 2
+    /// Write as faceted B-rep
+    case facetedBrep = 3
+    /// Write as faceted B-rep and B-rep with voids
+    case facetedBrepAndBrepWithVoids = 4
+    /// Write as shell-based surface model
+    case shellBasedSurfaceModel = 5
+    /// Write as geometric curve set
+    case geometricCurveSet = 6
+}
+
+// MARK: - STEP Reader/Writer Modes (v0.58.0)
+
+/// Mode flags for STEPCAFControl_Reader controlling which data to import from STEP files.
+public struct STEPReaderModes: Sendable {
+    /// Import color information (default: true)
+    public var color: Bool
+    /// Import name/label information (default: true)
+    public var name: Bool
+    /// Import layer information (default: true)
+    public var layer: Bool
+    /// Import validation properties (default: true)
+    public var props: Bool
+    /// Import GD&T data (default: false)
+    public var gdt: Bool
+    /// Import material data (default: true)
+    public var material: Bool
+
+    public init(color: Bool = true, name: Bool = true, layer: Bool = true,
+                props: Bool = true, gdt: Bool = false, material: Bool = true) {
+        self.color = color
+        self.name = name
+        self.layer = layer
+        self.props = props
+        self.gdt = gdt
+        self.material = material
+    }
+}
+
+/// Mode flags for STEPCAFControl_Writer controlling which data to export to STEP files.
+public struct STEPWriterModes: Sendable {
+    /// Export color information (default: true)
+    public var color: Bool
+    /// Export name/label information (default: true)
+    public var name: Bool
+    /// Export layer information (default: true)
+    public var layer: Bool
+    /// Export dimension/tolerance data (default: false)
+    public var dimTol: Bool
+    /// Export material data (default: true)
+    public var material: Bool
+
+    public init(color: Bool = true, name: Bool = true, layer: Bool = true,
+                dimTol: Bool = false, material: Bool = true) {
+        self.color = color
+        self.name = name
+        self.layer = layer
+        self.dimTol = dimTol
+        self.material = material
+    }
 }
