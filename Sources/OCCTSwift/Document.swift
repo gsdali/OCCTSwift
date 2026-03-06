@@ -899,3 +899,240 @@ extension Document {
         OCCTDocumentIsLabelModified(handle, node.labelId)
     }
 }
+
+// MARK: - TDataStd Scalar Attributes (v0.55.0)
+
+extension AssemblyNode {
+    /// Set an integer attribute (TDataStd_Integer) on this label.
+    @discardableResult
+    public func setInteger(_ value: Int32) -> Bool {
+        OCCTDocumentSetIntegerAttr(document.handle, labelId, value)
+    }
+
+    /// Get the integer attribute from this label.
+    public var integer: Int32? {
+        var value: Int32 = 0
+        guard OCCTDocumentGetIntegerAttr(document.handle, labelId, &value) else { return nil }
+        return value
+    }
+
+    /// Set a real attribute (TDataStd_Real) on this label.
+    @discardableResult
+    public func setReal(_ value: Double) -> Bool {
+        OCCTDocumentSetRealAttr(document.handle, labelId, value)
+    }
+
+    /// Get the real attribute from this label.
+    public var real: Double? {
+        var value: Double = 0
+        guard OCCTDocumentGetRealAttr(document.handle, labelId, &value) else { return nil }
+        return value
+    }
+
+    /// Set an ASCII string attribute (TDataStd_AsciiString) on this label.
+    @discardableResult
+    public func setAsciiString(_ value: String) -> Bool {
+        OCCTDocumentSetAsciiStringAttr(document.handle, labelId, value)
+    }
+
+    /// Get the ASCII string attribute from this label.
+    public var asciiString: String? {
+        guard let cStr = OCCTDocumentGetAsciiStringAttr(document.handle, labelId) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+
+    /// Set a comment attribute (TDataStd_Comment) on this label.
+    @discardableResult
+    public func setComment(_ value: String) -> Bool {
+        OCCTDocumentSetCommentAttr(document.handle, labelId, value)
+    }
+
+    /// Get the comment attribute from this label.
+    public var comment: String? {
+        guard let cStr = OCCTDocumentGetCommentAttr(document.handle, labelId) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+}
+
+// MARK: - TDataStd Integer Array (v0.55.0)
+
+extension AssemblyNode {
+    /// Initialize an integer array attribute on this label.
+    ///
+    /// - Parameters:
+    ///   - lower: Lower bound index
+    ///   - upper: Upper bound index
+    @discardableResult
+    public func initIntegerArray(lower: Int32, upper: Int32) -> Bool {
+        OCCTDocumentInitIntegerArray(document.handle, labelId, lower, upper)
+    }
+
+    /// Set a value in the integer array attribute.
+    @discardableResult
+    public func setIntegerArrayValue(at index: Int32, value: Int32) -> Bool {
+        OCCTDocumentSetIntegerArrayValue(document.handle, labelId, index, value)
+    }
+
+    /// Get a value from the integer array attribute.
+    public func integerArrayValue(at index: Int32) -> Int32? {
+        var value: Int32 = 0
+        guard OCCTDocumentGetIntegerArrayValue(document.handle, labelId, index, &value) else { return nil }
+        return value
+    }
+
+    /// Get the bounds of the integer array attribute.
+    public var integerArrayBounds: (lower: Int32, upper: Int32)? {
+        var lower: Int32 = 0, upper: Int32 = 0
+        guard OCCTDocumentGetIntegerArrayBounds(document.handle, labelId, &lower, &upper) else { return nil }
+        return (lower, upper)
+    }
+}
+
+// MARK: - TDataStd Real Array (v0.55.0)
+
+extension AssemblyNode {
+    /// Initialize a real array attribute on this label.
+    ///
+    /// - Parameters:
+    ///   - lower: Lower bound index
+    ///   - upper: Upper bound index
+    @discardableResult
+    public func initRealArray(lower: Int32, upper: Int32) -> Bool {
+        OCCTDocumentInitRealArray(document.handle, labelId, lower, upper)
+    }
+
+    /// Set a value in the real array attribute.
+    @discardableResult
+    public func setRealArrayValue(at index: Int32, value: Double) -> Bool {
+        OCCTDocumentSetRealArrayValue(document.handle, labelId, index, value)
+    }
+
+    /// Get a value from the real array attribute.
+    public func realArrayValue(at index: Int32) -> Double? {
+        var value: Double = 0
+        guard OCCTDocumentGetRealArrayValue(document.handle, labelId, index, &value) else { return nil }
+        return value
+    }
+
+    /// Get the bounds of the real array attribute.
+    public var realArrayBounds: (lower: Int32, upper: Int32)? {
+        var lower: Int32 = 0, upper: Int32 = 0
+        guard OCCTDocumentGetRealArrayBounds(document.handle, labelId, &lower, &upper) else { return nil }
+        return (lower, upper)
+    }
+}
+
+// MARK: - TDataStd TreeNode (v0.55.0)
+
+extension AssemblyNode {
+    /// Set a tree node attribute (TDataStd_TreeNode) on this label.
+    @discardableResult
+    public func setTreeNode() -> Bool {
+        OCCTDocumentSetTreeNode(document.handle, labelId)
+    }
+
+    /// Append a child to this tree node.
+    @discardableResult
+    public func appendTreeChild(_ child: AssemblyNode) -> Bool {
+        OCCTDocumentAppendTreeChild(document.handle, labelId, child.labelId)
+    }
+
+    /// The father (parent) of this tree node.
+    public var treeNodeFather: AssemblyNode? {
+        let fatherId = OCCTDocumentTreeNodeFather(document.handle, labelId)
+        guard fatherId >= 0 else { return nil }
+        return AssemblyNode(document: document, labelId: fatherId)
+    }
+
+    /// The first child of this tree node.
+    public var treeNodeFirstChild: AssemblyNode? {
+        let firstId = OCCTDocumentTreeNodeFirst(document.handle, labelId)
+        guard firstId >= 0 else { return nil }
+        return AssemblyNode(document: document, labelId: firstId)
+    }
+
+    /// The next sibling of this tree node.
+    public var treeNodeNext: AssemblyNode? {
+        let nextId = OCCTDocumentTreeNodeNext(document.handle, labelId)
+        guard nextId >= 0 else { return nil }
+        return AssemblyNode(document: document, labelId: nextId)
+    }
+
+    /// Whether this tree node has a father.
+    public var treeNodeHasFather: Bool {
+        OCCTDocumentTreeNodeHasFather(document.handle, labelId)
+    }
+
+    /// The depth of this tree node (root=0).
+    public var treeNodeDepth: Int32 {
+        OCCTDocumentTreeNodeDepth(document.handle, labelId)
+    }
+
+    /// The number of children of this tree node.
+    public var treeNodeChildCount: Int32 {
+        OCCTDocumentTreeNodeNbChildren(document.handle, labelId)
+    }
+}
+
+// MARK: - TDataStd NamedData (v0.55.0)
+
+extension AssemblyNode {
+    /// Set a named integer value on this label.
+    @discardableResult
+    public func setNamedInteger(_ name: String, value: Int32) -> Bool {
+        OCCTDocumentNamedDataSetInteger(document.handle, labelId, name, value)
+    }
+
+    /// Get a named integer value from this label.
+    public func namedInteger(_ name: String) -> Int32? {
+        var value: Int32 = 0
+        guard OCCTDocumentNamedDataGetInteger(document.handle, labelId, name, &value) else { return nil }
+        return value
+    }
+
+    /// Check if a named integer exists on this label.
+    public func hasNamedInteger(_ name: String) -> Bool {
+        OCCTDocumentNamedDataHasInteger(document.handle, labelId, name)
+    }
+
+    /// Set a named real value on this label.
+    @discardableResult
+    public func setNamedReal(_ name: String, value: Double) -> Bool {
+        OCCTDocumentNamedDataSetReal(document.handle, labelId, name, value)
+    }
+
+    /// Get a named real value from this label.
+    public func namedReal(_ name: String) -> Double? {
+        var value: Double = 0
+        guard OCCTDocumentNamedDataGetReal(document.handle, labelId, name, &value) else { return nil }
+        return value
+    }
+
+    /// Check if a named real exists on this label.
+    public func hasNamedReal(_ name: String) -> Bool {
+        OCCTDocumentNamedDataHasReal(document.handle, labelId, name)
+    }
+
+    /// Set a named string value on this label.
+    @discardableResult
+    public func setNamedString(_ name: String, value: String) -> Bool {
+        OCCTDocumentNamedDataSetString(document.handle, labelId, name, value)
+    }
+
+    /// Get a named string value from this label.
+    public func namedString(_ name: String) -> String? {
+        guard let cStr = OCCTDocumentNamedDataGetString(document.handle, labelId, name) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+
+    /// Check if a named string exists on this label.
+    public func hasNamedString(_ name: String) -> Bool {
+        OCCTDocumentNamedDataHasString(document.handle, labelId, name)
+    }
+}

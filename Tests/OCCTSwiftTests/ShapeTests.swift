@@ -15844,3 +15844,260 @@ struct DocumentModifiedTests {
         #expect(!doc.isModified(label), "Label should not be modified after clear")
     }
 }
+
+// MARK: - TDataStd Scalar Attribute Tests (v0.55.0)
+
+@Suite("TDataStd Integer Attribute")
+struct TDataStdIntegerTests {
+
+    @Test("Set and get integer")
+    func setGetInteger() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let ok = label.setInteger(42)
+        #expect(ok)
+        #expect(label.integer == 42)
+    }
+
+    @Test("Change integer value")
+    func changeInteger() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        label.setInteger(42)
+        label.setInteger(99)
+        #expect(label.integer == 99)
+    }
+
+    @Test("No integer on fresh label")
+    func noInteger() {
+        let doc = Document.create()!
+        let parent = doc.createLabel()!
+        let label = doc.createLabel(parent: parent)!
+        #expect(label.integer == nil)
+    }
+}
+
+@Suite("TDataStd Real Attribute")
+struct TDataStdRealTests {
+
+    @Test("Set and get real")
+    func setGetReal() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let ok = label.setReal(3.14)
+        #expect(ok)
+        if let val = label.real {
+            #expect(abs(val - 3.14) < 1e-10)
+        }
+    }
+
+    @Test("Change real value")
+    func changeReal() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        label.setReal(3.14)
+        label.setReal(2.718)
+        if let val = label.real {
+            #expect(abs(val - 2.718) < 1e-10)
+        }
+    }
+}
+
+@Suite("TDataStd AsciiString Attribute")
+struct TDataStdAsciiStringTests {
+
+    @Test("Set and get ASCII string")
+    func setGetAsciiString() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let ok = label.setAsciiString("hello")
+        #expect(ok)
+        #expect(label.asciiString == "hello")
+    }
+
+    @Test("Change ASCII string")
+    func changeAsciiString() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        label.setAsciiString("hello")
+        label.setAsciiString("world")
+        #expect(label.asciiString == "world")
+    }
+}
+
+@Suite("TDataStd Comment Attribute")
+struct TDataStdCommentTests {
+
+    @Test("Set and get comment")
+    func setGetComment() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let ok = label.setComment("my comment")
+        #expect(ok)
+        #expect(label.comment == "my comment")
+    }
+}
+
+// MARK: - TDataStd Array Attribute Tests (v0.55.0)
+
+@Suite("TDataStd Integer Array")
+struct TDataStdIntegerArrayTests {
+
+    @Test("Initialize and use integer array")
+    func initAndUse() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let ok = label.initIntegerArray(lower: 1, upper: 5)
+        #expect(ok)
+
+        if let bounds = label.integerArrayBounds {
+            #expect(bounds.lower == 1)
+            #expect(bounds.upper == 5)
+        }
+
+        label.setIntegerArrayValue(at: 1, value: 10)
+        label.setIntegerArrayValue(at: 3, value: 30)
+        label.setIntegerArrayValue(at: 5, value: 50)
+
+        #expect(label.integerArrayValue(at: 1) == 10)
+        #expect(label.integerArrayValue(at: 3) == 30)
+        #expect(label.integerArrayValue(at: 5) == 50)
+    }
+
+    @Test("Out of bounds returns nil")
+    func outOfBounds() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        label.initIntegerArray(lower: 0, upper: 2)
+        #expect(label.integerArrayValue(at: 99) == nil)
+    }
+}
+
+@Suite("TDataStd Real Array")
+struct TDataStdRealArrayTests {
+
+    @Test("Initialize and use real array")
+    func initAndUse() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let ok = label.initRealArray(lower: 0, upper: 2)
+        #expect(ok)
+
+        if let bounds = label.realArrayBounds {
+            #expect(bounds.lower == 0)
+            #expect(bounds.upper == 2)
+        }
+
+        label.setRealArrayValue(at: 0, value: 1.1)
+        label.setRealArrayValue(at: 1, value: 2.2)
+        label.setRealArrayValue(at: 2, value: 3.3)
+
+        if let v0 = label.realArrayValue(at: 0) { #expect(abs(v0 - 1.1) < 1e-10) }
+        if let v1 = label.realArrayValue(at: 1) { #expect(abs(v1 - 2.2) < 1e-10) }
+        if let v2 = label.realArrayValue(at: 2) { #expect(abs(v2 - 3.3) < 1e-10) }
+    }
+}
+
+// MARK: - TDataStd TreeNode Tests (v0.55.0)
+
+@Suite("TDataStd TreeNode")
+struct TDataStdTreeNodeTests {
+
+    @Test("Create tree node")
+    func createTreeNode() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let ok = label.setTreeNode()
+        #expect(ok)
+        #expect(!label.treeNodeHasFather)
+        #expect(label.treeNodeDepth == 0)
+    }
+
+    @Test("Parent-child tree structure")
+    func parentChild() {
+        let doc = Document.create()!
+        let root = doc.createLabel()!
+        let child1 = doc.createLabel()!
+        let child2 = doc.createLabel()!
+
+        root.setTreeNode()
+        child1.setTreeNode()
+        child2.setTreeNode()
+
+        root.appendTreeChild(child1)
+        root.appendTreeChild(child2)
+
+        #expect(child1.treeNodeHasFather)
+        #expect(child1.treeNodeDepth == 1)
+        #expect(root.treeNodeChildCount == 2)
+
+        if let father = child1.treeNodeFather {
+            #expect(father.labelId == root.labelId)
+        }
+
+        if let first = root.treeNodeFirstChild {
+            #expect(first.labelId == child1.labelId)
+        }
+
+        if let next = child1.treeNodeNext {
+            #expect(next.labelId == child2.labelId)
+        }
+
+        #expect(child2.treeNodeNext == nil)
+    }
+}
+
+// MARK: - TDataStd NamedData Tests (v0.55.0)
+
+@Suite("TDataStd NamedData")
+struct TDataStdNamedDataTests {
+
+    @Test("Named integer")
+    func namedInteger() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        let ok = label.setNamedInteger("count", value: 42)
+        #expect(ok)
+        #expect(label.hasNamedInteger("count"))
+        #expect(label.namedInteger("count") == 42)
+        #expect(!label.hasNamedInteger("other"))
+    }
+
+    @Test("Named real")
+    func namedReal() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        label.setNamedReal("pi", value: 3.14159)
+        #expect(label.hasNamedReal("pi"))
+        if let val = label.namedReal("pi") {
+            #expect(abs(val - 3.14159) < 1e-5)
+        }
+    }
+
+    @Test("Named string")
+    func namedString() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        label.setNamedString("partName", value: "MyPart")
+        #expect(label.hasNamedString("partName"))
+        #expect(label.namedString("partName") == "MyPart")
+        #expect(!label.hasNamedString("other"))
+    }
+
+    @Test("Multiple named values on same label")
+    func multipleValues() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+
+        label.setNamedInteger("count", value: 5)
+        label.setNamedReal("weight", value: 12.5)
+        label.setNamedString("material", value: "Steel")
+
+        #expect(label.namedInteger("count") == 5)
+        if let w = label.namedReal("weight") { #expect(abs(w - 12.5) < 1e-10) }
+        #expect(label.namedString("material") == "Steel")
+    }
+}

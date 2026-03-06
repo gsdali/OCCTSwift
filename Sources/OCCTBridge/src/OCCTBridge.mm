@@ -20624,3 +20624,408 @@ bool OCCTDocumentIsLabelModified(OCCTDocumentRef doc, int64_t labelId) {
         return modified.Contains(label);
     } catch (...) { return false; }
 }
+
+// MARK: - TDataStd Scalar Attributes (v0.55.0)
+
+#include <TDataStd_Integer.hxx>
+#include <TDataStd_Real.hxx>
+#include <TDataStd_AsciiString.hxx>
+#include <TDataStd_Comment.hxx>
+#include <TDataStd_IntegerArray.hxx>
+#include <TDataStd_RealArray.hxx>
+#include <TDataStd_TreeNode.hxx>
+#include <TDataStd_NamedData.hxx>
+
+bool OCCTDocumentSetIntegerAttr(OCCTDocumentRef doc, int64_t labelId, int32_t value) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataStd_Integer::Set(label, value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetIntegerAttr(OCCTDocumentRef doc, int64_t labelId, int32_t* outValue) {
+    if (!doc || doc->doc.IsNull() || !outValue) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_Integer) attr;
+        if (!label.FindAttribute(TDataStd_Integer::GetID(), attr)) return false;
+        *outValue = attr->Get();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentSetRealAttr(OCCTDocumentRef doc, int64_t labelId, double value) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataStd_Real::Set(label, value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetRealAttr(OCCTDocumentRef doc, int64_t labelId, double* outValue) {
+    if (!doc || doc->doc.IsNull() || !outValue) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_Real) attr;
+        if (!label.FindAttribute(TDataStd_Real::GetID(), attr)) return false;
+        *outValue = attr->Get();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentSetAsciiStringAttr(OCCTDocumentRef doc, int64_t labelId, const char* value) {
+    if (!doc || doc->doc.IsNull() || !value) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataStd_AsciiString::Set(label, TCollection_AsciiString(value));
+        return true;
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentGetAsciiStringAttr(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+        Handle(TDataStd_AsciiString) attr;
+        if (!label.FindAttribute(TDataStd_AsciiString::GetID(), attr)) return nullptr;
+        return strdup(attr->Get().ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentSetCommentAttr(OCCTDocumentRef doc, int64_t labelId, const char* value) {
+    if (!doc || doc->doc.IsNull() || !value) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataStd_Comment::Set(label, TCollection_ExtendedString(value, true));
+        return true;
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentGetCommentAttr(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+        Handle(TDataStd_Comment) attr;
+        if (!label.FindAttribute(TDataStd_Comment::GetID(), attr)) return nullptr;
+        TCollection_AsciiString ascii(attr->Get());
+        return strdup(ascii.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - TDataStd Integer Array (v0.55.0)
+
+bool OCCTDocumentInitIntegerArray(OCCTDocumentRef doc, int64_t labelId, int32_t lower, int32_t upper) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataStd_IntegerArray::Set(label, lower, upper);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentSetIntegerArrayValue(OCCTDocumentRef doc, int64_t labelId, int32_t index, int32_t value) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_IntegerArray) attr;
+        if (!label.FindAttribute(TDataStd_IntegerArray::GetID(), attr)) return false;
+        attr->SetValue(index, value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetIntegerArrayValue(OCCTDocumentRef doc, int64_t labelId, int32_t index, int32_t* outValue) {
+    if (!doc || doc->doc.IsNull() || !outValue) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_IntegerArray) attr;
+        if (!label.FindAttribute(TDataStd_IntegerArray::GetID(), attr)) return false;
+        if (index < attr->Lower() || index > attr->Upper()) return false;
+        *outValue = attr->Value(index);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetIntegerArrayBounds(OCCTDocumentRef doc, int64_t labelId, int32_t* outLower, int32_t* outUpper) {
+    if (!doc || doc->doc.IsNull() || !outLower || !outUpper) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_IntegerArray) attr;
+        if (!label.FindAttribute(TDataStd_IntegerArray::GetID(), attr)) return false;
+        *outLower = attr->Lower();
+        *outUpper = attr->Upper();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd Real Array (v0.55.0)
+
+bool OCCTDocumentInitRealArray(OCCTDocumentRef doc, int64_t labelId, int32_t lower, int32_t upper) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataStd_RealArray::Set(label, lower, upper);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentSetRealArrayValue(OCCTDocumentRef doc, int64_t labelId, int32_t index, double value) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_RealArray) attr;
+        if (!label.FindAttribute(TDataStd_RealArray::GetID(), attr)) return false;
+        attr->SetValue(index, value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetRealArrayValue(OCCTDocumentRef doc, int64_t labelId, int32_t index, double* outValue) {
+    if (!doc || doc->doc.IsNull() || !outValue) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_RealArray) attr;
+        if (!label.FindAttribute(TDataStd_RealArray::GetID(), attr)) return false;
+        if (index < attr->Lower() || index > attr->Upper()) return false;
+        *outValue = attr->Value(index);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetRealArrayBounds(OCCTDocumentRef doc, int64_t labelId, int32_t* outLower, int32_t* outUpper) {
+    if (!doc || doc->doc.IsNull() || !outLower || !outUpper) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_RealArray) attr;
+        if (!label.FindAttribute(TDataStd_RealArray::GetID(), attr)) return false;
+        *outLower = attr->Lower();
+        *outUpper = attr->Upper();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd TreeNode (v0.55.0)
+
+bool OCCTDocumentSetTreeNode(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataStd_TreeNode::Set(label);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentAppendTreeChild(OCCTDocumentRef doc, int64_t parentLabelId, int64_t childLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label parentLabel = doc->getLabel(parentLabelId);
+        TDF_Label childLabel = doc->getLabel(childLabelId);
+        if (parentLabel.IsNull() || childLabel.IsNull()) return false;
+        Handle(TDataStd_TreeNode) parentNode, childNode;
+        if (!parentLabel.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), parentNode)) return false;
+        if (!childLabel.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), childNode)) return false;
+        return parentNode->Append(childNode);
+    } catch (...) { return false; }
+}
+
+int64_t OCCTDocumentTreeNodeFather(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(TDataStd_TreeNode) node;
+        if (!label.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), node)) return -1;
+        if (!node->HasFather()) return -1;
+        return doc->registerLabel(node->Father()->Label());
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentTreeNodeFirst(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(TDataStd_TreeNode) node;
+        if (!label.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), node)) return -1;
+        if (!node->HasFirst()) return -1;
+        return doc->registerLabel(node->First()->Label());
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentTreeNodeNext(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(TDataStd_TreeNode) node;
+        if (!label.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), node)) return -1;
+        if (!node->HasNext()) return -1;
+        return doc->registerLabel(node->Next()->Label());
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentTreeNodeHasFather(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataStd_TreeNode) node;
+        if (!label.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), node)) return false;
+        return node->HasFather();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentTreeNodeDepth(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(TDataStd_TreeNode) node;
+        if (!label.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), node)) return -1;
+        return node->Depth();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDocumentTreeNodeNbChildren(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(TDataStd_TreeNode) node;
+        if (!label.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), node)) return 0;
+        return node->NbChildren();
+    } catch (...) { return 0; }
+}
+
+// MARK: - TDataStd NamedData (v0.55.0)
+
+static Handle(TDataStd_NamedData) getOrCreateNamedData(OCCTDocumentRef doc, int64_t labelId) {
+    TDF_Label label = doc->getLabel(labelId);
+    if (label.IsNull()) return nullptr;
+    Handle(TDataStd_NamedData) nd;
+    if (!label.FindAttribute(TDataStd_NamedData::GetID(), nd)) {
+        nd = TDataStd_NamedData::Set(label);
+    }
+    return nd;
+}
+
+static Handle(TDataStd_NamedData) findNamedData(OCCTDocumentRef doc, int64_t labelId) {
+    TDF_Label label = doc->getLabel(labelId);
+    if (label.IsNull()) return nullptr;
+    Handle(TDataStd_NamedData) nd;
+    label.FindAttribute(TDataStd_NamedData::GetID(), nd);
+    return nd;
+}
+
+bool OCCTDocumentNamedDataSetInteger(OCCTDocumentRef doc, int64_t labelId, const char* name, int32_t value) {
+    if (!doc || doc->doc.IsNull() || !name) return false;
+    try {
+        auto nd = getOrCreateNamedData(doc, labelId);
+        if (nd.IsNull()) return false;
+        nd->SetInteger(TCollection_AsciiString(name), value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamedDataGetInteger(OCCTDocumentRef doc, int64_t labelId, const char* name, int32_t* outValue) {
+    if (!doc || doc->doc.IsNull() || !name || !outValue) return false;
+    try {
+        auto nd = findNamedData(doc, labelId);
+        if (nd.IsNull()) return false;
+        TCollection_AsciiString key(name);
+        if (!nd->HasInteger(key)) return false;
+        *outValue = nd->GetInteger(key);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamedDataHasInteger(OCCTDocumentRef doc, int64_t labelId, const char* name) {
+    if (!doc || doc->doc.IsNull() || !name) return false;
+    try {
+        auto nd = findNamedData(doc, labelId);
+        if (nd.IsNull()) return false;
+        return nd->HasInteger(TCollection_AsciiString(name));
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamedDataSetReal(OCCTDocumentRef doc, int64_t labelId, const char* name, double value) {
+    if (!doc || doc->doc.IsNull() || !name) return false;
+    try {
+        auto nd = getOrCreateNamedData(doc, labelId);
+        if (nd.IsNull()) return false;
+        nd->SetReal(TCollection_AsciiString(name), value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamedDataGetReal(OCCTDocumentRef doc, int64_t labelId, const char* name, double* outValue) {
+    if (!doc || doc->doc.IsNull() || !name || !outValue) return false;
+    try {
+        auto nd = findNamedData(doc, labelId);
+        if (nd.IsNull()) return false;
+        TCollection_AsciiString key(name);
+        if (!nd->HasReal(key)) return false;
+        *outValue = nd->GetReal(key);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamedDataHasReal(OCCTDocumentRef doc, int64_t labelId, const char* name) {
+    if (!doc || doc->doc.IsNull() || !name) return false;
+    try {
+        auto nd = findNamedData(doc, labelId);
+        if (nd.IsNull()) return false;
+        return nd->HasReal(TCollection_AsciiString(name));
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamedDataSetString(OCCTDocumentRef doc, int64_t labelId, const char* name, const char* value) {
+    if (!doc || doc->doc.IsNull() || !name || !value) return false;
+    try {
+        auto nd = getOrCreateNamedData(doc, labelId);
+        if (nd.IsNull()) return false;
+        nd->SetString(TCollection_AsciiString(name), TCollection_ExtendedString(value, true));
+        return true;
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentNamedDataGetString(OCCTDocumentRef doc, int64_t labelId, const char* name) {
+    if (!doc || doc->doc.IsNull() || !name) return nullptr;
+    try {
+        auto nd = findNamedData(doc, labelId);
+        if (nd.IsNull()) return nullptr;
+        TCollection_AsciiString key(name);
+        if (!nd->HasString(key)) return nullptr;
+        TCollection_AsciiString ascii(nd->GetString(key));
+        return strdup(ascii.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentNamedDataHasString(OCCTDocumentRef doc, int64_t labelId, const char* name) {
+    if (!doc || doc->doc.IsNull() || !name) return false;
+    try {
+        auto nd = findNamedData(doc, labelId);
+        if (nd.IsNull()) return false;
+        return nd->HasString(TCollection_AsciiString(name));
+    } catch (...) { return false; }
+}

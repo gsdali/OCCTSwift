@@ -6200,6 +6200,115 @@ void OCCTDocumentClearModified(OCCTDocumentRef doc);
 /// Note: This uses TDocStd_Document::GetModified(), not TDocStd_Modified attribute directly.
 bool OCCTDocumentIsLabelModified(OCCTDocumentRef doc, int64_t labelId);
 
+// MARK: - TDataStd Scalar Attributes (v0.55.0)
+
+/// Set an integer attribute (TDataStd_Integer) on a label.
+bool OCCTDocumentSetIntegerAttr(OCCTDocumentRef doc, int64_t labelId, int32_t value);
+
+/// Get the integer attribute from a label.
+bool OCCTDocumentGetIntegerAttr(OCCTDocumentRef doc, int64_t labelId, int32_t* outValue);
+
+/// Set a real attribute (TDataStd_Real) on a label.
+bool OCCTDocumentSetRealAttr(OCCTDocumentRef doc, int64_t labelId, double value);
+
+/// Get the real attribute from a label.
+bool OCCTDocumentGetRealAttr(OCCTDocumentRef doc, int64_t labelId, double* outValue);
+
+/// Set an ASCII string attribute (TDataStd_AsciiString) on a label.
+bool OCCTDocumentSetAsciiStringAttr(OCCTDocumentRef doc, int64_t labelId, const char* value);
+
+/// Get the ASCII string attribute from a label. Caller must free with OCCTStringFree.
+const char* OCCTDocumentGetAsciiStringAttr(OCCTDocumentRef doc, int64_t labelId);
+
+/// Set a comment attribute (TDataStd_Comment) on a label.
+bool OCCTDocumentSetCommentAttr(OCCTDocumentRef doc, int64_t labelId, const char* value);
+
+/// Get the comment attribute from a label. Caller must free with OCCTStringFree.
+const char* OCCTDocumentGetCommentAttr(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - TDataStd Integer Array (v0.55.0)
+
+/// Initialize an integer array attribute on a label.
+bool OCCTDocumentInitIntegerArray(OCCTDocumentRef doc, int64_t labelId, int32_t lower, int32_t upper);
+
+/// Set a value in an integer array attribute.
+bool OCCTDocumentSetIntegerArrayValue(OCCTDocumentRef doc, int64_t labelId, int32_t index, int32_t value);
+
+/// Get a value from an integer array attribute.
+bool OCCTDocumentGetIntegerArrayValue(OCCTDocumentRef doc, int64_t labelId, int32_t index, int32_t* outValue);
+
+/// Get the bounds of an integer array attribute.
+bool OCCTDocumentGetIntegerArrayBounds(OCCTDocumentRef doc, int64_t labelId, int32_t* outLower, int32_t* outUpper);
+
+// MARK: - TDataStd Real Array (v0.55.0)
+
+/// Initialize a real array attribute on a label.
+bool OCCTDocumentInitRealArray(OCCTDocumentRef doc, int64_t labelId, int32_t lower, int32_t upper);
+
+/// Set a value in a real array attribute.
+bool OCCTDocumentSetRealArrayValue(OCCTDocumentRef doc, int64_t labelId, int32_t index, double value);
+
+/// Get a value from a real array attribute.
+bool OCCTDocumentGetRealArrayValue(OCCTDocumentRef doc, int64_t labelId, int32_t index, double* outValue);
+
+/// Get the bounds of a real array attribute.
+bool OCCTDocumentGetRealArrayBounds(OCCTDocumentRef doc, int64_t labelId, int32_t* outLower, int32_t* outUpper);
+
+// MARK: - TDataStd TreeNode (v0.55.0)
+
+/// Set a tree node attribute (TDataStd_TreeNode) on a label.
+bool OCCTDocumentSetTreeNode(OCCTDocumentRef doc, int64_t labelId);
+
+/// Append a child tree node under a parent tree node.
+bool OCCTDocumentAppendTreeChild(OCCTDocumentRef doc, int64_t parentLabelId, int64_t childLabelId);
+
+/// Get the father (parent) of a tree node.
+int64_t OCCTDocumentTreeNodeFather(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the first child of a tree node.
+int64_t OCCTDocumentTreeNodeFirst(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the next sibling of a tree node.
+int64_t OCCTDocumentTreeNodeNext(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a tree node has a father.
+bool OCCTDocumentTreeNodeHasFather(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the depth of a tree node (root=0).
+int32_t OCCTDocumentTreeNodeDepth(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the number of children of a tree node.
+int32_t OCCTDocumentTreeNodeNbChildren(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - TDataStd NamedData (v0.55.0)
+
+/// Set an integer value in a NamedData attribute.
+bool OCCTDocumentNamedDataSetInteger(OCCTDocumentRef doc, int64_t labelId, const char* name, int32_t value);
+
+/// Get an integer value from a NamedData attribute.
+bool OCCTDocumentNamedDataGetInteger(OCCTDocumentRef doc, int64_t labelId, const char* name, int32_t* outValue);
+
+/// Check if a named integer exists in a NamedData attribute.
+bool OCCTDocumentNamedDataHasInteger(OCCTDocumentRef doc, int64_t labelId, const char* name);
+
+/// Set a real value in a NamedData attribute.
+bool OCCTDocumentNamedDataSetReal(OCCTDocumentRef doc, int64_t labelId, const char* name, double value);
+
+/// Get a real value from a NamedData attribute.
+bool OCCTDocumentNamedDataGetReal(OCCTDocumentRef doc, int64_t labelId, const char* name, double* outValue);
+
+/// Check if a named real exists in a NamedData attribute.
+bool OCCTDocumentNamedDataHasReal(OCCTDocumentRef doc, int64_t labelId, const char* name);
+
+/// Set a string value in a NamedData attribute.
+bool OCCTDocumentNamedDataSetString(OCCTDocumentRef doc, int64_t labelId, const char* name, const char* value);
+
+/// Get a string value from a NamedData attribute. Caller must free with OCCTStringFree.
+const char* OCCTDocumentNamedDataGetString(OCCTDocumentRef doc, int64_t labelId, const char* name);
+
+/// Check if a named string exists in a NamedData attribute.
+bool OCCTDocumentNamedDataHasString(OCCTDocumentRef doc, int64_t labelId, const char* name);
+
 #ifdef __cplusplus
 }
 #endif
