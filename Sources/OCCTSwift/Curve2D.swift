@@ -283,6 +283,47 @@ public final class Curve2D: @unchecked Sendable {
         return Curve2D(handle: h)
     }
 
+    /// Interpolate through points with per-point tangent constraints at arbitrary indices.
+    ///
+    /// Use this when you need tangent continuity at specific interior transition points,
+    /// for example where a straight section meets a circular arc in a composite curve.
+    ///
+    /// - Parameters:
+    ///   - points: The interpolation points the curve must pass through.
+    ///   - tangents: A dictionary mapping point index → unit tangent direction.
+    ///               Indices not present in the dictionary are unconstrained (C2 computed).
+    ///   - closed: Whether the resulting curve should be closed/periodic.
+    ///   - tolerance: Point coincidence tolerance (default 1e-6).
+    /// - Returns: A B-spline interpolating curve, or `nil` on failure.
+    /// - Note: Resolves GitHub issue #38.
+    public static func interpolate(through points: [SIMD2<Double>],
+                                   tangents: [Int: SIMD2<Double>],
+                                   closed: Bool = false,
+                                   tolerance: Double = 1e-6) -> Curve2D? {
+        guard points.count >= 2 else { return nil }
+        let n = points.count
+        let flatPoints = points.flatMap { [$0.x, $0.y] }
+        // Build parallel tangent and flag arrays
+        var flatTangents = [Double](repeating: 0, count: n * 2)
+        var flags = [Bool](repeating: false, count: n)
+        for (idx, tan) in tangents where idx >= 0 && idx < n {
+            flatTangents[idx * 2]     = tan.x
+            flatTangents[idx * 2 + 1] = tan.y
+            flags[idx] = true
+        }
+        guard let h = flatPoints.withUnsafeBufferPointer({ ptsPtr in
+            flatTangents.withUnsafeBufferPointer { tanPtr in
+                flags.withUnsafeBufferPointer { flagPtr in
+                    OCCTCurve2DInterpolateWithInteriorTangents(
+                        ptsPtr.baseAddress, Int32(n),
+                        tanPtr.baseAddress, flagPtr.baseAddress,
+                        closed, tolerance)
+                }
+            }
+        }) else { return nil }
+        return Curve2D(handle: h)
+    }
+
     /// Approximate a B-spline curve fitting through points within tolerance.
     public static func fit(through points: [SIMD2<Double>], minDegree: Int = 3,
                            maxDegree: Int = 8, tolerance: Double = 1e-3) -> Curve2D? {
@@ -379,6 +420,25 @@ public final class Curve2D: @unchecked Sendable {
     public func length(from u1: Double, to u2: Double) -> Double? {
         let l = OCCTCurve2DGetLengthBetween(handle, u1, u2)
         return l >= 0 ? l : nil
+    }
+
+    /// Returns the curve parameter at the given arc-length distance from `fromParameter`.
+    ///
+    /// Use this to trim a curve to a specific arc length, or to place features at
+    /// measured positions along a composite curve.
+    ///
+    /// - Parameters:
+    ///   - arcLength: The desired arc-length distance to travel from `fromParameter`.
+    ///                May be negative to travel in the reverse direction.
+    ///   - fromParameter: The starting parameter. Defaults to `domain.lowerBound`
+    ///                    (the start of the curve).
+    /// - Returns: The parameter value at the given arc-length distance,
+    ///            or `nil` if the computation fails (e.g. distance exceeds the curve).
+    /// - Note: Resolves GitHub issue #37.
+    public func parameterAtLength(_ arcLength: Double, from fromParameter: Double? = nil) -> Double? {
+        let start = fromParameter ?? domain.lowerBound
+        let result = OCCTCurve2DParameterAtLength(handle, arcLength, start)
+        return result > -Double.greatestFiniteMagnitude ? result : nil
     }
 
     // MARK: - Local Properties (Curvature, Normal, Inflection)

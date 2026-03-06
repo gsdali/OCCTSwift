@@ -1619,6 +1619,31 @@ int32_t OCCTCurve2DSplitAtDiscontinuities(OCCTCurve2DRef curve, int32_t continui
 int32_t OCCTCurve2DToArcsAndSegments(OCCTCurve2DRef curve, double tolerance,
                                      double angleTol, OCCTCurve2DRef* out, int32_t max);
 
+// Issue #37 — parameter at arc length
+/// Returns the curve parameter at the given arc-length distance from fromParam.
+/// Pass the curve's FirstParameter() as fromParam to measure from the start.
+/// Returns -DBL_MAX on failure.
+double OCCTCurve2DParameterAtLength(OCCTCurve2DRef curve, double arcLength, double fromParam);
+
+// Issue #38 — interpolate with interior tangent constraints
+/// Interpolate through points with per-point tangent constraints.
+/// tangents: flat array of (tx, ty) pairs, one per point.
+/// tangentFlags: one bool per point; true means the tangent at that index is constrained.
+/// Returns NULL on failure.
+OCCTCurve2DRef OCCTCurve2DInterpolateWithInteriorTangents(
+    const double* points, int32_t count,
+    const double* tangents, const bool* tangentFlags,
+    bool closed, double tolerance);
+
+// Issue #39 — lift a 2D curve onto a 3D plane to produce a Wire
+/// Creates a 3D wire by embedding the 2D curve into a gp_Pln.
+/// The plane is defined by its origin (ox,oy,oz), normal (nx,ny,nz) and x-axis (xx,xy,xz).
+/// Returns NULL on failure.
+OCCTWireRef OCCTWireFromCurve2DOnPlane(OCCTCurve2DRef curve,
+                                       double ox, double oy, double oz,
+                                       double nx, double ny, double nz,
+                                       double xx, double xy, double xz);
+
 // Gcc Constraint Solver — Qualifier enum
 typedef enum {
     OCCTGccQualUnqualified = 0,

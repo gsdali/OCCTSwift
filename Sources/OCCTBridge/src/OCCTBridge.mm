@@ -7838,6 +7838,88 @@ int32_t OCCTCurve2DToArcsAndSegments(OCCTCurve2DRef c, double tolerance,
     }
 }
 
+// MARK: - Issue #37: Parameter at Arc Length
+
+double OCCTCurve2DParameterAtLength(OCCTCurve2DRef c, double arcLength, double fromParam) {
+    if (!c || c->curve.IsNull()) return -DBL_MAX;
+    try {
+        Geom2dAdaptor_Curve adaptor(c->curve);
+        GCPnts_AbscissaPoint solver(adaptor, arcLength, fromParam);
+        if (!solver.IsDone()) return -DBL_MAX;
+        return solver.Parameter();
+    } catch (...) {
+        return -DBL_MAX;
+    }
+}
+
+// MARK: - Issue #38: Interpolate with Interior Tangent Constraints
+
+OCCTCurve2DRef OCCTCurve2DInterpolateWithInteriorTangents(
+    const double* points, int32_t count,
+    const double* tangents, const bool* tangentFlags,
+    bool closed, double tolerance) {
+    if (!points || !tangents || !tangentFlags || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt2d) pts = new TColgp_HArray1OfPnt2d(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(points[i * 2], points[i * 2 + 1]));
+        }
+        Geom2dAPI_Interpolate interp(pts, closed ? Standard_True : Standard_False, tolerance);
+
+        // Build tangent array and flags array
+        NCollection_Array1<gp_Vec2d> tanVecs(1, count);
+        Handle(NCollection_HArray1<bool>) tanFlags = new NCollection_HArray1<bool>(1, count);
+        bool anyFlag = false;
+        for (int i = 0; i < count; i++) {
+            tanVecs.SetValue(i + 1, gp_Vec2d(tangents[i * 2], tangents[i * 2 + 1]));
+            tanFlags->SetValue(i + 1, tangentFlags[i]);
+            if (tangentFlags[i]) anyFlag = true;
+        }
+        if (anyFlag) {
+            interp.Load(tanVecs, tanFlags);
+        }
+        interp.Perform();
+        if (!interp.IsDone()) return nullptr;
+        return new OCCTCurve2D(interp.Curve());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Issue #39: Lift 2D Curve to 3D Wire on a Plane
+
+OCCTWireRef OCCTWireFromCurve2DOnPlane(OCCTCurve2DRef curve,
+                                       double ox, double oy, double oz,
+                                       double nx, double ny, double nz,
+                                       double xx, double xy, double xz) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        gp_Pnt origin(ox, oy, oz);
+        gp_Dir normal(nx, ny, nz);
+        gp_Dir xDir(xx, xy, xz);
+        gp_Ax2 ax2(origin, normal, xDir);
+        gp_Pln plane(ax2);
+
+        // BRepBuilderAPI_MakeEdge accepts a Geom2d_Curve + Handle(Geom_Surface)
+        Handle(Geom_Plane) surf = new Geom_Plane(plane);
+        BRepBuilderAPI_MakeEdge maker(curve->curve, surf);
+        if (!maker.IsDone()) return nullptr;
+        TopoDS_Edge edge = maker.Edge();
+
+        // Build the 3D curve representation from the pcurve on the plane surface
+        BRepLib::BuildCurves3d(edge);
+
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        if (!wireMaker.IsDone()) return nullptr;
+
+        auto* w = new OCCTWire();
+        w->wire = wireMaker.Wire();
+        return w;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // MARK: - Gcc Constraint Solver
 
 static GccEnt_Position toGccPosition(int32_t q) {

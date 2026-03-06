@@ -198,6 +198,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **GCE2d_MakeLine**: Create 2D lines through two points or parallel to direction at distance
 - **BRepLib_MakeWire**: Assemble wires from individual edge objects
 - **ChFi2d_AnaFilletAlgo**: Analytical 2D fillet between line segments or arcs in a plane
+- **Curve2D.parameterAtLength**: GCPnts_AbscissaPoint — find the parameter on a 2D curve at a given arc-length distance from a start parameter
+- **Curve2D.interpolate with interior tangents**: Geom2dAPI_Interpolate.Load(Tangents, TangentFlags) — constrain tangent direction at any interior interpolation point
+- **Wire.fromCurve2D(on plane)**: Lift a 2D parametric curve onto a 3D geometric plane via BRepBuilderAPI_MakeEdge(Geom2d_Curve, Geom_Surface)
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1092,6 +1095,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 - **Pockets with Islands**: Multi-contour pocket features
 
 > **Note:** Many previously missing features have been added in recent versions:
+> - v0.51.0: **2D curve completions** — `Curve2D.parameterAtLength` (GCPnts_AbscissaPoint arc-length parameter query), `Curve2D.interpolate(tangents:)` (interior tangent constraints via Geom2dAPI_Interpolate.Load), `Wire.fromCurve2D(on:)` (lift 2D parametric curve to 3D wire on a geometric plane via BRepBuilderAPI_MakeEdge + BRepLib::BuildCurves3d)
 > - v0.46.0: **Edge concavity, curve approximation, local prism, volume/surface inertia** — BRepOffset_Analyse edge classification, Approx_Curve3d BSpline approximation, LocOpe_Prism with shape tracking, full inertia tensor with principal axes
 > - v0.45.0: **N-side filling, self-intersection, face GProp, wire ordering** — BRepFill_Filling with edge/point constraints, BRepExtrema_SelfIntersection via BVH, BRepGProp_Face natural bounds + unnormalized normals, ShapeAnalysis_WireOrder edge chain analysis
 > - v0.38.0: **OCCT test suite audit, round 7** — oriented bounding box, deep shape copy, sub-shape extraction (solids/shells/wires), fuse-and-blend, cut-and-blend, evolving fillet, per-face variable offset
@@ -1147,9 +1151,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.30.0
+### Current Status: v0.51.0
 
-OCCTSwift now wraps **687 OCCT operations** across 59 categories with 1033 tests across 278 suites.
+OCCTSwift now wraps **690 OCCT operations** across 59 categories with 1062 tests across 290 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

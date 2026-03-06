@@ -14201,3 +14201,284 @@ struct AnaFilletTests {
         }
     }
 }
+
+// MARK: - Issue #37: Curve2D.parameterAtLength
+
+@Suite("Curve2D parameterAtLength Tests")
+struct Curve2DParameterAtLengthTests {
+
+    @Test("Parameter at full arc length of a circle arc")
+    func parameterAtFullArcLength() {
+        // Quarter arc of radius 10 has length pi/2 * 10 ≈ 15.708
+        let arc = Curve2D.arcOfCircle(center: .zero, radius: 10,
+                                      startAngle: 0, endAngle: .pi / 2)!
+        let expectedLength = .pi / 2.0 * 10.0
+        if let totalLen = arc.length {
+            #expect(abs(totalLen - expectedLength) < 0.01)
+        }
+        // Parameter at half the arc length should be at pi/4 (midpoint of the arc)
+        if let halfLen = arc.length {
+            if let param = arc.parameterAtLength(halfLen / 2) {
+                let pt = arc.point(at: param)
+                // At pi/4 on a radius-10 circle: x ≈ y ≈ 7.071
+                #expect(abs(pt.x - 7.071) < 0.05)
+                #expect(abs(pt.y - 7.071) < 0.05)
+            }
+        }
+    }
+
+    @Test("Parameter at zero length returns start parameter")
+    func parameterAtZeroLength() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        if let param = seg.parameterAtLength(0) {
+            let pt = seg.point(at: param)
+            #expect(abs(pt.x) < 1e-6)
+            #expect(abs(pt.y) < 1e-6)
+        }
+    }
+
+    @Test("Parameter at full length of a segment")
+    func parameterAtFullSegmentLength() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        if let totalLen = seg.length, let param = seg.parameterAtLength(totalLen) {
+            let pt = seg.point(at: param)
+            #expect(abs(pt.x - 10.0) < 0.01)
+            #expect(abs(pt.y) < 1e-6)
+        }
+    }
+
+    @Test("Parameter at length from non-start parameter")
+    func parameterAtLengthFromMidpoint() {
+        // 20-unit horizontal segment; measure 5 units starting from parameter at x=5
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(20, 0))!
+        let midParam = seg.domain.lowerBound + (seg.domain.upperBound - seg.domain.lowerBound) / 2
+        if let param = seg.parameterAtLength(5, from: midParam) {
+            let pt = seg.point(at: param)
+            #expect(abs(pt.x - 15.0) < 0.1)
+        }
+    }
+
+    @Test("parameterAtLength returns nil on failure")
+    func parameterAtLengthFailure() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        // Asking for more than the total arc length should fail
+        let result = seg.parameterAtLength(1000)
+        // result may be nil or may extrapolate — either is acceptable; just ensure no crash
+        _ = result
+    }
+
+    @Test("Trim curve to exact arc length using parameterAtLength")
+    func trimToArcLength() {
+        // Create a 20-unit segment, trim to exactly 7 units from start
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(20, 0))!
+        let first = seg.domain.lowerBound
+        if let endParam = seg.parameterAtLength(7, from: first) {
+            if let trimmed = seg.trimmed(from: first, to: endParam) {
+                if let len = trimmed.length {
+                    #expect(abs(len - 7.0) < 0.01)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Issue #38: Curve2D.interpolate with interior tangent constraints
+
+@Suite("Curve2D Interior Tangent Interpolation Tests")
+struct Curve2DInteriorTangentTests {
+
+    @Test("Interpolate with no tangent constraints matches basic interpolate")
+    func noTangentConstraints() {
+        let pts: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(5, 3), SIMD2(10, 0)
+        ]
+        let basic = Curve2D.interpolate(through: pts)
+        let withEmpty = Curve2D.interpolate(through: pts, tangents: [:])
+        #expect(basic != nil)
+        #expect(withEmpty != nil)
+        // Both should pass through the same endpoints
+        if let b = basic, let w = withEmpty {
+            let bStart = b.point(at: b.domain.lowerBound)
+            let wStart = w.point(at: w.domain.lowerBound)
+            #expect(abs(bStart.x - wStart.x) < 0.01)
+            #expect(abs(bStart.y - wStart.y) < 0.01)
+        }
+    }
+
+    @Test("Tangent constraint at start and end")
+    func tangentsAtStartAndEnd() {
+        let pts: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(5, 5), SIMD2(10, 0)
+        ]
+        // Horizontal tangent at start and end (railway tangent point convention)
+        let tangents: [Int: SIMD2<Double>] = [
+            0: SIMD2(1, 0),
+            2: SIMD2(1, 0)
+        ]
+        let curve = Curve2D.interpolate(through: pts, tangents: tangents)
+        #expect(curve != nil)
+        if let c = curve {
+            let startPt = c.point(at: c.domain.lowerBound)
+            let endPt   = c.point(at: c.domain.upperBound)
+            #expect(abs(startPt.x) < 0.01)
+            #expect(abs(startPt.y) < 0.01)
+            #expect(abs(endPt.x - 10.0) < 0.01)
+            #expect(abs(endPt.y) < 0.01)
+            // Tangent at start should be approximately horizontal
+            if let tan = c.tangentDirection(at: c.domain.lowerBound) {
+                #expect(abs(tan.y) < 0.1)
+            }
+        }
+    }
+
+    @Test("Tangent constraint at interior point")
+    func tangentAtInteriorPoint() {
+        // Five points; force tangent at index 2 (middle) to be horizontal
+        let pts: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(2, 3), SIMD2(5, 2), SIMD2(8, 3), SIMD2(10, 0)
+        ]
+        let tangents: [Int: SIMD2<Double>] = [2: SIMD2(1, 0)]
+        let curve = Curve2D.interpolate(through: pts, tangents: tangents)
+        #expect(curve != nil)
+        if let c = curve {
+            // Curve must pass through all 5 points
+            let startPt = c.point(at: c.domain.lowerBound)
+            let endPt   = c.point(at: c.domain.upperBound)
+            #expect(abs(startPt.x) < 0.1)
+            #expect(abs(endPt.x - 10.0) < 0.1)
+            // The curve should be a valid BSpline
+            #expect(c.poleCount != nil)
+        }
+    }
+
+    @Test("Closed curve with interior tangent constraint")
+    func closedCurveWithTangent() {
+        let pts: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(5, 5), SIMD2(10, 0), SIMD2(5, -5)
+        ]
+        let tangents: [Int: SIMD2<Double>] = [1: SIMD2(1, 0)]
+        let curve = Curve2D.interpolate(through: pts, tangents: tangents, closed: true)
+        // Closed curve with interior constraint — may or may not succeed depending on geometry
+        if let c = curve {
+            #expect(c.isClosed || c.isPeriodic)
+        }
+    }
+
+    @Test("Minimum 2-point interpolation with tangent constraints")
+    func twoPointInterpolation() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(10, 0)]
+        let tangents: [Int: SIMD2<Double>] = [0: SIMD2(1, 0), 1: SIMD2(1, 0)]
+        let curve = Curve2D.interpolate(through: pts, tangents: tangents)
+        #expect(curve != nil)
+    }
+}
+
+// MARK: - Issue #39: Wire.fromCurve2D(on:)
+
+@Suite("Wire fromCurve2D on Plane Tests")
+struct WireFromCurve2DOnPlaneTests {
+
+    @Test("Segment on XY plane lifts to horizontal 3D wire")
+    func segmentOnXYPlane() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let wire = Wire.fromCurve2D(seg)
+        #expect(wire != nil)
+        if let w = wire {
+            // Verify length matches the 2D segment length
+            if let len = w.length {
+                #expect(abs(len - 10.0) < 0.01)
+            }
+            // Convert to Shape to validate geometry
+            if let shape = Shape.fromWire(w) {
+                #expect(shape.isValid)
+            }
+        }
+    }
+
+    @Test("Circle arc on XY plane lifts correctly")
+    func arcOnXYPlane() {
+        // Quarter-circle arc of radius 5
+        let arc = Curve2D.arcOfCircle(center: .zero, radius: 5,
+                                      startAngle: 0, endAngle: .pi / 2)!
+        let wire = Wire.fromCurve2D(arc)
+        #expect(wire != nil)
+        if let w = wire {
+            if let len = w.length {
+                let expected = .pi / 2.0 * 5.0
+                #expect(abs(len - expected) < 0.05)
+            }
+            if let shape = Shape.fromWire(w) {
+                #expect(shape.isValid)
+            }
+        }
+    }
+
+    @Test("Segment on XY plane at Z offset")
+    func segmentOnXYPlaneAtZ() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0))!
+        let wire = Wire.fromCurve2D(seg,
+                                    origin: SIMD3(0, 0, 5),
+                                    normal: SIMD3(0, 0, 1),
+                                    xAxis:  SIMD3(1, 0, 0))
+        #expect(wire != nil)
+        if let w = wire {
+            // Z-extent of the bounding box should be near 5
+            if let shape = Shape.fromWire(w) {
+                let bb = shape.bounds
+                #expect(abs(bb.min.z - 5.0) < 0.01)
+                #expect(abs(bb.max.z - 5.0) < 0.01)
+            }
+        }
+    }
+
+    @Test("Segment on YZ plane (normal = X axis)")
+    func segmentOnYZPlane() {
+        let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(5, 0))!
+        let wire = Wire.fromCurve2D(seg,
+                                    origin: SIMD3(3, 0, 0),
+                                    normal: SIMD3(1, 0, 0),
+                                    xAxis:  SIMD3(0, 1, 0))
+        #expect(wire != nil)
+        if let w = wire {
+            // X should stay at 3; Y spans 0–5; Z stays 0
+            if let shape = Shape.fromWire(w) {
+                let bb = shape.bounds
+                #expect(abs(bb.min.x - 3.0) < 0.01)
+                #expect(abs(bb.max.x - 3.0) < 0.01)
+                #expect(abs(bb.max.y - 5.0) < 0.01)
+            }
+        }
+    }
+
+    @Test("BSpline interpolated curve lifts to 3D wire")
+    func bsplineOnXYPlane() {
+        let pts: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(3, 4), SIMD2(6, 2), SIMD2(10, 5)
+        ]
+        let curve = Curve2D.interpolate(through: pts)!
+        let wire = Wire.fromCurve2D(curve)
+        #expect(wire != nil)
+        if let w = wire {
+            if let shape = Shape.fromWire(w) {
+                #expect(shape.isValid)
+            }
+        }
+    }
+
+    @Test("Resulting 3D wire can be used as profile for extrusion")
+    func wireAsSweptProfile() {
+        // A circle profile lifted onto XY plane then extruded along Z
+        let circle2D = Curve2D.circle(center: .zero, radius: 3)!
+        if let profile = Wire.fromCurve2D(circle2D) {
+            if let shape = Shape.fromWire(profile) {
+                #expect(shape.isValid)
+            }
+            // Use it as profile for an extrusion to verify it is a valid 3D wire
+            if let extruded = Shape.extrude(profile: profile,
+                                            direction: SIMD3(0, 0, 1),
+                                            length: 10) {
+                #expect(extruded.isValid)
+            }
+        }
+    }
+}

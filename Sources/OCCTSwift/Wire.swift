@@ -511,6 +511,47 @@ public final class Wire: @unchecked Sendable {
         }
     }
 
+    // MARK: - Wire From Curve2D on Plane (Issue #39)
+
+    /// Create a 3D wire by embedding a 2D curve into a geometric plane.
+    ///
+    /// This lifts the exact parametric representation of a `Curve2D` into 3D space
+    /// without discretizing it to points, preserving the original curve geometry.
+    /// The resulting wire is suitable for sweep/extrude/loft operations.
+    ///
+    /// The plane is defined by its origin point, outward normal direction, and
+    /// x-axis direction (which maps the 2D U axis into 3D space).
+    ///
+    /// - Parameters:
+    ///   - curve: The 2D curve to embed. Any `Curve2D` type is accepted.
+    ///   - origin: The 3D origin of the plane (where the 2D origin maps to).
+    ///   - normal: The outward normal of the plane (default Z axis = XY plane).
+    ///   - xAxis: The direction in 3D that the 2D X axis maps to (default X axis).
+    /// - Returns: A 3D wire on the given plane, or `nil` on failure.
+    /// - Note: Resolves GitHub issue #39.
+    ///
+    /// ## Example: Arc on XY plane at Z=5
+    /// ```swift
+    /// let arc = Curve2D.arcOfCircle(center: .zero, radius: 10,
+    ///                               startAngle: 0, endAngle: .pi)!
+    /// let wire3D = Wire.fromCurve2D(arc,
+    ///                               origin: SIMD3(0, 0, 5),
+    ///                               normal: SIMD3(0, 0, 1),
+    ///                               xAxis:  SIMD3(1, 0, 0))!
+    /// // Use wire3D as a profile for Shape.pipeShell(spine:profile:)
+    /// ```
+    public static func fromCurve2D(_ curve: Curve2D,
+                                   origin: SIMD3<Double> = .zero,
+                                   normal: SIMD3<Double> = SIMD3(0, 0, 1),
+                                   xAxis:  SIMD3<Double> = SIMD3(1, 0, 0)) -> Wire? {
+        guard let h = OCCTWireFromCurve2DOnPlane(
+            curve.handle,
+            origin.x, origin.y, origin.z,
+            normal.x, normal.y, normal.z,
+            xAxis.x,  xAxis.y,  xAxis.z) else { return nil }
+        return Wire(handle: h)
+    }
+
     // MARK: - Wire Composition
 
     /// Join multiple wires into a single connected wire.
