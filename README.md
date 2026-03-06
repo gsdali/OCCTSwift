@@ -41,6 +41,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Presentation Mesh** | 2 | shadedMesh, edgeMesh |
 | **Medial Axis** | 12 | compute, arcCount, nodeCount, basicElementCount, node(at:), arc(at:), nodes, arcs, minThickness, distanceToBoundary, drawArc, drawAll |
 | **Topological Naming** | 12 | createLabel, recordNaming, currentShape, storedShape, namingEvolution, namingHistory, oldShape, newShape, tracedForward, tracedBackward, selectShape, resolveShape |
+| **TDF/OCAF Framework** | 31 | mainLabel, tag, depth, isNull, isRoot, father, root, hasAttribute, attributeCount, hasChild, childCount, findChild, forgetAllAttributes, descendants, setName, setReference, referencedLabel, copyLabel, openTransaction, commitTransaction, abortTransaction, hasOpenTransaction, setUndoLimit, undoLimit, undo, redo, availableUndos, availableRedos, setModified, clearModified, isModified |
 | **Length Dimension** | 7 | fromPoints, fromEdge, fromFaces, value, isValid, geometry, setCustomValue |
 | **Radius Dimension** | 4 | fromShape, value, geometry, setCustomValue |
 | **Angle Dimension** | 7 | fromEdges, fromPoints, fromFaces, value, degrees, geometry, setCustomValue |
@@ -49,7 +50,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
 | **Shape History** | 1 | History (create, addModified, addGenerated, remove, isRemoved, hasModified, hasGenerated, hasRemoved, modifiedCount, generatedCount) |
-| **Total** | **761** | |
+| **Total** | **792** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -75,6 +76,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **NLPlate Surface Deformation**: Non-linear plate solver for G0 (positional) and G0+G1 (positional + tangent) surface deformation
 - **Medial Axis Transform**: Voronoi skeleton of planar faces — arc/node graph traversal, bisector curve drawing, inscribed circle radius, minimum wall thickness
 - **Topological Naming**: TNaming history tracking — record primitive/generated/modify/delete evolutions, forward/backward tracing through naming graph, persistent named selections with resolve
+- **TDF/OCAF Framework**: TDF_Label properties (tag, depth, father, root, children, attributes), TDF_Reference label cross-references, TDF_CopyLabel deep copy, TDocStd transactions (open/commit/abort), full undo/redo with configurable depth, modified label tracking
 - **Annotations & Measurements**: Length/radius/angle/diameter dimensions with geometry extraction for Metal rendering, 3D text labels, colored point clouds
 - **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)
@@ -1183,7 +1185,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **690 OCCT operations** across 59 categories with 1062 tests across 290 suites.
+OCCTSwift now wraps **792 OCCT operations** across 60 categories with 1162 tests across 330 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

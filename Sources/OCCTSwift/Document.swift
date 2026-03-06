@@ -663,3 +663,239 @@ extension Document {
         (0..<materialCount).compactMap { materialInfo(at: $0) }
     }
 }
+
+// MARK: - TDF Label Properties (v0.54.0)
+
+extension AssemblyNode {
+    /// The tag integer identifying this label among its siblings.
+    public var tag: Int32 {
+        OCCTDocumentLabelTag(document.handle, labelId)
+    }
+
+    /// The depth of this label in the tree (root=0, main=1, etc.).
+    public var depth: Int32 {
+        OCCTDocumentLabelDepth(document.handle, labelId)
+    }
+
+    /// Whether this label is null.
+    public var isNull: Bool {
+        OCCTDocumentLabelIsNull(document.handle, labelId)
+    }
+
+    /// Whether this label is the root label (0:).
+    public var isRoot: Bool {
+        OCCTDocumentLabelIsRoot(document.handle, labelId)
+    }
+
+    /// The parent (father) node of this label, or nil if root.
+    public var father: AssemblyNode? {
+        let fatherId = OCCTDocumentLabelFather(document.handle, labelId)
+        guard fatherId >= 0 else { return nil }
+        return AssemblyNode(document: document, labelId: fatherId)
+    }
+
+    /// The root node of the data framework.
+    public var root: AssemblyNode? {
+        let rootId = OCCTDocumentLabelRoot(document.handle, labelId)
+        guard rootId >= 0 else { return nil }
+        return AssemblyNode(document: document, labelId: rootId)
+    }
+
+    /// Whether this label has any attributes.
+    public var hasAttribute: Bool {
+        OCCTDocumentLabelHasAttribute(document.handle, labelId)
+    }
+
+    /// The number of attributes on this label.
+    public var attributeCount: Int32 {
+        OCCTDocumentLabelNbAttributes(document.handle, labelId)
+    }
+
+    /// Whether this label has any child labels.
+    public var hasChild: Bool {
+        OCCTDocumentLabelHasChild(document.handle, labelId)
+    }
+
+    /// The number of direct child labels.
+    public var childCount: Int32 {
+        OCCTDocumentLabelNbChildren(document.handle, labelId)
+    }
+
+    /// Find or create a child label by tag.
+    ///
+    /// - Parameters:
+    ///   - tag: The tag to search for
+    ///   - create: If true, create the child if it doesn't exist
+    /// - Returns: The child node, or nil if not found and create is false
+    public func findChild(tag: Int32, create: Bool = false) -> AssemblyNode? {
+        let childId = OCCTDocumentLabelFindChild(document.handle, labelId, tag, create)
+        guard childId >= 0 else { return nil }
+        return AssemblyNode(document: document, labelId: childId)
+    }
+
+    /// Remove all attributes from this label.
+    ///
+    /// - Parameter clearChildren: If true, also clear attributes from child labels
+    public func forgetAllAttributes(clearChildren: Bool = true) {
+        OCCTDocumentLabelForgetAllAttributes(document.handle, labelId, clearChildren)
+    }
+
+    /// Get all descendant labels.
+    ///
+    /// - Parameter allLevels: If true, recurse all descendants; if false, direct children only
+    /// - Returns: Array of descendant nodes
+    public func descendants(allLevels: Bool = false) -> [AssemblyNode] {
+        let maxCount: Int32 = 1024
+        var labelIds = [Int64](repeating: -1, count: Int(maxCount))
+        let count = OCCTDocumentGetDescendantLabels(document.handle, labelId,
+                                                      allLevels, &labelIds, maxCount)
+        return (0..<Int(count)).map { AssemblyNode(document: document, labelId: labelIds[$0]) }
+    }
+
+    /// Set the name (TDataStd_Name) on this label.
+    ///
+    /// - Parameter name: The name to set
+    /// - Returns: true if the name was set successfully
+    @discardableResult
+    public func setName(_ name: String) -> Bool {
+        OCCTDocumentSetLabelName(document.handle, labelId, name)
+    }
+}
+
+// MARK: - TDF Reference (v0.54.0)
+
+extension AssemblyNode {
+    /// Set a TDF_Reference from this label to another label.
+    ///
+    /// - Parameter target: The target label to reference
+    /// - Returns: true if the reference was set
+    @discardableResult
+    public func setReference(to target: AssemblyNode) -> Bool {
+        OCCTDocumentLabelSetReference(document.handle, labelId, target.labelId)
+    }
+
+    /// Get the label referenced by a TDF_Reference attribute on this label.
+    ///
+    /// - Returns: The referenced node, or nil if no reference exists
+    public var referencedLabel: AssemblyNode? {
+        let targetId = OCCTDocumentLabelGetReference(document.handle, labelId)
+        guard targetId >= 0 else { return nil }
+        return AssemblyNode(document: document, labelId: targetId)
+    }
+}
+
+// MARK: - TDF CopyLabel (v0.54.0)
+
+extension Document {
+    /// Copy a label and all its attributes to a destination label.
+    ///
+    /// - Parameters:
+    ///   - source: The source label to copy from
+    ///   - destination: The destination label to copy to
+    /// - Returns: true if the copy succeeded
+    @discardableResult
+    public func copyLabel(from source: AssemblyNode, to destination: AssemblyNode) -> Bool {
+        OCCTDocumentCopyLabel(handle, source.labelId, destination.labelId)
+    }
+}
+
+// MARK: - Document Main Label (v0.54.0)
+
+extension Document {
+    /// The main label (0:1) of the document — the root of the user data tree.
+    public var mainLabel: AssemblyNode? {
+        let labelId = OCCTDocumentGetMainLabel(handle)
+        guard labelId >= 0 else { return nil }
+        return AssemblyNode(document: self, labelId: labelId)
+    }
+}
+
+// MARK: - Document Transactions (v0.54.0)
+
+extension Document {
+    /// Open a new transaction (command) on the document.
+    ///
+    /// All changes made after this call can be committed or aborted.
+    public func openTransaction() {
+        OCCTDocumentOpenTransaction(handle)
+    }
+
+    /// Commit the current transaction.
+    ///
+    /// - Returns: true if committed successfully
+    @discardableResult
+    public func commitTransaction() -> Bool {
+        OCCTDocumentCommitTransaction(handle)
+    }
+
+    /// Abort the current transaction, undoing all changes since openTransaction().
+    public func abortTransaction() {
+        OCCTDocumentAbortTransaction(handle)
+    }
+
+    /// Whether a transaction is currently open.
+    public var hasOpenTransaction: Bool {
+        OCCTDocumentHasOpenTransaction(handle)
+    }
+}
+
+// MARK: - Document Undo/Redo (v0.54.0)
+
+extension Document {
+    /// Set the maximum number of undo steps.
+    ///
+    /// Must be called before any transactions. Set to 0 to disable undo.
+    public func setUndoLimit(_ limit: Int) {
+        OCCTDocumentSetUndoLimit(handle, Int32(limit))
+    }
+
+    /// The maximum number of undo steps.
+    public var undoLimit: Int {
+        Int(OCCTDocumentGetUndoLimit(handle))
+    }
+
+    /// Perform undo (reverses the last committed transaction).
+    ///
+    /// - Returns: true if undo was performed
+    @discardableResult
+    public func undo() -> Bool {
+        OCCTDocumentUndo(handle)
+    }
+
+    /// Perform redo (reapplies the last undone transaction).
+    ///
+    /// - Returns: true if redo was performed
+    @discardableResult
+    public func redo() -> Bool {
+        OCCTDocumentRedo(handle)
+    }
+
+    /// The number of available undo steps.
+    public var availableUndos: Int {
+        Int(OCCTDocumentGetAvailableUndos(handle))
+    }
+
+    /// The number of available redo steps.
+    public var availableRedos: Int {
+        Int(OCCTDocumentGetAvailableRedos(handle))
+    }
+}
+
+// MARK: - Document Modified Labels (v0.54.0)
+
+extension Document {
+    /// Mark a label as modified.
+    public func setModified(_ node: AssemblyNode) {
+        OCCTDocumentSetModified(handle, node.labelId)
+    }
+
+    /// Clear all modification marks.
+    public func clearModified() {
+        OCCTDocumentClearModified(handle)
+    }
+
+    /// Check if a label is marked as modified.
+    public func isModified(_ node: AssemblyNode) -> Bool {
+        OCCTDocumentIsLabelModified(handle, node.labelId)
+    }
+}

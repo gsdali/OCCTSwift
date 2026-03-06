@@ -6063,6 +6063,143 @@ OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaPointPoint(
     double v1x, double v1y, double v2x, double v2y,
     double sense, double tolerance);
 
+// MARK: - TDF Label Properties (v0.54.0)
+
+/// Get the tag of a label.
+/// @return Tag integer, or -1 if label is invalid
+int32_t OCCTDocumentLabelTag(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the depth of a label in the tree.
+/// @return Depth (root=0, main=1, etc.), or -1 if invalid
+int32_t OCCTDocumentLabelDepth(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label is null.
+bool OCCTDocumentLabelIsNull(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label is the root label (0:).
+bool OCCTDocumentLabelIsRoot(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the father (parent) label of a label.
+/// @return Parent labelId, or -1 if root or invalid
+int64_t OCCTDocumentLabelFather(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the root label of a label's data framework.
+/// @return Root labelId
+int64_t OCCTDocumentLabelRoot(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label has any attributes.
+bool OCCTDocumentLabelHasAttribute(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the number of attributes on a label.
+int32_t OCCTDocumentLabelNbAttributes(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label has any child labels.
+bool OCCTDocumentLabelHasChild(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get the number of direct child labels.
+int32_t OCCTDocumentLabelNbChildren(OCCTDocumentRef doc, int64_t labelId);
+
+/// Find or create a child label by tag.
+/// @param tag The tag to find
+/// @param create If true, create the child if it doesn't exist
+/// @return Child labelId, or -1 if not found and create is false
+int64_t OCCTDocumentLabelFindChild(OCCTDocumentRef doc, int64_t labelId, int32_t tag, bool create);
+
+/// Remove all attributes from a label.
+/// @param clearChildren If true, also clears attributes from child labels
+void OCCTDocumentLabelForgetAllAttributes(OCCTDocumentRef doc, int64_t labelId, bool clearChildren);
+
+/// Get all descendant labels using TDF_ChildIterator.
+/// @param allLevels If true, iterate all descendants; if false, direct children only
+/// @param outLabelIds Output array of labelIds
+/// @param maxCount Maximum number of labels to return
+/// @return Number of labels found
+int32_t OCCTDocumentGetDescendantLabels(OCCTDocumentRef doc, int64_t labelId,
+                                         bool allLevels,
+                                         int64_t* outLabelIds, int32_t maxCount);
+
+// MARK: - TDF Label Name (v0.54.0)
+
+/// Set the name (TDataStd_Name) on a label.
+/// @param name The name string to set
+/// @return true on success
+bool OCCTDocumentSetLabelName(OCCTDocumentRef doc, int64_t labelId, const char* name);
+
+// MARK: - TDF Reference (v0.54.0)
+
+/// Set a TDF_Reference attribute on a label, pointing to another label.
+/// @param labelId The label to set the reference on
+/// @param targetLabelId The label being referenced
+/// @return true on success
+bool OCCTDocumentLabelSetReference(OCCTDocumentRef doc, int64_t labelId, int64_t targetLabelId);
+
+/// Get the referenced label from a TDF_Reference attribute.
+/// @return Referenced labelId, or -1 if no reference attribute
+int64_t OCCTDocumentLabelGetReference(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - TDF CopyLabel (v0.54.0)
+
+/// Copy a label and its attributes to a destination label.
+/// @param sourceLabelId Source label to copy from
+/// @param destLabelId Destination label to copy to
+/// @return true if copy succeeded
+bool OCCTDocumentCopyLabel(OCCTDocumentRef doc, int64_t sourceLabelId, int64_t destLabelId);
+
+// MARK: - Document Main Label (v0.54.0)
+
+/// Get the main label (0:1) of the document.
+/// @return Main labelId
+int64_t OCCTDocumentGetMainLabel(OCCTDocumentRef doc);
+
+// MARK: - Document Transactions (v0.54.0)
+
+/// Open a new transaction (command) on the document.
+void OCCTDocumentOpenTransaction(OCCTDocumentRef doc);
+
+/// Commit the current transaction.
+/// @return true if committed successfully
+bool OCCTDocumentCommitTransaction(OCCTDocumentRef doc);
+
+/// Abort the current transaction, undoing all changes since OpenTransaction.
+void OCCTDocumentAbortTransaction(OCCTDocumentRef doc);
+
+/// Check if a transaction is currently open.
+bool OCCTDocumentHasOpenTransaction(OCCTDocumentRef doc);
+
+// MARK: - Document Undo/Redo (v0.54.0)
+
+/// Set the maximum number of undo steps.
+void OCCTDocumentSetUndoLimit(OCCTDocumentRef doc, int32_t limit);
+
+/// Get the maximum number of undo steps.
+int32_t OCCTDocumentGetUndoLimit(OCCTDocumentRef doc);
+
+/// Perform undo.
+/// @return true if undo was performed
+bool OCCTDocumentUndo(OCCTDocumentRef doc);
+
+/// Perform redo.
+/// @return true if redo was performed
+bool OCCTDocumentRedo(OCCTDocumentRef doc);
+
+/// Get the number of available undo steps.
+int32_t OCCTDocumentGetAvailableUndos(OCCTDocumentRef doc);
+
+/// Get the number of available redo steps.
+int32_t OCCTDocumentGetAvailableRedos(OCCTDocumentRef doc);
+
+// MARK: - Document Modified Labels (v0.54.0)
+
+/// Mark a label as modified.
+void OCCTDocumentSetModified(OCCTDocumentRef doc, int64_t labelId);
+
+/// Clear all modification marks.
+void OCCTDocumentClearModified(OCCTDocumentRef doc);
+
+/// Check if a label is marked as modified (via TDocStd_Modified on root).
+/// Note: This uses TDocStd_Document::GetModified(), not TDocStd_Modified attribute directly.
+bool OCCTDocumentIsLabelModified(OCCTDocumentRef doc, int64_t labelId);
+
 #ifdef __cplusplus
 }
 #endif

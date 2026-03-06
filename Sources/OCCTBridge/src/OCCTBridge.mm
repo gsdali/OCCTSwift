@@ -20321,3 +20321,306 @@ OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaPointPoint(
         return ref;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - TDF Label Properties (v0.54.0)
+
+#include <TDF_ChildIterator.hxx>
+#include <TDF_AttributeIterator.hxx>
+#include <TDF_Reference.hxx>
+#include <TDF_CopyLabel.hxx>
+#include <TDF_TagSource.hxx>
+#include <TDocStd_Modified.hxx>
+
+int32_t OCCTDocumentLabelTag(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        return label.Tag();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDocumentLabelDepth(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        return label.Depth();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentLabelIsNull(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return true;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        return label.IsNull();
+    } catch (...) { return true; }
+}
+
+bool OCCTDocumentLabelIsRoot(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return label.IsRoot();
+    } catch (...) { return false; }
+}
+
+int64_t OCCTDocumentLabelFather(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull() || label.IsRoot()) return -1;
+        TDF_Label father = label.Father();
+        if (father.IsNull()) return -1;
+        return doc->registerLabel(father);
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentLabelRoot(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        TDF_Label root = label.Root();
+        if (root.IsNull()) return -1;
+        return doc->registerLabel(root);
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentLabelHasAttribute(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return label.HasAttribute();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentLabelNbAttributes(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        return label.NbAttributes();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDocumentLabelHasChild(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return label.HasChild();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentLabelNbChildren(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        return label.NbChildren();
+    } catch (...) { return 0; }
+}
+
+int64_t OCCTDocumentLabelFindChild(OCCTDocumentRef doc, int64_t labelId, int32_t tag, bool create) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        TDF_Label child = label.FindChild(tag, create);
+        if (child.IsNull()) return -1;
+        return doc->registerLabel(child);
+    } catch (...) { return -1; }
+}
+
+void OCCTDocumentLabelForgetAllAttributes(OCCTDocumentRef doc, int64_t labelId, bool clearChildren) {
+    if (!doc || doc->doc.IsNull()) return;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+        label.ForgetAllAttributes(clearChildren);
+    } catch (...) {}
+}
+
+int32_t OCCTDocumentGetDescendantLabels(OCCTDocumentRef doc, int64_t labelId,
+                                         bool allLevels,
+                                         int64_t* outLabelIds, int32_t maxCount) {
+    if (!doc || doc->doc.IsNull() || !outLabelIds || maxCount <= 0) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        int32_t count = 0;
+        for (TDF_ChildIterator it(label, allLevels); it.More() && count < maxCount; it.Next()) {
+            outLabelIds[count] = doc->registerLabel(it.Value());
+            count++;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+// MARK: - TDF Label Name (v0.54.0)
+
+bool OCCTDocumentSetLabelName(OCCTDocumentRef doc, int64_t labelId, const char* name) {
+    if (!doc || doc->doc.IsNull() || !name) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TDataStd_Name::Set(label, TCollection_ExtendedString(name, true));
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - TDF Reference (v0.54.0)
+
+bool OCCTDocumentLabelSetReference(OCCTDocumentRef doc, int64_t labelId, int64_t targetLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        TDF_Label target = doc->getLabel(targetLabelId);
+        if (label.IsNull() || target.IsNull()) return false;
+        TDF_Reference::Set(label, target);
+        return true;
+    } catch (...) { return false; }
+}
+
+int64_t OCCTDocumentLabelGetReference(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(TDF_Reference) ref;
+        if (!label.FindAttribute(TDF_Reference::GetID(), ref)) return -1;
+        TDF_Label target = ref->Get();
+        if (target.IsNull()) return -1;
+        return doc->registerLabel(target);
+    } catch (...) { return -1; }
+}
+
+// MARK: - TDF CopyLabel (v0.54.0)
+
+bool OCCTDocumentCopyLabel(OCCTDocumentRef doc, int64_t sourceLabelId, int64_t destLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label source = doc->getLabel(sourceLabelId);
+        TDF_Label dest = doc->getLabel(destLabelId);
+        if (source.IsNull() || dest.IsNull()) return false;
+        TDF_CopyLabel copier(source, dest);
+        copier.Perform();
+        return copier.IsDone();
+    } catch (...) { return false; }
+}
+
+// MARK: - Document Main Label (v0.54.0)
+
+int64_t OCCTDocumentGetMainLabel(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label main = doc->doc->Main();
+        if (main.IsNull()) return -1;
+        return doc->registerLabel(main);
+    } catch (...) { return -1; }
+}
+
+// MARK: - Document Transactions (v0.54.0)
+
+void OCCTDocumentOpenTransaction(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return;
+    try {
+        doc->doc->OpenCommand();
+    } catch (...) {}
+}
+
+bool OCCTDocumentCommitTransaction(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        return doc->doc->CommitCommand();
+    } catch (...) { return false; }
+}
+
+void OCCTDocumentAbortTransaction(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return;
+    try {
+        doc->doc->AbortCommand();
+    } catch (...) {}
+}
+
+bool OCCTDocumentHasOpenTransaction(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        return doc->doc->HasOpenCommand();
+    } catch (...) { return false; }
+}
+
+// MARK: - Document Undo/Redo (v0.54.0)
+
+void OCCTDocumentSetUndoLimit(OCCTDocumentRef doc, int32_t limit) {
+    if (!doc || doc->doc.IsNull()) return;
+    try {
+        doc->doc->SetUndoLimit(limit);
+    } catch (...) {}
+}
+
+int32_t OCCTDocumentGetUndoLimit(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        return doc->doc->GetUndoLimit();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDocumentUndo(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        return doc->doc->Undo();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentRedo(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        return doc->doc->Redo();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentGetAvailableUndos(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        return doc->doc->GetAvailableUndos();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTDocumentGetAvailableRedos(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        return doc->doc->GetAvailableRedos();
+    } catch (...) { return 0; }
+}
+
+// MARK: - Document Modified Labels (v0.54.0)
+
+void OCCTDocumentSetModified(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+        doc->doc->SetModified(label);
+    } catch (...) {}
+}
+
+void OCCTDocumentClearModified(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return;
+    try {
+        doc->doc->PurgeModified();
+    } catch (...) {}
+}
+
+bool OCCTDocumentIsLabelModified(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        const auto& modified = doc->doc->GetModified();
+        return modified.Contains(label);
+    } catch (...) { return false; }
+}

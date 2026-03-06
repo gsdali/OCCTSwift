@@ -15381,3 +15381,466 @@ struct EdgeSplitTests {
         }
     }
 }
+
+// MARK: - TDF Label Properties Tests (v0.54.0)
+
+@Suite("TDF Label Properties")
+struct TDFLabelPropertyTests {
+
+    @Test("Label tag")
+    func labelTag() {
+        let doc = Document.create()!
+        if let main = doc.mainLabel {
+            #expect(main.tag == 1, "Main label tag should be 1")
+        }
+    }
+
+    @Test("Label depth")
+    func labelDepth() {
+        let doc = Document.create()!
+        if let main = doc.mainLabel {
+            #expect(main.depth == 1, "Main label depth should be 1")
+            if let child = doc.createLabel() {
+                #expect(child.depth == 2, "Child of main should have depth 2")
+            }
+        }
+    }
+
+    @Test("Label isNull")
+    func labelIsNull() {
+        let doc = Document.create()!
+        if let main = doc.mainLabel {
+            #expect(!main.isNull, "Main label should not be null")
+        }
+    }
+
+    @Test("Label isRoot")
+    func labelIsRoot() {
+        let doc = Document.create()!
+        if let main = doc.mainLabel {
+            #expect(!main.isRoot, "Main label (0:1) is not the root")
+            if let root = main.root {
+                #expect(root.isRoot, "Root() of main should be root")
+            }
+        }
+    }
+
+    @Test("Label father")
+    func labelFather() {
+        let doc = Document.create()!
+        let child = doc.createLabel()!
+        if let main = doc.mainLabel, let father = child.father {
+            #expect(father.labelId == main.labelId, "Child's father should be main label")
+        }
+    }
+
+    @Test("Label root")
+    func labelRoot() {
+        let doc = Document.create()!
+        let child = doc.createLabel()!
+        if let root = child.root {
+            #expect(root.isRoot, "Root of any label should be the document root")
+        }
+    }
+
+    @Test("Label hasAttribute and attributeCount")
+    func labelAttributes() {
+        let doc = Document.create()!
+        let parent = doc.createLabel()!
+        let label = doc.createLabel(parent: parent)!
+        #expect(!label.hasAttribute, "Fresh label should have no attributes")
+        #expect(label.attributeCount == 0, "Fresh label should have 0 attributes")
+
+        label.setName("TestPart")
+        #expect(label.hasAttribute, "Label with name should have attributes")
+        #expect(label.attributeCount >= 1, "Label with name should have at least 1 attribute")
+    }
+
+    @Test("Label hasChild and childCount")
+    func labelChildren() {
+        let doc = Document.create()!
+        let parent = doc.createLabel()!
+        #expect(!parent.hasChild, "New label has no children")
+        #expect(parent.childCount == 0, "New label has 0 children")
+
+        let _ = doc.createLabel(parent: parent)
+        let _ = doc.createLabel(parent: parent)
+        #expect(parent.hasChild, "Label with children should report hasChild")
+        #expect(parent.childCount == 2, "Should have 2 children")
+    }
+
+    @Test("Label findChild by tag")
+    func labelFindChild() {
+        let doc = Document.create()!
+        let parent = doc.createLabel()!
+        let child = doc.createLabel(parent: parent)!
+
+        // Find existing child
+        let found = parent.findChild(tag: child.tag)
+        #expect(found != nil, "Should find existing child by tag")
+
+        // Find non-existing without create
+        let notFound = parent.findChild(tag: 999, create: false)
+        #expect(notFound == nil, "Should not find non-existing child")
+
+        // Find non-existing with create
+        let created = parent.findChild(tag: 999, create: true)
+        #expect(created != nil, "Should create child when requested")
+        #expect(parent.childCount == 2, "Should now have 2 children (1 original + 1 created)")
+    }
+
+    @Test("Label forgetAllAttributes")
+    func labelForgetAllAttributes() {
+        let doc = Document.create()!
+        let parent = doc.createLabel()!
+        let label = doc.createLabel(parent: parent)!
+        label.setName("Temporary")
+        #expect(label.hasAttribute)
+
+        label.forgetAllAttributes()
+        #expect(!label.hasAttribute, "After forget, label should have no attributes")
+    }
+
+    @Test("Label descendants")
+    func labelDescendants() {
+        let doc = Document.create()!
+        let parent = doc.createLabel()!
+        let c1 = doc.createLabel(parent: parent)!
+        let _ = doc.createLabel(parent: parent)!
+        let _ = doc.createLabel(parent: c1)!
+        let _ = doc.createLabel(parent: c1)!
+
+        let direct = parent.descendants(allLevels: false)
+        #expect(direct.count == 2, "Should have 2 direct children")
+
+        let all = parent.descendants(allLevels: true)
+        #expect(all.count == 4, "Should have 4 total descendants")
+    }
+}
+
+// MARK: - TDF Label Name Tests (v0.54.0)
+
+@Suite("TDF Label Name Set/Get")
+struct TDFLabelNameTests {
+
+    @Test("Set and get label name")
+    func setGetName() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        let ok = label.setName("MyPart")
+        #expect(ok, "Setting name should succeed")
+        #expect(label.name == "MyPart", "Name should match")
+    }
+
+    @Test("Rename label")
+    func renameLabel() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        label.setName("Original")
+        #expect(label.name == "Original")
+
+        label.setName("Renamed")
+        #expect(label.name == "Renamed", "Name should be updated")
+    }
+}
+
+// MARK: - TDF Reference Tests (v0.54.0)
+
+@Suite("TDF Reference")
+struct TDFReferenceTests {
+
+    @Test("Set and get reference")
+    func setGetReference() {
+        let doc = Document.create()!
+        let source = doc.createLabel()!
+        let target = doc.createLabel()!
+        let refLabel = doc.createLabel()!
+
+        source.setName("Source")
+        target.setName("Target")
+
+        let ok = refLabel.setReference(to: target)
+        #expect(ok, "Setting reference should succeed")
+
+        if let referenced = refLabel.referencedLabel {
+            #expect(referenced.labelId == target.labelId, "Reference should point to target")
+        } else {
+            Issue.record("Should have a referenced label")
+        }
+    }
+
+    @Test("No reference on fresh label")
+    func noReference() {
+        let doc = Document.create()!
+        let label = doc.createLabel()!
+        #expect(label.referencedLabel == nil, "Fresh label should have no reference")
+    }
+}
+
+// MARK: - TDF CopyLabel Tests (v0.54.0)
+
+@Suite("TDF CopyLabel")
+struct TDFCopyLabelTests {
+
+    @Test("Copy label with name")
+    func copyLabelWithName() {
+        let doc = Document.create()!
+        let source = doc.createLabel()!
+        source.setName("Original")
+
+        let dest = doc.createLabel()!
+        let ok = doc.copyLabel(from: source, to: dest)
+        #expect(ok, "Copy should succeed")
+        #expect(dest.name == "Original", "Destination should have copied name")
+    }
+
+    @Test("Copy label with children")
+    func copyLabelWithChildren() {
+        let doc = Document.create()!
+        let source = doc.createLabel()!
+        source.setName("Parent")
+        let child = doc.createLabel(parent: source)!
+        child.setName("Child")
+
+        let dest = doc.createLabel()!
+        let ok = doc.copyLabel(from: source, to: dest)
+        #expect(ok, "Copy should succeed")
+        #expect(dest.hasChild, "Destination should have children after copy")
+    }
+}
+
+// MARK: - Document Main Label Tests (v0.54.0)
+
+@Suite("Document Main Label")
+struct DocumentMainLabelTests {
+
+    @Test("Get main label")
+    func getMainLabel() {
+        let doc = Document.create()!
+        let main = doc.mainLabel
+        #expect(main != nil, "Should get main label")
+        if let main = main {
+            #expect(main.tag == 1, "Main label tag should be 1")
+            #expect(main.depth == 1, "Main label depth should be 1")
+            #expect(!main.isRoot, "Main label is not the root")
+        }
+    }
+}
+
+// MARK: - Document Transaction Tests (v0.54.0)
+
+@Suite("Document Transactions")
+struct DocumentTransactionTests {
+
+    @Test("Open and commit transaction")
+    func openCommit() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+
+        #expect(!doc.hasOpenTransaction)
+        doc.openTransaction()
+        #expect(doc.hasOpenTransaction)
+
+        let label = doc.createLabel()!
+        label.setName("InTransaction")
+
+        let ok = doc.commitTransaction()
+        #expect(ok, "Commit should succeed")
+        #expect(!doc.hasOpenTransaction)
+    }
+
+    @Test("Open and abort transaction")
+    func openAbort() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+
+        doc.openTransaction()
+        #expect(doc.hasOpenTransaction)
+
+        let label = doc.createLabel()!
+        label.setName("WillBeAborted")
+
+        doc.abortTransaction()
+        #expect(!doc.hasOpenTransaction)
+    }
+
+    @Test("Has open transaction")
+    func hasOpenTransaction() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+        #expect(!doc.hasOpenTransaction, "No transaction initially")
+
+        doc.openTransaction()
+        #expect(doc.hasOpenTransaction, "Transaction should be open")
+
+        doc.commitTransaction()
+        #expect(!doc.hasOpenTransaction, "No transaction after commit")
+    }
+}
+
+// MARK: - Document Undo/Redo Tests (v0.54.0)
+
+@Suite("Document Undo/Redo")
+struct DocumentUndoRedoTests {
+
+    @Test("Set and get undo limit")
+    func undoLimit() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+        #expect(doc.undoLimit == 10)
+    }
+
+    @Test("Available undos after commit")
+    func availableUndos() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+        #expect(doc.availableUndos == 0)
+        #expect(doc.availableRedos == 0)
+
+        doc.openTransaction()
+        let label = doc.createLabel()!
+        label.setName("T1")
+        doc.commitTransaction()
+
+        #expect(doc.availableUndos == 1)
+    }
+
+    @Test("Undo restores state")
+    func undoRestores() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+
+        doc.openTransaction()
+        let label = doc.createLabel()!
+        label.setName("Box")
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            doc.recordNaming(on: label, evolution: .primitive, newShape: box)
+        }
+        doc.commitTransaction()
+
+        #expect(doc.availableUndos == 1)
+
+        doc.openTransaction()
+        let label2 = doc.createLabel()!
+        label2.setName("Cylinder")
+        doc.commitTransaction()
+
+        #expect(doc.availableUndos == 2)
+
+        // Undo
+        let ok = doc.undo()
+        #expect(ok, "Undo should succeed")
+        #expect(doc.availableUndos == 1)
+        #expect(doc.availableRedos == 1)
+    }
+
+    @Test("Redo after undo")
+    func redoAfterUndo() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+
+        doc.openTransaction()
+        doc.createLabel()!.setName("T1")
+        doc.commitTransaction()
+
+        doc.openTransaction()
+        doc.createLabel()!.setName("T2")
+        doc.commitTransaction()
+
+        #expect(doc.availableUndos == 2)
+
+        doc.undo()
+        #expect(doc.availableRedos == 1)
+
+        let ok = doc.redo()
+        #expect(ok, "Redo should succeed")
+        #expect(doc.availableUndos == 2)
+        #expect(doc.availableRedos == 0)
+    }
+
+    @Test("Undo with nothing returns false")
+    func undoNothing() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+        let result = doc.undo()
+        #expect(!result, "Undo with nothing should return false")
+    }
+
+    @Test("Multiple undos and redos")
+    func multipleUndoRedo() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+
+        for i in 0..<3 {
+            doc.openTransaction()
+            doc.createLabel()!.setName("Label\(i)")
+            doc.commitTransaction()
+        }
+
+        #expect(doc.availableUndos == 3)
+
+        doc.undo()
+        doc.undo()
+        doc.undo()
+        #expect(doc.availableUndos == 0)
+        #expect(doc.availableRedos == 3)
+
+        doc.redo()
+        doc.redo()
+        #expect(doc.availableUndos == 2)
+        #expect(doc.availableRedos == 1)
+    }
+
+    @Test("Abort does not create undo")
+    func abortNoUndo() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+
+        doc.openTransaction()
+        doc.createLabel()!.setName("T1")
+        doc.commitTransaction()
+
+        doc.openTransaction()
+        doc.createLabel()!.setName("Aborted")
+        doc.abortTransaction()
+
+        #expect(doc.availableUndos == 1, "Aborted transaction should not create undo")
+    }
+}
+
+// MARK: - Document Modified Labels Tests (v0.54.0)
+
+@Suite("Document Modified Labels")
+struct DocumentModifiedTests {
+
+    @Test("Set and check modified")
+    func setAndCheckModified() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+
+        doc.openTransaction()
+        let label = doc.createLabel()!
+        label.setName("Part1")
+        doc.commitTransaction()
+
+        doc.setModified(label)
+        #expect(doc.isModified(label), "Label should be marked as modified")
+    }
+
+    @Test("Clear modified")
+    func clearModified() {
+        let doc = Document.create()!
+        doc.setUndoLimit(10)
+
+        doc.openTransaction()
+        let label = doc.createLabel()!
+        label.setName("Part1")
+        doc.commitTransaction()
+
+        doc.setModified(label)
+        #expect(doc.isModified(label))
+
+        doc.clearModified()
+        #expect(!doc.isModified(label), "Label should not be modified after clear")
+    }
+}
