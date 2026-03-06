@@ -6431,6 +6431,65 @@ bool OCCTDocumentFunctionSetFailure(OCCTDocumentRef doc, int64_t labelId, int32_
 /// Deep copy a shape (creates independent copy with new topology).
 OCCTShapeRef OCCTShapeDeepCopy(OCCTShapeRef shape);
 
+// MARK: - OCAF Persistence — Format Registration (v0.57.0)
+
+/// Register binary OCAF format drivers (BinOcaf).
+void OCCTDocumentDefineFormatBin(OCCTDocumentRef doc);
+
+/// Register lite binary OCAF format drivers (BinLOcaf).
+void OCCTDocumentDefineFormatBinL(OCCTDocumentRef doc);
+
+/// Register XML OCAF format drivers (XmlOcaf).
+void OCCTDocumentDefineFormatXml(OCCTDocumentRef doc);
+
+/// Register lite XML OCAF format drivers (XmlLOcaf).
+void OCCTDocumentDefineFormatXmlL(OCCTDocumentRef doc);
+
+/// Register binary XCAF format drivers (BinXCAF).
+void OCCTDocumentDefineFormatBinXCAF(OCCTDocumentRef doc);
+
+/// Register XML XCAF format drivers (XmlXCAF).
+void OCCTDocumentDefineFormatXmlXCAF(OCCTDocumentRef doc);
+
+// MARK: - OCAF Persistence — Save/Load (v0.57.0)
+
+/// Save OCAF document to file. Returns PCDM_StoreStatus (0=OK).
+/// Format is determined by the document's storage format.
+int32_t OCCTDocumentSaveOCAF(OCCTDocumentRef doc, const char* path);
+
+/// Load OCAF document from file. Returns a new document ref, or NULL on failure.
+/// The outStatus receives PCDM_ReaderStatus (0=OK).
+OCCTDocumentRef OCCTDocumentLoadOCAF(const char* path, int32_t* outStatus);
+
+/// Save current OCAF document in-place (to previously saved path).
+/// Returns PCDM_StoreStatus (0=OK), or -1 if not previously saved.
+int32_t OCCTDocumentSaveOCAFInPlace(OCCTDocumentRef doc);
+
+// MARK: - OCAF Document Metadata (v0.57.0)
+
+/// Check if the document has been saved.
+bool OCCTDocumentIsSaved(OCCTDocumentRef doc);
+
+/// Get the storage format of the document. Caller must free with OCCTStringFree.
+const char* OCCTDocumentGetStorageFormat(OCCTDocumentRef doc);
+
+/// Change the storage format of the document.
+bool OCCTDocumentSetStorageFormat(OCCTDocumentRef doc, const char* format);
+
+/// Get the number of documents in the application.
+int32_t OCCTDocumentNbDocuments(OCCTDocumentRef doc);
+
+/// Get the list of available reading formats. Returns count.
+/// Each format string is written to outFormats (up to maxFormats). Caller must free strings with OCCTStringFree.
+int32_t OCCTDocumentReadingFormats(OCCTDocumentRef doc, const char** outFormats, int32_t maxFormats);
+
+/// Get the list of available writing formats. Returns count.
+int32_t OCCTDocumentWritingFormats(OCCTDocumentRef doc, const char** outFormats, int32_t maxFormats);
+
+/// Create a new OCAF document with a specific format. Returns a new document ref.
+/// Supported formats: "BinOcaf", "XmlOcaf", "BinLOcaf", "XmlLOcaf", "BinXCAF", "XmlXCAF".
+OCCTDocumentRef OCCTDocumentCreateWithFormat(const char* format);
+
 #ifdef __cplusplus
 }
 #endif

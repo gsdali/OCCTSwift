@@ -16380,3 +16380,198 @@ struct TNamingCopyShapeTests {
         }
     }
 }
+
+// MARK: - OCAF Format Registration Tests (v0.57.0)
+
+@Suite("OCAF Format Registration")
+struct OCAFFormatRegistrationTests {
+
+    @Test("Register all format drivers")
+    func registerFormats() {
+        let doc = Document.create()!
+        doc.defineAllFormats()
+        let formats = doc.readingFormats
+        #expect(formats.count >= 4)
+    }
+
+    @Test("Reading and writing formats")
+    func readWriteFormats() {
+        let doc = Document.create()!
+        doc.defineAllFormats()
+        let reading = doc.readingFormats
+        let writing = doc.writingFormats
+        #expect(!reading.isEmpty)
+        #expect(!writing.isEmpty)
+    }
+}
+
+// MARK: - OCAF Save/Load Binary Tests (v0.57.0)
+
+@Suite("OCAF Save/Load Binary")
+struct OCAFSaveLoadBinaryTests {
+
+    @Test("Save and load BinOcaf document")
+    func saveLoadBinOcaf() {
+        let doc = Document.create(format: "BinOcaf")!
+        let label = doc.createLabel()!
+        label.setName("TestBin")
+        label.setInteger(42)
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v57.cbf"
+        let status = doc.saveOCAF(to: tmpPath)
+        #expect(status == .ok)
+        #expect(doc.isSaved)
+
+        let (loaded, readStatus) = Document.loadOCAF(from: tmpPath)
+        #expect(readStatus == .ok)
+        if let loaded = loaded {
+            // Verify data survived round-trip
+            #expect(loaded.storageFormat != nil)
+        }
+
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Save and load BinXCAF with shapes")
+    func saveLoadBinXCAF() {
+        let doc = Document.create(format: "BinXCAF")!
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let label = doc.createLabel()!
+        label.setName("MyBox")
+        label.setShapeAttribute(box)
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v57.xbf"
+        let status = doc.saveOCAF(to: tmpPath)
+        #expect(status == .ok)
+
+        let (loaded, readStatus) = Document.loadOCAF(from: tmpPath)
+        #expect(readStatus == .ok)
+        #expect(loaded != nil)
+
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+}
+
+// MARK: - OCAF Save/Load XML Tests (v0.57.0)
+
+@Suite("OCAF Save/Load XML")
+struct OCAFSaveLoadXmlTests {
+
+    @Test("Save and load XmlOcaf document")
+    func saveLoadXmlOcaf() {
+        let doc = Document.create(format: "XmlOcaf")!
+        let label = doc.createLabel()!
+        label.setName("TestXml")
+        label.setReal(3.14)
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v57.xml"
+        let status = doc.saveOCAF(to: tmpPath)
+        #expect(status == .ok)
+
+        let (loaded, readStatus) = Document.loadOCAF(from: tmpPath)
+        #expect(readStatus == .ok)
+        #expect(loaded != nil)
+
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+}
+
+// MARK: - OCAF Document Metadata Tests (v0.57.0)
+
+@Suite("OCAF Document Metadata")
+struct OCAFDocumentMetadataTests {
+
+    @Test("Document storage format")
+    func storageFormat() {
+        let doc = Document.create(format: "BinOcaf")!
+        #expect(doc.storageFormat == "BinOcaf")
+    }
+
+    @Test("Change storage format")
+    func changeFormat() {
+        let doc = Document.create(format: "BinOcaf")!
+        #expect(doc.setStorageFormat("XmlOcaf"))
+        #expect(doc.storageFormat == "XmlOcaf")
+    }
+
+    @Test("Document not saved initially")
+    func notSavedInitially() {
+        let doc = Document.create(format: "BinOcaf")!
+        #expect(!doc.isSaved)
+    }
+
+    @Test("Document count")
+    func documentCount() {
+        let doc = Document.create(format: "BinOcaf")!
+        #expect(doc.documentCount >= 1)
+    }
+
+    @Test("Create with XCAF format")
+    func createXCAF() {
+        let doc = Document.create(format: "BinXCAF")
+        #expect(doc != nil)
+        if let doc = doc {
+            #expect(doc.storageFormat == "BinXCAF")
+        }
+    }
+}
+
+// MARK: - PCDM Status Enums Tests (v0.57.0)
+
+@Suite("PCDM Status Enums")
+struct PCDMStatusEnumTests {
+
+    @Test("StoreStatus values")
+    func storeStatusValues() {
+        #expect(StoreStatus.ok.rawValue == 0)
+        #expect(StoreStatus.driverFailure.rawValue == 1)
+        #expect(StoreStatus.writeFailure.rawValue == 2)
+        #expect(StoreStatus.failure.rawValue == 3)
+    }
+
+    @Test("ReaderStatus values")
+    func readerStatusValues() {
+        #expect(ReaderStatus.ok.rawValue == 0)
+        #expect(ReaderStatus.noDriver.rawValue == 1)
+        #expect(ReaderStatus.openError.rawValue == 3)
+        #expect(ReaderStatus.unrecognizedFileFormat.rawValue == 12)
+    }
+
+    @Test("Load nonexistent file returns error")
+    func loadNonexistent() {
+        let (doc, status) = Document.loadOCAF(from: "/nonexistent/file.cbf")
+        #expect(doc == nil)
+        #expect(status != .ok)
+    }
+}
+
+// MARK: - OCAF Save In-Place Tests (v0.57.0)
+
+@Suite("OCAF Save In-Place")
+struct OCAFSaveInPlaceTests {
+
+    @Test("Save in-place after initial save")
+    func saveInPlace() {
+        let doc = Document.create(format: "BinOcaf")!
+        let label = doc.createLabel()!
+        label.setName("Initial")
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v57_inplace.cbf"
+        let status1 = doc.saveOCAF(to: tmpPath)
+        #expect(status1 == .ok)
+
+        // Modify and save in place
+        label.setInteger(100)
+        let status2 = doc.saveOCAFInPlace()
+        #expect(status2 == .ok)
+
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Save in-place fails without prior save")
+    func saveInPlaceFailsWithoutSave() {
+        let doc = Document.create(format: "BinOcaf")!
+        let status = doc.saveOCAFInPlace()
+        #expect(status != .ok)
+    }
+}

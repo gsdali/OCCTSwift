@@ -1393,3 +1393,177 @@ extension Shape {
         return Shape(handle: ref)
     }
 }
+
+// MARK: - PCDM Status Enums (v0.57.0)
+
+/// Status returned by OCAF document save operations.
+public enum StoreStatus: Int32 {
+    case ok = 0
+    case driverFailure = 1
+    case writeFailure = 2
+    case failure = 3
+    case docIsNull = 4
+    case noObj = 5
+    case infoSectionError = 6
+    case userBreak = 7
+    case unrecognizedFormat = 8
+}
+
+/// Status returned by OCAF document load operations.
+public enum ReaderStatus: Int32 {
+    case ok = 0
+    case noDriver = 1
+    case unknownFileDriver = 2
+    case openError = 3
+    case noVersion = 4
+    case noSchema = 5
+    case noDocument = 6
+    case extensionFailure = 7
+    case wrongStreamMode = 8
+    case formatFailure = 9
+    case typeFailure = 10
+    case typeNotFoundInSchema = 11
+    case unrecognizedFileFormat = 12
+    case makeFailure = 13
+    case permissionDenied = 14
+    case driverFailure = 15
+    case alreadyRetrievedAndModified = 16
+    case alreadyRetrieved = 17
+    case unknownDocument = 18
+    case wrongResource = 19
+    case readerException = 20
+    case noModel = 21
+    case userBreak = 22
+}
+
+// MARK: - OCAF Persistence (v0.57.0)
+
+extension Document {
+
+    // MARK: - Format Registration
+
+    /// Register binary OCAF format drivers (BinOcaf).
+    public func defineFormatBin() {
+        OCCTDocumentDefineFormatBin(handle)
+    }
+
+    /// Register lite binary OCAF format drivers (BinLOcaf).
+    public func defineFormatBinL() {
+        OCCTDocumentDefineFormatBinL(handle)
+    }
+
+    /// Register XML OCAF format drivers (XmlOcaf).
+    public func defineFormatXml() {
+        OCCTDocumentDefineFormatXml(handle)
+    }
+
+    /// Register lite XML OCAF format drivers (XmlLOcaf).
+    public func defineFormatXmlL() {
+        OCCTDocumentDefineFormatXmlL(handle)
+    }
+
+    /// Register binary XCAF format drivers (BinXCAF).
+    public func defineFormatBinXCAF() {
+        OCCTDocumentDefineFormatBinXCAF(handle)
+    }
+
+    /// Register XML XCAF format drivers (XmlXCAF).
+    public func defineFormatXmlXCAF() {
+        OCCTDocumentDefineFormatXmlXCAF(handle)
+    }
+
+    /// Register all available persistence format drivers.
+    public func defineAllFormats() {
+        defineFormatBin()
+        defineFormatBinL()
+        defineFormatXml()
+        defineFormatXmlL()
+        defineFormatBinXCAF()
+        defineFormatXmlXCAF()
+    }
+
+    // MARK: - Save/Load
+
+    /// Save the OCAF document to a file. Format is determined by storage format.
+    /// Call `defineAllFormats()` or specific format registration before saving.
+    public func saveOCAF(to path: String) -> StoreStatus {
+        let raw = OCCTDocumentSaveOCAF(handle, path)
+        return StoreStatus(rawValue: raw) ?? .failure
+    }
+
+    /// Save the OCAF document to the path it was previously saved to.
+    public func saveOCAFInPlace() -> StoreStatus {
+        let raw = OCCTDocumentSaveOCAFInPlace(handle)
+        return StoreStatus(rawValue: raw) ?? .failure
+    }
+
+    /// Load an OCAF document from a file. Registers all format drivers automatically.
+    public static func loadOCAF(from path: String) -> (document: Document?, status: ReaderStatus) {
+        var statusRaw: Int32 = -1
+        guard let ref = OCCTDocumentLoadOCAF(path, &statusRaw) else {
+            return (nil, ReaderStatus(rawValue: statusRaw) ?? .openError)
+        }
+        return (Document(handle: ref), ReaderStatus(rawValue: statusRaw) ?? .ok)
+    }
+
+    /// Create a new document with a specific OCAF format.
+    /// Supported: "BinOcaf", "XmlOcaf", "BinLOcaf", "XmlLOcaf", "BinXCAF", "XmlXCAF".
+    public static func create(format: String) -> Document? {
+        guard let ref = OCCTDocumentCreateWithFormat(format) else { return nil }
+        return Document(handle: ref)
+    }
+
+    // MARK: - Document Metadata
+
+    /// Whether the document has been previously saved.
+    public var isSaved: Bool {
+        OCCTDocumentIsSaved(handle)
+    }
+
+    /// The storage format of the document (e.g. "MDTV-XCAF", "BinOcaf").
+    public var storageFormat: String? {
+        guard let cStr = OCCTDocumentGetStorageFormat(handle) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+
+    /// Change the storage format of the document.
+    @discardableResult
+    public func setStorageFormat(_ format: String) -> Bool {
+        OCCTDocumentSetStorageFormat(handle, format)
+    }
+
+    /// Number of documents in the application session.
+    public var documentCount: Int32 {
+        OCCTDocumentNbDocuments(handle)
+    }
+
+    /// Get the list of available reading formats.
+    public var readingFormats: [String] {
+        var buffers = [UnsafePointer<CChar>?](repeating: nil, count: 20)
+        let count = OCCTDocumentReadingFormats(handle, &buffers, 20)
+        var result: [String] = []
+        for i in 0..<Int(count) {
+            if let cStr = buffers[i] {
+                result.append(String(cString: cStr))
+                OCCTStringFree(cStr)
+            }
+        }
+        return result
+    }
+
+    /// Get the list of available writing formats.
+    public var writingFormats: [String] {
+        var buffers = [UnsafePointer<CChar>?](repeating: nil, count: 20)
+        let count = OCCTDocumentWritingFormats(handle, &buffers, 20)
+        var result: [String] = []
+        for i in 0..<Int(count) {
+            if let cStr = buffers[i] {
+                result.append(String(cString: cStr))
+                OCCTStringFree(cStr)
+            }
+        }
+        return result
+    }
+}

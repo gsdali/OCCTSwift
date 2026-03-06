@@ -21459,6 +21459,197 @@ bool OCCTDocumentFunctionSetFailure(OCCTDocumentRef doc, int64_t labelId, int32_
 
 // MARK: - TNaming CopyShape (v0.56.0)
 
+// MARK: - OCAF Persistence (v0.57.0)
+
+#include <BinDrivers.hxx>
+#include <BinLDrivers.hxx>
+#include <XmlDrivers.hxx>
+#include <XmlLDrivers.hxx>
+#include <BinXCAFDrivers.hxx>
+#include <XmlXCAFDrivers.hxx>
+#include <PCDM_StoreStatus.hxx>
+#include <PCDM_ReaderStatus.hxx>
+#include <NCollection_Sequence.hxx>
+
+void OCCTDocumentDefineFormatBin(OCCTDocumentRef doc) {
+    if (!doc || doc->app.IsNull()) return;
+    try { BinDrivers::DefineFormat(doc->app); } catch (...) {}
+}
+
+void OCCTDocumentDefineFormatBinL(OCCTDocumentRef doc) {
+    if (!doc || doc->app.IsNull()) return;
+    try { BinLDrivers::DefineFormat(doc->app); } catch (...) {}
+}
+
+void OCCTDocumentDefineFormatXml(OCCTDocumentRef doc) {
+    if (!doc || doc->app.IsNull()) return;
+    try { XmlDrivers::DefineFormat(doc->app); } catch (...) {}
+}
+
+void OCCTDocumentDefineFormatXmlL(OCCTDocumentRef doc) {
+    if (!doc || doc->app.IsNull()) return;
+    try { XmlLDrivers::DefineFormat(doc->app); } catch (...) {}
+}
+
+void OCCTDocumentDefineFormatBinXCAF(OCCTDocumentRef doc) {
+    if (!doc || doc->app.IsNull()) return;
+    try { BinXCAFDrivers::DefineFormat(doc->app); } catch (...) {}
+}
+
+void OCCTDocumentDefineFormatXmlXCAF(OCCTDocumentRef doc) {
+    if (!doc || doc->app.IsNull()) return;
+    try { XmlXCAFDrivers::DefineFormat(doc->app); } catch (...) {}
+}
+
+int32_t OCCTDocumentSaveOCAF(OCCTDocumentRef doc, const char* path) {
+    if (!doc || doc->doc.IsNull() || !path) return -1;
+    try {
+        TCollection_ExtendedString ePath(path, true);
+        PCDM_StoreStatus status = doc->app->SaveAs(doc->doc, ePath);
+        return static_cast<int32_t>(status);
+    } catch (...) { return -1; }
+}
+
+OCCTDocumentRef OCCTDocumentLoadOCAF(const char* path, int32_t* outStatus) {
+    if (!path) { if (outStatus) *outStatus = -1; return nullptr; }
+    try {
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+
+        // Register all format drivers
+        BinDrivers::DefineFormat(app);
+        XmlDrivers::DefineFormat(app);
+        BinXCAFDrivers::DefineFormat(app);
+        XmlXCAFDrivers::DefineFormat(app);
+
+        Handle(TDocStd_Document) loadedDoc;
+        TCollection_ExtendedString ePath(path, true);
+        PCDM_ReaderStatus status = app->Open(ePath, loadedDoc);
+
+        // If already retrieved, find and close existing doc, then re-open
+        if (status == PCDM_RS_AlreadyRetrieved || status == PCDM_RS_AlreadyRetrievedAndModified) {
+            // Find the existing document in the application session
+            int nbDocs = app->NbDocuments();
+            for (int i = 1; i <= nbDocs; i++) {
+                Handle(TDocStd_Document) existingDoc;
+                app->GetDocument(i, existingDoc);
+                if (!existingDoc.IsNull() && existingDoc->IsSaved()) {
+                    // Close it
+                    try { app->Close(existingDoc); } catch (...) {}
+                    break;
+                }
+            }
+            loadedDoc.Nullify();
+            status = app->Open(ePath, loadedDoc);
+        }
+
+        if (outStatus) *outStatus = static_cast<int32_t>(status);
+
+        if (status != PCDM_RS_OK || loadedDoc.IsNull()) return nullptr;
+
+        OCCTDocument* document = new OCCTDocument();
+        document->doc = loadedDoc;
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(loadedDoc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(loadedDoc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(loadedDoc->Main());
+
+        return document;
+    } catch (...) {
+        if (outStatus) *outStatus = -1;
+        return nullptr;
+    }
+}
+
+int32_t OCCTDocumentSaveOCAFInPlace(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        if (!doc->doc->IsSaved()) return -1;
+        PCDM_StoreStatus status = doc->app->Save(doc->doc);
+        return static_cast<int32_t>(status);
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentIsSaved(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try { return doc->doc->IsSaved(); } catch (...) { return false; }
+}
+
+const char* OCCTDocumentGetStorageFormat(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TCollection_AsciiString ascii(doc->doc->StorageFormat());
+        return strdup(ascii.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentSetStorageFormat(OCCTDocumentRef doc, const char* format) {
+    if (!doc || doc->doc.IsNull() || !format) return false;
+    try {
+        doc->doc->ChangeStorageFormat(TCollection_ExtendedString(format, true));
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentNbDocuments(OCCTDocumentRef doc) {
+    if (!doc || doc->app.IsNull()) return 0;
+    try { return doc->app->NbDocuments(); } catch (...) { return 0; }
+}
+
+int32_t OCCTDocumentReadingFormats(OCCTDocumentRef doc, const char** outFormats, int32_t maxFormats) {
+    if (!doc || doc->app.IsNull() || !outFormats || maxFormats <= 0) return 0;
+    try {
+        NCollection_Sequence<TCollection_AsciiString> formats;
+        doc->app->ReadingFormats(formats);
+        int32_t count = std::min((int32_t)formats.Length(), maxFormats);
+        for (int32_t i = 0; i < count; i++) {
+            outFormats[i] = strdup(formats.Value(i + 1).ToCString());
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTDocumentWritingFormats(OCCTDocumentRef doc, const char** outFormats, int32_t maxFormats) {
+    if (!doc || doc->app.IsNull() || !outFormats || maxFormats <= 0) return 0;
+    try {
+        NCollection_Sequence<TCollection_AsciiString> formats;
+        doc->app->WritingFormats(formats);
+        int32_t count = std::min((int32_t)formats.Length(), maxFormats);
+        for (int32_t i = 0; i < count; i++) {
+            outFormats[i] = strdup(formats.Value(i + 1).ToCString());
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+OCCTDocumentRef OCCTDocumentCreateWithFormat(const char* format) {
+    if (!format) return nullptr;
+    try {
+        OCCTDocument* document = new OCCTDocument();
+        TCollection_ExtendedString eFormat(format, true);
+
+        // Register all format drivers
+        BinDrivers::DefineFormat(document->app);
+        XmlDrivers::DefineFormat(document->app);
+        BinXCAFDrivers::DefineFormat(document->app);
+        XmlXCAFDrivers::DefineFormat(document->app);
+
+        document->app->NewDocument(eFormat, document->doc);
+        if (document->doc.IsNull()) {
+            delete document;
+            return nullptr;
+        }
+
+        // Initialize XCAF tools if format is XCAF
+        TCollection_AsciiString asciiFormat(format);
+        if (asciiFormat.Search("XCAF") >= 0 || asciiFormat.Search("xcaf") >= 0) {
+            document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+            document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+            document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+        }
+
+        return document;
+    } catch (...) { return nullptr; }
+}
+
 OCCTShapeRef OCCTShapeDeepCopy(OCCTShapeRef shape) {
     if (!shape) return nullptr;
     try {
