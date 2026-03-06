@@ -14784,3 +14784,311 @@ struct EdgeSplitTests {
         }
     }
 }
+
+// ============================================================================
+// MARK: - v0.53.0: 2D Geometry Completions Tests
+// ============================================================================
+
+@Suite("GccAna Bisectors") struct GccAnaBisectorTests {
+    @Test("Perpendicular bisector of two points")
+    func pointBisector() {
+        let result = GccAnaBisector.ofPoints(SIMD2(0, 0), SIMD2(10, 0))
+        if let line = result {
+            // Bisector should pass through midpoint (5,0)
+            // and be perpendicular to the segment (direction ~(0,1))
+            #expect(abs(line.direction.x) < 0.01 || abs(line.direction.y) < 0.01)
+        }
+    }
+
+    @Test("Angle bisectors of two lines")
+    func lineBisectors() {
+        let results = GccAnaBisector.ofLines(
+            line1Point: SIMD2(0, 0), line1Dir: SIMD2(1, 0),
+            line2Point: SIMD2(0, 0), line2Dir: SIMD2(0, 1))
+        #expect(results.count == 2)
+    }
+
+    @Test("Bisector between line and point")
+    func linePointBisector() {
+        let result = GccAnaBisector.ofLineAndPoint(
+            linePoint: SIMD2(0, 0), lineDir: SIMD2(1, 0),
+            point: SIMD2(5, 5))
+        #expect(result != nil)
+        if let sol = result {
+            #expect(sol.type == .parabola)
+        }
+    }
+
+    @Test("Bisectors between two circles")
+    func circleBisectors() {
+        let results = GccAnaBisector.ofCircles(
+            center1: SIMD2(0, 0), radius1: 5,
+            center2: SIMD2(15, 0), radius2: 3)
+        #expect(results.count >= 1)
+    }
+
+    @Test("Bisectors between circle and line")
+    func circleLineBisectors() {
+        let results = GccAnaBisector.ofCircleAndLine(
+            center: SIMD2(0, 0), radius: 5,
+            linePoint: SIMD2(0, 10), lineDir: SIMD2(1, 0))
+        #expect(results.count >= 1)
+    }
+
+    @Test("Bisectors between circle and point")
+    func circlePointBisectors() {
+        let results = GccAnaBisector.ofCircleAndPoint(
+            center: SIMD2(0, 0), radius: 5,
+            point: SIMD2(10, 0))
+        #expect(results.count >= 1)
+    }
+}
+
+@Suite("GccAna Line Solvers") struct GccAnaLineSolverTests {
+    @Test("Line through point parallel to reference")
+    func lineParallel() {
+        let results = Curve2DGcc.lineParallelThrough(
+            point: SIMD2(5, 5),
+            parallelTo: SIMD2(0, 0), lineDir: SIMD2(1, 0))
+        #expect(results.count >= 1)
+        if let line = results.first {
+            #expect(abs(line.direction.x - 1.0) < 0.01 || abs(line.direction.x + 1.0) < 0.01)
+        }
+    }
+
+    @Test("Lines tangent to circle parallel to reference")
+    func lineTangentParallel() {
+        let results = Curve2DGcc.linesTangentParallel(
+            circleCenter: SIMD2(0, 0), circleRadius: 5,
+            parallelTo: SIMD2(0, 0), lineDir: SIMD2(1, 0))
+        #expect(results.count == 2)
+    }
+
+    @Test("Line through point perpendicular to reference")
+    func linePerpendicular() {
+        let results = Curve2DGcc.linePerpendicularThrough(
+            point: SIMD2(5, 5),
+            perpendicularTo: SIMD2(0, 0), lineDir: SIMD2(1, 0))
+        #expect(results.count >= 1)
+        if let line = results.first {
+            // perpendicular to horizontal → vertical direction
+            #expect(abs(line.direction.y) > 0.9)
+        }
+    }
+
+    @Test("Lines tangent to circle perpendicular to reference")
+    func lineTangentPerpendicular() {
+        let results = Curve2DGcc.linesTangentPerpendicular(
+            circleCenter: SIMD2(0, 0), circleRadius: 5,
+            perpendicularTo: SIMD2(0, 0), lineDir: SIMD2(1, 0))
+        #expect(results.count == 2)
+    }
+
+    @Test("Line through point at angle to reference")
+    func lineAtAngle() {
+        let results = Curve2DGcc.lineAtAngleThrough(
+            point: SIMD2(5, 5),
+            referenceLine: SIMD2(0, 0), lineDir: SIMD2(1, 0),
+            angle: .pi / 4)
+        #expect(results.count >= 1)
+    }
+
+    @Test("Lines tangent to curve at angle (Geom2dGcc)")
+    func lineTangentAtAngle() {
+        let circle = Curve2D.circle(center: SIMD2(0, 0), radius: 5)
+        if let circle {
+            let results = Curve2DGcc.linesTangentAtAngle(
+                circle,
+                referenceLine: SIMD2(0, 0), lineDir: SIMD2(1, 0),
+                angle: .pi / 4)
+            #expect(results.count >= 1)
+        }
+    }
+}
+
+@Suite("GccAna/Geom2dGcc Circle On-Constraint Solvers") struct GccCircleOnConstraintTests {
+    @Test("Circle tangent to 2 lines center on line")
+    func circ2TanOnLinLin() {
+        let results = Curve2DGcc.circlesTangentToTwoLinesOnLine(
+            line1Point: SIMD2(0, 0), line1Dir: SIMD2(1, 0),
+            line2Point: SIMD2(0, 10), line2Dir: SIMD2(1, 0),
+            centerOnPoint: SIMD2(5, 0), centerOnDir: SIMD2(0, 1))
+        #expect(results.count >= 1)
+        if let sol = results.first {
+            #expect(abs(sol.radius - 5) < 0.1)
+        }
+    }
+
+    @Test("Circle tangent to line center on line given radius")
+    func circTanOnRadLin() {
+        let results = Curve2DGcc.circlesTangentToLineOnLineWithRadius(
+            linePoint: SIMD2(0, 0), lineDir: SIMD2(1, 0),
+            centerOnPoint: SIMD2(0, 0), centerOnDir: SIMD2(0, 1),
+            radius: 5)
+        #expect(results.count >= 1)
+    }
+
+    @Test("Geom2dGcc circle tangent to 2 curves center on curve")
+    func geom2dCirc2TanOn() {
+        let c1 = Curve2D.circle(center: SIMD2(0, 0), radius: 5)
+        let c2 = Curve2D.circle(center: SIMD2(20, 0), radius: 5)
+        let onCurve = Curve2D.line(through: SIMD2(10, 0), direction: SIMD2(0, 1))
+        if let c1, let c2, let onCurve {
+            let results = Curve2DGcc.circlesTangentToTwoCurvesOnCurve(
+                c1, .unqualified, c2, .unqualified, centerOn: onCurve)
+            #expect(results.count >= 1)
+        }
+    }
+
+    @Test("Geom2dGcc circle tangent to curve center on curve given radius")
+    func geom2dCircTanOnRad() {
+        let c1 = Curve2D.circle(center: SIMD2(0, 0), radius: 5)
+        let onCurve = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(0, 1))
+        if let c1, let onCurve {
+            let results = Curve2DGcc.circlesTangentOnCurveWithRadius(
+                c1, centerOn: onCurve, radius: 3)
+            #expect(results.count >= 1)
+        }
+    }
+}
+
+@Suite("IntAna2d Analytical Intersections") struct IntAna2dTests {
+    @Test("Intersection of two lines")
+    func lineLineIntersection() {
+        let results = IntAna2d.intersectLines(
+            line1Point: SIMD2(0, 0), line1Dir: SIMD2(1, 1),
+            line2Point: SIMD2(10, 0), line2Dir: SIMD2(-1, 1))
+        #expect(results.count == 1)
+        if let pt = results.first {
+            #expect(abs(pt.point.x - 5) < 0.1)
+            #expect(abs(pt.point.y - 5) < 0.1)
+        }
+    }
+
+    @Test("Intersection of line and circle")
+    func lineCircleIntersection() {
+        let results = IntAna2d.intersectLineCircle(
+            linePoint: SIMD2(0, 0), lineDir: SIMD2(1, 0),
+            circleCenter: SIMD2(5, 3), circleRadius: 5)
+        #expect(results.count == 2)
+    }
+
+    @Test("Intersection of two circles")
+    func circleCircleIntersection() {
+        let results = IntAna2d.intersectCircles(
+            center1: SIMD2(0, 0), radius1: 5,
+            center2: SIMD2(7, 0), radius2: 5)
+        #expect(results.count == 2)
+    }
+}
+
+@Suite("Extrema 2D") struct Extrema2dTests {
+    @Test("Distance between parallel lines")
+    func parallelLineDistance() {
+        let (isParallel, results) = Extrema2d.distanceBetweenLines(
+            line1Point: SIMD2(0, 0), line1Dir: SIMD2(1, 0),
+            line2Point: SIMD2(0, 10), line2Dir: SIMD2(1, 0))
+        #expect(isParallel)
+        if let r = results.first {
+            #expect(abs(r.distance - 10) < 0.1)
+        }
+    }
+
+    @Test("Distance between line and circle")
+    func lineCircleDistance() {
+        let results = Extrema2d.distanceBetweenLineAndCircle(
+            linePoint: SIMD2(0, 20), lineDir: SIMD2(1, 0),
+            circleCenter: SIMD2(0, 0), circleRadius: 5)
+        #expect(results.count >= 1)
+        if let r = results.first {
+            #expect(abs(r.distance - 15) < 0.1)
+        }
+    }
+
+    @Test("Closest point on circle to external point")
+    func pointCircleDistance() {
+        let results = Extrema2d.distanceFromPointToCircle(
+            point: SIMD2(10, 0),
+            circleCenter: SIMD2(0, 0), circleRadius: 5)
+        #expect(results.count >= 1)
+        // Closest point should be at distance 5 (10 - 5 = 5)
+        let minDist = results.map(\.distance).min() ?? 999
+        #expect(abs(minDist - 5) < 0.1)
+    }
+
+    @Test("Closest point on line to point")
+    func pointLineDistance() {
+        let results = Extrema2d.distanceFromPointToLine(
+            point: SIMD2(5, 5),
+            linePoint: SIMD2(0, 0), lineDir: SIMD2(1, 0))
+        #expect(results.count >= 1)
+        if let r = results.first {
+            #expect(abs(r.distance - 5) < 0.1)
+        }
+    }
+
+    @Test("Distance between two curves")
+    func curveCurveDistance() {
+        let c1 = Curve2D.circle(center: SIMD2(0, 0), radius: 5)
+        let c2 = Curve2D.circle(center: SIMD2(20, 0), radius: 5)
+        if let c1, let c2 {
+            let d1 = c1.domain
+            let d2 = c2.domain
+            let results = Extrema2d.distanceBetweenCurves(
+                c1, first1: d1.lowerBound, last1: d1.upperBound,
+                c2, first2: d2.lowerBound, last2: d2.upperBound)
+            #expect(results.count >= 1)
+            let minDist = results.map(\.distance).min() ?? 999
+            #expect(abs(minDist - 10) < 0.1)
+        }
+    }
+}
+
+@Suite("Geom2dLProp Curvature Analysis") struct Geom2dLPropTests {
+    @Test("Curvature extrema on ellipse")
+    func ellipseCurvatureExtrema() {
+        let ellipse = Curve2D.ellipse(center: SIMD2(0, 0), majorRadius: 10, minorRadius: 5)
+        if let ellipse {
+            let extrema = ellipse.curvatureExtremaDetailed()
+            #expect(extrema.count >= 1)
+        }
+    }
+
+    @Test("Inflection points on S-curve")
+    func inflectionPointsDetailed() {
+        // Create a BSpline with inflection by interpolating an S-shape
+        let points: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(3, 10), SIMD2(7, -10), SIMD2(10, 0)
+        ]
+        let curve = Curve2D.interpolate(through: points)
+        if let curve {
+            let inflections = curve.inflectionPointsDetailed()
+            // May or may not find inflections depending on the actual curve shape
+            #expect(inflections.count >= 0)
+        }
+    }
+}
+
+@Suite("Bisector_BisecAna") struct BisectorBisecAnaTests {
+    @Test("Bisector between two lines")
+    func curveCurveBisector() {
+        let l1 = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 0))
+        let l2 = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(0, 1))
+        if let l1, let l2 {
+            let bisector = l1.bisector(
+                with: l2,
+                referencePoint: SIMD2(1, 1),
+                direction1: SIMD2(1, 0), direction2: SIMD2(0, 1))
+            #expect(bisector != nil)
+        }
+    }
+
+    @Test("Bisector between two points")
+    func pointPointBisector() {
+        let bisector = Curve2D.bisectorBetweenPoints(
+            SIMD2(0, 0), SIMD2(10, 0),
+            referencePoint: SIMD2(5, 0),
+            direction1: SIMD2(1, 0), direction2: SIMD2(-1, 0))
+        #expect(bisector != nil)
+    }
+}

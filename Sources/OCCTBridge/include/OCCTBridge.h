@@ -5790,6 +5790,266 @@ OCCTCurve2DRef _Nullable OCCTApproxCurve2d(OCCTCurve2DRef curve2D,
     double first, double last, double tolU, double tolV,
     int32_t maxDegree, int32_t maxSegments);
 
+// ============================================================================
+// MARK: - v0.53.0: 2D Geometry Completions
+// ============================================================================
+
+// --- GccAna Bisectors ---
+
+/// Bisector result type
+typedef enum {
+    OCCTBisecTypeLine = 0,
+    OCCTBisecTypeCircle = 1,
+    OCCTBisecTypeEllipse = 2,
+    OCCTBisecTypeHyperbola = 3,
+    OCCTBisecTypeParabola = 4,
+    OCCTBisecTypePoint = 5
+} OCCTBisecType;
+
+/// Bisector solution (stores the type and curve if applicable)
+typedef struct {
+    OCCTBisecType type;
+    /// For line: (px, py) is a point on it, (dx, dy) is its direction
+    /// For circle: (px, py) is center, radius is radius
+    /// For point: (px, py) is the point, others are 0
+    /// For conics: (px, py) is focus/center, radius is semi-axis
+    double px, py, dx, dy, radius;
+} OCCTBisecSolution;
+
+/// Perpendicular bisector between two points.
+/// @return true if a solution exists
+bool OCCTGccAnaPnt2dBisec(double p1x, double p1y, double p2x, double p2y,
+                          double* outPx, double* outPy, double* outDx, double* outDy);
+
+/// Angle bisectors between two lines.
+/// @param l1px, l1py, l1dx, l1dy First line (point + direction)
+/// @param l2px, l2py, l2dx, l2dy Second line (point + direction)
+/// @param out Output array for line solutions
+/// @param max Max solutions to return
+/// @return Number of solutions
+int32_t OCCTGccAnaLin2dBisec(double l1px, double l1py, double l1dx, double l1dy,
+                             double l2px, double l2py, double l2dx, double l2dy,
+                             OCCTGccLineSolution* out, int32_t max);
+
+/// Bisector between a line and a point (returns a parabola as GccInt_Bisec).
+/// @return Bisector type, with properties stored in solution
+bool OCCTGccAnaLinPnt2dBisec(double lpx, double lpy, double ldx, double ldy,
+                             double px, double py,
+                             OCCTBisecSolution* out);
+
+/// Bisectors between two circles.
+/// @return Number of solutions
+int32_t OCCTGccAnaCirc2dBisec(double c1x, double c1y, double c1r,
+                              double c2x, double c2y, double c2r,
+                              OCCTBisecSolution* out, int32_t max);
+
+/// Bisectors between a circle and a line.
+/// @return Number of solutions
+int32_t OCCTGccAnaCircLin2dBisec(double cx, double cy, double cr,
+                                 double lpx, double lpy, double ldx, double ldy,
+                                 OCCTBisecSolution* out, int32_t max);
+
+/// Bisectors between a circle and a point.
+/// @return Number of solutions
+int32_t OCCTGccAnaCircPnt2dBisec(double cx, double cy, double cr,
+                                 double px, double py,
+                                 OCCTBisecSolution* out, int32_t max);
+
+// --- GccAna Line Solvers ---
+
+/// Line through a point parallel to a reference line.
+/// @return Number of solutions
+int32_t OCCTGccAnaLin2dTanParPt(double px, double py,
+                                double lpx, double lpy, double ldx, double ldy,
+                                OCCTGccLineSolution* out, int32_t max);
+
+/// Line tangent to a circle, parallel to a reference line.
+/// @return Number of solutions
+int32_t OCCTGccAnaLin2dTanParCirc(double cx, double cy, double cr, int32_t qualifier,
+                                  double lpx, double lpy, double ldx, double ldy,
+                                  OCCTGccLineSolution* out, int32_t max);
+
+/// Line through a point perpendicular to a reference line.
+/// @return Number of solutions
+int32_t OCCTGccAnaLin2dTanPerPtLin(double px, double py,
+                                   double lpx, double lpy, double ldx, double ldy,
+                                   OCCTGccLineSolution* out, int32_t max);
+
+/// Line tangent to a circle, perpendicular to a reference line.
+/// @return Number of solutions
+int32_t OCCTGccAnaLin2dTanPerCircLin(double cx, double cy, double cr, int32_t qualifier,
+                                     double lpx, double lpy, double ldx, double ldy,
+                                     OCCTGccLineSolution* out, int32_t max);
+
+/// Line through a point at an angle to a reference line.
+/// @return Number of solutions
+int32_t OCCTGccAnaLin2dTanOblPt(double px, double py,
+                                double lpx, double lpy, double ldx, double ldy,
+                                double angle,
+                                OCCTGccLineSolution* out, int32_t max);
+
+/// Line tangent to a curve at an angle to a reference line (Geom2dGcc version).
+/// @return Number of solutions
+int32_t OCCTGeom2dGccLin2dTanObl(OCCTCurve2DRef curve, int32_t qualifier,
+                                 double lpx, double lpy, double ldx, double ldy,
+                                 double tolerance, double angle,
+                                 OCCTGccLineSolution* out, int32_t max);
+
+// --- GccAna Circle Solvers ---
+
+/// Circle tangent to 2 lines, center on a line.
+/// @return Number of solutions
+int32_t OCCTGccAnaCirc2d2TanOnLinLin(double l1px, double l1py, double l1dx, double l1dy, int32_t q1,
+                                     double l2px, double l2py, double l2dx, double l2dy, int32_t q2,
+                                     double onPx, double onPy, double onDx, double onDy,
+                                     double tolerance,
+                                     OCCTGccCircleSolution* out, int32_t max);
+
+/// Circle tangent to line, center on line, given radius.
+/// @return Number of solutions
+int32_t OCCTGccAnaCirc2dTanOnRadLin(double lpx, double lpy, double ldx, double ldy, int32_t qualifier,
+                                    double onPx, double onPy, double onDx, double onDy,
+                                    double radius, double tolerance,
+                                    OCCTGccCircleSolution* out, int32_t max);
+
+// --- Geom2dGcc Circle Solvers ---
+
+/// Circle tangent to 2 curves, center on curve (Geom2dGcc).
+/// @return Number of solutions
+int32_t OCCTGeom2dGccCirc2d2TanOn(OCCTCurve2DRef c1, int32_t q1,
+                                  OCCTCurve2DRef c2, int32_t q2,
+                                  OCCTCurve2DRef onCurve,
+                                  double tolerance,
+                                  double initParam1, double initParam2, double initParamOn,
+                                  OCCTGccCircleSolution* out, int32_t max);
+
+/// Circle tangent to curve, center on curve, given radius (Geom2dGcc).
+/// @return Number of solutions
+int32_t OCCTGeom2dGccCirc2dTanOnRad(OCCTCurve2DRef curve, int32_t qualifier,
+                                    OCCTCurve2DRef onCurve,
+                                    double radius, double tolerance,
+                                    OCCTGccCircleSolution* out, int32_t max);
+
+// --- IntAna2d_AnaIntersection ---
+
+/// 2D intersection point result
+typedef struct {
+    double x, y;        ///< Intersection point
+    double param1;      ///< Parameter on first curve
+    double param2;      ///< Parameter on second curve
+} OCCTIntAna2dPoint;
+
+/// Intersect two 2D lines.
+/// @return Number of intersection points
+int32_t OCCTIntAna2dLinLin(double l1px, double l1py, double l1dx, double l1dy,
+                           double l2px, double l2py, double l2dx, double l2dy,
+                           OCCTIntAna2dPoint* out, int32_t max);
+
+/// Intersect a 2D line and circle.
+/// @return Number of intersection points
+int32_t OCCTIntAna2dLinCirc(double lpx, double lpy, double ldx, double ldy,
+                            double cx, double cy, double cr,
+                            OCCTIntAna2dPoint* out, int32_t max);
+
+/// Intersect two 2D circles.
+/// @return Number of intersection points
+int32_t OCCTIntAna2dCircCirc(double c1x, double c1y, double c1r,
+                             double c2x, double c2y, double c2r,
+                             OCCTIntAna2dPoint* out, int32_t max);
+
+// --- Extrema 2D ---
+
+/// 2D extrema result point
+typedef struct {
+    double squareDistance;
+    double param1;       ///< Parameter on first curve
+    double param2;       ///< Parameter on second curve
+    double p1x, p1y;    ///< Point on first curve
+    double p2x, p2y;    ///< Point on second curve
+} OCCTExtrema2dResult;
+
+/// Distance between two 2D lines (checks parallel).
+/// @param outIsParallel Set to true if lines are parallel
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtElC2dLinLin(double l1px, double l1py, double l1dx, double l1dy,
+                                  double l2px, double l2py, double l2dx, double l2dy,
+                                  double tolerance,
+                                  bool* outIsParallel,
+                                  OCCTExtrema2dResult* out, int32_t max);
+
+/// Distance between a 2D line and circle.
+/// @return Number of extrema
+int32_t OCCTExtremaExtElC2dLinCirc(double lpx, double lpy, double ldx, double ldy,
+                                   double cx, double cy, double cr,
+                                   double tolerance,
+                                   OCCTExtrema2dResult* out, int32_t max);
+
+/// Closest point(s) on a 2D circle to a point.
+/// @return Number of extrema
+int32_t OCCTExtremaExtPElC2dCirc(double px, double py,
+                                 double cx, double cy, double cr,
+                                 double tolerance,
+                                 OCCTExtrema2dResult* out, int32_t max);
+
+/// Closest point(s) on a 2D line to a point.
+/// @return Number of extrema
+int32_t OCCTExtremaExtPElC2dLin(double px, double py,
+                                double lpx, double lpy, double ldx, double ldy,
+                                double tolerance,
+                                OCCTExtrema2dResult* out, int32_t max);
+
+/// Distance between two 2D curves (Extrema_ExtCC2d).
+/// @return Number of extrema
+int32_t OCCTExtremaExtCC2d(OCCTCurve2DRef c1, double first1, double last1,
+                           OCCTCurve2DRef c2, double first2, double last2,
+                           OCCTExtrema2dResult* out, int32_t max);
+
+// --- Geom2dLProp_NumericCurInf2d ---
+
+/// Curvature inflection/extremum point result
+typedef struct {
+    double parameter;
+    int32_t type;   ///< 0 = curvature minimum, 1 = curvature maximum, 2 = inflection
+} OCCTCurInfPoint;
+
+/// Find curvature extrema on a 2D curve.
+/// @return Number of extrema found
+int32_t OCCTGeom2dLPropCurExt(OCCTCurve2DRef curve,
+                              OCCTCurInfPoint* out, int32_t max);
+
+/// Find inflection points on a 2D curve.
+/// @return Number of inflection points found
+int32_t OCCTGeom2dLPropCurInf(OCCTCurve2DRef curve,
+                              OCCTCurInfPoint* out, int32_t max);
+
+// --- Bisector_BisecAna ---
+
+/// Compute analytical bisector between two 2D curves.
+/// @return A 2D curve representing the bisector, or NULL on failure
+OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaCurveCurve(
+    OCCTCurve2DRef curve1, OCCTCurve2DRef curve2,
+    double px, double py,
+    double v1x, double v1y, double v2x, double v2y,
+    double sense, double tolerance);
+
+/// Compute analytical bisector between a 2D curve and a point.
+/// @return A 2D curve representing the bisector, or NULL on failure
+OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaCurvePoint(
+    OCCTCurve2DRef curve,
+    double ptx, double pty,
+    double px, double py,
+    double v1x, double v1y, double v2x, double v2y,
+    double sense, double tolerance);
+
+/// Compute analytical bisector between two points.
+/// @return A 2D curve (line) representing the bisector, or NULL on failure
+OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaPointPoint(
+    double pt1x, double pt1y,
+    double pt2x, double pt2y,
+    double px, double py,
+    double v1x, double v1y, double v2x, double v2y,
+    double sense, double tolerance);
+
 #ifdef __cplusplus
 }
 #endif

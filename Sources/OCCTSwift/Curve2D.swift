@@ -1110,3 +1110,619 @@ extension Curve2D {
         return Curve2D(handle: h)
     }
 }
+
+// ============================================================================
+// MARK: - v0.53.0: 2D Geometry Completions
+// ============================================================================
+
+// MARK: - GccAna Bisectors
+
+/// Bisector curve type classification.
+public enum BisecType: Int32, Sendable {
+    case line = 0, circle = 1, ellipse = 2, hyperbola = 3, parabola = 4, point = 5
+}
+
+/// A bisector solution from an analytical bisector computation.
+public struct BisecSolution: Sendable {
+    /// The type of bisector curve.
+    public let type: BisecType
+    /// Primary position (depends on type — center, point on line, focus).
+    public let position: SIMD2<Double>
+    /// Secondary values (direction for line, radii for conics).
+    public let secondary: SIMD2<Double>
+    /// Radius (for circle type).
+    public let radius: Double
+}
+
+/// Analytical 2D bisector computations (GccAna module).
+///
+/// Computes bisectors between combinations of points, lines, and circles.
+/// Bisectors are the loci of points equidistant from two geometric elements.
+public enum GccAnaBisector {
+
+    /// Perpendicular bisector of two points.
+    ///
+    /// Returns the line equidistant from both points.
+    public static func ofPoints(
+        _ p1: SIMD2<Double>, _ p2: SIMD2<Double>
+    ) -> Curve2DLineSolution? {
+        var px: Double = 0, py: Double = 0, dx: Double = 0, dy: Double = 0
+        guard OCCTGccAnaPnt2dBisec(p1.x, p1.y, p2.x, p2.y, &px, &py, &dx, &dy) else {
+            return nil
+        }
+        return Curve2DLineSolution(point: SIMD2(px, py), direction: SIMD2(dx, dy))
+    }
+
+    /// Angle bisectors of two lines.
+    ///
+    /// Two intersecting lines have two angle bisectors.
+    public static func ofLines(
+        line1Point: SIMD2<Double>, line1Dir: SIMD2<Double>,
+        line2Point: SIMD2<Double>, line2Dir: SIMD2<Double>
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 4)
+        let n = Int(OCCTGccAnaLin2dBisec(line1Point.x, line1Point.y, line1Dir.x, line1Dir.y,
+                                         line2Point.x, line2Point.y, line2Dir.x, line2Dir.y,
+                                         &buffer, 4))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                               direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    /// Bisector between a line and a point.
+    ///
+    /// The result is typically a parabola with the point as focus
+    /// and the line as directrix.
+    public static func ofLineAndPoint(
+        linePoint: SIMD2<Double>, lineDir: SIMD2<Double>,
+        point: SIMD2<Double>
+    ) -> BisecSolution? {
+        var sol = OCCTBisecSolution()
+        guard OCCTGccAnaLinPnt2dBisec(linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                      point.x, point.y, &sol) else { return nil }
+        return BisecSolution(type: BisecType(rawValue: Int32(sol.type.rawValue)) ?? .point,
+                            position: SIMD2(sol.px, sol.py),
+                            secondary: SIMD2(sol.dx, sol.dy),
+                            radius: sol.radius)
+    }
+
+    /// Bisectors between two circles.
+    ///
+    /// Returns curves equidistant from both circles (up to 4 solutions).
+    public static func ofCircles(
+        center1: SIMD2<Double>, radius1: Double,
+        center2: SIMD2<Double>, radius2: Double
+    ) -> [BisecSolution] {
+        var buffer = [OCCTBisecSolution](repeating: OCCTBisecSolution(), count: 8)
+        let n = Int(OCCTGccAnaCirc2dBisec(center1.x, center1.y, radius1,
+                                          center2.x, center2.y, radius2,
+                                          &buffer, 8))
+        return (0..<n).map {
+            BisecSolution(type: BisecType(rawValue: Int32(buffer[$0].type.rawValue)) ?? .point,
+                         position: SIMD2(buffer[$0].px, buffer[$0].py),
+                         secondary: SIMD2(buffer[$0].dx, buffer[$0].dy),
+                         radius: buffer[$0].radius)
+        }
+    }
+
+    /// Bisectors between a circle and a line.
+    public static func ofCircleAndLine(
+        center: SIMD2<Double>, radius: Double,
+        linePoint: SIMD2<Double>, lineDir: SIMD2<Double>
+    ) -> [BisecSolution] {
+        var buffer = [OCCTBisecSolution](repeating: OCCTBisecSolution(), count: 8)
+        let n = Int(OCCTGccAnaCircLin2dBisec(center.x, center.y, radius,
+                                             linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                             &buffer, 8))
+        return (0..<n).map {
+            BisecSolution(type: BisecType(rawValue: Int32(buffer[$0].type.rawValue)) ?? .point,
+                         position: SIMD2(buffer[$0].px, buffer[$0].py),
+                         secondary: SIMD2(buffer[$0].dx, buffer[$0].dy),
+                         radius: buffer[$0].radius)
+        }
+    }
+
+    /// Bisectors between a circle and a point.
+    public static func ofCircleAndPoint(
+        center: SIMD2<Double>, radius: Double,
+        point: SIMD2<Double>
+    ) -> [BisecSolution] {
+        var buffer = [OCCTBisecSolution](repeating: OCCTBisecSolution(), count: 8)
+        let n = Int(OCCTGccAnaCircPnt2dBisec(center.x, center.y, radius,
+                                             point.x, point.y,
+                                             &buffer, 8))
+        return (0..<n).map {
+            BisecSolution(type: BisecType(rawValue: Int32(buffer[$0].type.rawValue)) ?? .point,
+                         position: SIMD2(buffer[$0].px, buffer[$0].py),
+                         secondary: SIMD2(buffer[$0].dx, buffer[$0].dy),
+                         radius: buffer[$0].radius)
+        }
+    }
+}
+
+// MARK: - GccAna Line Solvers
+
+extension Curve2DGcc {
+
+    /// Line through a point parallel to a reference line.
+    public static func lineParallelThrough(
+        point: SIMD2<Double>,
+        parallelTo linePoint: SIMD2<Double>, lineDir: SIMD2<Double>
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 4)
+        let n = Int(OCCTGccAnaLin2dTanParPt(point.x, point.y,
+                                            linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                            &buffer, 4))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                               direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    /// Lines tangent to a circle, parallel to a reference line.
+    public static func linesTangentParallel(
+        circleCenter: SIMD2<Double>, circleRadius: Double,
+        qualifier: Curve2DQualifier = .unqualified,
+        parallelTo linePoint: SIMD2<Double>, lineDir: SIMD2<Double>
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 4)
+        let n = Int(OCCTGccAnaLin2dTanParCirc(circleCenter.x, circleCenter.y, circleRadius,
+                                              qualifier.rawValue,
+                                              linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                              &buffer, 4))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                               direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    /// Line through a point perpendicular to a reference line.
+    public static func linePerpendicularThrough(
+        point: SIMD2<Double>,
+        perpendicularTo linePoint: SIMD2<Double>, lineDir: SIMD2<Double>
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 4)
+        let n = Int(OCCTGccAnaLin2dTanPerPtLin(point.x, point.y,
+                                               linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                               &buffer, 4))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                               direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    /// Lines tangent to a circle, perpendicular to a reference line.
+    public static func linesTangentPerpendicular(
+        circleCenter: SIMD2<Double>, circleRadius: Double,
+        qualifier: Curve2DQualifier = .unqualified,
+        perpendicularTo linePoint: SIMD2<Double>, lineDir: SIMD2<Double>
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 4)
+        let n = Int(OCCTGccAnaLin2dTanPerCircLin(circleCenter.x, circleCenter.y, circleRadius,
+                                                 qualifier.rawValue,
+                                                 linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                                 &buffer, 4))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                               direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    /// Line through a point at a given angle to a reference line.
+    public static func lineAtAngleThrough(
+        point: SIMD2<Double>,
+        referenceLine linePoint: SIMD2<Double>, lineDir: SIMD2<Double>,
+        angle: Double
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 4)
+        let n = Int(OCCTGccAnaLin2dTanOblPt(point.x, point.y,
+                                            linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                            angle,
+                                            &buffer, 4))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                               direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    /// Lines tangent to a curve at a given angle to a reference line (Geom2dGcc).
+    public static func linesTangentAtAngle(
+        _ curve: Curve2D, _ qualifier: Curve2DQualifier = .unqualified,
+        referenceLine linePoint: SIMD2<Double>, lineDir: SIMD2<Double>,
+        angle: Double, tolerance: Double = 1e-6
+    ) -> [Curve2DLineSolution] {
+        var buffer = [OCCTGccLineSolution](repeating: OCCTGccLineSolution(), count: 32)
+        let n = Int(OCCTGeom2dGccLin2dTanObl(curve.handle, qualifier.rawValue,
+                                             linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                             tolerance, angle,
+                                             &buffer, 32))
+        return (0..<n).map {
+            Curve2DLineSolution(point: SIMD2(buffer[$0].px, buffer[$0].py),
+                               direction: SIMD2(buffer[$0].dx, buffer[$0].dy))
+        }
+    }
+
+    // MARK: - GccAna Circle On-Constraint Solvers
+
+    /// Circles tangent to two lines with center on a third line.
+    public static func circlesTangentToTwoLinesOnLine(
+        line1Point: SIMD2<Double>, line1Dir: SIMD2<Double>, q1: Curve2DQualifier = .unqualified,
+        line2Point: SIMD2<Double>, line2Dir: SIMD2<Double>, q2: Curve2DQualifier = .unqualified,
+        centerOnPoint: SIMD2<Double>, centerOnDir: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccAnaCirc2d2TanOnLinLin(
+            line1Point.x, line1Point.y, line1Dir.x, line1Dir.y, q1.rawValue,
+            line2Point.x, line2Point.y, line2Dir.x, line2Dir.y, q2.rawValue,
+            centerOnPoint.x, centerOnPoint.y, centerOnDir.x, centerOnDir.y,
+            tolerance, &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    /// Circles tangent to a line, center on a line, with given radius.
+    public static func circlesTangentToLineOnLineWithRadius(
+        linePoint: SIMD2<Double>, lineDir: SIMD2<Double>,
+        qualifier: Curve2DQualifier = .unqualified,
+        centerOnPoint: SIMD2<Double>, centerOnDir: SIMD2<Double>,
+        radius: Double, tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGccAnaCirc2dTanOnRadLin(
+            linePoint.x, linePoint.y, lineDir.x, lineDir.y, qualifier.rawValue,
+            centerOnPoint.x, centerOnPoint.y, centerOnDir.x, centerOnDir.y,
+            radius, tolerance, &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    // MARK: - Geom2dGcc Circle On-Constraint Solvers
+
+    /// Circles tangent to two curves with center on a third curve (Geom2dGcc).
+    public static func circlesTangentToTwoCurvesOnCurve(
+        _ c1: Curve2D, _ q1: Curve2DQualifier = .unqualified,
+        _ c2: Curve2D, _ q2: Curve2DQualifier = .unqualified,
+        centerOn: Curve2D,
+        tolerance: Double = 1e-6,
+        initParam1: Double = 0, initParam2: Double = 0, initParamOn: Double = 0
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGeom2dGccCirc2d2TanOn(c1.handle, q1.rawValue,
+                                              c2.handle, q2.rawValue,
+                                              centerOn.handle,
+                                              tolerance, initParam1, initParam2, initParamOn,
+                                              &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+
+    /// Circles tangent to a curve, center on a curve, with given radius (Geom2dGcc).
+    public static func circlesTangentOnCurveWithRadius(
+        _ curve: Curve2D, _ qualifier: Curve2DQualifier = .unqualified,
+        centerOn: Curve2D,
+        radius: Double, tolerance: Double = 1e-6
+    ) -> [Curve2DCircleSolution] {
+        var buffer = [OCCTGccCircleSolution](repeating: OCCTGccCircleSolution(), count: 32)
+        let n = Int(OCCTGeom2dGccCirc2dTanOnRad(curve.handle, qualifier.rawValue,
+                                                centerOn.handle,
+                                                radius, tolerance,
+                                                &buffer, 32))
+        return (0..<n).map {
+            Curve2DCircleSolution(center: SIMD2(buffer[$0].cx, buffer[$0].cy),
+                                  radius: buffer[$0].radius)
+        }
+    }
+}
+
+// MARK: - IntAna2d Analytical Intersections
+
+/// 2D intersection point result.
+public struct Intersection2DPoint: Sendable {
+    /// The intersection point.
+    public let point: SIMD2<Double>
+    /// Parameter on the first curve.
+    public let param1: Double
+    /// Parameter on the second curve.
+    public let param2: Double
+}
+
+/// Analytical 2D intersections between elementary curves.
+public enum IntAna2d {
+
+    /// Intersect two 2D lines.
+    public static func intersectLines(
+        line1Point: SIMD2<Double>, line1Dir: SIMD2<Double>,
+        line2Point: SIMD2<Double>, line2Dir: SIMD2<Double>
+    ) -> [Intersection2DPoint] {
+        var buffer = [OCCTIntAna2dPoint](repeating: OCCTIntAna2dPoint(), count: 4)
+        let n = Int(OCCTIntAna2dLinLin(line1Point.x, line1Point.y, line1Dir.x, line1Dir.y,
+                                       line2Point.x, line2Point.y, line2Dir.x, line2Dir.y,
+                                       &buffer, 4))
+        return (0..<n).map {
+            Intersection2DPoint(point: SIMD2(buffer[$0].x, buffer[$0].y),
+                               param1: buffer[$0].param1, param2: buffer[$0].param2)
+        }
+    }
+
+    /// Intersect a 2D line and circle.
+    public static func intersectLineCircle(
+        linePoint: SIMD2<Double>, lineDir: SIMD2<Double>,
+        circleCenter: SIMD2<Double>, circleRadius: Double
+    ) -> [Intersection2DPoint] {
+        var buffer = [OCCTIntAna2dPoint](repeating: OCCTIntAna2dPoint(), count: 4)
+        let n = Int(OCCTIntAna2dLinCirc(linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+                                        circleCenter.x, circleCenter.y, circleRadius,
+                                        &buffer, 4))
+        return (0..<n).map {
+            Intersection2DPoint(point: SIMD2(buffer[$0].x, buffer[$0].y),
+                               param1: buffer[$0].param1, param2: buffer[$0].param2)
+        }
+    }
+
+    /// Intersect two 2D circles.
+    public static func intersectCircles(
+        center1: SIMD2<Double>, radius1: Double,
+        center2: SIMD2<Double>, radius2: Double
+    ) -> [Intersection2DPoint] {
+        var buffer = [OCCTIntAna2dPoint](repeating: OCCTIntAna2dPoint(), count: 4)
+        let n = Int(OCCTIntAna2dCircCirc(center1.x, center1.y, radius1,
+                                         center2.x, center2.y, radius2,
+                                         &buffer, 4))
+        return (0..<n).map {
+            Intersection2DPoint(point: SIMD2(buffer[$0].x, buffer[$0].y),
+                               param1: buffer[$0].param1, param2: buffer[$0].param2)
+        }
+    }
+}
+
+// MARK: - Extrema 2D
+
+/// 2D extrema result between curves or point-curve.
+public struct Extrema2DResult: Sendable {
+    /// Squared distance at this extremum.
+    public let squareDistance: Double
+    /// Distance at this extremum.
+    public var distance: Double { squareDistance.squareRoot() }
+    /// Parameter on the first curve.
+    public let param1: Double
+    /// Parameter on the second curve.
+    public let param2: Double
+    /// Closest point on the first curve.
+    public let point1: SIMD2<Double>
+    /// Closest point on the second curve.
+    public let point2: SIMD2<Double>
+}
+
+/// 2D extrema (closest/farthest distances) between elementary curves.
+public enum Extrema2d {
+
+    /// Distance between two parallel 2D lines.
+    ///
+    /// - Returns: Tuple of (isParallel, results). If parallel, one result with distance is returned.
+    public static func distanceBetweenLines(
+        line1Point: SIMD2<Double>, line1Dir: SIMD2<Double>,
+        line2Point: SIMD2<Double>, line2Dir: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> (isParallel: Bool, results: [Extrema2DResult]) {
+        var buffer = [OCCTExtrema2dResult](repeating: OCCTExtrema2dResult(), count: 4)
+        var isParallel = false
+        let n = Int(OCCTExtremaExtElC2dLinLin(
+            line1Point.x, line1Point.y, line1Dir.x, line1Dir.y,
+            line2Point.x, line2Point.y, line2Dir.x, line2Dir.y,
+            tolerance, &isParallel, &buffer, 4))
+        let results = (0..<max(n, 0)).map {
+            Extrema2DResult(squareDistance: buffer[$0].squareDistance,
+                           param1: buffer[$0].param1, param2: buffer[$0].param2,
+                           point1: SIMD2(buffer[$0].p1x, buffer[$0].p1y),
+                           point2: SIMD2(buffer[$0].p2x, buffer[$0].p2y))
+        }
+        return (isParallel: isParallel, results: results)
+    }
+
+    /// Distance between a 2D line and circle.
+    public static func distanceBetweenLineAndCircle(
+        linePoint: SIMD2<Double>, lineDir: SIMD2<Double>,
+        circleCenter: SIMD2<Double>, circleRadius: Double,
+        tolerance: Double = 1e-6
+    ) -> [Extrema2DResult] {
+        var buffer = [OCCTExtrema2dResult](repeating: OCCTExtrema2dResult(), count: 4)
+        let n = Int(OCCTExtremaExtElC2dLinCirc(
+            linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+            circleCenter.x, circleCenter.y, circleRadius,
+            tolerance, &buffer, 4))
+        return (0..<max(n, 0)).map {
+            Extrema2DResult(squareDistance: buffer[$0].squareDistance,
+                           param1: buffer[$0].param1, param2: buffer[$0].param2,
+                           point1: SIMD2(buffer[$0].p1x, buffer[$0].p1y),
+                           point2: SIMD2(buffer[$0].p2x, buffer[$0].p2y))
+        }
+    }
+
+    /// Closest/farthest points on a 2D circle from a point.
+    public static func distanceFromPointToCircle(
+        point: SIMD2<Double>,
+        circleCenter: SIMD2<Double>, circleRadius: Double,
+        tolerance: Double = 1e-6
+    ) -> [Extrema2DResult] {
+        var buffer = [OCCTExtrema2dResult](repeating: OCCTExtrema2dResult(), count: 4)
+        let n = Int(OCCTExtremaExtPElC2dCirc(
+            point.x, point.y,
+            circleCenter.x, circleCenter.y, circleRadius,
+            tolerance, &buffer, 4))
+        return (0..<max(n, 0)).map {
+            Extrema2DResult(squareDistance: buffer[$0].squareDistance,
+                           param1: buffer[$0].param1, param2: buffer[$0].param2,
+                           point1: SIMD2(buffer[$0].p1x, buffer[$0].p1y),
+                           point2: SIMD2(buffer[$0].p2x, buffer[$0].p2y))
+        }
+    }
+
+    /// Closest point on a 2D line from a point.
+    public static func distanceFromPointToLine(
+        point: SIMD2<Double>,
+        linePoint: SIMD2<Double>, lineDir: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> [Extrema2DResult] {
+        var buffer = [OCCTExtrema2dResult](repeating: OCCTExtrema2dResult(), count: 4)
+        let n = Int(OCCTExtremaExtPElC2dLin(
+            point.x, point.y,
+            linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+            tolerance, &buffer, 4))
+        return (0..<max(n, 0)).map {
+            Extrema2DResult(squareDistance: buffer[$0].squareDistance,
+                           param1: buffer[$0].param1, param2: buffer[$0].param2,
+                           point1: SIMD2(buffer[$0].p1x, buffer[$0].p1y),
+                           point2: SIMD2(buffer[$0].p2x, buffer[$0].p2y))
+        }
+    }
+
+    /// Distance between two 2D curves.
+    public static func distanceBetweenCurves(
+        _ c1: Curve2D, first1: Double, last1: Double,
+        _ c2: Curve2D, first2: Double, last2: Double
+    ) -> [Extrema2DResult] {
+        var buffer = [OCCTExtrema2dResult](repeating: OCCTExtrema2dResult(), count: 32)
+        let n = Int(OCCTExtremaExtCC2d(c1.handle, first1, last1,
+                                       c2.handle, first2, last2,
+                                       &buffer, 32))
+        return (0..<max(n, 0)).map {
+            Extrema2DResult(squareDistance: buffer[$0].squareDistance,
+                           param1: buffer[$0].param1, param2: buffer[$0].param2,
+                           point1: SIMD2(buffer[$0].p1x, buffer[$0].p1y),
+                           point2: SIMD2(buffer[$0].p2x, buffer[$0].p2y))
+        }
+    }
+}
+
+// MARK: - Geom2dLProp: Curvature Inflection/Extrema
+
+/// Type of curvature feature point.
+public enum CurInfType: Int32, Sendable {
+    case curvatureMinimum = 0
+    case curvatureMaximum = 1
+    case inflection = 2
+}
+
+/// A curvature feature point on a 2D curve.
+public struct CurInfPoint: Sendable {
+    /// Parameter value on the curve.
+    public let parameter: Double
+    /// Type of feature (min/max curvature, or inflection).
+    public let type: CurInfType
+}
+
+extension Curve2D {
+    /// Find curvature extrema (min/max) on this 2D curve with type classification.
+    ///
+    /// Uses Geom2dLProp_NumericCurInf2d to find parameters where
+    /// curvature is at a local minimum or maximum. Returns detailed
+    /// `CurInfPoint` objects distinguishing min vs max.
+    public func curvatureExtremaDetailed() -> [CurInfPoint] {
+        var buffer = [OCCTCurInfPoint](repeating: OCCTCurInfPoint(), count: 64)
+        let n = Int(OCCTGeom2dLPropCurExt(handle, &buffer, 64))
+        return (0..<n).map {
+            CurInfPoint(parameter: buffer[$0].parameter,
+                       type: CurInfType(rawValue: buffer[$0].type) ?? .inflection)
+        }
+    }
+
+    /// Find inflection points on this 2D curve with type information.
+    ///
+    /// Similar to `inflectionPoints()` but returns detailed `CurInfPoint`
+    /// objects including the type classification.
+    public func inflectionPointsDetailed() -> [CurInfPoint] {
+        var buffer = [OCCTCurInfPoint](repeating: OCCTCurInfPoint(), count: 64)
+        let n = Int(OCCTGeom2dLPropCurInf(handle, &buffer, 64))
+        return (0..<n).map {
+            CurInfPoint(parameter: buffer[$0].parameter, type: .inflection)
+        }
+    }
+}
+
+// MARK: - Bisector_BisecAna
+
+extension Curve2D {
+    /// Compute analytical bisector between this curve and another.
+    ///
+    /// The bisector is the locus of points equidistant from both curves.
+    ///
+    /// - Parameters:
+    ///   - other: The other 2D curve
+    ///   - referencePoint: Point near the desired bisector branch
+    ///   - direction1: Tangent direction of this curve at the reference
+    ///   - direction2: Tangent direction of the other curve at the reference
+    ///   - sense: Orientation sense (1.0 or -1.0)
+    ///   - tolerance: Geometric tolerance
+    /// - Returns: The bisector as a 2D curve, or nil on failure
+    public func bisector(
+        with other: Curve2D,
+        referencePoint: SIMD2<Double>,
+        direction1: SIMD2<Double>, direction2: SIMD2<Double>,
+        sense: Double = 1.0, tolerance: Double = 1e-6
+    ) -> Curve2D? {
+        guard let h = OCCTBisectorBisecAnaCurveCurve(
+            handle, other.handle,
+            referencePoint.x, referencePoint.y,
+            direction1.x, direction1.y, direction2.x, direction2.y,
+            sense, tolerance) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Compute analytical bisector between this curve and a point.
+    ///
+    /// - Parameters:
+    ///   - point: The point
+    ///   - referencePoint: Point near the desired bisector branch
+    ///   - direction1: Tangent direction of this curve at the reference
+    ///   - direction2: Direction from the point at the reference
+    ///   - sense: Orientation sense
+    ///   - tolerance: Geometric tolerance
+    /// - Returns: The bisector as a 2D curve, or nil on failure
+    public func bisector(
+        withPoint point: SIMD2<Double>,
+        referencePoint: SIMD2<Double>,
+        direction1: SIMD2<Double>, direction2: SIMD2<Double>,
+        sense: Double = 1.0, tolerance: Double = 1e-6
+    ) -> Curve2D? {
+        guard let h = OCCTBisectorBisecAnaCurvePoint(
+            handle,
+            point.x, point.y,
+            referencePoint.x, referencePoint.y,
+            direction1.x, direction1.y, direction2.x, direction2.y,
+            sense, tolerance) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Compute analytical bisector between two points (perpendicular bisector line).
+    ///
+    /// - Parameters:
+    ///   - p1: First point
+    ///   - p2: Second point
+    ///   - referencePoint: Point near the desired bisector
+    ///   - direction1: Direction from first point
+    ///   - direction2: Direction from second point
+    ///   - sense: Orientation sense
+    ///   - tolerance: Geometric tolerance
+    /// - Returns: The bisector as a 2D curve (line), or nil on failure
+    public static func bisectorBetweenPoints(
+        _ p1: SIMD2<Double>, _ p2: SIMD2<Double>,
+        referencePoint: SIMD2<Double>,
+        direction1: SIMD2<Double>, direction2: SIMD2<Double>,
+        sense: Double = 1.0, tolerance: Double = 1e-6
+    ) -> Curve2D? {
+        guard let h = OCCTBisectorBisecAnaPointPoint(
+            p1.x, p1.y, p2.x, p2.y,
+            referencePoint.x, referencePoint.y,
+            direction1.x, direction1.y, direction2.x, direction2.y,
+            sense, tolerance) else { return nil }
+        return Curve2D(handle: h)
+    }
+}

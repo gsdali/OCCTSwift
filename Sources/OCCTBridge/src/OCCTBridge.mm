@@ -19534,3 +19534,748 @@ OCCTAnaFilletResult OCCTChFi2dAnaFillet(OCCTShapeRef edge1, OCCTShapeRef edge2,
         return result;
     }
 }
+
+// ============================================================================
+// MARK: - v0.53.0: 2D Geometry Completions
+// ============================================================================
+
+#include <GccAna_Pnt2dBisec.hxx>
+#include <GccAna_Lin2dBisec.hxx>
+#include <GccAna_LinPnt2dBisec.hxx>
+#include <GccAna_Circ2dBisec.hxx>
+#include <GccAna_CircLin2dBisec.hxx>
+#include <GccAna_CircPnt2dBisec.hxx>
+#include <GccAna_Lin2dTanPar.hxx>
+#include <GccAna_Lin2dTanPer.hxx>
+#include <GccAna_Lin2dTanObl.hxx>
+#include <GccAna_Circ2d2TanOn.hxx>
+#include <GccAna_Circ2dTanOnRad.hxx>
+#include <GccInt_Bisec.hxx>
+#include <GccInt_IType.hxx>
+#include <GccInt_BCirc.hxx>
+#include <GccInt_BLine.hxx>
+#include <GccInt_BElips.hxx>
+#include <GccInt_BHyper.hxx>
+#include <GccInt_BParab.hxx>
+#include <Geom2dGcc_Circ2d2TanOn.hxx>
+#include <Geom2dGcc_Circ2dTanOnRad.hxx>
+#include <Geom2dGcc_Lin2dTanObl.hxx>
+#include <IntAna2d_AnaIntersection.hxx>
+#include <IntAna2d_IntPoint.hxx>
+#include <Extrema_ExtElC2d.hxx>
+#include <Extrema_ExtPElC2d.hxx>
+#include <Extrema_ExtCC2d.hxx>
+#include <Extrema_POnCurv2d.hxx>
+#include <Geom2dLProp_NumericCurInf2d.hxx>
+#include <LProp_CurAndInf.hxx>
+#include <LProp_CIType.hxx>
+#include <Bisector_BisecAna.hxx>
+#include <GeomAbs_JoinType.hxx>
+#include <gp_Elips2d.hxx>
+#include <gp_Parab2d.hxx>
+#include <gp_Hypr2d.hxx>
+#include <Geom2d_CartesianPoint.hxx>
+#include <GccEnt_QualifiedLin.hxx>
+#include <GccEnt_QualifiedCirc.hxx>
+
+// Helper to extract bisector solution from GccInt_Bisec
+static void extractBisecSolution(const Handle(GccInt_Bisec)& bisec, OCCTBisecSolution* out) {
+    GccInt_IType type = bisec->ArcType();
+    switch (type) {
+        case GccInt_Lin: {
+            gp_Lin2d lin = bisec->Line();
+            out->type = OCCTBisecTypeLine;
+            out->px = lin.Location().X();
+            out->py = lin.Location().Y();
+            out->dx = lin.Direction().X();
+            out->dy = lin.Direction().Y();
+            out->radius = 0;
+            break;
+        }
+        case GccInt_Cir: {
+            gp_Circ2d circ = bisec->Circle();
+            out->type = OCCTBisecTypeCircle;
+            out->px = circ.Location().X();
+            out->py = circ.Location().Y();
+            out->dx = 0; out->dy = 0;
+            out->radius = circ.Radius();
+            break;
+        }
+        case GccInt_Ell: {
+            gp_Elips2d ell = bisec->Ellipse();
+            out->type = OCCTBisecTypeEllipse;
+            out->px = ell.Location().X();
+            out->py = ell.Location().Y();
+            out->dx = ell.MajorRadius();
+            out->dy = ell.MinorRadius();
+            out->radius = 0;
+            break;
+        }
+        case GccInt_Hpr: {
+            gp_Hypr2d hyp = bisec->Hyperbola();
+            out->type = OCCTBisecTypeHyperbola;
+            out->px = hyp.Location().X();
+            out->py = hyp.Location().Y();
+            out->dx = hyp.MajorRadius();
+            out->dy = hyp.MinorRadius();
+            out->radius = 0;
+            break;
+        }
+        case GccInt_Par: {
+            gp_Parab2d par = bisec->Parabola();
+            out->type = OCCTBisecTypeParabola;
+            out->px = par.Location().X();
+            out->py = par.Location().Y();
+            out->dx = par.Focal();
+            out->dy = 0;
+            out->radius = 0;
+            break;
+        }
+        default: {
+            out->type = OCCTBisecTypePoint;
+            out->px = 0; out->py = 0;
+            out->dx = 0; out->dy = 0;
+            out->radius = 0;
+            break;
+        }
+    }
+}
+
+// --- GccAna_Pnt2dBisec ---
+bool OCCTGccAnaPnt2dBisec(double p1x, double p1y, double p2x, double p2y,
+                          double* outPx, double* outPy, double* outDx, double* outDy) {
+    try {
+        GccAna_Pnt2dBisec bisec(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y));
+        if (!bisec.HasSolution()) return false;
+        gp_Lin2d line = bisec.ThisSolution();
+        *outPx = line.Location().X();
+        *outPy = line.Location().Y();
+        *outDx = line.Direction().X();
+        *outDy = line.Direction().Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- GccAna_Lin2dBisec ---
+int32_t OCCTGccAnaLin2dBisec(double l1px, double l1py, double l1dx, double l1dy,
+                             double l2px, double l2py, double l2dx, double l2dy,
+                             OCCTGccLineSolution* out, int32_t max) {
+    try {
+        gp_Lin2d l1(gp_Pnt2d(l1px, l1py), gp_Dir2d(l1dx, l1dy));
+        gp_Lin2d l2(gp_Pnt2d(l2px, l2py), gp_Dir2d(l2dx, l2dy));
+        GccAna_Lin2dBisec bisec(l1, l2);
+        if (!bisec.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)bisec.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Lin2d sol = bisec.ThisSolution(i + 1);
+            out[i].px = sol.Location().X();
+            out[i].py = sol.Location().Y();
+            out[i].dx = sol.Direction().X();
+            out[i].dy = sol.Direction().Y();
+            out[i].qualifier = 0;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_LinPnt2dBisec ---
+bool OCCTGccAnaLinPnt2dBisec(double lpx, double lpy, double ldx, double ldy,
+                             double px, double py,
+                             OCCTBisecSolution* out) {
+    try {
+        gp_Lin2d line(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        GccAna_LinPnt2dBisec bisec(line, gp_Pnt2d(px, py));
+        if (!bisec.IsDone()) return false;
+        Handle(GccInt_Bisec) sol = bisec.ThisSolution();
+        extractBisecSolution(sol, out);
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- GccAna_Circ2dBisec ---
+int32_t OCCTGccAnaCirc2dBisec(double c1x, double c1y, double c1r,
+                              double c2x, double c2y, double c2r,
+                              OCCTBisecSolution* out, int32_t max) {
+    try {
+        gp_Circ2d circ1(gp_Ax22d(gp_Pnt2d(c1x, c1y), gp_Dir2d(1, 0)), c1r);
+        gp_Circ2d circ2(gp_Ax22d(gp_Pnt2d(c2x, c2y), gp_Dir2d(1, 0)), c2r);
+        GccAna_Circ2dBisec bisec(circ1, circ2);
+        if (!bisec.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)bisec.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            Handle(GccInt_Bisec) sol = bisec.ThisSolution(i + 1);
+            extractBisecSolution(sol, &out[i]);
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_CircLin2dBisec ---
+int32_t OCCTGccAnaCircLin2dBisec(double cx, double cy, double cr,
+                                 double lpx, double lpy, double ldx, double ldy,
+                                 OCCTBisecSolution* out, int32_t max) {
+    try {
+        gp_Circ2d circ(gp_Ax22d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), cr);
+        gp_Lin2d line(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        GccAna_CircLin2dBisec bisec(circ, line);
+        if (!bisec.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)bisec.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            Handle(GccInt_Bisec) sol = bisec.ThisSolution(i + 1);
+            extractBisecSolution(sol, &out[i]);
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_CircPnt2dBisec ---
+int32_t OCCTGccAnaCircPnt2dBisec(double cx, double cy, double cr,
+                                 double px, double py,
+                                 OCCTBisecSolution* out, int32_t max) {
+    try {
+        gp_Circ2d circ(gp_Ax22d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), cr);
+        GccAna_CircPnt2dBisec bisec(circ, gp_Pnt2d(px, py));
+        if (!bisec.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)bisec.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            Handle(GccInt_Bisec) sol = bisec.ThisSolution(i + 1);
+            extractBisecSolution(sol, &out[i]);
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_Lin2dTanPar (point version) ---
+int32_t OCCTGccAnaLin2dTanParPt(double px, double py,
+                                double lpx, double lpy, double ldx, double ldy,
+                                OCCTGccLineSolution* out, int32_t max) {
+    try {
+        gp_Pnt2d pt(px, py);
+        gp_Lin2d ref(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        GccAna_Lin2dTanPar solver(pt, ref);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Lin2d sol = solver.ThisSolution(i + 1);
+            out[i].px = sol.Location().X();
+            out[i].py = sol.Location().Y();
+            out[i].dx = sol.Direction().X();
+            out[i].dy = sol.Direction().Y();
+            out[i].qualifier = 0;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_Lin2dTanPar (circle version) ---
+int32_t OCCTGccAnaLin2dTanParCirc(double cx, double cy, double cr, int32_t qualifier,
+                                  double lpx, double lpy, double ldx, double ldy,
+                                  OCCTGccLineSolution* out, int32_t max) {
+    try {
+        gp_Circ2d circ(gp_Ax22d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), cr);
+        gp_Lin2d ref(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        GccEnt_QualifiedCirc qc(circ, toGccPosition(qualifier));
+        GccAna_Lin2dTanPar solver(qc, ref);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Lin2d sol = solver.ThisSolution(i + 1);
+            out[i].px = sol.Location().X();
+            out[i].py = sol.Location().Y();
+            out[i].dx = sol.Direction().X();
+            out[i].dy = sol.Direction().Y();
+            GccEnt_Position pos;
+            solver.WhichQualifier(i + 1, pos);
+            out[i].qualifier = (int32_t)pos;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_Lin2dTanPer (point + line version) ---
+int32_t OCCTGccAnaLin2dTanPerPtLin(double px, double py,
+                                   double lpx, double lpy, double ldx, double ldy,
+                                   OCCTGccLineSolution* out, int32_t max) {
+    try {
+        gp_Pnt2d pt(px, py);
+        gp_Lin2d ref(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        GccAna_Lin2dTanPer solver(pt, ref);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Lin2d sol = solver.ThisSolution(i + 1);
+            out[i].px = sol.Location().X();
+            out[i].py = sol.Location().Y();
+            out[i].dx = sol.Direction().X();
+            out[i].dy = sol.Direction().Y();
+            out[i].qualifier = 0;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_Lin2dTanPer (circle + line version) ---
+int32_t OCCTGccAnaLin2dTanPerCircLin(double cx, double cy, double cr, int32_t qualifier,
+                                     double lpx, double lpy, double ldx, double ldy,
+                                     OCCTGccLineSolution* out, int32_t max) {
+    try {
+        gp_Circ2d circ(gp_Ax22d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), cr);
+        gp_Lin2d ref(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        GccEnt_QualifiedCirc qc(circ, toGccPosition(qualifier));
+        GccAna_Lin2dTanPer solver(qc, ref);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Lin2d sol = solver.ThisSolution(i + 1);
+            out[i].px = sol.Location().X();
+            out[i].py = sol.Location().Y();
+            out[i].dx = sol.Direction().X();
+            out[i].dy = sol.Direction().Y();
+            GccEnt_Position pos;
+            solver.WhichQualifier(i + 1, pos);
+            out[i].qualifier = (int32_t)pos;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_Lin2dTanObl (point version) ---
+int32_t OCCTGccAnaLin2dTanOblPt(double px, double py,
+                                double lpx, double lpy, double ldx, double ldy,
+                                double angle,
+                                OCCTGccLineSolution* out, int32_t max) {
+    try {
+        gp_Pnt2d pt(px, py);
+        gp_Lin2d ref(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        GccAna_Lin2dTanObl solver(pt, ref, angle);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Lin2d sol = solver.ThisSolution(i + 1);
+            out[i].px = sol.Location().X();
+            out[i].py = sol.Location().Y();
+            out[i].dx = sol.Direction().X();
+            out[i].dy = sol.Direction().Y();
+            out[i].qualifier = 0;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- Geom2dGcc_Lin2dTanObl ---
+int32_t OCCTGeom2dGccLin2dTanObl(OCCTCurve2DRef curve, int32_t qualifier,
+                                 double lpx, double lpy, double ldx, double ldy,
+                                 double tolerance, double angle,
+                                 OCCTGccLineSolution* out, int32_t max) {
+    try {
+        Geom2dAdaptor_Curve adaptor(curve->curve);
+        Geom2dGcc_QualifiedCurve qc(adaptor, toGccPosition(qualifier));
+        gp_Lin2d ref(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        Geom2dGcc_Lin2dTanObl solver(qc, ref, tolerance, angle);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Lin2d sol = solver.ThisSolution(i + 1);
+            out[i].px = sol.Location().X();
+            out[i].py = sol.Location().Y();
+            out[i].dx = sol.Direction().X();
+            out[i].dy = sol.Direction().Y();
+            GccEnt_Position pos;
+            solver.WhichQualifier(i + 1, pos);
+            out[i].qualifier = (int32_t)pos;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_Circ2d2TanOn (2 qualified lines, center on line) ---
+int32_t OCCTGccAnaCirc2d2TanOnLinLin(double l1px, double l1py, double l1dx, double l1dy, int32_t q1,
+                                     double l2px, double l2py, double l2dx, double l2dy, int32_t q2,
+                                     double onPx, double onPy, double onDx, double onDy,
+                                     double tolerance,
+                                     OCCTGccCircleSolution* out, int32_t max) {
+    try {
+        gp_Lin2d l1(gp_Pnt2d(l1px, l1py), gp_Dir2d(l1dx, l1dy));
+        gp_Lin2d l2(gp_Pnt2d(l2px, l2py), gp_Dir2d(l2dx, l2dy));
+        gp_Lin2d onLine(gp_Pnt2d(onPx, onPy), gp_Dir2d(onDx, onDy));
+        GccEnt_QualifiedLin ql1(l1, toGccPosition(q1));
+        GccEnt_QualifiedLin ql2(l2, toGccPosition(q2));
+        GccAna_Circ2d2TanOn solver(ql1, ql2, onLine, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Circ2d sol = solver.ThisSolution(i + 1);
+            out[i].cx = sol.Location().X();
+            out[i].cy = sol.Location().Y();
+            out[i].radius = sol.Radius();
+            out[i].qualifier = 0;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- GccAna_Circ2dTanOnRad (qualified line, center on line, given radius) ---
+int32_t OCCTGccAnaCirc2dTanOnRadLin(double lpx, double lpy, double ldx, double ldy, int32_t qualifier,
+                                    double onPx, double onPy, double onDx, double onDy,
+                                    double radius, double tolerance,
+                                    OCCTGccCircleSolution* out, int32_t max) {
+    try {
+        gp_Lin2d l1(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        gp_Lin2d onLine(gp_Pnt2d(onPx, onPy), gp_Dir2d(onDx, onDy));
+        GccEnt_QualifiedLin ql1(l1, toGccPosition(qualifier));
+        GccAna_Circ2dTanOnRad solver(ql1, onLine, radius, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Circ2d sol = solver.ThisSolution(i + 1);
+            out[i].cx = sol.Location().X();
+            out[i].cy = sol.Location().Y();
+            out[i].radius = sol.Radius();
+            out[i].qualifier = 0;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- Geom2dGcc_Circ2d2TanOn ---
+int32_t OCCTGeom2dGccCirc2d2TanOn(OCCTCurve2DRef c1, int32_t q1,
+                                  OCCTCurve2DRef c2, int32_t q2,
+                                  OCCTCurve2DRef onCurve,
+                                  double tolerance,
+                                  double initParam1, double initParam2, double initParamOn,
+                                  OCCTGccCircleSolution* out, int32_t max) {
+    try {
+        Geom2dAdaptor_Curve ac1(c1->curve), ac2(c2->curve), aon(onCurve->curve);
+        Geom2dGcc_QualifiedCurve qc1(ac1, toGccPosition(q1));
+        Geom2dGcc_QualifiedCurve qc2(ac2, toGccPosition(q2));
+        Geom2dGcc_Circ2d2TanOn solver(qc1, qc2, aon, tolerance, initParam1, initParam2, initParamOn);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Circ2d sol = solver.ThisSolution(i + 1);
+            out[i].cx = sol.Location().X();
+            out[i].cy = sol.Location().Y();
+            out[i].radius = sol.Radius();
+            out[i].qualifier = 0;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- Geom2dGcc_Circ2dTanOnRad ---
+int32_t OCCTGeom2dGccCirc2dTanOnRad(OCCTCurve2DRef curve, int32_t qualifier,
+                                    OCCTCurve2DRef onCurve,
+                                    double radius, double tolerance,
+                                    OCCTGccCircleSolution* out, int32_t max) {
+    try {
+        Geom2dAdaptor_Curve ac(curve->curve), aon(onCurve->curve);
+        Geom2dGcc_QualifiedCurve qc(ac, toGccPosition(qualifier));
+        Geom2dGcc_Circ2dTanOnRad solver(qc, aon, radius, tolerance);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)solver.NbSolutions(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Circ2d sol = solver.ThisSolution(i + 1);
+            out[i].cx = sol.Location().X();
+            out[i].cy = sol.Location().Y();
+            out[i].radius = sol.Radius();
+            out[i].qualifier = 0;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- IntAna2d_AnaIntersection: Line-Line ---
+int32_t OCCTIntAna2dLinLin(double l1px, double l1py, double l1dx, double l1dy,
+                           double l2px, double l2py, double l2dx, double l2dy,
+                           OCCTIntAna2dPoint* out, int32_t max) {
+    try {
+        gp_Lin2d l1(gp_Pnt2d(l1px, l1py), gp_Dir2d(l1dx, l1dy));
+        gp_Lin2d l2(gp_Pnt2d(l2px, l2py), gp_Dir2d(l2dx, l2dy));
+        IntAna2d_AnaIntersection inter(l1, l2);
+        if (!inter.IsDone() || inter.IsEmpty()) return 0;
+        int32_t nb = std::min((int32_t)inter.NbPoints(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            const IntAna2d_IntPoint& pt = inter.Point(i + 1);
+            out[i].x = pt.Value().X();
+            out[i].y = pt.Value().Y();
+            out[i].param1 = pt.ParamOnFirst();
+            out[i].param2 = pt.ParamOnSecond();
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- IntAna2d_AnaIntersection: Line-Circle ---
+int32_t OCCTIntAna2dLinCirc(double lpx, double lpy, double ldx, double ldy,
+                            double cx, double cy, double cr,
+                            OCCTIntAna2dPoint* out, int32_t max) {
+    try {
+        gp_Lin2d line(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        gp_Circ2d circ(gp_Ax22d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), cr);
+        IntAna2d_AnaIntersection inter(line, circ);
+        if (!inter.IsDone() || inter.IsEmpty()) return 0;
+        int32_t nb = std::min((int32_t)inter.NbPoints(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            const IntAna2d_IntPoint& pt = inter.Point(i + 1);
+            out[i].x = pt.Value().X();
+            out[i].y = pt.Value().Y();
+            out[i].param1 = pt.ParamOnFirst();
+            out[i].param2 = pt.ParamOnSecond();
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- IntAna2d_AnaIntersection: Circle-Circle ---
+int32_t OCCTIntAna2dCircCirc(double c1x, double c1y, double c1r,
+                             double c2x, double c2y, double c2r,
+                             OCCTIntAna2dPoint* out, int32_t max) {
+    try {
+        gp_Circ2d circ1(gp_Ax22d(gp_Pnt2d(c1x, c1y), gp_Dir2d(1, 0)), c1r);
+        gp_Circ2d circ2(gp_Ax22d(gp_Pnt2d(c2x, c2y), gp_Dir2d(1, 0)), c2r);
+        IntAna2d_AnaIntersection inter(circ1, circ2);
+        if (!inter.IsDone() || inter.IsEmpty()) return 0;
+        int32_t nb = std::min((int32_t)inter.NbPoints(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            const IntAna2d_IntPoint& pt = inter.Point(i + 1);
+            out[i].x = pt.Value().X();
+            out[i].y = pt.Value().Y();
+            out[i].param1 = pt.ParamOnFirst();
+            out[i].param2 = pt.ParamOnSecond();
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- Extrema_ExtElC2d: Line-Line ---
+int32_t OCCTExtremaExtElC2dLinLin(double l1px, double l1py, double l1dx, double l1dy,
+                                  double l2px, double l2py, double l2dx, double l2dy,
+                                  double tolerance,
+                                  bool* outIsParallel,
+                                  OCCTExtrema2dResult* out, int32_t max) {
+    try {
+        gp_Lin2d l1(gp_Pnt2d(l1px, l1py), gp_Dir2d(l1dx, l1dy));
+        gp_Lin2d l2(gp_Pnt2d(l2px, l2py), gp_Dir2d(l2dx, l2dy));
+        Extrema_ExtElC2d ext(l1, l2, tolerance);
+        if (!ext.IsDone()) return -1;
+        *outIsParallel = ext.IsParallel();
+        if (ext.IsParallel()) {
+            if (max >= 1) {
+                out[0].squareDistance = ext.SquareDistance(1);
+                out[0].param1 = 0; out[0].param2 = 0;
+                out[0].p1x = l1px; out[0].p1y = l1py;
+                out[0].p2x = l2px; out[0].p2y = l2py;
+                return 1;
+            }
+            return 0;
+        }
+        int32_t nb = std::min((int32_t)ext.NbExt(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            out[i].squareDistance = ext.SquareDistance(i + 1);
+            Extrema_POnCurv2d p1, p2;
+            ext.Points(i + 1, p1, p2);
+            out[i].param1 = p1.Parameter();
+            out[i].param2 = p2.Parameter();
+            out[i].p1x = p1.Value().X();
+            out[i].p1y = p1.Value().Y();
+            out[i].p2x = p2.Value().X();
+            out[i].p2y = p2.Value().Y();
+        }
+        return nb;
+    } catch (...) { return -1; }
+}
+
+// --- Extrema_ExtElC2d: Line-Circle ---
+int32_t OCCTExtremaExtElC2dLinCirc(double lpx, double lpy, double ldx, double ldy,
+                                   double cx, double cy, double cr,
+                                   double tolerance,
+                                   OCCTExtrema2dResult* out, int32_t max) {
+    try {
+        gp_Lin2d line(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        gp_Circ2d circ(gp_Ax22d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), cr);
+        Extrema_ExtElC2d ext(line, circ, tolerance);
+        if (!ext.IsDone()) return -1;
+        int32_t nb = std::min((int32_t)ext.NbExt(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            out[i].squareDistance = ext.SquareDistance(i + 1);
+            Extrema_POnCurv2d p1, p2;
+            ext.Points(i + 1, p1, p2);
+            out[i].param1 = p1.Parameter();
+            out[i].param2 = p2.Parameter();
+            out[i].p1x = p1.Value().X();
+            out[i].p1y = p1.Value().Y();
+            out[i].p2x = p2.Value().X();
+            out[i].p2y = p2.Value().Y();
+        }
+        return nb;
+    } catch (...) { return -1; }
+}
+
+// --- Extrema_ExtPElC2d: Point-Circle ---
+int32_t OCCTExtremaExtPElC2dCirc(double px, double py,
+                                 double cx, double cy, double cr,
+                                 double tolerance,
+                                 OCCTExtrema2dResult* out, int32_t max) {
+    try {
+        gp_Pnt2d pt(px, py);
+        gp_Circ2d circ(gp_Ax22d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), cr);
+        Extrema_ExtPElC2d ext(pt, circ, tolerance, 0, 2 * M_PI);
+        if (!ext.IsDone()) return -1;
+        int32_t nb = std::min((int32_t)ext.NbExt(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            out[i].squareDistance = ext.SquareDistance(i + 1);
+            Extrema_POnCurv2d pc = ext.Point(i + 1);
+            out[i].param1 = 0;
+            out[i].param2 = pc.Parameter();
+            out[i].p1x = px; out[i].p1y = py;
+            out[i].p2x = pc.Value().X();
+            out[i].p2y = pc.Value().Y();
+        }
+        return nb;
+    } catch (...) { return -1; }
+}
+
+// --- Extrema_ExtPElC2d: Point-Line ---
+int32_t OCCTExtremaExtPElC2dLin(double px, double py,
+                                double lpx, double lpy, double ldx, double ldy,
+                                double tolerance,
+                                OCCTExtrema2dResult* out, int32_t max) {
+    try {
+        gp_Pnt2d pt(px, py);
+        gp_Lin2d line(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        Extrema_ExtPElC2d ext(pt, line, tolerance, -1e10, 1e10);
+        if (!ext.IsDone()) return -1;
+        int32_t nb = std::min((int32_t)ext.NbExt(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            out[i].squareDistance = ext.SquareDistance(i + 1);
+            Extrema_POnCurv2d pc = ext.Point(i + 1);
+            out[i].param1 = 0;
+            out[i].param2 = pc.Parameter();
+            out[i].p1x = px; out[i].p1y = py;
+            out[i].p2x = pc.Value().X();
+            out[i].p2y = pc.Value().Y();
+        }
+        return nb;
+    } catch (...) { return -1; }
+}
+
+// --- Extrema_ExtCC2d ---
+int32_t OCCTExtremaExtCC2d(OCCTCurve2DRef c1, double first1, double last1,
+                           OCCTCurve2DRef c2, double first2, double last2,
+                           OCCTExtrema2dResult* out, int32_t max) {
+    try {
+        Geom2dAdaptor_Curve ac1(c1->curve, first1, last1);
+        Geom2dAdaptor_Curve ac2(c2->curve, first2, last2);
+        Extrema_ExtCC2d ext(ac1, ac2);
+        if (!ext.IsDone()) return -1;
+        int32_t nb = std::min((int32_t)ext.NbExt(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            out[i].squareDistance = ext.SquareDistance(i + 1);
+            Extrema_POnCurv2d p1, p2;
+            ext.Points(i + 1, p1, p2);
+            out[i].param1 = p1.Parameter();
+            out[i].param2 = p2.Parameter();
+            out[i].p1x = p1.Value().X();
+            out[i].p1y = p1.Value().Y();
+            out[i].p2x = p2.Value().X();
+            out[i].p2y = p2.Value().Y();
+        }
+        return nb;
+    } catch (...) { return -1; }
+}
+
+// --- Geom2dLProp_NumericCurInf2d ---
+int32_t OCCTGeom2dLPropCurExt(OCCTCurve2DRef curve,
+                              OCCTCurInfPoint* out, int32_t max) {
+    try {
+        Geom2dLProp_NumericCurInf2d solver;
+        LProp_CurAndInf result;
+        solver.PerformCurExt(curve->curve, result);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)result.NbPoints(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            out[i].parameter = result.Parameter(i + 1);
+            LProp_CIType t = result.Type(i + 1);
+            if (t == LProp_MinCur) out[i].type = 0;
+            else if (t == LProp_MaxCur) out[i].type = 1;
+            else out[i].type = 2;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTGeom2dLPropCurInf(OCCTCurve2DRef curve,
+                              OCCTCurInfPoint* out, int32_t max) {
+    try {
+        Geom2dLProp_NumericCurInf2d solver;
+        LProp_CurAndInf result;
+        solver.PerformInf(curve->curve, result);
+        if (!solver.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)result.NbPoints(), max);
+        for (int32_t i = 0; i < nb; i++) {
+            out[i].parameter = result.Parameter(i + 1);
+            out[i].type = 2;
+        }
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- Bisector_BisecAna ---
+OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaCurveCurve(
+    OCCTCurve2DRef curve1, OCCTCurve2DRef curve2,
+    double px, double py,
+    double v1x, double v1y, double v2x, double v2y,
+    double sense, double tolerance) {
+    try {
+        Handle(Bisector_BisecAna) bisec = new Bisector_BisecAna();
+        bisec->Perform(curve1->curve, curve2->curve,
+                       gp_Pnt2d(px, py), gp_Vec2d(v1x, v1y), gp_Vec2d(v2x, v2y),
+                       sense, GeomAbs_Arc, tolerance);
+        Handle(Geom2d_Curve) result = bisec->Geom2dCurve();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve2D();
+        ref->curve = result;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaCurvePoint(
+    OCCTCurve2DRef curve,
+    double ptx, double pty,
+    double px, double py,
+    double v1x, double v1y, double v2x, double v2y,
+    double sense, double tolerance) {
+    try {
+        Handle(Geom2d_Point) geomPt = new Geom2d_CartesianPoint(gp_Pnt2d(ptx, pty));
+        Handle(Bisector_BisecAna) bisec = new Bisector_BisecAna();
+        bisec->Perform(curve->curve, geomPt,
+                       gp_Pnt2d(px, py), gp_Vec2d(v1x, v1y), gp_Vec2d(v2x, v2y),
+                       sense, tolerance);
+        Handle(Geom2d_Curve) result = bisec->Geom2dCurve();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve2D();
+        ref->curve = result;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaPointPoint(
+    double pt1x, double pt1y,
+    double pt2x, double pt2y,
+    double px, double py,
+    double v1x, double v1y, double v2x, double v2y,
+    double sense, double tolerance) {
+    try {
+        Handle(Geom2d_Point) p1 = new Geom2d_CartesianPoint(gp_Pnt2d(pt1x, pt1y));
+        Handle(Geom2d_Point) p2 = new Geom2d_CartesianPoint(gp_Pnt2d(pt2x, pt2y));
+        Handle(Bisector_BisecAna) bisec = new Bisector_BisecAna();
+        bisec->Perform(p1, p2,
+                       gp_Pnt2d(px, py), gp_Vec2d(v1x, v1y), gp_Vec2d(v2x, v2y),
+                       sense, tolerance);
+        Handle(Geom2d_Curve) result = bisec->Geom2dCurve();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve2D();
+        ref->curve = result;
+        return ref;
+    } catch (...) { return nullptr; }
+}
