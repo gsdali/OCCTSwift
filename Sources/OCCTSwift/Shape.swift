@@ -6451,4 +6451,308 @@ extension Shape {
         return Shape(handle: h)
     }
 
+    // MARK: - BOPAlgo Splitter (v0.61.0)
+
+    /// Split shapes by tool shapes using BOPAlgo_Splitter.
+    ///
+    /// Partitions the object shapes using the tool shapes as cutting geometry.
+    ///
+    /// - Parameters:
+    ///   - objects: Shapes to be split
+    ///   - tools: Shapes used as splitting tools
+    /// - Returns: Result shape containing all split fragments, or nil on failure
+    public static func split(objects: [Shape], by tools: [Shape]) -> Shape? {
+        let objPtrs = objects.map { $0.handle as OCCTShapeRef? }
+        let toolPtrs = tools.map { $0.handle as OCCTShapeRef? }
+        guard let h = objPtrs.withUnsafeBufferPointer({ objBuf in
+            toolPtrs.withUnsafeBufferPointer({ toolBuf in
+                OCCTBOPAlgoSplit(objBuf.baseAddress, Int32(objBuf.count),
+                                 toolBuf.baseAddress, Int32(toolBuf.count))
+            })
+        }) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - BOPAlgo ArgumentAnalyzer (v0.61.0)
+
+    /// Boolean operation type for argument analysis.
+    public enum BooleanOperation: Int32 {
+        case fuse = 0
+        case common = 1
+        case cut = 2
+        case cut21 = 3
+        case section = 4
+    }
+
+    /// Analyze whether two shapes are valid for a Boolean operation.
+    ///
+    /// Checks for self-intersection, small edges, and argument type compatibility.
+    ///
+    /// - Parameters:
+    ///   - shape1: First shape (object)
+    ///   - shape2: Second shape (tool)
+    ///   - operation: The Boolean operation to check
+    /// - Returns: true if the shapes are valid for the operation
+    public static func analyzeBoolean(_ shape1: Shape, _ shape2: Shape,
+                                       operation: BooleanOperation = .fuse) -> Bool {
+        return OCCTBOPAlgoAnalyzeArguments(shape1.handle, shape2.handle, operation.rawValue)
+    }
+
+    // MARK: - IntCurvesFace Intersection (v0.61.0)
+
+    /// Result of a line-face intersection.
+    public struct LineFaceIntersection {
+        /// 3D intersection point
+        public let point: SIMD3<Double>
+        /// Parameter on the line
+        public let parameter: Double
+    }
+
+    /// Intersect a line with this shape (must be a face).
+    ///
+    /// - Parameters:
+    ///   - origin: Line origin point
+    ///   - direction: Line direction
+    ///   - paramRange: Parameter range on the line (default -1000...1000)
+    /// - Returns: Array of intersection results
+    public func intersectLine(origin: SIMD3<Double>, direction: SIMD3<Double>,
+                              paramRange: ClosedRange<Double> = -1000...1000) -> [LineFaceIntersection] {
+        let maxPts: Int32 = 100
+        var outPoints = [Double](repeating: 0, count: Int(maxPts) * 3)
+        var outParams = [Double](repeating: 0, count: Int(maxPts))
+        let count = OCCTIntersectLineFace(handle,
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            paramRange.lowerBound, paramRange.upperBound,
+            &outPoints, &outParams, maxPts)
+        var results: [LineFaceIntersection] = []
+        for i in 0..<Int(count) {
+            results.append(LineFaceIntersection(
+                point: SIMD3(outPoints[i*3], outPoints[i*3+1], outPoints[i*3+2]),
+                parameter: outParams[i]))
+        }
+        return results
+    }
+
+    // MARK: - Contap Contour Analysis (v0.61.0)
+
+    /// Contour type from analytical contour computation.
+    public enum ContourType: Int32 {
+        case line = 0
+        case circle = 1
+        case other = 2
+    }
+
+    /// Result of an analytical contour computation.
+    public struct ContourResult {
+        /// Type of contour
+        public let type: ContourType
+        /// Number of contours found
+        public let count: Int
+        /// For circles: center and radius. For lines: location and direction.
+        public let data: [Double]
+    }
+
+    /// Compute analytical contours on a sphere with a view direction.
+    ///
+    /// Returns the silhouette contour of a sphere viewed from a given direction.
+    /// For orthographic projection, this is typically a great circle.
+    ///
+    /// - Parameters:
+    ///   - center: Sphere center
+    ///   - radius: Sphere radius
+    ///   - direction: View direction
+    /// - Returns: Contour result, or nil on failure
+    public static func contourSphereDir(center: SIMD3<Double>, radius: Double,
+                                         direction: SIMD3<Double>) -> ContourResult? {
+        var outType: Int32 = 0
+        var outData = [Double](repeating: 0, count: 8)
+        let count = OCCTContapSphereDir(center.x, center.y, center.z, radius,
+                                         direction.x, direction.y, direction.z,
+                                         &outType, &outData)
+        if count < 0 { return nil }
+        return ContourResult(type: ContourType(rawValue: outType) ?? .other,
+                             count: Int(count), data: outData)
+    }
+
+    /// Compute analytical contours on a cylinder with a view direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Cylinder axis origin
+    ///   - axis: Cylinder axis direction
+    ///   - radius: Cylinder radius
+    ///   - direction: View direction
+    /// - Returns: Contour result, or nil on failure
+    public static func contourCylinderDir(origin: SIMD3<Double>, axis: SIMD3<Double>,
+                                           radius: Double, direction: SIMD3<Double>) -> ContourResult? {
+        var outType: Int32 = 0
+        var outData = [Double](repeating: 0, count: 8)
+        let count = OCCTContapCylinderDir(origin.x, origin.y, origin.z,
+                                           axis.x, axis.y, axis.z, radius,
+                                           direction.x, direction.y, direction.z,
+                                           &outType, &outData)
+        if count < 0 { return nil }
+        return ContourResult(type: ContourType(rawValue: outType) ?? .other,
+                             count: Int(count), data: outData)
+    }
+
+    /// Compute analytical contours on a sphere with a perspective eye point.
+    ///
+    /// - Parameters:
+    ///   - center: Sphere center
+    ///   - radius: Sphere radius
+    ///   - eye: Eye point for perspective projection
+    /// - Returns: Contour result, or nil on failure
+    public static func contourSphereEye(center: SIMD3<Double>, radius: Double,
+                                         eye: SIMD3<Double>) -> ContourResult? {
+        var outType: Int32 = 0
+        var outData = [Double](repeating: 0, count: 8)
+        let count = OCCTContapSphereEye(center.x, center.y, center.z, radius,
+                                         eye.x, eye.y, eye.z,
+                                         &outType, &outData)
+        if count < 0 { return nil }
+        return ContourResult(type: ContourType(rawValue: outType) ?? .other,
+                             count: Int(count), data: outData)
+    }
+
+    // MARK: - BRepMesh_Deflection (v0.61.0)
+
+    /// Compute absolute deflection from relative deflection for meshing.
+    ///
+    /// - Parameters:
+    ///   - relativeDeflection: Relative deflection value
+    ///   - maxShapeSize: Maximum shape dimension
+    /// - Returns: Absolute deflection value, or nil on failure
+    public func computeAbsoluteDeflection(relativeDeflection: Double, maxShapeSize: Double) -> Double? {
+        let result = OCCTComputeAbsoluteDeflection(handle, relativeDeflection, maxShapeSize)
+        return result >= 0 ? result : nil
+    }
+
+    /// Check if a mesh deflection is consistent with requirements.
+    ///
+    /// - Parameters:
+    ///   - current: Current deflection value
+    ///   - required: Required deflection value
+    ///   - allowDecrease: Whether to allow the mesh to be finer than required
+    ///   - ratio: Comparison ratio (0 to 1, default 0.1)
+    /// - Returns: true if the current deflection is acceptable
+    public static func deflectionIsConsistent(current: Double, required: Double,
+                                               allowDecrease: Bool = false,
+                                               ratio: Double = 0.1) -> Bool {
+        return OCCTDeflectionIsConsistent(current, required, allowDecrease, ratio)
+    }
+
+    // MARK: - BRepBuilderAPI_MakeShapeOnMesh (v0.61.0)
+
+    /// Build a shape from a triangulated mesh.
+    ///
+    /// Creates a topological shape from point coordinates and triangle indices.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points (vertices of the mesh)
+    ///   - triangles: Array of triangle index triples (1-based indices into points array)
+    /// - Returns: Shape built from the mesh, or nil on failure
+    public static func fromMesh(points: [SIMD3<Double>], triangles: [(Int32, Int32, Int32)]) -> Shape? {
+        var flatPoints = [Double]()
+        flatPoints.reserveCapacity(points.count * 3)
+        for pt in points {
+            flatPoints.append(pt.x)
+            flatPoints.append(pt.y)
+            flatPoints.append(pt.z)
+        }
+        var flatTriangles = [Int32]()
+        flatTriangles.reserveCapacity(triangles.count * 3)
+        for tri in triangles {
+            flatTriangles.append(tri.0)
+            flatTriangles.append(tri.1)
+            flatTriangles.append(tri.2)
+        }
+        guard let h = OCCTShapeFromMesh(flatPoints, Int32(points.count),
+                                         flatTriangles, Int32(triangles.count)) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - GeomPlate_Surface (v0.61.0)
+
+    /// Build a plate surface through point constraints.
+    ///
+    /// Creates a smooth BSpline surface that passes through or near the given points.
+    /// Useful for creating surfaces from scattered point data.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points to fit the surface through
+    ///   - tolerance: Approximation tolerance (default 1e-3)
+    ///   - maxDegree: Maximum BSpline degree (default 8)
+    ///   - maxSegments: Maximum BSpline segments (default 20)
+    /// - Returns: Face with plate surface, or nil on failure
+    public static func plateSurface(points: [SIMD3<Double>], tolerance: Double = 1e-3,
+                                     maxDegree: Int = 8, maxSegments: Int = 20) -> Shape? {
+        var flatPoints = [Double]()
+        flatPoints.reserveCapacity(points.count * 3)
+        for pt in points {
+            flatPoints.append(pt.x)
+            flatPoints.append(pt.y)
+            flatPoints.append(pt.z)
+        }
+        guard let h = OCCTGeomPlateSurface(flatPoints, Int32(points.count),
+                                            tolerance, Int32(maxDegree), Int32(maxSegments)) else { return nil }
+        return Shape(handle: h)
+    }
+
+}
+
+// MARK: - CellsBuilder (v0.61.0)
+
+/// Builder for Boolean cell operations on shapes.
+///
+/// Partitions input shapes into cells (volumetric fragments), then lets you
+/// select which cells to include in the result by material ID, and optionally
+/// merge cells that share the same material.
+public final class CellsBuilder: @unchecked Sendable {
+    internal let handle: OCCTCellsBuilderRef
+
+    /// Create a CellsBuilder from input shapes.
+    ///
+    /// The shapes are partitioned into cells during construction.
+    ///
+    /// - Parameter shapes: Input shapes to partition
+    /// - Returns: CellsBuilder, or nil on failure
+    public init?(shapes: [Shape]) {
+        let ptrs = shapes.map { $0.handle as OCCTShapeRef? }
+        guard let h = ptrs.withUnsafeBufferPointer({ buf in
+            OCCTCellsBuilderCreate(buf.baseAddress, Int32(buf.count))
+        }) else { return nil }
+        self.handle = h
+    }
+
+    deinit {
+        OCCTCellsBuilderRelease(handle)
+    }
+
+    /// Add all split cells to the result with a material ID.
+    ///
+    /// - Parameter material: Material ID to assign (default 0)
+    public func addAllToResult(material: Int32 = 0) {
+        OCCTCellsBuilderAddAllToResult(handle, material)
+    }
+
+    /// Remove all cells from the result.
+    public func removeAllFromResult() {
+        OCCTCellsBuilderRemoveAllFromResult(handle)
+    }
+
+    /// Remove internal boundaries between cells with the same material.
+    ///
+    /// Merges adjacent cells that share the same material ID.
+    public func removeInternalBoundaries() {
+        OCCTCellsBuilderRemoveInternalBoundaries(handle)
+    }
+
+    /// Get the current result shape.
+    ///
+    /// - Returns: Result shape, or nil if empty
+    public func result() -> Shape? {
+        guard let h = OCCTCellsBuilderGetResult(handle) else { return nil }
+        return Shape(handle: h)
+    }
 }

@@ -6750,6 +6750,146 @@ bool OCCTDocumentEditorExpand(OCCTDocumentRef doc, int64_t labelId, bool recursi
 bool OCCTDocumentEditorRescaleGeometry(OCCTDocumentRef doc, int64_t labelId,
     double scaleFactor, bool forceIfNotRoot);
 
+// MARK: - Contap — Contour Analysis (v0.61.0)
+
+/// Opaque handle for contour analysis result
+typedef struct OCCTContourResult* OCCTContourResultRef;
+
+/// Contour type enum: 0=Line, 1=Circle, 2=Walking, 3=Restriction
+/// Compute analytical contours on a sphere with a view direction.
+/// @return Number of contours, or -1 on failure. If circle, outCx/Cy/Cz/Cr are filled.
+int32_t OCCTContapSphereDir(double cx, double cy, double cz, double radius,
+    double dirX, double dirY, double dirZ,
+    int32_t* outType, double* outData);
+
+/// Compute analytical contours on a cylinder with a view direction.
+int32_t OCCTContapCylinderDir(double px, double py, double pz,
+    double axX, double axY, double axZ, double radius,
+    double dirX, double dirY, double dirZ,
+    int32_t* outType, double* outData);
+
+/// Compute analytical contours on a sphere with an eye point (perspective).
+int32_t OCCTContapSphereEye(double cx, double cy, double cz, double radius,
+    double eyeX, double eyeY, double eyeZ,
+    int32_t* outType, double* outData);
+
+// MARK: - IntCurvesFace — Curve-Face Intersection (v0.61.0)
+
+/// Intersect a line with a face. Returns number of intersection points.
+/// outPoints must have space for maxPts * 3 doubles (x,y,z triples).
+/// outParams must have space for maxPts doubles (w parameter on line).
+int32_t OCCTIntersectLineFace(OCCTShapeRef face,
+    double origX, double origY, double origZ,
+    double dirX, double dirY, double dirZ,
+    double pInf, double pSup,
+    double* outPoints, double* outParams, int32_t maxPts);
+
+// MARK: - BOPAlgo — Splitter (v0.61.0)
+
+/// Split shapes by tools. Returns the result shape.
+/// @param objects Array of object shapes
+/// @param objCount Number of objects
+/// @param tools Array of tool shapes
+/// @param toolCount Number of tools
+/// @return Result shape, or NULL on failure
+OCCTShapeRef OCCTBOPAlgoSplit(const OCCTShapeRef* objects, int32_t objCount,
+    const OCCTShapeRef* tools, int32_t toolCount);
+
+// MARK: - BOPAlgo — CellsBuilder (v0.61.0)
+
+/// Opaque handle for CellsBuilder
+typedef struct OCCTCellsBuilder* OCCTCellsBuilderRef;
+
+/// Create a CellsBuilder, add arguments, and perform splitting.
+/// @param shapes Array of input shapes
+/// @param count Number of shapes
+/// @return CellsBuilder handle, or NULL on failure
+OCCTCellsBuilderRef OCCTCellsBuilderCreate(const OCCTShapeRef* shapes, int32_t count);
+
+/// Release a CellsBuilder.
+void OCCTCellsBuilderRelease(OCCTCellsBuilderRef builder);
+
+/// Add all split parts to result with a material ID.
+void OCCTCellsBuilderAddAllToResult(OCCTCellsBuilderRef builder, int32_t material);
+
+/// Remove all parts from result.
+void OCCTCellsBuilderRemoveAllFromResult(OCCTCellsBuilderRef builder);
+
+/// Remove internal boundaries between cells with the same material.
+void OCCTCellsBuilderRemoveInternalBoundaries(OCCTCellsBuilderRef builder);
+
+/// Get the current result shape.
+OCCTShapeRef OCCTCellsBuilderGetResult(OCCTCellsBuilderRef builder);
+
+// MARK: - BOPAlgo — ArgumentAnalyzer (v0.61.0)
+
+/// Analyze two shapes for Boolean operation validity.
+/// @param shape1 First shape (object)
+/// @param shape2 Second shape (tool)
+/// @param operation 0=FUSE, 1=COMMON, 2=CUT, 3=CUT21, 4=SECTION
+/// @return true if shapes are valid for the operation (no faults found)
+bool OCCTBOPAlgoAnalyzeArguments(OCCTShapeRef shape1, OCCTShapeRef shape2, int32_t operation);
+
+// MARK: - BRepAdaptor_Curve2d (v0.61.0)
+
+/// Get 2D curve parameters for an edge on a face.
+/// @param edge Edge shape
+/// @param face Face shape
+/// @param outFirst Output first parameter
+/// @param outLast Output last parameter
+/// @return true if PCurve exists
+bool OCCTEdgePCurveParams(OCCTShapeRef edge, OCCTShapeRef face,
+    double* outFirst, double* outLast);
+
+/// Evaluate 2D curve point for an edge on a face at parameter t.
+/// @return true if successful
+bool OCCTEdgePCurveValue(OCCTShapeRef edge, OCCTShapeRef face, double t,
+    double* outU, double* outV);
+
+// MARK: - BRepMesh_Deflection (v0.61.0)
+
+/// Compute absolute deflection from relative deflection and max shape size.
+double OCCTComputeAbsoluteDeflection(OCCTShapeRef shape, double relativeDeflection, double maxShapeSize);
+
+/// Check if a current deflection is consistent with a required deflection.
+bool OCCTDeflectionIsConsistent(double current, double required, bool allowDecrease, double ratio);
+
+// MARK: - Approx_CurveOnSurface (v0.61.0)
+
+/// Approximate a 2D curve on a surface as a 3D BSpline curve.
+/// Uses the edge's PCurve on the face.
+/// @param edge Edge with PCurve
+/// @param face Face with surface
+/// @param tolerance Approximation tolerance
+/// @param maxSegments Maximum BSpline segments
+/// @param maxDegree Maximum BSpline degree
+/// @return Approximated 3D shape (edge), or NULL on failure
+OCCTShapeRef OCCTApproxCurveOnSurface(OCCTShapeRef edge, OCCTShapeRef face,
+    double tolerance, int32_t maxSegments, int32_t maxDegree);
+
+// MARK: - BRepBuilderAPI_MakeShapeOnMesh (v0.61.0)
+
+/// Build a shape from a triangulation mesh.
+/// @param points Array of point coordinates (x,y,z triples), length = nodeCount*3
+/// @param nodeCount Number of nodes
+/// @param triangles Array of triangle indices (i,j,k triples, 1-based), length = triCount*3
+/// @param triCount Number of triangles
+/// @return Shape, or NULL on failure
+OCCTShapeRef OCCTShapeFromMesh(const double* points, int32_t nodeCount,
+    const int32_t* triangles, int32_t triCount);
+
+// MARK: - GeomPlate_Surface (v0.61.0)
+
+/// Build a plate surface through point constraints and return as a BSpline face.
+/// @param points Array of point coordinates (x,y,z triples), length = ptCount*3
+/// @param ptCount Number of points
+/// @param tolerance Approximation tolerance
+/// @param maxDegree Maximum BSpline degree
+/// @param maxSegments Maximum BSpline segments
+/// @return Face shape with plate surface, or NULL on failure
+OCCTShapeRef OCCTGeomPlateSurface(const double* points, int32_t ptCount,
+    double tolerance, int32_t maxDegree, int32_t maxSegments);
+
 #ifdef __cplusplus
 }
 #endif

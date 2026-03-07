@@ -10,7 +10,7 @@ OCCTSwift is a comprehensive Swift wrapper for OpenCASCADE Technology (OCCT) 8.0
 
 ```bash
 swift build                # Build the package
-swift test                 # Run all tests (1280 tests, 370 suites)
+swift test                 # Run all tests (1300 tests, 380 suites)
 swift test --filter "SuiteName"  # Run a single test suite
 swift run OCCTTest         # Run test executable
 ```

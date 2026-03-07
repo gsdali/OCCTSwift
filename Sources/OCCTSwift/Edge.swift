@@ -339,3 +339,63 @@ extension Edge {
         return (Edge(handle: edge1), Edge(handle: edge2))
     }
 }
+
+// MARK: - PCurve / BRepAdaptor_Curve2d (v0.61.0)
+
+extension Edge {
+    /// Get the 2D parametric curve parameter range for this edge on a face.
+    ///
+    /// - Parameter face: The face on which the edge lies
+    /// - Returns: Tuple of (first, last) parameters, or nil if no PCurve exists
+    public func pcurveParams(on face: Face) -> (first: Double, last: Double)? {
+        var first: Double = 0
+        var last: Double = 0
+        let shapeRef = OCCTShapeFromEdge(handle)
+        defer { if let s = shapeRef { OCCTShapeRelease(s) } }
+        let faceShapeRef = OCCTShapeFromFace(face.handle)
+        defer { if let s = faceShapeRef { OCCTShapeRelease(s) } }
+        guard let edgeShape = shapeRef, let faceShape = faceShapeRef,
+              OCCTEdgePCurveParams(edgeShape, faceShape, &first, &last) else { return nil }
+        return (first, last)
+    }
+
+    /// Evaluate the 2D parametric curve point for this edge on a face.
+    ///
+    /// - Parameters:
+    ///   - parameter: Curve parameter
+    ///   - face: The face on which the edge lies
+    /// - Returns: UV point on the face surface, or nil on failure
+    public func pcurveValue(at parameter: Double, on face: Face) -> SIMD2<Double>? {
+        var u: Double = 0
+        var v: Double = 0
+        let shapeRef = OCCTShapeFromEdge(handle)
+        defer { if let s = shapeRef { OCCTShapeRelease(s) } }
+        let faceShapeRef = OCCTShapeFromFace(face.handle)
+        defer { if let s = faceShapeRef { OCCTShapeRelease(s) } }
+        guard let edgeShape = shapeRef, let faceShape = faceShapeRef,
+              OCCTEdgePCurveValue(edgeShape, faceShape, parameter, &u, &v) else { return nil }
+        return SIMD2(u, v)
+    }
+
+    /// Approximate the 3D curve of this edge on a face from its PCurve.
+    ///
+    /// Uses Approx_CurveOnSurface to compute a 3D BSpline from the 2D parametric curve.
+    ///
+    /// - Parameters:
+    ///   - face: Face whose surface defines the mapping
+    ///   - tolerance: Approximation tolerance (default 1e-4)
+    ///   - maxSegments: Max BSpline segments (default 10)
+    ///   - maxDegree: Max BSpline degree (default 8)
+    /// - Returns: New edge with the approximated 3D curve, or nil on failure
+    public func approxCurveOnSurface(face: Face, tolerance: Double = 1e-4,
+                                      maxSegments: Int = 10, maxDegree: Int = 8) -> Shape? {
+        let shapeRef = OCCTShapeFromEdge(handle)
+        defer { if let s = shapeRef { OCCTShapeRelease(s) } }
+        let faceShapeRef = OCCTShapeFromFace(face.handle)
+        defer { if let s = faceShapeRef { OCCTShapeRelease(s) } }
+        guard let edgeShape = shapeRef, let faceShape = faceShapeRef,
+              let h = OCCTApproxCurveOnSurface(edgeShape, faceShape, tolerance,
+                                                Int32(maxSegments), Int32(maxDegree)) else { return nil }
+        return Shape(handle: h)
+    }
+}

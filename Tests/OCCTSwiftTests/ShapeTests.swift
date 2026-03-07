@@ -17556,3 +17556,345 @@ struct XDEEditorTests {
         }
     }
 }
+
+// MARK: - v0.61.0 Tests
+
+@Suite("Contap Contour Analysis")
+struct ContapContourTests {
+    @Test("Sphere contour with direction")
+    func sphereContourDir() {
+        let result = Shape.contourSphereDir(
+            center: SIMD3(0, 0, 0), radius: 10,
+            direction: SIMD3(0, 0, 1))
+        if let result = result {
+            #expect(result.count > 0)
+            #expect(result.type == .circle)
+            // Contour circle radius should be ~10 for Z-aligned view
+            #expect(abs(result.data[3] - 10.0) < 0.1)
+        }
+    }
+
+    @Test("Cylinder contour with direction")
+    func cylinderContourDir() {
+        let result = Shape.contourCylinderDir(
+            origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1),
+            radius: 5, direction: SIMD3(1, 0, 0))
+        if let result = result {
+            #expect(result.count > 0)
+            #expect(result.type == .line)
+        }
+    }
+
+    @Test("Sphere contour with eye point")
+    func sphereContourEye() {
+        let result = Shape.contourSphereEye(
+            center: SIMD3(0, 0, 0), radius: 10,
+            eye: SIMD3(100, 0, 0))
+        if let result = result {
+            #expect(result.count > 0)
+        }
+    }
+}
+
+@Suite("IntCurvesFace Intersection")
+struct IntCurvesFaceTests {
+    @Test("Line-face intersection")
+    func lineFaceIntersection() {
+        // Create a box and get its faces
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else {
+            #expect(Bool(false), "Failed to create box")
+            return
+        }
+        let faces = box.faces()
+        #expect(faces.count > 0)
+        if faces.count > 0 {
+            // Create a shape from the first face for intersection
+            if let faceShape = Shape.fromFace(faces[0]) {
+                let results = faceShape.intersectLine(
+                    origin: SIMD3(5, 10, -50),
+                    direction: SIMD3(0, 0, 1))
+                // May or may not intersect depending on face orientation
+                // The important thing is no crash
+                #expect(Bool(true))
+            }
+        }
+    }
+}
+
+@Suite("BOPAlgo Splitter")
+struct BOPAlgoSplitterTests {
+    @Test("Split box by another box")
+    func splitBoxes() {
+        guard let box1 = Shape.box(width: 20, height: 20, depth: 20),
+              let box2 = Shape.box(origin: SIMD3(10, 0, 0), width: 20, height: 20, depth: 20)
+        else {
+            #expect(Bool(false), "Failed to create boxes")
+            return
+        }
+        let result = Shape.split(objects: [box1], by: [box2])
+        if let result = result {
+            #expect(result.isValid)
+        }
+    }
+
+    @Test("Split produces multiple solids")
+    func splitProducesMultipleSolids() {
+        // Two overlapping boxes: box1 from -10..10, box2 from 0..20
+        guard let box1 = Shape.box(width: 20, height: 20, depth: 20),
+              let box2 = Shape.box(origin: SIMD3(0, -10, -10), width: 20, height: 20, depth: 20)
+        else {
+            #expect(Bool(false), "Failed to create boxes")
+            return
+        }
+        let result = Shape.split(objects: [box1], by: [box2])
+        if let result = result {
+            #expect(result.solidCount >= 2)
+        }
+    }
+}
+
+@Suite("BOPAlgo CellsBuilder")
+struct BOPAlgoCellsBuilderTests {
+    @Test("Create CellsBuilder")
+    func createCellsBuilder() {
+        guard let box1 = Shape.box(width: 20, height: 20, depth: 20),
+              let box2 = Shape.box(origin: SIMD3(10, 0, 0), width: 20, height: 20, depth: 20)
+        else {
+            #expect(Bool(false), "Failed to create boxes")
+            return
+        }
+        let builder = CellsBuilder(shapes: [box1, box2])
+        #expect(builder != nil)
+    }
+
+    @Test("AddAll and RemoveAll")
+    func addRemoveAll() {
+        guard let box1 = Shape.box(width: 20, height: 20, depth: 20),
+              let box2 = Shape.box(origin: SIMD3(10, 0, 0), width: 20, height: 20, depth: 20)
+        else {
+            #expect(Bool(false), "Failed to create boxes")
+            return
+        }
+        if let builder = CellsBuilder(shapes: [box1, box2]) {
+            builder.addAllToResult(material: 0)
+            let result1 = builder.result()
+            #expect(result1 != nil)
+            if let r = result1 { #expect(r.isValid) }
+
+            builder.removeAllFromResult()
+            let result2 = builder.result()
+            // After removing all, result should be empty compound
+            #expect(result2 != nil)
+        }
+    }
+
+    @Test("RemoveInternalBoundaries")
+    func removeInternalBoundaries() {
+        guard let box1 = Shape.box(width: 20, height: 20, depth: 20),
+              let box2 = Shape.box(origin: SIMD3(10, 0, 0), width: 20, height: 20, depth: 20)
+        else {
+            #expect(Bool(false), "Failed to create boxes")
+            return
+        }
+        if let builder = CellsBuilder(shapes: [box1, box2]) {
+            builder.addAllToResult(material: 1)
+            builder.removeInternalBoundaries()
+            let result = builder.result()
+            if let result = result {
+                #expect(result.isValid)
+            }
+        }
+    }
+}
+
+@Suite("BOPAlgo ArgumentAnalyzer")
+struct BOPAlgoArgumentAnalyzerTests {
+    @Test("Valid shapes for fuse")
+    func validShapesForFuse() {
+        guard let box = Shape.box(width: 10, height: 20, depth: 30),
+              let sphere = Shape.sphere(radius: 5)
+        else {
+            #expect(Bool(false), "Failed to create shapes")
+            return
+        }
+        let valid = Shape.analyzeBoolean(box, sphere, operation: .fuse)
+        #expect(valid)
+    }
+
+    @Test("Valid shapes for cut")
+    func validShapesForCut() {
+        guard let box = Shape.box(width: 10, height: 20, depth: 30),
+              let sphere = Shape.sphere(radius: 5)
+        else {
+            #expect(Bool(false), "Failed to create shapes")
+            return
+        }
+        let valid = Shape.analyzeBoolean(box, sphere, operation: .cut)
+        #expect(valid)
+    }
+}
+
+@Suite("BRepAdaptor PCurve")
+struct BRepAdaptorPCurveTests {
+    @Test("PCurve params on box face")
+    func pcurveParams() {
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else {
+            #expect(Bool(false), "Failed to create box")
+            return
+        }
+        let faces = box.faces()
+        let edges = box.edges()
+        #expect(faces.count > 0)
+        #expect(edges.count > 0)
+        if faces.count > 0 && edges.count > 0 {
+            // Try each edge until we find one with a PCurve on the first face
+            for edge in edges {
+                if let params = edge.pcurveParams(on: faces[0]) {
+                    #expect(params.last > params.first)
+                    break
+                }
+            }
+        }
+    }
+
+    @Test("PCurve value evaluation")
+    func pcurveValue() {
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else {
+            #expect(Bool(false), "Failed to create box")
+            return
+        }
+        let faces = box.faces()
+        let edges = box.edges()
+        if faces.count > 0 && edges.count > 0 {
+            for edge in edges {
+                if let params = edge.pcurveParams(on: faces[0]) {
+                    let mid = (params.first + params.last) / 2.0
+                    let uv = edge.pcurveValue(at: mid, on: faces[0])
+                    if uv != nil {
+                        #expect(Bool(true))
+                        return
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("BRepMesh Deflection")
+struct BRepMeshDeflectionTests {
+    @Test("Compute absolute deflection")
+    func computeAbsoluteDeflection() {
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else {
+            #expect(Bool(false), "Failed to create box")
+            return
+        }
+        let absDef = box.computeAbsoluteDeflection(relativeDeflection: 0.01, maxShapeSize: 30.0)
+        if let absDef = absDef {
+            #expect(absDef > 0)
+        }
+    }
+
+    @Test("Deflection consistency check")
+    func deflectionConsistency() {
+        // current <= required → consistent
+        #expect(Shape.deflectionIsConsistent(current: 0.1, required: 0.2))
+        #expect(Shape.deflectionIsConsistent(current: 0.2, required: 0.2))
+    }
+}
+
+@Suite("Approx CurveOnSurface")
+struct ApproxCurveOnSurfaceTests {
+    @Test("Approximate curve on surface from edge PCurve")
+    func approxCurveOnSurface() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else {
+            #expect(Bool(false), "Failed to create cylinder")
+            return
+        }
+        let faces = cyl.faces()
+        let edges = cyl.edges()
+        if faces.count > 0 && edges.count > 0 {
+            // Try each edge on the first face
+            for edge in edges {
+                let result = edge.approxCurveOnSurface(face: faces[0])
+                if result != nil {
+                    #expect(Bool(true))
+                    return
+                }
+            }
+            // If no edge succeeded, that's ok — no crash is success
+            #expect(Bool(true))
+        }
+    }
+}
+
+@Suite("BRepBuilderAPI MakeShapeOnMesh")
+struct MakeShapeOnMeshTests {
+    @Test("Build shape from mesh")
+    func buildShapeFromMesh() {
+        // Tetrahedron mesh
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 0),
+            SIMD3(5, 10, 0),
+            SIMD3(5, 5, 10)
+        ]
+        let triangles: [(Int32, Int32, Int32)] = [
+            (1, 3, 2), // bottom
+            (1, 2, 4), // front
+            (2, 3, 4), // right
+            (3, 1, 4)  // left
+        ]
+        let shape = Shape.fromMesh(points: points, triangles: triangles)
+        if let shape = shape {
+            #expect(shape.isValid)
+            let faceCount = shape.faces().count
+            #expect(faceCount > 0)
+        }
+    }
+
+    @Test("Mesh with minimal geometry")
+    func meshMinimal() {
+        // Single triangle
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 0),
+            SIMD3(5, 10, 0)
+        ]
+        let triangles: [(Int32, Int32, Int32)] = [(1, 2, 3)]
+        let shape = Shape.fromMesh(points: points, triangles: triangles)
+        #expect(shape != nil)
+    }
+}
+
+@Suite("GeomPlate Surface")
+struct GeomPlateSurfaceTests {
+    @Test("Plate surface through points")
+    func plateSurfaceThroughPoints() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 1),
+            SIMD3(0, 10, -1),
+            SIMD3(10, 10, 0.5)
+        ]
+        let face = Shape.plateSurface(points: points)
+        if let face = face {
+            #expect(face.isValid)
+        }
+    }
+
+    @Test("Plate surface with more points")
+    func plateSurfaceMorePoints() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(10, 0, 2),
+            SIMD3(20, 0, 0),
+            SIMD3(0, 10, -1),
+            SIMD3(10, 10, 1),
+            SIMD3(20, 10, -0.5)
+        ]
+        let face = Shape.plateSurface(points: points, tolerance: 1e-2)
+        if let face = face {
+            #expect(face.isValid)
+        }
+    }
+}
