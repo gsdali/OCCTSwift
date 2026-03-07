@@ -272,6 +272,56 @@ public enum Exporter {
         return try Data(contentsOf: tempURL)
     }
 
+    // MARK: - IGES Export Expansion (v0.59.0)
+
+    /// Export a shape to IGES with a specific unit.
+    ///
+    /// - Parameters:
+    ///   - shape: The shape to export
+    ///   - url: Destination file URL
+    ///   - unit: Unit string ("MM", "IN", "M", "FT", etc.)
+    public static func writeIGES(shape: Shape, to url: URL, unit: String) throws {
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+        if !OCCTExportIGESWithUnit(shape.handle, path, unit) {
+            throw ExportError.exportFailed("IGES export with unit \(unit) failed")
+        }
+    }
+
+    /// Export a shape to IGES in BRep mode (exact geometry, not tessellated faces).
+    public static func writeIGESBRep(shape: Shape, to url: URL) throws {
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+        if !OCCTExportIGESBRepMode(shape.handle, path) {
+            throw ExportError.exportFailed("IGES BRep export failed")
+        }
+    }
+
+    /// Export multiple shapes to a single IGES file.
+    public static func writeIGES(shapes: [Shape], to url: URL) throws {
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+        var handles: [OCCTShapeRef?] = shapes.map { $0.handle }
+        let success = handles.withUnsafeMutableBufferPointer { buffer in
+            OCCTExportIGESMultiShape(buffer.baseAddress, Int32(buffer.count), path)
+        }
+        if !success {
+            throw ExportError.exportFailed("IGES multi-shape export failed")
+        }
+    }
+
+    // MARK: - PLY Export Expansion (v0.59.0)
+
+    /// Export a shape to PLY with control over normals, colors, and texture coordinates.
+    public static func writePLY(shape: Shape, to url: URL, deflection: Double,
+                                 normals: Bool = true, colors: Bool = false, texCoords: Bool = false) throws {
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+        if !OCCTExportPLYWithOptions(shape.handle, path, deflection, normals, colors, texCoords) {
+            throw ExportError.exportFailed("PLY export with options failed")
+        }
+    }
+
     // MARK: - BREP Export (v0.10.0)
 
     /// Export a shape to OCCT's native BREP format.
@@ -541,6 +591,27 @@ extension Shape {
     /// Get IGES data for this shape.
     public func igesData() throws -> Data {
         try Exporter.igesData(shape: self)
+    }
+
+    // MARK: - IGES Export Expansion (v0.59.0)
+
+    /// Export this shape to IGES with a specific unit.
+    public func writeIGES(to url: URL, unit: String) throws {
+        try Exporter.writeIGES(shape: self, to: url, unit: unit)
+    }
+
+    /// Export this shape to IGES in BRep mode.
+    public func writeIGESBRep(to url: URL) throws {
+        try Exporter.writeIGESBRep(shape: self, to: url)
+    }
+
+    // MARK: - PLY Export Expansion (v0.59.0)
+
+    /// Export this shape to PLY with options.
+    public func writePLY(to url: URL, deflection: Double,
+                          normals: Bool = true, colors: Bool = false, texCoords: Bool = false) throws {
+        try Exporter.writePLY(shape: self, to: url, deflection: deflection,
+                               normals: normals, colors: colors, texCoords: texCoords)
     }
 
     // MARK: - BREP Export (v0.10.0)

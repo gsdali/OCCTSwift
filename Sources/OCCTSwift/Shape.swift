@@ -638,6 +638,60 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    // MARK: - IGES Reader Control (v0.59.0)
+
+    /// Get the number of transferable roots in an IGES file.
+    public static func igesRootCount(url: URL) -> Int {
+        Int(OCCTIGESReaderNbRoots(url.path))
+    }
+
+    /// Get the number of transferable roots in an IGES file.
+    public static func igesRootCount(path: String) -> Int {
+        Int(OCCTIGESReaderNbRoots(path))
+    }
+
+    /// Import a specific root from an IGES file (1-based index).
+    public static func loadIGESRoot(from url: URL, rootIndex: Int) throws -> Shape {
+        guard let handle = OCCTImportIGESRoot(url.path, Int32(rootIndex)) else {
+            throw ImportError.importFailed("Failed to import IGES root \(rootIndex) from: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Import a specific root from an IGES file (1-based index).
+    public static func loadIGESRoot(fromPath path: String, rootIndex: Int) throws -> Shape {
+        guard let handle = OCCTImportIGESRoot(path, Int32(rootIndex)) else {
+            throw ImportError.importFailed("Failed to import IGES root \(rootIndex) from: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Get the number of shapes in an IGES file after full transfer.
+    public static func igesShapeCount(url: URL) -> Int {
+        Int(OCCTIGESReaderNbShapes(url.path))
+    }
+
+    /// Get the number of shapes in an IGES file after full transfer.
+    public static func igesShapeCount(path: String) -> Int {
+        Int(OCCTIGESReaderNbShapes(path))
+    }
+
+    /// Import only visible entities from an IGES file.
+    public static func loadIGESVisible(from url: URL) throws -> Shape {
+        guard let handle = OCCTImportIGESVisible(url.path) else {
+            throw ImportError.importFailed("Failed to import visible IGES entities from: \(url.lastPathComponent)")
+        }
+        return Shape(handle: handle)
+    }
+
+    /// Import only visible entities from an IGES file.
+    public static func loadIGESVisible(fromPath path: String) throws -> Shape {
+        guard let handle = OCCTImportIGESVisible(path) else {
+            throw ImportError.importFailed("Failed to import visible IGES entities from: \(path)")
+        }
+        return Shape(handle: handle)
+    }
+
     // MARK: - BREP Import (v0.10.0)
 
     /// Load a shape from OCCT's native BREP format

@@ -16913,3 +16913,259 @@ struct STEPCAFModeControlTests {
         try? FileManager.default.removeItem(atPath: tmpPath)
     }
 }
+
+// MARK: - IGES Reader Roots Tests (v0.59.0)
+
+@Suite("IGES Reader Roots")
+struct IGESReaderRootsTests {
+
+    @Test("Root count from IGES file")
+    func rootCount() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_roots.iges"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeIGES(to: url)
+        let count = Shape.igesRootCount(url: url)
+        #expect(count > 0)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Root count from path")
+    func rootCountFromPath() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_roots2.iges"
+        try box.writeIGES(to: URL(fileURLWithPath: tmpPath))
+        let count = Shape.igesRootCount(path: tmpPath)
+        #expect(count > 0)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Import specific root")
+    func importRoot() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_root1.iges"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeIGES(to: url)
+        let shape = try Shape.loadIGESRoot(from: url, rootIndex: 1)
+        #expect(shape.isValid)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Shape count from IGES file")
+    func shapeCount() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_count.iges"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeIGES(to: url)
+        let count = Shape.igesShapeCount(url: url)
+        #expect(count > 0)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Import visible entities")
+    func importVisible() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_visible.iges"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeIGES(to: url)
+        let shape = try Shape.loadIGESVisible(from: url)
+        #expect(shape.isValid)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Nonexistent file returns zero roots")
+    func nonexistentFile() {
+        let count = Shape.igesRootCount(path: "/nonexistent/file.iges")
+        #expect(count == 0)
+    }
+}
+
+// MARK: - IGES Writer Expansion Tests (v0.59.0)
+
+@Suite("IGES Writer Expansion")
+struct IGESWriterExpansionTests {
+
+    @Test("Export with MM unit")
+    func exportWithMMUnit() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_mm.iges"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeIGES(to: url, unit: "MM")
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Export with IN unit")
+    func exportWithINUnit() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_in.iges"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeIGES(to: url, unit: "IN")
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Export in BRep mode")
+    func exportBRepMode() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_brep.iges"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeIGESBRep(to: url)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Export multiple shapes")
+    func exportMultiShape() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let sphere = Shape.sphere(radius: 5)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_iges_multi.iges"
+        let url = URL(fileURLWithPath: tmpPath)
+        try Exporter.writeIGES(shapes: [box, sphere], to: url)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        // Verify multi-shape has multiple roots
+        let roots = Shape.igesRootCount(url: url)
+        #expect(roots > 0)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+}
+
+// MARK: - OBJ Document I/O Tests (v0.59.0)
+
+@Suite("OBJ Document I/O")
+struct OBJDocumentIOTests {
+
+    @Test("Load OBJ into document")
+    func loadOBJ() throws {
+        // Write an OBJ file first
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_obj_doc.obj"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeOBJ(to: url)
+
+        let doc = Document.loadOBJ(from: url)
+        #expect(doc != nil)
+        if let doc = doc {
+            let shapes = doc.allShapes()
+            #expect(shapes.count > 0)
+        }
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Load OBJ with single precision")
+    func loadOBJSinglePrecision() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_obj_sp.obj"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeOBJ(to: url)
+
+        let doc = Document.loadOBJ(from: url, singlePrecision: true)
+        #expect(doc != nil)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Write OBJ from document")
+    func writeOBJ() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let srcPath = NSTemporaryDirectory() + "swift_test_v59_obj_src.obj"
+        try box.writeOBJ(to: URL(fileURLWithPath: srcPath))
+        let doc = Document.loadOBJ(fromPath: srcPath)!
+
+        let outPath = NSTemporaryDirectory() + "swift_test_v59_obj_out.obj"
+        let ok = doc.writeOBJ(to: URL(fileURLWithPath: outPath))
+        #expect(ok)
+        #expect(FileManager.default.fileExists(atPath: outPath))
+        try? FileManager.default.removeItem(atPath: srcPath)
+        try? FileManager.default.removeItem(atPath: outPath)
+    }
+
+    @Test("Load OBJ with coordinate system")
+    func loadOBJWithCS() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_obj_cs.obj"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writeOBJ(to: url)
+
+        let doc = Document.loadOBJ(from: url,
+                                    inputCS: .zUp, outputCS: .yUp)
+        #expect(doc != nil)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+}
+
+// MARK: - PLY Export Options Tests (v0.59.0)
+
+@Suite("PLY Export Options")
+struct PLYExportOptionsTests {
+
+    @Test("Export PLY with normals")
+    func exportWithNormals() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_ply_normals.ply"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writePLY(to: url, deflection: 1.0, normals: true)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Export PLY without normals")
+    func exportWithoutNormals() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_ply_no_normals.ply"
+        let url = URL(fileURLWithPath: tmpPath)
+        try box.writePLY(to: url, deflection: 1.0, normals: false)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Document PLY export")
+    func documentPLYExport() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let srcPath = NSTemporaryDirectory() + "swift_test_v59_ply_src.obj"
+        try box.writeOBJ(to: URL(fileURLWithPath: srcPath))
+        let doc = Document.loadOBJ(fromPath: srcPath)!
+
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_ply_doc.ply"
+        let ok = doc.writePLY(to: URL(fileURLWithPath: tmpPath), deflection: 1.0, normals: true)
+        #expect(ok)
+        try? FileManager.default.removeItem(atPath: srcPath)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test("Static exporter PLY with options")
+    func exporterPLYWithOptions() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)!
+        let tmpPath = NSTemporaryDirectory() + "swift_test_v59_ply_static.ply"
+        let url = URL(fileURLWithPath: tmpPath)
+        try Exporter.writePLY(shape: box, to: url, deflection: 1.0, normals: true, colors: false, texCoords: false)
+        #expect(FileManager.default.fileExists(atPath: tmpPath))
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+}
+
+// MARK: - Mesh Coordinate System Enum Tests (v0.59.0)
+
+@Suite("MeshCoordinateSystem Enum")
+struct MeshCoordinateSystemEnumTests {
+
+    @Test("Raw values")
+    func rawValues() {
+        #expect(MeshCoordinateSystem.undefined.rawValue == -1)
+        #expect(MeshCoordinateSystem.zUp.rawValue == 0)
+        #expect(MeshCoordinateSystem.yUp.rawValue == 1)
+    }
+
+    @Test("Aliases")
+    func aliases() {
+        #expect(MeshCoordinateSystem.blender == .zUp)
+        #expect(MeshCoordinateSystem.gltf == .yUp)
+    }
+
+    @Test("Init from raw value")
+    func initFromRaw() {
+        #expect(MeshCoordinateSystem(rawValue: -1) == .undefined)
+        #expect(MeshCoordinateSystem(rawValue: 0) == .zUp)
+        #expect(MeshCoordinateSystem(rawValue: 1) == .yUp)
+        #expect(MeshCoordinateSystem(rawValue: 99) == nil)
+    }
+}

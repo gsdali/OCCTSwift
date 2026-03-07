@@ -1688,3 +1688,90 @@ public struct STEPWriterModes: Sendable {
         self.material = material
     }
 }
+
+// MARK: - OBJ/PLY Document I/O (v0.59.0)
+
+extension Document {
+
+    /// Load an OBJ file into an XDE document (preserves materials, names).
+    public static func loadOBJ(from url: URL) -> Document? {
+        guard let ref = OCCTDocumentLoadOBJ(url.path) else { return nil }
+        return Document(handle: ref)
+    }
+
+    /// Load an OBJ file into an XDE document (preserves materials, names).
+    public static func loadOBJ(fromPath path: String) -> Document? {
+        guard let ref = OCCTDocumentLoadOBJ(path) else { return nil }
+        return Document(handle: ref)
+    }
+
+    /// Load an OBJ file with options.
+    ///
+    /// - Parameters:
+    ///   - url: URL to the OBJ file
+    ///   - singlePrecision: Use single precision for vertex data (default: false)
+    ///   - systemLengthUnit: System length unit in meters (e.g. 0.001 for mm). 0 = default.
+    public static func loadOBJ(from url: URL, singlePrecision: Bool, systemLengthUnit: Double = 0) -> Document? {
+        guard let ref = OCCTDocumentLoadOBJWithOptions(url.path, singlePrecision, systemLengthUnit) else { return nil }
+        return Document(handle: ref)
+    }
+
+    /// Load an OBJ file with coordinate system conversion.
+    ///
+    /// - Parameters:
+    ///   - url: URL to the OBJ file
+    ///   - inputCS: Input coordinate system
+    ///   - outputCS: Output coordinate system
+    ///   - inputLengthUnit: Input length unit in meters (0 = default)
+    ///   - outputLengthUnit: Output length unit in meters (0 = default)
+    public static func loadOBJ(from url: URL, inputCS: MeshCoordinateSystem, outputCS: MeshCoordinateSystem,
+                                inputLengthUnit: Double = 0, outputLengthUnit: Double = 0) -> Document? {
+        guard let ref = OCCTDocumentLoadOBJWithCS(url.path,
+            inputCS.rawValue, outputCS.rawValue,
+            inputLengthUnit, outputLengthUnit) else { return nil }
+        return Document(handle: ref)
+    }
+
+    /// Write the document to an OBJ file.
+    ///
+    /// - Parameters:
+    ///   - url: Output file URL
+    ///   - deflection: Mesh deflection for tessellation (0 = skip re-meshing)
+    /// - Returns: true on success
+    @discardableResult
+    public func writeOBJ(to url: URL, deflection: Double = 1.0) -> Bool {
+        OCCTDocumentWriteOBJ(handle, url.path, deflection)
+    }
+
+    /// Write the document to a PLY file with options.
+    ///
+    /// - Parameters:
+    ///   - url: Output file URL
+    ///   - deflection: Mesh deflection for tessellation (0 = skip re-meshing)
+    ///   - normals: Include normals (default: true)
+    ///   - colors: Include colors (default: false)
+    ///   - texCoords: Include texture coordinates (default: false)
+    /// - Returns: true on success
+    @discardableResult
+    public func writePLY(to url: URL, deflection: Double = 1.0,
+                          normals: Bool = true, colors: Bool = false, texCoords: Bool = false) -> Bool {
+        OCCTDocumentWritePLY(handle, url.path, deflection, normals, colors, texCoords)
+    }
+}
+
+// MARK: - Mesh Coordinate System (v0.59.0)
+
+/// Coordinate system for mesh import/export.
+public enum MeshCoordinateSystem: Int32, Sendable {
+    /// Undefined coordinate system
+    case undefined = -1
+    /// +Y forward, +Z up (Blender convention)
+    case zUp = 0
+    /// -Z forward, +Y up (glTF convention)
+    case yUp = 1
+
+    /// Blender coordinate system (alias for zUp)
+    public static let blender = MeshCoordinateSystem.zUp
+    /// glTF coordinate system (alias for yUp)
+    public static let gltf = MeshCoordinateSystem.yUp
+}

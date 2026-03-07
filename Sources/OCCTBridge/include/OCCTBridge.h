@@ -6532,6 +6532,66 @@ bool OCCTDocumentWriteSTEPWithModes(OCCTDocumentRef doc, const char* path,
     int32_t modelType, bool colorMode, bool nameMode, bool layerMode,
     bool dimTolMode, bool materialMode);
 
+// MARK: - IGES Full Coverage — Reader (v0.59.0)
+
+/// Read an IGES file and return the number of transferable roots.
+int32_t OCCTIGESReaderNbRoots(const char* path);
+
+/// Import a specific root from an IGES file (1-based index).
+OCCTShapeRef OCCTImportIGESRoot(const char* path, int32_t rootIndex);
+
+/// Read an IGES file and return the number of shapes after full transfer.
+int32_t OCCTIGESReaderNbShapes(const char* path);
+
+/// Import only visible entities from an IGES file.
+OCCTShapeRef OCCTImportIGESVisible(const char* path);
+
+// MARK: - IGES Full Coverage — Writer (v0.59.0)
+
+/// Export shape to IGES with specific unit. unit: "MM", "IN", "M", "FT", etc.
+bool OCCTExportIGESWithUnit(OCCTShapeRef shape, const char* path, const char* unit);
+
+/// Export shape to IGES in BRep mode (vs default Faces mode).
+bool OCCTExportIGESBRepMode(OCCTShapeRef shape, const char* path);
+
+/// Export multiple shapes to a single IGES file.
+bool OCCTExportIGESMultiShape(const OCCTShapeRef* shapes, int32_t count, const char* path);
+
+// MARK: - OBJ Document I/O (v0.59.0)
+
+/// Load an OBJ file into an XDE document (preserves materials, names).
+OCCTDocumentRef OCCTDocumentLoadOBJ(const char* path);
+
+/// Load an OBJ file into an XDE document with options.
+/// singlePrecision: true for float, false for double vertex coords.
+/// systemLengthUnit: length unit in meters (e.g. 0.001 for mm). 0 = default.
+OCCTDocumentRef OCCTDocumentLoadOBJWithOptions(const char* path,
+    bool singlePrecision, double systemLengthUnit);
+
+/// Write an XDE document to OBJ format.
+/// deflection: mesh deflection for tessellation. 0 = skip re-meshing.
+bool OCCTDocumentWriteOBJ(OCCTDocumentRef doc, const char* path, double deflection);
+
+// MARK: - PLY Export Expansion (v0.59.0)
+
+/// Export an XDE document to PLY format with options.
+bool OCCTDocumentWritePLY(OCCTDocumentRef doc, const char* path, double deflection,
+    bool normals, bool colors, bool texCoords);
+
+/// Export a shape to PLY format with normals/colors/texCoords options.
+bool OCCTExportPLYWithOptions(OCCTShapeRef shape, const char* path, double deflection,
+    bool normals, bool colors, bool texCoords);
+
+// MARK: - RWMesh Coordinate System (v0.59.0)
+
+/// Coordinate system enum values:
+/// -1=Undefined, 0=posYfwd_posZup (Blender/Zup), 1=negZfwd_posYup (glTF/Yup)
+
+/// Load an OBJ file into an XDE document with coordinate system conversion.
+/// inputCS and outputCS: -1=Undefined, 0=Zup/Blender, 1=Yup/glTF
+OCCTDocumentRef OCCTDocumentLoadOBJWithCS(const char* path,
+    int32_t inputCS, int32_t outputCS, double inputLengthUnit, double outputLengthUnit);
+
 #ifdef __cplusplus
 }
 #endif

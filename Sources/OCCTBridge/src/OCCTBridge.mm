@@ -21824,3 +21824,262 @@ bool OCCTDocumentWriteSTEPWithModes(OCCTDocumentRef doc, const char* path,
         return status == IFSelect_RetDone;
     } catch (...) { return false; }
 }
+
+// MARK: - IGES Full Coverage — Reader (v0.59.0)
+
+int32_t OCCTIGESReaderNbRoots(const char* path) {
+    if (!path) return 0;
+    try {
+        IGESControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return 0;
+        return reader.NbRootsForTransfer();
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTImportIGESRoot(const char* path, int32_t rootIndex) {
+    if (!path || rootIndex < 1) return nullptr;
+    try {
+        IGESControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+        int nbRoots = reader.NbRootsForTransfer();
+        if (rootIndex > nbRoots) return nullptr;
+        if (!reader.TransferOneRoot(rootIndex)) return nullptr;
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTIGESReaderNbShapes(const char* path) {
+    if (!path) return 0;
+    try {
+        IGESControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return 0;
+        reader.TransferRoots();
+        return reader.NbShapes();
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTImportIGESVisible(const char* path) {
+    if (!path) return nullptr;
+    try {
+        IGESControl_Reader reader;
+        reader.SetReadVisible(true);
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+        reader.TransferRoots();
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - IGES Full Coverage — Writer (v0.59.0)
+
+bool OCCTExportIGESWithUnit(OCCTShapeRef shape, const char* path, const char* unit) {
+    if (!shape || !path || !unit) return false;
+    try {
+        IGESControl_Writer writer(unit, 0); // 0 = Faces mode
+        if (!writer.AddShape(shape->shape)) return false;
+        writer.ComputeModel();
+        return writer.Write(path);
+    } catch (...) { return false; }
+}
+
+bool OCCTExportIGESBRepMode(OCCTShapeRef shape, const char* path) {
+    if (!shape || !path) return false;
+    try {
+        IGESControl_Writer writer("MM", 1); // 1 = BRep mode
+        if (!writer.AddShape(shape->shape)) return false;
+        writer.ComputeModel();
+        return writer.Write(path);
+    } catch (...) { return false; }
+}
+
+bool OCCTExportIGESMultiShape(const OCCTShapeRef* shapes, int32_t count, const char* path) {
+    if (!shapes || count <= 0 || !path) return false;
+    try {
+        IGESControl_Writer writer;
+        for (int32_t i = 0; i < count; i++) {
+            if (!shapes[i]) continue;
+            writer.AddShape(shapes[i]->shape);
+        }
+        writer.ComputeModel();
+        return writer.Write(path);
+    } catch (...) { return false; }
+}
+
+// MARK: - OBJ Document I/O (v0.59.0)
+
+#include <RWMesh_CoordinateSystemConverter.hxx>
+#include <RWMesh_CoordinateSystem.hxx>
+
+OCCTDocumentRef OCCTDocumentLoadOBJ(const char* path) {
+    if (!path) return nullptr;
+    try {
+        OCCTDocument* document = new OCCTDocument();
+        document->app->NewDocument("MDTV-XCAF", document->doc);
+        if (document->doc.IsNull()) { delete document; return nullptr; }
+
+        RWObj_CafReader objReader;
+        objReader.SetDocument(document->doc);
+        TCollection_AsciiString filePath(path);
+        if (!objReader.Perform(filePath, Message_ProgressRange())) {
+            delete document;
+            return nullptr;
+        }
+
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+        return document;
+    } catch (...) { return nullptr; }
+}
+
+OCCTDocumentRef OCCTDocumentLoadOBJWithOptions(const char* path,
+    bool singlePrecision, double systemLengthUnit) {
+    if (!path) return nullptr;
+    try {
+        OCCTDocument* document = new OCCTDocument();
+        document->app->NewDocument("MDTV-XCAF", document->doc);
+        if (document->doc.IsNull()) { delete document; return nullptr; }
+
+        RWObj_CafReader objReader;
+        objReader.SetDocument(document->doc);
+        objReader.SetSinglePrecision(singlePrecision);
+        if (systemLengthUnit > 0) {
+            objReader.SetSystemLengthUnit(systemLengthUnit);
+        }
+
+        TCollection_AsciiString filePath(path);
+        if (!objReader.Perform(filePath, Message_ProgressRange())) {
+            delete document;
+            return nullptr;
+        }
+
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+        return document;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentWriteOBJ(OCCTDocumentRef doc, const char* path, double deflection) {
+    if (!doc || !path || doc->doc.IsNull() || doc->shapeTool.IsNull()) return false;
+    try {
+        // Re-mesh if deflection > 0
+        if (deflection > 0) {
+            TDF_LabelSequence freeShapes;
+            doc->shapeTool->GetFreeShapes(freeShapes);
+            for (int i = 1; i <= freeShapes.Length(); i++) {
+                TopoDS_Shape shape = doc->shapeTool->GetShape(freeShapes.Value(i));
+                if (!shape.IsNull()) {
+                    BRepMesh_IncrementalMesh mesher(shape, deflection);
+                    mesher.Perform();
+                }
+            }
+        }
+
+        RWObj_CafWriter writer(path);
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        return writer.Perform(doc->doc, fileInfo, Message_ProgressRange());
+    } catch (...) { return false; }
+}
+
+// MARK: - PLY Export Expansion (v0.59.0)
+
+bool OCCTDocumentWritePLY(OCCTDocumentRef doc, const char* path, double deflection,
+    bool normals, bool colors, bool texCoords) {
+    if (!doc || !path || doc->doc.IsNull() || doc->shapeTool.IsNull()) return false;
+    try {
+        // Re-mesh if deflection > 0
+        if (deflection > 0) {
+            TDF_LabelSequence freeShapes;
+            doc->shapeTool->GetFreeShapes(freeShapes);
+            for (int i = 1; i <= freeShapes.Length(); i++) {
+                TopoDS_Shape shape = doc->shapeTool->GetShape(freeShapes.Value(i));
+                if (!shape.IsNull()) {
+                    BRepMesh_IncrementalMesh mesher(shape, deflection);
+                    mesher.Perform();
+                }
+            }
+        }
+
+        RWPly_CafWriter writer(path);
+        writer.SetNormals(normals);
+        writer.SetColors(colors);
+        writer.SetTexCoords(texCoords);
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        return writer.Perform(doc->doc, fileInfo, Message_ProgressRange());
+    } catch (...) { return false; }
+}
+
+bool OCCTExportPLYWithOptions(OCCTShapeRef shape, const char* path, double deflection,
+    bool normals, bool colors, bool texCoords) {
+    if (!shape || !path) return false;
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        mesher.Perform();
+
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        shapeTool->AddShape(shape->shape);
+
+        RWPly_CafWriter writer(path);
+        writer.SetNormals(normals);
+        writer.SetColors(colors);
+        writer.SetTexCoords(texCoords);
+        NCollection_Sequence<TDF_Label> rootLabels;
+        TDF_LabelSequence freeShapes;
+        shapeTool->GetFreeShapes(freeShapes);
+        for (int i = 1; i <= freeShapes.Length(); ++i) {
+            rootLabels.Append(freeShapes.Value(i));
+        }
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        bool success = writer.Perform(doc, rootLabels, nullptr, fileInfo, Message_ProgressRange());
+        app->Close(doc);
+        return success;
+    } catch (...) { return false; }
+}
+
+// MARK: - RWMesh Coordinate System (v0.59.0)
+
+OCCTDocumentRef OCCTDocumentLoadOBJWithCS(const char* path,
+    int32_t inputCS, int32_t outputCS, double inputLengthUnit, double outputLengthUnit) {
+    if (!path) return nullptr;
+    try {
+        OCCTDocument* document = new OCCTDocument();
+        document->app->NewDocument("MDTV-XCAF", document->doc);
+        if (document->doc.IsNull()) { delete document; return nullptr; }
+
+        RWObj_CafReader objReader;
+        objReader.SetDocument(document->doc);
+
+        if (inputLengthUnit > 0) objReader.SetFileLengthUnit(inputLengthUnit);
+        if (outputLengthUnit > 0) objReader.SetSystemLengthUnit(outputLengthUnit);
+
+        if (inputCS >= 0) {
+            objReader.SetFileCoordinateSystem(static_cast<RWMesh_CoordinateSystem>(inputCS));
+        }
+        if (outputCS >= 0) {
+            objReader.SetSystemCoordinateSystem(static_cast<RWMesh_CoordinateSystem>(outputCS));
+        }
+
+        TCollection_AsciiString filePath(path);
+        if (!objReader.Perform(filePath, Message_ProgressRange())) {
+            delete document;
+            return nullptr;
+        }
+
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+        return document;
+    } catch (...) { return nullptr; }
+}
