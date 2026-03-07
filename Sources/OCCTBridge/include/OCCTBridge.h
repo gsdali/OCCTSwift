@@ -6592,6 +6592,164 @@ bool OCCTExportPLYWithOptions(OCCTShapeRef shape, const char* path, double defle
 OCCTDocumentRef OCCTDocumentLoadOBJWithCS(const char* path,
     int32_t inputCS, int32_t outputCS, double inputLengthUnit, double outputLengthUnit);
 
+// MARK: - XDE ShapeTool Expansion (v0.60.0)
+
+/// Get total number of shapes in the document (all levels).
+int32_t OCCTDocumentGetShapeCount(OCCTDocumentRef doc);
+
+/// Get label ID for a shape at index (from GetShapes sequence).
+int64_t OCCTDocumentGetShapeLabelId(OCCTDocumentRef doc, int32_t index);
+
+/// Get total number of free (top-level) shapes.
+int32_t OCCTDocumentGetFreeShapeCount(OCCTDocumentRef doc);
+
+/// Get label ID for a free shape at index.
+int64_t OCCTDocumentGetFreeShapeLabelId(OCCTDocumentRef doc, int32_t index);
+
+/// Check if a label is top-level.
+bool OCCTDocumentIsTopLevel(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label is a component (instance inside an assembly).
+bool OCCTDocumentIsComponent(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label represents a compound shape.
+bool OCCTDocumentIsCompound(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if a label represents a sub-shape of a top-level shape.
+bool OCCTDocumentIsSubShape(OCCTDocumentRef doc, int64_t labelId);
+
+/// Find label ID for a given shape in the document.
+/// @return Label ID, or -1 if not found
+int64_t OCCTDocumentFindShape(OCCTDocumentRef doc, OCCTShapeRef shape);
+
+/// Search for a shape in the document (including sub-shapes).
+/// @return Label ID, or -1 if not found
+int64_t OCCTDocumentSearchShape(OCCTDocumentRef doc, OCCTShapeRef shape);
+
+/// Get number of sub-shapes for a label.
+int32_t OCCTDocumentGetSubShapeCount(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get sub-shape label ID at index.
+int64_t OCCTDocumentGetSubShapeLabelId(OCCTDocumentRef doc, int64_t labelId, int32_t index);
+
+/// Add a shape to the document.
+/// @param makeAssembly If true, compound shapes become assemblies
+/// @return Label ID of the added shape
+int64_t OCCTDocumentAddShape(OCCTDocumentRef doc, OCCTShapeRef shape, bool makeAssembly);
+
+/// Create a new empty shape label.
+int64_t OCCTDocumentNewShape(OCCTDocumentRef doc);
+
+/// Remove a shape from the document.
+bool OCCTDocumentRemoveShape(OCCTDocumentRef doc, int64_t labelId);
+
+/// Add a component to an assembly with transform.
+/// @param assemblyLabelId Assembly to add to
+/// @param shapeLabelId Shape to add as component
+/// @param tx, ty, tz Translation
+/// @return Label ID of the new component, or -1 on failure
+int64_t OCCTDocumentAddComponent(OCCTDocumentRef doc, int64_t assemblyLabelId,
+    int64_t shapeLabelId, double tx, double ty, double tz);
+
+/// Remove a component from an assembly.
+void OCCTDocumentRemoveComponent(OCCTDocumentRef doc, int64_t componentLabelId);
+
+/// Get number of components in an assembly.
+int32_t OCCTDocumentGetComponentCount(OCCTDocumentRef doc, int64_t assemblyLabelId);
+
+/// Get component label ID at index.
+int64_t OCCTDocumentGetComponentLabelId(OCCTDocumentRef doc, int64_t assemblyLabelId, int32_t index);
+
+/// Get the referred (original) shape label for a component.
+/// @return Referred label ID, or -1 if not a reference
+int64_t OCCTDocumentGetComponentReferredLabelId(OCCTDocumentRef doc, int64_t componentLabelId);
+
+/// Get number of labels that use (reference) a given shape.
+int32_t OCCTDocumentGetShapeUserCount(OCCTDocumentRef doc, int64_t shapeLabelId);
+
+/// Update all assemblies (recompute compounds from components).
+void OCCTDocumentUpdateAssemblies(OCCTDocumentRef doc);
+
+/// Expand a compound shape into an assembly (ShapeTool::Expand).
+bool OCCTDocumentExpandShape(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - XDE ColorTool by Shape (v0.60.0)
+
+/// Set color on a shape (not by label).
+/// @param colorType 0=generic, 1=surface, 2=curve
+void OCCTDocumentSetShapeColor(OCCTDocumentRef doc, OCCTShapeRef shape,
+    int32_t colorType, double r, double g, double b);
+
+/// Get color for a shape (not by label).
+/// @return OCCTColor with isSet=true if color was found
+OCCTColor OCCTDocumentGetShapeColor(OCCTDocumentRef doc, OCCTShapeRef shape, int32_t colorType);
+
+/// Check if color is set on a shape.
+bool OCCTDocumentIsShapeColorSet(OCCTDocumentRef doc, OCCTShapeRef shape, int32_t colorType);
+
+/// Set visibility for a label.
+void OCCTDocumentSetLabelVisibility(OCCTDocumentRef doc, int64_t labelId, bool visible);
+
+/// Get visibility for a label.
+bool OCCTDocumentGetLabelVisibility(OCCTDocumentRef doc, int64_t labelId);
+
+// MARK: - XDE Area / Volume / Centroid (v0.60.0)
+
+/// Set area attribute on a label.
+void OCCTDocumentSetArea(OCCTDocumentRef doc, int64_t labelId, double area);
+
+/// Get area attribute from a label. Returns -1 if not set.
+double OCCTDocumentGetArea(OCCTDocumentRef doc, int64_t labelId);
+
+/// Set volume attribute on a label.
+void OCCTDocumentSetVolume(OCCTDocumentRef doc, int64_t labelId, double volume);
+
+/// Get volume attribute from a label. Returns -1 if not set.
+double OCCTDocumentGetVolume(OCCTDocumentRef doc, int64_t labelId);
+
+/// Set centroid attribute on a label.
+void OCCTDocumentSetCentroid(OCCTDocumentRef doc, int64_t labelId, double x, double y, double z);
+
+/// Get centroid attribute from a label. Returns false if not set.
+bool OCCTDocumentGetCentroid(OCCTDocumentRef doc, int64_t labelId, double* outX, double* outY, double* outZ);
+
+// MARK: - XDE LayerTool Expansion (v0.60.0)
+
+/// Set a named layer on a label.
+void OCCTDocumentSetLayer(OCCTDocumentRef doc, int64_t labelId, const char* layerName);
+
+/// Check if a specific layer is set on a label.
+bool OCCTDocumentIsLayerSet(OCCTDocumentRef doc, int64_t labelId, const char* layerName);
+
+/// Get layers on a label. Returns count. Fills outNames (caller-allocated array of buffers).
+/// Each buffer must be at least maxLen chars.
+int32_t OCCTDocumentGetLabelLayers(OCCTDocumentRef doc, int64_t labelId,
+    char** outNames, int32_t maxNames, int32_t maxLen);
+
+/// Find a layer label by name. Returns label ID or -1 if not found.
+int64_t OCCTDocumentFindLayer(OCCTDocumentRef doc, const char* layerName);
+
+/// Set visibility for a layer label.
+void OCCTDocumentSetLayerVisibility(OCCTDocumentRef doc, int64_t layerLabelId, bool visible);
+
+/// Get visibility for a layer label.
+bool OCCTDocumentGetLayerVisibility(OCCTDocumentRef doc, int64_t layerLabelId);
+
+// MARK: - XDE Editor (v0.60.0)
+
+/// Expand a compound shape label into an assembly using XCAFDoc_Editor::Expand.
+/// @param recursively If true, expand recursively
+/// @return true if expanded successfully
+bool OCCTDocumentEditorExpand(OCCTDocumentRef doc, int64_t labelId, bool recursively);
+
+/// Rescale geometry on a label.
+/// @param labelId Label to rescale
+/// @param scaleFactor Scale factor
+/// @param forceIfNotRoot Force rescale even if label is not root
+/// @return true on success
+bool OCCTDocumentEditorRescaleGeometry(OCCTDocumentRef doc, int64_t labelId,
+    double scaleFactor, bool forceIfNotRoot);
+
 #ifdef __cplusplus
 }
 #endif

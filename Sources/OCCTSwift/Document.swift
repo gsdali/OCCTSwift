@@ -1775,3 +1775,315 @@ public enum MeshCoordinateSystem: Int32, Sendable {
     /// glTF coordinate system (alias for yUp)
     public static let gltf = MeshCoordinateSystem.yUp
 }
+
+// MARK: - XDE ShapeTool Expansion (v0.60.0)
+
+extension Document {
+    /// Total number of shapes in the document (all levels).
+    public var shapeCount: Int32 {
+        OCCTDocumentGetShapeCount(handle)
+    }
+
+    /// Get label ID for a shape at index (from all shapes).
+    public func shapeLabelId(at index: Int32) -> Int64 {
+        OCCTDocumentGetShapeLabelId(handle, index)
+    }
+
+    /// Number of free (top-level) shapes.
+    public var freeShapeCount: Int32 {
+        OCCTDocumentGetFreeShapeCount(handle)
+    }
+
+    /// Get label ID for a free shape at index.
+    public func freeShapeLabelId(at index: Int32) -> Int64 {
+        OCCTDocumentGetFreeShapeLabelId(handle, index)
+    }
+
+    /// Add a shape to the document.
+    /// - Parameters:
+    ///   - shape: The shape to add
+    ///   - makeAssembly: If true, compound shapes become assemblies
+    /// - Returns: Label ID of the added shape, or -1 on failure
+    @discardableResult
+    public func addShape(_ shape: Shape, makeAssembly: Bool = true) -> Int64 {
+        OCCTDocumentAddShape(handle, shape.handle, makeAssembly)
+    }
+
+    /// Create a new empty shape label.
+    /// - Returns: Label ID of the new label, or -1 on failure
+    public func newShapeLabel() -> Int64 {
+        OCCTDocumentNewShape(handle)
+    }
+
+    /// Remove a shape from the document.
+    /// - Parameter labelId: Label ID of the shape to remove
+    /// - Returns: true if removed successfully
+    @discardableResult
+    public func removeShape(labelId: Int64) -> Bool {
+        OCCTDocumentRemoveShape(handle, labelId)
+    }
+
+    /// Find label ID for a given shape in the document.
+    /// - Returns: Label ID, or -1 if not found
+    public func findShape(_ shape: Shape) -> Int64 {
+        OCCTDocumentFindShape(handle, shape.handle)
+    }
+
+    /// Search for a shape in the document (including sub-shapes).
+    /// - Returns: Label ID, or -1 if not found
+    public func searchShape(_ shape: Shape) -> Int64 {
+        OCCTDocumentSearchShape(handle, shape.handle)
+    }
+
+    /// Add a component to an assembly with translation.
+    /// - Parameters:
+    ///   - assemblyLabelId: Assembly label ID
+    ///   - shapeLabelId: Shape to add as component
+    ///   - translation: Translation (tx, ty, tz)
+    /// - Returns: Component label ID, or -1 on failure
+    @discardableResult
+    public func addComponent(assemblyLabelId: Int64, shapeLabelId: Int64,
+                              translation: (Double, Double, Double) = (0, 0, 0)) -> Int64 {
+        OCCTDocumentAddComponent(handle, assemblyLabelId, shapeLabelId,
+                                  translation.0, translation.1, translation.2)
+    }
+
+    /// Remove a component from an assembly.
+    public func removeComponent(labelId: Int64) {
+        OCCTDocumentRemoveComponent(handle, labelId)
+    }
+
+    /// Get number of components in an assembly.
+    public func componentCount(assemblyLabelId: Int64) -> Int32 {
+        OCCTDocumentGetComponentCount(handle, assemblyLabelId)
+    }
+
+    /// Get component label ID at index.
+    public func componentLabelId(assemblyLabelId: Int64, at index: Int32) -> Int64 {
+        OCCTDocumentGetComponentLabelId(handle, assemblyLabelId, index)
+    }
+
+    /// Get the referred (original) shape label for a component.
+    /// - Returns: Referred label ID, or -1 if not a reference
+    public func componentReferredLabelId(_ componentLabelId: Int64) -> Int64 {
+        OCCTDocumentGetComponentReferredLabelId(handle, componentLabelId)
+    }
+
+    /// Get number of labels that reference a given shape.
+    public func shapeUserCount(shapeLabelId: Int64) -> Int32 {
+        OCCTDocumentGetShapeUserCount(handle, shapeLabelId)
+    }
+
+    /// Update all assemblies (recompute compounds from components).
+    public func updateAssemblies() {
+        OCCTDocumentUpdateAssemblies(handle)
+    }
+
+    /// Expand a compound shape into an assembly (ShapeTool::Expand).
+    @discardableResult
+    public func expandShape(labelId: Int64) -> Bool {
+        OCCTDocumentExpandShape(handle, labelId)
+    }
+}
+
+// MARK: - XDE Label Queries (v0.60.0)
+
+extension AssemblyNode {
+    /// Whether this label is top-level.
+    public var isTopLevel: Bool {
+        OCCTDocumentIsTopLevel(document.handle, labelId)
+    }
+
+    /// Whether this label is a component (instance inside an assembly).
+    public var isComponent: Bool {
+        OCCTDocumentIsComponent(document.handle, labelId)
+    }
+
+    /// Whether this label represents a compound shape.
+    public var isCompound: Bool {
+        OCCTDocumentIsCompound(document.handle, labelId)
+    }
+
+    /// Whether this label represents a sub-shape.
+    public var isSubShape: Bool {
+        OCCTDocumentIsSubShape(document.handle, labelId)
+    }
+
+    /// Number of sub-shapes for this label.
+    public var subShapeCount: Int32 {
+        OCCTDocumentGetSubShapeCount(document.handle, labelId)
+    }
+
+    /// Get sub-shape label at index.
+    public func subShapeNode(at index: Int32) -> AssemblyNode? {
+        let subId = OCCTDocumentGetSubShapeLabelId(document.handle, labelId, index)
+        guard subId >= 0 else { return nil }
+        return AssemblyNode(document: document, labelId: subId)
+    }
+
+    /// Number of labels that reference (use) this shape.
+    public var userCount: Int32 {
+        OCCTDocumentGetShapeUserCount(document.handle, labelId)
+    }
+
+    /// Visibility of this label.
+    public var isVisible: Bool {
+        get { OCCTDocumentGetLabelVisibility(document.handle, labelId) }
+        set { OCCTDocumentSetLabelVisibility(document.handle, labelId, newValue) }
+    }
+}
+
+// MARK: - XDE ColorTool by Shape (v0.60.0)
+
+extension Document {
+    /// Set color on a shape directly (not by label).
+    /// - Parameters:
+    ///   - shape: The shape to color
+    ///   - color: The color to set
+    ///   - type: Color type — generic (0), surface (1), or curve (2)
+    public func setShapeColor(_ shape: Shape, color: Color, type: OCCTColorType = OCCTColorTypeSurface) {
+        OCCTDocumentSetShapeColor(handle, shape.handle, Int32(type.rawValue),
+                                   color.red, color.green, color.blue)
+    }
+
+    /// Get color for a shape (not by label).
+    /// - Parameters:
+    ///   - shape: The shape to query
+    ///   - type: Color type — generic (0), surface (1), or curve (2)
+    /// - Returns: Color if set, nil otherwise
+    public func shapeColor(_ shape: Shape, type: OCCTColorType = OCCTColorTypeSurface) -> Color? {
+        let c = OCCTDocumentGetShapeColor(handle, shape.handle, Int32(type.rawValue))
+        guard c.isSet else { return nil }
+        return Color(red: c.r, green: c.g, blue: c.b, alpha: c.a)
+    }
+
+    /// Check if color is set on a shape.
+    public func isShapeColorSet(_ shape: Shape, type: OCCTColorType = OCCTColorTypeSurface) -> Bool {
+        OCCTDocumentIsShapeColorSet(handle, shape.handle, Int32(type.rawValue))
+    }
+}
+
+// MARK: - XDE Area / Volume / Centroid (v0.60.0)
+
+extension AssemblyNode {
+    /// Set area attribute on this label.
+    public func setArea(_ area: Double) {
+        OCCTDocumentSetArea(document.handle, labelId, area)
+    }
+
+    /// Get area attribute from this label.
+    /// - Returns: Area value, or nil if not set
+    public var area: Double? {
+        let val = OCCTDocumentGetArea(document.handle, labelId)
+        return val < 0 ? nil : val
+    }
+
+    /// Set volume attribute on this label.
+    public func setVolume(_ volume: Double) {
+        OCCTDocumentSetVolume(document.handle, labelId, volume)
+    }
+
+    /// Get volume attribute from this label.
+    /// - Returns: Volume value, or nil if not set
+    public var volume: Double? {
+        let val = OCCTDocumentGetVolume(document.handle, labelId)
+        return val < 0 ? nil : val
+    }
+
+    /// Set centroid attribute on this label.
+    public func setCentroid(x: Double, y: Double, z: Double) {
+        OCCTDocumentSetCentroid(document.handle, labelId, x, y, z)
+    }
+
+    /// Get centroid attribute from this label.
+    /// - Returns: Centroid as (x, y, z), or nil if not set
+    public var centroid: (x: Double, y: Double, z: Double)? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        if OCCTDocumentGetCentroid(document.handle, labelId, &x, &y, &z) {
+            return (x, y, z)
+        }
+        return nil
+    }
+}
+
+// MARK: - XDE LayerTool Expansion (v0.60.0)
+
+extension AssemblyNode {
+    /// Set a named layer on this label.
+    public func setLayer(_ name: String) {
+        OCCTDocumentSetLayer(document.handle, labelId, name)
+    }
+
+    /// Check if a specific layer is set on this label.
+    public func isLayerSet(_ name: String) -> Bool {
+        OCCTDocumentIsLayerSet(document.handle, labelId, name)
+    }
+
+    /// Get layer names assigned to this label.
+    public var layers: [String] {
+        let maxNames: Int32 = 16
+        let maxLen: Int32 = 256
+        // Allocate C string buffers
+        let buffers = UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>.allocate(capacity: Int(maxNames))
+        defer { buffers.deallocate() }
+        for i in 0..<Int(maxNames) {
+            let buf = UnsafeMutablePointer<CChar>.allocate(capacity: Int(maxLen))
+            buf[0] = 0
+            buffers[i] = buf
+        }
+        let count = OCCTDocumentGetLabelLayers(document.handle, labelId, buffers, maxNames, maxLen)
+        var result: [String] = []
+        for i in 0..<Int(count) {
+            if let buf = buffers[i] {
+                result.append(String(cString: buf))
+            }
+        }
+        for i in 0..<Int(maxNames) {
+            buffers[i]?.deallocate()
+        }
+        return result
+    }
+}
+
+extension Document {
+    /// Find a layer label by name.
+    /// - Returns: Label ID, or -1 if not found
+    public func findLayer(_ name: String) -> Int64 {
+        OCCTDocumentFindLayer(handle, name)
+    }
+
+    /// Set visibility for a layer label.
+    public func setLayerVisibility(layerLabelId: Int64, visible: Bool) {
+        OCCTDocumentSetLayerVisibility(handle, layerLabelId, visible)
+    }
+
+    /// Get visibility for a layer label.
+    public func layerVisibility(layerLabelId: Int64) -> Bool {
+        OCCTDocumentGetLayerVisibility(handle, layerLabelId)
+    }
+}
+
+// MARK: - XDE Editor (v0.60.0)
+
+extension Document {
+    /// Expand a compound shape label into an assembly using XCAFDoc_Editor.
+    /// - Parameters:
+    ///   - labelId: Label of the compound to expand
+    ///   - recursively: If true, expand recursively
+    /// - Returns: true if expanded successfully
+    @discardableResult
+    public func editorExpand(labelId: Int64, recursively: Bool = true) -> Bool {
+        OCCTDocumentEditorExpand(handle, labelId, recursively)
+    }
+
+    /// Rescale geometry on a label.
+    /// - Parameters:
+    ///   - labelId: Label to rescale
+    ///   - scaleFactor: Scale factor
+    ///   - forceIfNotRoot: Force rescale even if label is not root
+    /// - Returns: true on success
+    @discardableResult
+    public func rescaleGeometry(labelId: Int64, scaleFactor: Double, forceIfNotRoot: Bool = false) -> Bool {
+        OCCTDocumentEditorRescaleGeometry(handle, labelId, scaleFactor, forceIfNotRoot)
+    }
+}

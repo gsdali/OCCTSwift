@@ -22083,3 +22083,452 @@ OCCTDocumentRef OCCTDocumentLoadOBJWithCS(const char* path,
         return document;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - XDE ShapeTool Expansion (v0.60.0)
+
+#include <XCAFDoc_Area.hxx>
+#include <XCAFDoc_Volume.hxx>
+#include <XCAFDoc_Centroid.hxx>
+#include <XCAFDoc_Editor.hxx>
+#include <NCollection_HSequence.hxx>
+
+int32_t OCCTDocumentGetShapeCount(OCCTDocumentRef doc) {
+    if (!doc || doc->shapeTool.IsNull()) return 0;
+    try {
+        TDF_LabelSequence shapes;
+        doc->shapeTool->GetShapes(shapes);
+        return shapes.Length();
+    } catch (...) { return 0; }
+}
+
+int64_t OCCTDocumentGetShapeLabelId(OCCTDocumentRef doc, int32_t index) {
+    if (!doc || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_LabelSequence shapes;
+        doc->shapeTool->GetShapes(shapes);
+        if (index < 0 || index >= shapes.Length()) return -1;
+        return doc->registerLabel(shapes.Value(index + 1));
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDocumentGetFreeShapeCount(OCCTDocumentRef doc) {
+    if (!doc || doc->shapeTool.IsNull()) return 0;
+    try {
+        TDF_LabelSequence shapes;
+        doc->shapeTool->GetFreeShapes(shapes);
+        return shapes.Length();
+    } catch (...) { return 0; }
+}
+
+int64_t OCCTDocumentGetFreeShapeLabelId(OCCTDocumentRef doc, int32_t index) {
+    if (!doc || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_LabelSequence shapes;
+        doc->shapeTool->GetFreeShapes(shapes);
+        if (index < 0 || index >= shapes.Length()) return -1;
+        return doc->registerLabel(shapes.Value(index + 1));
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentIsTopLevel(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return doc->shapeTool->IsTopLevel(label);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentIsComponent(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return doc->shapeTool->IsComponent(label);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentIsCompound(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return doc->shapeTool->IsCompound(label);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentIsSubShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsSubShape(label);
+    } catch (...) { return false; }
+}
+
+int64_t OCCTDocumentFindShape(OCCTDocumentRef doc, OCCTShapeRef shape) {
+    if (!doc || !shape || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_Label label;
+        bool found = doc->shapeTool->FindShape(shape->shape, label);
+        if (!found || label.IsNull()) return -1;
+        return doc->registerLabel(label);
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentSearchShape(OCCTDocumentRef doc, OCCTShapeRef shape) {
+    if (!doc || !shape || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_Label label;
+        bool found = doc->shapeTool->Search(shape->shape, label);
+        if (!found || label.IsNull()) return -1;
+        return doc->registerLabel(label);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDocumentGetSubShapeCount(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        TDF_LabelSequence subShapes;
+        doc->shapeTool->GetSubShapes(label, subShapes);
+        return subShapes.Length();
+    } catch (...) { return 0; }
+}
+
+int64_t OCCTDocumentGetSubShapeLabelId(OCCTDocumentRef doc, int64_t labelId, int32_t index) {
+    if (!doc || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        TDF_LabelSequence subShapes;
+        doc->shapeTool->GetSubShapes(label, subShapes);
+        if (index < 0 || index >= subShapes.Length()) return -1;
+        return doc->registerLabel(subShapes.Value(index + 1));
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentAddShape(OCCTDocumentRef doc, OCCTShapeRef shape, bool makeAssembly) {
+    if (!doc || !shape || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->shapeTool->AddShape(shape->shape, makeAssembly);
+        if (label.IsNull()) return -1;
+        return doc->registerLabel(label);
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentNewShape(OCCTDocumentRef doc) {
+    if (!doc || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->shapeTool->NewShape();
+        if (label.IsNull()) return -1;
+        return doc->registerLabel(label);
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentRemoveShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return doc->shapeTool->RemoveShape(label);
+    } catch (...) { return false; }
+}
+
+int64_t OCCTDocumentAddComponent(OCCTDocumentRef doc, int64_t assemblyLabelId,
+    int64_t shapeLabelId, double tx, double ty, double tz) {
+    if (!doc || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_Label assemblyLabel = doc->getLabel(assemblyLabelId);
+        TDF_Label shapeLabel = doc->getLabel(shapeLabelId);
+        if (assemblyLabel.IsNull() || shapeLabel.IsNull()) return -1;
+        gp_Trsf trsf;
+        trsf.SetTranslation(gp_Vec(tx, ty, tz));
+        TDF_Label comp = doc->shapeTool->AddComponent(assemblyLabel, shapeLabel, TopLoc_Location(trsf));
+        if (comp.IsNull()) return -1;
+        return doc->registerLabel(comp);
+    } catch (...) { return -1; }
+}
+
+void OCCTDocumentRemoveComponent(OCCTDocumentRef doc, int64_t componentLabelId) {
+    if (!doc || doc->shapeTool.IsNull()) return;
+    try {
+        TDF_Label label = doc->getLabel(componentLabelId);
+        if (label.IsNull()) return;
+        doc->shapeTool->RemoveComponent(label);
+    } catch (...) {}
+}
+
+int32_t OCCTDocumentGetComponentCount(OCCTDocumentRef doc, int64_t assemblyLabelId) {
+    if (!doc || doc->shapeTool.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(assemblyLabelId);
+        if (label.IsNull()) return 0;
+        TDF_LabelSequence components;
+        doc->shapeTool->GetComponents(label, components);
+        return components.Length();
+    } catch (...) { return 0; }
+}
+
+int64_t OCCTDocumentGetComponentLabelId(OCCTDocumentRef doc, int64_t assemblyLabelId, int32_t index) {
+    if (!doc || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(assemblyLabelId);
+        if (label.IsNull()) return -1;
+        TDF_LabelSequence components;
+        doc->shapeTool->GetComponents(label, components);
+        if (index < 0 || index >= components.Length()) return -1;
+        return doc->registerLabel(components.Value(index + 1));
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentGetComponentReferredLabelId(OCCTDocumentRef doc, int64_t componentLabelId) {
+    if (!doc || doc->shapeTool.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(componentLabelId);
+        if (label.IsNull()) return -1;
+        TDF_Label referred;
+        bool ok = doc->shapeTool->GetReferredShape(label, referred);
+        if (!ok || referred.IsNull()) return -1;
+        return doc->registerLabel(referred);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDocumentGetShapeUserCount(OCCTDocumentRef doc, int64_t shapeLabelId) {
+    if (!doc || doc->shapeTool.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(shapeLabelId);
+        if (label.IsNull()) return 0;
+        TDF_LabelSequence users;
+        return doc->shapeTool->GetUsers(label, users);
+    } catch (...) { return 0; }
+}
+
+void OCCTDocumentUpdateAssemblies(OCCTDocumentRef doc) {
+    if (!doc || doc->shapeTool.IsNull()) return;
+    try {
+        doc->shapeTool->UpdateAssemblies();
+    } catch (...) {}
+}
+
+bool OCCTDocumentExpandShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return doc->shapeTool->Expand(label);
+    } catch (...) { return false; }
+}
+
+// MARK: - XDE ColorTool by Shape (v0.60.0)
+
+void OCCTDocumentSetShapeColor(OCCTDocumentRef doc, OCCTShapeRef shape,
+    int32_t colorType, double r, double g, double b) {
+    if (!doc || !shape || doc->colorTool.IsNull()) return;
+    try {
+        Quantity_Color color(r, g, b, Quantity_TOC_RGB);
+        doc->colorTool->SetColor(shape->shape, color, static_cast<XCAFDoc_ColorType>(colorType));
+    } catch (...) {}
+}
+
+OCCTColor OCCTDocumentGetShapeColor(OCCTDocumentRef doc, OCCTShapeRef shape, int32_t colorType) {
+    OCCTColor result = {0, 0, 0, 1.0, false};
+    if (!doc || !shape || doc->colorTool.IsNull()) return result;
+    try {
+        Quantity_Color color;
+        bool hasColor = doc->colorTool->GetColor(shape->shape, static_cast<XCAFDoc_ColorType>(colorType), color);
+        if (hasColor) {
+            result.r = color.Red();
+            result.g = color.Green();
+            result.b = color.Blue();
+            result.a = 1.0;
+            result.isSet = true;
+        }
+    } catch (...) {}
+    return result;
+}
+
+bool OCCTDocumentIsShapeColorSet(OCCTDocumentRef doc, OCCTShapeRef shape, int32_t colorType) {
+    if (!doc || !shape || doc->colorTool.IsNull()) return false;
+    try {
+        return doc->colorTool->IsSet(shape->shape, static_cast<XCAFDoc_ColorType>(colorType));
+    } catch (...) { return false; }
+}
+
+void OCCTDocumentSetLabelVisibility(OCCTDocumentRef doc, int64_t labelId, bool visible) {
+    if (!doc || doc->colorTool.IsNull()) return;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+        doc->colorTool->SetVisibility(label, visible);
+    } catch (...) {}
+}
+
+bool OCCTDocumentGetLabelVisibility(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->colorTool.IsNull()) return true;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return true;
+        return doc->colorTool->IsVisible(label);
+    } catch (...) { return true; }
+}
+
+// MARK: - XDE Area / Volume / Centroid (v0.60.0)
+
+void OCCTDocumentSetArea(OCCTDocumentRef doc, int64_t labelId, double area) {
+    if (!doc) return;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+        XCAFDoc_Area::Set(label, area);
+    } catch (...) {}
+}
+
+double OCCTDocumentGetArea(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        double area;
+        if (XCAFDoc_Area::Get(label, area)) return area;
+    } catch (...) {}
+    return -1;
+}
+
+void OCCTDocumentSetVolume(OCCTDocumentRef doc, int64_t labelId, double volume) {
+    if (!doc) return;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+        XCAFDoc_Volume::Set(label, volume);
+    } catch (...) {}
+}
+
+double OCCTDocumentGetVolume(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        double vol;
+        if (XCAFDoc_Volume::Get(label, vol)) return vol;
+    } catch (...) {}
+    return -1;
+}
+
+void OCCTDocumentSetCentroid(OCCTDocumentRef doc, int64_t labelId, double x, double y, double z) {
+    if (!doc) return;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+        XCAFDoc_Centroid::Set(label, gp_Pnt(x, y, z));
+    } catch (...) {}
+}
+
+bool OCCTDocumentGetCentroid(OCCTDocumentRef doc, int64_t labelId, double* outX, double* outY, double* outZ) {
+    if (!doc) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        gp_Pnt centroid;
+        if (XCAFDoc_Centroid::Get(label, centroid)) {
+            if (outX) *outX = centroid.X();
+            if (outY) *outY = centroid.Y();
+            if (outZ) *outZ = centroid.Z();
+            return true;
+        }
+    } catch (...) {}
+    return false;
+}
+
+// MARK: - XDE LayerTool Expansion (v0.60.0)
+
+void OCCTDocumentSetLayer(OCCTDocumentRef doc, int64_t labelId, const char* layerName) {
+    if (!doc || !layerName) return;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+        Handle(XCAFDoc_LayerTool) layerTool = XCAFDoc_DocumentTool::LayerTool(doc->doc->Main());
+        layerTool->SetLayer(label, TCollection_ExtendedString(layerName));
+    } catch (...) {}
+}
+
+bool OCCTDocumentIsLayerSet(OCCTDocumentRef doc, int64_t labelId, const char* layerName) {
+    if (!doc || !layerName) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_LayerTool) layerTool = XCAFDoc_DocumentTool::LayerTool(doc->doc->Main());
+        return layerTool->IsSet(label, TCollection_ExtendedString(layerName));
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentGetLabelLayers(OCCTDocumentRef doc, int64_t labelId,
+    char** outNames, int32_t maxNames, int32_t maxLen) {
+    if (!doc || !outNames) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(XCAFDoc_LayerTool) layerTool = XCAFDoc_DocumentTool::LayerTool(doc->doc->Main());
+        Handle(NCollection_HSequence<TCollection_ExtendedString>) layers = layerTool->GetLayers(label);
+        if (layers.IsNull()) return 0;
+        int32_t count = std::min((int32_t)layers->Length(), maxNames);
+        for (int32_t i = 0; i < count; i++) {
+            TCollection_AsciiString ascii(layers->Value(i + 1));
+            strncpy(outNames[i], ascii.ToCString(), maxLen - 1);
+            outNames[i][maxLen - 1] = '\0';
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int64_t OCCTDocumentFindLayer(OCCTDocumentRef doc, const char* layerName) {
+    if (!doc || !layerName) return -1;
+    try {
+        Handle(XCAFDoc_LayerTool) layerTool = XCAFDoc_DocumentTool::LayerTool(doc->doc->Main());
+        TDF_Label layerLabel = layerTool->FindLayer(TCollection_ExtendedString(layerName));
+        if (layerLabel.IsNull()) return -1;
+        return doc->registerLabel(layerLabel);
+    } catch (...) { return -1; }
+}
+
+void OCCTDocumentSetLayerVisibility(OCCTDocumentRef doc, int64_t layerLabelId, bool visible) {
+    if (!doc) return;
+    try {
+        TDF_Label label = doc->getLabel(layerLabelId);
+        if (label.IsNull()) return;
+        Handle(XCAFDoc_LayerTool) layerTool = XCAFDoc_DocumentTool::LayerTool(doc->doc->Main());
+        layerTool->SetVisibility(label, visible);
+    } catch (...) {}
+}
+
+bool OCCTDocumentGetLayerVisibility(OCCTDocumentRef doc, int64_t layerLabelId) {
+    if (!doc) return true;
+    try {
+        TDF_Label label = doc->getLabel(layerLabelId);
+        if (label.IsNull()) return true;
+        Handle(XCAFDoc_LayerTool) layerTool = XCAFDoc_DocumentTool::LayerTool(doc->doc->Main());
+        return layerTool->IsVisible(label);
+    } catch (...) { return true; }
+}
+
+// MARK: - XDE Editor (v0.60.0)
+
+bool OCCTDocumentEditorExpand(OCCTDocumentRef doc, int64_t labelId, bool recursively) {
+    if (!doc) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return XCAFDoc_Editor::Expand(doc->doc->Main(), label, recursively);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentEditorRescaleGeometry(OCCTDocumentRef doc, int64_t labelId,
+    double scaleFactor, bool forceIfNotRoot) {
+    if (!doc) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return XCAFDoc_Editor::RescaleGeometry(label, scaleFactor, forceIfNotRoot);
+    } catch (...) { return false; }
+}

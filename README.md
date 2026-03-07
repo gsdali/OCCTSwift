@@ -49,6 +49,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **OCAF Persistence** | 17 | defineFormatBin, defineFormatBinL, defineFormatXml, defineFormatXmlL, defineFormatBinXCAF, defineFormatXmlXCAF, defineAllFormats, saveOCAF, loadOCAF, saveOCAFInPlace, createWithFormat, isSaved, storageFormat, setStorageFormat, documentCount, readingFormats, writingFormats |
 | **STEP Full Coverage** | 25 | StepModelType enum (7 values), writeSTEP(modelType:), writeSTEP(modelType:tolerance:), writeSTEPCleanDuplicates, stepRootCount, loadSTEPRoot, loadSTEP(unitInMeters:), stepShapeCount, STEPReaderModes, STEPWriterModes, Document.loadSTEP(modes:), Document.writeSTEP(modelType:modes:), fromPath variants |
 | **IGES/OBJ/PLY Full Coverage** | 23 | igesRootCount, loadIGESRoot, igesShapeCount, loadIGESVisible, writeIGES(unit:), writeIGESBRep, writeIGES(shapes:), Document.loadOBJ, Document.loadOBJ(singlePrecision:), Document.loadOBJ(inputCS:outputCS:), Document.writeOBJ, Document.writePLY(normals:colors:texCoords:), writePLY(options:), MeshCoordinateSystem enum |
+| **XDE/XCAF Full Coverage** | 42 | shapeCount, shapeLabelId, freeShapeCount, freeShapeLabelId, isTopLevel, isComponent, isCompound, isSubShape, findShape, searchShape, subShapeCount, subShapeLabelId, addShape, newShapeLabel, removeShape, addComponent, removeComponent, componentCount, componentLabelId, componentReferredLabelId, shapeUserCount, updateAssemblies, expandShape, setShapeColor, shapeColor, isShapeColorSet, setLabelVisibility, getLabelVisibility, setArea, getArea, setVolume, getVolume, setCentroid, getCentroid, setLayer, isLayerSet, getLabelLayers, findLayer, setLayerVisibility, getLayerVisibility, editorExpand, rescaleGeometry |
 | **Length Dimension** | 7 | fromPoints, fromEdge, fromFaces, value, isValid, geometry, setCustomValue |
 | **Radius Dimension** | 4 | fromShape, value, geometry, setCustomValue |
 | **Angle Dimension** | 7 | fromEdges, fromPoints, fromFaces, value, degrees, geometry, setCustomValue |
@@ -57,7 +58,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Point Cloud** | 6 | create, createColored, count, bounds, points, colors |
 | **KD-Tree** | 5 | build, nearest, kNearest, rangeSearch, boxSearch |
 | **Shape History** | 1 | History (create, addModified, addGenerated, remove, isRemoved, hasModified, hasGenerated, hasRemoved, modifiedCount, generatedCount) |
-| **Total** | **912** | |
+| **Total** | **954** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -91,6 +92,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **OCAF Persistence**: Save/load OCAF documents in binary (BinOcaf, BinXCAF) and XML (XmlOcaf, XmlXCAF) formats, format driver registration, document metadata (isSaved, storageFormat, format listing), create documents with specific formats, save-in-place
 - **STEP Full Coverage**: STEPControl_StepModelType enum (AsIs, ManifoldSolidBrep, BrepWithVoids, FacetedBrep, ShellBasedSurfaceModel, GeometricCurveSet), export with model type and tolerance, clean duplicate entities, root-by-root STEP import, system length unit control, shape count inspection, STEPCAFControl mode flags (color/name/layer/props/GDT/material for reader, color/name/layer/dimTol/material for writer), mode-controlled XDE round-trip
 - **IGES/OBJ/PLY Full Coverage**: IGES root inspection and per-root import, visible-only IGES import, IGES export with unit control (MM/IN/M) and BRep mode, multi-shape IGES export, OBJ document-based import/export (preserves materials, names), OBJ import with single precision and coordinate system conversion (Blender Z-up, glTF Y-up), PLY export with normals/colors/texCoords options, document-level PLY export, MeshCoordinateSystem enum
+- **XDE/XCAF Full Coverage**: ShapeTool expansion (GetShapes, GetFreeShapes, IsTopLevel, IsComponent, IsCompound, IsSubShape, FindShape, Search, GetSubShapes, AddShape, NewShape, RemoveShape, AddComponent, RemoveComponent, GetComponents, GetReferredShape, GetUsers, UpdateAssemblies, ExpandShape), ColorTool by shape (SetColor, GetColor, IsSet, SetVisibility, IsVisible), Area/Volume/Centroid attributes (Set, Get), LayerTool expansion (SetLayer, IsSet, GetLayers, FindLayer, SetVisibility, IsVisible), XCAFDoc_Editor (Expand, RescaleGeometry)
 - **Annotations & Measurements**: Length/radius/angle/diameter dimensions with geometry extraction for Metal rendering, 3D text labels, colored point clouds
 - **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)

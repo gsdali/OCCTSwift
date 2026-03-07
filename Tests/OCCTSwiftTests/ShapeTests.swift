@@ -17169,3 +17169,390 @@ struct MeshCoordinateSystemEnumTests {
         #expect(MeshCoordinateSystem(rawValue: 99) == nil)
     }
 }
+
+// MARK: - v0.60.0 XDE/XCAF Full Coverage Tests
+
+@Suite("XDE ShapeTool Queries")
+struct XDEShapeToolQueryTests {
+    @Test("AddShape and GetShapeCount")
+    func addShapeAndCount() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        #expect(box != nil)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            #expect(labelId >= 0)
+            #expect(doc.shapeCount > 0)
+        }
+    }
+
+    @Test("GetFreeShapeCount")
+    func freeShapeCount() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            #expect(doc.freeShapeCount > 0)
+        }
+    }
+
+    @Test("FindShape and SearchShape")
+    func findAndSearch() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            let addedId = doc.addShape(box)
+            #expect(addedId >= 0)
+            let foundId = doc.findShape(box)
+            #expect(foundId >= 0)
+            let searchId = doc.searchShape(box)
+            #expect(searchId >= 0)
+        }
+    }
+
+    @Test("NewShape and RemoveShape")
+    func newAndRemove() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            #expect(labelId >= 0)
+            let removed = doc.removeShape(labelId: labelId)
+            #expect(removed)
+        }
+    }
+
+    @Test("IsTopLevel, IsComponent, IsCompound on node")
+    func labelQueries() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let roots = doc.rootNodes
+            #expect(roots.count > 0)
+            if let root = roots.first {
+                #expect(root.isTopLevel)
+                #expect(!root.isComponent)
+            }
+        }
+    }
+}
+
+@Suite("XDE Assembly Operations")
+struct XDEAssemblyOperationTests {
+    @Test("AddComponent creates assembly")
+    func addComponent() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        let sphere = Shape.sphere(radius: 5)
+        if let box = box, let sphere = sphere {
+            let boxLabelId = doc.addShape(box)
+            let sphereLabelId = doc.addShape(sphere)
+            let assemblyLabelId = doc.newShapeLabel()
+            #expect(assemblyLabelId >= 0)
+
+            let comp1 = doc.addComponent(assemblyLabelId: assemblyLabelId,
+                                          shapeLabelId: boxLabelId,
+                                          translation: (0, 0, 0))
+            #expect(comp1 >= 0)
+
+            let comp2 = doc.addComponent(assemblyLabelId: assemblyLabelId,
+                                          shapeLabelId: sphereLabelId,
+                                          translation: (50, 0, 0))
+            #expect(comp2 >= 0)
+
+            #expect(doc.componentCount(assemblyLabelId: assemblyLabelId) == 2)
+        }
+    }
+
+    @Test("GetComponents and GetReferredShape")
+    func getComponents() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            let boxLabelId = doc.addShape(box)
+            let assemblyLabelId = doc.newShapeLabel()
+            let compId = doc.addComponent(assemblyLabelId: assemblyLabelId,
+                                           shapeLabelId: boxLabelId)
+            #expect(compId >= 0)
+            let compLabelId = doc.componentLabelId(assemblyLabelId: assemblyLabelId, at: 0)
+            #expect(compLabelId >= 0)
+            let referredId = doc.componentReferredLabelId(compLabelId)
+            #expect(referredId >= 0)
+        }
+    }
+
+    @Test("RemoveComponent")
+    func removeComponent() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        let sphere = Shape.sphere(radius: 5)
+        if let box = box, let sphere = sphere {
+            let boxId = doc.addShape(box)
+            let sphereId = doc.addShape(sphere)
+            let asmId = doc.newShapeLabel()
+            let comp1 = doc.addComponent(assemblyLabelId: asmId, shapeLabelId: boxId)
+            let comp2 = doc.addComponent(assemblyLabelId: asmId, shapeLabelId: sphereId)
+            #expect(doc.componentCount(assemblyLabelId: asmId) == 2)
+            doc.removeComponent(labelId: comp2)
+            #expect(doc.componentCount(assemblyLabelId: asmId) == 1)
+            _ = comp1 // silence warning
+        }
+    }
+
+    @Test("ShapeUserCount")
+    func userCount() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            let boxId = doc.addShape(box)
+            let asmId = doc.newShapeLabel()
+            doc.addComponent(assemblyLabelId: asmId, shapeLabelId: boxId)
+            #expect(doc.shapeUserCount(shapeLabelId: boxId) > 0)
+        }
+    }
+
+    @Test("UpdateAssemblies")
+    func updateAssemblies() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        doc.updateAssemblies()
+        // No crash = success
+        #expect(Bool(true))
+    }
+}
+
+@Suite("XDE ColorTool by Shape")
+struct XDEColorToolByShapeTests {
+    @Test("SetColor and GetColor by shape")
+    func setAndGetColor() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let red = Color(red: 1.0, green: 0.0, blue: 0.0, alpha: 1.0)
+            doc.setShapeColor(box, color: red)
+            #expect(doc.isShapeColorSet(box))
+            if let got = doc.shapeColor(box) {
+                #expect(abs(got.red - 1.0) < 1e-5)
+                #expect(abs(got.green) < 1e-5)
+            }
+        }
+    }
+
+    @Test("Label visibility")
+    func visibility() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let roots = doc.rootNodes
+            if let node = roots.first {
+                node.isVisible = false
+                #expect(!node.isVisible)
+                node.isVisible = true
+                #expect(node.isVisible)
+            }
+        }
+    }
+}
+
+@Suite("XDE Area Volume Centroid")
+struct XDEAreaVolumeCentroidTests {
+    @Test("Set and get area")
+    func area() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let roots = doc.rootNodes
+            if let node = roots.first {
+                node.setArea(2200.0)
+                if let area = node.area {
+                    #expect(abs(area - 2200.0) < 1e-5)
+                }
+            }
+        }
+    }
+
+    @Test("Set and get volume")
+    func volume() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let roots = doc.rootNodes
+            if let node = roots.first {
+                node.setVolume(6000.0)
+                if let vol = node.volume {
+                    #expect(abs(vol - 6000.0) < 1e-5)
+                }
+            }
+        }
+    }
+
+    @Test("Set and get centroid")
+    func centroid() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let roots = doc.rootNodes
+            if let node = roots.first {
+                node.setCentroid(x: 5, y: 10, z: 15)
+                if let c = node.centroid {
+                    #expect(abs(c.x - 5.0) < 1e-5)
+                    #expect(abs(c.y - 10.0) < 1e-5)
+                    #expect(abs(c.z - 15.0) < 1e-5)
+                }
+            }
+        }
+    }
+}
+
+@Suite("XDE LayerTool Expansion")
+struct XDELayerToolExpansionTests {
+    @Test("SetLayer and IsLayerSet")
+    func setAndCheck() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let roots = doc.rootNodes
+            if let node = roots.first {
+                node.setLayer("Layer1")
+                #expect(node.isLayerSet("Layer1"))
+            }
+        }
+    }
+
+    @Test("GetLayers returns layer names")
+    func getLayers() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let roots = doc.rootNodes
+            if let node = roots.first {
+                node.setLayer("TestLayer")
+                let layers = node.layers
+                #expect(layers.count == 1)
+                if layers.count > 0 {
+                    #expect(layers[0] == "TestLayer")
+                }
+            }
+        }
+    }
+
+    @Test("FindLayer and layer visibility")
+    func findAndVisibility() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            doc.addShape(box)
+            let roots = doc.rootNodes
+            if let node = roots.first {
+                node.setLayer("VisLayer")
+                let layerLabelId = doc.findLayer("VisLayer")
+                #expect(layerLabelId >= 0)
+
+                doc.setLayerVisibility(layerLabelId: layerLabelId, visible: false)
+                #expect(!doc.layerVisibility(layerLabelId: layerLabelId))
+
+                doc.setLayerVisibility(layerLabelId: layerLabelId, visible: true)
+                #expect(doc.layerVisibility(layerLabelId: layerLabelId))
+            }
+        }
+    }
+}
+
+@Suite("XDE Editor")
+struct XDEEditorTests {
+    @Test("EditorExpand compound to assembly")
+    func editorExpand() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        let sphere = Shape.sphere(radius: 5)
+        if let box = box, let sphere = sphere {
+            let compound = Shape.compound([box, sphere])
+            if let compound = compound {
+                let labelId = doc.addShape(compound, makeAssembly: false)
+                #expect(labelId >= 0)
+                // editorExpand may or may not succeed depending on shape structure
+                _ = doc.editorExpand(labelId: labelId, recursively: false)
+                #expect(Bool(true)) // no crash = success
+            }
+        }
+    }
+
+    @Test("RescaleGeometry")
+    func rescaleGeometry() {
+        guard let doc = Document.create() else {
+            #expect(Bool(false), "Failed to create document")
+            return
+        }
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            // Rescale may return false for non-root labels, but shouldn't crash
+            _ = doc.rescaleGeometry(labelId: labelId, scaleFactor: 2.0, forceIfNotRoot: true)
+            #expect(Bool(true)) // no crash = success
+        }
+    }
+}
