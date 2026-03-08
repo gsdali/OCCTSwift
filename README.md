@@ -60,7 +60,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Shape History** | 1 | History (create, addModified, addGenerated, remove, isRemoved, hasModified, hasGenerated, hasRemoved, modifiedCount, generatedCount) |
 | **Contour Analysis** | 3 | contourSphereDir, contourCylinderDir, contourSphereEye |
 | **IntCurvesFace** | 1 | intersectLine (line-face intersection) |
-| **BOPAlgo Utilities** | 8 | split (splitter), CellsBuilder (create, addAll, removeAll, removeInternalBoundaries, result), analyzeBoolean |
+| **BOPAlgo Utilities** | 11 | split (splitter), CellsBuilder (create, addAll, removeAll, removeInternalBoundaries, result), analyzeBoolean, removeFeatures, section(instance), section(static) |
 | **PCurve / BRepAdaptor** | 3 | pcurveParams, pcurveValue, approxCurveOnSurface |
 | **Mesh Deflection** | 2 | computeAbsoluteDeflection, deflectionIsConsistent |
 | **Shape from Mesh** | 1 | fromMesh (BRepBuilderAPI_MakeShapeOnMesh) |
@@ -86,7 +86,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepOffset** | 1 | offsetFace |
 | **Adaptor3d IsoCurve** | 4 | uIsoCurvePoints, vIsoCurvePoints, uIsoCurveEdge, vIsoCurveEdge |
 | **ShapeAnalysis Transfer** | 2 | transferParameterToFace, transferParameterFromFace |
-| **Total** | **1021** | |
+| **ShapeBuild Edge** | 9 | copyEdge, copyEdgeReplacingVertices, setEdgeRange3d, buildEdgeCurve3d, removeEdgeCurve3d, copyEdgeRanges, copyEdgePCurves, removeEdgePCurve, reassignEdgePCurve |
+| **ShapeBuild Vertex** | 2 | combineVertex, combineVertices(static) |
+| **ShapeExtend Explorer** | 2 | sortedCompound, predominantShapeType |
+| **ShapeUpgrade Divide** | 4 | divideFace, divideWire, analyzeEdgeDivide, canDivideClosedEdge |
+| **ShapeUpgrade Fix** | 2 | fixSmallCurves, fixSmallBezierCurves |
+| **ShapeUpgrade Convert** | 2 | convertCurves3dToBezier, convertSurfacesToBezier |
+| **Total** | **1045** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -122,7 +128,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **IGES/OBJ/PLY Full Coverage**: IGES root inspection and per-root import, visible-only IGES import, IGES export with unit control (MM/IN/M) and BRep mode, multi-shape IGES export, OBJ document-based import/export (preserves materials, names), OBJ import with single precision and coordinate system conversion (Blender Z-up, glTF Y-up), PLY export with normals/colors/texCoords options, document-level PLY export, MeshCoordinateSystem enum
 - **XDE/XCAF Full Coverage**: ShapeTool expansion (GetShapes, GetFreeShapes, IsTopLevel, IsComponent, IsCompound, IsSubShape, FindShape, Search, GetSubShapes, AddShape, NewShape, RemoveShape, AddComponent, RemoveComponent, GetComponents, GetReferredShape, GetUsers, UpdateAssemblies, ExpandShape), ColorTool by shape (SetColor, GetColor, IsSet, SetVisibility, IsVisible), Area/Volume/Centroid attributes (Set, Get), LayerTool expansion (SetLayer, IsSet, GetLayers, FindLayer, SetVisibility, IsVisible), XCAFDoc_Editor (Expand, RescaleGeometry)
 - **Contour Analysis**: Analytical contour computation on quadrics (sphere, cylinder) with orthographic and perspective projection via Contap_ContAna
-- **BOPAlgo Utilities**: Shape splitting (BOPAlgo_Splitter), cell-based Boolean operations (CellsBuilder — partition, select by material, merge internal boundaries), argument validation (ArgumentAnalyzer)
+- **BOPAlgo Utilities**: Shape splitting (BOPAlgo_Splitter), cell-based Boolean operations (CellsBuilder — partition, select by material, merge internal boundaries), argument validation (ArgumentAnalyzer), feature removal (RemoveFeatures), boolean section (Section)
 - **PCurve Analysis**: 2D parametric curve access on face surfaces (BRepAdaptor_Curve2d), curve-on-surface approximation (Approx_CurveOnSurface)
 - **Mesh Utilities**: Absolute deflection computation (BRepMesh_Deflection), deflection consistency check, shape-from-triangulation (BRepBuilderAPI_MakeShapeOnMesh), line-face intersection (IntCurvesFace_Intersector)
 - **Annotations & Measurements**: Length/radius/angle/diameter dimensions with geometry extraction for Metal rendering, 3D text labels, colored point clouds
@@ -297,6 +303,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Face Offset**: BRepOffset_Offset — offset individual face geometry by a distance
 - **Iso-Curve Extraction**: Adaptor3d_IsoCurve — extract U-iso and V-iso curves from parametric surfaces as point arrays or edge shapes
 - **Parameter Transfer**: ShapeAnalysis_TransferParametersProj — project-based parameter transfer between edge and face coordinate systems
+- **Feature Removal**: BOPAlgo_RemoveFeatures — remove faces (fillets, holes, bosses) from solids with automatic healing
+- **Boolean Section**: BOPAlgo_Section — compute intersection curves/vertices between shapes
+- **Edge Building**: ShapeBuild_Edge — copy, replace vertices, set ranges, build/remove 3D curves, copy/remove/reassign PCurves
+- **Vertex Combining**: ShapeBuild_Vertex — merge close vertices with tolerance control
+- **Shape Exploration**: ShapeExtend_Explorer — filter compounds by shape type, determine predominant topology
+- **Face/Wire/Edge Division**: ShapeUpgrade_FaceDivide, WireDivide, EdgeDivide, ClosedEdgeDivide — analyze and split topology
+- **Small Curve Fixing**: ShapeUpgrade_FixSmallCurves / FixSmallBezierCurves — detect and fix degenerate curves
+- **Bezier Conversion**: ShapeUpgrade_ShapeConvertToBezier — convert 3D curves and surfaces to Bezier representation
 - **BRepLib Topology Construction**: Direct edge/face/shell creation from geometric primitives (line, circle, plane, cylinder) via BRepLib_MakeEdge/MakeFace/MakeShell
 - **Point Cloud Extraction**: Sample point clouds from triangulated shapes by triangle traversal or target density, with surface normals
 - **2D Edge Construction**: BRepBuilderAPI_MakeEdge2d — create 2D topological edges from points, circles, and lines

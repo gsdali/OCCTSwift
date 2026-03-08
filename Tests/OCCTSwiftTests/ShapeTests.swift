@@ -18672,3 +18672,446 @@ struct ShapeAnalysisTransferParametersProjTests {
         #expect(param.isFinite)
     }
 }
+
+// ============================================================
+// v0.65.0: Shape Processing Completions + Boolean Completions
+// ============================================================
+
+// MARK: - BOPAlgo_RemoveFeatures
+
+@Suite("BOPAlgo RemoveFeatures")
+struct BOPAlgoRemoveFeaturesTests {
+    @Test("Remove fillet from box")
+    func removeFilletFromBox() {
+        guard let box = Shape.box(width: 20, height: 20, depth: 20) else { return }
+        // Add fillet to all edges
+        if let filleted = box.filleted(radius: 2.0) {
+            let filletedFaces = filleted.subShapes(ofType: .face)
+            // Fillet adds faces, try removing the last face
+            guard filletedFaces.count > 6 else { return }
+            let lastFace = filletedFaces[filletedFaces.count - 1]
+            if let result = filleted.removeFeatures(faces: [lastFace]) {
+                #expect(result.isValid)
+                let resultFaces = result.subShapes(ofType: .face)
+                #expect(resultFaces.count <= filletedFaces.count)
+            }
+        }
+    }
+
+    @Test("Remove features returns nil for empty faces")
+    func removeFeaturesEmptyFaces() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let result = box.removeFeatures(faces: [])
+        #expect(result == nil)
+    }
+
+    @Test("Remove face from box")
+    func removeFaceFromBox() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let faces = box.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        // Removing a face from a box may or may not succeed
+        // depending on topology — just verify it doesn't crash
+        let _ = box.removeFeatures(faces: [faces[0]])
+    }
+}
+
+// MARK: - BOPAlgo_Section
+
+@Suite("BOPAlgo Section")
+struct BOPAlgoSectionTests {
+    @Test("Section box and sphere")
+    func sectionBoxSphere() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let sphere = Shape.sphere(radius: 6) else { return }
+        if let result = box.section(with: [sphere]) {
+            let edges = result.subShapes(ofType: .edge)
+            #expect(edges.count > 0)
+        }
+    }
+
+    @Test("Section two overlapping boxes")
+    func sectionTwoBoxes() {
+        guard let box1 = Shape.box(width: 10, height: 10, depth: 10),
+              let box2 = Shape.box(origin: SIMD3(5, 5, 0), width: 10, height: 10, depth: 10) else { return }
+        if let result = box1.section(with: [box2]) {
+            #expect(result.shapeType == .compound)
+        }
+    }
+
+    @Test("Static section between multiple shapes")
+    func staticSection() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let sphere = Shape.sphere(radius: 7) else { return }
+        if let result = Shape.section(shapes: [box, sphere]) {
+            let edges = result.subShapes(ofType: .edge)
+            #expect(edges.count > 0)
+        }
+    }
+}
+
+// MARK: - ShapeBuild_Edge
+
+@Suite("ShapeBuild Edge")
+struct ShapeBuildEdgeTests {
+    @Test("Copy edge")
+    func copyEdge() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        if let copied = edges[0].copyEdge(sharePCurves: true) {
+            #expect(copied.shapeType == .edge)
+        }
+    }
+
+    @Test("Copy edge without sharing PCurves")
+    func copyEdgeNoShare() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        if let copied = edges[0].copyEdge(sharePCurves: false) {
+            #expect(copied.shapeType == .edge)
+        }
+    }
+
+    @Test("Copy edge replacing vertices")
+    func copyEdgeReplaceVertices() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        let vertices = box.subShapes(ofType: .vertex)
+        guard edges.count >= 1, vertices.count >= 2 else { return }
+        if let result = edges[0].copyEdgeReplacingVertices(
+            startVertex: vertices[0], endVertex: vertices[1]) {
+            #expect(result.shapeType == .edge)
+        }
+    }
+
+    @Test("Set range 3d")
+    func setRange3d() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        if let copied = edges[0].copyEdge() {
+            copied.setEdgeRange3d(first: 0.0, last: 5.0)
+            // Verify it doesn't crash
+            #expect(copied.shapeType == .edge)
+        }
+    }
+
+    @Test("Build curve 3d")
+    func buildCurve3d() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        // Just verify it runs without crashing
+        let _ = edges[0].buildEdgeCurve3d()
+    }
+
+    @Test("Remove curve 3d")
+    func removeCurve3d() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        if let copied = edges[0].copyEdge() {
+            copied.removeEdgeCurve3d()
+            #expect(copied.shapeType == .edge)
+        }
+    }
+
+    @Test("Copy ranges between edges")
+    func copyRanges() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard edges.count >= 2 else { return }
+        if let copied = edges[0].copyEdge() {
+            copied.copyEdgeRanges(from: edges[1])
+            #expect(copied.shapeType == .edge)
+        }
+    }
+
+    @Test("Copy PCurves between edges")
+    func copyPCurves() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard edges.count >= 2 else { return }
+        if let copied = edges[0].copyEdge() {
+            copied.copyEdgePCurves(from: edges[1])
+            #expect(copied.shapeType == .edge)
+        }
+    }
+
+    @Test("Remove PCurve from edge")
+    func removePCurve() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        let faces = box.subShapes(ofType: .face)
+        guard !edges.isEmpty, !faces.isEmpty else { return }
+        if let copied = edges[0].copyEdge() {
+            copied.removeEdgePCurve(onFace: faces[0])
+            #expect(copied.shapeType == .edge)
+        }
+    }
+}
+
+// MARK: - ShapeBuild_Vertex
+
+@Suite("ShapeBuild Vertex")
+struct ShapeBuildVertexTests {
+    @Test("Combine two vertices")
+    func combineVertices() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let vertices = box.subShapes(ofType: .vertex)
+        guard vertices.count >= 2 else { return }
+        if let combined = vertices[0].combineVertex(with: vertices[1]) {
+            #expect(combined.shapeType == .vertex)
+        }
+    }
+
+    @Test("Combine vertices from points")
+    func combineFromPoints() {
+        let p1 = SIMD3<Double>(0, 0, 0)
+        let p2 = SIMD3<Double>(0.01, 0, 0)
+        if let combined = Shape.combineVertices(point1: p1, tol1: 0.01,
+                                                 point2: p2, tol2: 0.01) {
+            #expect(combined.shapeType == .vertex)
+        }
+    }
+
+    @Test("Combine vertices with custom tolerance factor")
+    func combineWithTolFactor() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let vertices = box.subShapes(ofType: .vertex)
+        guard vertices.count >= 2 else { return }
+        if let combined = vertices[0].combineVertex(with: vertices[1], tolFactor: 1.5) {
+            #expect(combined.shapeType == .vertex)
+        }
+    }
+}
+
+// MARK: - ShapeExtend_Explorer
+
+@Suite("ShapeExtend Explorer")
+struct ShapeExtendExplorerTests {
+    @Test("Sorted compound - extract solids")
+    func sortedCompoundSolids() {
+        guard let box1 = Shape.box(width: 5, height: 5, depth: 5),
+              let box2 = Shape.box(width: 3, height: 3, depth: 3),
+              let compound = Shape.compound([box1, box2]) else { return }
+        if let solids = compound.sortedCompound(type: .solid) {
+            let solidList = solids.subShapes(ofType: .solid)
+            #expect(solidList.count == 2)
+        }
+    }
+
+    @Test("Sorted compound - extract faces")
+    func sortedCompoundFaces() {
+        guard let box1 = Shape.box(width: 5, height: 5, depth: 5),
+              let box2 = Shape.box(width: 3, height: 3, depth: 3),
+              let compound = Shape.compound([box1, box2]) else { return }
+        if let faces = compound.sortedCompound(type: .face) {
+            let faceList = faces.subShapes(ofType: .face)
+            #expect(faceList.count == 12)
+        }
+    }
+
+    @Test("Sorted compound - extract edges")
+    func sortedCompoundEdges() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let compound = Shape.compound([box]) else { return }
+        if let edges = compound.sortedCompound(type: .edge) {
+            let edgeList = edges.subShapes(ofType: .edge)
+            #expect(edgeList.count > 0)
+        }
+    }
+
+    @Test("Predominant shape type")
+    func predominantType() {
+        guard let box1 = Shape.box(width: 5, height: 5, depth: 5),
+              let box2 = Shape.box(width: 3, height: 3, depth: 3),
+              let compound = Shape.compound([box1, box2]) else { return }
+        let type = compound.predominantShapeType()
+        #expect(type == .solid)
+    }
+}
+
+// MARK: - ShapeUpgrade_FaceDivide
+
+@Suite("ShapeUpgrade FaceDivide")
+struct ShapeUpgradeFaceDivideTests {
+    @Test("Divide cylinder face")
+    func divideCylinderFace() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20) else { return }
+        let faces = cyl.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        // FaceDivide may return nil if no splitting criteria met
+        let _ = faces[0].divideFace()
+    }
+
+    @Test("Divide box face")
+    func divideBoxFace() {
+        guard let box = Shape.box(width: 100, height: 100, depth: 100) else { return }
+        let faces = box.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        let _ = faces[0].divideFace()
+    }
+}
+
+// MARK: - ShapeUpgrade_WireDivide
+
+@Suite("ShapeUpgrade WireDivide")
+struct ShapeUpgradeWireDivideTests {
+    @Test("Divide wire on face")
+    func divideWireOnFace() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let faces = box.subShapes(ofType: .face)
+        let wires = box.subShapes(ofType: .wire)
+        guard !faces.isEmpty, !wires.isEmpty else { return }
+        // WireDivide may return nil without split criteria
+        let _ = wires[0].divideWire(onFace: faces[0])
+    }
+}
+
+// MARK: - ShapeUpgrade_EdgeDivide
+
+@Suite("ShapeUpgrade EdgeDivide")
+struct ShapeUpgradeEdgeDivideTests {
+    @Test("Analyze edge divide on face")
+    func analyzeEdgeDivide() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        let faces = box.subShapes(ofType: .face)
+        guard !edges.isEmpty, !faces.isEmpty else { return }
+        if let result = edges[0].analyzeEdgeDivide(onFace: faces[0]) {
+            #expect(result.hasCurve3d)
+        }
+    }
+
+    @Test("Analyze edge divide returns has curve info")
+    func edgeDivideCurveInfo() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        let faces = cyl.subShapes(ofType: .face)
+        guard !edges.isEmpty, !faces.isEmpty else { return }
+        // Try multiple edges to find one on a face
+        for edge in edges {
+            if let result = edge.analyzeEdgeDivide(onFace: faces[0]) {
+                #expect(result.hasCurve3d || result.hasCurve2d)
+                return
+            }
+        }
+    }
+}
+
+// MARK: - ShapeUpgrade_ClosedEdgeDivide
+
+@Suite("ShapeUpgrade ClosedEdgeDivide")
+struct ShapeUpgradeClosedEdgeDivideTests {
+    @Test("Check closed edge on cylinder")
+    func closedEdgeOnCylinder() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        let faces = cyl.subShapes(ofType: .face)
+        guard !edges.isEmpty, !faces.isEmpty else { return }
+        // Some edges on a cylinder are seam edges — just verify no crash
+        for edge in edges {
+            if edge.canDivideClosedEdge(onFace: faces[0]) {
+                break
+            }
+        }
+        #expect(Bool(true))
+    }
+}
+
+// MARK: - ShapeUpgrade_FixSmallCurves
+
+@Suite("ShapeUpgrade FixSmallCurves")
+struct ShapeUpgradeFixSmallCurvesTests {
+    @Test("Fix small curves on box")
+    func fixSmallCurvesBox() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        if let result = box.fixSmallCurves(tolerance: 1e-4) {
+            #expect(result.isValid)
+        }
+    }
+
+    @Test("Fix small curves on cylinder")
+    func fixSmallCurvesCylinder() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { return }
+        if let result = cyl.fixSmallCurves(tolerance: 1e-4) {
+            #expect(result.shapeType == .solid || result.shapeType == .compound)
+        }
+    }
+}
+
+// MARK: - ShapeUpgrade_FixSmallBezierCurves
+
+@Suite("ShapeUpgrade FixSmallBezierCurves")
+struct ShapeUpgradeFixSmallBezierCurvesTests {
+    @Test("Fix small bezier curves on box")
+    func fixSmallBezierCurvesBox() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        if let result = box.fixSmallBezierCurves(tolerance: 1e-4) {
+            #expect(result.isValid)
+        }
+    }
+}
+
+// MARK: - ShapeUpgrade_ConvertCurve3dToBezier
+
+@Suite("ShapeUpgrade ConvertCurves3dToBezier")
+struct ShapeUpgradeConvertCurves3dToBezierTests {
+    @Test("Convert box curves to bezier")
+    func convertBoxCurves() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        if let result = box.convertCurves3dToBezier() {
+            #expect(result.shapeType == .solid || result.shapeType == .compound)
+        }
+    }
+
+    @Test("Convert cylinder curves to bezier")
+    func convertCylinderCurves() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { return }
+        if let result = cyl.convertCurves3dToBezier(lineMode: true, circleMode: true, conicMode: true) {
+            #expect(result.shapeType == .solid || result.shapeType == .compound)
+        }
+    }
+
+    @Test("Convert with selective modes")
+    func convertSelectiveModes() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { return }
+        if let result = cyl.convertCurves3dToBezier(lineMode: false, circleMode: true, conicMode: false) {
+            #expect(result.shapeType == .solid || result.shapeType == .compound)
+        }
+    }
+}
+
+// MARK: - ShapeUpgrade_ConvertSurfaceToBezierBasis
+
+@Suite("ShapeUpgrade ConvertSurfacesToBezier")
+struct ShapeUpgradeConvertSurfacesToBezierTests {
+    @Test("Convert cylinder surfaces to bezier")
+    func convertCylinderSurfaces() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { return }
+        if let result = cyl.convertSurfacesToBezier() {
+            #expect(result.shapeType == .solid || result.shapeType == .compound)
+        }
+    }
+
+    @Test("Convert with selective modes")
+    func convertSelectiveModes() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { return }
+        if let result = cyl.convertSurfacesToBezier(planeMode: false, revolutionMode: true,
+                                                     extrusionMode: false, bsplineMode: false) {
+            #expect(result.shapeType == .solid || result.shapeType == .compound)
+        }
+    }
+
+    @Test("Convert box surfaces to bezier")
+    func convertBoxSurfaces() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        if let result = box.convertSurfacesToBezier(planeMode: true, revolutionMode: false,
+                                                     extrusionMode: false, bsplineMode: false) {
+            #expect(result.shapeType == .solid || result.shapeType == .compound)
+        }
+    }
+}

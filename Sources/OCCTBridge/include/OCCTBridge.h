@@ -7265,6 +7265,148 @@ OCCTShapeRef _Nullable OCCTAdaptor3dIsoCurveEdge(OCCTShapeRef faceShape, int iso
 double OCCTShapeAnalysisTransferParam(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
     double param, bool toFace);
 
+// MARK: - v0.65.0: Shape Processing Completions + Boolean Completions
+
+// --- BOPAlgo_RemoveFeatures ---
+/// Remove features (faces) from a solid shape.
+/// @param shape Input solid shape
+/// @param facesToRemove Array of face shapes to remove
+/// @param faceCount Number of faces to remove
+/// @return Result shape with features removed, or NULL on failure
+OCCTShapeRef _Nullable OCCTBOPAlgoRemoveFeatures(OCCTShapeRef shape,
+    const OCCTShapeRef _Nonnull * _Nonnull facesToRemove, int32_t faceCount);
+
+// --- BOPAlgo_Section ---
+/// Compute section (intersection curves/vertices) between shapes.
+/// @param objects Array of object shapes
+/// @param objCount Number of objects
+/// @param tools Array of tool shapes
+/// @param toolCount Number of tools
+/// @return Result compound of edges/vertices, or NULL on failure
+OCCTShapeRef _Nullable OCCTBOPAlgoSection(const OCCTShapeRef _Nonnull * _Nonnull objects, int32_t objCount,
+    const OCCTShapeRef _Nonnull * _Nonnull tools, int32_t toolCount);
+
+// --- ShapeBuild_Edge ---
+/// Copy an edge, optionally sharing PCurves.
+OCCTShapeRef _Nullable OCCTShapeBuildEdgeCopy(OCCTShapeRef edgeShape, bool sharePCurves);
+
+/// Copy an edge replacing its vertices.
+OCCTShapeRef _Nullable OCCTShapeBuildEdgeCopyReplaceVertices(OCCTShapeRef edgeShape,
+    OCCTShapeRef vertex1Shape, OCCTShapeRef vertex2Shape);
+
+/// Set the 3D parameter range on an edge.
+void OCCTShapeBuildEdgeSetRange3d(OCCTShapeRef edgeShape, double first, double last);
+
+/// Rebuild the 3D curve of an edge from its PCurves.
+/// @return true if successful
+bool OCCTShapeBuildEdgeBuildCurve3d(OCCTShapeRef edgeShape);
+
+/// Remove the 3D curve from an edge.
+void OCCTShapeBuildEdgeRemoveCurve3d(OCCTShapeRef edgeShape);
+
+/// Copy parameter ranges from one edge to another.
+void OCCTShapeBuildEdgeCopyRanges(OCCTShapeRef toEdge, OCCTShapeRef fromEdge);
+
+/// Copy PCurves from one edge to another.
+void OCCTShapeBuildEdgeCopyPCurves(OCCTShapeRef toEdge, OCCTShapeRef fromEdge);
+
+/// Remove a PCurve from an edge for a given face.
+void OCCTShapeBuildEdgeRemovePCurve(OCCTShapeRef edgeShape, OCCTShapeRef faceShape);
+
+/// Reassign a PCurve from one face to another.
+/// @return true if successful
+bool OCCTShapeBuildEdgeReassignPCurve(OCCTShapeRef edgeShape, OCCTShapeRef oldFaceShape,
+    OCCTShapeRef newFaceShape);
+
+// --- ShapeBuild_Vertex ---
+/// Combine two vertices into one at the average position.
+/// @param tolFactor Tolerance factor (default 1.0001)
+OCCTShapeRef _Nullable OCCTShapeBuildVertexCombine(OCCTShapeRef v1Shape, OCCTShapeRef v2Shape,
+    double tolFactor);
+
+/// Combine two points into a vertex.
+OCCTShapeRef _Nullable OCCTShapeBuildVertexCombineFromPoints(
+    double x1, double y1, double z1, double tol1,
+    double x2, double y2, double z2, double tol2,
+    double tolFactor);
+
+// --- ShapeExtend_Explorer ---
+/// Filter a compound shape, extracting only sub-shapes of the specified type.
+/// @param shapeType TopAbs_ShapeEnum value (0=COMPOUND..7=SHAPE)
+/// @param explore If true, explore sub-compounds recursively
+/// @return Compound containing only shapes of the specified type, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeExtendSortedCompound(OCCTShapeRef shape, int32_t shapeType,
+    bool explore);
+
+/// Get the predominant shape type in a compound.
+/// @param compound If true, look inside compounds
+/// @return TopAbs_ShapeEnum value
+int32_t OCCTShapeExtendShapeType(OCCTShapeRef shape, bool compound);
+
+// --- ShapeUpgrade_FaceDivide ---
+/// Divide a face using surface segmentation.
+/// Uses ShapeUpgrade_FaceDivide with surface segment mode.
+/// @param faceShape Input face shape
+/// @return Divided shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeFaceDivide(OCCTShapeRef faceShape);
+
+// --- ShapeUpgrade_WireDivide ---
+/// Divide a wire on a face.
+/// @param wireShape Input wire shape
+/// @param faceShape Face the wire lies on
+/// @return Divided wire as shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeWireDivideOnFace(OCCTShapeRef wireShape, OCCTShapeRef faceShape);
+
+// --- ShapeUpgrade_EdgeDivide ---
+/// Analyze an edge for potential division on a face.
+/// @param edgeShape Input edge shape
+/// @param faceShape Face context
+/// @param outHasCurve2d Output: whether edge has 2D curve on face
+/// @param outHasCurve3d Output: whether edge has 3D curve
+/// @return true if computation succeeded
+bool OCCTShapeUpgradeEdgeDivideCompute(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
+    bool* outHasCurve2d, bool* outHasCurve3d);
+
+// --- ShapeUpgrade_ClosedEdgeDivide ---
+/// Analyze a closed (seam) edge for division on a face.
+/// @return true if the edge is closed and can be divided
+bool OCCTShapeUpgradeClosedEdgeDivideCompute(OCCTShapeRef edgeShape, OCCTShapeRef faceShape);
+
+// --- ShapeUpgrade_FixSmallCurves ---
+/// Fix small curves in a shape by removing degenerate edges.
+/// @param shape Input shape
+/// @param tolerance Tolerance for small curve detection
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeFixSmallCurves(OCCTShapeRef shape, double tolerance);
+
+// --- ShapeUpgrade_FixSmallBezierCurves ---
+/// Fix small Bezier curves in a shape.
+/// @param shape Input shape
+/// @param tolerance Tolerance for small curve detection
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeFixSmallBezierCurves(OCCTShapeRef shape, double tolerance);
+
+// --- ShapeUpgrade_ConvertCurve3dToBezier ---
+/// Convert 3D curves in a shape to Bezier representation.
+/// @param shape Input shape
+/// @param lineMode Convert lines to Bezier
+/// @param circleMode Convert circles to Bezier
+/// @param conicMode Convert conics to Bezier
+/// @return Shape with Bezier curves, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeConvertCurves3dToBezier(OCCTShapeRef shape,
+    bool lineMode, bool circleMode, bool conicMode);
+
+// --- ShapeUpgrade_ConvertSurfaceToBezierBasis ---
+/// Convert surfaces in a shape to Bezier patches.
+/// @param shape Input shape
+/// @param planeMode Convert planes
+/// @param revolutionMode Convert surfaces of revolution
+/// @param extrusionMode Convert extrusion surfaces
+/// @param bsplineMode Convert BSpline surfaces
+/// @return Shape with Bezier surfaces, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeConvertSurfaceToBezier(OCCTShapeRef shape,
+    bool planeMode, bool revolutionMode, bool extrusionMode, bool bsplineMode);
+
 #ifdef __cplusplus
 }
 #endif

@@ -7528,4 +7528,306 @@ extension Shape {
     public func transferParameterFromFace(_ param: Double, face: Shape) -> Double {
         OCCTShapeAnalysisTransferParam(handle, face.handle, param, false)
     }
+
+    // MARK: - v0.65.0: Shape Processing Completions + Boolean Completions
+
+    // MARK: - BOPAlgo_RemoveFeatures
+
+    /// Remove features (faces) from a solid shape.
+    ///
+    /// Uses BOPAlgo_RemoveFeatures to remove specified faces (e.g., fillets, holes)
+    /// from a solid, healing the resulting shape.
+    ///
+    /// - Parameter faces: Array of face shapes to remove
+    /// - Returns: Shape with features removed, or nil on failure
+    public func removeFeatures(faces: [Shape]) -> Shape? {
+        let handles = faces.map { $0.handle as OCCTShapeRef }
+        guard let ref = handles.withUnsafeBufferPointer({ buf in
+            OCCTBOPAlgoRemoveFeatures(handle, buf.baseAddress!, Int32(buf.count))
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - BOPAlgo_Section
+
+    /// Compute section (intersection curves/vertices) between this shape and tools.
+    ///
+    /// Uses BOPAlgo_Section to find intersection edges and vertices.
+    ///
+    /// - Parameter tools: Tool shapes to intersect with
+    /// - Returns: Compound of edges/vertices at intersections, or nil on failure
+    public func section(with tools: [Shape]) -> Shape? {
+        let objHandles = [handle as OCCTShapeRef]
+        let toolHandles = tools.map { $0.handle as OCCTShapeRef }
+        guard let ref = objHandles.withUnsafeBufferPointer({ objBuf in
+            toolHandles.withUnsafeBufferPointer({ toolBuf in
+                OCCTBOPAlgoSection(objBuf.baseAddress!, Int32(objBuf.count),
+                                   toolBuf.baseAddress!, Int32(toolBuf.count))
+            })
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Compute section between multiple shapes.
+    ///
+    /// - Parameter shapes: Array of shapes to compute section between
+    /// - Returns: Compound of edges/vertices at intersections, or nil on failure
+    public static func section(shapes: [Shape]) -> Shape? {
+        let handles = shapes.map { $0.handle as OCCTShapeRef }
+        guard handles.count >= 2 else { return nil }
+        return handles.withUnsafeBufferPointer({ buf in
+            // Pass all shapes as objects (BOPAlgo_Section treats all arguments equally)
+            let empty = [OCCTShapeRef]()
+            return empty.withUnsafeBufferPointer({ emptyBuf in
+                guard let ref = OCCTBOPAlgoSection(buf.baseAddress!, Int32(buf.count),
+                                                    emptyBuf.baseAddress!, Int32(0)) else { return nil }
+                return Shape(handle: ref)
+            })
+        })
+    }
+
+    // MARK: - ShapeBuild_Edge
+
+    /// Copy an edge, optionally sharing PCurves.
+    ///
+    /// - Parameter sharePCurves: If true, share PCurves with original (default: true)
+    /// - Returns: Copied edge as shape, or nil on failure
+    public func copyEdge(sharePCurves: Bool = true) -> Shape? {
+        guard let ref = OCCTShapeBuildEdgeCopy(handle, sharePCurves) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Copy an edge replacing its start and/or end vertices.
+    ///
+    /// - Parameters:
+    ///   - startVertex: New start vertex (pass nil to keep original)
+    ///   - endVertex: New end vertex (pass nil to keep original)
+    /// - Returns: Edge with replaced vertices, or nil on failure
+    public func copyEdgeReplacingVertices(startVertex: Shape?, endVertex: Shape?) -> Shape? {
+        guard let ref = OCCTShapeBuildEdgeCopyReplaceVertices(
+            handle, startVertex?.handle, endVertex?.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Set the 3D parameter range on this edge shape.
+    public func setEdgeRange3d(first: Double, last: Double) {
+        OCCTShapeBuildEdgeSetRange3d(handle, first, last)
+    }
+
+    /// Rebuild the 3D curve of an edge from its PCurves.
+    /// - Returns: true if curve was rebuilt successfully
+    @discardableResult
+    public func buildEdgeCurve3d() -> Bool {
+        OCCTShapeBuildEdgeBuildCurve3d(handle)
+    }
+
+    /// Remove the 3D curve from this edge.
+    public func removeEdgeCurve3d() {
+        OCCTShapeBuildEdgeRemoveCurve3d(handle)
+    }
+
+    /// Copy parameter ranges from another edge to this edge.
+    public func copyEdgeRanges(from source: Shape) {
+        OCCTShapeBuildEdgeCopyRanges(handle, source.handle)
+    }
+
+    /// Copy PCurves from another edge to this edge.
+    public func copyEdgePCurves(from source: Shape) {
+        OCCTShapeBuildEdgeCopyPCurves(handle, source.handle)
+    }
+
+    /// Remove the PCurve from this edge for a given face.
+    public func removeEdgePCurve(onFace face: Shape) {
+        OCCTShapeBuildEdgeRemovePCurve(handle, face.handle)
+    }
+
+    /// Reassign a PCurve from one face to another.
+    /// - Returns: true if reassignment succeeded
+    @discardableResult
+    public func reassignEdgePCurve(from oldFace: Shape, to newFace: Shape) -> Bool {
+        OCCTShapeBuildEdgeReassignPCurve(handle, oldFace.handle, newFace.handle)
+    }
+
+    // MARK: - ShapeBuild_Vertex
+
+    /// Combine two vertex shapes into one at their average position.
+    ///
+    /// - Parameters:
+    ///   - other: Other vertex shape to combine with
+    ///   - tolFactor: Tolerance factor (default: 1.0001)
+    /// - Returns: Combined vertex as shape, or nil on failure
+    public func combineVertex(with other: Shape, tolFactor: Double = 1.0001) -> Shape? {
+        guard let ref = OCCTShapeBuildVertexCombine(handle, other.handle, tolFactor) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a vertex by combining two 3D points.
+    ///
+    /// - Parameters:
+    ///   - point1: First point
+    ///   - tol1: Tolerance of first point
+    ///   - point2: Second point
+    ///   - tol2: Tolerance of second point
+    ///   - tolFactor: Tolerance factor (default: 1.0001)
+    /// - Returns: Combined vertex as shape, or nil on failure
+    public static func combineVertices(
+        point1: SIMD3<Double>, tol1: Double,
+        point2: SIMD3<Double>, tol2: Double,
+        tolFactor: Double = 1.0001
+    ) -> Shape? {
+        guard let ref = OCCTShapeBuildVertexCombineFromPoints(
+            point1.x, point1.y, point1.z, tol1,
+            point2.x, point2.y, point2.z, tol2,
+            tolFactor) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeExtend_Explorer
+
+    /// Shape type for filtering compounds
+    public enum ShapeFilterType: Int32, Sendable {
+        case compound = 0
+        case compsolid = 1
+        case solid = 2
+        case shell = 3
+        case face = 4
+        case wire = 5
+        case edge = 6
+        case vertex = 7
+    }
+
+    /// Filter this compound shape, extracting only sub-shapes of the specified type.
+    ///
+    /// - Parameters:
+    ///   - type: Shape type to extract
+    ///   - explore: If true, explore sub-compounds recursively
+    /// - Returns: Compound containing only shapes of the specified type, or nil on failure
+    public func sortedCompound(type: ShapeFilterType, explore: Bool = true) -> Shape? {
+        guard let ref = OCCTShapeExtendSortedCompound(handle, type.rawValue, explore) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get the predominant shape type in this compound.
+    ///
+    /// - Parameter lookInsideCompounds: If true, look inside sub-compounds
+    /// - Returns: The predominant shape type
+    public func predominantShapeType(lookInsideCompounds: Bool = true) -> ShapeFilterType {
+        let raw = OCCTShapeExtendShapeType(handle, lookInsideCompounds)
+        return ShapeFilterType(rawValue: raw) ?? .compound
+    }
+
+    // MARK: - ShapeUpgrade_FaceDivide
+
+    /// Divide a face using surface segmentation.
+    ///
+    /// Uses ShapeUpgrade_FaceDivide to split a face based on surface properties.
+    ///
+    /// - Returns: Divided shape, or nil on failure
+    public func divideFace() -> Shape? {
+        guard let ref = OCCTShapeUpgradeFaceDivide(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeUpgrade_WireDivide
+
+    /// Divide a wire on a face.
+    ///
+    /// Uses ShapeUpgrade_WireDivide to split wire edges.
+    ///
+    /// - Parameter face: Face the wire lies on
+    /// - Returns: Divided wire as shape, or nil on failure
+    public func divideWire(onFace face: Shape) -> Shape? {
+        guard let ref = OCCTShapeUpgradeWireDivideOnFace(handle, face.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeUpgrade_EdgeDivide
+
+    /// Result of edge divide analysis
+    public struct EdgeDivideResult: Sendable {
+        /// Whether the edge has a 2D curve on the face
+        public let hasCurve2d: Bool
+        /// Whether the edge has a 3D curve
+        public let hasCurve3d: Bool
+    }
+
+    /// Analyze an edge for potential division on a face.
+    ///
+    /// - Parameter face: Face context for the edge
+    /// - Returns: Analysis result, or nil on failure
+    public func analyzeEdgeDivide(onFace face: Shape) -> EdgeDivideResult? {
+        var hasCurve2d = false
+        var hasCurve3d = false
+        let ok = OCCTShapeUpgradeEdgeDivideCompute(handle, face.handle, &hasCurve2d, &hasCurve3d)
+        guard ok else { return nil }
+        return EdgeDivideResult(hasCurve2d: hasCurve2d, hasCurve3d: hasCurve3d)
+    }
+
+    // MARK: - ShapeUpgrade_ClosedEdgeDivide
+
+    /// Check if a closed (seam) edge can be divided on a face.
+    ///
+    /// - Parameter face: Face context
+    /// - Returns: true if the edge is closed and can be divided
+    public func canDivideClosedEdge(onFace face: Shape) -> Bool {
+        OCCTShapeUpgradeClosedEdgeDivideCompute(handle, face.handle)
+    }
+
+    // MARK: - ShapeUpgrade_FixSmallCurves
+
+    /// Fix small curves in this shape.
+    ///
+    /// - Parameter tolerance: Tolerance for small curve detection (default: 1e-6)
+    /// - Returns: Fixed shape, or nil on failure
+    public func fixSmallCurves(tolerance: Double = 1e-6) -> Shape? {
+        guard let ref = OCCTShapeUpgradeFixSmallCurves(handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeUpgrade_FixSmallBezierCurves
+
+    /// Fix small Bezier curves in this shape.
+    ///
+    /// - Parameter tolerance: Tolerance for small curve detection (default: 1e-6)
+    /// - Returns: Fixed shape, or nil on failure
+    public func fixSmallBezierCurves(tolerance: Double = 1e-6) -> Shape? {
+        guard let ref = OCCTShapeUpgradeFixSmallBezierCurves(handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeUpgrade_ConvertCurve3dToBezier
+
+    /// Convert 3D curves in this shape to Bezier representation.
+    ///
+    /// - Parameters:
+    ///   - lineMode: Convert lines to Bezier (default: true)
+    ///   - circleMode: Convert circles to Bezier (default: true)
+    ///   - conicMode: Convert conics to Bezier (default: true)
+    /// - Returns: Shape with Bezier curves, or nil on failure
+    public func convertCurves3dToBezier(lineMode: Bool = true, circleMode: Bool = true,
+                                         conicMode: Bool = true) -> Shape? {
+        guard let ref = OCCTShapeUpgradeConvertCurves3dToBezier(handle, lineMode, circleMode, conicMode) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ShapeUpgrade_ConvertSurfaceToBezierBasis
+
+    /// Convert surfaces in this shape to Bezier patches.
+    ///
+    /// - Parameters:
+    ///   - planeMode: Convert planes (default: true)
+    ///   - revolutionMode: Convert surfaces of revolution (default: true)
+    ///   - extrusionMode: Convert extrusion surfaces (default: true)
+    ///   - bsplineMode: Convert BSpline surfaces (default: true)
+    /// - Returns: Shape with Bezier surfaces, or nil on failure
+    public func convertSurfacesToBezier(planeMode: Bool = true, revolutionMode: Bool = true,
+                                         extrusionMode: Bool = true, bsplineMode: Bool = true) -> Shape? {
+        guard let ref = OCCTShapeUpgradeConvertSurfaceToBezier(handle, planeMode, revolutionMode,
+                                                                extrusionMode, bsplineMode) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
 }
