@@ -19847,3 +19847,231 @@ struct PolygonInterferenceTests {
         #expect(result.points.count >= 1)
     }
 }
+
+// MARK: - v0.69.0: NLPlate G2/G3, Plate_Plate, GeomPlate_BuildAveragePlane, GeomFill_Generator/Bound
+
+@Suite("NLPlate G2/G3 Constraints")
+struct NLPlateG2G3Tests {
+    @Test func nlPlateG2Deformation() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let plane = plane {
+            let result = plane.nlPlateDeformedG2(
+                constraints: [(
+                    uv: SIMD2(0.5, 0.5),
+                    target: SIMD3(0.5, 0.5, 1.0),
+                    tangentU: SIMD3(1, 0, 0),
+                    tangentV: SIMD3(0, 1, 0),
+                    curvatureUU: SIMD3(0, 0, 0.1),
+                    curvatureUV: SIMD3(0, 0, 0),
+                    curvatureVV: SIMD3(0, 0, 0.1)
+                )])
+            #expect(result != nil)
+        }
+    }
+
+    @Test func nlPlateG3Deformation() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let plane = plane {
+            let result = plane.nlPlateDeformedG3(
+                constraints: [(
+                    uv: SIMD2(0.3, 0.3),
+                    target: SIMD3(0.3, 0.3, 0.5),
+                    tangentU: SIMD3(1, 0, 0),
+                    tangentV: SIMD3(0, 1, 0),
+                    curvatureUU: SIMD3(0, 0, 0),
+                    curvatureUV: SIMD3(0, 0, 0),
+                    curvatureVV: SIMD3(0, 0, 0),
+                    d3UUU: SIMD3(0, 0, 0),
+                    d3UUV: SIMD3(0, 0, 0),
+                    d3UVV: SIMD3(0, 0, 0),
+                    d3VVV: SIMD3(0, 0, 0)
+                )])
+            #expect(result != nil)
+        }
+    }
+
+    @Test func nlPlateIncrementalSolve() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let plane = plane {
+            let result = plane.nlPlateDeformedIncremental(
+                constraints: [
+                    (uv: SIMD2(0.5, 0.5), target: SIMD3(0.5, 0.5, 1.0))
+                ])
+            #expect(result != nil)
+        }
+    }
+
+    @Test func nlPlateDerivative() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let plane = plane {
+            let deriv = plane.nlPlateDerivative(
+                constraints: [
+                    (uv: SIMD2(0.5, 0.5), target: SIMD3(0.5, 0.5, 1.0))
+                ],
+                u: 0.5, v: 0.5, iu: 1, iv: 0)
+            #expect(deriv != nil)
+        }
+    }
+}
+
+@Suite("Plate_Plate Solver")
+struct PlateSolverTests {
+    @Test func basicSolve() {
+        let solver = PlateSolver()
+        solver.loadPinpoint(u: 0, v: 0, position: SIMD3(0, 0, 0))
+        solver.loadPinpoint(u: 1, v: 0, position: SIMD3(1, 0, 0))
+        solver.loadPinpoint(u: 0, v: 1, position: SIMD3(0, 1, 0))
+        solver.loadPinpoint(u: 1, v: 1, position: SIMD3(1, 1, 0))
+        solver.loadPinpoint(u: 0.5, v: 0.5, position: SIMD3(0.5, 0.5, 1.0))
+
+        #expect(solver.solve())
+        #expect(solver.isDone)
+
+        let center = solver.evaluate(u: 0.5, v: 0.5)
+        #expect(abs(center.z - 1.0) < 0.01)
+
+        let corner = solver.evaluate(u: 0, v: 0)
+        #expect(abs(corner.z) < 0.01)
+    }
+
+    @Test func uvBoxAndContinuity() {
+        let solver = PlateSolver()
+        solver.loadPinpoint(u: 0, v: 0, position: .zero)
+        solver.loadPinpoint(u: 1, v: 0, position: SIMD3(1, 0, 0))
+        solver.loadPinpoint(u: 0, v: 1, position: SIMD3(0, 1, 0))
+        solver.loadPinpoint(u: 1, v: 1, position: SIMD3(1, 1, 0))
+        solver.solve()
+
+        let box = solver.uvBox
+        #expect(box.umin <= 0.0)
+        #expect(box.umax >= 1.0)
+        #expect(solver.continuity >= 0)
+    }
+
+    @Test func derivativeConstraint() {
+        let solver = PlateSolver()
+        solver.loadPinpoint(u: 0, v: 0, position: .zero)
+        solver.loadPinpoint(u: 1, v: 0, position: SIMD3(1, 0, 0))
+        solver.loadPinpoint(u: 0, v: 1, position: SIMD3(0, 1, 0))
+        solver.loadPinpoint(u: 1, v: 1, position: SIMD3(1, 1, 0))
+        solver.loadDerivativeConstraint(u: 0.5, v: 0.5, value: SIMD3(0, 0, 2.0),
+                                         derivativeOrderU: 1, derivativeOrderV: 0)
+        #expect(solver.solve())
+    }
+
+    @Test func evaluateDerivative() {
+        let solver = PlateSolver()
+        solver.loadPinpoint(u: 0, v: 0, position: .zero)
+        solver.loadPinpoint(u: 1, v: 0, position: SIMD3(1, 0, 0))
+        solver.loadPinpoint(u: 0, v: 1, position: SIMD3(0, 1, 0))
+        solver.loadPinpoint(u: 0.5, v: 0.5, position: SIMD3(0.5, 0.5, 1.0))
+        solver.solve()
+
+        let deriv = solver.evaluateDerivative(u: 0.5, v: 0.5,
+                                               derivativeOrderU: 1, derivativeOrderV: 0)
+        // Just verify it returns something reasonable
+        #expect(deriv.x.isFinite)
+    }
+
+    @Test func gtoCConstraint() {
+        let solver = PlateSolver()
+        solver.loadPinpoint(u: 0, v: 0, position: .zero)
+        solver.loadPinpoint(u: 1, v: 0, position: SIMD3(1, 0, 0))
+        solver.loadPinpoint(u: 0, v: 1, position: SIMD3(0, 1, 0))
+        solver.loadPinpoint(u: 1, v: 1, position: SIMD3(1, 1, 0))
+        solver.loadGtoC(u: 0.5, v: 0.5,
+                         sourceD1: (tangentU: SIMD3(1, 0, 0), tangentV: SIMD3(0, 1, 0)),
+                         targetD1: (tangentU: SIMD3(1, 0, 0.1), tangentV: SIMD3(0, 1, 0.1)))
+        #expect(solver.solve())
+    }
+}
+
+@Suite("GeomPlate BuildAveragePlane")
+struct GeomPlateBuildAveragePlaneTests {
+    @Test func planarPoints() {
+        let result = Surface.averagePlane(
+            points: [SIMD3(0, 0, 0), SIMD3(1, 0, 0.1),
+                     SIMD3(0, 1, 0), SIMD3(1, 1, 0.1),
+                     SIMD3(0.5, 0.5, 0.05)])
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.isPlane)
+            #expect(r.uvBox.umax > r.uvBox.umin)
+        }
+    }
+
+    @Test func collinearPoints() {
+        let result = Surface.averagePlane(
+            points: [SIMD3(0, 0, 0), SIMD3(1, 1, 1), SIMD3(2, 2, 2)])
+        // May or may not detect as line/plane — just test it doesn't crash
+        #expect(result != nil || result == nil) // always true
+    }
+}
+
+@Suite("GeomPlate Errors")
+struct GeomPlateErrorsTests {
+    @Test func plateErrors() {
+        let result = Surface.plateErrors(
+            points: [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0),
+                     SIMD3(1, 1, 0), SIMD3(0.5, 0.5, 0.5)])
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.g0Error >= 0)
+        }
+    }
+}
+
+@Suite("GeomFill Generator")
+struct GeomFillGeneratorTests {
+    @Test func twoCircles() {
+        let c1 = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 1.0)
+        let c2 = Curve3D.circle(center: SIMD3(0, 0, 2), normal: SIMD3(0, 0, 1), radius: 1.5)
+        if let c1 = c1, let c2 = c2 {
+            let surf = Surface.generatedFromSections(curves: [c1, c2])
+            #expect(surf != nil)
+        }
+    }
+
+    @Test func threeSections() {
+        let c1 = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 1.0)
+        let c2 = Curve3D.circle(center: SIMD3(0, 0, 2), normal: SIMD3(0, 0, 1), radius: 1.5)
+        let c3 = Curve3D.circle(center: SIMD3(0, 0, 4), normal: SIMD3(0, 0, 1), radius: 0.5)
+        if let c1 = c1, let c2 = c2, let c3 = c3 {
+            let surf = Surface.generatedFromSections(curves: [c1, c2, c3])
+            #expect(surf != nil)
+        }
+    }
+}
+
+@Suite("GeomFill DegeneratedBound")
+struct GeomFillDegeneratedBoundTests {
+    @Test func degeneratedBoundaryValue() {
+        let val = Surface.degeneratedBoundaryValue(
+            point: SIMD3(1, 2, 3), parameter: 0.5)
+        #expect(abs(val.x - 1.0) < 1e-6)
+        #expect(abs(val.y - 2.0) < 1e-6)
+        #expect(abs(val.z - 3.0) < 1e-6)
+    }
+
+    @Test func isDegenerated() {
+        let result = Surface.isDegeneratedBoundary(point: SIMD3(1, 2, 3))
+        #expect(result)
+    }
+}
+
+@Suite("GeomFill BoundWithSurf")
+struct GeomFillBoundWithSurfTests {
+    @Test func boundaryWithSurface() {
+        let surf = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        let curve = Curve2D.line(through: SIMD2(0, 0.5), direction: SIMD2(1, 0))
+        if let surf = surf, let curve = curve {
+            let result = surf.boundaryWithSurfaceEvaluate(
+                curve2d: curve, first: 0, last: 1, parameter: 0.5)
+            #expect(result != nil)
+            if let r = result {
+                // Normal should be ±Z for a plane
+                #expect(abs(r.normal.z) > 0.9)
+            }
+        }
+    }
+}

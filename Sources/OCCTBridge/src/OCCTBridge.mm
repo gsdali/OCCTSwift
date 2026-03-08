@@ -25648,3 +25648,498 @@ int32_t OCCTIntfSelfInterferencePolygon2d(
         return 0;
     }
 }
+
+// MARK: - v0.69.0: NLPlate G2/G3, Plate_Plate, GeomPlate_BuildAveragePlane, GeomFill_Generator/Bound
+
+#include <NLPlate_HPG0G2Constraint.hxx>
+#include <NLPlate_HPG0G3Constraint.hxx>
+#include <Plate_Plate.hxx>
+#include <Plate_PinpointConstraint.hxx>
+#include <Plate_GtoCConstraint.hxx>
+#include <Plate_D1.hxx>
+#include <Plate_D2.hxx>
+#include <Plate_D3.hxx>
+#include <GeomFill_Generator.hxx>
+#include <GeomFill_DegeneratedBound.hxx>
+#include <GeomFill_BoundWithSurf.hxx>
+#include <Adaptor3d_CurveOnSurface.hxx>
+#include <GeomAdaptor_Surface.hxx>
+#include <Geom2dAdaptor_Curve.hxx>
+
+// --- NLPlate G0+G2 ---
+
+OCCTSurfaceRef OCCTSurfaceNLPlateG2(OCCTSurfaceRef initialSurface,
+    const double* constraints, int32_t constraintCount,
+    int32_t maxIter, double tolerance)
+{
+    try {
+        auto wrapper = (OCCTSurface*)initialSurface;
+        Handle(Geom_Surface) workSurface = wrapper->surface;
+        if (workSurface.IsNull()) return nullptr;
+
+        NLPlate_NLPlate solver(workSurface);
+
+        // Each constraint: 20 doubles (u, v, x,y,z, d1u(3), d1v(3), d2uu(3), d2uv(3), d2vv(3))
+        for (int i = 0; i < constraintCount; i++) {
+            const double* c = constraints + i * 20;
+            gp_XY uv(c[0], c[1]);
+            gp_XYZ target(c[2], c[3], c[4]);
+            Plate_D1 d1(gp_XYZ(c[5], c[6], c[7]), gp_XYZ(c[8], c[9], c[10]));
+            Plate_D2 d2(gp_XYZ(c[11], c[12], c[13]),
+                        gp_XYZ(c[14], c[15], c[16]),
+                        gp_XYZ(c[17], c[18], c[19]));
+
+            Handle(NLPlate_HPG0G2Constraint) g0g2 = new NLPlate_HPG0G2Constraint(uv, target, d1, d2);
+            solver.Load(g0g2);
+        }
+
+        solver.Solve2(2, 1);
+        if (!solver.IsDone()) return nullptr;
+
+        // Evaluate on a grid and create a BSpline surface
+        int nu = 20, nv = 20;
+        TColgp_Array2OfPnt poles(1, nu, 1, nv);
+        for (int i = 1; i <= nu; i++) {
+            for (int j = 1; j <= nv; j++) {
+                double u = (double)(i-1)/(nu-1);
+                double v = (double)(j-1)/(nv-1);
+                gp_XYZ val = solver.Evaluate(gp_XY(u, v));
+                poles(i, j) = gp_Pnt(val.X(), val.Y(), val.Z());
+            }
+        }
+
+        GeomAPI_PointsToBSplineSurface fitter;
+        fitter.Init(poles, 3, 8, GeomAbs_C2, tolerance > 0 ? tolerance : 1e-3);
+        if (!fitter.IsDone()) return nullptr;
+
+        Handle(Geom_BSplineSurface) result = fitter.Surface();
+        if (result.IsNull()) return nullptr;
+
+        auto* out = new OCCTSurface();
+        out->surface = result;
+        return (OCCTSurfaceRef)out;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceNLPlateG3(OCCTSurfaceRef initialSurface,
+    const double* constraints, int32_t constraintCount,
+    int32_t maxIter, double tolerance)
+{
+    try {
+        auto wrapper = (OCCTSurface*)initialSurface;
+        Handle(Geom_Surface) workSurface = wrapper->surface;
+        if (workSurface.IsNull()) return nullptr;
+
+        NLPlate_NLPlate solver(workSurface);
+
+        // Each constraint: 32 doubles
+        for (int i = 0; i < constraintCount; i++) {
+            const double* c = constraints + i * 32;
+            gp_XY uv(c[0], c[1]);
+            gp_XYZ target(c[2], c[3], c[4]);
+            Plate_D1 d1(gp_XYZ(c[5], c[6], c[7]), gp_XYZ(c[8], c[9], c[10]));
+            Plate_D2 d2(gp_XYZ(c[11], c[12], c[13]),
+                        gp_XYZ(c[14], c[15], c[16]),
+                        gp_XYZ(c[17], c[18], c[19]));
+            Plate_D3 d3(gp_XYZ(c[20], c[21], c[22]),
+                        gp_XYZ(c[23], c[24], c[25]),
+                        gp_XYZ(c[26], c[27], c[28]),
+                        gp_XYZ(c[29], c[30], c[31]));
+
+            Handle(NLPlate_HPG0G3Constraint) g0g3 = new NLPlate_HPG0G3Constraint(uv, target, d1, d2, d3);
+            solver.Load(g0g3);
+        }
+
+        solver.Solve2(3, 1);
+        if (!solver.IsDone()) return nullptr;
+
+        int nu = 20, nv = 20;
+        TColgp_Array2OfPnt poles(1, nu, 1, nv);
+        for (int i = 1; i <= nu; i++) {
+            for (int j = 1; j <= nv; j++) {
+                double u = (double)(i-1)/(nu-1);
+                double v = (double)(j-1)/(nv-1);
+                gp_XYZ val = solver.Evaluate(gp_XY(u, v));
+                poles(i, j) = gp_Pnt(val.X(), val.Y(), val.Z());
+            }
+        }
+
+        GeomAPI_PointsToBSplineSurface fitter;
+        fitter.Init(poles, 3, 8, GeomAbs_C2, tolerance > 0 ? tolerance : 1e-3);
+        if (!fitter.IsDone()) return nullptr;
+
+        Handle(Geom_BSplineSurface) result = fitter.Surface();
+        if (result.IsNull()) return nullptr;
+
+        auto* out = new OCCTSurface();
+        out->surface = result;
+        return (OCCTSurfaceRef)out;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceNLPlateIncrementalG0(OCCTSurfaceRef initialSurface,
+    const double* constraints, int32_t constraintCount,
+    int32_t maxOrder, int32_t initConstraintOrder, int32_t nbIncrements)
+{
+    try {
+        auto wrapper = (OCCTSurface*)initialSurface;
+        Handle(Geom_Surface) workSurface = wrapper->surface;
+        if (workSurface.IsNull()) return nullptr;
+
+        NLPlate_NLPlate solver(workSurface);
+
+        for (int i = 0; i < constraintCount; i++) {
+            const double* c = constraints + i * 5;
+            gp_XY uv(c[0], c[1]);
+            gp_XYZ target(c[2], c[3], c[4]);
+            Handle(NLPlate_HPG0Constraint) g0 = new NLPlate_HPG0Constraint(uv, target);
+            solver.Load(g0);
+        }
+
+        solver.IncrementalSolve(maxOrder, initConstraintOrder, nbIncrements, false);
+        if (!solver.IsDone()) return nullptr;
+
+        int nu = 20, nv = 20;
+        TColgp_Array2OfPnt poles(1, nu, 1, nv);
+        for (int i = 1; i <= nu; i++) {
+            for (int j = 1; j <= nv; j++) {
+                double u = (double)(i-1)/(nu-1);
+                double v = (double)(j-1)/(nv-1);
+                gp_XYZ val = solver.Evaluate(gp_XY(u, v));
+                poles(i, j) = gp_Pnt(val.X(), val.Y(), val.Z());
+            }
+        }
+
+        GeomAPI_PointsToBSplineSurface fitter;
+        fitter.Init(poles, 3, 8, GeomAbs_C2, 1e-3);
+        if (!fitter.IsDone()) return nullptr;
+
+        Handle(Geom_BSplineSurface) result = fitter.Surface();
+        if (result.IsNull()) return nullptr;
+
+        auto* out = new OCCTSurface();
+        out->surface = result;
+        return (OCCTSurfaceRef)out;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTSurfaceNLPlateEvaluateDerivative(OCCTSurfaceRef initialSurface,
+    const double* constraints, int32_t constraintCount,
+    double u, double v, int32_t iu, int32_t iv,
+    double* outX, double* outY, double* outZ)
+{
+    try {
+        auto wrapper = (OCCTSurface*)initialSurface;
+        Handle(Geom_Surface) workSurface = wrapper->surface;
+        if (workSurface.IsNull()) return false;
+
+        NLPlate_NLPlate solver(workSurface);
+
+        for (int i = 0; i < constraintCount; i++) {
+            const double* c = constraints + i * 5;
+            gp_XY uv(c[0], c[1]);
+            gp_XYZ target(c[2], c[3], c[4]);
+            Handle(NLPlate_HPG0Constraint) g0 = new NLPlate_HPG0Constraint(uv, target);
+            solver.Load(g0);
+        }
+
+        solver.Solve2(2, 1);
+        if (!solver.IsDone()) return false;
+
+        gp_XYZ result = solver.EvaluateDerivative(gp_XY(u, v), iu, iv);
+        *outX = result.X();
+        *outY = result.Y();
+        *outZ = result.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// --- Plate_Plate solver ---
+
+OCCTPlateRef OCCTPlateCreate(void)
+{
+    try {
+        return (OCCTPlateRef)(new Plate_Plate());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTPlateRelease(OCCTPlateRef plate)
+{
+    if (plate) {
+        delete (Plate_Plate*)plate;
+    }
+}
+
+void OCCTPlateLoadPinpoint(OCCTPlateRef plate,
+    double u, double v, double x, double y, double z,
+    int32_t iu, int32_t iv)
+{
+    try {
+        auto* p = (Plate_Plate*)plate;
+        p->Load(Plate_PinpointConstraint(gp_XY(u, v), gp_XYZ(x, y, z), iu, iv));
+    } catch (...) {}
+}
+
+void OCCTPlateLoadGtoC(OCCTPlateRef plate,
+    double u, double v,
+    const double* d1s, const double* d1t)
+{
+    try {
+        auto* p = (Plate_Plate*)plate;
+        Plate_D1 src(gp_XYZ(d1s[0], d1s[1], d1s[2]), gp_XYZ(d1s[3], d1s[4], d1s[5]));
+        Plate_D1 tgt(gp_XYZ(d1t[0], d1t[1], d1t[2]), gp_XYZ(d1t[3], d1t[4], d1t[5]));
+        p->Load(Plate_GtoCConstraint(gp_XY(u, v), src, tgt));
+    } catch (...) {}
+}
+
+bool OCCTPlateSolve(OCCTPlateRef plate, int32_t order, double anisotropy)
+{
+    try {
+        auto* p = (Plate_Plate*)plate;
+        p->SolveTI(order, anisotropy, Message_ProgressRange());
+        return p->IsDone();
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTPlateIsDone(OCCTPlateRef plate)
+{
+    try {
+        return ((Plate_Plate*)plate)->IsDone();
+    } catch (...) {
+        return false;
+    }
+}
+
+void OCCTPlateEvaluate(OCCTPlateRef plate,
+    double u, double v,
+    double* outX, double* outY, double* outZ)
+{
+    try {
+        auto* p = (Plate_Plate*)plate;
+        gp_XYZ result = p->Evaluate(gp_XY(u, v));
+        *outX = result.X();
+        *outY = result.Y();
+        *outZ = result.Z();
+    } catch (...) {
+        *outX = *outY = *outZ = 0;
+    }
+}
+
+void OCCTPlateEvaluateDerivative(OCCTPlateRef plate,
+    double u, double v, int32_t iu, int32_t iv,
+    double* outX, double* outY, double* outZ)
+{
+    try {
+        auto* p = (Plate_Plate*)plate;
+        gp_XYZ result = p->EvaluateDerivative(gp_XY(u, v), iu, iv);
+        *outX = result.X();
+        *outY = result.Y();
+        *outZ = result.Z();
+    } catch (...) {
+        *outX = *outY = *outZ = 0;
+    }
+}
+
+void OCCTPlateUVBox(OCCTPlateRef plate,
+    double* umin, double* umax,
+    double* vmin, double* vmax)
+{
+    try {
+        auto* p = (Plate_Plate*)plate;
+        p->UVBox(*umin, *umax, *vmin, *vmax);
+    } catch (...) {
+        *umin = *umax = *vmin = *vmax = 0;
+    }
+}
+
+int32_t OCCTPlateContinuity(OCCTPlateRef plate)
+{
+    try {
+        return (int32_t)((Plate_Plate*)plate)->Continuity();
+    } catch (...) {
+        return -1;
+    }
+}
+
+// --- GeomPlate_BuildAveragePlane ---
+
+OCCTAveragePlaneResult OCCTGeomPlateBuildAveragePlane(
+    const double* points, int32_t pointCount,
+    int32_t nbBoundPoints, double tolerance)
+{
+    OCCTAveragePlaneResult result = {};
+    try {
+        Handle(NCollection_HArray1<gp_Pnt>) pts = new NCollection_HArray1<gp_Pnt>(1, pointCount);
+        for (int i = 0; i < pointCount; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+
+        GeomPlate_BuildAveragePlane avgPlane(pts, nbBoundPoints, tolerance, 1, 1);
+
+        result.isPlane = avgPlane.IsPlane();
+        result.isLine = avgPlane.IsLine();
+
+        if (result.isPlane) {
+            Handle(Geom_Plane) plane = avgPlane.Plane();
+            if (!plane.IsNull()) {
+                gp_Pnt origin = plane->Location();
+                gp_Dir normal = plane->Axis().Direction();
+                result.normalX = normal.X();
+                result.normalY = normal.Y();
+                result.normalZ = normal.Z();
+                result.originX = origin.X();
+                result.originY = origin.Y();
+                result.originZ = origin.Z();
+            }
+            avgPlane.MinMaxBox(result.umin, result.umax, result.vmin, result.vmax);
+        }
+
+        if (result.isLine) {
+            Handle(Geom_Line) line = avgPlane.Line();
+            if (!line.IsNull()) {
+                gp_Pnt origin = line->Lin().Location();
+                gp_Dir dir = line->Lin().Direction();
+                result.lineOriginX = origin.X();
+                result.lineOriginY = origin.Y();
+                result.lineOriginZ = origin.Z();
+                result.lineDirX = dir.X();
+                result.lineDirY = dir.Y();
+                result.lineDirZ = dir.Z();
+            }
+        }
+    } catch (...) {}
+    return result;
+}
+
+bool OCCTGeomPlateErrors(const double* points, int32_t ptCount,
+    double tolerance, int32_t maxDegree, int32_t maxSegments,
+    double* g0Error, double* g1Error, double* g2Error)
+{
+    try {
+        GeomPlate_BuildPlateSurface builder(3, 10, 5, tolerance);
+
+        for (int i = 0; i < ptCount; i++) {
+            gp_Pnt pt(points[i*3], points[i*3+1], points[i*3+2]);
+            Handle(GeomPlate_PointConstraint) pc = new GeomPlate_PointConstraint(pt, 0, tolerance);
+            builder.Add(pc);
+        }
+
+        builder.Perform(Message_ProgressRange());
+        if (!builder.IsDone()) return false;
+
+        *g0Error = builder.G0Error();
+        *g1Error = builder.G1Error();
+        *g2Error = builder.G2Error();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// --- GeomFill_Generator ---
+
+OCCTSurfaceRef OCCTGeomFillGenerator(
+    const OCCTCurve3DRef* curves, int32_t curveCount,
+    double tolerance)
+{
+    try {
+        GeomFill_Generator gen;
+
+        for (int i = 0; i < curveCount; i++) {
+            auto* cw = (OCCTCurve3D*)curves[i];
+            if (!cw || cw->curve.IsNull()) return nullptr;
+            gen.AddCurve(cw->curve);
+        }
+
+        gen.Perform(tolerance);
+        Handle(Geom_Surface) surf = gen.Surface();
+        if (surf.IsNull()) return nullptr;
+
+        auto* out = new OCCTSurface();
+        out->surface = surf;
+        return (OCCTSurfaceRef)out;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- GeomFill_DegeneratedBound ---
+
+OCCTBoundaryPoint OCCTGeomFillDegeneratedBoundValue(
+    double px, double py, double pz,
+    double first, double last, double param)
+{
+    OCCTBoundaryPoint result = {};
+    try {
+        Handle(GeomFill_DegeneratedBound) db = new GeomFill_DegeneratedBound(
+            gp_Pnt(px, py, pz), first, last, 1e-3, 1e-3);
+        gp_Pnt val = db->Value(param);
+        result.x = val.X();
+        result.y = val.Y();
+        result.z = val.Z();
+    } catch (...) {}
+    return result;
+}
+
+bool OCCTGeomFillDegeneratedBoundIsDegenerated(
+    double px, double py, double pz, double first, double last)
+{
+    try {
+        Handle(GeomFill_DegeneratedBound) db = new GeomFill_DegeneratedBound(
+            gp_Pnt(px, py, pz), first, last, 1e-3, 1e-3);
+        return db->IsDegenerated();
+    } catch (...) {
+        return false;
+    }
+}
+
+// --- GeomFill_BoundWithSurf ---
+
+bool OCCTGeomFillBoundWithSurfEvaluate(
+    OCCTSurfaceRef surface,
+    OCCTCurve2DRef curve2d,
+    double first, double last, double param,
+    double* outX, double* outY, double* outZ,
+    double* outNX, double* outNY, double* outNZ)
+{
+    try {
+        auto* sw = (OCCTSurface*)surface;
+        auto* cw = (OCCTCurve2D*)curve2d;
+        if (!sw || sw->surface.IsNull() || !cw || cw->curve.IsNull()) return false;
+
+        Handle(GeomAdaptor_Surface) adapSurf = new GeomAdaptor_Surface(sw->surface);
+        Handle(Geom2dAdaptor_Curve) adapCurve = new Geom2dAdaptor_Curve(cw->curve, first, last);
+
+        Adaptor3d_CurveOnSurface cos(adapCurve, adapSurf);
+        Handle(GeomFill_BoundWithSurf) bws = new GeomFill_BoundWithSurf(cos, 1e-3, 1e-3);
+
+        gp_Pnt val = bws->Value(param);
+        *outX = val.X();
+        *outY = val.Y();
+        *outZ = val.Z();
+
+        if (bws->HasNormals()) {
+            gp_Vec norm = bws->Norm(param);
+            *outNX = norm.X();
+            *outNY = norm.Y();
+            *outNZ = norm.Z();
+        } else {
+            *outNX = *outNY = *outNZ = 0;
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}

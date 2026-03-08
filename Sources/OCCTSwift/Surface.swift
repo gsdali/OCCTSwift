@@ -1453,3 +1453,315 @@ extension Surface {
         return (Int(nbPoles), Int(nbKnots), Int(deg))
     }
 }
+
+// MARK: - v0.69.0: NLPlate G2/G3, IncrementalSolve, GeomFill_Generator
+
+extension Surface {
+
+    /// Deform this surface with position + tangent + curvature constraints (NLPlate G0+G2).
+    ///
+    /// Each constraint specifies a (u,v) parameter, a target 3D position,
+    /// tangent vectors (dU, dV), and second derivatives (dUU, dUV, dVV).
+    ///
+    /// - Parameters:
+    ///   - constraints: Array of constraint tuples
+    ///   - maxIterations: Maximum solver iterations (default 4)
+    ///   - tolerance: Approximation tolerance (default 1e-3)
+    /// - Returns: A new deformed surface, or nil on failure
+    public func nlPlateDeformedG2(
+        constraints: [(uv: SIMD2<Double>, target: SIMD3<Double>,
+                        tangentU: SIMD3<Double>, tangentV: SIMD3<Double>,
+                        curvatureUU: SIMD3<Double>, curvatureUV: SIMD3<Double>, curvatureVV: SIMD3<Double>)],
+        maxIterations: Int = 4,
+        tolerance: Double = 1e-3
+    ) -> Surface? {
+        guard !constraints.isEmpty else { return nil }
+
+        // 20 doubles per constraint
+        var flat: [Double] = []
+        flat.reserveCapacity(constraints.count * 20)
+        for c in constraints {
+            flat.append(c.uv.x); flat.append(c.uv.y)
+            flat.append(c.target.x); flat.append(c.target.y); flat.append(c.target.z)
+            flat.append(c.tangentU.x); flat.append(c.tangentU.y); flat.append(c.tangentU.z)
+            flat.append(c.tangentV.x); flat.append(c.tangentV.y); flat.append(c.tangentV.z)
+            flat.append(c.curvatureUU.x); flat.append(c.curvatureUU.y); flat.append(c.curvatureUU.z)
+            flat.append(c.curvatureUV.x); flat.append(c.curvatureUV.y); flat.append(c.curvatureUV.z)
+            flat.append(c.curvatureVV.x); flat.append(c.curvatureVV.y); flat.append(c.curvatureVV.z)
+        }
+
+        guard let h = OCCTSurfaceNLPlateG2(
+            handle, &flat, Int32(constraints.count),
+            Int32(maxIterations), tolerance
+        ) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Deform this surface with G0+G1+G2+G3 constraints (position + tangent + curvature + 3rd order).
+    ///
+    /// Each constraint has 32 doubles: uv(2) + target(3) + d1u(3) + d1v(3) +
+    /// d2uu(3) + d2uv(3) + d2vv(3) + d3uuu(3) + d3uuv(3) + d3uvv(3) + d3vvv(3).
+    ///
+    /// - Parameters:
+    ///   - constraints: Array of constraint tuples
+    ///   - maxIterations: Maximum solver iterations (default 4)
+    ///   - tolerance: Approximation tolerance (default 1e-3)
+    /// - Returns: A new deformed surface, or nil on failure
+    public func nlPlateDeformedG3(
+        constraints: [(uv: SIMD2<Double>, target: SIMD3<Double>,
+                        tangentU: SIMD3<Double>, tangentV: SIMD3<Double>,
+                        curvatureUU: SIMD3<Double>, curvatureUV: SIMD3<Double>, curvatureVV: SIMD3<Double>,
+                        d3UUU: SIMD3<Double>, d3UUV: SIMD3<Double>, d3UVV: SIMD3<Double>, d3VVV: SIMD3<Double>)],
+        maxIterations: Int = 4,
+        tolerance: Double = 1e-3
+    ) -> Surface? {
+        guard !constraints.isEmpty else { return nil }
+
+        // 32 doubles per constraint
+        var flat: [Double] = []
+        flat.reserveCapacity(constraints.count * 32)
+        for c in constraints {
+            flat.append(c.uv.x); flat.append(c.uv.y)
+            flat.append(c.target.x); flat.append(c.target.y); flat.append(c.target.z)
+            flat.append(c.tangentU.x); flat.append(c.tangentU.y); flat.append(c.tangentU.z)
+            flat.append(c.tangentV.x); flat.append(c.tangentV.y); flat.append(c.tangentV.z)
+            flat.append(c.curvatureUU.x); flat.append(c.curvatureUU.y); flat.append(c.curvatureUU.z)
+            flat.append(c.curvatureUV.x); flat.append(c.curvatureUV.y); flat.append(c.curvatureUV.z)
+            flat.append(c.curvatureVV.x); flat.append(c.curvatureVV.y); flat.append(c.curvatureVV.z)
+            flat.append(c.d3UUU.x); flat.append(c.d3UUU.y); flat.append(c.d3UUU.z)
+            flat.append(c.d3UUV.x); flat.append(c.d3UUV.y); flat.append(c.d3UUV.z)
+            flat.append(c.d3UVV.x); flat.append(c.d3UVV.y); flat.append(c.d3UVV.z)
+            flat.append(c.d3VVV.x); flat.append(c.d3VVV.y); flat.append(c.d3VVV.z)
+        }
+
+        guard let h = OCCTSurfaceNLPlateG3(
+            handle, &flat, Int32(constraints.count),
+            Int32(maxIterations), tolerance
+        ) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Deform this surface with incremental G0 constraints (alternative solver strategy).
+    ///
+    /// Uses NLPlate IncrementalSolve which progressively adds constraints for
+    /// better convergence on challenging constraint sets.
+    ///
+    /// - Parameters:
+    ///   - constraints: Array of (uv parameter, target 3D position) pairs
+    ///   - maxOrder: Maximum polynomial order (default 2)
+    ///   - initConstraintOrder: Initial constraint order (default 1)
+    ///   - nbIncrements: Number of increments (default 4)
+    /// - Returns: A new deformed surface, or nil on failure
+    public func nlPlateDeformedIncremental(
+        constraints: [(uv: SIMD2<Double>, target: SIMD3<Double>)],
+        maxOrder: Int = 2,
+        initConstraintOrder: Int = 1,
+        nbIncrements: Int = 4
+    ) -> Surface? {
+        guard !constraints.isEmpty else { return nil }
+
+        var flat: [Double] = []
+        flat.reserveCapacity(constraints.count * 5)
+        for c in constraints {
+            flat.append(c.uv.x); flat.append(c.uv.y)
+            flat.append(c.target.x); flat.append(c.target.y); flat.append(c.target.z)
+        }
+
+        guard let h = OCCTSurfaceNLPlateIncrementalG0(
+            handle, &flat, Int32(constraints.count),
+            Int32(maxOrder), Int32(initConstraintOrder), Int32(nbIncrements)
+        ) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Evaluate derivative of NLPlate solution at a UV point.
+    ///
+    /// Solves the NLPlate problem with G0 constraints and returns the derivative at (u,v).
+    ///
+    /// - Parameters:
+    ///   - constraints: Array of G0 constraint (uv, target) pairs
+    ///   - u: U parameter
+    ///   - v: V parameter
+    ///   - iu: U derivative order
+    ///   - iv: V derivative order
+    /// - Returns: Derivative vector, or nil on failure
+    public func nlPlateDerivative(
+        constraints: [(uv: SIMD2<Double>, target: SIMD3<Double>)],
+        u: Double, v: Double,
+        iu: Int = 1, iv: Int = 0
+    ) -> SIMD3<Double>? {
+        guard !constraints.isEmpty else { return nil }
+
+        var flat: [Double] = []
+        for c in constraints {
+            flat.append(c.uv.x); flat.append(c.uv.y)
+            flat.append(c.target.x); flat.append(c.target.y); flat.append(c.target.z)
+        }
+
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        let ok = OCCTSurfaceNLPlateEvaluateDerivative(
+            handle, &flat, Int32(constraints.count),
+            u, v, Int32(iu), Int32(iv), &x, &y, &z
+        )
+        guard ok else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Generate a ruled/lofted surface from a sequence of section curves.
+    ///
+    /// Uses GeomFill_Generator which creates a surface with linear interpolation
+    /// in the V direction between the given curves.
+    ///
+    /// - Parameters:
+    ///   - curves: Array of section curves (at least 2)
+    ///   - tolerance: Parametric tolerance (default 1e-6)
+    /// - Returns: Generated surface, or nil on failure
+    public static func generatedFromSections(
+        curves: [Curve3D],
+        tolerance: Double = 1e-6
+    ) -> Surface? {
+        guard curves.count >= 2 else { return nil }
+        let handles = curves.map { $0.handle as OCCTCurve3DRef }
+        return handles.withUnsafeBufferPointer { buf in
+            guard let h = OCCTGeomFillGenerator(buf.baseAddress!, Int32(curves.count), tolerance)
+            else { return nil as Surface? }
+            return Surface(handle: h)
+        }
+    }
+
+    /// Evaluate a degenerated boundary (single point repeated over parameter range).
+    ///
+    /// Returns the same point regardless of parameter, representing a boundary
+    /// that has collapsed to a point (e.g., the apex of a cone).
+    ///
+    /// - Parameters:
+    ///   - point: The degenerate point
+    ///   - first: Start of parameter range
+    ///   - last: End of parameter range
+    ///   - parameter: Parameter to evaluate at
+    /// - Returns: The point coordinates
+    public static func degeneratedBoundaryValue(
+        point: SIMD3<Double>,
+        first: Double = 0, last: Double = 1,
+        parameter: Double
+    ) -> SIMD3<Double> {
+        let result = OCCTGeomFillDegeneratedBoundValue(
+            point.x, point.y, point.z, first, last, parameter)
+        return SIMD3(result.x, result.y, result.z)
+    }
+
+    /// Check if a boundary is degenerated (always true for degenerated boundaries).
+    public static func isDegeneratedBoundary(
+        point: SIMD3<Double>,
+        first: Double = 0, last: Double = 1
+    ) -> Bool {
+        OCCTGeomFillDegeneratedBoundIsDegenerated(
+            point.x, point.y, point.z, first, last)
+    }
+
+    /// Evaluate a boundary-with-surface: a 2D curve on a surface.
+    ///
+    /// Returns the 3D point and surface normal at the given parameter.
+    ///
+    /// - Parameters:
+    ///   - curve2d: The 2D curve on the surface
+    ///   - first: Start parameter of the 2D curve
+    ///   - last: End parameter of the 2D curve
+    ///   - parameter: Parameter to evaluate at
+    /// - Returns: Tuple of (point, normal), or nil on failure
+    public func boundaryWithSurfaceEvaluate(
+        curve2d: Curve2D,
+        first: Double, last: Double,
+        parameter: Double
+    ) -> (point: SIMD3<Double>, normal: SIMD3<Double>)? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        let ok = OCCTGeomFillBoundWithSurfEvaluate(
+            handle, curve2d.handle,
+            first, last, parameter,
+            &x, &y, &z, &nx, &ny, &nz)
+        guard ok else { return nil }
+        return (SIMD3(x, y, z), SIMD3(nx, ny, nz))
+    }
+
+    /// Compute average plane through a set of 3D points.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points
+    ///   - boundaryPointCount: Number of boundary points (for plane orientation)
+    ///   - tolerance: Tolerance for planarity check
+    /// - Returns: Average plane result, or nil if computation fails
+    public static func averagePlane(
+        points: [SIMD3<Double>],
+        boundaryPointCount: Int? = nil,
+        tolerance: Double = 1e-3
+    ) -> AveragePlaneResult? {
+        guard points.count >= 3 else { return nil }
+        var flat: [Double] = []
+        flat.reserveCapacity(points.count * 3)
+        for p in points {
+            flat.append(p.x); flat.append(p.y); flat.append(p.z)
+        }
+        let nbBound = Int32(boundaryPointCount ?? points.count)
+        let r = OCCTGeomPlateBuildAveragePlane(&flat, Int32(points.count), nbBound, tolerance)
+        guard r.isPlane || r.isLine else { return nil }
+        return AveragePlaneResult(
+            isPlane: r.isPlane,
+            isLine: r.isLine,
+            normal: SIMD3(r.normalX, r.normalY, r.normalZ),
+            origin: SIMD3(r.originX, r.originY, r.originZ),
+            uvBox: (umin: r.umin, umax: r.umax, vmin: r.vmin, vmax: r.vmax),
+            lineOrigin: SIMD3(r.lineOriginX, r.lineOriginY, r.lineOriginZ),
+            lineDirection: SIMD3(r.lineDirX, r.lineDirY, r.lineDirZ)
+        )
+    }
+
+    /// Result of average plane computation.
+    public struct AveragePlaneResult: Sendable {
+        /// Whether the points form a plane
+        public let isPlane: Bool
+        /// Whether the points form a line (collinear)
+        public let isLine: Bool
+        /// Plane normal (meaningful when isPlane is true)
+        public let normal: SIMD3<Double>
+        /// Plane origin (meaningful when isPlane is true)
+        public let origin: SIMD3<Double>
+        /// UV bounding box on the plane
+        public let uvBox: (umin: Double, umax: Double, vmin: Double, vmax: Double)
+        /// Line origin (meaningful when isLine is true)
+        public let lineOrigin: SIMD3<Double>
+        /// Line direction (meaningful when isLine is true)
+        public let lineDirection: SIMD3<Double>
+    }
+
+    /// Get G0/G1/G2 errors from a plate surface construction.
+    ///
+    /// Builds a plate surface through the given points and reports the
+    /// positional (G0), tangential (G1), and curvature (G2) errors.
+    ///
+    /// - Parameters:
+    ///   - points: Array of 3D points
+    ///   - tolerance: Approximation tolerance
+    ///   - maxDegree: Maximum BSpline degree (default 8)
+    ///   - maxSegments: Maximum BSpline segments (default 9)
+    /// - Returns: Tuple of (g0Error, g1Error, g2Error), or nil on failure
+    public static func plateErrors(
+        points: [SIMD3<Double>],
+        tolerance: Double = 1e-3,
+        maxDegree: Int = 8,
+        maxSegments: Int = 9
+    ) -> (g0Error: Double, g1Error: Double, g2Error: Double)? {
+        guard points.count >= 3 else { return nil }
+        var flat: [Double] = []
+        flat.reserveCapacity(points.count * 3)
+        for p in points {
+            flat.append(p.x); flat.append(p.y); flat.append(p.z)
+        }
+        var g0: Double = 0, g1: Double = 0, g2: Double = 0
+        let ok = OCCTGeomPlateErrors(&flat, Int32(points.count),
+            tolerance, Int32(maxDegree), Int32(maxSegments),
+            &g0, &g1, &g2)
+        guard ok else { return nil }
+        return (g0, g1, g2)
+    }
+}

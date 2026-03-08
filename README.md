@@ -15,7 +15,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Curve Analysis** | 6 | length, curveInfo, point(at:), tangent(at:), curvature(at:), curvePoint(at:) |
 | **2D Curves (Curve2D)** | 92 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, offset, reverse, translate, rotate, scale, mirror, curvature, normal, inflection, intersect, project, Gcc solver, hatch, bisector, draw, evaluateGrid, evaluateGridD1, lineThroughPoints, lineParallel, isLinear, convertToLine, simplifyBSpline, approximated, GccAna bisectors (point/line/circle), GccAna line solvers (parallel/perpendicular/oblique), Geom2dGcc circle/line on-constraint solvers, IntAna2d intersections, Extrema2d distances, curvatureExtremaDetailed, inflectionPointsDetailed, Bisector_BisecAna |
 | **3D Curves (Curve3D)** | 74 | line, segment, circle, arc, ellipse, parabola, hyperbola, bspline, bezier, interpolate, fit, trim, reverse, translate, rotate, scale, mirror, length, curvature, tangent, normal, torsion, toBSpline, toBezierSegments, join, approximate, drawAdaptive, drawUniform, drawDeflection, projectedOnPlane, evaluateGrid, evaluateGridD1, planeNormal, minDistance(toCurve), extrema, intersectSurface, distanceToSurface, toAnalytical, quasiUniformParameters, quasiUniformDeflectionPoints, continuityBreaks, arcOfEllipse(angles), arcOfEllipse(points), joined(curves), projectPoint, validateRange, samplePoints, arcOfHyperbola, arcOfParabola, convertToPeriodic, splitAt, ellipseThreePoints, hyperbolaThreePoints |
-| **Surfaces (Surface)** | 73 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, evaluateGrid, intersections, toAnalytical, bezierFill(4-curve), bezierFill(2-curve), singularityCount, isDegenerated, hasSingularities, toBezierPatchGrid, bsplineFill(2-curve), bsplineFill(4-curve), extrema, valueOfUV, nextValueOfUV, conicalSurface(axis), conicalSurface(points), cylindricalSurface(axis), cylindricalSurface(points), planeFromPoints, planeFromPointNormal, trimmedCone, trimmedCylinder, knotSplitting, joinBezierPatches, convertToAnalytical, splitByContinuity |
+| **Surfaces (Surface)** | 83 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, nlPlateDeformedG2, nlPlateDeformedG3, nlPlateDeformedIncremental, nlPlateDerivative, evaluateGrid, intersections, toAnalytical, bezierFill(4-curve), bezierFill(2-curve), singularityCount, isDegenerated, hasSingularities, toBezierPatchGrid, bsplineFill(2-curve), bsplineFill(4-curve), extrema, valueOfUV, nextValueOfUV, conicalSurface(axis), conicalSurface(points), cylindricalSurface(axis), cylindricalSurface(points), planeFromPoints, planeFromPointNormal, trimmedCone, trimmedCylinder, knotSplitting, joinBezierPatches, convertToAnalytical, splitByContinuity, generatedFromSections, degeneratedBoundaryValue, isDegeneratedBoundary, boundaryWithSurfaceEvaluate, averagePlane, plateErrors |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 16 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam, adjacentFaces, dihedralAngle, split |
 | **Feature-Based** | 31 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile, localRevolution, localRevolutionWithOffset, locOpeDraftPrism, localPipe, localLinearForm, localRevolutionForm, splitFace, splitEdge, splitDrafts, commonEdges, edgesInFace |
@@ -24,6 +24,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
 | **Law Functions** | 7 | constant, linear, sCurve, interpolate, bspline, value(at:), bounds |
+| **Plate Solver** | 10 | create, loadPinpoint, loadDerivativeConstraint, loadGtoC, solve, isDone, evaluate, evaluateDerivative, uvBox, continuity |
 | **Import/Export** | 17 | STL, STEP, IGES, BREP, OBJ import; STL, STEP, IGES, BREP, OBJ, PLY export; STEP optimize; mesh |
 | **Shape Editing** | 19 | replacingSubShape, removingSubShape, makePeriodic, repeated, makeVolume, makeConnected, middlePath, copy, removingSubShapes, replacingSubShapes, dividedClosedEdges, faceRestricted, dividedByArea, dividedByParts, dividedClosedFaces, dividedByContinuity, intersectLine, substituted, builtFromFaces |
 | **Polynomial Solver** | 3 | quadratic, cubic, quartic |
@@ -106,7 +107,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Law Extensions** | 2 | composite, knotSplitting |
 | **GccAna Circ2d3Tan** | 6 | circleThrough3Points, circleTangent3Lines, circleTangent3Circles, circleTangent2CirclesPoint, circleTangentCircle2Points, circleTangent2LinesPoint |
 | **Polygon Interference** | 2 | polygonInterference, polygonSelfInterference |
-| **Total** | **1115** | |
+| **Total** | **1135** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -129,7 +130,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Shape Healing**: Analysis, fixing, unification, simplification, angle splitting, small edge removal, wire imprinting
 - **Geometry Construction**: Face from wire, face from surface (UV-trimmed), face with holes, sewing, solid from shell, surface filling, edges to faces
 - **Surface Creation**: N-sided boundary filling, plate surfaces through points or curves, advanced plates with per-point constraint orders, mixed point/curve constraints
-- **NLPlate Surface Deformation**: Non-linear plate solver for G0 (positional) and G0+G1 (positional + tangent) surface deformation
+- **NLPlate Surface Deformation**: Non-linear plate solver for G0 (positional), G0+G1 (tangent), G0+G2 (curvature), and G0+G3 (third-order) surface deformation with incremental solve strategy
+- **Plate Solver**: Direct thin plate spline solver (Plate_Plate) with pinpoint constraints, derivative constraints, G-to-C constraints, UV evaluation, and continuity query
 - **Medial Axis Transform**: Voronoi skeleton of planar faces — arc/node graph traversal, bisector curve drawing, inscribed circle radius, minimum wall thickness
 - **Topological Naming**: TNaming history tracking — record primitive/generated/modify/delete evolutions, forward/backward tracing through naming graph, persistent named selections with resolve
 - **TDF/OCAF Framework**: TDF_Label properties (tag, depth, father, root, children, attributes), TDF_Reference label cross-references, TDF_CopyLabel deep copy, TDocStd transactions (open/commit/abort), full undo/redo with configurable depth, modified label tracking
@@ -350,6 +352,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Law Composite**: Stitch multiple law functions into a composite; BSpline law knot splitting analysis
 - **GccAna Circ2d3Tan**: Find circles tangent to combinations of 3 points, lines, and circles (Apollonius problem)
 - **Polygon Interference**: Compute intersection points between 2D polylines and detect self-intersections
+- **NLPlate G2/G3 Constraints**: Surface deformation with curvature (G2) and third-order (G3) derivative constraints, incremental solve, derivative evaluation
+- **Plate Solver**: Direct Plate_Plate thin plate spline solver — pinpoint position/derivative constraints, G-to-C tangent continuity constraints, UV bounding box query
+- **GeomPlate Average Plane**: Compute best-fit average plane (or line) through a point cloud with min-max bounding box
+- **GeomPlate Errors**: Query G0/G1/G2 error metrics from plate surface fitting
+- **GeomFill Generator**: Generate ruled/lofted BSpline surfaces from multiple section curves
+- **GeomFill Boundaries**: Degenerated boundary (single-point boundary for filling) and boundary-with-surface (2D curve on surface with normals)
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1302,7 +1310,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **817 OCCT operations** across 61 categories with 1179 tests across 338 suites.
+OCCTSwift now wraps **1135 OCCT operations** across 63 categories with 1482 tests across 455 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

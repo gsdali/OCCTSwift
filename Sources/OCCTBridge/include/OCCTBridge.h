@@ -271,6 +271,9 @@
 // GeomFill_Fixed                      → OCCTGeomFillFixedTrihedron (v0.68.0)
 // GeomFill_Frenet                     → OCCTGeomFillFrenetTrihedron (v0.68.0)
 // GeomFill_NSections                  → OCCTGeomFillNSections (v0.68.0)
+// GeomFill_Generator                  → OCCTGeomFillGenerator (v0.69.0)
+// GeomFill_DegeneratedBound           → OCCTGeomFillDegeneratedBound (v0.69.0)
+// GeomFill_BoundWithSurf              → OCCTGeomFillBoundWithSurf (v0.69.0)
 // GeomFill_Pipe                       → OCCTSurfacePipe*
 // GeomFill_SimpleBound                → OCCTShapeConstrainedFill
 // GeomFill_Sweep                      → OCCTGeomFillSweep
@@ -284,6 +287,7 @@
 //
 // --- GeomPlate ---
 // GeomPlate_BuildPlateSurface         → OCCTShapePlate*, OCCTGeomPlateSurface
+// GeomPlate_BuildAveragePlane         → OCCTGeomPlateBuildAveragePlane (v0.69.0)
 // GeomPlate_MakeApprox                → OCCTShapePlate*, OCCTGeomPlateSurface
 //
 // --- IntAna2d ---
@@ -324,7 +328,14 @@
 // LProp_AnalyticCurInf                → OCCTLPropAnalyticCurInf
 //
 // --- NLPlate ---
-// NLPlate_NLPlate                     → OCCTSurfaceNLPlateG0, OCCTSurfaceNLPlateG1
+// NLPlate_NLPlate                     → OCCTSurfaceNLPlateG0, OCCTSurfaceNLPlateG1, OCCTNLPlate*
+// NLPlate_HPG0G2Constraint            → OCCTNLPlateG0G2
+// NLPlate_HPG0G3Constraint            → OCCTNLPlateG0G3
+//
+// --- Plate ---
+// Plate_Plate                         → OCCTPlate*
+// Plate_PinpointConstraint            → OCCTPlateLoadPinpoint
+// Plate_GtoCConstraint                → OCCTPlateLoadGtoC
 //
 // --- ProjLib ---
 // ProjLib_ComputeApprox               → OCCTProjLibProjectOntoSurface
@@ -8237,6 +8248,167 @@ int32_t OCCTIntfInterferencePolygon2d(
 int32_t OCCTIntfSelfInterferencePolygon2d(
     const double* _Nonnull poly, int32_t count,
     OCCTIntfPoint2D* _Nonnull outPoints, int32_t maxPoints);
+
+// MARK: - v0.69.0: NLPlate G2/G3, Plate_Plate, GeomPlate_BuildAveragePlane, GeomFill_Generator/Bound
+
+// --- NLPlate G0+G2 constraint ---
+
+/// Deform a surface with position + tangent + curvature constraints (NLPlate G0+G2).
+/// constraints: flat array per point of (u, v, targetX, targetY, targetZ,
+///   d1uX,d1uY,d1uZ, d1vX,d1vY,d1vZ,
+///   d2uuX,d2uuY,d2uuZ, d2uvX,d2uvY,d2uvZ, d2vvX,d2vvY,d2vvZ) = 20 doubles each.
+OCCTSurfaceRef _Nullable OCCTSurfaceNLPlateG2(OCCTSurfaceRef _Nonnull initialSurface,
+    const double* _Nonnull constraints, int32_t constraintCount,
+    int32_t maxIter, double tolerance);
+
+/// Deform a surface with G0+G1+G2+G3 constraints.
+/// constraints: flat array per point of 32 doubles each:
+///   (u, v, targetX,Y,Z, d1uX,Y,Z, d1vX,Y,Z, d2uuX,Y,Z, d2uvX,Y,Z, d2vvX,Y,Z,
+///    d3uuuX,Y,Z, d3uuvX,Y,Z, d3uvvX,Y,Z, d3vvvX,Y,Z)
+OCCTSurfaceRef _Nullable OCCTSurfaceNLPlateG3(OCCTSurfaceRef _Nonnull initialSurface,
+    const double* _Nonnull constraints, int32_t constraintCount,
+    int32_t maxIter, double tolerance);
+
+/// NLPlate with IncrementalSolve strategy (for challenging constraint sets).
+/// Same constraint format as OCCTSurfaceNLPlateG0.
+OCCTSurfaceRef _Nullable OCCTSurfaceNLPlateIncrementalG0(OCCTSurfaceRef _Nonnull initialSurface,
+    const double* _Nonnull constraints, int32_t constraintCount,
+    int32_t maxOrder, int32_t initConstraintOrder, int32_t nbIncrements);
+
+/// Evaluate derivative of NLPlate solution at a UV point.
+/// Deforms initial surface, solves, and returns derivative (iu,iv) at UV.
+/// Returns false if solve fails. Writes result to outX/Y/Z.
+bool OCCTSurfaceNLPlateEvaluateDerivative(OCCTSurfaceRef _Nonnull initialSurface,
+    const double* _Nonnull constraints, int32_t constraintCount,
+    double u, double v, int32_t iu, int32_t iv,
+    double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+// --- Plate_Plate solver ---
+
+/// Opaque handle for Plate_Plate solver
+typedef void* OCCTPlateRef;
+
+/// Create a Plate_Plate solver.
+OCCTPlateRef OCCTPlateCreate(void);
+
+/// Release a Plate_Plate solver.
+void OCCTPlateRelease(OCCTPlateRef plate);
+
+/// Load a pinpoint constraint into the plate solver.
+/// @param iu, iv Derivative orders (0 for position, 1+ for derivatives)
+void OCCTPlateLoadPinpoint(OCCTPlateRef plate,
+    double u, double v, double x, double y, double z,
+    int32_t iu, int32_t iv);
+
+/// Load a G-to-C constraint (G1 level: source D1 → target D1).
+/// d1s/d1t: flat (duX,duY,duZ, dvX,dvY,dvZ) = 6 doubles each.
+void OCCTPlateLoadGtoC(OCCTPlateRef plate,
+    double u, double v,
+    const double* _Nonnull d1s, const double* _Nonnull d1t);
+
+/// Solve the plate.
+/// @param order Solution polynomial order (default 4)
+/// @param anisotropy Anisotropy parameter (default 1.0)
+/// @return true if solve succeeded
+bool OCCTPlateSolve(OCCTPlateRef plate, int32_t order, double anisotropy);
+
+/// Check if plate solve succeeded.
+bool OCCTPlateIsDone(OCCTPlateRef plate);
+
+/// Evaluate the plate at a UV point. Returns (x,y,z).
+void OCCTPlateEvaluate(OCCTPlateRef plate,
+    double u, double v,
+    double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Evaluate derivative at a UV point.
+void OCCTPlateEvaluateDerivative(OCCTPlateRef plate,
+    double u, double v, int32_t iu, int32_t iv,
+    double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Get UV bounding box of constraints.
+void OCCTPlateUVBox(OCCTPlateRef plate,
+    double* _Nonnull umin, double* _Nonnull umax,
+    double* _Nonnull vmin, double* _Nonnull vmax);
+
+/// Get continuity order of the plate solution.
+int32_t OCCTPlateContinuity(OCCTPlateRef plate);
+
+// --- GeomPlate_BuildAveragePlane ---
+
+/// Result struct for average plane computation.
+typedef struct {
+    bool isPlane;
+    bool isLine;
+    double normalX, normalY, normalZ;     // plane normal (if isPlane)
+    double originX, originY, originZ;     // plane origin (if isPlane)
+    double umin, umax, vmin, vmax;        // min-max box on plane
+    double lineOriginX, lineOriginY, lineOriginZ;  // line origin (if isLine)
+    double lineDirX, lineDirY, lineDirZ;  // line direction (if isLine)
+} OCCTAveragePlaneResult;
+
+/// Compute average plane (or line) through a set of 3D points.
+/// @param points Flat array of (x,y,z) triples
+/// @param pointCount Number of points
+/// @param nbBoundPoints Number of boundary points (for plane orientation)
+/// @param tolerance Tolerance
+/// @return Average plane result
+OCCTAveragePlaneResult OCCTGeomPlateBuildAveragePlane(
+    const double* _Nonnull points, int32_t pointCount,
+    int32_t nbBoundPoints, double tolerance);
+
+/// Get G0/G1/G2 errors from a GeomPlate build.
+/// Uses same point-based plate surface construction as OCCTGeomPlateSurface.
+/// @return false if construction fails
+bool OCCTGeomPlateErrors(const double* _Nonnull points, int32_t ptCount,
+    double tolerance, int32_t maxDegree, int32_t maxSegments,
+    double* _Nonnull g0Error, double* _Nonnull g1Error, double* _Nonnull g2Error);
+
+// --- GeomFill_Generator ---
+
+/// Generate a ruled/lofted surface from a sequence of section curves.
+/// Uses GeomFill_Generator (linear interpolation in V direction).
+/// @param curves Array of curve handles
+/// @param curveCount Number of curves
+/// @param tolerance Parametric tolerance
+/// @return BSpline surface, or NULL on failure
+OCCTSurfaceRef _Nullable OCCTGeomFillGenerator(
+    const OCCTCurve3DRef _Nonnull * _Nonnull curves, int32_t curveCount,
+    double tolerance);
+
+// --- GeomFill_DegeneratedBound ---
+
+/// Result struct for GeomFill boundary evaluation.
+typedef struct {
+    double x, y, z;
+} OCCTBoundaryPoint;
+
+/// Create a degenerated boundary (single point) and evaluate at parameter.
+/// @return The degenerated point value
+OCCTBoundaryPoint OCCTGeomFillDegeneratedBoundValue(
+    double px, double py, double pz,
+    double first, double last, double param);
+
+/// Check if a degenerated boundary is degenerated (always true).
+bool OCCTGeomFillDegeneratedBoundIsDegenerated(
+    double px, double py, double pz, double first, double last);
+
+// --- GeomFill_BoundWithSurf ---
+
+/// Evaluate a boundary-with-surface at a parameter.
+/// The boundary is defined by a 2D curve on a surface.
+/// @param surface The surface
+/// @param curve2d The 2D curve on the surface (Curve2D handle)
+/// @param first, last Parameter range of the 2D curve
+/// @param param Parameter to evaluate at
+/// @param outX/Y/Z Output point coordinates
+/// @param outNX/NY/NZ Output surface normal at that point
+/// @return true if evaluation succeeded
+bool OCCTGeomFillBoundWithSurfEvaluate(
+    OCCTSurfaceRef _Nonnull surface,
+    OCCTCurve2DRef _Nonnull curve2d,
+    double first, double last, double param,
+    double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ,
+    double* _Nonnull outNX, double* _Nonnull outNY, double* _Nonnull outNZ);
 
 #ifdef __cplusplus
 }
