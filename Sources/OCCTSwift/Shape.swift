@@ -7912,4 +7912,103 @@ extension Shape {
         }
         return results
     }
+
+    // MARK: - TopTrans Surface Transition
+
+    /// TopAbs_State values for surface transition analysis.
+    public enum TopologicalState: Int32, Sendable {
+        case `in` = 0
+        case out = 1
+        case on = 2
+        case unknown = 3
+    }
+
+    /// Result of a surface transition analysis.
+    public struct SurfaceTransitionResult: Sendable {
+        /// State before crossing the surface
+        public let stateBefore: TopologicalState
+        /// State after crossing the surface
+        public let stateAfter: TopologicalState
+    }
+
+    /// Analyze a surface transition along a curve crossing a surface boundary.
+    ///
+    /// Determines the topological state (IN/OUT) before and after crossing a surface,
+    /// given the curve tangent, boundary normal, and surface normal at the crossing point.
+    ///
+    /// - Parameters:
+    ///   - tangent: Tangent direction of the curve at the crossing
+    ///   - normal: Normal of the boundary at the crossing
+    ///   - surfaceNormal: Normal of the surface being crossed
+    ///   - tolerance: Angular tolerance
+    ///   - surfaceOrientation: Orientation of the surface (0=FORWARD, 1=REVERSED)
+    ///   - boundaryOrientation: Orientation of the boundary (0=FORWARD, 1=REVERSED)
+    /// - Returns: Transition result with states before and after
+    public static func surfaceTransition(
+        tangent: SIMD3<Double>, normal: SIMD3<Double>,
+        surfaceNormal: SIMD3<Double>, tolerance: Double = 1e-6,
+        surfaceOrientation: Int = 0, boundaryOrientation: Int = 0
+    ) -> SurfaceTransitionResult {
+        var before: Int32 = 3, after: Int32 = 3
+        OCCTTopTransSurfaceTransition(
+            tangent.x, tangent.y, tangent.z,
+            normal.x, normal.y, normal.z,
+            surfaceNormal.x, surfaceNormal.y, surfaceNormal.z,
+            tolerance,
+            Int32(surfaceOrientation), Int32(boundaryOrientation),
+            &before, &after)
+        return SurfaceTransitionResult(
+            stateBefore: TopologicalState(rawValue: before) ?? .unknown,
+            stateAfter: TopologicalState(rawValue: after) ?? .unknown)
+    }
+
+    /// Analyze a surface transition with curvature information.
+    ///
+    /// Extended version that accounts for surface curvature at the crossing point,
+    /// providing more accurate transition analysis for curved surfaces.
+    ///
+    /// - Parameters:
+    ///   - tangent: Tangent direction of the curve
+    ///   - normal: Normal of the boundary
+    ///   - maxDirection: Direction of maximum curvature of the boundary
+    ///   - minDirection: Direction of minimum curvature of the boundary
+    ///   - maxCurvature: Maximum curvature of the boundary
+    ///   - minCurvature: Minimum curvature of the boundary
+    ///   - surfaceNormal: Normal of the surface
+    ///   - surfaceMaxDirection: Direction of maximum curvature of the surface
+    ///   - surfaceMinDirection: Direction of minimum curvature of the surface
+    ///   - surfaceMaxCurvature: Maximum curvature of the surface
+    ///   - surfaceMinCurvature: Minimum curvature of the surface
+    ///   - tolerance: Angular tolerance
+    ///   - surfaceOrientation: Orientation of the surface
+    ///   - boundaryOrientation: Orientation of the boundary
+    /// - Returns: Transition result with states before and after
+    public static func surfaceTransitionWithCurvature(
+        tangent: SIMD3<Double>, normal: SIMD3<Double>,
+        maxDirection: SIMD3<Double>, minDirection: SIMD3<Double>,
+        maxCurvature: Double, minCurvature: Double,
+        surfaceNormal: SIMD3<Double>,
+        surfaceMaxDirection: SIMD3<Double>, surfaceMinDirection: SIMD3<Double>,
+        surfaceMaxCurvature: Double, surfaceMinCurvature: Double,
+        tolerance: Double = 1e-6,
+        surfaceOrientation: Int = 0, boundaryOrientation: Int = 0
+    ) -> SurfaceTransitionResult {
+        var before: Int32 = 3, after: Int32 = 3
+        OCCTTopTransSurfaceTransitionCurvature(
+            tangent.x, tangent.y, tangent.z,
+            normal.x, normal.y, normal.z,
+            maxDirection.x, maxDirection.y, maxDirection.z,
+            minDirection.x, minDirection.y, minDirection.z,
+            maxCurvature, minCurvature,
+            surfaceNormal.x, surfaceNormal.y, surfaceNormal.z,
+            surfaceMaxDirection.x, surfaceMaxDirection.y, surfaceMaxDirection.z,
+            surfaceMinDirection.x, surfaceMinDirection.y, surfaceMinDirection.z,
+            surfaceMaxCurvature, surfaceMinCurvature,
+            tolerance,
+            Int32(surfaceOrientation), Int32(boundaryOrientation),
+            &before, &after)
+        return SurfaceTransitionResult(
+            stateBefore: TopologicalState(rawValue: before) ?? .unknown,
+            stateAfter: TopologicalState(rawValue: after) ?? .unknown)
+    }
 }

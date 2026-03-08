@@ -924,4 +924,70 @@ extension Curve3D {
             center.x, center.y, center.z) else { return nil }
         return Curve3D(handle: h)
     }
+
+    // MARK: - LocalAnalysis
+
+    /// Result of curve continuity analysis at a junction point.
+    public struct ContinuityAnalysis: Sendable {
+        /// Continuity status as GeomAbs_Shape value (0=C0, 1=G1, 2=C1, 3=G2, 4=C2)
+        public let status: Int
+        /// Distance between curve endpoints at junction
+        public let c0Value: Double
+        /// Angle between tangents (radians)
+        public let g1Angle: Double
+        /// Angle between first derivatives
+        public let c1Angle: Double
+        /// Ratio of first derivative magnitudes
+        public let c1Ratio: Double
+        /// Angle between second derivatives
+        public let c2Angle: Double
+        /// Ratio of second derivative magnitudes
+        public let c2Ratio: Double
+        /// Angle between osculating planes
+        public let g2Angle: Double
+        /// Variation of curvature at junction
+        public let g2CurvatureVariation: Double
+        /// Bitmask: bit0=C0, bit1=G1, bit2=C1, bit3=G2, bit4=C2
+        public let flags: Int
+
+        /// Whether the junction is positionally continuous (C0)
+        public var isC0: Bool { flags & 1 != 0 }
+        /// Whether the junction is geometrically tangent-continuous (G1)
+        public var isG1: Bool { flags & 2 != 0 }
+        /// Whether the junction is parametrically tangent-continuous (C1)
+        public var isC1: Bool { flags & 4 != 0 }
+        /// Whether the junction is geometrically curvature-continuous (G2)
+        public var isG2: Bool { flags & 8 != 0 }
+        /// Whether the junction is parametrically curvature-continuous (C2)
+        public var isC2: Bool { flags & 16 != 0 }
+    }
+
+    /// Analyze continuity between this curve at parameter `u1` and another curve at `u2`.
+    ///
+    /// - Parameters:
+    ///   - u1: Parameter on this curve
+    ///   - other: Second curve
+    ///   - u2: Parameter on second curve
+    ///   - order: Maximum continuity order to check (0=C0, 1=G1, 2=C1, 3=G2, 4=C2)
+    /// - Returns: Continuity analysis result, or nil on failure
+    public func continuityWith(_ other: Curve3D, u1: Double, u2: Double, order: Int = 4) -> ContinuityAnalysis? {
+        var outStatus: Int32 = 0
+        var outC0: Double = 0, outG1: Double = 0
+        var outC1A: Double = 0, outC1R: Double = 0
+        var outC2A: Double = 0, outC2R: Double = 0
+        var outG2A: Double = 0, outG2CV: Double = 0
+        let ok = OCCTLocalAnalysisCurveContinuity(
+            handle, u1, other.handle, u2, Int32(order),
+            &outStatus, &outC0, &outG1, &outC1A, &outC1R,
+            &outC2A, &outC2R, &outG2A, &outG2CV)
+        guard ok else { return nil }
+        let flags = Int(OCCTLocalAnalysisCurveContinuityFlags(
+            handle, u1, other.handle, u2, Int32(order)))
+        return ContinuityAnalysis(
+            status: Int(outStatus), c0Value: outC0, g1Angle: outG1,
+            c1Angle: outC1A, c1Ratio: outC1R,
+            c2Angle: outC2A, c2Ratio: outC2R,
+            g2Angle: outG2A, g2CurvatureVariation: outG2CV,
+            flags: flags)
+    }
 }

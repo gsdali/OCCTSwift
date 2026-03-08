@@ -10,6 +10,400 @@
 
 #import <Foundation/Foundation.h>
 
+// MARK: - OCCT Class Cross-Reference Index
+//
+// Maps OCCT C++ classes to their OCCTBridge function names.
+// Use this to find the bridge function for any OCCT class you know.
+// Generated from OCCTBridge.mm #include directives.
+//
+// --- Adaptor2d/3d ---
+// Adaptor2d_Curve2d                   → OCCTApproxCurve2d
+// Adaptor3d_Curve                     → OCCTShapePlateCurves, OCCTShapePlateMixed
+// Adaptor3d_IsoCurve                  → OCCTAdaptor3dIsoCurveEval
+//
+// --- Approx ---
+// Approx_Curve2d                      → OCCTApproxCurve2d
+// Approx_Curve3d                      → OCCTEdgeApproxCurve
+// Approx_CurveOnSurface               → OCCTApproxCurveOnSurface
+// Approx_CurvilinearParameter         → OCCTApproxCurvilinearParameter
+//
+// --- BOPAlgo ---
+// BOPAlgo_ArgumentAnalyzer            → OCCTBOPAlgoAnalyzeArguments
+// BOPAlgo_CellsBuilder                → OCCTBOPAlgoSplit
+// BOPAlgo_CheckerSI                   → OCCTShapeSelfIntersects
+// BOPAlgo_MakeConnected               → OCCTShapeMakeConnected
+// BOPAlgo_MakePeriodic                → OCCTShapeMakePeriodic, OCCTShapeRepeat
+// BOPAlgo_MakerVolume                 → OCCTShapeMakeVolume
+// BOPAlgo_RemoveFeatures              → OCCTBOPAlgoRemoveFeatures
+// BOPAlgo_Section                     → OCCTBOPAlgoSection
+// BOPAlgo_Splitter                    → OCCTBOPAlgoSplit
+//
+// --- BRepAlgoAPI ---
+// BRepAlgoAPI_Check                   → OCCTShapeBooleanCheck
+// BRepAlgoAPI_Common                  → OCCTShapeIntersect
+// BRepAlgoAPI_Cut                     → OCCTShapeSubtract
+// BRepAlgoAPI_Defeaturing             → OCCTShapeRemoveFeatures
+// BRepAlgoAPI_Fuse                    → OCCTShapeUnion
+// BRepAlgoAPI_Section                 → OCCTShapeSection, OCCTShapeSliceAtZ
+// BRepAlgoAPI_Splitter                → OCCTShapeSplit
+//
+// --- BRepBuilderAPI ---
+// BRepBuilderAPI_Copy                 → OCCTShapeCopy
+// BRepBuilderAPI_FastSewing           → OCCTShapeFastSewn
+// BRepBuilderAPI_FindPlane            → OCCTShapeFindPlane
+// BRepBuilderAPI_GTransform           → OCCTShapeNonUniformScale
+// BRepBuilderAPI_MakeEdge             → OCCTWireCreate*, OCCTBRepLibEdge*
+// BRepBuilderAPI_MakeEdge2d           → OCCTMakeEdge2d*
+// BRepBuilderAPI_MakeFace             → OCCTShapeCreate*, OCCTFaceFill*
+// BRepBuilderAPI_MakePolygon          → OCCTWireCreateFastPolygon
+// BRepBuilderAPI_MakeShapeOnMesh      → OCCTShapeFromMesh
+// BRepBuilderAPI_MakeShell            → OCCTShapeCreateShellFromSurface
+// BRepBuilderAPI_MakeSolid            → OCCTShapeCreateSolidFromShell
+// BRepBuilderAPI_MakeVertex           → OCCTShapeCreateVertex
+// BRepBuilderAPI_MakeWire             → OCCTWireCreate*
+// BRepBuilderAPI_NurbsConvert         → OCCTShapeConvertToNURBS
+// BRepBuilderAPI_Sewing               → OCCTShapeSew
+// BRepBuilderAPI_Transform            → OCCTShapeTranslate, OCCTShapeRotate, OCCTShapeScale, OCCTShapeMirror
+//
+// --- BRepCheck ---
+// BRepCheck_Analyzer                  → OCCTShapeIsValid, OCCTShapeAnalyze, OCCTCheckShape*
+// BRepCheck_Edge/Face/Shell/Solid     → OCCTCheckFace, OCCTCheckSolid, OCCTBRepCheckSubShapeValid
+//
+// --- BRepExtrema ---
+// BRepExtrema_DistShapeShape          → OCCTShapeDistance, OCCTShapeIntersects
+// BRepExtrema_ExtCC                   → OCCTBRepExtremaExtCC
+// BRepExtrema_ExtCF                   → OCCTBRepExtremaExtCF
+// BRepExtrema_ExtFF                   → OCCTBRepExtremaExtFF
+// BRepExtrema_ExtPC                   → OCCTBRepExtremaExtPC
+// BRepExtrema_ExtPF                   → OCCTBRepExtremaExtPF
+// BRepExtrema_Poly                    → OCCTShapePolyhedralDistance
+//
+// --- BRepFeat ---
+// BRepFeat_Builder                    → OCCTBRepFeatFuse, OCCTBRepFeatCut
+// BRepFeat_MakeDPrism                 → OCCTShapeDraftPrism*
+// BRepFeat_MakeLinearForm             → OCCTShapeLinearRib
+// BRepFeat_MakePipe                   → OCCTShapePipeFeature*
+// BRepFeat_MakePrism                  → OCCTShapePrism, OCCTShapeSemiInfiniteExtrusion
+// BRepFeat_MakeRevol                  → OCCTShapeRevolFeature*
+// BRepFeat_MakeRevolutionForm         → OCCTShapeRevolutionForm
+//
+// --- BRepFill ---
+// BRepFill_CompatibleWires            → OCCTShapeCompatibleWires
+// BRepFill_Draft                      → OCCTShapeDraftFromWire
+// BRepFill_Filling                    → OCCTFillingSurface*
+// BRepFill_Generator                  → OCCTShapeRuledShell
+// BRepFill_OffsetWire                 → OCCTWireOffset
+// BRepFill_Pipe                       → OCCTShapePipeSweep
+//
+// --- BRepFilletAPI ---
+// BRepFilletAPI_MakeChamfer           → OCCTShapeChamfer*
+// BRepFilletAPI_MakeFillet            → OCCTShapeFillet*
+// BRepFilletAPI_MakeFillet2d          → OCCTShapeFillet2D*, OCCTShapeChamfer2D*
+//
+// --- BRepGProp ---
+// BRepGProp                           → OCCTShapeVolume, OCCTShapeSurfaceArea, OCCTShapeGetCenterOfMass
+// BRepGProp_Face                      → OCCTFaceGProp*
+//
+// --- BRepLib ---
+// BRepLib_MakeEdge                    → OCCTBRepLibEdge*
+// BRepLib_MakeFace                    → OCCTBRepLibFace*
+// BRepLib_MakeShell                   → OCCTBRepLibShell*
+// BRepLib_MakeSolid                   → OCCTBRepLibSolidFromShell
+//
+// --- BRepMesh ---
+// BRepMesh_Deflection                 → OCCTDeflectionCompute, OCCTDeflectionIsConsistent
+// BRepMesh_IncrementalMesh            → OCCTShapeCreateMesh*
+//
+// --- BRepOffset ---
+// BRepOffset_Analyse                  → OCCTEdgeGetConvexity
+// BRepOffset_Offset                   → OCCTBRepOffsetFace
+// BRepOffset_SimpleOffset             → OCCTShapeSimpleOffset
+//
+// --- BRepOffsetAPI ---
+// BRepOffsetAPI_DraftAngle            → OCCTShapeDraft
+// BRepOffsetAPI_MakeDraft             → OCCTShapeMakeDraft
+// BRepOffsetAPI_MakeEvolved           → OCCTShapeEvolved*
+// BRepOffsetAPI_MakeFilling           → OCCTFillingSurface*
+// BRepOffsetAPI_MakeOffset            → OCCTShapeOffset*
+// BRepOffsetAPI_MakePipe              → OCCTShapePipe*
+// BRepOffsetAPI_MakePipeShell         → OCCTShapePipeShell*
+// BRepOffsetAPI_MakeThickSolid        → OCCTShapeShell, OCCTShapeHollowed
+// BRepOffsetAPI_ThruSections          → OCCTShapeLoft*
+//
+// --- BRepPrimAPI ---
+// BRepPrimAPI_MakeBox                 → OCCTShapeCreateBox*
+// BRepPrimAPI_MakeCone                → OCCTShapeCreateCone
+// BRepPrimAPI_MakeCylinder            → OCCTShapeCreateCylinder*
+// BRepPrimAPI_MakeHalfSpace           → OCCTShapeCreateHalfSpace
+// BRepPrimAPI_MakePrism               → OCCTShapeCreateExtrusion
+// BRepPrimAPI_MakeRevol               → OCCTShapeCreateRevolve
+// BRepPrimAPI_MakeSphere              → OCCTShapeCreateSphere
+// BRepPrimAPI_MakeTorus               → OCCTShapeCreateTorus
+// BRepPrimAPI_MakeWedge               → OCCTShapeCreateWedge
+//
+// --- BRepTools ---
+// BRepTools_Modifier                  → OCCTShapeNurbsConvertViaModifier, OCCTShapeSimpleOffset
+// BRepTools_ReShape                   → OCCTShapeReplaceSubShape*
+// BRepTools_Substitution              → OCCTShapeSubstituted
+// BRepTools_WireExplorer              → OCCTWireGetOrderedEdge*
+//
+// --- ChFi2d ---
+// ChFi2d_AnaFilletAlgo               → OCCTShapeAnaFillet*
+// ChFi2d_FilletAlgo                   → OCCTShapeFilletAlgo*
+//
+// --- Contap ---
+// Contap_ContAna                      → OCCTContapSphereDir, OCCTContapCylinderDir, OCCTContapSphereEye
+// Contap_Contour                      → OCCTContapContour*
+//
+// --- GC ---
+// GC_MakeArcOfCircle                  → OCCTWireCreateArc, OCCTWireCreateArc3Points
+// GC_MakeCircle                       → OCCTWireCreateCircle
+// GC_MakeEllipse                      → OCCTGCMakeEllipse3Points
+// GC_MakeHyperbola                    → OCCTGCMakeHyperbola3Points
+// GC_MakeMirror                       → OCCTGCMakeMirror*
+// GC_MakeScale                        → OCCTGCMakeScale
+// GC_MakeSegment                      → OCCTWireCreateLine
+// GC_MakeTranslation                  → OCCTGCMakeTranslation
+//
+// --- GCE2d ---
+// GCE2d_MakeLine                      → OCCTGCE2dMakeLine*
+//
+// --- GCPnts ---
+// GCPnts_AbscissaPoint                → OCCTCurve2DParameterAtLength
+// GCPnts_QuasiUniformAbscissa         → OCCTCurve3DQuasiUniformParams
+// GCPnts_QuasiUniformDeflection       → OCCTCurve3DQuasiUniformDeflection
+// GCPnts_UniformAbscissa              → OCCTCPntsUniformDeflection*
+// GCPnts_UniformDeflection            → OCCTCPntsUniformDeflection*
+//
+// --- GccAna ---
+// GccAna_Circ2d2TanOn                 → OCCTGccAnaCirc2d2TanOn*
+// GccAna_Circ2d2TanRad                → OCCTGccAnaCirc2d2TanRad*
+// GccAna_Circ2dTanCen                 → OCCTGccAnaCirc2dTanCen*
+// GccAna_Circ2dTanOnRad               → OCCTGccAnaCirc2dTanOnRad*
+// GccAna_Lin2dBisec                   → OCCTGccAnaBisecLL, OCCTGccAnaBisecPP
+// GccAna_Lin2dTanObl                  → OCCTGccAnaLinOblique*
+// GccAna_Lin2dTanPar                  → OCCTGccAnaLinParallel*
+// GccAna_Lin2dTanPer                  → OCCTGccAnaLinPerpendicular*
+// GccAna_Pnt2dBisec                   → OCCTGccAnaBisecPP
+//
+// --- Geom ---
+// Geom_BSplineCurve                   → OCCTCurve3D*, OCCTSurface*
+// Geom_BSplineSurface                 → OCCTSurface*
+// Geom_BezierCurve                    → OCCTCurve3DBezier
+// Geom_BezierSurface                  → OCCTSurface*
+// Geom_Circle                         → OCCTCurve3DCircle, OCCTCurve3DArc*
+// Geom_ConicalSurface                 → OCCTSurfaceCone*
+// Geom_CylindricalSurface             → OCCTSurfaceCylinder*
+// Geom_Ellipse                        → OCCTCurve3DEllipse*
+// Geom_Hyperbola                      → OCCTCurve3DHyperbola*
+// Geom_Line                           → OCCTCurve3DLine, OCCTCurve3DSegment
+// Geom_OffsetSurface                  → OCCTSurfaceOffset
+// Geom_Parabola                       → OCCTCurve3DParabola*
+// Geom_Plane                          → OCCTSurfacePlane*
+// Geom_SphericalSurface               → OCCTSurfaceSphere
+// Geom_SurfaceOfLinearExtrusion       → OCCTSurfaceExtrusion
+// Geom_SurfaceOfRevolution            → OCCTSurfaceRevolution
+// Geom_ToroidalSurface                → OCCTSurfaceTorus
+// Geom_TrimmedCurve                   → OCCTCurve3DTrim
+//
+// --- Geom2d ---
+// Geom2d_AxisPlacement                → OCCTAxisPlacement2D*
+// Geom2d_BSplineCurve                 → OCCTCurve2D*
+// Geom2d_BezierCurve                  → OCCTCurve2DBezier
+// Geom2d_CartesianPoint               → OCCTPoint2D*
+// Geom2d_Circle                       → OCCTCurve2DCircle, OCCTCurve2DArc*
+// Geom2d_Direction                    → OCCTDirection2D*
+// Geom2d_Ellipse                      → OCCTCurve2DEllipse*
+// Geom2d_Hyperbola                    → OCCTCurve2DHyperbola
+// Geom2d_Line                         → OCCTCurve2DLine, OCCTCurve2DSegment
+// Geom2d_OffsetCurve                  → OCCTCurve2DOffset
+// Geom2d_Parabola                     → OCCTCurve2DParabola
+// Geom2d_Transformation               → OCCTTransform2D*
+// Geom2d_TrimmedCurve                 → OCCTCurve2DTrim
+// Geom2d_VectorWithMagnitude          → OCCTVector2D*
+//
+// --- Geom2dAPI ---
+// Geom2dAPI_ExtremaCurveCurve         → OCCTCurve2DExtrema, OCCTCurve2DCurvatureExtrema
+// Geom2dAPI_InterCurveCurve           → OCCTCurve2DIntersect, OCCTCurve2DSelfIntersect
+// Geom2dAPI_Interpolate               → OCCTCurve2DInterpolate*
+// Geom2dAPI_ProjectPointOnCurve       → OCCTPoint2DDistanceToCurve, OCCTCurve2DProjectPoint2D
+//
+// --- Geom2dGcc ---
+// Geom2dGcc_Circ2d2TanOn              → OCCTGeom2dGccCirc2d2TanOn*
+// Geom2dGcc_Circ2d2TanRad             → OCCTGeom2dGccCirc2d2TanRad*
+// Geom2dGcc_Circ2dTanCen              → OCCTGeom2dGccCirc2dTanCen*
+// Geom2dGcc_Circ2dTanOnRad            → OCCTGeom2dGccCirc2dTanOnRad*
+// Geom2dGcc_Lin2d2Tan                 → OCCTGeom2dGccLin2d2Tan*
+// Geom2dGcc_Lin2dTanObl               → OCCTGeom2dGccLin2dTanObl*
+//
+// --- Geom2dHatch ---
+// Geom2dHatch_Hatcher                 → OCCTHatchGenerate
+//
+// --- GeomAPI ---
+// GeomAPI_ExtremaCurveCurve           → OCCTCurve3DMinDistance, OCCTCurve3DExtrema
+// GeomAPI_ExtremaCurveSurface         → OCCTCurve3DDistanceToSurface
+// GeomAPI_ExtremaSurfaceSurface       → OCCTSurfaceExtrema
+// GeomAPI_IntCS                       → OCCTCurve3DIntersectSurface
+// GeomAPI_IntSS                       → OCCTSurfaceSurfaceIntersect
+// GeomAPI_PointsToBSpline             → OCCTCurve3DFit
+// GeomAPI_PointsToBSplineSurface      → OCCTSurfacePlateThrough, OCCTSurfaceNLPlateG0
+// GeomAPI_ProjectPointOnCurve         → OCCTCurve3DProjectPoint
+// GeomAPI_ProjectPointOnSurf          → OCCTSurfaceProjectPoint, OCCTFaceProject*
+//
+// --- GeomConvert ---
+// GeomConvert                         → OCCTCurve3DToBSpline, OCCTCurve3DToBezierSegments
+// GeomConvert_CompCurveToBSplineCurve → OCCTCurve3DJoined
+//
+// --- GeomFill ---
+// GeomFill_BSplineCurves              → OCCTSurfaceBSplineFill*
+// GeomFill_BezierCurves               → OCCTSurfaceBezierFill*
+// GeomFill_ConstrainedFilling         → OCCTShapeConstrainedFill
+// GeomFill_Coons                      → OCCTGeomFillCoons
+// GeomFill_CoonsAlgPatch              → OCCTGeomFillCoonsAlgPatch
+// GeomFill_CorrectedFrenet            → OCCTGeomFillCorrectedFrenet
+// GeomFill_Curved                     → OCCTGeomFillCurved
+// GeomFill_DiscreteTrihedron          → OCCTGeomFillDiscreteTrihedron
+// GeomFill_DraftTrihedron             → OCCTGeomFillDraftTrihedron
+// GeomFill_EvolvedSection             → OCCTGeomFillEvolvedSection
+// GeomFill_Pipe                       → OCCTSurfacePipe*
+// GeomFill_SimpleBound                → OCCTShapeConstrainedFill
+// GeomFill_Sweep                      → OCCTGeomFillSweep
+//
+// --- GeomInt ---
+// GeomInt_IntSS                       → OCCTGeomIntSS*
+//
+// --- GeomLProp ---
+// GeomLProp_CLProps                   → OCCTGeomLPropCurve
+// GeomLProp_SLProps                   → OCCTGeomLPropSurface
+//
+// --- GeomPlate ---
+// GeomPlate_BuildPlateSurface         → OCCTShapePlate*, OCCTGeomPlateSurface
+// GeomPlate_MakeApprox                → OCCTShapePlate*, OCCTGeomPlateSurface
+//
+// --- IntAna2d ---
+// IntAna2d_AnaIntersection            → OCCTIntAna2d*
+//
+// --- IntCurvesFace ---
+// IntCurvesFace_Intersector           → OCCTIntCurvesFaceIntersect
+// IntCurvesFace_ShapeIntersector      → OCCTRayIntersect*
+//
+// --- Law ---
+// Law_BSpFunc                         → OCCTLawBSpline
+// Law_BSpline                         → OCCTLawBSpline
+// Law_Constant                        → OCCTLawConstant
+// Law_Interpol                        → OCCTLawInterpolate
+// Law_Linear                          → OCCTLawLinear
+// Law_S                               → OCCTLawSCurve
+//
+// --- LocOpe ---
+// LocOpe_BuildShape                   → OCCTLocOpeBuildShape
+// LocOpe_CSIntersector                → OCCTLocOpeCSIntersect
+// LocOpe_DPrism                       → OCCTLocOpeDPrism
+// LocOpe_FindEdges                    → OCCTLocOpeCommonEdges
+// LocOpe_FindEdgesInFace              → OCCTLocOpeEdgesInFace
+// LocOpe_LinearForm                   → OCCTShapeLocalLinearForm
+// LocOpe_Pipe                         → OCCTLocOpePipe
+// LocOpe_Prism                        → OCCTLocOpePrism
+// LocOpe_Revol                        → OCCTLocOpeRevol
+// LocOpe_RevolutionForm               → OCCTShapeLocalRevolutionForm
+// LocOpe_SplitDrafts                  → OCCTLocOpeSplitDrafts
+// LocOpe_SplitShape                   → OCCTLocOpeSplitShape*
+//
+// --- LProp ---
+// LProp_AnalyticCurInf                → OCCTLPropAnalyticCurInf
+//
+// --- NLPlate ---
+// NLPlate_NLPlate                     → OCCTSurfaceNLPlateG0, OCCTSurfaceNLPlateG1
+//
+// --- ProjLib ---
+// ProjLib_ComputeApprox               → OCCTProjLibProjectOntoSurface
+// ProjLib_ComputeApproxOnPolarSurface → OCCTProjLibProjectOntoPolarSurface
+//
+// --- ShapeAnalysis ---
+// ShapeAnalysis_Curve                 → OCCTCurveRangeValid*, OCCTCurveSamplePoints, OCCTCurveProjectPoint
+// ShapeAnalysis_FreeBoundsProperties  → OCCTShapeFreeBoundsAnalysis*
+// ShapeAnalysis_Surface               → OCCTSurfaceUVProject*
+// ShapeAnalysis_TransferParametersProj → OCCTShapeAnalysisTransferParam*
+// ShapeAnalysis_WireOrder             → OCCTWireAnalyze
+//
+// --- ShapeBuild ---
+// ShapeBuild_Edge                     → OCCTShapeBuildEdge*
+// ShapeBuild_Vertex                   → OCCTShapeBuildVertex*
+//
+// --- ShapeCustom ---
+// ShapeCustom_BSplineRestriction      → OCCTShapeBSplineRestriction*
+// ShapeCustom_Curve2d                 → OCCTCurve2DIsLinear, OCCTCurve2DConvertToLine, OCCTCurve2DSimplifyBSpline
+// ShapeCustom_DirectModification      → OCCTShapeDirectModification
+// ShapeCustom_SweptToElementary       → OCCTShapeSweptToElementary
+// ShapeCustom_TrsfModification        → OCCTShapeTrsfModificationScale
+//
+// --- ShapeExtend ---
+// ShapeExtend_Explorer                → OCCTShapeExtendSorted*, OCCTShapeExtendPredominant*
+//
+// --- ShapeFix ---
+// ShapeFix_Edge                       → OCCTShapeFixEdge*
+// ShapeFix_Face                       → OCCTShapeFixFace
+// ShapeFix_FaceConnect                → OCCTShapeFixConnect*
+// ShapeFix_FixSmallFace               → OCCTShapeFixSmallFaces
+// ShapeFix_FixSmallSolid              → OCCTShapeFixSmallSolid*
+// ShapeFix_Shape                      → OCCTShapeFix, OCCTShapeFixed*
+// ShapeFix_ShapeTolerance             → OCCTShapeLimitTolerance, OCCTShapeSetTolerance
+// ShapeFix_Shell                      → OCCTShapeFixShell
+// ShapeFix_SplitCommonVertex          → OCCTShapeFixSplitCommonVertex
+// ShapeFix_Wire                       → OCCTShapeFixWire*
+// ShapeFix_WireVertex                 → OCCTShapeFixWireVertices
+// ShapeFix_Wireframe                  → OCCTShapeFixWireframe
+//
+// --- ShapeUpgrade ---
+// ShapeUpgrade_ConvertCurve3dToBezier → OCCTShapeUpgradeConvertCurves3dToBezier
+// ShapeUpgrade_ConvertSurfaceToBezierBasis → OCCTShapeUpgradeConvertSurfaceToBezier
+// ShapeUpgrade_FixSmallBezierCurves   → OCCTShapeUpgradeFixSmallBezierCurves
+// ShapeUpgrade_FixSmallCurves         → OCCTShapeUpgradeFixSmallCurves
+// ShapeUpgrade_ShapeConvertToBezier   → OCCTShapeUpgradeConvertCurves3dToBezier
+// ShapeUpgrade_ShapeDivideClosed      → OCCTShapeDividedClosedEdges
+// ShapeUpgrade_ShapeDivideContinuity  → OCCTShapeDividedByContinuity
+// ShapeUpgrade_UnifySameDomain        → OCCTShapeUnified
+//
+// --- STEP/IGES/OBJ/PLY/STL ---
+// STEPControl_Reader/Writer           → OCCTExportSTEP, OCCTImportSTEP*
+// IGESControl_Reader/Writer           → OCCTExportIGES, OCCTImportIGES*
+// RWObj_CafReader/Writer              → OCCTDocumentImportOBJ, OCCTDocumentExportOBJ
+// RWPly_CafWriter                     → OCCTDocumentExportPLY
+// StlAPI_Reader/Writer                → OCCTImportSTL, OCCTExportSTL
+//
+// --- TDF/OCAF ---
+// TDF_Label                           → OCCTDocumentLabel*
+// TDF_Reference                       → OCCTLabelSetReference
+// TDF_CopyLabel                       → OCCTLabelCopy
+// TDocStd_Document                    → OCCTDocument*
+//
+// --- TDataStd ---
+// TDataStd_Integer/Real/AsciiString   → OCCTLabel{Set,Get}Integer/Real/AsciiString
+// TDataStd_Comment                    → OCCTLabelSetComment
+// TDataStd_IntegerArray/RealArray     → OCCTLabel*Array*
+// TDataStd_NamedData                  → OCCTLabelNamedData*
+// TDataStd_TreeNode                   → OCCTLabelSetTreeNode*
+//
+// --- TNaming ---
+// TNaming_Builder                     → OCCTDocumentNamingRecord*
+// TNaming_CopyShape                   → OCCTShapeDeepCopy
+// TNaming_NamedShape                  → OCCTDocumentNaming*
+// TNaming_Selector                    → OCCTDocumentNamingSelect*, OCCTDocumentNamingResolve*
+// TNaming_Tool                        → OCCTDocumentNaming*
+//
+// --- XCAFDoc ---
+// XCAFDoc_ColorTool                   → OCCTXCAFShape*Color*
+// XCAFDoc_Editor                      → OCCTXCAFEditorExpand, OCCTXCAFRescaleGeometry
+// XCAFDoc_LayerTool                   → OCCTXCAFSet/Get/FindLayer*
+// XCAFDoc_ShapeTool                   → OCCTXCAFShape*
+//
+// --- gp (core geometry) ---
+// gp_Pnt/gp_Vec/gp_Dir               → (used throughout all bridge functions)
+// gp_Ax1/gp_Ax2/gp_Ax3               → (used throughout all bridge functions)
+// gp_Trsf/gp_Trsf2d                  → OCCTShapeTranslate/Rotate/Scale/Mirror, OCCTPoint2D*
+// gp_Pnt2d/gp_Vec2d/gp_Dir2d         → OCCTCurve2D*, OCCTPoint2D*, OCCTVector2D*
+//
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -7560,6 +7954,123 @@ OCCTCurve2DRef _Nullable OCCTCurve2DSegmentFromPoints(OCCTPoint2DRef _Nonnull p1
 /// @return parameter on curve, or 0 on failure
 double OCCTCurve2DProjectPoint2D(OCCTCurve2DRef _Nonnull curve, OCCTPoint2DRef _Nonnull point,
     double* _Nonnull outDistance);
+
+// MARK: - v0.67.0: TKGeomAlgo Part 1 — FairCurve, LocalAnalysis, TopTrans
+
+// --- FairCurve_Batten ---
+
+/// Create a fair curve (batten) between two 2D points.
+/// @param height Height of deformation (must be > 0)
+/// @param slope Slope value (0 = uniform section)
+/// @return Curve2D result after computation, or NULL on failure
+OCCTCurve2DRef _Nullable OCCTFairCurveBatten(double p1x, double p1y, double p2x, double p2y,
+    double height, double slope, double angle1, double angle2,
+    int32_t constraintOrder1, int32_t constraintOrder2, bool freeSliding,
+    int32_t* _Nonnull outCode);
+
+/// Create a minimal variation fair curve between two 2D points.
+/// @param physicalRatio Physical ratio (0-1, balance between curvature and jerk energy)
+/// @param curvature1 Desired curvature at P1 (only used if constraintOrder >= 2)
+/// @param curvature2 Desired curvature at P2 (only used if constraintOrder >= 2)
+/// @return Curve2D result after computation, or NULL on failure
+OCCTCurve2DRef _Nullable OCCTFairCurveMinimalVariation(double p1x, double p1y, double p2x, double p2y,
+    double height, double slope, double angle1, double angle2,
+    int32_t constraintOrder1, int32_t constraintOrder2, bool freeSliding,
+    double physicalRatio, double curvature1, double curvature2,
+    int32_t* _Nonnull outCode);
+
+// --- LocalAnalysis_CurveContinuity ---
+
+/// Analyze local continuity between two 3D curves at given parameters.
+/// Uses BSpline curves extracted from edges via Curve3D handles.
+/// @param curve1 First curve
+/// @param u1 Parameter on first curve
+/// @param curve2 Second curve
+/// @param u2 Parameter on second curve
+/// @param order Requested analysis order: 0=C0, 1=G1, 2=C1, 3=G2, 4=C2
+/// @param outStatus Output: continuity status (0=C0, 1=G1, 2=C1, 3=G2, 4=C2)
+/// @param outC0Value Output: C0 distance
+/// @param outG1Angle Output: G1 angle (radians)
+/// @param outC1Angle Output: C1 angle
+/// @param outC1Ratio Output: C1 ratio
+/// @param outC2Angle Output: C2 angle
+/// @param outC2Ratio Output: C2 ratio
+/// @param outG2Angle Output: G2 angle
+/// @param outG2CurvatureVariation Output: G2 curvature variation
+/// @return true if analysis succeeded
+bool OCCTLocalAnalysisCurveContinuity(OCCTCurve3DRef _Nonnull curve1, double u1,
+    OCCTCurve3DRef _Nonnull curve2, double u2, int32_t order,
+    int32_t* _Nonnull outStatus,
+    double* _Nonnull outC0Value, double* _Nonnull outG1Angle,
+    double* _Nonnull outC1Angle, double* _Nonnull outC1Ratio,
+    double* _Nonnull outC2Angle, double* _Nonnull outC2Ratio,
+    double* _Nonnull outG2Angle, double* _Nonnull outG2CurvatureVariation);
+
+/// Check boolean continuity flags for curve continuity analysis.
+/// @return Bitmask: bit 0=IsC0, bit 1=IsG1, bit 2=IsC1, bit 3=IsG2, bit 4=IsC2
+int32_t OCCTLocalAnalysisCurveContinuityFlags(OCCTCurve3DRef _Nonnull curve1, double u1,
+    OCCTCurve3DRef _Nonnull curve2, double u2, int32_t order);
+
+// --- LocalAnalysis_SurfaceContinuity ---
+
+/// Analyze local continuity between two surfaces at given UV parameters.
+/// @param surface1 First surface
+/// @param u1 U parameter on first surface
+/// @param v1 V parameter on first surface
+/// @param surface2 Second surface
+/// @param u2 U parameter on second surface
+/// @param v2 V parameter on second surface
+/// @param order Requested analysis order: 0=C0, 1=G1, 2=C1, 3=G2, 4=C2
+/// @param outStatus Output: continuity status
+/// @param outC0Value Output: C0 distance
+/// @param outG1Angle Output: G1 angle
+/// @param outC1UAngle Output: C1 U angle
+/// @param outC1VAngle Output: C1 V angle
+/// @return true if analysis succeeded
+bool OCCTLocalAnalysisSurfaceContinuity(OCCTSurfaceRef _Nonnull surface1, double u1, double v1,
+    OCCTSurfaceRef _Nonnull surface2, double u2, double v2, int32_t order,
+    int32_t* _Nonnull outStatus,
+    double* _Nonnull outC0Value, double* _Nonnull outG1Angle,
+    double* _Nonnull outC1UAngle, double* _Nonnull outC1VAngle);
+
+/// Check boolean continuity flags for surface continuity analysis.
+/// @return Bitmask: bit 0=IsC0, bit 1=IsG1, bit 2=IsC1, bit 3=IsG2, bit 4=IsC2
+int32_t OCCTLocalAnalysisSurfaceContinuityFlags(OCCTSurfaceRef _Nonnull surface1, double u1, double v1,
+    OCCTSurfaceRef _Nonnull surface2, double u2, double v2, int32_t order);
+
+// --- TopTrans_SurfaceTransition ---
+
+/// Compute surface transition states for a boundary crossing.
+/// @param tgtX/Y/Z Tangent direction of the boundary
+/// @param normX/Y/Z Normal of the reference surface
+/// @param surfNormX/Y/Z Normal of the crossing surface
+/// @param tolerance Tolerance for angle comparison
+/// @param surfOrientation Orientation of the crossing surface (0=FORWARD, 1=REVERSED)
+/// @param boundOrientation Orientation of the boundary (0=FORWARD, 1=REVERSED)
+/// @param outStateBefore Output: state before crossing (0=IN, 1=OUT, 2=ON, 3=UNKNOWN)
+/// @param outStateAfter Output: state after crossing (0=IN, 1=OUT, 2=ON, 3=UNKNOWN)
+void OCCTTopTransSurfaceTransition(
+    double tgtX, double tgtY, double tgtZ,
+    double normX, double normY, double normZ,
+    double surfNormX, double surfNormY, double surfNormZ,
+    double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter);
+
+/// Compute surface transition with curvature information.
+void OCCTTopTransSurfaceTransitionCurvature(
+    double tgtX, double tgtY, double tgtZ,
+    double normX, double normY, double normZ,
+    double maxDX, double maxDY, double maxDZ,
+    double minDX, double minDY, double minDZ,
+    double maxCurv, double minCurv,
+    double surfNormX, double surfNormY, double surfNormZ,
+    double surfMaxDX, double surfMaxDY, double surfMaxDZ,
+    double surfMinDX, double surfMinDY, double surfMinDZ,
+    double surfMaxCurv, double surfMinCurv,
+    double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter);
 
 #ifdef __cplusplus
 }

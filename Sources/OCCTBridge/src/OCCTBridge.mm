@@ -24929,3 +24929,258 @@ double OCCTCurve2DProjectPoint2D(OCCTCurve2DRef _Nonnull curve, OCCTPoint2DRef _
         return proj.LowerDistanceParameter();
     } catch (...) { *outDistance = -1.0; return 0.0; }
 }
+
+// MARK: - v0.67.0: TKGeomAlgo Part 1 — FairCurve, LocalAnalysis, TopTrans
+
+#include <FairCurve_Batten.hxx>
+#include <FairCurve_MinimalVariation.hxx>
+#include <FairCurve_AnalysisCode.hxx>
+#include <LocalAnalysis_CurveContinuity.hxx>
+#include <LocalAnalysis_SurfaceContinuity.hxx>
+#include <TopTrans_SurfaceTransition.hxx>
+#include <TopAbs_State.hxx>
+#include <TopAbs_Orientation.hxx>
+
+// --- FairCurve_Batten ---
+
+OCCTCurve2DRef _Nullable OCCTFairCurveBatten(double p1x, double p1y, double p2x, double p2y,
+    double height, double slope, double angle1, double angle2,
+    int32_t constraintOrder1, int32_t constraintOrder2, bool freeSliding,
+    int32_t* _Nonnull outCode) {
+    try {
+        gp_Pnt2d P1(p1x, p1y);
+        gp_Pnt2d P2(p2x, p2y);
+        FairCurve_Batten batten(P1, P2, height, slope);
+        batten.SetAngle1(angle1);
+        batten.SetAngle2(angle2);
+        batten.SetConstraintOrder1(constraintOrder1);
+        batten.SetConstraintOrder2(constraintOrder2);
+        batten.SetFreeSliding(freeSliding);
+
+        FairCurve_AnalysisCode code;
+        bool ok = batten.Compute(code, 50, 1.0e-3);
+        *outCode = (int32_t)code;
+        if (!ok) return nullptr;
+
+        Handle(Geom2d_BSplineCurve) bspline = batten.Curve();
+        if (bspline.IsNull()) return nullptr;
+
+        // Convert to Geom2d_Curve handle
+        Handle(Geom2d_Curve) curve = bspline;
+        auto ref = new OCCTCurve2D();
+        ref->curve = curve;
+        return ref;
+    } catch (...) { *outCode = -1; return nullptr; }
+}
+
+// --- FairCurve_MinimalVariation ---
+
+OCCTCurve2DRef _Nullable OCCTFairCurveMinimalVariation(double p1x, double p1y, double p2x, double p2y,
+    double height, double slope, double angle1, double angle2,
+    int32_t constraintOrder1, int32_t constraintOrder2, bool freeSliding,
+    double physicalRatio, double curvature1, double curvature2,
+    int32_t* _Nonnull outCode) {
+    try {
+        gp_Pnt2d P1(p1x, p1y);
+        gp_Pnt2d P2(p2x, p2y);
+        FairCurve_MinimalVariation mv(P1, P2, height, slope, physicalRatio);
+        mv.SetAngle1(angle1);
+        mv.SetAngle2(angle2);
+        mv.SetConstraintOrder1(constraintOrder1);
+        mv.SetConstraintOrder2(constraintOrder2);
+        mv.SetFreeSliding(freeSliding);
+        if (constraintOrder1 >= 2) mv.SetCurvature1(curvature1);
+        if (constraintOrder2 >= 2) mv.SetCurvature2(curvature2);
+
+        FairCurve_AnalysisCode code;
+        bool ok = mv.Compute(code, 50, 1.0e-3);
+        *outCode = (int32_t)code;
+        if (!ok) return nullptr;
+
+        Handle(Geom2d_BSplineCurve) bspline = mv.Curve();
+        if (bspline.IsNull()) return nullptr;
+
+        Handle(Geom2d_Curve) curve = bspline;
+        auto ref = new OCCTCurve2D();
+        ref->curve = curve;
+        return ref;
+    } catch (...) { *outCode = -1; return nullptr; }
+}
+
+// --- LocalAnalysis_CurveContinuity ---
+
+static GeomAbs_Shape orderToShape(int32_t order) {
+    switch (order) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_G1;
+        case 2: return GeomAbs_C1;
+        case 3: return GeomAbs_G2;
+        case 4: return GeomAbs_C2;
+        default: return GeomAbs_C2;
+    }
+}
+
+static int32_t shapeToOrder(GeomAbs_Shape shape) {
+    switch (shape) {
+        case GeomAbs_C0: return 0;
+        case GeomAbs_G1: return 1;
+        case GeomAbs_C1: return 2;
+        case GeomAbs_G2: return 3;
+        case GeomAbs_C2: return 4;
+        default: return -1;
+    }
+}
+
+bool OCCTLocalAnalysisCurveContinuity(OCCTCurve3DRef _Nonnull curve1, double u1,
+    OCCTCurve3DRef _Nonnull curve2, double u2, int32_t order,
+    int32_t* _Nonnull outStatus,
+    double* _Nonnull outC0Value, double* _Nonnull outG1Angle,
+    double* _Nonnull outC1Angle, double* _Nonnull outC1Ratio,
+    double* _Nonnull outC2Angle, double* _Nonnull outC2Ratio,
+    double* _Nonnull outG2Angle, double* _Nonnull outG2CurvatureVariation) {
+    try {
+        auto c1 = (OCCTCurve3D*)curve1;
+        auto c2 = (OCCTCurve3D*)curve2;
+
+        LocalAnalysis_CurveContinuity cc(c1->curve, u1, c2->curve, u2, orderToShape(order));
+        if (!cc.IsDone()) return false;
+
+        *outStatus = shapeToOrder(cc.ContinuityStatus());
+        *outC0Value = cc.C0Value();
+        *outG1Angle = cc.IsG1() ? cc.G1Angle() : -1.0;
+        *outC1Angle = cc.IsC1() ? cc.C1Angle() : -1.0;
+        *outC1Ratio = cc.IsC1() ? cc.C1Ratio() : -1.0;
+        *outC2Angle = cc.IsC2() ? cc.C2Angle() : -1.0;
+        *outC2Ratio = cc.IsC2() ? cc.C2Ratio() : -1.0;
+        *outG2Angle = cc.IsG2() ? cc.G2Angle() : -1.0;
+        *outG2CurvatureVariation = cc.IsG2() ? cc.G2CurvatureVariation() : -1.0;
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTLocalAnalysisCurveContinuityFlags(OCCTCurve3DRef _Nonnull curve1, double u1,
+    OCCTCurve3DRef _Nonnull curve2, double u2, int32_t order) {
+    try {
+        auto c1 = (OCCTCurve3D*)curve1;
+        auto c2 = (OCCTCurve3D*)curve2;
+
+        LocalAnalysis_CurveContinuity cc(c1->curve, u1, c2->curve, u2, orderToShape(order));
+        if (!cc.IsDone()) return 0;
+
+        int32_t flags = 0;
+        if (cc.IsC0()) flags |= 1;
+        if (cc.IsG1()) flags |= 2;
+        if (cc.IsC1()) flags |= 4;
+        if (cc.IsG2()) flags |= 8;
+        if (cc.IsC2()) flags |= 16;
+        return flags;
+    } catch (...) { return 0; }
+}
+
+// --- LocalAnalysis_SurfaceContinuity ---
+
+bool OCCTLocalAnalysisSurfaceContinuity(OCCTSurfaceRef _Nonnull surface1, double u1, double v1,
+    OCCTSurfaceRef _Nonnull surface2, double u2, double v2, int32_t order,
+    int32_t* _Nonnull outStatus,
+    double* _Nonnull outC0Value, double* _Nonnull outG1Angle,
+    double* _Nonnull outC1UAngle, double* _Nonnull outC1VAngle) {
+    try {
+        auto s1 = (OCCTSurface*)surface1;
+        auto s2 = (OCCTSurface*)surface2;
+
+        LocalAnalysis_SurfaceContinuity sc(s1->surface, u1, v1, s2->surface, u2, v2,
+                                            orderToShape(order));
+        if (!sc.IsDone()) return false;
+
+        *outStatus = shapeToOrder(sc.ContinuityStatus());
+        *outC0Value = sc.C0Value();
+        *outG1Angle = sc.IsG1() ? sc.G1Angle() : -1.0;
+        *outC1UAngle = sc.IsC1() ? sc.C1UAngle() : -1.0;
+        *outC1VAngle = sc.IsC1() ? sc.C1VAngle() : -1.0;
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTLocalAnalysisSurfaceContinuityFlags(OCCTSurfaceRef _Nonnull surface1, double u1, double v1,
+    OCCTSurfaceRef _Nonnull surface2, double u2, double v2, int32_t order) {
+    try {
+        auto s1 = (OCCTSurface*)surface1;
+        auto s2 = (OCCTSurface*)surface2;
+
+        LocalAnalysis_SurfaceContinuity sc(s1->surface, u1, v1, s2->surface, u2, v2,
+                                            orderToShape(order));
+        if (!sc.IsDone()) return 0;
+
+        int32_t flags = 0;
+        if (sc.IsC0()) flags |= 1;
+        if (sc.IsG1()) flags |= 2;
+        if (sc.IsC1()) flags |= 4;
+        if (sc.IsG2()) flags |= 8;
+        if (sc.IsC2()) flags |= 16;
+        return flags;
+    } catch (...) { return 0; }
+}
+
+// --- TopTrans_SurfaceTransition ---
+
+static TopAbs_Orientation intToOrientation(int32_t o) {
+    switch (o) {
+        case 0: return TopAbs_FORWARD;
+        case 1: return TopAbs_REVERSED;
+        case 2: return TopAbs_INTERNAL;
+        case 3: return TopAbs_EXTERNAL;
+        default: return TopAbs_FORWARD;
+    }
+}
+
+void OCCTTopTransSurfaceTransition(
+    double tgtX, double tgtY, double tgtZ,
+    double normX, double normY, double normZ,
+    double surfNormX, double surfNormY, double surfNormZ,
+    double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter) {
+    try {
+        TopTrans_SurfaceTransition st;
+        st.Reset(gp_Dir(tgtX, tgtY, tgtZ), gp_Dir(normX, normY, normZ));
+        st.Compare(tolerance, gp_Dir(surfNormX, surfNormY, surfNormZ),
+                   intToOrientation(surfOrientation), intToOrientation(boundOrientation));
+        *outStateBefore = (int32_t)st.StateBefore();
+        *outStateAfter = (int32_t)st.StateAfter();
+    } catch (...) {
+        *outStateBefore = 3; // UNKNOWN
+        *outStateAfter = 3;
+    }
+}
+
+void OCCTTopTransSurfaceTransitionCurvature(
+    double tgtX, double tgtY, double tgtZ,
+    double normX, double normY, double normZ,
+    double maxDX, double maxDY, double maxDZ,
+    double minDX, double minDY, double minDZ,
+    double maxCurv, double minCurv,
+    double surfNormX, double surfNormY, double surfNormZ,
+    double surfMaxDX, double surfMaxDY, double surfMaxDZ,
+    double surfMinDX, double surfMinDY, double surfMinDZ,
+    double surfMaxCurv, double surfMinCurv,
+    double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter) {
+    try {
+        TopTrans_SurfaceTransition st;
+        st.Reset(gp_Dir(tgtX, tgtY, tgtZ), gp_Dir(normX, normY, normZ),
+                 gp_Dir(maxDX, maxDY, maxDZ), gp_Dir(minDX, minDY, minDZ),
+                 maxCurv, minCurv);
+        st.Compare(tolerance,
+                   gp_Dir(surfNormX, surfNormY, surfNormZ),
+                   gp_Dir(surfMaxDX, surfMaxDY, surfMaxDZ),
+                   gp_Dir(surfMinDX, surfMinDY, surfMinDZ),
+                   surfMaxCurv, surfMinCurv,
+                   intToOrientation(surfOrientation), intToOrientation(boundOrientation));
+        *outStateBefore = (int32_t)st.StateBefore();
+        *outStateAfter = (int32_t)st.StateAfter();
+    } catch (...) {
+        *outStateBefore = 3;
+        *outStateAfter = 3;
+    }
+}

@@ -1364,4 +1364,58 @@ extension Surface {
             uSplitCount: Int(result.nUSplits),
             vSplitCount: Int(result.nVSplits))
     }
+
+    // MARK: - LocalAnalysis
+
+    /// Result of surface continuity analysis at a junction point.
+    public struct ContinuityAnalysis: Sendable {
+        /// Continuity status as GeomAbs_Shape value
+        public let status: Int
+        /// Distance between surface points at junction
+        public let c0Value: Double
+        /// Angle between normals (radians)
+        public let g1Angle: Double
+        /// Angle between U-derivatives
+        public let c1UAngle: Double
+        /// Angle between V-derivatives
+        public let c1VAngle: Double
+        /// Bitmask: bit0=C0, bit1=G1, bit2=C1, bit3=G2, bit4=C2
+        public let flags: Int
+
+        /// Whether the junction is positionally continuous (C0)
+        public var isC0: Bool { flags & 1 != 0 }
+        /// Whether the junction is geometrically tangent-continuous (G1)
+        public var isG1: Bool { flags & 2 != 0 }
+        /// Whether the junction is parametrically tangent-continuous (C1)
+        public var isC1: Bool { flags & 4 != 0 }
+        /// Whether the junction is geometrically curvature-continuous (G2)
+        public var isG2: Bool { flags & 8 != 0 }
+        /// Whether the junction is parametrically curvature-continuous (C2)
+        public var isC2: Bool { flags & 16 != 0 }
+    }
+
+    /// Analyze continuity between this surface at (u1, v1) and another surface at (u2, v2).
+    ///
+    /// - Parameters:
+    ///   - u1: U parameter on this surface
+    ///   - v1: V parameter on this surface
+    ///   - other: Second surface
+    ///   - u2: U parameter on second surface
+    ///   - v2: V parameter on second surface
+    ///   - order: Maximum continuity order to check (0=C0, 1=G1, 2=C1, 3=G2, 4=C2)
+    /// - Returns: Continuity analysis result, or nil on failure
+    public func continuityWith(_ other: Surface, u1: Double, v1: Double, u2: Double, v2: Double, order: Int = 4) -> ContinuityAnalysis? {
+        var outStatus: Int32 = 0
+        var outC0: Double = 0, outG1: Double = 0
+        var outC1U: Double = 0, outC1V: Double = 0
+        let ok = OCCTLocalAnalysisSurfaceContinuity(
+            handle, u1, v1, other.handle, u2, v2, Int32(order),
+            &outStatus, &outC0, &outG1, &outC1U, &outC1V)
+        guard ok else { return nil }
+        let flags = Int(OCCTLocalAnalysisSurfaceContinuityFlags(
+            handle, u1, v1, other.handle, u2, v2, Int32(order)))
+        return ContinuityAnalysis(
+            status: Int(outStatus), c0Value: outC0, g1Angle: outG1,
+            c1UAngle: outC1U, c1VAngle: outC1V, flags: flags)
+    }
 }

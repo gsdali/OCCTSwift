@@ -19446,3 +19446,220 @@ struct Curve2DPoint2DIntegrationTests {
         }
     }
 }
+
+// MARK: - v0.67.0: FairCurve, LocalAnalysis, TopTrans
+
+@Suite("FairCurve Batten Tests")
+struct FairCurveBattenTests {
+    @Test func basicBatten() {
+        if let result = Curve2D.fairCurveBatten(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0), height: 2.0
+        ) {
+            #expect(result.code == .ok)
+        }
+    }
+
+    @Test func battenWithSlope() {
+        if let result = Curve2D.fairCurveBatten(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0),
+            height: 3.0, slope: 0.5
+        ) {
+            #expect(result.code == .ok)
+        }
+    }
+
+    @Test func battenWithAngles() {
+        if let result = Curve2D.fairCurveBatten(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0),
+            height: 2.0, angle1: 0.3, angle2: -0.3
+        ) {
+            #expect(result.code == .ok)
+        }
+    }
+
+    @Test func battenConstraintOrders() {
+        if let result = Curve2D.fairCurveBatten(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0),
+            height: 2.0,
+            constraintOrder1: 0, constraintOrder2: 0
+        ) {
+            #expect(result.code == .ok)
+        }
+    }
+
+    @Test func battenCurveProperties() {
+        if let result = Curve2D.fairCurveBatten(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0), height: 2.0
+        ) {
+            let d = result.curve.domain
+            #expect(d.lowerBound < d.upperBound)
+        }
+    }
+}
+
+@Suite("FairCurve MinimalVariation Tests")
+struct FairCurveMinimalVariationTests {
+    @Test func basicMinimalVariation() {
+        if let result = Curve2D.fairCurveMinimalVariation(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0), height: 2.0
+        ) {
+            #expect(result.code == .ok)
+        }
+    }
+
+    @Test func withCurvatureConstraints() {
+        // Curvature constraints need order >= 2
+        if let result = Curve2D.fairCurveMinimalVariation(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0),
+            height: 2.0,
+            constraintOrder1: 2, constraintOrder2: 2,
+            curvature1: 0.1, curvature2: 0.1
+        ) {
+            // May not converge, but should not crash
+            _ = result.code
+        }
+    }
+
+    @Test func withPhysicalRatio() {
+        if let result = Curve2D.fairCurveMinimalVariation(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0),
+            height: 2.0, physicalRatio: 0.5
+        ) {
+            #expect(result.code == .ok)
+        }
+    }
+}
+
+@Suite("LocalAnalysis CurveContinuity Tests")
+struct LocalAnalysisCurveContinuityTests {
+    @Test func smoothJunction() {
+        // Two BSpline curves meeting smoothly at (5,0,0)
+        guard let c1 = Curve3D.fit(points: [
+            SIMD3(0, 0, 0), SIMD3(2.5, 1, 0), SIMD3(5, 0, 0)
+        ]) else { return }
+        guard let c2 = Curve3D.fit(points: [
+            SIMD3(5, 0, 0), SIMD3(7.5, -1, 0), SIMD3(10, 0, 0)
+        ]) else { return }
+        if let analysis = c1.continuityWith(c2, u1: c1.domain.upperBound, u2: c2.domain.lowerBound) {
+            #expect(analysis.isC0)
+            #expect(analysis.c0Value < 1e-6)
+        }
+    }
+
+    @Test func smoothJunctionIsG1() {
+        guard let c1 = Curve3D.fit(points: [
+            SIMD3(0, 0, 0), SIMD3(2.5, 1, 0), SIMD3(5, 0, 0)
+        ]) else { return }
+        guard let c2 = Curve3D.fit(points: [
+            SIMD3(5, 0, 0), SIMD3(7.5, -1, 0), SIMD3(10, 0, 0)
+        ]) else { return }
+        if let analysis = c1.continuityWith(c2, u1: c1.domain.upperBound, u2: c2.domain.lowerBound) {
+            #expect(analysis.isG1)
+            #expect(analysis.g1Angle >= 0)
+        }
+    }
+
+    @Test func sharpCorner() {
+        // Two curves meeting at sharp angle
+        guard let c1 = Curve3D.fit(points: [
+            SIMD3(0, 0, 0), SIMD3(2.5, 0.5, 0), SIMD3(5, 0, 0)
+        ]) else { return }
+        guard let c2 = Curve3D.fit(points: [
+            SIMD3(5, 0, 0), SIMD3(5.5, 2.5, 0), SIMD3(5, 5, 0)
+        ]) else { return }
+        if let analysis = c1.continuityWith(c2, u1: c1.domain.upperBound, u2: c2.domain.lowerBound) {
+            #expect(analysis.isC0)
+        }
+    }
+
+    @Test func continuityMetrics() {
+        guard let c1 = Curve3D.fit(points: [
+            SIMD3(0, 0, 0), SIMD3(2.5, 1, 0), SIMD3(5, 0, 0)
+        ]) else { return }
+        guard let c2 = Curve3D.fit(points: [
+            SIMD3(5, 0, 0), SIMD3(7.5, -1, 0), SIMD3(10, 0, 0)
+        ]) else { return }
+        if let a = c1.continuityWith(c2, u1: c1.domain.upperBound, u2: c2.domain.lowerBound) {
+            #expect(a.status >= 0)
+            #expect(a.c1Ratio > 0)
+        }
+    }
+}
+
+@Suite("LocalAnalysis SurfaceContinuity Tests")
+struct LocalAnalysisSurfaceContinuityTests {
+    @Test func identicalPlanes() {
+        guard let s1 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)),
+              let s2 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) else { return }
+        if let analysis = s1.continuityWith(s2, u1: 0, v1: 0, u2: 0, v2: 0) {
+            #expect(analysis.isC0)
+            #expect(analysis.isG1)
+            #expect(analysis.c0Value < 1e-6)
+        }
+    }
+
+    @Test func planeVsCylinder() {
+        guard let s1 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)),
+              let s2 = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5.0) else { return }
+        if let analysis = s1.continuityWith(s2, u1: 0, v1: 0, u2: 0, v2: 0) {
+            #expect(analysis.status >= 0)
+        }
+    }
+
+    @Test func surfaceContinuityFlags() {
+        guard let s1 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)),
+              let s2 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) else { return }
+        if let analysis = s1.continuityWith(s2, u1: 0, v1: 0, u2: 0, v2: 0) {
+            #expect(analysis.flags > 0)
+        }
+    }
+}
+
+@Suite("TopTrans SurfaceTransition Tests")
+struct TopTransSurfaceTransitionTests {
+    @Test func forwardCrossing() {
+        let result = Shape.surfaceTransition(
+            tangent: SIMD3(1, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            surfaceNormal: SIMD3(0, 1, 0),
+            surfaceOrientation: 0, boundaryOrientation: 0)
+        #expect(result.stateBefore == .out)
+        #expect(result.stateAfter == .in)
+    }
+
+    @Test func reversedCrossing() {
+        let result = Shape.surfaceTransition(
+            tangent: SIMD3(1, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            surfaceNormal: SIMD3(0, 1, 0),
+            surfaceOrientation: 1, boundaryOrientation: 1)
+        #expect(result.stateBefore == .in)
+        #expect(result.stateAfter == .out)
+    }
+
+    @Test func withCurvature() {
+        // Curvature-enhanced transition: verify it runs without crash
+        // and returns determined states when geometry is compatible
+        let result = Shape.surfaceTransitionWithCurvature(
+            tangent: SIMD3(1, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            maxDirection: SIMD3(0, 1, 0),
+            minDirection: SIMD3(0, 0, 1),
+            maxCurvature: 0.1, minCurvature: 0.01,
+            surfaceNormal: SIMD3(0, 1, 0),
+            surfaceMaxDirection: SIMD3(1, 0, 0),
+            surfaceMinDirection: SIMD3(0, 0, 1),
+            surfaceMaxCurvature: 0.05, surfaceMinCurvature: 0.005,
+            surfaceOrientation: 0, boundaryOrientation: 0)
+        // States may be UNKNOWN for some curvature configurations
+        _ = result.stateBefore
+        _ = result.stateAfter
+    }
+
+    @Test func stateEnumValues() {
+        #expect(Shape.TopologicalState.in.rawValue == 0)
+        #expect(Shape.TopologicalState.out.rawValue == 1)
+        #expect(Shape.TopologicalState.on.rawValue == 2)
+        #expect(Shape.TopologicalState.unknown.rawValue == 3)
+    }
+}

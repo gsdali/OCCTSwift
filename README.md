@@ -99,7 +99,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Direction2D Utilities** | 3 | normalize, angle, cross |
 | **LProp AnalyticCurInf** | 1 | analyticCurvaturePoints (inflection/min/max curvature for analytic curves) |
 | **Curve2D ↔ Point2D** | 3 | pointAt, segment(from:Point2D), project(Point2D) |
-| **Total** | **1089** | |
+| **FairCurve** | 2 | fairCurveBatten, fairCurveMinimalVariation |
+| **LocalAnalysis** | 4 | curveContinuity, curveContinuityFlags, surfaceContinuity, surfaceContinuityFlags |
+| **TopTrans** | 2 | surfaceTransition, surfaceTransitionWithCurvature |
+| **Total** | **1097** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -332,6 +335,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Vector2D/Direction2D Utilities**: Geom2d_VectorWithMagnitude / Geom2d_Direction — 2D vector algebra (angle, cross, dot, magnitude, normalize) and direction operations
 - **LProp AnalyticCurInf**: Detect inflection points and curvature extrema on analytic 2D curve types (line, circle, ellipse, hyperbola, parabola)
 - **Curve2D ↔ Point2D Integration**: Evaluate curves at parameters as Point2D, create segments between Point2Ds, project Point2D onto curves
+- **FairCurve**: Batten and minimal-variation fair curves between 2D points with height, slope, angle, and curvature constraints
+- **LocalAnalysis Curve Continuity**: Analyze C0/G1/C1/G2/C2 continuity at curve junctions — distance, tangent angle, derivative ratios, curvature variation
+- **LocalAnalysis Surface Continuity**: Analyze C0/G1/C1/G2/C2 continuity at surface junctions — distance, normal angle, derivative angles
+- **TopTrans Surface Transition**: Determine IN/OUT topological state before and after crossing a surface boundary, with optional curvature info
+- **OCCT Class Cross-Reference**: Complete mapping of ~200 OCCT classes to their OCCTSwift bridge function names in OCCTBridge.h
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements

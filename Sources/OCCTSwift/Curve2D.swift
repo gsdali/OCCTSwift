@@ -1748,4 +1748,86 @@ extension Curve2D {
         if dist < 0 { return nil }
         return (param, dist)
     }
+
+    // MARK: - FairCurve
+
+    /// FairCurve analysis code indicating computation result.
+    public enum FairCurveCode: Int32, Sendable {
+        case ok = 0
+        case notConverged = 1
+        case infiniteSliding = 2
+        case nullHeight = 3
+    }
+
+    /// Create a fair curve (batten) between two 2D points.
+    ///
+    /// A batten is a curve of minimal energy passing through two points with specified
+    /// constraint orders, height, slope, and angles.
+    ///
+    /// - Parameters:
+    ///   - p1: First point (x, y)
+    ///   - p2: Second point (x, y)
+    ///   - height: Height of the batten cross-section
+    ///   - slope: Slope parameter (0 = no slope)
+    ///   - angle1: Angle constraint at first point (radians)
+    ///   - angle2: Angle constraint at second point (radians)
+    ///   - constraintOrder1: Order at first point (0=point, 1=tangent, 2=curvature)
+    ///   - constraintOrder2: Order at second point
+    ///   - freeSliding: Whether the batten slides freely
+    /// - Returns: Tuple of (curve, code) or nil on failure
+    public static func fairCurveBatten(
+        p1: SIMD2<Double>, p2: SIMD2<Double>,
+        height: Double = 1.0, slope: Double = 0.0,
+        angle1: Double = 0.0, angle2: Double = 0.0,
+        constraintOrder1: Int = 1, constraintOrder2: Int = 1,
+        freeSliding: Bool = true
+    ) -> (curve: Curve2D, code: FairCurveCode)? {
+        var outCode: Int32 = 0
+        guard let h = OCCTFairCurveBatten(
+            p1.x, p1.y, p2.x, p2.y,
+            height, slope, angle1, angle2,
+            Int32(constraintOrder1), Int32(constraintOrder2), freeSliding,
+            &outCode) else { return nil }
+        let code = FairCurveCode(rawValue: outCode) ?? .ok
+        return (Curve2D(handle: h), code)
+    }
+
+    /// Create a fair curve with minimal variation between two 2D points.
+    ///
+    /// Like a batten but minimizes curvature variation, producing smoother curves.
+    /// Supports additional curvature and physical ratio constraints.
+    ///
+    /// - Parameters:
+    ///   - p1: First point (x, y)
+    ///   - p2: Second point (x, y)
+    ///   - height: Height of the cross-section
+    ///   - slope: Slope parameter
+    ///   - angle1: Angle at first point (radians)
+    ///   - angle2: Angle at second point (radians)
+    ///   - constraintOrder1: Order at first point (0=point, 1=tangent, 2=curvature)
+    ///   - constraintOrder2: Order at second point
+    ///   - freeSliding: Whether sliding is free
+    ///   - physicalRatio: Physical ratio (0..1), blends between batten and minimal variation
+    ///   - curvature1: Curvature at first point (used when constraintOrder >= 2)
+    ///   - curvature2: Curvature at second point
+    /// - Returns: Tuple of (curve, code) or nil on failure
+    public static func fairCurveMinimalVariation(
+        p1: SIMD2<Double>, p2: SIMD2<Double>,
+        height: Double = 1.0, slope: Double = 0.0,
+        angle1: Double = 0.0, angle2: Double = 0.0,
+        constraintOrder1: Int = 1, constraintOrder2: Int = 1,
+        freeSliding: Bool = true,
+        physicalRatio: Double = 0.0,
+        curvature1: Double = 0.0, curvature2: Double = 0.0
+    ) -> (curve: Curve2D, code: FairCurveCode)? {
+        var outCode: Int32 = 0
+        guard let h = OCCTFairCurveMinimalVariation(
+            p1.x, p1.y, p2.x, p2.y,
+            height, slope, angle1, angle2,
+            Int32(constraintOrder1), Int32(constraintOrder2), freeSliding,
+            physicalRatio, curvature1, curvature2,
+            &outCode) else { return nil }
+        let code = FairCurveCode(rawValue: outCode) ?? .ok
+        return (Curve2D(handle: h), code)
+    }
 }
