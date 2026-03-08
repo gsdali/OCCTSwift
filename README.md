@@ -65,7 +65,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Mesh Deflection** | 2 | computeAbsoluteDeflection, deflectionIsConsistent |
 | **Shape from Mesh** | 1 | fromMesh (BRepBuilderAPI_MakeShapeOnMesh) |
 | **Plate Surface** | 1 | plateSurface (GeomPlate_BuildPlateSurface + MakeApprox) |
-| **Total** | **973** | |
+| **BRepLib Topology** | 9 | edgeFromLine, edgeFromPoints, edgeFromCircle, faceFromPlane, faceFromCylinder, shellFromPlane, computeNormals, pointCloudByTriangulation, pointCloudByDensity |
+| **2D Edges** | 3 | edge2d(points), edge2dFromCircle, edge2dFromLine |
+| **BRepTools Modifier** | 1 | nurbsConvertViaModifier |
+| **ShapeCustom** | 2 | directModification, trsfModificationScale |
+| **LocOpe Extensions** | 3 | buildWires, splitByWireOnFace, curveShapeIntersect |
+| **CPnts Deflection** | 2 | uniformDeflection, uniformDeflection(range) |
+| **IntCurvesFace** | 2 | rayIntersect, rayIntersectNearest |
+| **Total** | **995** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -260,6 +267,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **projectWire Wire overloads**: Cylindrical and conical projection accept Wire directly
 - **Shape.distance/intersects overloads**: Distance and intersection checks accept Wire, Edge, or Face directly
 - **orderedEdgePoints auto-sizing**: No more 200-point truncation — buffer auto-sizes to fit all discretized points
+- **BRepLib Topology Construction**: Direct edge/face/shell creation from geometric primitives (line, circle, plane, cylinder) via BRepLib_MakeEdge/MakeFace/MakeShell
+- **Point Cloud Extraction**: Sample point clouds from triangulated shapes by triangle traversal or target density, with surface normals
+- **2D Edge Construction**: BRepBuilderAPI_MakeEdge2d — create 2D topological edges from points, circles, and lines
+- **BRepTools Modifier**: Apply shape modifications via BRepTools_Modifier with NurbsConvertModification
+- **ShapeCustom Modifications**: Direct modification (orient normals) and TrsfModification (scale with tolerance handling)
+- **LocOpe BuildWires**: Extract wires from face edges, split shapes by wire projection on faces
+- **CPnts Uniform Deflection**: Curve discretization by deflection criterion with full-range and sub-range support
+- **Ray-Shape Intersection**: IntCurvesFace_ShapeIntersector — cast rays through shapes, get all intersection points or nearest hit
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements

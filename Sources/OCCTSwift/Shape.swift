@@ -6756,3 +6756,371 @@ public final class CellsBuilder: @unchecked Sendable {
         return Shape(handle: h)
     }
 }
+
+// MARK: - v0.62.0: BRepLib, LocOpe completion, ShapeUpgrade/ShapeCustom, CPnts, IntCurvesFace
+
+extension Shape {
+
+    // MARK: BRepLib_MakeEdge
+
+    /// Create an edge from a line with parameter bounds.
+    public static func edgeFromLine(
+        origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        p1: Double,
+        p2: Double
+    ) -> Shape? {
+        guard let h = OCCTBRepLibMakeEdgeFromLine(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            p1, p2
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create an edge from two 3D points (BRepLib).
+    public static func edgeFromPoints(
+        _ p1: SIMD3<Double>,
+        _ p2: SIMD3<Double>
+    ) -> Shape? {
+        guard let h = OCCTBRepLibMakeEdgeFromPoints(
+            p1.x, p1.y, p1.z, p2.x, p2.y, p2.z
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create an edge from a circle arc with parameter bounds.
+    public static func edgeFromCircle(
+        center: SIMD3<Double>,
+        axis: SIMD3<Double>,
+        radius: Double,
+        p1: Double,
+        p2: Double
+    ) -> Shape? {
+        guard let h = OCCTBRepLibMakeEdgeFromCircle(
+            center.x, center.y, center.z,
+            axis.x, axis.y, axis.z,
+            radius, p1, p2
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: BRepLib_MakeFace
+
+    /// Create a face from a plane surface with UV bounds.
+    public static func faceFromPlane(
+        origin: SIMD3<Double>,
+        normal: SIMD3<Double>,
+        uRange: ClosedRange<Double>,
+        vRange: ClosedRange<Double>,
+        tolerance: Double = 1e-6
+    ) -> Shape? {
+        guard let h = OCCTBRepLibMakeFaceFromPlane(
+            origin.x, origin.y, origin.z,
+            normal.x, normal.y, normal.z,
+            uRange.lowerBound, uRange.upperBound,
+            vRange.lowerBound, vRange.upperBound,
+            tolerance
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create a face from a cylindrical surface with UV bounds.
+    public static func faceFromCylinder(
+        origin: SIMD3<Double>,
+        axis: SIMD3<Double>,
+        radius: Double,
+        uRange: ClosedRange<Double>,
+        vRange: ClosedRange<Double>,
+        tolerance: Double = 1e-6
+    ) -> Shape? {
+        guard let h = OCCTBRepLibMakeFaceFromCylinder(
+            origin.x, origin.y, origin.z,
+            axis.x, axis.y, axis.z,
+            radius,
+            uRange.lowerBound, uRange.upperBound,
+            vRange.lowerBound, vRange.upperBound,
+            tolerance
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: BRepLib_MakeShell
+
+    /// Create a shell from a plane surface with UV bounds.
+    public static func shellFromPlane(
+        origin: SIMD3<Double>,
+        normal: SIMD3<Double>,
+        uRange: ClosedRange<Double>,
+        vRange: ClosedRange<Double>
+    ) -> Shape? {
+        guard let h = OCCTBRepLibMakeShellFromPlane(
+            origin.x, origin.y, origin.z,
+            normal.x, normal.y, normal.z,
+            uRange.lowerBound, uRange.upperBound,
+            vRange.lowerBound, vRange.upperBound
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: BRepLib_ToolTriangulatedShape
+
+    /// Compute normals on the triangulation of all faces in this shape.
+    /// The shape must be meshed first.
+    public func computeNormals() -> Bool {
+        OCCTBRepLibComputeNormals(handle)
+    }
+
+    // MARK: BRepLib_PointCloudShape
+
+    /// Point cloud result with positions and normals.
+    public struct PointCloudResult: Sendable {
+        public let points: [SIMD3<Double>]
+        public let normals: [SIMD3<Double>]
+    }
+
+    /// Generate a point cloud from this shape's triangulation.
+    /// The shape must be meshed first.
+    public func pointCloudByTriangulation() -> PointCloudResult? {
+        var outPoints: UnsafeMutablePointer<Double>?
+        var outNormals: UnsafeMutablePointer<Double>?
+        var outCount: Int32 = 0
+        guard OCCTBRepLibPointCloudByTriangulation(handle, &outPoints, &outNormals, &outCount),
+              let pts = outPoints, let nms = outNormals, outCount > 0 else { return nil }
+        defer { free(pts); free(nms) }
+        var points = [SIMD3<Double>]()
+        var normals = [SIMD3<Double>]()
+        for i in 0..<Int(outCount) {
+            points.append(SIMD3(pts[i*3], pts[i*3+1], pts[i*3+2]))
+            normals.append(SIMD3(nms[i*3], nms[i*3+1], nms[i*3+2]))
+        }
+        return PointCloudResult(points: points, normals: normals)
+    }
+
+    /// Generate a point cloud from this shape by density (points per unit area).
+    /// The shape must be meshed first.
+    public func pointCloudByDensity(_ density: Double) -> PointCloudResult? {
+        var outPoints: UnsafeMutablePointer<Double>?
+        var outNormals: UnsafeMutablePointer<Double>?
+        var outCount: Int32 = 0
+        guard OCCTBRepLibPointCloudByDensity(handle, density, &outPoints, &outNormals, &outCount),
+              let pts = outPoints, let nms = outNormals, outCount > 0 else { return nil }
+        defer { free(pts); free(nms) }
+        var points = [SIMD3<Double>]()
+        var normals = [SIMD3<Double>]()
+        for i in 0..<Int(outCount) {
+            points.append(SIMD3(pts[i*3], pts[i*3+1], pts[i*3+2]))
+            normals.append(SIMD3(nms[i*3], nms[i*3+1], nms[i*3+2]))
+        }
+        return PointCloudResult(points: points, normals: normals)
+    }
+
+    // MARK: BRepBuilderAPI_MakeEdge2d
+
+    /// Create a 2D edge from two 2D points.
+    public static func edge2d(from p1: SIMD2<Double>, to p2: SIMD2<Double>) -> Shape? {
+        guard let h = OCCTMakeEdge2dFromPoints(p1.x, p1.y, p2.x, p2.y) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create a 2D edge from a circle arc with parameter bounds.
+    public static func edge2dFromCircle(
+        center: SIMD2<Double>,
+        direction: SIMD2<Double>,
+        radius: Double,
+        p1: Double,
+        p2: Double
+    ) -> Shape? {
+        guard let h = OCCTMakeEdge2dFromCircle(
+            center.x, center.y, direction.x, direction.y,
+            radius, p1, p2
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create a 2D edge from a line with parameter bounds.
+    public static func edge2dFromLine(
+        origin: SIMD2<Double>,
+        direction: SIMD2<Double>,
+        p1: Double,
+        p2: Double
+    ) -> Shape? {
+        guard let h = OCCTMakeEdge2dFromLine(
+            origin.x, origin.y, direction.x, direction.y,
+            p1, p2
+        ) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: BRepTools_Modifier + NurbsConvertModification
+
+    /// Convert shape to NURBS via BRepTools_Modifier (flexible NURBS conversion).
+    public func nurbsConvertViaModifier() -> Shape? {
+        guard let h = OCCTBRepToolsModifierNurbsConvert(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: ShapeCustom_DirectModification
+
+    /// Orient face normals outward using ShapeCustom_DirectModification.
+    public func directModification() -> Shape? {
+        guard let h = OCCTShapeCustomDirectModification(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: ShapeCustom_TrsfModification
+
+    /// Apply a uniform scale with proper tolerance handling via ShapeCustom_TrsfModification.
+    public func trsfModificationScale(_ scaleFactor: Double) -> Shape? {
+        guard let h = OCCTShapeCustomTrsfModificationScale(handle, scaleFactor) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: LocOpe_BuildWires
+
+    /// Build wires from the edges of a face.
+    /// - Parameter faceIndex: 1-based face index (0 = all edges)
+    public func buildWires(faceIndex: Int32 = 0) -> [Shape]? {
+        var outWires: UnsafeMutablePointer<OCCTShapeRef?>?
+        var outCount: Int32 = 0
+        guard OCCTLocOpeBuildWires(handle, faceIndex, &outWires, &outCount) else { return nil }
+        guard let wires = outWires else { return [] }
+        defer { free(wires) }
+        var result = [Shape]()
+        for i in 0..<Int(outCount) {
+            if let h = wires[i] {
+                result.append(Shape(handle: h))
+            }
+        }
+        return result
+    }
+
+    // MARK: LocOpe_WiresOnShape + LocOpe_Spliter
+
+    /// Split a face of this shape by projecting a wire onto it.
+    /// - Parameters:
+    ///   - wire: The splitting wire
+    ///   - faceIndex: 1-based index of the face to split
+    public func splitByWireOnFace(_ wire: Shape, faceIndex: Int32) -> Shape? {
+        guard let h = OCCTLocOpeSplitByWireOnFace(handle, wire.handle, faceIndex) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: LocOpe_CurveShapeIntersector
+
+    /// Intersect a line with this shape and return parameter values.
+    public func curveShapeIntersect(
+        origin: SIMD3<Double>,
+        direction: SIMD3<Double>
+    ) -> [Double]? {
+        var outParams: UnsafeMutablePointer<Double>?
+        var outCount: Int32 = 0
+        guard OCCTLocOpeCurveShapeIntersectLine(
+            handle,
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            &outParams, &outCount
+        ) else { return nil }
+        guard let params = outParams else { return [] }
+        defer { free(params) }
+        return Array(UnsafeBufferPointer(start: params, count: Int(outCount)))
+    }
+
+    // Note: ShapeUpgrade_ClosedFaceDivide, SplitSurfaceAngle, SplitSurfaceArea
+    // already wrapped as dividedClosedFaces, splitByAngle, dividedByParts
+
+    // MARK: CPnts_UniformDeflection
+
+    /// Discretization result with parameters and 3D points.
+    public struct DeflectionResult: Sendable {
+        public let parameters: [Double]
+        public let points: [SIMD3<Double>]
+    }
+
+    /// Discretize an edge by uniform deflection.
+    public func uniformDeflection(_ deflection: Double) -> DeflectionResult? {
+        var outParams: UnsafeMutablePointer<Double>?
+        var outPoints: UnsafeMutablePointer<Double>?
+        var outCount: Int32 = 0
+        guard OCCTCPntsUniformDeflection(handle, deflection, &outParams, &outPoints, &outCount),
+              let params = outParams, let pts = outPoints, outCount > 0 else { return nil }
+        defer { free(params); free(pts) }
+        var points = [SIMD3<Double>]()
+        for i in 0..<Int(outCount) {
+            points.append(SIMD3(pts[i*3], pts[i*3+1], pts[i*3+2]))
+        }
+        return DeflectionResult(
+            parameters: Array(UnsafeBufferPointer(start: params, count: Int(outCount))),
+            points: points
+        )
+    }
+
+    /// Discretize an edge by uniform deflection within a parameter range.
+    public func uniformDeflection(_ deflection: Double, range: ClosedRange<Double>) -> DeflectionResult? {
+        var outParams: UnsafeMutablePointer<Double>?
+        var outPoints: UnsafeMutablePointer<Double>?
+        var outCount: Int32 = 0
+        guard OCCTCPntsUniformDeflectionRange(
+            handle, deflection,
+            range.lowerBound, range.upperBound,
+            &outParams, &outPoints, &outCount
+        ), let params = outParams, let pts = outPoints, outCount > 0 else { return nil }
+        defer { free(params); free(pts) }
+        var points = [SIMD3<Double>]()
+        for i in 0..<Int(outCount) {
+            points.append(SIMD3(pts[i*3], pts[i*3+1], pts[i*3+2]))
+        }
+        return DeflectionResult(
+            parameters: Array(UnsafeBufferPointer(start: params, count: Int(outCount))),
+            points: points
+        )
+    }
+
+    // MARK: IntCurvesFace_ShapeIntersector
+
+    /// Ray intersection result.
+    public struct RayIntersection: Sendable {
+        public let point: SIMD3<Double>
+        public let parameter: Double
+    }
+
+    /// Intersect a ray with all faces of this shape.
+    public func rayIntersect(
+        origin: SIMD3<Double>,
+        direction: SIMD3<Double>
+    ) -> [RayIntersection]? {
+        var outPoints: UnsafeMutablePointer<Double>?
+        var outParams: UnsafeMutablePointer<Double>?
+        var outCount: Int32 = 0
+        guard OCCTIntCurvesFaceShapeIntersect(
+            handle,
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            &outPoints, &outParams, &outCount
+        ), let pts = outPoints, let params = outParams, outCount > 0 else { return nil }
+        defer { free(pts); free(params) }
+        var results = [RayIntersection]()
+        for i in 0..<Int(outCount) {
+            results.append(RayIntersection(
+                point: SIMD3(pts[i*3], pts[i*3+1], pts[i*3+2]),
+                parameter: params[i]
+            ))
+        }
+        return results
+    }
+
+    /// Find the nearest intersection of a ray with this shape.
+    public func rayIntersectNearest(
+        origin: SIMD3<Double>,
+        direction: SIMD3<Double>
+    ) -> RayIntersection? {
+        var x: Double = 0, y: Double = 0, z: Double = 0, param: Double = 0
+        guard OCCTIntCurvesFaceShapeIntersectNearest(
+            handle,
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            &x, &y, &z, &param
+        ) else { return nil }
+        return RayIntersection(point: SIMD3(x, y, z), parameter: param)
+    }
+}

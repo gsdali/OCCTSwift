@@ -22931,3 +22931,519 @@ OCCTShapeRef OCCTGeomPlateSurface(const double* points, int32_t ptCount,
         return new OCCTShape(faceMaker.Face());
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.62.0: BRepLib, LocOpe completion, ShapeUpgrade/ShapeCustom, CPnts, IntCurvesFace
+
+#include <BRepLib_MakeEdge.hxx>
+#include <BRepLib_MakeFace.hxx>
+#include <BRepLib_MakeShell.hxx>
+#include <BRepLib_ToolTriangulatedShape.hxx>
+#include <BRepLib_PointCloudShape.hxx>
+#include <BRepBuilderAPI_MakeEdge2d.hxx>
+#include <BRepTools_Modifier.hxx>
+#include <BRepTools_NurbsConvertModification.hxx>
+#include <ShapeCustom_DirectModification.hxx>
+#include <ShapeCustom_TrsfModification.hxx>
+#include <LocOpe_BuildWires.hxx>
+#include <LocOpe_WiresOnShape.hxx>
+#include <LocOpe_Spliter.hxx>
+#include <LocOpe_CurveShapeIntersector.hxx>
+#include <ShapeUpgrade_ClosedFaceDivide.hxx>
+#include <ShapeUpgrade_ShapeDivideAngle.hxx>
+#include <ShapeUpgrade_ShapeDivideArea.hxx>
+#include <CPnts_UniformDeflection.hxx>
+#include <IntCurvesFace_ShapeIntersector.hxx>
+#include <gp_Circ2d.hxx>
+#include <gp_Lin2d.hxx>
+#include <gp_Ax2d.hxx>
+#include <gp_Pnt2d.hxx>
+#include <gp_Dir2d.hxx>
+#include <Poly_Triangulation.hxx>
+#include <vector>
+
+// --- BRepLib_MakeEdge ---
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromLine(
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double p1, double p2) {
+    try {
+        gp_Lin line(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        BRepLib_MakeEdge me(line, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromPoints(
+    double x1, double y1, double z1,
+    double x2, double y2, double z2) {
+    try {
+        BRepLib_MakeEdge me(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2));
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromCircle(
+    double cx, double cy, double cz,
+    double dx, double dy, double dz,
+    double radius, double p1, double p2) {
+    try {
+        gp_Circ circ(gp_Ax2(gp_Pnt(cx, cy, cz), gp_Dir(dx, dy, dz)), radius);
+        BRepLib_MakeEdge me(circ, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepLib_MakeFace ---
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeFaceFromPlane(
+    double ox, double oy, double oz,
+    double nx, double ny, double nz,
+    double uMin, double uMax, double vMin, double vMax, double tolerance) {
+    try {
+        gp_Pln pln(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        Handle(Geom_Plane) plane = new Geom_Plane(pln);
+        BRepLib_MakeFace mf(plane, uMin, uMax, vMin, vMax, tolerance);
+        if (!mf.IsDone()) return nullptr;
+        return new OCCTShape(mf.Face());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeFaceFromCylinder(
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double radius,
+    double uMin, double uMax, double vMin, double vMax, double tolerance) {
+    try {
+        Handle(Geom_CylindricalSurface) cyl = new Geom_CylindricalSurface(
+            gp_Ax2(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz)), radius);
+        BRepLib_MakeFace mf(cyl, uMin, uMax, vMin, vMax, tolerance);
+        if (!mf.IsDone()) return nullptr;
+        return new OCCTShape(mf.Face());
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepLib_MakeShell ---
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeShellFromPlane(
+    double ox, double oy, double oz,
+    double nx, double ny, double nz,
+    double uMin, double uMax, double vMin, double vMax) {
+    try {
+        Handle(Geom_Plane) plane = new Geom_Plane(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        BRepLib_MakeShell ms(plane, uMin, uMax, vMin, vMax, false);
+        if (!ms.IsDone()) return nullptr;
+        return new OCCTShape(ms.Shell());
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepLib_ToolTriangulatedShape ---
+
+bool OCCTBRepLibComputeNormals(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        bool computedAny = false;
+        TopExp_Explorer exp(shape->shape, TopAbs_FACE);
+        for (; exp.More(); exp.Next()) {
+            TopoDS_Face face = TopoDS::Face(exp.Current());
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+            if (!tri.IsNull()) {
+                BRepLib_ToolTriangulatedShape::ComputeNormals(face, tri);
+                computedAny = true;
+            }
+        }
+        return computedAny;
+    } catch (...) { return false; }
+}
+
+// --- BRepLib_PointCloudShape ---
+
+class OCCTPointCloudCollector : public BRepLib_PointCloudShape {
+public:
+    OCCTPointCloudCollector(const TopoDS_Shape& s) : BRepLib_PointCloudShape(s, 0.0) {}
+    std::vector<gp_Pnt> pts;
+    std::vector<gp_Vec> norms;
+protected:
+    void addPoint(const gp_Pnt& thePoint,
+                  const gp_Vec& theNorm,
+                  const gp_Pnt2d& /*theUV*/,
+                  const TopoDS_Shape& /*theFace*/) override {
+        pts.push_back(thePoint);
+        norms.push_back(theNorm);
+    }
+};
+
+static bool copyPointCloudResults(OCCTPointCloudCollector& pcs,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outNormals,
+    int32_t* outCount) {
+    int32_t n = (int32_t)pcs.pts.size();
+    if (n == 0) { *outCount = 0; *outPoints = nullptr; *outNormals = nullptr; return false; }
+    *outCount = n;
+    *outPoints = (double*)malloc(n * 3 * sizeof(double));
+    *outNormals = (double*)malloc(n * 3 * sizeof(double));
+    for (int32_t i = 0; i < n; i++) {
+        (*outPoints)[i*3]   = pcs.pts[i].X();
+        (*outPoints)[i*3+1] = pcs.pts[i].Y();
+        (*outPoints)[i*3+2] = pcs.pts[i].Z();
+        (*outNormals)[i*3]   = pcs.norms[i].X();
+        (*outNormals)[i*3+1] = pcs.norms[i].Y();
+        (*outNormals)[i*3+2] = pcs.norms[i].Z();
+    }
+    return true;
+}
+
+bool OCCTBRepLibPointCloudByTriangulation(OCCTShapeRef shape,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outNormals,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        OCCTPointCloudCollector pcs(shape->shape);
+        if (!pcs.GeneratePointsByTriangulation()) return false;
+        return copyPointCloudResults(pcs, outPoints, outNormals, outCount);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepLibPointCloudByDensity(OCCTShapeRef shape, double density,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outNormals,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        OCCTPointCloudCollector pcs(shape->shape);
+        if (!pcs.GeneratePointsByDensity(density)) return false;
+        return copyPointCloudResults(pcs, outPoints, outNormals, outCount);
+    } catch (...) { return false; }
+}
+
+// --- BRepBuilderAPI_MakeEdge2d ---
+
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromPoints(double x1, double y1, double x2, double y2) {
+    try {
+        BRepBuilderAPI_MakeEdge2d me(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2));
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromCircle(
+    double cx, double cy, double dx, double dy,
+    double radius, double p1, double p2) {
+    try {
+        gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy)), radius);
+        BRepBuilderAPI_MakeEdge2d me(circ, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromLine(
+    double ox, double oy, double dx, double dy,
+    double p1, double p2) {
+    try {
+        Handle(Geom2d_Line) line = new Geom2d_Line(gp_Pnt2d(ox, oy), gp_Dir2d(dx, dy));
+        BRepBuilderAPI_MakeEdge2d me(line, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepTools_Modifier ---
+
+OCCTShapeRef _Nullable OCCTBRepToolsModifierNurbsConvert(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        Handle(BRepTools_NurbsConvertModification) mod = new BRepTools_NurbsConvertModification();
+        BRepTools_Modifier modifier(shape->shape);
+        modifier.Perform(mod);
+        if (!modifier.IsDone()) return nullptr;
+        return new OCCTShape(modifier.ModifiedShape(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeCustom_DirectModification ---
+
+OCCTShapeRef _Nullable OCCTShapeCustomDirectModification(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeCustom_DirectModification) mod = new ShapeCustom_DirectModification();
+        BRepTools_Modifier modifier(shape->shape);
+        modifier.Perform(mod);
+        if (!modifier.IsDone()) return nullptr;
+        return new OCCTShape(modifier.ModifiedShape(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeCustom_TrsfModification ---
+
+OCCTShapeRef _Nullable OCCTShapeCustomTrsfModificationScale(OCCTShapeRef shape, double scaleFactor) {
+    if (!shape) return nullptr;
+    try {
+        gp_Trsf trsf;
+        trsf.SetScale(gp_Pnt(0,0,0), scaleFactor);
+        Handle(ShapeCustom_TrsfModification) mod = new ShapeCustom_TrsfModification(trsf);
+        BRepTools_Modifier modifier(shape->shape);
+        modifier.Perform(mod);
+        if (!modifier.IsDone()) return nullptr;
+        return new OCCTShape(modifier.ModifiedShape(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
+// --- LocOpe_BuildWires ---
+
+bool OCCTLocOpeBuildWires(OCCTShapeRef shape, int32_t faceIndex,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outWires,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        NCollection_List<TopoDS_Shape> edges;
+        if (faceIndex > 0) {
+            TopTools_IndexedMapOfShape faceMap;
+            TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+            if (faceIndex > faceMap.Extent()) return false;
+            TopoDS_Face face = TopoDS::Face(faceMap(faceIndex));
+            TopExp_Explorer exp(face, TopAbs_EDGE);
+            for (; exp.More(); exp.Next()) edges.Append(exp.Current());
+        } else {
+            TopExp_Explorer exp(shape->shape, TopAbs_EDGE);
+            for (; exp.More(); exp.Next()) edges.Append(exp.Current());
+        }
+
+        Handle(LocOpe_WiresOnShape) wos = new LocOpe_WiresOnShape(shape->shape);
+        LocOpe_BuildWires bw(edges, wos);
+        if (!bw.IsDone()) return false;
+
+        const NCollection_List<TopoDS_Shape>& result = bw.Result();
+        int32_t n = result.Size();
+        *outCount = n;
+        if (n == 0) { *outWires = nullptr; return true; }
+        *outWires = (OCCTShapeRef*)malloc(n * sizeof(OCCTShapeRef));
+        int32_t i = 0;
+        for (auto it = result.cbegin(); it != result.cend(); ++it, ++i) {
+            (*outWires)[i] = new OCCTShape(*it);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- LocOpe_WiresOnShape + LocOpe_Spliter ---
+
+OCCTShapeRef _Nullable OCCTLocOpeSplitByWireOnFace(OCCTShapeRef shape,
+    OCCTShapeRef wire, int32_t faceIndex) {
+    if (!shape || !wire) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        if (faceIndex < 1 || faceIndex > faceMap.Extent()) return nullptr;
+        TopoDS_Face face = TopoDS::Face(faceMap(faceIndex));
+
+        TopoDS_Wire w;
+        if (wire->shape.ShapeType() == TopAbs_WIRE) {
+            w = TopoDS::Wire(wire->shape);
+        } else {
+            TopExp_Explorer exp(wire->shape, TopAbs_WIRE);
+            if (exp.More()) w = TopoDS::Wire(exp.Current());
+            else return nullptr;
+        }
+
+        Handle(LocOpe_WiresOnShape) wos = new LocOpe_WiresOnShape(shape->shape);
+        wos->Bind(w, face);
+        wos->BindAll();
+
+        LocOpe_Spliter spliter(shape->shape);
+        spliter.Perform(wos);
+        if (!spliter.IsDone()) return nullptr;
+
+        return new OCCTShape(spliter.ResultingShape());
+    } catch (...) { return nullptr; }
+}
+
+// --- LocOpe_CurveShapeIntersector ---
+
+bool OCCTLocOpeCurveShapeIntersectLine(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* _Nullable * _Nonnull outParams,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        gp_Ax1 axis(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        LocOpe_CurveShapeIntersector csi(axis, shape->shape);
+        if (!csi.IsDone()) return false;
+        int32_t n = csi.NbPoints();
+        *outCount = n;
+        if (n == 0) { *outParams = nullptr; return true; }
+        *outParams = (double*)malloc(n * sizeof(double));
+        for (int32_t i = 0; i < n; i++) {
+            const LocOpe_PntFace& pf = csi.Point(i + 1);
+            (*outParams)[i] = pf.Parameter();
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- ShapeUpgrade_ClosedFaceDivide ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeClosedFaceDivide(OCCTShapeRef shape, int32_t nbSplitPoints) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivide sd(shape->shape);
+        Handle(ShapeUpgrade_ClosedFaceDivide) cfd = new ShapeUpgrade_ClosedFaceDivide();
+        cfd->SetNbSplitPoints(nbSplitPoints > 0 ? nbSplitPoints : 1);
+        sd.SetSplitFaceTool(cfd);
+        if (!sd.Perform()) return nullptr;
+        TopoDS_Shape result = sd.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_SplitSurfaceAngle ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeSplitSurfaceAngle(OCCTShapeRef shape, double maxAngleDegrees) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideAngle sd(maxAngleDegrees * M_PI / 180.0, shape->shape);
+        if (!sd.Perform()) return nullptr;
+        TopoDS_Shape result = sd.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_SplitSurfaceArea ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeSplitSurfaceArea(OCCTShapeRef shape, int32_t nbParts) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideArea sd(shape->shape);
+        sd.SetSplittingByNumber(true);
+        sd.NbParts() = (nbParts > 0 ? nbParts : 4);
+        if (!sd.Perform()) return nullptr;
+        TopoDS_Shape result = sd.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- CPnts_UniformDeflection ---
+
+bool OCCTCPntsUniformDeflection(OCCTShapeRef shape, double deflection,
+    double* _Nullable * _Nonnull outParams,
+    double* _Nullable * _Nonnull outPoints,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(shape->shape);
+        BRepAdaptor_Curve bac(edge);
+        CPnts_UniformDeflection ud(bac, deflection, 1e-7, true);
+        std::vector<double> params;
+        std::vector<gp_Pnt> pts;
+        while (ud.More()) {
+            double p = ud.Value();
+            params.push_back(p);
+            pts.push_back(bac.Value(p));
+            ud.Next();
+        }
+        int32_t n = (int32_t)params.size();
+        *outCount = n;
+        if (n == 0) { *outParams = nullptr; *outPoints = nullptr; return false; }
+        *outParams = (double*)malloc(n * sizeof(double));
+        *outPoints = (double*)malloc(n * 3 * sizeof(double));
+        for (int32_t i = 0; i < n; i++) {
+            (*outParams)[i] = params[i];
+            (*outPoints)[i*3]   = pts[i].X();
+            (*outPoints)[i*3+1] = pts[i].Y();
+            (*outPoints)[i*3+2] = pts[i].Z();
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCPntsUniformDeflectionRange(OCCTShapeRef shape, double deflection,
+    double u1, double u2,
+    double* _Nullable * _Nonnull outParams,
+    double* _Nullable * _Nonnull outPoints,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(shape->shape);
+        BRepAdaptor_Curve bac(edge);
+        CPnts_UniformDeflection ud(bac, deflection, u1, u2, 1e-7, true);
+        std::vector<double> params;
+        std::vector<gp_Pnt> pts;
+        while (ud.More()) {
+            double p = ud.Value();
+            params.push_back(p);
+            pts.push_back(bac.Value(p));
+            ud.Next();
+        }
+        int32_t n = (int32_t)params.size();
+        *outCount = n;
+        if (n == 0) { *outParams = nullptr; *outPoints = nullptr; return false; }
+        *outParams = (double*)malloc(n * sizeof(double));
+        *outPoints = (double*)malloc(n * 3 * sizeof(double));
+        for (int32_t i = 0; i < n; i++) {
+            (*outParams)[i] = params[i];
+            (*outPoints)[i*3]   = pts[i].X();
+            (*outPoints)[i*3+1] = pts[i].Y();
+            (*outPoints)[i*3+2] = pts[i].Z();
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- IntCurvesFace_ShapeIntersector ---
+
+bool OCCTIntCurvesFaceShapeIntersect(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outParams,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        IntCurvesFace_ShapeIntersector si;
+        si.Load(shape->shape, 1e-6);
+        gp_Lin ray(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        si.Perform(ray, -1e10, 1e10);
+        int32_t n = si.NbPnt();
+        *outCount = n;
+        if (n == 0) { *outPoints = nullptr; *outParams = nullptr; return false; }
+        si.SortResult();
+        *outPoints = (double*)malloc(n * 3 * sizeof(double));
+        *outParams = (double*)malloc(n * sizeof(double));
+        for (int32_t i = 0; i < n; i++) {
+            gp_Pnt pt = si.Pnt(i + 1);
+            (*outPoints)[i*3]   = pt.X();
+            (*outPoints)[i*3+1] = pt.Y();
+            (*outPoints)[i*3+2] = pt.Z();
+            (*outParams)[i] = si.WParameter(i + 1);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTIntCurvesFaceShapeIntersectNearest(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* outX, double* outY, double* outZ,
+    double* outParam) {
+    if (!shape) return false;
+    try {
+        IntCurvesFace_ShapeIntersector si;
+        si.Load(shape->shape, 1e-6);
+        gp_Lin ray(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        si.PerformNearest(ray, -1e10, 1e10);
+        if (si.NbPnt() < 1) return false;
+        gp_Pnt pt = si.Pnt(1);
+        *outX = pt.X(); *outY = pt.Y(); *outZ = pt.Z();
+        *outParam = si.WParameter(1);
+        return true;
+    } catch (...) { return false; }
+}

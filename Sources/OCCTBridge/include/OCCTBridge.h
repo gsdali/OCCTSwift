@@ -6890,6 +6890,224 @@ OCCTShapeRef OCCTShapeFromMesh(const double* points, int32_t nodeCount,
 OCCTShapeRef OCCTGeomPlateSurface(const double* points, int32_t ptCount,
     double tolerance, int32_t maxDegree, int32_t maxSegments);
 
+// MARK: - v0.62.0: BRepLib, LocOpe completion, ShapeUpgrade/ShapeCustom, CPnts, IntCurvesFace
+
+// --- BRepLib_MakeEdge ---
+
+/// Create an edge from a line segment between two parameters.
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromLine(
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double p1, double p2);
+
+/// Create an edge from two 3D points.
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromPoints(
+    double x1, double y1, double z1,
+    double x2, double y2, double z2);
+
+/// Create an edge from a circle arc between two parameters.
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromCircle(
+    double cx, double cy, double cz,
+    double dx, double dy, double dz,
+    double radius, double p1, double p2);
+
+// --- BRepLib_MakeFace ---
+
+/// Create a face from a plane surface with UV bounds.
+OCCTShapeRef _Nullable OCCTBRepLibMakeFaceFromPlane(
+    double ox, double oy, double oz,
+    double nx, double ny, double nz,
+    double uMin, double uMax, double vMin, double vMax, double tolerance);
+
+/// Create a face from a cylindrical surface with UV bounds.
+OCCTShapeRef _Nullable OCCTBRepLibMakeFaceFromCylinder(
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double radius,
+    double uMin, double uMax, double vMin, double vMax, double tolerance);
+
+// --- BRepLib_MakeShell ---
+
+/// Create a shell from a plane surface with UV bounds.
+OCCTShapeRef _Nullable OCCTBRepLibMakeShellFromPlane(
+    double ox, double oy, double oz,
+    double nx, double ny, double nz,
+    double uMin, double uMax, double vMin, double vMax);
+
+// --- BRepLib_ToolTriangulatedShape ---
+
+/// Compute normals on the triangulation of a shape's faces.
+/// The shape must be meshed first.
+/// @return true if normals were computed on at least one face
+bool OCCTBRepLibComputeNormals(OCCTShapeRef shape);
+
+// --- BRepLib_PointCloudShape ---
+
+/// Generate a point cloud from a meshed shape by triangulation.
+/// @param shape The meshed shape
+/// @param outPoints Output array of (x,y,z) triples — caller must free with free()
+/// @param outNormals Output array of (nx,ny,nz) triples — caller must free with free()
+/// @param outCount Number of points generated
+/// @return true on success
+bool OCCTBRepLibPointCloudByTriangulation(OCCTShapeRef shape,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outNormals,
+    int32_t* outCount);
+
+/// Generate a point cloud from a meshed shape by density.
+/// @param shape The meshed shape
+/// @param density Points per unit area
+/// @param outPoints Output array of (x,y,z) triples — caller must free with free()
+/// @param outNormals Output array of (nx,ny,nz) triples — caller must free with free()
+/// @param outCount Number of points generated
+/// @return true on success
+bool OCCTBRepLibPointCloudByDensity(OCCTShapeRef shape, double density,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outNormals,
+    int32_t* outCount);
+
+// --- BRepBuilderAPI_MakeEdge2d ---
+
+/// Create a 2D edge from two 2D points.
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromPoints(double x1, double y1, double x2, double y2);
+
+/// Create a 2D edge from a 2D circle arc.
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromCircle(
+    double cx, double cy, double dx, double dy,
+    double radius, double p1, double p2);
+
+/// Create a 2D edge from a 2D line with parameters.
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromLine(
+    double ox, double oy, double dx, double dy,
+    double p1, double p2);
+
+// --- BRepTools_Modifier + NurbsConvertModification ---
+
+/// Apply NURBS conversion to a shape via BRepTools_Modifier.
+/// This is a more flexible alternative to BRepBuilderAPI_NurbsConvert.
+OCCTShapeRef _Nullable OCCTBRepToolsModifierNurbsConvert(OCCTShapeRef shape);
+
+// --- ShapeCustom_DirectModification ---
+
+/// Apply ShapeCustom_DirectModification to orient face normals outward.
+OCCTShapeRef _Nullable OCCTShapeCustomDirectModification(OCCTShapeRef shape);
+
+// --- ShapeCustom_TrsfModification ---
+
+/// Apply a transformation as a shape modification with correct tolerance scaling.
+/// @param shape Input shape
+/// @param sx Scale X (uniform scaling: sx=sy=sz)
+/// @param sy Scale Y
+/// @param sz Scale Z
+OCCTShapeRef _Nullable OCCTShapeCustomTrsfModificationScale(OCCTShapeRef shape, double scaleFactor);
+
+// --- LocOpe_BuildWires ---
+
+/// Build wires from loose edges of a shape.
+/// @param shape The shape whose edges to build into wires
+/// @param faceIndex 1-based face index to get edges from (0 = all edges)
+/// @param outWires Output array of wire shapes — caller must release each
+/// @param outCount Number of wires built
+/// @return true on success
+bool OCCTLocOpeBuildWires(OCCTShapeRef shape, int32_t faceIndex,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outWires,
+    int32_t* outCount);
+
+// --- LocOpe_WiresOnShape + LocOpe_Spliter ---
+
+/// Split a shape by projecting a wire onto a face and splitting along it.
+/// @param shape The shape to split
+/// @param wire The splitting wire
+/// @param faceIndex 1-based index of the face to split
+/// @return The split shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeSplitByWireOnFace(OCCTShapeRef shape,
+    OCCTShapeRef wire, int32_t faceIndex);
+
+// --- LocOpe_CurveShapeIntersector ---
+
+/// Intersect a line with a shape and return intersection parameters.
+/// @param shape The shape to intersect
+/// @param ox,oy,oz Origin of the line
+/// @param dx,dy,dz Direction of the line
+/// @param outParams Output array of parameter values — caller must free with free()
+/// @param outCount Number of intersection points
+/// @return true if intersections found
+bool OCCTLocOpeCurveShapeIntersectLine(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* _Nullable * _Nonnull outParams,
+    int32_t* outCount);
+
+// --- ShapeUpgrade_ClosedFaceDivide ---
+
+/// Divide closed faces (e.g., full cylinders) into multiple faces.
+/// @param shape The shape containing closed faces
+/// @param nbSplitPoints Number of splitting lines (result = nbSplitPoints+1 faces per closed face)
+/// @return The modified shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeClosedFaceDivide(OCCTShapeRef shape, int32_t nbSplitPoints);
+
+// --- ShapeUpgrade_SplitSurfaceAngle ---
+
+/// Split surfaces of revolution so each segment covers no more than maxAngle degrees.
+/// @param shape The shape to process
+/// @param maxAngleDegrees Maximum angle per segment in degrees
+/// @return The modified shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeSplitSurfaceAngle(OCCTShapeRef shape, double maxAngleDegrees);
+
+// --- ShapeUpgrade_SplitSurfaceArea ---
+
+/// Split faces into approximately nbParts equal-area parts.
+/// @param shape The shape to process
+/// @param nbParts Target number of parts per face
+/// @return The modified shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeUpgradeSplitSurfaceArea(OCCTShapeRef shape, int32_t nbParts);
+
+// --- CPnts_UniformDeflection ---
+
+/// Discretize an edge curve by uniform deflection.
+/// @param shape Edge shape to discretize
+/// @param deflection Maximum chordal deflection
+/// @param outParams Output array of parameter values — caller must free with free()
+/// @param outPoints Output array of (x,y,z) triples — caller must free with free()
+/// @param outCount Number of points generated
+/// @return true on success
+bool OCCTCPntsUniformDeflection(OCCTShapeRef shape, double deflection,
+    double* _Nullable * _Nonnull outParams,
+    double* _Nullable * _Nonnull outPoints,
+    int32_t* outCount);
+
+/// Discretize an edge curve by uniform deflection within a parameter range.
+bool OCCTCPntsUniformDeflectionRange(OCCTShapeRef shape, double deflection,
+    double u1, double u2,
+    double* _Nullable * _Nonnull outParams,
+    double* _Nullable * _Nonnull outPoints,
+    int32_t* outCount);
+
+// --- IntCurvesFace_ShapeIntersector ---
+
+/// Intersect a ray with all faces of a shape.
+/// @param shape The shape to intersect
+/// @param ox,oy,oz Ray origin
+/// @param dx,dy,dz Ray direction
+/// @param outPoints Output array of (x,y,z) triples — caller must free with free()
+/// @param outParams Output array of parameter values along ray — caller must free with free()
+/// @param outCount Number of intersection points
+/// @return true if intersections found
+bool OCCTIntCurvesFaceShapeIntersect(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outParams,
+    int32_t* outCount);
+
+/// Find the nearest intersection of a ray with a shape.
+/// @return true if an intersection was found, with the point in outX/Y/Z and parameter in outParam
+bool OCCTIntCurvesFaceShapeIntersectNearest(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* outX, double* outY, double* outZ,
+    double* outParam);
+
 #ifdef __cplusplus
 }
 #endif
