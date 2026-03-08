@@ -23999,3 +23999,162 @@ OCCTEvolvedSectionInfo OCCTGeomFillEvolvedSectionInfo(OCCTShapeRef edgeShape) {
     } catch (...) {}
     return result;
 }
+
+// MARK: - v0.64.0
+
+#include <ProjLib_ComputeApprox.hxx>
+#include <ProjLib_ComputeApproxOnPolarSurface.hxx>
+#include <BRepOffset_Offset.hxx>
+#include <Adaptor3d_IsoCurve.hxx>
+#include <ShapeAnalysis_TransferParametersProj.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom2d_BezierCurve.hxx>
+#include <Geom2d_Curve.hxx>
+#include <GeomAdaptor_Surface.hxx>
+
+// --- ProjLib_ComputeApprox ---
+
+OCCTShapeRef _Nullable OCCTProjLibComputeApprox(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
+    double tolerance) {
+    if (!edgeShape || !faceShape) return nullptr;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        double f, l;
+        Handle(Geom_Curve) curve3d = BRep_Tool::Curve(edge, f, l);
+        if (curve3d.IsNull()) return nullptr;
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) return nullptr;
+
+        Handle(GeomAdaptor_Curve) curveAdaptor = new GeomAdaptor_Curve(curve3d, f, l);
+        Handle(GeomAdaptor_Surface) surfAdaptor = new GeomAdaptor_Surface(surface);
+
+        ProjLib_ComputeApprox proj(curveAdaptor, surfAdaptor, tolerance);
+        Handle(Geom2d_BSplineCurve) bsp = proj.BSpline();
+        if (!bsp.IsNull()) {
+            // Convert 2D curve to a 3D edge on the surface
+            BRepBuilderAPI_MakeEdge me(bsp, surface);
+            if (me.IsDone()) return new OCCTShape(me.Edge());
+        }
+        Handle(Geom2d_BezierCurve) bez = proj.Bezier();
+        if (!bez.IsNull()) {
+            BRepBuilderAPI_MakeEdge me(bez, surface);
+            if (me.IsDone()) return new OCCTShape(me.Edge());
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- ProjLib_ComputeApproxOnPolarSurface ---
+
+OCCTShapeRef _Nullable OCCTProjLibComputeApproxOnPolarSurface(OCCTShapeRef edgeShape,
+    OCCTShapeRef faceShape, double tolerance) {
+    if (!edgeShape || !faceShape) return nullptr;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        double f, l;
+        Handle(Geom_Curve) curve3d = BRep_Tool::Curve(edge, f, l);
+        if (curve3d.IsNull()) return nullptr;
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) return nullptr;
+
+        Handle(GeomAdaptor_Curve) curveAdaptor = new GeomAdaptor_Curve(curve3d, f, l);
+        Handle(GeomAdaptor_Surface) surfAdaptor = new GeomAdaptor_Surface(surface);
+
+        ProjLib_ComputeApproxOnPolarSurface proj(curveAdaptor, surfAdaptor, tolerance);
+        if (!proj.IsDone()) return nullptr;
+
+        Handle(Geom2d_BSplineCurve) bsp = proj.BSpline();
+        if (!bsp.IsNull()) {
+            BRepBuilderAPI_MakeEdge me(bsp, surface);
+            if (me.IsDone()) return new OCCTShape(me.Edge());
+        }
+        Handle(Geom2d_Curve) curve2d = proj.Curve2d();
+        if (!curve2d.IsNull()) {
+            BRepBuilderAPI_MakeEdge me(curve2d, surface);
+            if (me.IsDone()) return new OCCTShape(me.Edge());
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepOffset_Offset ---
+
+OCCTShapeRef _Nullable OCCTBRepOffsetOffsetFace(OCCTShapeRef faceShape, double offset) {
+    if (!faceShape) return nullptr;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        BRepOffset_Offset off(face, offset, false, GeomAbs_Arc);
+        TopoDS_Face result = off.Face();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- Adaptor3d_IsoCurve ---
+
+void OCCTAdaptor3dIsoCurveEval(OCCTShapeRef faceShape, int isoType, double param,
+    int evalCount, double* outPoints) {
+    if (!faceShape || !outPoints || evalCount < 1) return;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) return;
+        Handle(GeomAdaptor_Surface) surfAdaptor = new GeomAdaptor_Surface(surface);
+
+        GeomAbs_IsoType type = (isoType == 0) ? GeomAbs_IsoU : GeomAbs_IsoV;
+        Adaptor3d_IsoCurve iso(surfAdaptor, type, param);
+
+        double first = iso.FirstParameter();
+        double last = iso.LastParameter();
+        // Clamp infinite parameters
+        if (first < -1e6) first = -1e6;
+        if (last > 1e6) last = 1e6;
+
+        for (int i = 0; i < evalCount; i++) {
+            double t = (evalCount > 1) ? first + (last - first) * i / (evalCount - 1) : first;
+            gp_Pnt pt;
+            iso.D0(t, pt);
+            outPoints[i*3]     = pt.X();
+            outPoints[i*3 + 1] = pt.Y();
+            outPoints[i*3 + 2] = pt.Z();
+        }
+    } catch (...) {}
+}
+
+OCCTShapeRef _Nullable OCCTAdaptor3dIsoCurveEdge(OCCTShapeRef faceShape, int isoType,
+    double param, double p1, double p2) {
+    if (!faceShape) return nullptr;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) return nullptr;
+
+        // Create iso-curve as a Geom_Curve
+        Handle(Geom_Curve) isoCurve;
+        if (isoType == 0) {
+            isoCurve = surface->UIso(param);
+        } else {
+            isoCurve = surface->VIso(param);
+        }
+        if (isoCurve.IsNull()) return nullptr;
+
+        BRepBuilderAPI_MakeEdge me(isoCurve, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeAnalysis_TransferParametersProj ---
+
+double OCCTShapeAnalysisTransferParam(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
+    double param, bool toFace) {
+    if (!edgeShape || !faceShape) return param;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        ShapeAnalysis_TransferParametersProj transfer(edge, face);
+        return transfer.Perform(param, toFace);
+    } catch (...) { return param; }
+}

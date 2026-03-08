@@ -82,7 +82,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **GeomFill Filling** | 3 | coonsFilling, curvedFilling, coonsAlgPatch |
 | **GeomFill Sweep** | 1 | geomFillSweep |
 | **GeomFill Section** | 1 | evolvedSectionInfo |
-| **Total** | **1012** | |
+| **ProjLib** | 2 | projectOntoSurface, projectOntoPolarSurface |
+| **BRepOffset** | 1 | offsetFace |
+| **Adaptor3d IsoCurve** | 4 | uIsoCurvePoints, vIsoCurvePoints, uIsoCurveEdge, vIsoCurveEdge |
+| **ShapeAnalysis Transfer** | 2 | transferParameterToFace, transferParameterFromFace |
+| **Total** | **1021** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -289,6 +293,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Coons Algorithmic Patch**: GeomFill_CoonsAlgPatch — evaluate Coons patch surface from 4 boundary edge curves
 - **GeomFill Sweep**: Sweep a section curve along a path curve with corrected Frenet frame to create a surface
 - **Evolved Section Info**: GeomFill_EvolvedSection — query BSpline section shape properties (poles, knots, degree, rationality)
+- **Curve Projection onto Surfaces**: ProjLib_ComputeApprox — project 3D edge curves onto face surfaces as 2D approximation; ProjLib_ComputeApproxOnPolarSurface for polar surfaces (sphere, torus)
+- **Face Offset**: BRepOffset_Offset — offset individual face geometry by a distance
+- **Iso-Curve Extraction**: Adaptor3d_IsoCurve — extract U-iso and V-iso curves from parametric surfaces as point arrays or edge shapes
+- **Parameter Transfer**: ShapeAnalysis_TransferParametersProj — project-based parameter transfer between edge and face coordinate systems
 - **BRepLib Topology Construction**: Direct edge/face/shell creation from geometric primitives (line, circle, plane, cylinder) via BRepLib_MakeEdge/MakeFace/MakeShell
 - **Point Cloud Extraction**: Sample point clouds from triangulated shapes by triangle traversal or target density, with surface normals
 - **2D Edge Construction**: BRepBuilderAPI_MakeEdge2d — create 2D topological edges from points, circles, and lines

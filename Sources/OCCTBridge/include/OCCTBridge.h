@@ -7231,6 +7231,40 @@ typedef struct {
 
 OCCTEvolvedSectionInfo OCCTGeomFillEvolvedSectionInfo(OCCTShapeRef edgeShape);
 
+// MARK: - v0.64.0: ProjLib, BRepOffset_Offset, Adaptor3d_IsoCurve,
+// ShapeAnalysis_TransferParametersProj
+
+// --- ProjLib_ComputeApprox ---
+// Project a 3D curve (edge) onto a surface (face) → 2D BSpline curve edge
+OCCTShapeRef _Nullable OCCTProjLibComputeApprox(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
+    double tolerance);
+
+// --- ProjLib_ComputeApproxOnPolarSurface ---
+// Project curve onto polar surface (sphere, torus, etc.)
+OCCTShapeRef _Nullable OCCTProjLibComputeApproxOnPolarSurface(OCCTShapeRef edgeShape,
+    OCCTShapeRef faceShape, double tolerance);
+
+// --- BRepOffset_Offset ---
+// Offset a face by a distance
+OCCTShapeRef _Nullable OCCTBRepOffsetOffsetFace(OCCTShapeRef faceShape, double offset);
+
+// --- Adaptor3d_IsoCurve ---
+// Extract U-iso or V-iso curve from a face at given parameter
+// isoType: 0 = IsoU, 1 = IsoV
+// evalCount: number of evaluation points
+// outPoints: flat [x,y,z,...] array of size evalCount*3
+void OCCTAdaptor3dIsoCurveEval(OCCTShapeRef faceShape, int isoType, double param,
+    int evalCount, double* outPoints);
+
+// Extract iso-curve as an edge shape
+OCCTShapeRef _Nullable OCCTAdaptor3dIsoCurveEdge(OCCTShapeRef faceShape, int isoType,
+    double param, double p1, double p2);
+
+// --- ShapeAnalysis_TransferParametersProj ---
+// Transfer a parameter from edge 3D curve to face 2D representation
+double OCCTShapeAnalysisTransferParam(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
+    double param, bool toFace);
+
 #ifdef __cplusplus
 }
 #endif

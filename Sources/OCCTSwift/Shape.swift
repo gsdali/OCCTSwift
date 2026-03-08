@@ -7458,3 +7458,74 @@ extension Shape {
             degree: Int(r.degree), isRational: r.isRational)
     }
 }
+
+// MARK: - v0.64.0: ProjLib, BRepOffset_Offset, Adaptor3d_IsoCurve, ShapeAnalysis_TransferParametersProj
+
+extension Shape {
+
+    // MARK: - ProjLib_ComputeApprox
+
+    /// Project this edge's 3D curve onto a face's surface → edge on surface
+    public func projectOntoSurface(_ face: Shape, tolerance: Double = 1e-3) -> Shape? {
+        guard let h = OCCTProjLibComputeApprox(handle, face.handle, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Project this edge's 3D curve onto a polar surface (sphere, torus) → edge on surface
+    public func projectOntoPolarSurface(_ face: Shape, tolerance: Double = 1e-3) -> Shape? {
+        guard let h = OCCTProjLibComputeApproxOnPolarSurface(handle, face.handle, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - BRepOffset_Offset
+
+    /// Offset a face by a distance, creating a new offset face
+    public func offsetFace(distance: Double) -> Shape? {
+        guard let h = OCCTBRepOffsetOffsetFace(handle, distance) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - Adaptor3d_IsoCurve
+
+    /// Evaluate points along a U-iso curve on a face at given U parameter
+    public func uIsoCurvePoints(u: Double, count: Int = 20) -> [SIMD3<Double>] {
+        var outPoints = [Double](repeating: 0, count: count * 3)
+        OCCTAdaptor3dIsoCurveEval(handle, 0, u, Int32(count), &outPoints)
+        return (0..<count).map { i in
+            SIMD3(outPoints[i*3], outPoints[i*3+1], outPoints[i*3+2])
+        }
+    }
+
+    /// Evaluate points along a V-iso curve on a face at given V parameter
+    public func vIsoCurvePoints(v: Double, count: Int = 20) -> [SIMD3<Double>] {
+        var outPoints = [Double](repeating: 0, count: count * 3)
+        OCCTAdaptor3dIsoCurveEval(handle, 1, v, Int32(count), &outPoints)
+        return (0..<count).map { i in
+            SIMD3(outPoints[i*3], outPoints[i*3+1], outPoints[i*3+2])
+        }
+    }
+
+    /// Extract a U-iso curve from a face as an edge
+    public func uIsoCurveEdge(u: Double, vMin: Double, vMax: Double) -> Shape? {
+        guard let h = OCCTAdaptor3dIsoCurveEdge(handle, 0, u, vMin, vMax) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Extract a V-iso curve from a face as an edge
+    public func vIsoCurveEdge(v: Double, uMin: Double, uMax: Double) -> Shape? {
+        guard let h = OCCTAdaptor3dIsoCurveEdge(handle, 1, v, uMin, uMax) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - ShapeAnalysis_TransferParametersProj
+
+    /// Transfer a parameter from edge to face coordinate system via projection
+    public func transferParameterToFace(_ param: Double, face: Shape) -> Double {
+        OCCTShapeAnalysisTransferParam(handle, face.handle, param, true)
+    }
+
+    /// Transfer a parameter from face to edge coordinate system via projection
+    public func transferParameterFromFace(_ param: Double, face: Shape) -> Double {
+        OCCTShapeAnalysisTransferParam(handle, face.handle, param, false)
+    }
+}

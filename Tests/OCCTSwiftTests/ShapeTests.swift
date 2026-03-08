@@ -18526,3 +18526,149 @@ struct GeomFillEvolvedSectionTests {
         }
     }
 }
+
+// MARK: - v0.64.0 Tests
+
+@Suite("ProjLib ComputeApprox")
+struct ProjLibComputeApproxTests {
+    @Test("Project edge onto cylinder face")
+    func projectOnCylinder() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        let cylFaces = cyl.subShapes(ofType: .face)
+        let cylEdges = cyl.subShapes(ofType: .edge)
+        guard !cylFaces.isEmpty, !cylEdges.isEmpty else { return }
+        // Try projecting each edge onto the cylindrical face
+        for edge in cylEdges {
+            if let result = edge.projectOntoSurface(cylFaces[0]) {
+                #expect(result.shapeType == .edge)
+                return
+            }
+        }
+    }
+}
+
+@Suite("ProjLib ComputeApproxOnPolarSurface")
+struct ProjLibComputeApproxOnPolarSurfaceTests {
+    @Test("Project edge onto sphere face")
+    func projectOnSphere() {
+        guard let sph = Shape.sphere(radius: 15) else { return }
+        // Create a circle edge near sphere surface
+        let edge = Shape.edgeFromCircle(
+            center: SIMD3(0, 0, 5), axis: SIMD3(0, 0, 1), radius: 10, p1: 0, p2: .pi)
+        guard let edge = edge else { return }
+        let faces = sph.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        let result = edge.projectOntoPolarSurface(faces[0])
+        // May or may not succeed depending on geometry
+        if let result = result {
+            #expect(result.shapeType == .edge)
+        }
+    }
+}
+
+@Suite("BRepOffset Offset Face")
+struct BRepOffsetOffsetFaceTests {
+    @Test("Offset box face")
+    func offsetBoxFace() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let faces = box.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        let result = faces[0].offsetFace(distance: 2.0)
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.shapeType == .face)
+        }
+    }
+
+    @Test("Negative offset")
+    func negativeOffset() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let faces = box.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        let result = faces[0].offsetFace(distance: -1.0)
+        #expect(result != nil)
+    }
+}
+
+@Suite("Adaptor3d IsoCurve")
+struct Adaptor3dIsoCurveTests {
+    @Test("U-iso points on cylinder face")
+    func uIsoOnCylinder() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        let faces = cyl.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        // Find the cylindrical face
+        for face in faces {
+            let pts = face.uIsoCurvePoints(u: 0, count: 5)
+            // Check for valid points (not all zero)
+            if pts.contains(where: { simd_length($0) > 1 }) {
+                #expect(pts.count == 5)
+                return
+            }
+        }
+    }
+
+    @Test("V-iso points on cylinder face")
+    func vIsoOnCylinder() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        let faces = cyl.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        for face in faces {
+            let pts = face.vIsoCurvePoints(v: 10, count: 10)
+            if pts.contains(where: { simd_length($0) > 1 }) {
+                #expect(pts.count == 10)
+                return
+            }
+        }
+    }
+
+    @Test("U-iso curve edge from face")
+    func uIsoCurveEdge() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        let faces = cyl.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        for face in faces {
+            if let edge = face.uIsoCurveEdge(u: 0, vMin: 0, vMax: 10) {
+                #expect(edge.shapeType == .edge)
+                return
+            }
+        }
+    }
+
+    @Test("V-iso curve edge from face")
+    func vIsoCurveEdge() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        let faces = cyl.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        for face in faces {
+            if let edge = face.vIsoCurveEdge(v: 10, uMin: 0, uMax: .pi) {
+                #expect(edge.shapeType == .edge)
+                return
+            }
+        }
+    }
+}
+
+@Suite("ShapeAnalysis TransferParametersProj")
+struct ShapeAnalysisTransferParametersProjTests {
+    @Test("Transfer parameter edge to face")
+    func transferToFace() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        let faces = cyl.subShapes(ofType: .face)
+        guard !edges.isEmpty, !faces.isEmpty else { return }
+        let param = edges[0].transferParameterToFace(1.0, face: faces[0])
+        // Just verify it returns a finite number
+        #expect(param.isFinite)
+    }
+
+    @Test("Transfer parameter face to edge")
+    func transferFromFace() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        let faces = cyl.subShapes(ofType: .face)
+        guard !edges.isEmpty, !faces.isEmpty else { return }
+        let param = edges[0].transferParameterFromFace(1.0, face: faces[0])
+        #expect(param.isFinite)
+    }
+}
