@@ -7830,4 +7830,86 @@ extension Shape {
         }
         return Shape(handle: ref)
     }
+
+    // MARK: - v0.66.0: 2D Vector/Direction Utilities & LProp
+
+    /// Signed angle between two 2D vectors (radians, -π to π).
+    public static func vector2DAngle(a: SIMD2<Double>, b: SIMD2<Double>) -> Double {
+        OCCTVector2DAngle(a.x, a.y, b.x, b.y)
+    }
+
+    /// Cross product of two 2D vectors (scalar value).
+    public static func vector2DCross(a: SIMD2<Double>, b: SIMD2<Double>) -> Double {
+        OCCTVector2DCross(a.x, a.y, b.x, b.y)
+    }
+
+    /// Dot product of two 2D vectors.
+    public static func vector2DDot(a: SIMD2<Double>, b: SIMD2<Double>) -> Double {
+        OCCTVector2DDot(a.x, a.y, b.x, b.y)
+    }
+
+    /// Magnitude of a 2D vector.
+    public static func vector2DMagnitude(_ v: SIMD2<Double>) -> Double {
+        OCCTVector2DMagnitude(v.x, v.y)
+    }
+
+    /// Normalize a 2D vector.
+    public static func vector2DNormalized(_ v: SIMD2<Double>) -> SIMD2<Double> {
+        var x = v.x, y = v.y
+        OCCTVector2DNormalize(&x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// Create a normalized 2D direction from components.
+    public static func direction2DNormalized(_ v: SIMD2<Double>) -> SIMD2<Double> {
+        var x = v.x, y = v.y
+        OCCTDirection2DNormalize(&x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// Signed angle between two 2D directions (radians).
+    public static func direction2DAngle(a: SIMD2<Double>, b: SIMD2<Double>) -> Double {
+        OCCTDirection2DAngle(a.x, a.y, b.x, b.y)
+    }
+
+    /// Cross product of two 2D directions.
+    public static func direction2DCross(a: SIMD2<Double>, b: SIMD2<Double>) -> Double {
+        OCCTDirection2DCross(a.x, a.y, b.x, b.y)
+    }
+
+    /// Curvature special point type from LProp analysis.
+    public enum CurvaturePointType: Int32 {
+        case inflection = 0
+        case minimumCurvature = 1
+        case maximumCurvature = 2
+    }
+
+    /// Result of LProp analytic curve inflection analysis.
+    public struct CurvatureSpecialPoint {
+        /// Parameter on the curve.
+        public let parameter: Double
+        /// Type of special point.
+        public let type: CurvaturePointType
+    }
+
+    /// Compute curvature special points for analytic curve types using LProp.
+    /// - Parameters:
+    ///   - curveType: 0=Line, 1=Circle, 2=Ellipse, 3=Hyperbola, 4=Parabola
+    ///   - first: First parameter of domain
+    ///   - last: Last parameter of domain
+    /// - Returns: Array of special points (inflections, min/max curvature)
+    public static func analyticCurvaturePoints(curveType: Int32, first: Double,
+                                                last: Double) -> [CurvatureSpecialPoint] {
+        let maxResults: Int32 = 100
+        var params = [Double](repeating: 0, count: Int(maxResults))
+        var types = [Int32](repeating: 0, count: Int(maxResults))
+        let count = OCCTLPropAnalyticCurInf(curveType, first, last, &params, &types, maxResults)
+        var results: [CurvatureSpecialPoint] = []
+        for i in 0..<Int(count) {
+            if let t = CurvaturePointType(rawValue: types[i]) {
+                results.append(CurvatureSpecialPoint(parameter: params[i], type: t))
+            }
+        }
+        return results
+    }
 }

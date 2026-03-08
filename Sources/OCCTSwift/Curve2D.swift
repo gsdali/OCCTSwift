@@ -1725,4 +1725,27 @@ extension Curve2D {
             sense, tolerance) else { return nil }
         return Curve2D(handle: h)
     }
+
+    // MARK: - Point2D Integration
+
+    /// Evaluate the curve at parameter `t`, returning a `Point2D`.
+    public func pointAt(_ t: Double) -> Point2D? {
+        guard let h = OCCTCurve2DPointAt(handle, t) else { return nil }
+        return Point2D(handle: h)
+    }
+
+    /// Create a line segment between two `Point2D` instances.
+    public static func segment(from p1: Point2D, to p2: Point2D) -> Curve2D? {
+        guard let h = OCCTCurve2DSegmentFromPoints(p1.handle, p2.handle) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Project a `Point2D` onto this curve.
+    /// Returns `(parameter, distance)` or `nil` on failure.
+    public func project(_ point: Point2D) -> (parameter: Double, distance: Double)? {
+        var dist: Double = 0
+        let param = OCCTCurve2DProjectPoint2D(handle, point.handle, &dist)
+        if dist < 0 { return nil }
+        return (param, dist)
+    }
 }

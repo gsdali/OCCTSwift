@@ -7407,6 +7407,160 @@ OCCTShapeRef _Nullable OCCTShapeUpgradeConvertCurves3dToBezier(OCCTShapeRef shap
 OCCTShapeRef _Nullable OCCTShapeUpgradeConvertSurfaceToBezier(OCCTShapeRef shape,
     bool planeMode, bool revolutionMode, bool extrusionMode, bool bsplineMode);
 
+// MARK: - v0.66.0: Full TkG2d Toolkit Coverage
+
+// Forward declarations
+typedef struct OCCTTransform2D* OCCTTransform2DRef;
+
+// --- Point2D (Geom2d_CartesianPoint) ---
+
+/// Opaque handle for 2D geometric point
+typedef struct OCCTPoint2D* OCCTPoint2DRef;
+
+/// Create a 2D point at (x, y)
+OCCTPoint2DRef _Nullable OCCTPoint2DCreate(double x, double y);
+/// Release a 2D point
+void OCCTPoint2DRelease(OCCTPoint2DRef _Nonnull ref);
+/// Get X coordinate
+double OCCTPoint2DGetX(OCCTPoint2DRef _Nonnull ref);
+/// Get Y coordinate
+double OCCTPoint2DGetY(OCCTPoint2DRef _Nonnull ref);
+/// Set coordinates
+void OCCTPoint2DSetCoords(OCCTPoint2DRef _Nonnull ref, double x, double y);
+/// Distance to another point
+double OCCTPoint2DDistance(OCCTPoint2DRef _Nonnull ref, OCCTPoint2DRef _Nonnull other);
+/// Square distance to another point
+double OCCTPoint2DSquareDistance(OCCTPoint2DRef _Nonnull ref, OCCTPoint2DRef _Nonnull other);
+/// Translate by (dx, dy), returns new point
+OCCTPoint2DRef _Nullable OCCTPoint2DTranslated(OCCTPoint2DRef _Nonnull ref, double dx, double dy);
+/// Rotate around center by angle (radians), returns new point
+OCCTPoint2DRef _Nullable OCCTPoint2DRotated(OCCTPoint2DRef _Nonnull ref,
+    double cx, double cy, double angle);
+/// Scale from center by factor, returns new point
+OCCTPoint2DRef _Nullable OCCTPoint2DScaled(OCCTPoint2DRef _Nonnull ref,
+    double cx, double cy, double factor);
+/// Mirror across a point, returns new point
+OCCTPoint2DRef _Nullable OCCTPoint2DMirroredPoint(OCCTPoint2DRef _Nonnull ref,
+    double px, double py);
+/// Mirror across an axis (origin + direction), returns new point
+OCCTPoint2DRef _Nullable OCCTPoint2DMirroredAxis(OCCTPoint2DRef _Nonnull ref,
+    double ox, double oy, double dx, double dy);
+/// Distance from point to curve
+double OCCTPoint2DDistanceToCurve(OCCTPoint2DRef _Nonnull ref, OCCTCurve2DRef _Nonnull curve);
+/// Apply a Transform2D to a point, returns new point
+OCCTPoint2DRef _Nullable OCCTPoint2DTransformed(OCCTPoint2DRef _Nonnull ref,
+    OCCTTransform2DRef _Nonnull trsf);
+
+// --- Transform2D (Geom2d_Transformation) ---
+
+/// Create identity transform
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateIdentity(void);
+/// Release a transform
+void OCCTTransform2DRelease(OCCTTransform2DRef _Nonnull ref);
+/// Create translation transform
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateTranslation(double dx, double dy);
+/// Create rotation transform around center by angle
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateRotation(double cx, double cy, double angle);
+/// Create scale transform from center by factor
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateScale(double cx, double cy, double factor);
+/// Create mirror about a point
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateMirrorPoint(double px, double py);
+/// Create mirror about an axis (origin + direction)
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateMirrorAxis(double ox, double oy,
+    double dx, double dy);
+/// Inverted transform
+OCCTTransform2DRef _Nullable OCCTTransform2DInverted(OCCTTransform2DRef _Nonnull ref);
+/// Composed (multiplied) transforms: this * other
+OCCTTransform2DRef _Nullable OCCTTransform2DComposed(OCCTTransform2DRef _Nonnull ref,
+    OCCTTransform2DRef _Nonnull other);
+/// Powered transform: this^n
+OCCTTransform2DRef _Nullable OCCTTransform2DPowered(OCCTTransform2DRef _Nonnull ref, int32_t n);
+/// Apply transform to a point (returns transformed coordinates)
+void OCCTTransform2DApply(OCCTTransform2DRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y);
+/// Get scale factor
+double OCCTTransform2DScaleFactor(OCCTTransform2DRef _Nonnull ref);
+/// Is the transform negative (reflection)?
+bool OCCTTransform2DIsNegative(OCCTTransform2DRef _Nonnull ref);
+/// Get 2x3 matrix values [a11, a12, a13, a21, a22, a23]
+void OCCTTransform2DGetValues(OCCTTransform2DRef _Nonnull ref,
+    double* _Nonnull a11, double* _Nonnull a12, double* _Nonnull a13,
+    double* _Nonnull a21, double* _Nonnull a22, double* _Nonnull a23);
+/// Apply transform to a Curve2D, returns new curve
+OCCTCurve2DRef _Nullable OCCTTransform2DApplyToCurve(OCCTTransform2DRef _Nonnull ref,
+    OCCTCurve2DRef _Nonnull curve);
+
+// --- AxisPlacement2D (Geom2d_AxisPlacement) ---
+
+/// Opaque handle for 2D axis placement
+typedef struct OCCTAxisPlacement2D* OCCTAxisPlacement2DRef;
+
+/// Create a 2D axis placement from origin and direction
+OCCTAxisPlacement2DRef _Nullable OCCTAxisPlacement2DCreate(double ox, double oy,
+    double dx, double dy);
+/// Release
+void OCCTAxisPlacement2DRelease(OCCTAxisPlacement2DRef _Nonnull ref);
+/// Get origin
+void OCCTAxisPlacement2DGetOrigin(OCCTAxisPlacement2DRef _Nonnull ref,
+    double* _Nonnull x, double* _Nonnull y);
+/// Get direction
+void OCCTAxisPlacement2DGetDirection(OCCTAxisPlacement2DRef _Nonnull ref,
+    double* _Nonnull x, double* _Nonnull y);
+/// Reversed axis
+OCCTAxisPlacement2DRef _Nullable OCCTAxisPlacement2DReversed(OCCTAxisPlacement2DRef _Nonnull ref);
+/// Angle between two axes
+double OCCTAxisPlacement2DAngle(OCCTAxisPlacement2DRef _Nonnull ref,
+    OCCTAxisPlacement2DRef _Nonnull other);
+
+// --- Vector2D (Geom2d_VectorWithMagnitude) ---
+
+/// Signed angle between two 2D vectors (radians, -PI to PI)
+double OCCTVector2DAngle(double ax, double ay, double bx, double by);
+/// Cross product of two 2D vectors (scalar)
+double OCCTVector2DCross(double ax, double ay, double bx, double by);
+/// Dot product of two 2D vectors
+double OCCTVector2DDot(double ax, double ay, double bx, double by);
+/// Magnitude of a 2D vector
+double OCCTVector2DMagnitude(double x, double y);
+/// Normalize a 2D vector (returns via pointers)
+void OCCTVector2DNormalize(double* _Nonnull x, double* _Nonnull y);
+
+// --- Direction2D (Geom2d_Direction) ---
+
+/// Create a normalized direction from components (returns via pointers)
+void OCCTDirection2DNormalize(double* _Nonnull x, double* _Nonnull y);
+/// Signed angle between two directions
+double OCCTDirection2DAngle(double ax, double ay, double bx, double by);
+/// Cross product of two directions
+double OCCTDirection2DCross(double ax, double ay, double bx, double by);
+
+// --- LProp_AnalyticCurInf ---
+
+/// Compute curvature special points for analytic curve types.
+/// @param curveType GeomAbs_CurveType: 0=Line, 1=Circle, 2=Ellipse, 3=Hyperbola, 4=Parabola
+/// @param first First parameter
+/// @param last Last parameter
+/// @param outParams Output array of parameters at special points
+/// @param outTypes Output array of types (0=Inflection, 1=MinCur, 2=MaxCur)
+/// @param maxResults Maximum number of results to return
+/// @return Number of special points found
+int32_t OCCTLPropAnalyticCurInf(int32_t curveType, double first, double last,
+    double* _Nonnull outParams, int32_t* _Nonnull outTypes, int32_t maxResults);
+
+// --- Curve2D ↔ Point2D integration ---
+
+/// Create a Point2D from a Curve2D at parameter t
+OCCTPoint2DRef _Nullable OCCTCurve2DPointAt(OCCTCurve2DRef _Nonnull curve, double t);
+
+/// Create a line segment Curve2D between two Point2Ds
+OCCTCurve2DRef _Nullable OCCTCurve2DSegmentFromPoints(OCCTPoint2DRef _Nonnull p1,
+    OCCTPoint2DRef _Nonnull p2);
+
+/// Project a Point2D onto a Curve2D, returns parameter at closest point
+/// @param outDistance Output: minimum distance
+/// @return parameter on curve, or 0 on failure
+double OCCTCurve2DProjectPoint2D(OCCTCurve2DRef _Nonnull curve, OCCTPoint2DRef _Nonnull point,
+    double* _Nonnull outDistance);
+
 #ifdef __cplusplus
 }
 #endif

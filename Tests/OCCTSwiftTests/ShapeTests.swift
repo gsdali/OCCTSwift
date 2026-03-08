@@ -19115,3 +19115,334 @@ struct ShapeUpgradeConvertSurfacesToBezierTests {
         }
     }
 }
+
+// MARK: - v0.66.0: Full TkG2d Toolkit Coverage
+
+@Suite("Point2D Creation")
+struct Point2DCreationTests {
+    @Test func createPoint() {
+        let p = Point2D(x: 3.0, y: 4.0)
+        #expect(p != nil)
+        if let p = p {
+            #expect(abs(p.x - 3.0) < 1e-10)
+            #expect(abs(p.y - 4.0) < 1e-10)
+        }
+    }
+
+    @Test func createFromSIMD() {
+        let p = Point2D(position: SIMD2(1.5, 2.5))
+        #expect(p != nil)
+        if let p = p {
+            #expect(abs(p.position.x - 1.5) < 1e-10)
+            #expect(abs(p.position.y - 2.5) < 1e-10)
+        }
+    }
+
+    @Test func setCoords() {
+        if let p = Point2D(x: 0, y: 0) {
+            p.setCoords(x: 5.0, y: 7.0)
+            #expect(abs(p.x - 5.0) < 1e-10)
+            #expect(abs(p.y - 7.0) < 1e-10)
+        }
+    }
+}
+
+@Suite("Point2D Distance")
+struct Point2DDistanceTests {
+    @Test func distanceBetweenPoints() {
+        guard let p1 = Point2D(x: 0, y: 0),
+              let p2 = Point2D(x: 3, y: 4) else { return }
+        #expect(abs(p1.distance(to: p2) - 5.0) < 1e-10)
+    }
+
+    @Test func squareDistance() {
+        guard let p1 = Point2D(x: 0, y: 0),
+              let p2 = Point2D(x: 3, y: 4) else { return }
+        #expect(abs(p1.squareDistance(to: p2) - 25.0) < 1e-10)
+    }
+
+    @Test func distanceToCurve() {
+        guard let p = Point2D(x: 0, y: 5),
+              let circle = Curve2D.circle(center: .zero, radius: 3.0) else { return }
+        let dist = p.distance(to: circle)
+        #expect(abs(dist - 2.0) < 1e-6)
+    }
+}
+
+@Suite("Point2D Transforms")
+struct Point2DTransformTests {
+    @Test func translate() {
+        guard let p = Point2D(x: 1, y: 2) else { return }
+        if let t = p.translated(dx: 3, dy: 4) {
+            #expect(abs(t.x - 4.0) < 1e-10)
+            #expect(abs(t.y - 6.0) < 1e-10)
+        }
+    }
+
+    @Test func rotate() {
+        guard let p = Point2D(x: 1, y: 0) else { return }
+        if let r = p.rotated(center: SIMD2(0, 0), angle: .pi / 2) {
+            #expect(abs(r.x) < 1e-10)
+            #expect(abs(r.y - 1.0) < 1e-10)
+        }
+    }
+
+    @Test func scale() {
+        guard let p = Point2D(x: 2, y: 3) else { return }
+        if let s = p.scaled(center: SIMD2(0, 0), factor: 2.0) {
+            #expect(abs(s.x - 4.0) < 1e-10)
+            #expect(abs(s.y - 6.0) < 1e-10)
+        }
+    }
+
+    @Test func mirrorPoint() {
+        guard let p = Point2D(x: 1, y: 0) else { return }
+        if let m = p.mirrored(point: SIMD2(0, 0)) {
+            #expect(abs(m.x + 1.0) < 1e-10)
+            #expect(abs(m.y) < 1e-10)
+        }
+    }
+
+    @Test func mirrorAxis() {
+        guard let p = Point2D(x: 1, y: 1) else { return }
+        // Mirror across X axis
+        if let m = p.mirrored(axisOrigin: SIMD2(0, 0), axisDirection: SIMD2(1, 0)) {
+            #expect(abs(m.x - 1.0) < 1e-10)
+            #expect(abs(m.y + 1.0) < 1e-10)
+        }
+    }
+
+    @Test func transformedByTransform2D() {
+        guard let p = Point2D(x: 1, y: 0),
+              let trsf = Transform2D.translation(dx: 5, dy: 3) else { return }
+        if let result = p.transformed(by: trsf) {
+            #expect(abs(result.x - 6.0) < 1e-10)
+            #expect(abs(result.y - 3.0) < 1e-10)
+        }
+    }
+}
+
+@Suite("Transform2D Creation")
+struct Transform2DCreationTests {
+    @Test func identity() {
+        guard let t = Transform2D.identity() else { return }
+        #expect(abs(t.scaleFactor - 1.0) < 1e-10)
+        #expect(t.isNegative == false)
+    }
+
+    @Test func translation() {
+        guard let t = Transform2D.translation(dx: 3, dy: 4) else { return }
+        let result = t.apply(to: SIMD2(0, 0))
+        #expect(abs(result.x - 3.0) < 1e-10)
+        #expect(abs(result.y - 4.0) < 1e-10)
+    }
+
+    @Test func rotation() {
+        guard let t = Transform2D.rotation(center: SIMD2(0, 0), angle: .pi / 2) else { return }
+        let result = t.apply(to: SIMD2(1, 0))
+        #expect(abs(result.x) < 1e-10)
+        #expect(abs(result.y - 1.0) < 1e-10)
+    }
+
+    @Test func scale() {
+        guard let t = Transform2D.scale(center: SIMD2(0, 0), factor: 3.0) else { return }
+        #expect(abs(t.scaleFactor - 3.0) < 1e-10)
+        let result = t.apply(to: SIMD2(1, 2))
+        #expect(abs(result.x - 3.0) < 1e-10)
+        #expect(abs(result.y - 6.0) < 1e-10)
+    }
+
+    @Test func mirrorPoint() {
+        guard let t = Transform2D.mirrorPoint(SIMD2(0, 0)) else { return }
+        let result = t.apply(to: SIMD2(1, 2))
+        #expect(abs(result.x + 1.0) < 1e-10)
+        #expect(abs(result.y + 2.0) < 1e-10)
+    }
+
+    @Test func mirrorAxis() {
+        guard let t = Transform2D.mirrorAxis(origin: SIMD2(0, 0),
+                                              direction: SIMD2(1, 0)) else { return }
+        #expect(t.isNegative == true)
+        let result = t.apply(to: SIMD2(1, 2))
+        #expect(abs(result.x - 1.0) < 1e-10)
+        #expect(abs(result.y + 2.0) < 1e-10)
+    }
+}
+
+@Suite("Transform2D Composition")
+struct Transform2DCompositionTests {
+    @Test func inverted() {
+        guard let t = Transform2D.translation(dx: 3, dy: 4),
+              let inv = t.inverted() else { return }
+        let result = inv.apply(to: SIMD2(3, 4))
+        #expect(abs(result.x) < 1e-10)
+        #expect(abs(result.y) < 1e-10)
+    }
+
+    @Test func composed() {
+        guard let t1 = Transform2D.translation(dx: 1, dy: 0),
+              let t2 = Transform2D.translation(dx: 0, dy: 2),
+              let composed = t1.composed(with: t2) else { return }
+        let result = composed.apply(to: SIMD2(0, 0))
+        #expect(abs(result.x - 1.0) < 1e-10)
+        #expect(abs(result.y - 2.0) < 1e-10)
+    }
+
+    @Test func powered() {
+        guard let t = Transform2D.translation(dx: 1, dy: 0),
+              let p3 = t.powered(3) else { return }
+        let result = p3.apply(to: SIMD2(0, 0))
+        #expect(abs(result.x - 3.0) < 1e-10)
+    }
+
+    @Test func matrixValues() {
+        guard let t = Transform2D.identity() else { return }
+        let m = t.matrixValues
+        #expect(abs(m.a11 - 1.0) < 1e-10)
+        #expect(abs(m.a22 - 1.0) < 1e-10)
+        #expect(abs(m.a12) < 1e-10)
+        #expect(abs(m.a21) < 1e-10)
+    }
+
+    @Test func applyToCurve() {
+        guard let t = Transform2D.translation(dx: 5, dy: 0),
+              let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(1, 0)),
+              let transformed = t.apply(to: seg) else { return }
+        let pts = transformed.drawUniform(pointCount: 2)
+        #expect(pts.count == 2)
+        if pts.count == 2 {
+            #expect(abs(pts[0].x - 5.0) < 1e-6)
+        }
+    }
+}
+
+@Suite("AxisPlacement2D")
+struct AxisPlacement2DTests {
+    @Test func createAxis() {
+        let axis = AxisPlacement2D(origin: SIMD2(1, 2), direction: SIMD2(0, 1))
+        #expect(axis != nil)
+        if let axis = axis {
+            #expect(abs(axis.origin.x - 1.0) < 1e-10)
+            #expect(abs(axis.origin.y - 2.0) < 1e-10)
+            #expect(abs(axis.direction.x) < 1e-10)
+            #expect(abs(axis.direction.y - 1.0) < 1e-10)
+        }
+    }
+
+    @Test func reversed() {
+        guard let axis = AxisPlacement2D(origin: SIMD2(0, 0), direction: SIMD2(1, 0)),
+              let rev = axis.reversed() else { return }
+        #expect(abs(rev.direction.x + 1.0) < 1e-10)
+        #expect(abs(rev.origin.x) < 1e-10)
+    }
+
+    @Test func angle() {
+        guard let a1 = AxisPlacement2D(origin: SIMD2(0, 0), direction: SIMD2(1, 0)),
+              let a2 = AxisPlacement2D(origin: SIMD2(0, 0), direction: SIMD2(0, 1)) else { return }
+        let angle = a1.angle(to: a2)
+        #expect(abs(angle - .pi / 2) < 1e-10)
+    }
+}
+
+@Suite("Vector2D Utilities")
+struct Vector2DUtilityTests {
+    @Test func angle() {
+        let a = Shape.vector2DAngle(a: SIMD2(1, 0), b: SIMD2(0, 1))
+        #expect(abs(a - .pi / 2) < 1e-10)
+    }
+
+    @Test func cross() {
+        let c = Shape.vector2DCross(a: SIMD2(1, 0), b: SIMD2(0, 1))
+        #expect(abs(c - 1.0) < 1e-10)
+    }
+
+    @Test func dot() {
+        let d = Shape.vector2DDot(a: SIMD2(3, 4), b: SIMD2(1, 0))
+        #expect(abs(d - 3.0) < 1e-10)
+    }
+
+    @Test func magnitude() {
+        let m = Shape.vector2DMagnitude(SIMD2(3, 4))
+        #expect(abs(m - 5.0) < 1e-10)
+    }
+
+    @Test func normalize() {
+        let n = Shape.vector2DNormalized(SIMD2(3, 4))
+        #expect(abs(n.x - 0.6) < 1e-10)
+        #expect(abs(n.y - 0.8) < 1e-10)
+    }
+}
+
+@Suite("Direction2D Utilities")
+struct Direction2DUtilityTests {
+    @Test func normalize() {
+        let d = Shape.direction2DNormalized(SIMD2(3, 4))
+        let mag = sqrt(d.x * d.x + d.y * d.y)
+        #expect(abs(mag - 1.0) < 1e-10)
+    }
+
+    @Test func angle() {
+        let a = Shape.direction2DAngle(a: SIMD2(1, 0), b: SIMD2(0, 1))
+        #expect(abs(a - .pi / 2) < 1e-10)
+    }
+
+    @Test func cross() {
+        let c = Shape.direction2DCross(a: SIMD2(1, 0), b: SIMD2(0, 1))
+        #expect(abs(c - 1.0) < 1e-10)
+    }
+}
+
+@Suite("LProp AnalyticCurInf")
+struct LPropAnalyticCurInfTests {
+    @Test func ellipseHasExtrema() {
+        // Ellipse (type 2), full parameter range [0, 2π]
+        let points = Shape.analyticCurvaturePoints(curveType: 2, first: 0, last: 2 * .pi)
+        // Ellipse should have min/max curvature points
+        #expect(points.count >= 2)
+    }
+
+    @Test func lineHasNoSpecialPoints() {
+        // Line (type 0) has constant zero curvature — no special points
+        let points = Shape.analyticCurvaturePoints(curveType: 0, first: 0, last: 10)
+        #expect(points.count == 0)
+    }
+
+    @Test func circleHasNoSpecialPoints() {
+        // Circle (type 1) has constant curvature — no inflection or extrema
+        let points = Shape.analyticCurvaturePoints(curveType: 1, first: 0, last: 2 * .pi)
+        #expect(points.count == 0)
+    }
+}
+
+@Suite("Curve2D Point2D Integration")
+struct Curve2DPoint2DIntegrationTests {
+    @Test func pointAtParameter() {
+        guard let seg = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 0)) else { return }
+        let domain = seg.domain
+        let mid = (domain.lowerBound + domain.upperBound) / 2
+        if let pt = seg.pointAt(mid) {
+            #expect(abs(pt.x - 5.0) < 1e-6)
+            #expect(abs(pt.y) < 1e-6)
+        }
+    }
+
+    @Test func segmentFromPoints() {
+        guard let p1 = Point2D(x: 0, y: 0),
+              let p2 = Point2D(x: 5, y: 5),
+              let seg = Curve2D.segment(from: p1, to: p2) else { return }
+        let pts = seg.drawUniform(pointCount: 2)
+        #expect(pts.count == 2)
+        if pts.count == 2 {
+            #expect(abs(pts[0].x) < 1e-6)
+            #expect(abs(pts[1].x - 5.0) < 1e-6)
+        }
+    }
+
+    @Test func projectPoint() {
+        guard let circle = Curve2D.circle(center: .zero, radius: 5.0),
+              let p = Point2D(x: 10, y: 0) else { return }
+        if let result = circle.project(p) {
+            #expect(abs(result.distance - 5.0) < 1e-6)
+        }
+    }
+}

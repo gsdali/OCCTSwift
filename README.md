@@ -92,7 +92,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **ShapeUpgrade Divide** | 4 | divideFace, divideWire, analyzeEdgeDivide, canDivideClosedEdge |
 | **ShapeUpgrade Fix** | 2 | fixSmallCurves, fixSmallBezierCurves |
 | **ShapeUpgrade Convert** | 2 | convertCurves3dToBezier, convertSurfacesToBezier |
-| **Total** | **1045** | |
+| **Point2D (Geom2d_CartesianPoint)** | 13 | create, x, y, setCoords, distance, squareDistance, translated, rotated, scaled, mirroredPoint, mirroredAxis, distanceToCurve, transformed |
+| **Transform2D (Geom2d_Transformation)** | 14 | identity, translation, rotation, scale, mirrorPoint, mirrorAxis, inverted, composed, powered, apply, scaleFactor, isNegative, matrixValues, applyToCurve |
+| **AxisPlacement2D (Geom2d_AxisPlacement)** | 5 | create, origin, direction, reversed, angle |
+| **Vector2D Utilities** | 5 | angle, cross, dot, magnitude, normalize |
+| **Direction2D Utilities** | 3 | normalize, angle, cross |
+| **LProp AnalyticCurInf** | 1 | analyticCurvaturePoints (inflection/min/max curvature for analytic curves) |
+| **Curve2D ↔ Point2D** | 3 | pointAt, segment(from:Point2D), project(Point2D) |
+| **Total** | **1089** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -319,6 +326,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **LocOpe BuildWires**: Extract wires from face edges, split shapes by wire projection on faces
 - **CPnts Uniform Deflection**: Curve discretization by deflection criterion with full-range and sub-range support
 - **Ray-Shape Intersection**: IntCurvesFace_ShapeIntersector — cast rays through shapes, get all intersection points or nearest hit
+- **Point2D**: Geom2d_CartesianPoint — 2D geometric points with coordinate access, distance computation, transforms (translate, rotate, scale, mirror), Transform2D application, and curve distance
+- **Transform2D**: Geom2d_Transformation — 2D affine transformations (identity, translation, rotation, scale, point/axis mirror), composition (multiply, invert, power), matrix access, curve transformation
+- **AxisPlacement2D**: Geom2d_AxisPlacement — 2D coordinate systems with origin and direction, reversal, inter-axis angle
+- **Vector2D/Direction2D Utilities**: Geom2d_VectorWithMagnitude / Geom2d_Direction — 2D vector algebra (angle, cross, dot, magnitude, normalize) and direction operations
+- **LProp AnalyticCurInf**: Detect inflection points and curvature extrema on analytic 2D curve types (line, circle, ellipse, hyperbola, parabola)
+- **Curve2D ↔ Point2D Integration**: Evaluate curves at parameters as Point2D, create segments between Point2Ds, project Point2D onto curves
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements

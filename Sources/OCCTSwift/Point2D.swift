@@ -1,0 +1,109 @@
+import Foundation
+import simd
+import OCCTBridge
+
+/// A 2D geometric point backed by `Geom2d_CartesianPoint`.
+public final class Point2D: @unchecked Sendable {
+    internal let handle: OCCTPoint2DRef
+
+    internal init(handle: OCCTPoint2DRef) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTPoint2DRelease(handle)
+    }
+
+    // MARK: - Creation
+
+    /// Create a 2D point at the given coordinates.
+    public init?(x: Double, y: Double) {
+        guard let h = OCCTPoint2DCreate(x, y) else { return nil }
+        self.handle = h
+    }
+
+    /// Create a 2D point from a SIMD2 vector.
+    public convenience init?(position: SIMD2<Double>) {
+        self.init(x: position.x, y: position.y)
+    }
+
+    // MARK: - Properties
+
+    /// The X coordinate.
+    public var x: Double {
+        OCCTPoint2DGetX(handle)
+    }
+
+    /// The Y coordinate.
+    public var y: Double {
+        OCCTPoint2DGetY(handle)
+    }
+
+    /// The position as a SIMD2 vector.
+    public var position: SIMD2<Double> {
+        SIMD2(x, y)
+    }
+
+    // MARK: - Mutation
+
+    /// Set both coordinates.
+    public func setCoords(x: Double, y: Double) {
+        OCCTPoint2DSetCoords(handle, x, y)
+    }
+
+    // MARK: - Distance
+
+    /// Euclidean distance to another point.
+    public func distance(to other: Point2D) -> Double {
+        OCCTPoint2DDistance(handle, other.handle)
+    }
+
+    /// Squared distance to another point (avoids sqrt).
+    public func squareDistance(to other: Point2D) -> Double {
+        OCCTPoint2DSquareDistance(handle, other.handle)
+    }
+
+    /// Minimum distance from this point to a 2D curve.
+    public func distance(to curve: Curve2D) -> Double {
+        OCCTPoint2DDistanceToCurve(handle, curve.handle)
+    }
+
+    // MARK: - Transforms (return new Point2D)
+
+    /// Translate by (dx, dy), returns a new point.
+    public func translated(dx: Double, dy: Double) -> Point2D? {
+        guard let h = OCCTPoint2DTranslated(handle, dx, dy) else { return nil }
+        return Point2D(handle: h)
+    }
+
+    /// Rotate around a center by angle (radians), returns a new point.
+    public func rotated(center: SIMD2<Double>, angle: Double) -> Point2D? {
+        guard let h = OCCTPoint2DRotated(handle, center.x, center.y, angle) else { return nil }
+        return Point2D(handle: h)
+    }
+
+    /// Scale from a center by factor, returns a new point.
+    public func scaled(center: SIMD2<Double>, factor: Double) -> Point2D? {
+        guard let h = OCCTPoint2DScaled(handle, center.x, center.y, factor) else { return nil }
+        return Point2D(handle: h)
+    }
+
+    /// Mirror across a point, returns a new point.
+    public func mirrored(point: SIMD2<Double>) -> Point2D? {
+        guard let h = OCCTPoint2DMirroredPoint(handle, point.x, point.y) else { return nil }
+        return Point2D(handle: h)
+    }
+
+    /// Mirror across an axis (origin + direction), returns a new point.
+    public func mirrored(axisOrigin: SIMD2<Double>, axisDirection: SIMD2<Double>) -> Point2D? {
+        guard let h = OCCTPoint2DMirroredAxis(handle, axisOrigin.x, axisOrigin.y,
+                                               axisDirection.x, axisDirection.y) else { return nil }
+        return Point2D(handle: h)
+    }
+
+    /// Apply a 2D transformation, returns a new point.
+    public func transformed(by transform: Transform2D) -> Point2D? {
+        guard let h = OCCTPoint2DTransformed(handle, transform.handle) else { return nil }
+        return Point2D(handle: h)
+    }
+}
