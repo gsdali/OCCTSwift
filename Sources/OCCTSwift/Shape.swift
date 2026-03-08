@@ -7124,3 +7124,337 @@ extension Shape {
         return RayIntersection(point: SIMD3(x, y, z), parameter: param)
     }
 }
+
+// MARK: - v0.63.0: GeomLProp, BRepOffset_SimpleOffset, Approx, GeomInt, Contap, BRepFeat, GeomFill
+
+/// Curve local properties at a parameter point
+public struct CurveLocalProperties: Sendable {
+    public let point: SIMD3<Double>
+    public let tangent: SIMD3<Double>?
+    public let normal: SIMD3<Double>?
+    public let centerOfCurvature: SIMD3<Double>?
+    public let curvature: Double
+}
+
+/// Surface local properties at a (U,V) parameter point
+public struct SurfaceLocalProperties: Sendable {
+    public let point: SIMD3<Double>
+    public let normal: SIMD3<Double>?
+    public let tangentU: SIMD3<Double>?
+    public let tangentV: SIMD3<Double>?
+    public let maxCurvature: Double
+    public let minCurvature: Double
+    public let meanCurvature: Double
+    public let gaussianCurvature: Double
+    public let isUmbilic: Bool
+}
+
+/// Trihedron frame (tangent, normal, binormal) at a curve parameter
+public struct TrihedronFrame: Sendable {
+    public let tangent: SIMD3<Double>
+    public let normal: SIMD3<Double>
+    public let binormal: SIMD3<Double>
+}
+
+/// Contour line type
+public enum ContourLineType: Int32, Sendable {
+    case line = 0
+    case circle = 1
+    case walking = 2
+    case restriction = 3
+}
+
+/// Filling pole grid result from GeomFill_Coons/Curved
+public struct FillingPoleGrid: Sendable {
+    public let poles: [SIMD3<Double>]
+    public let nbU: Int
+    public let nbV: Int
+}
+
+/// Evolved section shape info
+public struct EvolvedSectionInfo: Sendable {
+    public let nbPoles: Int
+    public let nbKnots: Int
+    public let degree: Int
+    public let isRational: Bool
+}
+
+/// Contour computation result
+public class ContapContourResult {
+    let ref: OCCTContapContourRef
+
+    init(_ ref: OCCTContapContourRef) {
+        self.ref = ref
+    }
+
+    deinit {
+        OCCTContapContourRelease(ref)
+    }
+
+    /// Number of contour lines
+    public var lineCount: Int {
+        Int(OCCTContapContourLineCount(ref))
+    }
+
+    /// Number of points on a specific contour line (1-based index)
+    public func pointCount(line: Int) -> Int {
+        Int(OCCTContapContourLinePointCount(ref, Int32(line)))
+    }
+
+    /// Get a point on a contour line (1-based indices)
+    public func point(line: Int, index: Int) -> SIMD3<Double> {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        OCCTContapContourLinePoint(ref, Int32(line), Int32(index), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get all points on a contour line (1-based line index)
+    public func points(line: Int) -> [SIMD3<Double>] {
+        let count = pointCount(line: line)
+        guard count > 0 else { return [] }
+        return (1...count).map { point(line: line, index: $0) }
+    }
+
+    /// Get the type of a contour line (1-based index)
+    public func lineType(_ line: Int) -> ContourLineType? {
+        let t = OCCTContapContourLineType(ref, Int32(line))
+        return ContourLineType(rawValue: t)
+    }
+}
+
+/// Surface-surface intersection result
+public class SurfaceIntersectionResult {
+    let ref: OCCTGeomIntSSRef
+
+    init(_ ref: OCCTGeomIntSSRef) {
+        self.ref = ref
+    }
+
+    deinit {
+        OCCTGeomIntSSRelease(ref)
+    }
+
+    /// Number of intersection curves
+    public var curveCount: Int {
+        Int(OCCTGeomIntSSLineCount(ref))
+    }
+
+    /// Get an intersection curve as an edge shape (1-based index)
+    public func curve(_ index: Int) -> Shape? {
+        guard let h = OCCTGeomIntSSLine(ref, Int32(index)) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Number of isolated intersection points
+    public var pointCount: Int {
+        Int(OCCTGeomIntSSPointCount(ref))
+    }
+
+    /// Get an intersection point (1-based index)
+    public func point(_ index: Int) -> SIMD3<Double> {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        OCCTGeomIntSSPoint(ref, Int32(index), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+}
+
+extension Shape {
+
+    // MARK: - GeomLProp_CLProps
+
+    /// Compute curve local properties at a parameter on an edge
+    public func curveLocalProps(at param: Double) -> CurveLocalProperties {
+        let r = OCCTGeomLPropCLProps(handle, param)
+        let point = SIMD3(r.px, r.py, r.pz)
+        let tangent: SIMD3<Double>? = r.tangentDefined ?
+            SIMD3(r.tx, r.ty, r.tz) : nil
+        let normal: SIMD3<Double>? = (r.tangentDefined && r.curvature > 1e-10) ?
+            SIMD3(r.nx, r.ny, r.nz) : nil
+        let center: SIMD3<Double>? = (r.tangentDefined && r.curvature > 1e-10) ?
+            SIMD3(r.cx, r.cy, r.cz) : nil
+        return CurveLocalProperties(
+            point: point, tangent: tangent, normal: normal,
+            centerOfCurvature: center, curvature: r.curvature)
+    }
+
+    // MARK: - GeomLProp_SLProps
+
+    /// Compute surface local properties at (U,V) on a face
+    public func surfaceLocalProps(u: Double, v: Double) -> SurfaceLocalProperties {
+        let r = OCCTGeomLPropSLProps(handle, u, v)
+        let point = SIMD3(r.px, r.py, r.pz)
+        let normal: SIMD3<Double>? = r.normalDefined ? SIMD3(r.nx, r.ny, r.nz) : nil
+        let tu: SIMD3<Double>? = (r.tuX != 0 || r.tuY != 0 || r.tuZ != 0) ?
+            SIMD3(r.tuX, r.tuY, r.tuZ) : nil
+        let tv: SIMD3<Double>? = (r.tvX != 0 || r.tvY != 0 || r.tvZ != 0) ?
+            SIMD3(r.tvX, r.tvY, r.tvZ) : nil
+        return SurfaceLocalProperties(
+            point: point, normal: normal, tangentU: tu, tangentV: tv,
+            maxCurvature: r.maxCurvature, minCurvature: r.minCurvature,
+            meanCurvature: r.meanCurvature, gaussianCurvature: r.gaussianCurvature,
+            isUmbilic: r.isUmbilic)
+    }
+
+    // MARK: - BRepOffset_SimpleOffset
+
+    /// Create a simple surface offset of the shape
+    public func simpleOffsetShape(distance: Double, tolerance: Double = 1e-3) -> Shape? {
+        guard let h = OCCTBRepOffsetSimpleOffset(handle, distance, tolerance) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - Approx_CurvilinearParameter
+
+    /// Reparameterize an edge curve by arc length, returning a BSpline edge
+    public func curvilinearParameter(tolerance: Double = 1e-3, maxDegree: Int = 8, maxSegments: Int = 50) -> Shape? {
+        guard let h = OCCTApproxCurvilinearParameter(handle, tolerance, Int32(maxDegree), Int32(maxSegments)) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - GeomInt_IntSS
+
+    /// Compute surface-surface intersection between two faces
+    public static func surfaceSurfaceIntersection(face1: Shape, face2: Shape, tolerance: Double = 1e-6) -> SurfaceIntersectionResult? {
+        guard let ref = OCCTGeomIntSSCreate(face1.handle, face2.handle, tolerance) else { return nil }
+        return SurfaceIntersectionResult(ref)
+    }
+
+    // MARK: - Contap_Contour
+
+    /// Compute contour lines on a face with a projection direction (orthographic)
+    public func contapContourDirection(_ direction: SIMD3<Double>) -> ContapContourResult? {
+        guard let ref = OCCTContapContourDirection(handle, direction.x, direction.y, direction.z) else { return nil }
+        let result = ContapContourResult(ref)
+        return result.lineCount > 0 ? result : nil
+    }
+
+    /// Compute contour lines on a face with an eye point (perspective)
+    public func contapContourEye(_ eye: SIMD3<Double>) -> ContapContourResult? {
+        guard let ref = OCCTContapContourEye(handle, eye.x, eye.y, eye.z) else { return nil }
+        let result = ContapContourResult(ref)
+        return result.lineCount > 0 ? result : nil
+    }
+
+    // MARK: - BRepFeat_Builder
+
+    /// Feature-based fuse (union with part selection)
+    public func featFuse(with tool: Shape) -> Shape? {
+        guard let h = OCCTBRepFeatBuilderFuse(handle, tool.handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Feature-based cut (subtraction with part selection)
+    public func featCut(with tool: Shape) -> Shape? {
+        guard let h = OCCTBRepFeatBuilderCut(handle, tool.handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - GeomFill Trihedron Laws
+
+    /// Evaluate draft trihedron frame on an edge at a parameter
+    public func draftTrihedron(at param: Double, biNormal: SIMD3<Double>, angle: Double) -> TrihedronFrame? {
+        let r = OCCTGeomFillDraftTrihedron(handle, param, biNormal.x, biNormal.y, biNormal.z, angle)
+        let t = SIMD3(r.tx, r.ty, r.tz)
+        guard simd_length(t) > 1e-10 else { return nil }
+        return TrihedronFrame(tangent: t, normal: SIMD3(r.nx, r.ny, r.nz), binormal: SIMD3(r.bx, r.by, r.bz))
+    }
+
+    /// Evaluate discrete trihedron frame on an edge at a parameter
+    public func discreteTrihedron(at param: Double) -> TrihedronFrame? {
+        let r = OCCTGeomFillDiscreteTrihedron(handle, param)
+        let t = SIMD3(r.tx, r.ty, r.tz)
+        guard simd_length(t) > 1e-10 else { return nil }
+        return TrihedronFrame(tangent: t, normal: SIMD3(r.nx, r.ny, r.nz), binormal: SIMD3(r.bx, r.by, r.bz))
+    }
+
+    /// Evaluate corrected Frenet frame on an edge at a parameter
+    public func correctedFrenet(at param: Double) -> TrihedronFrame? {
+        let r = OCCTGeomFillCorrectedFrenet(handle, param)
+        let t = SIMD3(r.tx, r.ty, r.tz)
+        guard simd_length(t) > 1e-10 else { return nil }
+        return TrihedronFrame(tangent: t, normal: SIMD3(r.nx, r.ny, r.nz), binormal: SIMD3(r.bx, r.by, r.bz))
+    }
+
+    // MARK: - GeomFill_Coons / GeomFill_Curved
+
+    /// Compute Coons filling pole grid from 4 boundary point arrays
+    public static func coonsFilling(
+        boundary1: [SIMD3<Double>], boundary2: [SIMD3<Double>],
+        boundary3: [SIMD3<Double>], boundary4: [SIMD3<Double>]
+    ) -> FillingPoleGrid? {
+        let n = boundary1.count
+        guard n >= 2, boundary2.count == n, boundary3.count == n, boundary4.count == n else { return nil }
+        let b1 = boundary1.flatMap { [$0.x, $0.y, $0.z] }
+        let b2 = boundary2.flatMap { [$0.x, $0.y, $0.z] }
+        let b3 = boundary3.flatMap { [$0.x, $0.y, $0.z] }
+        let b4 = boundary4.flatMap { [$0.x, $0.y, $0.z] }
+        let maxPoles = n * n * 4
+        var outPoints = [Double](repeating: 0, count: maxPoles * 3)
+        var nbU: Int32 = 0, nbV: Int32 = 0
+        let count = Int(OCCTGeomFillCoonsPoles(b1, b2, b3, b4, Int32(n), &outPoints, Int32(maxPoles), &nbU, &nbV))
+        guard count > 0 else { return nil }
+        let poles = (0..<count).map { i in
+            SIMD3(outPoints[i*3], outPoints[i*3+1], outPoints[i*3+2])
+        }
+        return FillingPoleGrid(poles: poles, nbU: Int(nbU), nbV: Int(nbV))
+    }
+
+    /// Compute curved filling pole grid from 4 boundary point arrays
+    public static func curvedFilling(
+        boundary1: [SIMD3<Double>], boundary2: [SIMD3<Double>],
+        boundary3: [SIMD3<Double>], boundary4: [SIMD3<Double>]
+    ) -> FillingPoleGrid? {
+        let n = boundary1.count
+        guard n >= 2, boundary2.count == n, boundary3.count == n, boundary4.count == n else { return nil }
+        let b1 = boundary1.flatMap { [$0.x, $0.y, $0.z] }
+        let b2 = boundary2.flatMap { [$0.x, $0.y, $0.z] }
+        let b3 = boundary3.flatMap { [$0.x, $0.y, $0.z] }
+        let b4 = boundary4.flatMap { [$0.x, $0.y, $0.z] }
+        let maxPoles = n * n * 4
+        var outPoints = [Double](repeating: 0, count: maxPoles * 3)
+        var nbU: Int32 = 0, nbV: Int32 = 0
+        let count = Int(OCCTGeomFillCurvedPoles(b1, b2, b3, b4, Int32(n), &outPoints, Int32(maxPoles), &nbU, &nbV))
+        guard count > 0 else { return nil }
+        let poles = (0..<count).map { i in
+            SIMD3(outPoints[i*3], outPoints[i*3+1], outPoints[i*3+2])
+        }
+        return FillingPoleGrid(poles: poles, nbU: Int(nbU), nbV: Int(nbV))
+    }
+
+    // MARK: - GeomFill_CoonsAlgPatch
+
+    /// Evaluate Coons algorithmic patch from 4 boundary edges
+    public static func coonsAlgPatch(
+        edge1: Shape, edge2: Shape, edge3: Shape, edge4: Shape,
+        evalU: Int = 10, evalV: Int = 10
+    ) -> [SIMD3<Double>]? {
+        var outPoints = [Double](repeating: 0, count: evalU * evalV * 3)
+        OCCTGeomFillCoonsAlgPatchEval(
+            edge1.handle, edge2.handle, edge3.handle, edge4.handle,
+            Int32(evalU), Int32(evalV), &outPoints)
+        let points = (0..<evalU * evalV).map { i in
+            SIMD3(outPoints[i*3], outPoints[i*3+1], outPoints[i*3+2])
+        }
+        // Check if any non-zero points
+        guard points.contains(where: { simd_length($0) > 1e-10 }) else { return nil }
+        return points
+    }
+
+    // MARK: - GeomFill_Sweep
+
+    /// Sweep a section edge along a path edge to create a surface face
+    public static func geomFillSweep(path: Shape, section: Shape) -> Shape? {
+        guard let h = OCCTGeomFillSweep(path.handle, section.handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    // MARK: - GeomFill_EvolvedSection
+
+    /// Get evolved section info for an edge curve
+    public func evolvedSectionInfo() -> EvolvedSectionInfo {
+        let r = OCCTGeomFillEvolvedSectionInfo(handle)
+        return EvolvedSectionInfo(
+            nbPoles: Int(r.nbPoles), nbKnots: Int(r.nbKnots),
+            degree: Int(r.degree), isRational: r.isRational)
+    }
+}

@@ -72,7 +72,17 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **LocOpe Extensions** | 3 | buildWires, splitByWireOnFace, curveShapeIntersect |
 | **CPnts Deflection** | 2 | uniformDeflection, uniformDeflection(range) |
 | **IntCurvesFace** | 2 | rayIntersect, rayIntersectNearest |
-| **Total** | **995** | |
+| **GeomLProp** | 2 | curveLocalProps, surfaceLocalProps |
+| **BRepOffset** | 1 | simpleOffsetShape |
+| **Approx** | 1 | curvilinearParameter |
+| **GeomInt** | 1 | surfaceSurfaceIntersection |
+| **Contap** | 2 | contapContourDirection, contapContourEye |
+| **BRepFeat** | 2 | featFuse, featCut |
+| **GeomFill Trihedrons** | 3 | draftTrihedron, discreteTrihedron, correctedFrenet |
+| **GeomFill Filling** | 3 | coonsFilling, curvedFilling, coonsAlgPatch |
+| **GeomFill Sweep** | 1 | geomFillSweep |
+| **GeomFill Section** | 1 | evolvedSectionInfo |
+| **Total** | **1012** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -267,6 +277,18 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **projectWire Wire overloads**: Cylindrical and conical projection accept Wire directly
 - **Shape.distance/intersects overloads**: Distance and intersection checks accept Wire, Edge, or Face directly
 - **orderedEdgePoints auto-sizing**: No more 200-point truncation — buffer auto-sizes to fit all discretized points
+- **Curve Local Properties**: GeomLProp_CLProps — tangent, normal, curvature, center of curvature at any edge parameter
+- **Surface Local Properties**: GeomLProp_SLProps — normal, tangent directions, principal/mean/Gaussian curvatures at face UV coordinates
+- **Simple Surface Offset**: BRepOffset_SimpleOffset — fast surface-level offset via BRepTools_Modifier
+- **Arc-Length Reparameterization**: Approx_CurvilinearParameter — reparameterize edge curves by arc length as BSpline
+- **Surface-Surface Intersection**: GeomInt_IntSS — compute intersection curves and isolated points between two faces
+- **Contap Contour Lines**: Contap_Contour — silhouette/contour line computation on faces with orthographic or perspective projection
+- **Feature Boolean**: BRepFeat_Builder — feature-based fuse and cut with automatic tool part selection
+- **Trihedron Laws**: GeomFill DraftTrihedron, DiscreteTrihedron, CorrectedFrenet — evaluate local frames on curves for sweep operations
+- **Coons/Curved Filling**: GeomFill_Coons and GeomFill_Curved — compute surface pole grids from 4 boundary point arrays
+- **Coons Algorithmic Patch**: GeomFill_CoonsAlgPatch — evaluate Coons patch surface from 4 boundary edge curves
+- **GeomFill Sweep**: Sweep a section curve along a path curve with corrected Frenet frame to create a surface
+- **Evolved Section Info**: GeomFill_EvolvedSection — query BSpline section shape properties (poles, knots, degree, rationality)
 - **BRepLib Topology Construction**: Direct edge/face/shell creation from geometric primitives (line, circle, plane, cylinder) via BRepLib_MakeEdge/MakeFace/MakeShell
 - **Point Cloud Extraction**: Sample point clouds from triangulated shapes by triangle traversal or target density, with surface normals
 - **2D Edge Construction**: BRepBuilderAPI_MakeEdge2d — create 2D topological edges from points, circles, and lines

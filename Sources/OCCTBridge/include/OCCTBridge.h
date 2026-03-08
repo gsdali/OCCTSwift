@@ -7108,6 +7108,129 @@ bool OCCTIntCurvesFaceShapeIntersectNearest(OCCTShapeRef shape,
     double* outX, double* outY, double* outZ,
     double* outParam);
 
+// MARK: - v0.63.0: GeomLProp, BRepOffset_SimpleOffset, Approx_CurvilinearParameter,
+// GeomInt_IntSS, Contap_Contour, BRepFeat_Builder, GeomFill trihedrons/filling/sweep
+
+// --- GeomLProp_CLProps ---
+// Curve local properties at a parameter
+typedef struct {
+    double px, py, pz;       // point
+    double tx, ty, tz;       // tangent direction (0 if undefined)
+    double nx, ny, nz;       // normal direction (0 if undefined)
+    double cx, cy, cz;       // center of curvature (0 if undefined)
+    double curvature;        // curvature value
+    bool tangentDefined;
+} OCCTCurveLocalProps;
+
+OCCTCurveLocalProps OCCTGeomLPropCLProps(OCCTShapeRef edgeShape, double param);
+
+// --- GeomLProp_SLProps ---
+// Surface local properties at (U,V) on a face
+typedef struct {
+    double px, py, pz;           // point
+    double nx, ny, nz;           // normal (0 if undefined)
+    double tuX, tuY, tuZ;        // tangent U direction (0 if undefined)
+    double tvX, tvY, tvZ;        // tangent V direction (0 if undefined)
+    double maxCurvature;
+    double minCurvature;
+    double meanCurvature;
+    double gaussianCurvature;
+    bool normalDefined;
+    bool curvatureDefined;
+    bool isUmbilic;
+} OCCTSurfaceLocalProps;
+
+OCCTSurfaceLocalProps OCCTGeomLPropSLProps(OCCTShapeRef faceShape, double u, double v);
+
+// --- BRepOffset_SimpleOffset ---
+OCCTShapeRef _Nullable OCCTBRepOffsetSimpleOffset(OCCTShapeRef shape, double offset, double tolerance);
+
+// --- Approx_CurvilinearParameter ---
+// Reparameterize an edge curve by arc length → BSpline
+OCCTShapeRef _Nullable OCCTApproxCurvilinearParameter(OCCTShapeRef edgeShape,
+    double tolerance, int maxDegree, int maxSegments);
+
+// --- GeomInt_IntSS ---
+// Surface-surface intersection returning 3D curves
+// Returns count of intersection curves; curves stored internally
+typedef void* OCCTGeomIntSSRef;
+OCCTGeomIntSSRef _Nullable OCCTGeomIntSSCreate(OCCTShapeRef face1, OCCTShapeRef face2, double tolerance);
+int OCCTGeomIntSSLineCount(OCCTGeomIntSSRef ref);
+OCCTShapeRef _Nullable OCCTGeomIntSSLine(OCCTGeomIntSSRef ref, int index);
+int OCCTGeomIntSSPointCount(OCCTGeomIntSSRef ref);
+void OCCTGeomIntSSPoint(OCCTGeomIntSSRef ref, int index, double* x, double* y, double* z);
+void OCCTGeomIntSSRelease(OCCTGeomIntSSRef ref);
+
+// --- Contap_Contour ---
+// Contour lines on a face with direction or eye point
+typedef void* OCCTContapContourRef;
+OCCTContapContourRef _Nullable OCCTContapContourDirection(OCCTShapeRef faceShape,
+    double dx, double dy, double dz);
+OCCTContapContourRef _Nullable OCCTContapContourEye(OCCTShapeRef faceShape,
+    double ex, double ey, double ez);
+int OCCTContapContourLineCount(OCCTContapContourRef ref);
+int OCCTContapContourLinePointCount(OCCTContapContourRef ref, int lineIndex);
+void OCCTContapContourLinePoint(OCCTContapContourRef ref, int lineIndex, int pointIndex,
+    double* x, double* y, double* z);
+int OCCTContapContourLineType(OCCTContapContourRef ref, int lineIndex);
+void OCCTContapContourRelease(OCCTContapContourRef ref);
+
+// --- BRepFeat_Builder ---
+// Feature-based boolean with part selection
+OCCTShapeRef _Nullable OCCTBRepFeatBuilderFuse(OCCTShapeRef shape, OCCTShapeRef tool);
+OCCTShapeRef _Nullable OCCTBRepFeatBuilderCut(OCCTShapeRef shape, OCCTShapeRef tool);
+
+// --- GeomFill Trihedron Laws ---
+// Evaluate trihedron frame (tangent, normal, binormal) on an edge at parameter
+typedef struct {
+    double tx, ty, tz;  // tangent
+    double nx, ny, nz;  // normal
+    double bx, by, bz;  // binormal
+} OCCTTrihedronFrame;
+
+OCCTTrihedronFrame OCCTGeomFillDraftTrihedron(OCCTShapeRef edgeShape, double param,
+    double biNormalX, double biNormalY, double biNormalZ, double angle);
+OCCTTrihedronFrame OCCTGeomFillDiscreteTrihedron(OCCTShapeRef edgeShape, double param);
+OCCTTrihedronFrame OCCTGeomFillCorrectedFrenet(OCCTShapeRef edgeShape, double param);
+
+// --- GeomFill_Coons / GeomFill_Curved ---
+// Fill from 4 boundary point arrays; returns computed pole grid
+// pointsPerSide: how many points define each boundary
+// boundary arrays are flat [x,y,z, x,y,z, ...]
+// outPoints: flat output [x,y,z, ...], maxPoints: max poles to write
+// outNbU, outNbV: pole grid dimensions
+// Returns: number of poles written
+int OCCTGeomFillCoonsPoles(
+    const double* b1, const double* b2, const double* b3, const double* b4,
+    int pointsPerSide, double* outPoints, int maxPoints,
+    int* outNbU, int* outNbV);
+int OCCTGeomFillCurvedPoles(
+    const double* b1, const double* b2, const double* b3, const double* b4,
+    int pointsPerSide, double* outPoints, int maxPoints,
+    int* outNbU, int* outNbV);
+
+// --- GeomFill_CoonsAlgPatch ---
+// Evaluate Coons algorithmic patch from 4 boundary curves (edges)
+void OCCTGeomFillCoonsAlgPatchEval(
+    OCCTShapeRef edge1, OCCTShapeRef edge2, OCCTShapeRef edge3, OCCTShapeRef edge4,
+    int evalU, int evalV, double* outPoints);
+
+// --- GeomFill_Sweep ---
+// Sweep a section curve along a path curve with corrected Frenet frame
+// Returns the swept surface as a face
+OCCTShapeRef _Nullable OCCTGeomFillSweep(OCCTShapeRef pathEdge, OCCTShapeRef sectionEdge);
+
+// --- GeomFill_EvolvedSection ---
+// Query section shape info from evolved section (curve + law)
+typedef struct {
+    int nbPoles;
+    int nbKnots;
+    int degree;
+    bool isRational;
+} OCCTEvolvedSectionInfo;
+
+OCCTEvolvedSectionInfo OCCTGeomFillEvolvedSectionInfo(OCCTShapeRef edgeShape);
+
 #ifdef __cplusplus
 }
 #endif

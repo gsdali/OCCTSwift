@@ -18219,3 +18219,310 @@ struct IntCurvesFaceShapeIntersectorTests {
         }
     }
 }
+
+// MARK: - v0.63.0 Tests
+
+@Suite("GeomLProp CLProps")
+struct GeomLPropCLPropsTests {
+    @Test("Curve properties on circle edge")
+    func curvePropsOnCircle() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 5) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        // Find a circular edge
+        for edge in edges {
+            let props = edge.curveLocalProps(at: 0)
+            if props.curvature > 0.01 {
+                #expect(props.tangent != nil)
+                #expect(props.normal != nil)
+                #expect(props.centerOfCurvature != nil)
+                return
+            }
+        }
+    }
+
+    @Test("Tangent defined on line edge")
+    func tangentOnLineEdge() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        let props = edges[0].curveLocalProps(at: 0.5)
+        #expect(props.tangent != nil)
+        // Line has zero curvature
+        #expect(props.curvature < 0.001)
+    }
+}
+
+@Suite("GeomLProp SLProps")
+struct GeomLPropSLPropsTests {
+    @Test("Surface properties on sphere face")
+    func surfacePropsOnSphere() {
+        guard let sph = Shape.sphere(radius: 10) else { return }
+        let faces = sph.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        let props = faces[0].surfaceLocalProps(u: 0, v: 0)
+        #expect(props.normal != nil)
+        // Sphere curvature = 1/R = 0.1
+        #expect(abs(abs(props.maxCurvature) - 0.1) < 0.02)
+        #expect(abs(abs(props.minCurvature) - 0.1) < 0.02)
+        #expect(props.isUmbilic) // Sphere is umbilic everywhere
+    }
+
+    @Test("Normal on plane face")
+    func normalOnPlaneFace() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let faces = box.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        let props = faces[0].surfaceLocalProps(u: 0, v: 0)
+        #expect(props.normal != nil)
+        // Plane curvature should be ~0
+        #expect(abs(props.maxCurvature) < 0.001)
+    }
+}
+
+@Suite("BRepOffset SimpleOffset")
+struct BRepOffsetSimpleOffsetTests {
+    @Test("Simple offset on box")
+    func simpleOffsetBox() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let result = box.simpleOffsetShape(distance: 1.0)
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.isValid)
+        }
+    }
+}
+
+@Suite("Approx CurvilinearParameter")
+struct ApproxCurvilinearParameterTests {
+    @Test("Arc-length reparameterize circle edge")
+    func curvilinearCircle() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 5) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        // Try to find a circular edge
+        for edge in edges {
+            if let result = edge.curvilinearParameter() {
+                #expect(result.isValid)
+                return
+            }
+        }
+    }
+}
+
+@Suite("GeomInt IntSS")
+struct GeomIntIntSSTests {
+    @Test("Plane-cylinder intersection")
+    func planeCylinderIntersection() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        guard let box = Shape.box(width: 30, height: 30, depth: 1) else { return }
+        let cylFaces = cyl.subShapes(ofType: .face)
+        let boxFaces = box.subShapes(ofType: .face)
+        guard !cylFaces.isEmpty, !boxFaces.isEmpty else { return }
+        // Try each pair until we find one with intersection curves
+        for cf in cylFaces {
+            for bf in boxFaces {
+                if let result = Shape.surfaceSurfaceIntersection(face1: cf, face2: bf) {
+                    if result.curveCount > 0 {
+                        let curve = result.curve(1)
+                        #expect(curve != nil)
+                        return
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("Contap Contour Full")
+struct ContapContourFullTests {
+    @Test("Contour on cylinder face with direction")
+    func contourOnCylinder() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 20) else { return }
+        let faces = cyl.subShapes(ofType: .face)
+        guard !faces.isEmpty else { return }
+        // Try each face with direction perpendicular to cylinder axis
+        for face in faces {
+            if let result = face.contapContourDirection(SIMD3(1, 0, 0)) {
+                #expect(result.lineCount > 0)
+                // Some contour lines may be analytic (line/circle) with 0 walking points
+                // Just verify we got contour lines
+                return
+            }
+        }
+    }
+}
+
+@Suite("BRepFeat Builder")
+struct BRepFeatBuilderTests {
+    @Test("Feature fuse two boxes")
+    func featFuse() {
+        guard let box1 = Shape.box(width: 10, height: 10, depth: 10),
+              let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) else { return }
+        let result = box1.featFuse(with: box2)
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.isValid)
+        }
+    }
+
+    @Test("Feature cut box from box")
+    func featCut() {
+        guard let box1 = Shape.box(width: 10, height: 10, depth: 10),
+              let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) else { return }
+        let result = box1.featCut(with: box2)
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.isValid)
+        }
+    }
+}
+
+@Suite("GeomFill DraftTrihedron")
+struct GeomFillDraftTrihedronTests {
+    @Test("Draft trihedron on circle edge")
+    func draftTrihedronCircle() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 5) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        for edge in edges {
+            if let frame = edge.draftTrihedron(at: 0, biNormal: SIMD3(0, 0, 1), angle: .pi / 6) {
+                #expect(simd_length(frame.tangent) > 0.1)
+                #expect(simd_length(frame.normal) > 0.1)
+                #expect(simd_length(frame.binormal) > 0.1)
+                return
+            }
+        }
+    }
+}
+
+@Suite("GeomFill DiscreteTrihedron")
+struct GeomFillDiscreteTrihedronTests {
+    @Test("Discrete trihedron on edge")
+    func discreteTrihedronEdge() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 5) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        for edge in edges {
+            if let frame = edge.discreteTrihedron(at: 0) {
+                #expect(simd_length(frame.tangent) > 0.1)
+                return
+            }
+        }
+    }
+}
+
+@Suite("GeomFill CorrectedFrenet")
+struct GeomFillCorrectedFrenetTests {
+    @Test("Corrected Frenet on edge")
+    func correctedFrenetEdge() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 5) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        for edge in edges {
+            if let frame = edge.correctedFrenet(at: 0) {
+                #expect(simd_length(frame.tangent) > 0.1)
+                return
+            }
+        }
+    }
+}
+
+@Suite("GeomFill Coons")
+struct GeomFillCoonsTests {
+    @Test("Coons filling from boundaries")
+    func coonsFilling() {
+        let n = 5
+        var b1 = [SIMD3<Double>](), b2 = [SIMD3<Double>]()
+        var b3 = [SIMD3<Double>](), b4 = [SIMD3<Double>]()
+        for i in 0..<n {
+            let t = Double(i) / Double(n - 1)
+            b1.append(SIMD3(t * 10, 0, 0))
+            b2.append(SIMD3(t * 10, 10, 0))
+            b3.append(SIMD3(0, t * 10, 0))
+            b4.append(SIMD3(10, t * 10, 0))
+        }
+        let result = Shape.coonsFilling(boundary1: b1, boundary2: b2, boundary3: b3, boundary4: b4)
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.poles.count > 0)
+            #expect(result.nbU > 0)
+            #expect(result.nbV > 0)
+        }
+    }
+}
+
+@Suite("GeomFill Curved")
+struct GeomFillCurvedTests {
+    @Test("Curved filling from boundaries")
+    func curvedFilling() {
+        let n = 5
+        var b1 = [SIMD3<Double>](), b2 = [SIMD3<Double>]()
+        var b3 = [SIMD3<Double>](), b4 = [SIMD3<Double>]()
+        for i in 0..<n {
+            let t = Double(i) / Double(n - 1)
+            b1.append(SIMD3(t * 10, 0, sin(t * .pi)))
+            b2.append(SIMD3(t * 10, 10, sin(t * .pi) + 1))
+            b3.append(SIMD3(0, t * 10, sin(t * .pi) * 0.5))
+            b4.append(SIMD3(10, t * 10, sin(t * .pi) * 0.5 + 0.5))
+        }
+        let result = Shape.curvedFilling(boundary1: b1, boundary2: b2, boundary3: b3, boundary4: b4)
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.poles.count > 0)
+        }
+    }
+}
+
+@Suite("GeomFill CoonsAlgPatch")
+struct GeomFillCoonsAlgPatchTests {
+    @Test("Coons algorithmic patch from edges")
+    func coonsAlgPatch() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard edges.count >= 4 else { return }
+        let result = Shape.coonsAlgPatch(
+            edge1: edges[0], edge2: edges[1],
+            edge3: edges[2], edge4: edges[3],
+            evalU: 5, evalV: 5
+        )
+        #expect(result != nil)
+        if let result = result {
+            #expect(result.count == 25) // 5x5 grid
+        }
+    }
+}
+
+@Suite("GeomFill Sweep")
+struct GeomFillSweepTests {
+    @Test("Sweep circle along line")
+    func sweepCircleAlongLine() {
+        // Create a line path edge
+        let pathEdge = Shape.edgeFromLine(
+            origin: SIMD3(0, 0, 0), direction: SIMD3(0, 0, 1), p1: 0, p2: 20)
+        // Create a circle section edge
+        let sectionEdge = Shape.edgeFromCircle(
+            center: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 3, p1: 0, p2: 2 * .pi)
+        guard let path = pathEdge, let section = sectionEdge else { return }
+        let result = Shape.geomFillSweep(path: path, section: section)
+        #expect(result != nil)
+    }
+}
+
+@Suite("GeomFill EvolvedSection")
+struct GeomFillEvolvedSectionTests {
+    @Test("Evolved section info on circle edge")
+    func evolvedSectionInfo() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        for edge in edges {
+            let info = edge.evolvedSectionInfo()
+            if info.nbPoles > 0 {
+                #expect(info.degree > 0)
+                #expect(info.nbKnots > 0)
+                return
+            }
+        }
+    }
+}
