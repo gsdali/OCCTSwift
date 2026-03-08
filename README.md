@@ -78,7 +78,6 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **GeomInt** | 1 | surfaceSurfaceIntersection |
 | **Contap** | 2 | contapContourDirection, contapContourEye |
 | **BRepFeat** | 2 | featFuse, featCut |
-| **GeomFill Trihedrons** | 3 | draftTrihedron, discreteTrihedron, correctedFrenet |
 | **GeomFill Filling** | 3 | coonsFilling, curvedFilling, coonsAlgPatch |
 | **GeomFill Sweep** | 1 | geomFillSweep |
 | **GeomFill Section** | 1 | evolvedSectionInfo |
@@ -101,8 +100,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Curve2D ↔ Point2D** | 3 | pointAt, segment(from:Point2D), project(Point2D) |
 | **FairCurve** | 2 | fairCurveBatten, fairCurveMinimalVariation |
 | **LocalAnalysis** | 4 | curveContinuity, curveContinuityFlags, surfaceContinuity, surfaceContinuityFlags |
-| **TopTrans** | 2 | surfaceTransition, surfaceTransitionWithCurvature |
-| **Total** | **1097** | |
+| **TopTrans** | 4 | surfaceTransition, surfaceTransitionWithCurvature, curveTransition, curveTransitionWithCurvature |
+| **GeomFill Trihedrons** | 7 | draftTrihedron, discreteTrihedron, correctedFrenet, frenetTrihedron, fixedTrihedron, constantBiNormalTrihedron, darbouxTrihedron |
+| **GeomFill NSections** | 2 | nSections, nSectionsInfo |
+| **Law Extensions** | 2 | composite, knotSplitting |
+| **GccAna Circ2d3Tan** | 6 | circleThrough3Points, circleTangent3Lines, circleTangent3Circles, circleTangent2CirclesPoint, circleTangentCircle2Points, circleTangent2LinesPoint |
+| **Polygon Interference** | 2 | polygonInterference, polygonSelfInterference |
+| **Total** | **1115** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -340,6 +344,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **LocalAnalysis Surface Continuity**: Analyze C0/G1/C1/G2/C2 continuity at surface junctions — distance, normal angle, derivative angles
 - **TopTrans Surface Transition**: Determine IN/OUT topological state before and after crossing a surface boundary, with optional curvature info
 - **OCCT Class Cross-Reference**: Complete mapping of ~200 OCCT classes to their OCCTSwift bridge function names in OCCTBridge.h
+- **TopTrans Curve Transition**: Determine IN/OUT state at curve-boundary crossings with optional curvature
+- **GeomFill Trihedrons**: Frenet, Fixed, ConstantBiNormal, and Darboux trihedron evaluations on edge curves
+- **GeomFill NSections**: Create BSpline surfaces by lofting through N section curves with parameter assignment
+- **Law Composite**: Stitch multiple law functions into a composite; BSpline law knot splitting analysis
+- **GccAna Circ2d3Tan**: Find circles tangent to combinations of 3 points, lines, and circles (Apollonius problem)
+- **Polygon Interference**: Compute intersection points between 2D polylines and detect self-intersections
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements

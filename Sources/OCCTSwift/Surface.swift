@@ -1418,4 +1418,38 @@ extension Surface {
             status: Int(outStatus), c0Value: outC0, g1Angle: outG1,
             c1UAngle: outC1U, c1VAngle: outC1V, flags: flags)
     }
+
+    // MARK: - GeomFill_NSections (v0.68.0)
+
+    /// Create a BSpline surface by lofting through N section curves.
+    ///
+    /// - Parameters:
+    ///   - sections: Array of 3D curves defining cross-sections
+    ///   - params: Parameter values for each section (typically 0..1)
+    /// - Returns: BSpline surface, or nil on failure
+    public static func nSections(curves: [Curve3D], params: [Double]) -> Surface? {
+        guard curves.count == params.count, curves.count >= 2 else { return nil }
+        let handles = curves.map { $0.handle as OCCTCurve3DRef }
+        return handles.withUnsafeBufferPointer { hBuf in
+            params.withUnsafeBufferPointer { pBuf in
+                guard let h = OCCTGeomFillNSections(hBuf.baseAddress!, pBuf.baseAddress!, Int32(curves.count)) else { return nil as Surface? }
+                return Surface(handle: h)
+            }
+        }
+    }
+
+    /// Query section info from N-sections surface creation.
+    public static func nSectionsInfo(curves: [Curve3D], params: [Double]) -> (poleCount: Int, knotCount: Int, degree: Int)? {
+        guard curves.count == params.count, curves.count >= 2 else { return nil }
+        let handles = curves.map { $0.handle as OCCTCurve3DRef }
+        var nbPoles: Int32 = 0, nbKnots: Int32 = 0, deg: Int32 = 0
+        handles.withUnsafeBufferPointer { hBuf in
+            params.withUnsafeBufferPointer { pBuf in
+                OCCTGeomFillNSectionsInfo(hBuf.baseAddress!, pBuf.baseAddress!, Int32(curves.count),
+                    &nbPoles, &nbKnots, &deg)
+            }
+        }
+        if nbPoles == 0 { return nil }
+        return (Int(nbPoles), Int(nbKnots), Int(deg))
+    }
 }

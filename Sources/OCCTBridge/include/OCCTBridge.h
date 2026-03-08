@@ -184,6 +184,7 @@
 // GccAna_Lin2dTanObl                  → OCCTGccAnaLinOblique*
 // GccAna_Lin2dTanPar                  → OCCTGccAnaLinParallel*
 // GccAna_Lin2dTanPer                  → OCCTGccAnaLinPerpendicular*
+// GccAna_Circ2d3Tan                   → OCCTGccAnaCirc2d3Tan* (v0.68.0)
 // GccAna_Pnt2dBisec                   → OCCTGccAnaBisecPP
 //
 // --- Geom ---
@@ -263,8 +264,13 @@
 // GeomFill_CorrectedFrenet            → OCCTGeomFillCorrectedFrenet
 // GeomFill_Curved                     → OCCTGeomFillCurved
 // GeomFill_DiscreteTrihedron          → OCCTGeomFillDiscreteTrihedron
+// GeomFill_ConstantBiNormal           → OCCTGeomFillConstantBiNormalTrihedron (v0.68.0)
+// GeomFill_Darboux                    → OCCTGeomFillDarbouxTrihedron (v0.68.0)
 // GeomFill_DraftTrihedron             → OCCTGeomFillDraftTrihedron
 // GeomFill_EvolvedSection             → OCCTGeomFillEvolvedSection
+// GeomFill_Fixed                      → OCCTGeomFillFixedTrihedron (v0.68.0)
+// GeomFill_Frenet                     → OCCTGeomFillFrenetTrihedron (v0.68.0)
+// GeomFill_NSections                  → OCCTGeomFillNSections (v0.68.0)
 // GeomFill_Pipe                       → OCCTSurfacePipe*
 // GeomFill_SimpleBound                → OCCTShapeConstrainedFill
 // GeomFill_Sweep                      → OCCTGeomFillSweep
@@ -294,6 +300,11 @@
 // Law_Interpol                        → OCCTLawInterpolate
 // Law_Linear                          → OCCTLawLinear
 // Law_S                               → OCCTLawSCurve
+// Law_BSplineKnotSplitting            → OCCTLawBSplineKnotSplitting (v0.68.0)
+// Law_Composite                       → OCCTLawComposite (v0.68.0)
+//
+// --- Intf ---
+// Intf_InterferencePolygon2d          → OCCTIntfInterferencePolygon2d (v0.68.0)
 //
 // --- LocOpe ---
 // LocOpe_BuildShape                   → OCCTLocOpeBuildShape
@@ -383,6 +394,10 @@
 // TDataStd_IntegerArray/RealArray     → OCCTLabel*Array*
 // TDataStd_NamedData                  → OCCTLabelNamedData*
 // TDataStd_TreeNode                   → OCCTLabelSetTreeNode*
+//
+// --- TopTrans ---
+// TopTrans_CurveTransition            → OCCTTopTransCurveTransition* (v0.68.0)
+// TopTrans_SurfaceTransition          → OCCTTopTransSurfaceTransition* (v0.67.0)
 //
 // --- TNaming ---
 // TNaming_Builder                     → OCCTDocumentNamingRecord*
@@ -8071,6 +8086,157 @@ void OCCTTopTransSurfaceTransitionCurvature(
     double tolerance,
     int32_t surfOrientation, int32_t boundOrientation,
     int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter);
+
+// MARK: - v0.68.0: TKGeomAlgo Part 2 — CurveTransition, Trihedrons, NSections, Law, GccAna, Intf
+
+// --- TopTrans_CurveTransition ---
+/// Compute curve transition states at a boundary crossing (simple, no curvature).
+void OCCTTopTransCurveTransition(
+    double tgtX, double tgtY, double tgtZ,
+    double tangX, double tangY, double tangZ,
+    double normX, double normY, double normZ,
+    double curvature, double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter);
+
+/// Compute curve transition states with curvature on the boundary curve.
+void OCCTTopTransCurveTransitionWithCurvature(
+    double tgtX, double tgtY, double tgtZ,
+    double curveNormX, double curveNormY, double curveNormZ,
+    double curveCurv,
+    double tangX, double tangY, double tangZ,
+    double normX, double normY, double normZ,
+    double surfCurv, double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter);
+
+// --- GeomFill Trihedrons ---
+/// Evaluate Darboux trihedron on a surface-curve (edge on face).
+OCCTTrihedronFrame OCCTGeomFillDarbouxTrihedron(OCCTShapeRef _Nonnull edgeShape, OCCTShapeRef _Nonnull faceShape, double param);
+
+/// Evaluate Fixed trihedron (constant tangent and normal).
+OCCTTrihedronFrame OCCTGeomFillFixedTrihedron(
+    double tangentX, double tangentY, double tangentZ,
+    double normalX, double normalY, double normalZ, double param);
+
+/// Evaluate Frenet trihedron on a curve.
+OCCTTrihedronFrame OCCTGeomFillFrenetTrihedron(OCCTShapeRef _Nonnull edgeShape, double param);
+
+/// Evaluate ConstantBiNormal trihedron on a curve.
+OCCTTrihedronFrame OCCTGeomFillConstantBiNormalTrihedron(OCCTShapeRef _Nonnull edgeShape, double param,
+    double biNormalX, double biNormalY, double biNormalZ);
+
+// --- GeomFill_NSections ---
+/// Create a BSpline surface by lofting through N section curves.
+/// @param curveRefs Array of Curve3D handles (section curves)
+/// @param params Array of parameter values for each section (0..1)
+/// @param count Number of sections
+/// @return Surface handle, or NULL on failure
+OCCTSurfaceRef _Nullable OCCTGeomFillNSections(
+    const OCCTCurve3DRef _Nonnull * _Nonnull curveRefs,
+    const double* _Nonnull params, int32_t count);
+
+/// Query section shape info from N-sections surface creation.
+/// Returns section pole count, knot count, and degree.
+void OCCTGeomFillNSectionsInfo(
+    const OCCTCurve3DRef _Nonnull * _Nonnull curveRefs,
+    const double* _Nonnull params, int32_t count,
+    int32_t* _Nonnull outNbPoles, int32_t* _Nonnull outNbKnots, int32_t* _Nonnull outDegree);
+
+// --- Law_BSplineKnotSplitting ---
+/// Find knot indices where a BSpline law drops below given continuity.
+/// @param law BSpline law function handle
+/// @param continuityOrder Continuity level to check (0=C0, 1=C1, 2=C2)
+/// @param outIndices Output array of split knot indices
+/// @param maxIndices Maximum number of indices to write
+/// @return Number of split knot indices written
+int32_t OCCTLawBSplineKnotSplitting(OCCTLawFunctionRef _Nonnull law,
+    int32_t continuityOrder,
+    int32_t* _Nonnull outIndices, int32_t maxIndices);
+
+// --- Law_Composite ---
+/// Create a composite law from multiple sub-laws stitched together.
+/// @param lawRefs Array of law function handles
+/// @param count Number of sub-laws
+/// @param first Start of parametric range
+/// @param last End of parametric range
+/// @return Composite law handle
+OCCTLawFunctionRef _Nullable OCCTLawComposite(const OCCTLawFunctionRef _Nonnull * _Nonnull lawRefs,
+    int32_t count, double first, double last);
+
+// --- GccAna_Circ2d3Tan ---
+
+/// Result struct for GccAna_Circ2d3Tan solutions.
+typedef struct {
+    double centerX, centerY;
+    double radius;
+} OCCTCircle2DSolution;
+
+/// Find circles tangent to / through 3 points.
+int32_t OCCTGccAnaCirc2d3TanPoints(double p1x, double p1y, double p2x, double p2y,
+    double p3x, double p3y, double tolerance,
+    OCCTCircle2DSolution* _Nonnull outSolutions, int32_t maxSolutions);
+
+/// Find circles tangent to 3 lines.
+int32_t OCCTGccAnaCirc2d3TanLines(
+    double l1px, double l1py, double l1dx, double l1dy,
+    double l2px, double l2py, double l2dx, double l2dy,
+    double l3px, double l3py, double l3dx, double l3dy,
+    double tolerance,
+    OCCTCircle2DSolution* _Nonnull outSolutions, int32_t maxSolutions);
+
+/// Find circles tangent to 3 circles.
+int32_t OCCTGccAnaCirc2d3TanCircles(
+    double c1x, double c1y, double c1r,
+    double c2x, double c2y, double c2r,
+    double c3x, double c3y, double c3r,
+    double tolerance,
+    OCCTCircle2DSolution* _Nonnull outSolutions, int32_t maxSolutions);
+
+/// Find circles tangent to 2 circles through 1 point.
+int32_t OCCTGccAnaCirc2d2CirclesPoint(
+    double c1x, double c1y, double c1r,
+    double c2x, double c2y, double c2r,
+    double px, double py, double tolerance,
+    OCCTCircle2DSolution* _Nonnull outSolutions, int32_t maxSolutions);
+
+/// Find circles tangent to 1 circle through 2 points.
+int32_t OCCTGccAnaCirc2dCircle2Points(
+    double cx, double cy, double cr,
+    double p1x, double p1y, double p2x, double p2y, double tolerance,
+    OCCTCircle2DSolution* _Nonnull outSolutions, int32_t maxSolutions);
+
+/// Find circles tangent to 2 lines through 1 point.
+int32_t OCCTGccAnaCirc2d2LinesPoint(
+    double l1px, double l1py, double l1dx, double l1dy,
+    double l2px, double l2py, double l2dx, double l2dy,
+    double px, double py, double tolerance,
+    OCCTCircle2DSolution* _Nonnull outSolutions, int32_t maxSolutions);
+
+// --- Intf_InterferencePolygon2d ---
+
+/// Intersection point result for polygon interference.
+typedef struct {
+    double x, y;
+} OCCTIntfPoint2D;
+
+/// Compute interference (intersection) between two 2D polylines.
+/// @param poly1 Flat array of (x,y) pairs for first polyline
+/// @param count1 Number of points in first polyline
+/// @param poly2 Flat array of (x,y) pairs for second polyline
+/// @param count2 Number of points in second polyline
+/// @param outPoints Output array of intersection points
+/// @param maxPoints Maximum intersection points to write
+/// @return Number of intersection points found
+int32_t OCCTIntfInterferencePolygon2d(
+    const double* _Nonnull poly1, int32_t count1,
+    const double* _Nonnull poly2, int32_t count2,
+    OCCTIntfPoint2D* _Nonnull outPoints, int32_t maxPoints);
+
+/// Compute self-interference of a 2D polyline.
+int32_t OCCTIntfSelfInterferencePolygon2d(
+    const double* _Nonnull poly, int32_t count,
+    OCCTIntfPoint2D* _Nonnull outPoints, int32_t maxPoints);
 
 #ifdef __cplusplus
 }

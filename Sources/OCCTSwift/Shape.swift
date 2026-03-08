@@ -8011,4 +8011,241 @@ extension Shape {
             stateBefore: TopologicalState(rawValue: before) ?? .unknown,
             stateAfter: TopologicalState(rawValue: after) ?? .unknown)
     }
+
+    // MARK: - TopTrans Curve Transition
+
+    /// Analyze a curve transition at a boundary crossing.
+    ///
+    /// Determines the topological state (IN/OUT) before and after a curve crosses
+    /// a boundary element, given directions and curvature.
+    ///
+    /// - Parameters:
+    ///   - tangent: Tangent of the curve at the crossing
+    ///   - boundaryTangent: Tangent of the boundary element
+    ///   - boundaryNormal: Normal of the boundary element
+    ///   - curvature: Curvature of the boundary at the crossing
+    ///   - tolerance: Angular tolerance
+    ///   - surfaceOrientation: Orientation of the surface (0=FORWARD, 1=REVERSED)
+    ///   - boundaryOrientation: Orientation of the boundary
+    /// - Returns: Transition result with states before and after
+    public static func curveTransition(
+        tangent: SIMD3<Double>,
+        boundaryTangent: SIMD3<Double>, boundaryNormal: SIMD3<Double>,
+        curvature: Double = 0.0, tolerance: Double = 1e-6,
+        surfaceOrientation: Int = 0, boundaryOrientation: Int = 0
+    ) -> SurfaceTransitionResult {
+        var before: Int32 = 3, after: Int32 = 3
+        OCCTTopTransCurveTransition(
+            tangent.x, tangent.y, tangent.z,
+            boundaryTangent.x, boundaryTangent.y, boundaryTangent.z,
+            boundaryNormal.x, boundaryNormal.y, boundaryNormal.z,
+            curvature, tolerance,
+            Int32(surfaceOrientation), Int32(boundaryOrientation),
+            &before, &after)
+        return SurfaceTransitionResult(
+            stateBefore: TopologicalState(rawValue: before) ?? .unknown,
+            stateAfter: TopologicalState(rawValue: after) ?? .unknown)
+    }
+
+    /// Analyze a curve transition with curvature on the boundary curve.
+    public static func curveTransitionWithCurvature(
+        tangent: SIMD3<Double>,
+        curveNormal: SIMD3<Double>, curveCurvature: Double,
+        boundaryTangent: SIMD3<Double>, boundaryNormal: SIMD3<Double>,
+        surfaceCurvature: Double, tolerance: Double = 1e-6,
+        surfaceOrientation: Int = 0, boundaryOrientation: Int = 0
+    ) -> SurfaceTransitionResult {
+        var before: Int32 = 3, after: Int32 = 3
+        OCCTTopTransCurveTransitionWithCurvature(
+            tangent.x, tangent.y, tangent.z,
+            curveNormal.x, curveNormal.y, curveNormal.z,
+            curveCurvature,
+            boundaryTangent.x, boundaryTangent.y, boundaryTangent.z,
+            boundaryNormal.x, boundaryNormal.y, boundaryNormal.z,
+            surfaceCurvature, tolerance,
+            Int32(surfaceOrientation), Int32(boundaryOrientation),
+            &before, &after)
+        return SurfaceTransitionResult(
+            stateBefore: TopologicalState(rawValue: before) ?? .unknown,
+            stateAfter: TopologicalState(rawValue: after) ?? .unknown)
+    }
+
+    // MARK: - GeomFill Trihedrons (v0.68.0)
+
+    /// Evaluate a Frenet trihedron on an edge at a parameter.
+    public func frenetTrihedron(at param: Double) -> (tangent: SIMD3<Double>, normal: SIMD3<Double>, binormal: SIMD3<Double>)? {
+        let f = OCCTGeomFillFrenetTrihedron(handle, param)
+        if f.tx == 0 && f.ty == 0 && f.tz == 0 { return nil }
+        return (SIMD3(f.tx, f.ty, f.tz), SIMD3(f.nx, f.ny, f.nz), SIMD3(f.bx, f.by, f.bz))
+    }
+
+    /// Evaluate a constant-binormal trihedron on an edge at a parameter.
+    public func constantBiNormalTrihedron(at param: Double, biNormal: SIMD3<Double>) -> (tangent: SIMD3<Double>, normal: SIMD3<Double>, binormal: SIMD3<Double>)? {
+        let f = OCCTGeomFillConstantBiNormalTrihedron(handle, param, biNormal.x, biNormal.y, biNormal.z)
+        if f.tx == 0 && f.ty == 0 && f.tz == 0 { return nil }
+        return (SIMD3(f.tx, f.ty, f.tz), SIMD3(f.nx, f.ny, f.nz), SIMD3(f.bx, f.by, f.bz))
+    }
+
+    /// Evaluate a fixed (constant) trihedron at any parameter.
+    public static func fixedTrihedron(tangent: SIMD3<Double>, normal: SIMD3<Double>, at param: Double = 0) -> (tangent: SIMD3<Double>, normal: SIMD3<Double>, binormal: SIMD3<Double>) {
+        let f = OCCTGeomFillFixedTrihedron(tangent.x, tangent.y, tangent.z, normal.x, normal.y, normal.z, param)
+        return (SIMD3(f.tx, f.ty, f.tz), SIMD3(f.nx, f.ny, f.nz), SIMD3(f.bx, f.by, f.bz))
+    }
+
+    /// Evaluate a Darboux trihedron on an edge lying on a face.
+    public func darbouxTrihedron(onFace face: Shape, at param: Double) -> (tangent: SIMD3<Double>, normal: SIMD3<Double>, binormal: SIMD3<Double>)? {
+        let f = OCCTGeomFillDarbouxTrihedron(handle, face.handle, param)
+        if f.tx == 0 && f.ty == 0 && f.tz == 0 { return nil }
+        return (SIMD3(f.tx, f.ty, f.tz), SIMD3(f.nx, f.ny, f.nz), SIMD3(f.bx, f.by, f.bz))
+    }
+
+    // MARK: - Polygon Interference (v0.68.0)
+
+    /// Result of 2D polygon interference (intersection).
+    public struct PolygonIntersection: Sendable {
+        /// Intersection point coordinates
+        public let points: [SIMD2<Double>]
+    }
+
+    /// Compute interference (intersection) between two 2D polylines.
+    ///
+    /// - Parameters:
+    ///   - poly1: Array of 2D points forming first polyline
+    ///   - poly2: Array of 2D points forming second polyline
+    /// - Returns: Intersection result with points
+    public static func polygonInterference(
+        poly1: [SIMD2<Double>], poly2: [SIMD2<Double>]
+    ) -> PolygonIntersection {
+        let flat1 = poly1.flatMap { [$0.x, $0.y] }
+        let flat2 = poly2.flatMap { [$0.x, $0.y] }
+        let maxPts: Int32 = 100
+        var outPts = [OCCTIntfPoint2D](repeating: OCCTIntfPoint2D(x: 0, y: 0), count: Int(maxPts))
+        let count = flat1.withUnsafeBufferPointer { p1 in
+            flat2.withUnsafeBufferPointer { p2 in
+                OCCTIntfInterferencePolygon2d(p1.baseAddress!, Int32(poly1.count),
+                    p2.baseAddress!, Int32(poly2.count),
+                    &outPts, maxPts)
+            }
+        }
+        var points: [SIMD2<Double>] = []
+        for i in 0..<Int(count) {
+            points.append(SIMD2(outPts[i].x, outPts[i].y))
+        }
+        return PolygonIntersection(points: points)
+    }
+
+    /// Compute self-interference of a 2D polyline.
+    public static func polygonSelfInterference(
+        polygon: [SIMD2<Double>]
+    ) -> PolygonIntersection {
+        let flat = polygon.flatMap { [$0.x, $0.y] }
+        let maxPts: Int32 = 100
+        var outPts = [OCCTIntfPoint2D](repeating: OCCTIntfPoint2D(x: 0, y: 0), count: Int(maxPts))
+        let count = flat.withUnsafeBufferPointer { p in
+            OCCTIntfSelfInterferencePolygon2d(p.baseAddress!, Int32(polygon.count),
+                &outPts, maxPts)
+        }
+        var points: [SIMD2<Double>] = []
+        for i in 0..<Int(count) {
+            points.append(SIMD2(outPts[i].x, outPts[i].y))
+        }
+        return PolygonIntersection(points: points)
+    }
+
+    // MARK: - GccAna_Circ2d3Tan (v0.68.0)
+
+    /// Solution circle from GccAna solver.
+    public struct Circle2DSolution: Sendable {
+        public let centerX: Double
+        public let centerY: Double
+        public let radius: Double
+    }
+
+    /// Find circles through 3 points (circumscribed circle).
+    public static func circleThrough3Points(
+        p1: SIMD2<Double>, p2: SIMD2<Double>, p3: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> [Circle2DSolution] {
+        let maxSols: Int32 = 16
+        var sols = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(centerX: 0, centerY: 0, radius: 0), count: Int(maxSols))
+        let count = OCCTGccAnaCirc2d3TanPoints(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, tolerance, &sols, maxSols)
+        return (0..<Int(count)).map { Circle2DSolution(centerX: sols[$0].centerX, centerY: sols[$0].centerY, radius: sols[$0].radius) }
+    }
+
+    /// Find circles tangent to 3 lines.
+    public static func circleTangent3Lines(
+        l1Point: SIMD2<Double>, l1Dir: SIMD2<Double>,
+        l2Point: SIMD2<Double>, l2Dir: SIMD2<Double>,
+        l3Point: SIMD2<Double>, l3Dir: SIMD2<Double>,
+        tolerance: Double = 1e-6
+    ) -> [Circle2DSolution] {
+        let maxSols: Int32 = 16
+        var sols = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(centerX: 0, centerY: 0, radius: 0), count: Int(maxSols))
+        let count = OCCTGccAnaCirc2d3TanLines(
+            l1Point.x, l1Point.y, l1Dir.x, l1Dir.y,
+            l2Point.x, l2Point.y, l2Dir.x, l2Dir.y,
+            l3Point.x, l3Point.y, l3Dir.x, l3Dir.y,
+            tolerance, &sols, maxSols)
+        return (0..<Int(count)).map { Circle2DSolution(centerX: sols[$0].centerX, centerY: sols[$0].centerY, radius: sols[$0].radius) }
+    }
+
+    /// Find circles tangent to 3 circles.
+    public static func circleTangent3Circles(
+        c1Center: SIMD2<Double>, c1Radius: Double,
+        c2Center: SIMD2<Double>, c2Radius: Double,
+        c3Center: SIMD2<Double>, c3Radius: Double,
+        tolerance: Double = 1e-6
+    ) -> [Circle2DSolution] {
+        let maxSols: Int32 = 16
+        var sols = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(centerX: 0, centerY: 0, radius: 0), count: Int(maxSols))
+        let count = OCCTGccAnaCirc2d3TanCircles(
+            c1Center.x, c1Center.y, c1Radius,
+            c2Center.x, c2Center.y, c2Radius,
+            c3Center.x, c3Center.y, c3Radius,
+            tolerance, &sols, maxSols)
+        return (0..<Int(count)).map { Circle2DSolution(centerX: sols[$0].centerX, centerY: sols[$0].centerY, radius: sols[$0].radius) }
+    }
+
+    /// Find circles tangent to 2 circles through 1 point.
+    public static func circleTangent2CirclesPoint(
+        c1Center: SIMD2<Double>, c1Radius: Double,
+        c2Center: SIMD2<Double>, c2Radius: Double,
+        point: SIMD2<Double>, tolerance: Double = 1e-6
+    ) -> [Circle2DSolution] {
+        let maxSols: Int32 = 16
+        var sols = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(centerX: 0, centerY: 0, radius: 0), count: Int(maxSols))
+        let count = OCCTGccAnaCirc2d2CirclesPoint(
+            c1Center.x, c1Center.y, c1Radius,
+            c2Center.x, c2Center.y, c2Radius,
+            point.x, point.y, tolerance, &sols, maxSols)
+        return (0..<Int(count)).map { Circle2DSolution(centerX: sols[$0].centerX, centerY: sols[$0].centerY, radius: sols[$0].radius) }
+    }
+
+    /// Find circles tangent to 1 circle through 2 points.
+    public static func circleTangentCircle2Points(
+        circleCenter: SIMD2<Double>, circleRadius: Double,
+        p1: SIMD2<Double>, p2: SIMD2<Double>, tolerance: Double = 1e-6
+    ) -> [Circle2DSolution] {
+        let maxSols: Int32 = 16
+        var sols = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(centerX: 0, centerY: 0, radius: 0), count: Int(maxSols))
+        let count = OCCTGccAnaCirc2dCircle2Points(
+            circleCenter.x, circleCenter.y, circleRadius,
+            p1.x, p1.y, p2.x, p2.y, tolerance, &sols, maxSols)
+        return (0..<Int(count)).map { Circle2DSolution(centerX: sols[$0].centerX, centerY: sols[$0].centerY, radius: sols[$0].radius) }
+    }
+
+    /// Find circles tangent to 2 lines through 1 point.
+    public static func circleTangent2LinesPoint(
+        l1Point: SIMD2<Double>, l1Dir: SIMD2<Double>,
+        l2Point: SIMD2<Double>, l2Dir: SIMD2<Double>,
+        point: SIMD2<Double>, tolerance: Double = 1e-6
+    ) -> [Circle2DSolution] {
+        let maxSols: Int32 = 16
+        var sols = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(centerX: 0, centerY: 0, radius: 0), count: Int(maxSols))
+        let count = OCCTGccAnaCirc2d2LinesPoint(
+            l1Point.x, l1Point.y, l1Dir.x, l1Dir.y,
+            l2Point.x, l2Point.y, l2Dir.x, l2Dir.y,
+            point.x, point.y, tolerance, &sols, maxSols)
+        return (0..<Int(count)).map { Circle2DSolution(centerX: sols[$0].centerX, centerY: sols[$0].centerY, radius: sols[$0].radius) }
+    }
 }

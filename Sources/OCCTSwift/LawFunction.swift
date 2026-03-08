@@ -99,4 +99,36 @@ public final class LawFunction: @unchecked Sendable {
         guard let h = h else { return nil }
         return LawFunction(handle: h)
     }
+
+    // MARK: - v0.68.0: Composite Law and Knot Splitting
+
+    /// Create a composite law by stitching multiple sub-laws together.
+    ///
+    /// - Parameters:
+    ///   - laws: Array of sub-law functions in parameter order
+    ///   - range: Overall parametric range
+    /// - Returns: Composite law function
+    public static func composite(laws: [LawFunction],
+                                 range: ClosedRange<Double> = 0...1) -> LawFunction? {
+        guard laws.count >= 1 else { return nil }
+        let handles = laws.map { $0.handle as OCCTLawFunctionRef }
+        return handles.withUnsafeBufferPointer { buf in
+            guard let h = OCCTLawComposite(buf.baseAddress!, Int32(laws.count),
+                range.lowerBound, range.upperBound) else { return nil as LawFunction? }
+            return LawFunction(handle: h)
+        }
+    }
+
+    /// Find knot indices where a BSpline law drops below given continuity.
+    ///
+    /// Only works on BSpline-based law functions.
+    ///
+    /// - Parameter continuityOrder: Continuity level (0=C0, 1=C1, 2=C2)
+    /// - Returns: Array of knot indices where continuity breaks, or empty array
+    public func knotSplitting(continuityOrder: Int = 2) -> [Int] {
+        let maxIndices: Int32 = 100
+        var indices = [Int32](repeating: 0, count: Int(maxIndices))
+        let count = OCCTLawBSplineKnotSplitting(handle, Int32(continuityOrder), &indices, maxIndices)
+        return (0..<Int(count)).map { Int(indices[$0]) }
+    }
 }

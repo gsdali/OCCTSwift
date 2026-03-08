@@ -19663,3 +19663,187 @@ struct TopTransSurfaceTransitionTests {
         #expect(Shape.TopologicalState.unknown.rawValue == 3)
     }
 }
+
+// MARK: - v0.68.0 Tests
+
+@Suite("TopTrans CurveTransition Tests")
+struct TopTransCurveTransitionTests {
+    @Test func basicCurveTransition() {
+        let result = Shape.curveTransition(
+            tangent: SIMD3(1, 0, 0),
+            boundaryTangent: SIMD3(0, 1, 0),
+            boundaryNormal: SIMD3(0, 0, 1))
+        _ = result.stateBefore
+        _ = result.stateAfter
+    }
+
+    @Test func curveTransitionWithCurvature() {
+        let result = Shape.curveTransitionWithCurvature(
+            tangent: SIMD3(1, 0, 0),
+            curveNormal: SIMD3(0, 0, 1), curveCurvature: 0.1,
+            boundaryTangent: SIMD3(0, 1, 0),
+            boundaryNormal: SIMD3(0, 0, 1),
+            surfaceCurvature: 0.05)
+        _ = result.stateBefore
+        _ = result.stateAfter
+    }
+}
+
+@Suite("GeomFill Frenet Trihedron Tests")
+struct GeomFillFrenetTests {
+    @Test func frenetOnEdge() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 5) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        for edge in edges {
+            if let frame = edge.frenetTrihedron(at: 0) {
+                let dot = simd_dot(frame.tangent, frame.normal)
+                #expect(abs(dot) < 1e-4)
+                return
+            }
+        }
+    }
+
+    @Test func constantBiNormal() {
+        guard let cyl = Shape.cylinder(radius: 10, height: 5) else { return }
+        let edges = cyl.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        for edge in edges {
+            if let frame = edge.constantBiNormalTrihedron(at: 0, biNormal: SIMD3(0, 0, 1)) {
+                #expect(abs(frame.binormal.z) > 0.9)
+                return
+            }
+        }
+    }
+
+    @Test func fixedTrihedron() {
+        let frame = Shape.fixedTrihedron(tangent: SIMD3(1, 0, 0), normal: SIMD3(0, 1, 0))
+        #expect(abs(frame.tangent.x - 1.0) < 1e-6)
+        #expect(abs(frame.normal.y - 1.0) < 1e-6)
+        #expect(abs(frame.binormal.z - 1.0) < 1e-6)
+    }
+}
+
+@Suite("GeomFill NSections Tests")
+struct GeomFillNSectionsTests {
+    @Test func surfaceFromCircleSections() {
+        // Create circles at different heights
+        guard let c1 = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5.0),
+              let c2 = Curve3D.circle(center: SIMD3(0, 0, 3), normal: SIMD3(0, 0, 1), radius: 4.0),
+              let c3 = Curve3D.circle(center: SIMD3(0, 0, 6), normal: SIMD3(0, 0, 1), radius: 3.0) else { return }
+        if let surf = Surface.nSections(curves: [c1, c2, c3], params: [0.0, 0.5, 1.0]) {
+            _ = surf
+        }
+    }
+
+    @Test func sectionInfo() {
+        guard let c1 = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5.0),
+              let c2 = Curve3D.circle(center: SIMD3(0, 0, 3), normal: SIMD3(0, 0, 1), radius: 4.0) else { return }
+        if let info = Surface.nSectionsInfo(curves: [c1, c2], params: [0.0, 1.0]) {
+            #expect(info.poleCount > 0)
+            #expect(info.knotCount > 0)
+            #expect(info.degree > 0)
+        }
+    }
+}
+
+@Suite("Law Composite Tests")
+struct LawCompositeTests {
+    @Test func compositeLaw() {
+        guard let l1 = LawFunction.linear(from: 1.0, to: 3.0, parameterRange: 0...0.5),
+              let l2 = LawFunction.linear(from: 3.0, to: 1.0, parameterRange: 0.5...1.0) else { return }
+        if let comp = LawFunction.composite(laws: [l1, l2]) {
+            #expect(abs(comp.value(at: 0.0) - 1.0) < 0.1)
+            #expect(abs(comp.value(at: 0.5) - 3.0) < 0.1)
+            #expect(abs(comp.value(at: 1.0) - 1.0) < 0.1)
+        }
+    }
+
+    @Test func bsplineKnotSplitting() {
+        guard let law = LawFunction.bspline(
+            poles: [1.0, 3.0, 2.0, 5.0, 4.0, 6.0],
+            knots: [0.0, 0.5, 1.0],
+            multiplicities: [4, 2, 4],
+            degree: 3) else { return }
+        let splits = law.knotSplitting(continuityOrder: 2)
+        #expect(splits.count >= 2)
+    }
+}
+
+@Suite("GccAna Circ2d3Tan Tests")
+struct GccAnaCirc2d3TanTests {
+    @Test func threePoints() {
+        let solutions = Shape.circleThrough3Points(
+            p1: SIMD2(0, 0), p2: SIMD2(10, 0), p3: SIMD2(5, 5))
+        #expect(solutions.count == 1)
+        if let sol = solutions.first {
+            #expect(sol.radius > 0)
+        }
+    }
+
+    @Test func threeLines() {
+        let solutions = Shape.circleTangent3Lines(
+            l1Point: SIMD2(0, 0), l1Dir: SIMD2(1, 0),
+            l2Point: SIMD2(0, 0), l2Dir: SIMD2(0, 1),
+            l3Point: SIMD2(10, 0), l3Dir: SIMD2(0, 1))
+        #expect(solutions.count >= 1)
+    }
+
+    @Test func threeCircles() {
+        let solutions = Shape.circleTangent3Circles(
+            c1Center: SIMD2(0, 0), c1Radius: 3.0,
+            c2Center: SIMD2(10, 0), c2Radius: 3.0,
+            c3Center: SIMD2(5, 8), c3Radius: 3.0)
+        #expect(solutions.count >= 1)
+    }
+
+    @Test func twoCirclesPoint() {
+        let solutions = Shape.circleTangent2CirclesPoint(
+            c1Center: SIMD2(0, 0), c1Radius: 3.0,
+            c2Center: SIMD2(10, 0), c2Radius: 3.0,
+            point: SIMD2(5, 15))
+        #expect(solutions.count >= 1)
+    }
+
+    @Test func circleAndTwoPoints() {
+        let solutions = Shape.circleTangentCircle2Points(
+            circleCenter: SIMD2(0, 0), circleRadius: 3.0,
+            p1: SIMD2(5, 5), p2: SIMD2(10, 10))
+        #expect(solutions.count >= 1)
+    }
+
+    @Test func twoLinesPoint() {
+        let solutions = Shape.circleTangent2LinesPoint(
+            l1Point: SIMD2(0, 0), l1Dir: SIMD2(1, 0),
+            l2Point: SIMD2(0, 0), l2Dir: SIMD2(0, 1),
+            point: SIMD2(5, 5))
+        #expect(solutions.count >= 1)
+    }
+}
+
+@Suite("Polygon Interference Tests")
+struct PolygonInterferenceTests {
+    @Test func crossingPolylines() {
+        let result = Shape.polygonInterference(
+            poly1: [SIMD2(0, 0), SIMD2(10, 10)],
+            poly2: [SIMD2(0, 10), SIMD2(10, 0)])
+        #expect(result.points.count == 1)
+        if let pt = result.points.first {
+            #expect(abs(pt.x - 5.0) < 0.5)
+            #expect(abs(pt.y - 5.0) < 0.5)
+        }
+    }
+
+    @Test func nonIntersecting() {
+        let result = Shape.polygonInterference(
+            poly1: [SIMD2(0, 0), SIMD2(1, 0), SIMD2(1, 1)],
+            poly2: [SIMD2(5, 5), SIMD2(6, 5), SIMD2(6, 6)])
+        #expect(result.points.count == 0)
+    }
+
+    @Test func selfIntersection() {
+        let result = Shape.polygonSelfInterference(
+            polygon: [SIMD2(0, 0), SIMD2(10, 10), SIMD2(10, 0), SIMD2(0, 10)])
+        #expect(result.points.count >= 1)
+    }
+}
