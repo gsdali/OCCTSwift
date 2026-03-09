@@ -8534,4 +8534,277 @@ extension Shape {
     public var isOpenShell: Bool {
         OCCTBOPToolsIsOpenShell(handle)
     }
+
+    // MARK: - IntTools_BeanFaceIntersector (v0.71.0)
+
+    /// Result of edge-face intersection using IntTools_BeanFaceIntersector.
+    public struct BeanFaceIntersection: Sendable {
+        /// Coincident parameter ranges on the edge curve.
+        public let ranges: [(first: Double, last: Double)]
+        /// Minimum square distance between edge and face.
+        public let minSquareDistance: Double
+    }
+
+    /// Intersect an edge curve with a face surface to find coincident ranges.
+    ///
+    /// Uses IntTools_BeanFaceIntersector to find where the edge lies on the face.
+    /// - Parameters:
+    ///   - edge: Edge shape to test.
+    ///   - face: Face shape to test against.
+    /// - Returns: Intersection result with ranges and minimum distance, or nil on failure.
+    public static func beanFaceIntersect(edge: Shape, face: Shape) -> BeanFaceIntersection? {
+        var ranges: UnsafeMutablePointer<OCCTParameterRange>?
+        var count: Int32 = 0
+        var minDist: Double = 0
+        guard OCCTIntToolsBeanFaceIntersect(edge.handle, face.handle, &ranges, &count, &minDist) else {
+            return nil
+        }
+        var result: [(first: Double, last: Double)] = []
+        if let ranges = ranges {
+            for i in 0..<Int(count) {
+                result.append((first: ranges[i].first, last: ranges[i].last))
+            }
+            free(ranges)
+        }
+        return BeanFaceIntersection(ranges: result, minSquareDistance: minDist)
+    }
+
+    // MARK: - BOPAlgo_WireSplitter (v0.71.0)
+
+    /// Build a wire from a list of edges using BOPAlgo_WireSplitter::MakeWire.
+    ///
+    /// This static utility assembles edges into a connected wire.
+    /// - Parameter edges: Array of edge shapes to connect.
+    /// - Returns: Result wire as a shape, or nil on failure.
+    public static func makeWire(from edges: [Shape]) -> Shape? {
+        let handles = edges.map { $0.handle as OCCTShapeRef }
+        guard let ref = handles.withUnsafeBufferPointer({ buf in
+            OCCTBOPAlgoMakeWire(buf.baseAddress!, Int32(edges.count))
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - BRepFeat_SplitShape (v0.71.0)
+
+    /// Split this shape by adding an edge to a face.
+    ///
+    /// Uses BRepFeat_SplitShape to split the face that the edge lies on.
+    /// - Parameters:
+    ///   - edge: Edge to add as split line.
+    ///   - face: Face on which to add the edge.
+    /// - Returns: Result shape with split face, or nil on failure.
+    public func splitByEdge(_ edge: Shape, onFace face: Shape) -> Shape? {
+        guard let ref = OCCTBRepFeatSplitShapeEdge(handle, edge.handle, face.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Split this shape by adding a wire to a face.
+    ///
+    /// Uses BRepFeat_SplitShape to split the face along the wire.
+    /// - Parameters:
+    ///   - wire: Wire to add as split line.
+    ///   - face: Face on which to add the wire.
+    /// - Returns: Result shape with split face, or nil on failure.
+    public func splitByWire(_ wire: Shape, onFace face: Shape) -> Shape? {
+        guard let ref = OCCTBRepFeatSplitShapeWire(handle, wire.handle, face.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Result of a split-shape operation with left/right face information.
+    public struct SplitShapeResult: Sendable {
+        /// The resulting split shape.
+        public let shape: Shape
+        /// Faces on the left side of the split.
+        public let leftFaces: [Shape]
+        /// Faces on the right side of the split.
+        public let rightFaces: [Shape]
+    }
+
+    /// Split this shape with multiple edge-on-face pairs, returning left/right faces.
+    ///
+    /// Uses BRepFeat_SplitShape with Left()/Right() queries.
+    /// - Parameter edgesOnFaces: Array of (edge, face) pairs. Each edge is added to the corresponding face.
+    /// - Returns: Split result with left and right faces, or nil on failure.
+    public func splitWithSides(edgesOnFaces: [(edge: Shape, face: Shape)]) -> SplitShapeResult? {
+        var handles: [OCCTShapeRef] = []
+        for pair in edgesOnFaces {
+            handles.append(pair.edge.handle)
+            handles.append(pair.face.handle)
+        }
+        var outLeft: UnsafeMutablePointer<OCCTShapeRef?>?
+        var outLeftCount: Int32 = 0
+        var outRight: UnsafeMutablePointer<OCCTShapeRef?>?
+        var outRightCount: Int32 = 0
+        guard let ref = handles.withUnsafeBufferPointer({ buf in
+            OCCTBRepFeatSplitShapeWithSides(handle,
+                buf.baseAddress!.withMemoryRebound(to: OCCTShapeRef.self, capacity: handles.count) { $0 },
+                Int32(edgesOnFaces.count),
+                &outLeft, &outLeftCount, &outRight, &outRightCount)
+        }) else { return nil }
+
+        var leftShapes: [Shape] = []
+        if let outLeft = outLeft {
+            for i in 0..<Int(outLeftCount) {
+                if let h = outLeft[i] { leftShapes.append(Shape(handle: h)) }
+            }
+            free(outLeft)
+        }
+        var rightShapes: [Shape] = []
+        if let outRight = outRight {
+            for i in 0..<Int(outRightCount) {
+                if let h = outRight[i] { rightShapes.append(Shape(handle: h)) }
+            }
+            free(outRight)
+        }
+        return SplitShapeResult(shape: Shape(handle: ref), leftFaces: leftShapes, rightFaces: rightShapes)
+    }
+
+    // MARK: - BRepFeat_MakeCylindricalHole (v0.71.0)
+
+    /// Drill a through cylindrical hole in this shape.
+    ///
+    /// Uses BRepFeat_MakeCylindricalHole::Perform to create a through-all hole.
+    /// - Parameters:
+    ///   - axisOrigin: Origin point of the hole axis.
+    ///   - axisDirection: Direction of the hole axis.
+    ///   - radius: Hole radius.
+    /// - Returns: Shape with hole, or nil on failure.
+    public func cylindricalHole(axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>, radius: Double) -> Shape? {
+        guard let ref = OCCTBRepFeatCylindricalHole(handle,
+            axisOrigin.x, axisOrigin.y, axisOrigin.z,
+            axisDirection.x, axisDirection.y, axisDirection.z,
+            radius) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Drill a blind cylindrical hole in this shape.
+    ///
+    /// Uses BRepFeat_MakeCylindricalHole::PerformBlind for a partial-depth hole.
+    /// - Parameters:
+    ///   - axisOrigin: Origin point of the hole axis.
+    ///   - axisDirection: Direction of the hole axis.
+    ///   - radius: Hole radius.
+    ///   - depth: Hole depth.
+    /// - Returns: Shape with hole, or nil on failure.
+    public func cylindricalHoleBlind(axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>, radius: Double, depth: Double) -> Shape? {
+        guard let ref = OCCTBRepFeatCylindricalHoleBlind(handle,
+            axisOrigin.x, axisOrigin.y, axisOrigin.z,
+            axisDirection.x, axisDirection.y, axisDirection.z,
+            radius, depth) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Drill a cylindrical hole through to the next face.
+    ///
+    /// Uses BRepFeat_MakeCylindricalHole::PerformThruNext.
+    /// - Parameters:
+    ///   - axisOrigin: Origin point of the hole axis.
+    ///   - axisDirection: Direction of the hole axis.
+    ///   - radius: Hole radius.
+    /// - Returns: Shape with hole, or nil on failure.
+    public func cylindricalHoleThruNext(axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>, radius: Double) -> Shape? {
+        guard let ref = OCCTBRepFeatCylindricalHoleThruNext(handle,
+            axisOrigin.x, axisOrigin.y, axisOrigin.z,
+            axisDirection.x, axisDirection.y, axisDirection.z,
+            radius) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Status result for cylindrical hole operations.
+    public enum CylindricalHoleStatus: Int32, Sendable {
+        case noError = 0
+        case invalidPlacement = 1
+        case holeTooLong = 2
+        case unknown = 3
+    }
+
+    /// Check the status of a cylindrical hole operation without modifying the shape.
+    ///
+    /// - Parameters:
+    ///   - axisOrigin: Origin point of the hole axis.
+    ///   - axisDirection: Direction of the hole axis.
+    ///   - radius: Hole radius.
+    /// - Returns: Status indicating whether the hole can be drilled.
+    public func cylindricalHoleStatus(axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>, radius: Double) -> CylindricalHoleStatus {
+        let raw = OCCTBRepFeatCylindricalHoleStatus(handle,
+            axisOrigin.x, axisOrigin.y, axisOrigin.z,
+            axisDirection.x, axisDirection.y, axisDirection.z,
+            radius)
+        return CylindricalHoleStatus(rawValue: raw) ?? .unknown
+    }
+
+    // MARK: - BRepFeat_Gluer (v0.71.0)
+
+    /// Glue another shape onto this shape by binding matching faces.
+    ///
+    /// Uses BRepFeat_Gluer to merge shapes along coincident faces.
+    /// - Parameters:
+    ///   - gluedShape: Shape to glue onto this shape.
+    ///   - facePairs: Matching face pairs — (base face from this shape, glued face from gluedShape).
+    /// - Returns: Result glued shape, or nil on failure.
+    public func glue(_ gluedShape: Shape, facePairs: [(base: Shape, glued: Shape)]) -> Shape? {
+        let baseFaces = facePairs.map { $0.base.handle as OCCTShapeRef }
+        let gluedFaces = facePairs.map { $0.glued.handle as OCCTShapeRef }
+        guard let ref = baseFaces.withUnsafeBufferPointer({ baseBuf in
+            gluedFaces.withUnsafeBufferPointer({ gluedBuf in
+                OCCTBRepFeatGluer(handle, gluedShape.handle,
+                    baseBuf.baseAddress!, gluedBuf.baseAddress!,
+                    Int32(facePairs.count))
+            })
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - LocOpe_WiresOnShape + LocOpe_Spliter (v0.71.0)
+
+    /// Result of LocOpe_Spliter split operation.
+    public struct LocOpeSplitResult: Sendable {
+        /// The resulting split shape.
+        public let shape: Shape
+        /// Faces directly on the left of the split.
+        public let directLeftFaces: [Shape]
+    }
+
+    /// Split this shape by projecting wires onto faces using LocOpe_Spliter.
+    ///
+    /// Uses LocOpe_WiresOnShape to bind wires to faces, then LocOpe_Spliter to split.
+    /// - Parameter wiresOnFaces: Array of (wire, face) pairs to bind.
+    /// - Returns: Split result with direct-left faces, or nil on failure.
+    public func locOpeSplit(wiresOnFaces: [(wire: Shape, face: Shape)]) -> LocOpeSplitResult? {
+        var handles: [OCCTShapeRef] = []
+        for pair in wiresOnFaces {
+            handles.append(pair.wire.handle)
+            handles.append(pair.face.handle)
+        }
+        var outDirectLeft: UnsafeMutablePointer<OCCTShapeRef?>?
+        var outDirectLeftCount: Int32 = 0
+        guard let ref = handles.withUnsafeBufferPointer({ buf in
+            OCCTLocOpeSplitByWires(handle,
+                buf.baseAddress!.withMemoryRebound(to: OCCTShapeRef.self, capacity: handles.count) { $0 },
+                Int32(wiresOnFaces.count),
+                &outDirectLeft, &outDirectLeftCount)
+        }) else { return nil }
+
+        var dlShapes: [Shape] = []
+        if let outDirectLeft = outDirectLeft {
+            for i in 0..<Int(outDirectLeftCount) {
+                if let h = outDirectLeft[i] { dlShapes.append(Shape(handle: h)) }
+            }
+            free(outDirectLeft)
+        }
+        return LocOpeSplitResult(shape: Shape(handle: ref), directLeftFaces: dlShapes)
+    }
+
+    /// Split this shape by automatically binding wire edges to shape faces.
+    ///
+    /// Uses LocOpe_WiresOnShape::Add + BindAll, then LocOpe_Spliter.
+    /// - Parameter wires: Wires to project and split by.
+    /// - Returns: Result shape, or nil on failure.
+    public func locOpeSplitAuto(wires: [Shape]) -> Shape? {
+        let wireHandles = wires.map { $0.handle as OCCTShapeRef }
+        guard let ref = wireHandles.withUnsafeBufferPointer({ buf in
+            OCCTLocOpeSplitByWiresAuto(handle, buf.baseAddress!, Int32(wires.count))
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
 }

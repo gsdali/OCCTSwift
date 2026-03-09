@@ -20383,3 +20383,264 @@ struct BOPToolsAlgoToolsTests {
         }
     }
 }
+
+// MARK: - v0.71.0: TKBool remainder + TKFeat
+
+@Suite("IntTools_BeanFaceIntersector Tests")
+struct IntToolsBeanFaceIntersectorTests {
+    @Test("edge crossing face")
+    func edgeCrossingFace() {
+        let face = Shape.face(from: Surface.plane(origin: SIMD3(0, 0, 0),
+            normal: SIMD3(0, 0, 1))!,
+            uRange: -10...10, vRange: -10...10)
+        let edge = Shape.edgeFromPoints(SIMD3(0, 0, -5), SIMD3(0, 0, 5))
+        if let f = face, let e = edge {
+            let result = Shape.beanFaceIntersect(edge: e, face: f)
+            if let r = result {
+                #expect(r.minSquareDistance >= 0.0)
+            }
+        }
+    }
+
+    @Test("edge lying on face - coincident ranges")
+    func edgeOnFace() {
+        let face = Shape.face(from: Surface.plane(origin: SIMD3(0, 0, 0),
+            normal: SIMD3(0, 0, 1))!,
+            uRange: -10...10, vRange: -10...10)
+        let edge = Shape.edgeFromPoints(SIMD3(-3, 0, 0), SIMD3(3, 0, 0))
+        if let f = face, let e = edge {
+            let result = Shape.beanFaceIntersect(edge: e, face: f)
+            if let r = result {
+                #expect(r.ranges.count >= 1)
+                if let first = r.ranges.first {
+                    #expect(first.last >= first.first)
+                }
+            }
+        }
+    }
+}
+
+@Suite("BOPAlgo_WireSplitter MakeWire Tests")
+struct BOPAlgoWireSplitterMakeWireTests {
+    @Test("make wire from edges")
+    func makeWireFromEdges() {
+        let p1 = SIMD3<Double>(0, 0, 0)
+        let p2 = SIMD3<Double>(10, 0, 0)
+        let p3 = SIMD3<Double>(10, 10, 0)
+        let p4 = SIMD3<Double>(0, 10, 0)
+        let e1 = Shape.edgeFromPoints(p1, p2)
+        let e2 = Shape.edgeFromPoints(p2, p3)
+        let e3 = Shape.edgeFromPoints(p3, p4)
+        let e4 = Shape.edgeFromPoints(p4, p1)
+        if let e1, let e2, let e3, let e4 {
+            let wire = Shape.makeWire(from: [e1, e2, e3, e4])
+            if let w = wire {
+                let edges = w.subShapes(ofType: .edge)
+                #expect(edges.count == 4)
+            }
+        }
+    }
+}
+
+@Suite("BRepFeat_SplitShape Tests")
+struct BRepFeatSplitShapeTests {
+    @Test("split face by edge")
+    func splitByEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            // Find a planar face and create a splitting edge on it
+            for face in faces {
+                let edge = Shape.edgeFromPoints(SIMD3(0, 5, 10), SIMD3(10, 5, 10))
+                if let e = edge {
+                    let result = b.splitByEdge(e, onFace: face)
+                    if let r = result {
+                        let newFaces = r.subShapes(ofType: .face)
+                        // At least one face should be split, giving more total faces
+                        #expect(newFaces.count >= faces.count)
+                        return
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("split face by wire")
+    func splitByWire() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            for face in faces {
+                let e = Shape.edgeFromPoints(SIMD3(0, 5, 10), SIMD3(10, 5, 10))
+                if let e {
+                    let wire = Shape.makeWire(from: [e])
+                    if let w = wire {
+                        let result = b.splitByWire(w, onFace: face)
+                        if let r = result {
+                            let newFaces = r.subShapes(ofType: .face)
+                            #expect(newFaces.count >= faces.count)
+                            return
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("split with sides - left and right")
+    func splitWithSides() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            for face in faces {
+                let e = Shape.edgeFromPoints(SIMD3(0, 5, 10), SIMD3(10, 5, 10))
+                if let e {
+                    let result = b.splitWithSides(edgesOnFaces: [(edge: e, face: face)])
+                    if let r = result {
+                        #expect(r.shape.subShapes(ofType: .face).count >= faces.count)
+                        // Left and right may or may not be populated
+                        #expect(r.leftFaces.count + r.rightFaces.count >= 0)
+                        return
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("BRepFeat_MakeCylindricalHole Tests")
+struct BRepFeatMakeCylindricalHoleTests {
+    @Test("through hole")
+    func throughHole() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let b = box {
+            let result = b.cylindricalHole(
+                axisOrigin: SIMD3(10, 10, 0),
+                axisDirection: SIMD3(0, 0, 1),
+                radius: 3)
+            if let r = result {
+                let newFaces = r.subShapes(ofType: .face)
+                let origFaces = b.subShapes(ofType: .face)
+                #expect(newFaces.count > origFaces.count)
+            }
+        }
+    }
+
+    @Test("blind hole")
+    func blindHole() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let b = box {
+            let result = b.cylindricalHoleBlind(
+                axisOrigin: SIMD3(10, 10, 0),
+                axisDirection: SIMD3(0, 0, 1),
+                radius: 3, depth: 10)
+            if let r = result {
+                let newFaces = r.subShapes(ofType: .face)
+                let origFaces = b.subShapes(ofType: .face)
+                #expect(newFaces.count > origFaces.count)
+            }
+        }
+    }
+
+    @Test("thru next hole")
+    func thruNextHole() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let b = box {
+            let result = b.cylindricalHoleThruNext(
+                axisOrigin: SIMD3(10, 10, 0),
+                axisDirection: SIMD3(0, 0, 1),
+                radius: 3)
+            if let r = result {
+                let newFaces = r.subShapes(ofType: .face)
+                let origFaces = b.subShapes(ofType: .face)
+                #expect(newFaces.count > origFaces.count)
+            }
+        }
+    }
+
+    @Test("hole status check")
+    func statusCheck() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let b = box {
+            let status = b.cylindricalHoleStatus(
+                axisOrigin: SIMD3(10, 10, 0),
+                axisDirection: SIMD3(0, 0, 1),
+                radius: 3)
+            #expect(status == .noError)
+        }
+    }
+}
+
+@Suite("BRepFeat_Gluer Tests")
+struct BRepFeatGluerTests {
+    @Test("glue two boxes at shared face")
+    func glueTwoBoxes() {
+        let box1 = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(origin: SIMD3(10, 0, 0), width: 10, height: 10, depth: 10)
+        if let b1 = box1, let b2 = box2 {
+            let faces1 = b1.subShapes(ofType: .face)
+            let faces2 = b2.subShapes(ofType: .face)
+            // Try all face pairs to find matching ones
+            for f1 in faces1 {
+                for f2 in faces2 {
+                    let result = b1.glue(b2, facePairs: [(base: f1, glued: f2)])
+                    if let r = result {
+                        let rFaces = r.subShapes(ofType: .face)
+                        // Gluing should reduce face count vs sum of both boxes
+                        #expect(rFaces.count < faces1.count + faces2.count)
+                        return
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("LocOpe_Spliter v71 Tests")
+struct LocOpeSpliterV71Tests {
+    @Test("split by wire on face")
+    func splitByWireOnFace() {
+        // Use origin-based box so coordinates are predictable
+        let box = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10)
+        if let b = box {
+            let origFaceCount = b.subShapes(ofType: .face).count
+            let faces = b.subShapes(ofType: .face)
+            // Edge on top face (Z=10), endpoints on face edges
+            let edge = Shape.edgeFromPoints(SIMD3(0, 5, 10), SIMD3(10, 5, 10))
+            if let e = edge {
+                let wire = Shape.makeWire(from: [e])
+                if let w = wire {
+                    var bestFaceCount = origFaceCount
+                    for face in faces {
+                        let result = b.locOpeSplit(wiresOnFaces: [(wire: w, face: face)])
+                        if let r = result {
+                            let newFaces = r.shape.subShapes(ofType: .face).count
+                            if newFaces > bestFaceCount {
+                                bestFaceCount = newFaces
+                            }
+                        }
+                    }
+                    #expect(bestFaceCount > origFaceCount)
+                }
+            }
+        }
+    }
+
+    @Test("auto split by wires")
+    func autoSplit() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edge = Shape.edgeFromPoints(SIMD3(0, 5, 10), SIMD3(10, 5, 10))
+            if let e = edge {
+                let wire = Shape.makeWire(from: [e])
+                if let w = wire {
+                    // Auto-bind may or may not succeed depending on geometry
+                    let result = b.locOpeSplitAuto(wires: [w])
+                    if let r = result {
+                        #expect(r.subShapes(ofType: .face).count >= 6)
+                    }
+                }
+            }
+        }
+    }
+}

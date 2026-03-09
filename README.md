@@ -18,7 +18,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Surfaces (Surface)** | 83 | plane, cylinder, cone, sphere, torus, extrusion, revolution, bezier, bspline, trim, offset, translate, rotate, scale, mirror, toBSpline, approximate, uIso, vIso, pipe, drawGrid, drawMesh, curvatures, projectCurve, projectCurveSegments, projectCurve3D, projectPoint, plateThrough, nlPlateDeformed, nlPlateDeformedG1, nlPlateDeformedG2, nlPlateDeformedG3, nlPlateDeformedIncremental, nlPlateDerivative, evaluateGrid, intersections, toAnalytical, bezierFill(4-curve), bezierFill(2-curve), singularityCount, isDegenerated, hasSingularities, toBezierPatchGrid, bsplineFill(2-curve), bsplineFill(4-curve), extrema, valueOfUV, nextValueOfUV, conicalSurface(axis), conicalSurface(points), cylindricalSurface(axis), cylindricalSurface(points), planeFromPoints, planeFromPointNormal, trimmedCone, trimmedCylinder, knotSplitting, joinBezierPatches, convertToAnalytical, splitByContinuity, generatedFromSections, degeneratedBoundaryValue, isDegeneratedBoundary, boundaryWithSurfaceEvaluate, averagePlane, plateErrors |
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 16 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam, adjacentFaces, dihedralAngle, split |
-| **Feature-Based** | 31 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile, localRevolution, localRevolutionWithOffset, locOpeDraftPrism, localPipe, localLinearForm, localRevolutionForm, splitFace, splitEdge, splitDrafts, commonEdges, edgesInFace |
+| **Feature-Based** | 35 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile, localRevolution, localRevolutionWithOffset, locOpeDraftPrism, localPipe, localLinearForm, localRevolutionForm, splitFace, splitEdge, splitDrafts, commonEdges, edgesInFace, cylindricalHole, cylindricalHoleBlind, cylindricalHoleThruNext, cylindricalHoleStatus |
 | **Healing/Analysis** | 56 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace, freeBounds, fixedFreeBounds, withSurfacesAsBSpline, withSurfacesAsRevolution, checkSmallFaces, purgedLocations, curveOnSurfaceCheck, connectedEdges, convertedToBezier, limitTolerance, setTolerance, splitCommonVertices, connectedFaces, fixEdgeSameParameter, fixEdgeVertexTolerance, fixWireVertices, removeSmallSolids, mergeSmallSolids, bsplineRestriction(advanced), freeBoundsAnalysis, closedFreeBoundInfo, openFreeBoundInfo, closedFreeBoundWire, openFreeBoundWire, wireVertexAnalysis, wireVertexStatus, nearestPlane, shellSewing |
 | **Measurement** | 26 | volume, surfaceArea, centerOfMass, properties, distance, distance(wire/edge/face), minDistance, intersects, intersects(wire/edge/face), inertiaProperties, surfaceInertiaProperties, allDistanceSolutions, isInside, findSurfaceEx, findPlane, analyzePointCloud, edgeEdgeExtrema, pointFaceExtrema, faceFaceExtrema, pointEdgeExtrema, edgeFaceExtrema, polyhedralDistance |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
@@ -61,8 +61,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Shape History** | 1 | History (create, addModified, addGenerated, remove, isRemoved, hasModified, hasGenerated, hasRemoved, modifiedCount, generatedCount) |
 | **Contour Analysis** | 3 | contourSphereDir, contourCylinderDir, contourSphereEye |
 | **IntCurvesFace** | 1 | intersectLine (line-face intersection) |
-| **BOPAlgo Utilities** | 16 | split (splitter), CellsBuilder (create, addAll, removeAll, removeInternalBoundaries, result), analyzeBoolean, removeFeatures, section(instance), section(static), buildFaces, buildSolids, splitShell, edgesToWires, wiresToFaces |
-| **IntTools** | 5 | edgeEdgeIntersection, edgeFaceIntersection, faceFaceIntersection, classifyPoint2d, isHole |
+| **BOPAlgo Utilities** | 17 | split (splitter), CellsBuilder (create, addAll, removeAll, removeInternalBoundaries, result), analyzeBoolean, removeFeatures, section(instance), section(static), buildFaces, buildSolids, splitShell, edgesToWires, wiresToFaces, makeWire |
+| **IntTools** | 6 | edgeEdgeIntersection, edgeFaceIntersection, faceFaceIntersection, classifyPoint2d, isHole, beanFaceIntersect |
 | **BOPTools** | 4 | normalOnEdge, pointInFace, isEmpty, isOpenShell |
 | **PCurve / BRepAdaptor** | 3 | pcurveParams, pcurveValue, approxCurveOnSurface |
 | **Mesh Deflection** | 2 | computeAbsoluteDeflection, deflectionIsConsistent |
@@ -72,7 +72,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **2D Edges** | 3 | edge2d(points), edge2dFromCircle, edge2dFromLine |
 | **BRepTools Modifier** | 1 | nurbsConvertViaModifier |
 | **ShapeCustom** | 2 | directModification, trsfModificationScale |
-| **LocOpe Extensions** | 3 | buildWires, splitByWireOnFace, curveShapeIntersect |
+| **LocOpe Extensions** | 5 | buildWires, splitByWireOnFace, curveShapeIntersect, locOpeSplit, locOpeSplitAuto |
 | **CPnts Deflection** | 2 | uniformDeflection, uniformDeflection(range) |
 | **IntCurvesFace** | 2 | rayIntersect, rayIntersectNearest |
 | **GeomLProp** | 2 | curveLocalProps, surfaceLocalProps |
@@ -80,7 +80,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Approx** | 1 | curvilinearParameter |
 | **GeomInt** | 1 | surfaceSurfaceIntersection |
 | **Contap** | 2 | contapContourDirection, contapContourEye |
-| **BRepFeat** | 2 | featFuse, featCut |
+| **BRepFeat** | 6 | featFuse, featCut, splitByEdge, splitByWire, splitWithSides, glue |
 | **GeomFill Filling** | 3 | coonsFilling, curvedFilling, coonsAlgPatch |
 | **GeomFill Sweep** | 1 | geomFillSweep |
 | **GeomFill Section** | 1 | evolvedSectionInfo |
@@ -109,7 +109,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Law Extensions** | 2 | composite, knotSplitting |
 | **GccAna Circ2d3Tan** | 6 | circleThrough3Points, circleTangent3Lines, circleTangent3Circles, circleTangent2CirclesPoint, circleTangentCircle2Points, circleTangent2LinesPoint |
 | **Polygon Interference** | 2 | polygonInterference, polygonSelfInterference |
-| **Total** | **1149** | |
+| **Total** | **1161** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -366,6 +366,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Shell Splitting**: BOPAlgo_ShellSplitter — decompose shells into connected components
 - **Edge-to-Wire/Face Conversion**: BOPAlgo_Tools — connect loose edges into wires, build faces from wire compounds
 - **BOPTools Utilities**: Face normal at edge, interior point finding, empty/open shell checks
+- **Bean-Face Intersection**: IntTools_BeanFaceIntersector — find coincident parameter ranges where an edge lies on a face surface
+- **Wire Assembly**: BOPAlgo_WireSplitter::MakeWire — assemble edges into connected wires
+- **BRepFeat SplitShape**: Split faces by adding edges or wires, with left/right face classification
+- **Cylindrical Hole Drilling**: BRepFeat_MakeCylindricalHole — through, blind, and thru-next hole operations with status checking
+- **Shape Gluing**: BRepFeat_Gluer — merge shapes along coincident faces
+- **LocOpe Wire Split**: LocOpe_WiresOnShape + LocOpe_Spliter — project wires onto faces and split shapes, manual or auto-bind
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1318,7 +1324,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1149 OCCT operations** across 65 categories with 1500 tests across 465 suites.
+OCCTSwift now wraps **1161 OCCT operations** across 65 categories with 1513 tests across 471 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

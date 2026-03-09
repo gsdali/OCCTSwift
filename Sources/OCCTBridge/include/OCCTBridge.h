@@ -88,12 +88,15 @@
 //
 // --- BRepFeat ---
 // BRepFeat_Builder                    → OCCTBRepFeatFuse, OCCTBRepFeatCut
+// BRepFeat_Gluer                      → OCCTBRepFeatGluer
+// BRepFeat_MakeCylindricalHole        → OCCTBRepFeatCylindricalHole*
 // BRepFeat_MakeDPrism                 → OCCTShapeDraftPrism*
 // BRepFeat_MakeLinearForm             → OCCTShapeLinearRib
 // BRepFeat_MakePipe                   → OCCTShapePipeFeature*
 // BRepFeat_MakePrism                  → OCCTShapePrism, OCCTShapeSemiInfiniteExtrusion
 // BRepFeat_MakeRevol                  → OCCTShapeRevolFeature*
 // BRepFeat_MakeRevolutionForm         → OCCTShapeRevolutionForm
+// BRepFeat_SplitShape                 → OCCTBRepFeatSplitShape*
 //
 // --- BRepFill ---
 // BRepFill_CompatibleWires            → OCCTShapeCompatibleWires
@@ -306,6 +309,7 @@
 // IntCurvesFace_ShapeIntersector      → OCCTRayIntersect*
 //
 // --- IntTools ---
+// IntTools_BeanFaceIntersector        → OCCTIntToolsBeanFaceIntersect
 // IntTools_EdgeEdge                   → OCCTIntToolsEdgeEdge
 // IntTools_EdgeFace                   → OCCTIntToolsEdgeFace
 // IntTools_FaceFace                   → OCCTIntToolsFaceFace
@@ -337,6 +341,8 @@
 // LocOpe_RevolutionForm               → OCCTShapeLocalRevolutionForm
 // LocOpe_SplitDrafts                  → OCCTLocOpeSplitDrafts
 // LocOpe_SplitShape                   → OCCTLocOpeSplitShape*
+// LocOpe_Spliter                      → OCCTLocOpeSpliter*
+// LocOpe_WiresOnShape                 → OCCTLocOpeWiresOnShape*
 //
 // --- LProp ---
 // LProp_AnalyticCurInf                → OCCTLPropAnalyticCurInf
@@ -8559,6 +8565,140 @@ bool OCCTBOPToolsIsEmptyShape(OCCTShapeRef _Nonnull shape);
 
 /// Check if a shell is open (not all edges are shared by two faces).
 bool OCCTBOPToolsIsOpenShell(OCCTShapeRef _Nonnull shell);
+
+// MARK: - IntTools_BeanFaceIntersector (v0.71.0)
+
+/// Result range from bean-face intersection.
+typedef struct {
+    double first;
+    double last;
+} OCCTParameterRange;
+
+/// Intersect an edge curve with a face surface to find coincident ranges.
+/// @param edge The edge
+/// @param face The face
+/// @param outRanges Pointer to receive allocated array of ranges (caller must free)
+/// @param outCount Number of ranges found
+/// @param outMinSquareDist Minimum square distance between edge and face
+/// @return true if intersection succeeded
+bool OCCTIntToolsBeanFaceIntersect(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+    OCCTParameterRange* _Nullable * _Nonnull outRanges, int32_t* _Nonnull outCount,
+    double* _Nonnull outMinSquareDist);
+
+// MARK: - BOPAlgo_WireSplitter (v0.71.0)
+
+/// Build a wire from a list of edges (static utility).
+/// @param edges Array of edge shapes
+/// @param edgeCount Number of edges
+/// @return Result wire as shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBOPAlgoMakeWire(const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t edgeCount);
+
+// MARK: - BRepFeat_SplitShape (v0.71.0)
+
+/// Split a shape by adding an edge to a face.
+/// @param shape Input shape to split
+/// @param edge Edge to add as split line
+/// @param face Face on which to add the edge
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFeatSplitShapeEdge(OCCTShapeRef _Nonnull shape,
+    OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face);
+
+/// Split a shape by adding a wire to a face.
+/// @param shape Input shape to split
+/// @param wire Wire to add as split line
+/// @param face Face on which to add the wire
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFeatSplitShapeWire(OCCTShapeRef _Nonnull shape,
+    OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face);
+
+/// Split a shape by adding edges/wires to faces, with left/right face outputs.
+/// @param shape Input shape to split
+/// @param edgesOnFaces Array of (edge, face) pairs — alternating edge, face shapes
+/// @param pairCount Number of (edge, face) pairs (array has 2*pairCount elements)
+/// @param outLeft Pointer to receive allocated array of left-side face shapes (caller must free each + array)
+/// @param outLeftCount Number of left faces
+/// @param outRight Pointer to receive allocated array of right-side face shapes (caller must free each + array)
+/// @param outRightCount Number of right faces
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFeatSplitShapeWithSides(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull edgesOnFaces, int32_t pairCount,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outLeft, int32_t* _Nonnull outLeftCount,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outRight, int32_t* _Nonnull outRightCount);
+
+// MARK: - BRepFeat_MakeCylindricalHole (v0.71.0)
+
+/// Drill a through cylindrical hole in a shape.
+/// @param shape Input solid shape
+/// @param axisOriginX/Y/Z Axis origin
+/// @param axisDirX/Y/Z Axis direction
+/// @param radius Hole radius
+/// @return Result shape with hole, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFeatCylindricalHole(OCCTShapeRef _Nonnull shape,
+    double axisOriginX, double axisOriginY, double axisOriginZ,
+    double axisDirX, double axisDirY, double axisDirZ,
+    double radius);
+
+/// Drill a blind cylindrical hole in a shape.
+/// @param shape Input solid shape
+/// @param axisOriginX/Y/Z Axis origin
+/// @param axisDirX/Y/Z Axis direction
+/// @param radius Hole radius
+/// @param depth Hole depth
+/// @return Result shape with hole, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFeatCylindricalHoleBlind(OCCTShapeRef _Nonnull shape,
+    double axisOriginX, double axisOriginY, double axisOriginZ,
+    double axisDirX, double axisDirY, double axisDirZ,
+    double radius, double depth);
+
+/// Drill a cylindrical hole through to the next face.
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFeatCylindricalHoleThruNext(OCCTShapeRef _Nonnull shape,
+    double axisOriginX, double axisOriginY, double axisOriginZ,
+    double axisDirX, double axisDirY, double axisDirZ,
+    double radius);
+
+/// Get the status of the last cylindrical hole operation.
+/// @return 0 = NoError, 1 = InvalidPlacement, 2 = HoleTooLong
+int32_t OCCTBRepFeatCylindricalHoleStatus(OCCTShapeRef _Nonnull shape,
+    double axisOriginX, double axisOriginY, double axisOriginZ,
+    double axisDirX, double axisDirY, double axisDirZ,
+    double radius);
+
+// MARK: - BRepFeat_Gluer (v0.71.0)
+
+/// Glue two shapes together by binding matching faces.
+/// @param baseShape The base shape
+/// @param gluedShape The shape to glue onto the base
+/// @param baseFaces Array of base shape faces to bind
+/// @param gluedFaces Array of glued shape faces to bind (same count)
+/// @param faceCount Number of face pairs
+/// @return Result glued shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTBRepFeatGluer(OCCTShapeRef _Nonnull baseShape,
+    OCCTShapeRef _Nonnull gluedShape,
+    const OCCTShapeRef _Nonnull * _Nonnull baseFaces,
+    const OCCTShapeRef _Nonnull * _Nonnull gluedFaces,
+    int32_t faceCount);
+
+// MARK: - LocOpe_WiresOnShape + LocOpe_Spliter (v0.71.0)
+
+/// Split a shape by projecting wires onto faces using LocOpe_WiresOnShape + LocOpe_Spliter.
+/// @param shape Input shape
+/// @param wiresOnFaces Array of (wire, face) pairs — alternating wire, face shapes
+/// @param pairCount Number of (wire, face) pairs
+/// @param outDirectLeft Pointer to receive allocated array of directly-left face shapes
+/// @param outDirectLeftCount Number of directly-left faces
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeSplitByWires(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull wiresOnFaces, int32_t pairCount,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outDirectLeft, int32_t* _Nonnull outDirectLeftCount);
+
+/// Bind all edges of wires to shape faces automatically, then split.
+/// @param shape Input shape
+/// @param wires Array of wire shapes to project onto shape
+/// @param wireCount Number of wires
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeSplitByWiresAuto(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull wires, int32_t wireCount);
 
 #ifdef __cplusplus
 }

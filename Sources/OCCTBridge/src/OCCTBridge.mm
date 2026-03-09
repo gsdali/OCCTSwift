@@ -26562,3 +26562,304 @@ bool OCCTBOPToolsIsOpenShell(OCCTShapeRef _Nonnull shell) {
         return true;
     }
 }
+
+// MARK: - v0.71.0: TKBool remainder + TKFeat
+
+#include <IntTools_BeanFaceIntersector.hxx>
+#include <BOPAlgo_WireSplitter.hxx>
+#include <BRepFeat_Status.hxx>
+
+// --- IntTools_BeanFaceIntersector ---
+
+bool OCCTIntToolsBeanFaceIntersect(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+    OCCTParameterRange* _Nullable * _Nonnull outRanges, int32_t* _Nonnull outCount,
+    double* _Nonnull outMinSquareDist) {
+    *outRanges = nullptr;
+    *outCount = 0;
+    *outMinSquareDist = 0.0;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+
+        IntTools_BeanFaceIntersector bfi(e, f);
+        bfi.Perform();
+        if (!bfi.IsDone()) return false;
+
+        *outMinSquareDist = bfi.MinimalSquareDistance();
+
+        const NCollection_Sequence<IntTools_Range>& ranges = bfi.Result();
+        int32_t n = ranges.Length();
+        *outCount = n;
+        if (n > 0) {
+            *outRanges = (OCCTParameterRange*)malloc(n * sizeof(OCCTParameterRange));
+            for (int32_t i = 0; i < n; i++) {
+                (*outRanges)[i].first = ranges(i + 1).First();
+                (*outRanges)[i].last = ranges(i + 1).Last();
+            }
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- BOPAlgo_WireSplitter::MakeWire ---
+
+OCCTShapeRef _Nullable OCCTBOPAlgoMakeWire(const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t edgeCount) {
+    try {
+        NCollection_List<TopoDS_Shape> edgeList;
+        for (int32_t i = 0; i < edgeCount; i++) {
+            edgeList.Append(edges[i]->shape);
+        }
+        TopoDS_Wire wire;
+        BOPAlgo_WireSplitter::MakeWire(edgeList, wire);
+        if (wire.IsNull()) return nullptr;
+        return new OCCTShape(wire);
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepFeat_SplitShape ---
+
+OCCTShapeRef _Nullable OCCTBRepFeatSplitShapeEdge(OCCTShapeRef _Nonnull shape,
+    OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face) {
+    try {
+        BRepFeat_SplitShape splitter(shape->shape);
+        splitter.Add(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape));
+        splitter.Build();
+        if (!splitter.IsDone()) return nullptr;
+        TopoDS_Shape result = splitter.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepFeatSplitShapeWire(OCCTShapeRef _Nonnull shape,
+    OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face) {
+    try {
+        BRepFeat_SplitShape splitter(shape->shape);
+        splitter.Add(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape));
+        splitter.Build();
+        if (!splitter.IsDone()) return nullptr;
+        TopoDS_Shape result = splitter.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepFeatSplitShapeWithSides(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull edgesOnFaces, int32_t pairCount,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outLeft, int32_t* _Nonnull outLeftCount,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outRight, int32_t* _Nonnull outRightCount) {
+    *outLeft = nullptr;
+    *outLeftCount = 0;
+    *outRight = nullptr;
+    *outRightCount = 0;
+    try {
+        BRepFeat_SplitShape splitter(shape->shape);
+        for (int32_t i = 0; i < pairCount; i++) {
+            TopoDS_Shape edgeOrWire = edgesOnFaces[i * 2]->shape;
+            TopoDS_Face face = TopoDS::Face(edgesOnFaces[i * 2 + 1]->shape);
+            if (edgeOrWire.ShapeType() == TopAbs_WIRE) {
+                splitter.Add(TopoDS::Wire(edgeOrWire), face);
+            } else {
+                splitter.Add(TopoDS::Edge(edgeOrWire), face);
+            }
+        }
+        splitter.Build();
+        if (!splitter.IsDone()) return nullptr;
+        TopoDS_Shape result = splitter.Shape();
+        if (result.IsNull()) return nullptr;
+
+        // Left faces
+        const TopTools_ListOfShape& leftList = splitter.Left();
+        int32_t nl = leftList.Size();
+        *outLeftCount = nl;
+        if (nl > 0) {
+            *outLeft = (OCCTShapeRef*)malloc(nl * sizeof(OCCTShapeRef));
+            int32_t idx = 0;
+            for (auto it = leftList.cbegin(); it != leftList.cend(); ++it, ++idx) {
+                (*outLeft)[idx] = new OCCTShape(*it);
+            }
+        }
+
+        // Right faces
+        const TopTools_ListOfShape& rightList = splitter.Right();
+        int32_t nr = rightList.Size();
+        *outRightCount = nr;
+        if (nr > 0) {
+            *outRight = (OCCTShapeRef*)malloc(nr * sizeof(OCCTShapeRef));
+            int32_t idx = 0;
+            for (auto it = rightList.cbegin(); it != rightList.cend(); ++it, ++idx) {
+                (*outRight)[idx] = new OCCTShape(*it);
+            }
+        }
+
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepFeat_MakeCylindricalHole ---
+
+OCCTShapeRef _Nullable OCCTBRepFeatCylindricalHole(OCCTShapeRef _Nonnull shape,
+    double axisOriginX, double axisOriginY, double axisOriginZ,
+    double axisDirX, double axisDirY, double axisDirZ,
+    double radius) {
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+        BRepFeat_MakeCylindricalHole hole;
+        hole.Init(shape->shape, axis);
+        hole.Perform(radius);
+        if (hole.Status() != BRepFeat_NoError) return nullptr;
+        hole.Build();
+        if (hole.Shape().IsNull()) return nullptr;
+        return new OCCTShape(hole.Shape());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepFeatCylindricalHoleBlind(OCCTShapeRef _Nonnull shape,
+    double axisOriginX, double axisOriginY, double axisOriginZ,
+    double axisDirX, double axisDirY, double axisDirZ,
+    double radius, double depth) {
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+        BRepFeat_MakeCylindricalHole hole;
+        hole.Init(shape->shape, axis);
+        hole.PerformBlind(radius, depth);
+        if (hole.Status() != BRepFeat_NoError) return nullptr;
+        hole.Build();
+        if (hole.Shape().IsNull()) return nullptr;
+        return new OCCTShape(hole.Shape());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepFeatCylindricalHoleThruNext(OCCTShapeRef _Nonnull shape,
+    double axisOriginX, double axisOriginY, double axisOriginZ,
+    double axisDirX, double axisDirY, double axisDirZ,
+    double radius) {
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+        BRepFeat_MakeCylindricalHole hole;
+        hole.Init(shape->shape, axis);
+        hole.PerformThruNext(radius);
+        if (hole.Status() != BRepFeat_NoError) return nullptr;
+        hole.Build();
+        if (hole.Shape().IsNull()) return nullptr;
+        return new OCCTShape(hole.Shape());
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTBRepFeatCylindricalHoleStatus(OCCTShapeRef _Nonnull shape,
+    double axisOriginX, double axisOriginY, double axisOriginZ,
+    double axisDirX, double axisDirY, double axisDirZ,
+    double radius) {
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+        BRepFeat_MakeCylindricalHole hole;
+        hole.Init(shape->shape, axis);
+        hole.Perform(radius);
+        BRepFeat_Status status = hole.Status();
+        switch (status) {
+            case BRepFeat_NoError: return 0;
+            case BRepFeat_InvalidPlacement: return 1;
+            case BRepFeat_HoleTooLong: return 2;
+            default: return 3;
+        }
+    } catch (...) { return 3; }
+}
+
+// --- BRepFeat_Gluer ---
+
+OCCTShapeRef _Nullable OCCTBRepFeatGluer(OCCTShapeRef _Nonnull baseShape,
+    OCCTShapeRef _Nonnull gluedShape,
+    const OCCTShapeRef _Nonnull * _Nonnull baseFaces,
+    const OCCTShapeRef _Nonnull * _Nonnull gluedFaces,
+    int32_t faceCount) {
+    try {
+        BRepFeat_Gluer gluer(gluedShape->shape, baseShape->shape);
+        for (int32_t i = 0; i < faceCount; i++) {
+            gluer.Bind(TopoDS::Face(gluedFaces[i]->shape),
+                       TopoDS::Face(baseFaces[i]->shape));
+        }
+        gluer.Build();
+        if (!gluer.IsDone()) return nullptr;
+        TopoDS_Shape result = gluer.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- LocOpe_WiresOnShape + LocOpe_Spliter (new functions) ---
+
+OCCTShapeRef _Nullable OCCTLocOpeSplitByWires(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull wiresOnFaces, int32_t pairCount,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outDirectLeft, int32_t* _Nonnull outDirectLeftCount) {
+    *outDirectLeft = nullptr;
+    *outDirectLeftCount = 0;
+    try {
+        Handle(LocOpe_WiresOnShape) wos = new LocOpe_WiresOnShape(shape->shape);
+        for (int32_t i = 0; i < pairCount; i++) {
+            TopoDS_Wire w;
+            const TopoDS_Shape& ws = wiresOnFaces[i * 2]->shape;
+            if (ws.ShapeType() == TopAbs_WIRE) {
+                w = TopoDS::Wire(ws);
+            } else {
+                TopExp_Explorer exp(ws, TopAbs_WIRE);
+                if (exp.More()) w = TopoDS::Wire(exp.Current());
+                else continue;
+            }
+            TopoDS_Face f = TopoDS::Face(wiresOnFaces[i * 2 + 1]->shape);
+            wos->Bind(w, f);
+        }
+
+        LocOpe_Spliter spliter(shape->shape);
+        spliter.Perform(wos);
+        if (!spliter.IsDone()) return nullptr;
+
+        const TopoDS_Shape& result = spliter.ResultingShape();
+        if (result.IsNull()) return nullptr;
+
+        // Direct left faces
+        const TopTools_ListOfShape& dl = spliter.DirectLeft();
+        int32_t n = dl.Size();
+        *outDirectLeftCount = n;
+        if (n > 0) {
+            *outDirectLeft = (OCCTShapeRef*)malloc(n * sizeof(OCCTShapeRef));
+            int32_t idx = 0;
+            for (auto it = dl.cbegin(); it != dl.cend(); ++it, ++idx) {
+                (*outDirectLeft)[idx] = new OCCTShape(*it);
+            }
+        }
+
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTLocOpeSplitByWiresAuto(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull wires, int32_t wireCount) {
+    try {
+        Handle(LocOpe_WiresOnShape) wos = new LocOpe_WiresOnShape(shape->shape);
+        for (int32_t i = 0; i < wireCount; i++) {
+            const TopoDS_Shape& ws = wires[i]->shape;
+            // Add edges from each wire as a sequence
+            NCollection_Sequence<TopoDS_Shape> edgeSeq;
+            TopExp_Explorer exp(ws, TopAbs_EDGE);
+            for (; exp.More(); exp.Next()) {
+                edgeSeq.Append(exp.Current());
+            }
+            if (edgeSeq.Length() > 0) {
+                wos->Add(edgeSeq);
+            }
+        }
+        wos->BindAll();
+
+        LocOpe_Spliter spliter(shape->shape);
+        spliter.Perform(wos);
+        if (!spliter.IsDone()) return nullptr;
+
+        const TopoDS_Shape& result = spliter.ResultingShape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
