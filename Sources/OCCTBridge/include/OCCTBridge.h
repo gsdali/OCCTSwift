@@ -29,6 +29,8 @@
 //
 // --- BOPAlgo ---
 // BOPAlgo_ArgumentAnalyzer            → OCCTBOPAlgoAnalyzeArguments
+// BOPAlgo_BuilderFace                 → OCCTBOPAlgoBuilderFace
+// BOPAlgo_BuilderSolid                → OCCTBOPAlgoBuilderSolid
 // BOPAlgo_CellsBuilder                → OCCTBOPAlgoSplit
 // BOPAlgo_CheckerSI                   → OCCTShapeSelfIntersects
 // BOPAlgo_MakeConnected               → OCCTShapeMakeConnected
@@ -36,7 +38,13 @@
 // BOPAlgo_MakerVolume                 → OCCTShapeMakeVolume
 // BOPAlgo_RemoveFeatures              → OCCTBOPAlgoRemoveFeatures
 // BOPAlgo_Section                     → OCCTBOPAlgoSection
+// BOPAlgo_ShellSplitter               → OCCTBOPAlgoShellSplitter
 // BOPAlgo_Splitter                    → OCCTBOPAlgoSplit
+// BOPAlgo_Tools                       → OCCTBOPAlgoEdgesToWires, OCCTBOPAlgoWiresToFaces
+//
+// --- BOPTools ---
+// BOPTools_AlgoTools                  → OCCTBOPToolsIsOpenShell
+// BOPTools_AlgoTools3D                → OCCTBOPToolsNormalOnEdge, OCCTBOPToolsPointInFace, OCCTBOPToolsIsEmptyShape
 //
 // --- BRepAlgoAPI ---
 // BRepAlgoAPI_Check                   → OCCTShapeBooleanCheck
@@ -296,6 +304,12 @@
 // --- IntCurvesFace ---
 // IntCurvesFace_Intersector           → OCCTIntCurvesFaceIntersect
 // IntCurvesFace_ShapeIntersector      → OCCTRayIntersect*
+//
+// --- IntTools ---
+// IntTools_EdgeEdge                   → OCCTIntToolsEdgeEdge
+// IntTools_EdgeFace                   → OCCTIntToolsEdgeFace
+// IntTools_FaceFace                   → OCCTIntToolsFaceFace
+// IntTools_FClass2d                   → OCCTIntToolsFClass2d*
 //
 // --- Law ---
 // Law_BSpFunc                         → OCCTLawBSpline
@@ -8409,6 +8423,142 @@ bool OCCTGeomFillBoundWithSurfEvaluate(
     double first, double last, double param,
     double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ,
     double* _Nonnull outNX, double* _Nonnull outNY, double* _Nonnull outNZ);
+
+// MARK: - IntTools (v0.70.0)
+
+/// Result of an edge-edge or edge-face intersection common part.
+typedef struct {
+    int32_t type;         // 0 = vertex, 1 = edge (TopAbs_VERTEX=7, TopAbs_EDGE=6 mapped to 0/1)
+    double param1First;   // First parameter on edge 1
+    double param1Last;    // Last parameter on edge 1 (same as first for vertex)
+    double param2First;   // First parameter on edge 2
+    double param2Last;    // Last parameter on edge 2 (same as first for vertex)
+    double pointX, pointY, pointZ; // Bounding point (for vertex intersections)
+} OCCTCommonPart;
+
+/// Intersect two edges. Returns array of common parts.
+/// @param edge1, edge2 Input edges
+/// @param outParts Pointer to receive allocated array (caller must free)
+/// @param outCount Number of common parts found
+/// @return true if intersection succeeded (IsDone)
+bool OCCTIntToolsEdgeEdge(OCCTShapeRef _Nonnull edge1, OCCTShapeRef _Nonnull edge2,
+    OCCTCommonPart* _Nullable * _Nonnull outParts, int32_t* _Nonnull outCount);
+
+/// Intersect an edge with a face. Returns array of common parts.
+/// @param edge Input edge
+/// @param face Input face
+/// @param outParts Pointer to receive allocated array (caller must free)
+/// @param outCount Number of common parts found
+/// @return true if intersection succeeded
+bool OCCTIntToolsEdgeFace(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+    OCCTCommonPart* _Nullable * _Nonnull outParts, int32_t* _Nonnull outCount);
+
+/// Result of a face-face intersection curve.
+typedef struct {
+    double startX, startY, startZ;
+    double endX, endY, endZ;
+    bool hasStart;
+    bool hasEnd;
+} OCCTFaceFaceCurve;
+
+/// Result of a face-face intersection point.
+typedef struct {
+    double x1, y1, z1; // Point on face 1
+    double x2, y2, z2; // Point on face 2
+} OCCTFaceFacePoint;
+
+/// Intersect two faces. Returns intersection curves and points.
+/// @param face1, face2 Input faces
+/// @param tolerance Approximation tolerance
+/// @param outCurves Pointer to receive allocated curve array (caller must free)
+/// @param outCurveCount Number of intersection curves
+/// @param outPoints Pointer to receive allocated point array (caller must free)
+/// @param outPointCount Number of intersection points
+/// @param outTangent Whether the faces are tangent
+/// @return true if intersection succeeded
+bool OCCTIntToolsFaceFace(OCCTShapeRef _Nonnull face1, OCCTShapeRef _Nonnull face2,
+    double tolerance,
+    OCCTFaceFaceCurve* _Nullable * _Nonnull outCurves, int32_t* _Nonnull outCurveCount,
+    OCCTFaceFacePoint* _Nullable * _Nonnull outPoints, int32_t* _Nonnull outPointCount,
+    bool* _Nonnull outTangent);
+
+/// Classify a 2D point with respect to a face's boundary.
+/// @param face Input face
+/// @param u, v 2D point coordinates in face parameter space
+/// @param tolerance Classification tolerance
+/// @return 0=IN, 1=ON, 2=OUT, 3=UNKNOWN
+int32_t OCCTIntToolsFClass2dPerform(OCCTShapeRef _Nonnull face, double u, double v, double tolerance);
+
+/// Check if a face represents a hole (inner wire orientation).
+/// @param face Input face
+/// @param tolerance Classification tolerance
+/// @return true if the face is a hole
+bool OCCTIntToolsFClass2dIsHole(OCCTShapeRef _Nonnull face, double tolerance);
+
+// MARK: - BOPAlgo Builder (v0.70.0)
+
+/// Build faces from edges on a base face.
+/// @param baseFace The face that provides the surface
+/// @param edges Array of edge shapes to build faces from
+/// @param edgeCount Number of edges
+/// @param outFaces Pointer to receive allocated array of face shapes (caller must free each + array)
+/// @param outFaceCount Number of result faces
+/// @return true if succeeded
+bool OCCTBOPAlgoBuilderFace(OCCTShapeRef _Nonnull baseFace,
+    const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t edgeCount,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outFaces, int32_t* _Nonnull outFaceCount);
+
+/// Build solids from faces.
+/// @param faces Array of face shapes
+/// @param faceCount Number of faces
+/// @param outSolids Pointer to receive allocated array of solid shapes (caller must free each + array)
+/// @param outSolidCount Number of result solids
+/// @return true if succeeded
+bool OCCTBOPAlgoBuilderSolid(const OCCTShapeRef _Nonnull * _Nonnull faces, int32_t faceCount,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outSolids, int32_t* _Nonnull outSolidCount);
+
+/// Split a shell into connected components.
+/// @param shell Input shell shape
+/// @param outShells Pointer to receive allocated array of shell shapes (caller must free each + array)
+/// @param outShellCount Number of result shells
+/// @return true if succeeded
+bool OCCTBOPAlgoShellSplitter(OCCTShapeRef _Nonnull shell,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outShells, int32_t* _Nonnull outShellCount);
+
+/// Convert a set of edges into wires.
+/// @param edges Compound of edges
+/// @param tolerance Tolerance for connecting edges
+/// @return Result compound of wires, or NULL on failure
+OCCTShapeRef _Nullable OCCTBOPAlgoEdgesToWires(OCCTShapeRef _Nonnull edges, double tolerance);
+
+/// Convert a set of wires into faces.
+/// @param wires Compound of wires
+/// @param tolerance Tolerance for face building
+/// @return Result compound of faces, or NULL on failure
+OCCTShapeRef _Nullable OCCTBOPAlgoWiresToFaces(OCCTShapeRef _Nonnull wires, double tolerance);
+
+// MARK: - BOPTools (v0.70.0)
+
+/// Get the normal to a face at an edge.
+/// @param edge Edge on the face
+/// @param face Face containing the edge
+/// @param outNX/NY/NZ Output normal direction
+/// @return true if succeeded
+bool OCCTBOPToolsNormalOnEdge(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+    double* _Nonnull outNX, double* _Nonnull outNY, double* _Nonnull outNZ);
+
+/// Find a point strictly inside a face.
+/// @param face Input face
+/// @param outX/Y/Z Output 3D point
+/// @return true if a point was found
+bool OCCTBOPToolsPointInFace(OCCTShapeRef _Nonnull face,
+    double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Check if a shape is empty (has no sub-shapes).
+bool OCCTBOPToolsIsEmptyShape(OCCTShapeRef _Nonnull shape);
+
+/// Check if a shell is open (not all edges are shared by two faces).
+bool OCCTBOPToolsIsOpenShell(OCCTShapeRef _Nonnull shell);
 
 #ifdef __cplusplus
 }

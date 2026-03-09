@@ -20075,3 +20075,311 @@ struct GeomFillBoundWithSurfTests {
         }
     }
 }
+
+// MARK: - v0.70.0 TKBool: IntTools, BOPAlgo, BOPTools
+
+@Suite("IntTools_EdgeEdge Tests")
+struct IntToolsEdgeEdgeTests {
+    @Test("Intersecting edges produce vertex common part")
+    func edgeEdgeVertex() {
+        // Two edges crossing at origin: X-axis and Y-axis
+        let e1 = Shape.edgeFromPoints(SIMD3(-1, 0, 0), SIMD3(1, 0, 0))
+        let e2 = Shape.edgeFromPoints(SIMD3(0, -1, 0), SIMD3(0, 1, 0))
+        if let edge1 = e1, let edge2 = e2 {
+            let parts = edge1.edgeEdgeIntersection(with: edge2)
+            #expect(parts != nil)
+            if let p = parts {
+                #expect(p.count >= 1)
+                if let first = p.first {
+                    #expect(first.type == .vertex)
+                    #expect(abs(first.point.x) < 0.1)
+                    #expect(abs(first.point.y) < 0.1)
+                }
+            }
+        }
+    }
+
+    @Test("Overlapping collinear edges produce edge common part")
+    func edgeEdgeOverlap() {
+        let e1 = Shape.edgeFromPoints(SIMD3(0, 0, 0), SIMD3(2, 0, 0))
+        let e2 = Shape.edgeFromPoints(SIMD3(1, 0, 0), SIMD3(3, 0, 0))
+        if let edge1 = e1, let edge2 = e2 {
+            let parts = edge1.edgeEdgeIntersection(with: edge2)
+            #expect(parts != nil)
+            if let p = parts {
+                #expect(p.count >= 1)
+                if let first = p.first {
+                    #expect(first.type == .edge)
+                }
+            }
+        }
+    }
+
+    @Test("Non-intersecting edges return empty array")
+    func edgeEdgeNoIntersection() {
+        let e1 = Shape.edgeFromPoints(SIMD3(0, 0, 0), SIMD3(1, 0, 0))
+        let e2 = Shape.edgeFromPoints(SIMD3(0, 5, 0), SIMD3(1, 5, 0))
+        if let edge1 = e1, let edge2 = e2 {
+            let parts = edge1.edgeEdgeIntersection(with: edge2)
+            #expect(parts != nil)
+            if let p = parts {
+                #expect(p.isEmpty)
+            }
+        }
+    }
+}
+
+@Suite("IntTools_EdgeFace Tests")
+struct IntToolsEdgeFaceTests {
+    @Test("Edge crossing face produces intersection")
+    func edgeFaceIntersection() {
+        // Use a box face and an edge going through it
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let edge = Shape.edgeFromPoints(SIMD3(5, 5, -1), SIMD3(5, 5, 11))
+        if let b = box, let e = edge {
+            let faces = b.subShapes(ofType: .face)
+            if let face = faces.first {
+                let parts = e.edgeFaceIntersection(with: face)
+                #expect(parts != nil)
+            }
+        }
+    }
+}
+
+@Suite("IntTools_FaceFace Tests")
+struct IntToolsFaceFaceTests {
+    @Test("Perpendicular box faces produce intersection line")
+    func faceFaceIntersection() {
+        // Create a box and test intersection of two of its faces
+        let plane1 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        let plane2 = Surface.plane(origin: .zero, normal: SIMD3(0, 1, 0))
+        if let s1 = plane1, let s2 = plane2 {
+            let f1 = Shape.face(from: s1, uRange: -5...5, vRange: -5...5)
+            let f2 = Shape.face(from: s2, uRange: -5...5, vRange: -5...5)
+            if let face1 = f1, let face2 = f2 {
+                let result = face1.faceFaceIntersection(with: face2)
+                #expect(result != nil)
+                if let r = result {
+                    #expect(r.curves.count >= 1)
+                    #expect(!r.isTangent)
+                }
+            }
+        }
+    }
+
+    @Test("Coincident planes are tangent")
+    func faceFaceTangent() {
+        let plane1 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        let plane2 = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let s1 = plane1, let s2 = plane2 {
+            let f1 = Shape.face(from: s1, uRange: -5...5, vRange: -5...5)
+            let f2 = Shape.face(from: s2, uRange: -5...5, vRange: -5...5)
+            if let face1 = f1, let face2 = f2 {
+                let result = face1.faceFaceIntersection(with: face2)
+                if let r = result {
+                    #expect(r.isTangent)
+                }
+            }
+        }
+    }
+}
+
+@Suite("IntTools_FClass2d Tests")
+struct IntToolsFClass2dTests {
+    @Test("Point inside face classified as inside")
+    func pointInside() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let s = plane {
+            let face = Shape.face(from: s, uRange: 0...10, vRange: 0...10)
+            if let f = face {
+                let state: PointClassification = f.classifyPoint2d(u: 5, v: 5)
+                #expect(state == .inside)
+            }
+        }
+    }
+
+    @Test("Point outside face classified as outside")
+    func pointOutside() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let s = plane {
+            let face = Shape.face(from: s, uRange: 0...10, vRange: 0...10)
+            if let f = face {
+                let state: PointClassification = f.classifyPoint2d(u: 15, v: 15)
+                #expect(state == .outside)
+            }
+        }
+    }
+
+    @Test("IsHole check")
+    func isHoleCheck() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let s = plane {
+            let face = Shape.face(from: s, uRange: 0...10, vRange: 0...10)
+            if let f = face {
+                #expect(!f.isHole())
+            }
+        }
+    }
+}
+
+@Suite("BOPAlgo_BuilderFace Tests")
+struct BOPAlgoBuilderFaceTests {
+    @Test("Build face from boundary edges")
+    func buildFaceFromEdges() {
+        // Create a face and rebuild it from its own edges
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1))
+        if let s = plane {
+            let face = Shape.face(from: s, uRange: -5...5, vRange: -5...5)
+            if let f = face {
+                let edges = f.subShapes(ofType: .edge)
+                let result = f.buildFaces(from: edges)
+                #expect(result != nil)
+                if let r = result {
+                    #expect(r.count >= 1)
+                }
+            }
+        }
+    }
+}
+
+@Suite("BOPAlgo_BuilderSolid Tests")
+struct BOPAlgoBuilderSolidTests {
+    @Test("Build solid from box faces")
+    func buildSolidFromFaces() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            let result = Shape.buildSolids(from: faces)
+            #expect(result != nil)
+            if let r = result {
+                #expect(r.count >= 1)
+                if let solid = r.first {
+                    #expect(solid.isValid)
+                }
+            }
+        }
+    }
+}
+
+@Suite("BOPAlgo_ShellSplitter Tests")
+struct BOPAlgoShellSplitterTests {
+    @Test("Split single box shell")
+    func splitSingleShell() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let shells = b.subShapes(ofType: .shell)
+            if let shell = shells.first {
+                let result = shell.splitShell()
+                #expect(result != nil)
+                if let r = result {
+                    #expect(r.count >= 1)
+                }
+            }
+        }
+    }
+}
+
+@Suite("BOPAlgo_Tools Tests")
+struct BOPAlgoToolsTests {
+    @Test("EdgesToWires from rectangle edges")
+    func edgesToWires() {
+        let e1 = Shape.edgeFromPoints(SIMD3(0, 0, 0), SIMD3(10, 0, 0))
+        let e2 = Shape.edgeFromPoints(SIMD3(10, 0, 0), SIMD3(10, 10, 0))
+        let e3 = Shape.edgeFromPoints(SIMD3(10, 10, 0), SIMD3(0, 10, 0))
+        let e4 = Shape.edgeFromPoints(SIMD3(0, 10, 0), SIMD3(0, 0, 0))
+        if let edge1 = e1, let edge2 = e2, let edge3 = e3, let edge4 = e4 {
+            let compound = Shape.compound([edge1, edge2, edge3, edge4])
+            if let c = compound {
+                let result = c.edgesToWires()
+                #expect(result != nil)
+                if let r = result {
+                    let wires = r.subShapes(ofType: .wire)
+                    #expect(wires.count >= 1)
+                }
+            }
+        }
+    }
+
+    @Test("WiresToFaces from edge compound via EdgesToWires")
+    func wiresToFaces() {
+        // First convert edges to wires, then wires to faces
+        let e1 = Shape.edgeFromPoints(SIMD3(0, 0, 0), SIMD3(10, 0, 0))
+        let e2 = Shape.edgeFromPoints(SIMD3(10, 0, 0), SIMD3(10, 10, 0))
+        let e3 = Shape.edgeFromPoints(SIMD3(10, 10, 0), SIMD3(0, 10, 0))
+        let e4 = Shape.edgeFromPoints(SIMD3(0, 10, 0), SIMD3(0, 0, 0))
+        if let edge1 = e1, let edge2 = e2, let edge3 = e3, let edge4 = e4 {
+            let compound = Shape.compound([edge1, edge2, edge3, edge4])
+            if let c = compound {
+                let wires = c.edgesToWires()
+                if let w = wires {
+                    let result = w.wiresToFaces()
+                    #expect(result != nil)
+                    if let r = result {
+                        let faces = r.subShapes(ofType: .face)
+                        #expect(faces.count >= 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("BOPTools_AlgoTools3D Tests")
+struct BOPToolsAlgoTools3DTests {
+    @Test("Normal to face on edge")
+    func normalOnEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            if let face = faces.first {
+                let edges = face.subShapes(ofType: .edge)
+                if let edge = edges.first {
+                    let normal = Shape.normalOnEdge(edge: edge, face: face)
+                    #expect(normal != nil)
+                    if let n = normal {
+                        let len = sqrt(n.x * n.x + n.y * n.y + n.z * n.z)
+                        #expect(abs(len - 1.0) < 1e-6)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Point in face")
+    func pointInFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            if let face = faces.first {
+                let point = face.pointInFace()
+                #expect(point != nil)
+            }
+        }
+    }
+
+    @Test("IsEmptyShape")
+    func isEmptyShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            #expect(!b.isEmpty)
+        }
+        let empty = Shape.compound([])
+        if let e = empty {
+            #expect(e.isEmpty)
+        }
+    }
+}
+
+@Suite("BOPTools_AlgoTools Tests")
+struct BOPToolsAlgoToolsTests {
+    @Test("IsOpenShell - closed box shell")
+    func closedShell() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let shells = b.subShapes(ofType: .shell)
+            if let shell = shells.first {
+                #expect(!shell.isOpenShell)
+            }
+        }
+    }
+}

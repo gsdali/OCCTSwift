@@ -61,7 +61,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Shape History** | 1 | History (create, addModified, addGenerated, remove, isRemoved, hasModified, hasGenerated, hasRemoved, modifiedCount, generatedCount) |
 | **Contour Analysis** | 3 | contourSphereDir, contourCylinderDir, contourSphereEye |
 | **IntCurvesFace** | 1 | intersectLine (line-face intersection) |
-| **BOPAlgo Utilities** | 11 | split (splitter), CellsBuilder (create, addAll, removeAll, removeInternalBoundaries, result), analyzeBoolean, removeFeatures, section(instance), section(static) |
+| **BOPAlgo Utilities** | 16 | split (splitter), CellsBuilder (create, addAll, removeAll, removeInternalBoundaries, result), analyzeBoolean, removeFeatures, section(instance), section(static), buildFaces, buildSolids, splitShell, edgesToWires, wiresToFaces |
+| **IntTools** | 5 | edgeEdgeIntersection, edgeFaceIntersection, faceFaceIntersection, classifyPoint2d, isHole |
+| **BOPTools** | 4 | normalOnEdge, pointInFace, isEmpty, isOpenShell |
 | **PCurve / BRepAdaptor** | 3 | pcurveParams, pcurveValue, approxCurveOnSurface |
 | **Mesh Deflection** | 2 | computeAbsoluteDeflection, deflectionIsConsistent |
 | **Shape from Mesh** | 1 | fromMesh (BRepBuilderAPI_MakeShapeOnMesh) |
@@ -107,7 +109,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Law Extensions** | 2 | composite, knotSplitting |
 | **GccAna Circ2d3Tan** | 6 | circleThrough3Points, circleTangent3Lines, circleTangent3Circles, circleTangent2CirclesPoint, circleTangentCircle2Points, circleTangent2LinesPoint |
 | **Polygon Interference** | 2 | polygonInterference, polygonSelfInterference |
-| **Total** | **1135** | |
+| **Total** | **1149** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -144,7 +146,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **IGES/OBJ/PLY Full Coverage**: IGES root inspection and per-root import, visible-only IGES import, IGES export with unit control (MM/IN/M) and BRep mode, multi-shape IGES export, OBJ document-based import/export (preserves materials, names), OBJ import with single precision and coordinate system conversion (Blender Z-up, glTF Y-up), PLY export with normals/colors/texCoords options, document-level PLY export, MeshCoordinateSystem enum
 - **XDE/XCAF Full Coverage**: ShapeTool expansion (GetShapes, GetFreeShapes, IsTopLevel, IsComponent, IsCompound, IsSubShape, FindShape, Search, GetSubShapes, AddShape, NewShape, RemoveShape, AddComponent, RemoveComponent, GetComponents, GetReferredShape, GetUsers, UpdateAssemblies, ExpandShape), ColorTool by shape (SetColor, GetColor, IsSet, SetVisibility, IsVisible), Area/Volume/Centroid attributes (Set, Get), LayerTool expansion (SetLayer, IsSet, GetLayers, FindLayer, SetVisibility, IsVisible), XCAFDoc_Editor (Expand, RescaleGeometry)
 - **Contour Analysis**: Analytical contour computation on quadrics (sphere, cylinder) with orthographic and perspective projection via Contap_ContAna
-- **BOPAlgo Utilities**: Shape splitting (BOPAlgo_Splitter), cell-based Boolean operations (CellsBuilder — partition, select by material, merge internal boundaries), argument validation (ArgumentAnalyzer), feature removal (RemoveFeatures), boolean section (Section)
+- **BOPAlgo Utilities**: Shape splitting (BOPAlgo_Splitter), cell-based Boolean operations (CellsBuilder — partition, select by material, merge internal boundaries), argument validation (ArgumentAnalyzer), feature removal (RemoveFeatures), boolean section (Section), face/solid builders, shell splitting, edge-to-wire/face conversion
 - **PCurve Analysis**: 2D parametric curve access on face surfaces (BRepAdaptor_Curve2d), curve-on-surface approximation (Approx_CurveOnSurface)
 - **Mesh Utilities**: Absolute deflection computation (BRepMesh_Deflection), deflection consistency check, shape-from-triangulation (BRepBuilderAPI_MakeShapeOnMesh), line-face intersection (IntCurvesFace_Intersector)
 - **Annotations & Measurements**: Length/radius/angle/diameter dimensions with geometry extraction for Metal rendering, 3D text labels, colored point clouds
@@ -358,6 +360,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **GeomPlate Errors**: Query G0/G1/G2 error metrics from plate surface fitting
 - **GeomFill Generator**: Generate ruled/lofted BSpline surfaces from multiple section curves
 - **GeomFill Boundaries**: Degenerated boundary (single-point boundary for filling) and boundary-with-surface (2D curve on surface with normals)
+- **IntTools Edge/Face Intersection**: IntTools_EdgeEdge/EdgeFace/FaceFace — precise intersection computation with common part extraction (vertex/edge), parametric ranges, and tangent detection
+- **2D Point Classification**: IntTools_FClass2d — classify UV points as inside/on/outside face boundaries, hole detection
+- **BOPAlgo Builders**: BuilderFace/BuilderSolid — reconstruct faces from edge loops or solids from face shells
+- **Shell Splitting**: BOPAlgo_ShellSplitter — decompose shells into connected components
+- **Edge-to-Wire/Face Conversion**: BOPAlgo_Tools — connect loose edges into wires, build faces from wire compounds
+- **BOPTools Utilities**: Face normal at edge, interior point finding, empty/open shell checks
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1310,7 +1318,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1135 OCCT operations** across 63 categories with 1482 tests across 455 suites.
+OCCTSwift now wraps **1149 OCCT operations** across 65 categories with 1500 tests across 465 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

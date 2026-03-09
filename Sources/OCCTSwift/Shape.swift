@@ -8248,4 +8248,290 @@ extension Shape {
             point.x, point.y, tolerance, &sols, maxSols)
         return (0..<Int(count)).map { Circle2DSolution(centerX: sols[$0].centerX, centerY: sols[$0].centerY, radius: sols[$0].radius) }
     }
+
+    // MARK: - IntTools (v0.70.0)
+
+    /// Type of intersection common part.
+    public enum CommonPartType: Int32, Sendable {
+        case vertex = 0
+        case edge = 1
+    }
+
+    /// Result of an edge-edge or edge-face intersection.
+    public struct CommonPart: Sendable {
+        /// Type of intersection (vertex or edge overlap).
+        public let type: CommonPartType
+        /// Parameter range on edge 1 (first, last). Same values for vertex type.
+        public let param1Range: (first: Double, last: Double)
+        /// Parameter range on edge 2 (first, last). Same values for vertex type.
+        public let param2Range: (first: Double, last: Double)
+        /// Representative 3D point of the intersection.
+        public let point: SIMD3<Double>
+    }
+
+    /// Intersect two edges to find common vertices and edge overlaps.
+    ///
+    /// Uses IntTools_EdgeEdge to compute precise intersections.
+    ///
+    /// - Parameter other: Edge to intersect with
+    /// - Returns: Array of common parts, or nil if intersection failed
+    public func edgeEdgeIntersection(with other: Shape) -> [CommonPart]? {
+        var parts: UnsafeMutablePointer<OCCTCommonPart>?
+        var count: Int32 = 0
+        guard OCCTIntToolsEdgeEdge(handle, other.handle, &parts, &count) else { return nil }
+        defer { parts?.deallocate() }
+        return (0..<Int(count)).map { i in
+            let p = parts![i]
+            return CommonPart(
+                type: CommonPartType(rawValue: p.type) ?? .vertex,
+                param1Range: (p.param1First, p.param1Last),
+                param2Range: (p.param2First, p.param2Last),
+                point: SIMD3(p.pointX, p.pointY, p.pointZ)
+            )
+        }
+    }
+
+    /// Intersect an edge with a face to find common vertices and edge overlaps.
+    ///
+    /// Uses IntTools_EdgeFace to compute edge-face intersections.
+    ///
+    /// - Parameter face: Face to intersect with
+    /// - Returns: Array of common parts, or nil if intersection failed
+    public func edgeFaceIntersection(with face: Shape) -> [CommonPart]? {
+        var parts: UnsafeMutablePointer<OCCTCommonPart>?
+        var count: Int32 = 0
+        guard OCCTIntToolsEdgeFace(handle, face.handle, &parts, &count) else { return nil }
+        defer { parts?.deallocate() }
+        return (0..<Int(count)).map { i in
+            let p = parts![i]
+            return CommonPart(
+                type: CommonPartType(rawValue: p.type) ?? .vertex,
+                param1Range: (p.param1First, p.param1Last),
+                param2Range: (p.param2First, p.param2Last),
+                point: SIMD3(p.pointX, p.pointY, p.pointZ)
+            )
+        }
+    }
+
+    /// Result of a face-face intersection curve.
+    public struct FaceFaceCurve: Sendable {
+        /// Start point of the intersection curve (if bounded).
+        public let start: SIMD3<Double>?
+        /// End point of the intersection curve (if bounded).
+        public let end: SIMD3<Double>?
+    }
+
+    /// Result of a face-face intersection point.
+    public struct FaceFacePoint: Sendable {
+        /// Point on face 1.
+        public let pointOnFace1: SIMD3<Double>
+        /// Point on face 2.
+        public let pointOnFace2: SIMD3<Double>
+    }
+
+    /// Result of face-face intersection.
+    public struct FaceFaceResult: Sendable {
+        /// Intersection curves.
+        public let curves: [FaceFaceCurve]
+        /// Intersection points.
+        public let points: [FaceFacePoint]
+        /// Whether the faces are tangent.
+        public let isTangent: Bool
+    }
+
+    /// Intersect two faces to find intersection curves and points.
+    ///
+    /// Uses IntTools_FaceFace with full approximation.
+    ///
+    /// - Parameters:
+    ///   - other: Face to intersect with
+    ///   - tolerance: Approximation tolerance (default 1e-7)
+    /// - Returns: Face-face intersection result, or nil if failed
+    public func faceFaceIntersection(with other: Shape, tolerance: Double = 1e-7) -> FaceFaceResult? {
+        var curves: UnsafeMutablePointer<OCCTFaceFaceCurve>?
+        var curveCount: Int32 = 0
+        var points: UnsafeMutablePointer<OCCTFaceFacePoint>?
+        var pointCount: Int32 = 0
+        var tangent = false
+        guard OCCTIntToolsFaceFace(handle, other.handle, tolerance,
+                                   &curves, &curveCount,
+                                   &points, &pointCount,
+                                   &tangent) else { return nil }
+        defer {
+            curves?.deallocate()
+            points?.deallocate()
+        }
+
+        let curveArray = (0..<Int(curveCount)).map { i in
+            let c = curves![i]
+            return FaceFaceCurve(
+                start: c.hasStart ? SIMD3(c.startX, c.startY, c.startZ) : nil,
+                end: c.hasEnd ? SIMD3(c.endX, c.endY, c.endZ) : nil
+            )
+        }
+
+        let pointArray = (0..<Int(pointCount)).map { i in
+            let p = points![i]
+            return FaceFacePoint(
+                pointOnFace1: SIMD3(p.x1, p.y1, p.z1),
+                pointOnFace2: SIMD3(p.x2, p.y2, p.z2)
+            )
+        }
+
+        return FaceFaceResult(curves: curveArray, points: pointArray, isTangent: tangent)
+    }
+
+    /// Classify a 2D point relative to a face boundary in parameter space.
+    ///
+    /// Uses IntTools_FClass2d to determine if a point in the face's UV parameter
+    /// space is inside, on, or outside the face boundary.
+    ///
+    /// - Parameters:
+    ///   - u: U parameter coordinate
+    ///   - v: V parameter coordinate
+    ///   - tolerance: Classification tolerance (default 1e-7)
+    /// - Returns: Point classification
+    public func classifyPoint2d(u: Double, v: Double, tolerance: Double = 1e-7) -> OCCTSwift.PointClassification {
+        let result = OCCTIntToolsFClass2dPerform(handle, u, v, tolerance)
+        // Bridge returns: 0=IN, 1=ON, 2=OUT, 3=UNKNOWN
+        // PointClassification: inside=0, outside=1, onBoundary=2, unknown=3
+        switch result {
+        case 0: return .inside
+        case 1: return .onBoundary
+        case 2: return .outside
+        default: return .unknown
+        }
+    }
+
+    /// Check if a face represents a hole (inner wire orientation).
+    ///
+    /// Uses IntTools_FClass2d.
+    ///
+    /// - Parameter tolerance: Classification tolerance (default 1e-7)
+    /// - Returns: true if the face is a hole
+    public func isHole(tolerance: Double = 1e-7) -> Bool {
+        OCCTIntToolsFClass2dIsHole(handle, tolerance)
+    }
+
+    // MARK: - BOPAlgo Builder (v0.70.0)
+
+    /// Build faces from edges on a base face surface.
+    ///
+    /// Uses BOPAlgo_BuilderFace to construct faces from a set of edges
+    /// that lie on this face's surface.
+    ///
+    /// - Parameter edges: Array of edge shapes to build faces from
+    /// - Returns: Array of result face shapes, or nil on failure
+    public func buildFaces(from edges: [Shape]) -> [Shape]? {
+        let edgeHandles = edges.map { $0.handle as OCCTShapeRef }
+        var outFaces: UnsafeMutablePointer<OCCTShapeRef?>?
+        var outCount: Int32 = 0
+        guard edgeHandles.withUnsafeBufferPointer({ buf in
+            OCCTBOPAlgoBuilderFace(handle, buf.baseAddress!, Int32(buf.count), &outFaces, &outCount)
+        }) else { return nil }
+        defer { outFaces?.deallocate() }
+        return (0..<Int(outCount)).compactMap { i in
+            if let ref = outFaces?[i] { return Shape(handle: ref) }
+            return nil
+        }
+    }
+
+    /// Build solids from faces.
+    ///
+    /// Uses BOPAlgo_BuilderSolid to construct solids from a closed set of faces.
+    ///
+    /// - Parameter faces: Array of face shapes forming closed volumes
+    /// - Returns: Array of result solid shapes, or nil on failure
+    public static func buildSolids(from faces: [Shape]) -> [Shape]? {
+        let faceHandles = faces.map { $0.handle as OCCTShapeRef }
+        var outSolids: UnsafeMutablePointer<OCCTShapeRef?>?
+        var outCount: Int32 = 0
+        guard faceHandles.withUnsafeBufferPointer({ buf in
+            OCCTBOPAlgoBuilderSolid(buf.baseAddress!, Int32(buf.count), &outSolids, &outCount)
+        }) else { return nil }
+        defer { outSolids?.deallocate() }
+        return (0..<Int(outCount)).compactMap { i in
+            if let ref = outSolids?[i] { return Shape(handle: ref) }
+            return nil
+        }
+    }
+
+    /// Split a shell into connected components.
+    ///
+    /// Uses BOPAlgo_ShellSplitter to separate disjoint parts of a shell.
+    ///
+    /// - Returns: Array of shell shapes (connected components), or nil on failure
+    public func splitShell() -> [Shape]? {
+        var outShells: UnsafeMutablePointer<OCCTShapeRef?>?
+        var outCount: Int32 = 0
+        guard OCCTBOPAlgoShellSplitter(handle, &outShells, &outCount) else { return nil }
+        defer { outShells?.deallocate() }
+        return (0..<Int(outCount)).compactMap { i in
+            if let ref = outShells?[i] { return Shape(handle: ref) }
+            return nil
+        }
+    }
+
+    /// Convert a compound of edges into wires.
+    ///
+    /// Uses BOPAlgo_Tools::EdgesToWires to connect edges into wires.
+    ///
+    /// - Parameter tolerance: Connection tolerance (default 1e-7)
+    /// - Returns: Compound of wires, or nil on failure
+    public func edgesToWires(tolerance: Double = 1e-7) -> Shape? {
+        guard let ref = OCCTBOPAlgoEdgesToWires(handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Convert a compound of wires into faces.
+    ///
+    /// Uses BOPAlgo_Tools::WiresToFaces to build planar faces from wires.
+    ///
+    /// - Parameter tolerance: Face building tolerance (default 1e-7)
+    /// - Returns: Compound of faces, or nil on failure
+    public func wiresToFaces(tolerance: Double = 1e-7) -> Shape? {
+        guard let ref = OCCTBOPAlgoWiresToFaces(handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - BOPTools (v0.70.0)
+
+    /// Get the normal to a face at an edge location.
+    ///
+    /// Uses BOPTools_AlgoTools3D::GetNormalToFaceOnEdge.
+    ///
+    /// - Parameters:
+    ///   - edge: Edge on the face
+    ///   - face: Face containing the edge
+    /// - Returns: Normal direction, or nil on failure
+    public static func normalOnEdge(edge: Shape, face: Shape) -> SIMD3<Double>? {
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        guard OCCTBOPToolsNormalOnEdge(edge.handle, face.handle, &nx, &ny, &nz) else { return nil }
+        return SIMD3(nx, ny, nz)
+    }
+
+    /// Find a point strictly inside a face.
+    ///
+    /// Uses BOPTools_AlgoTools3D::PointInFace.
+    ///
+    /// - Returns: A 3D point inside this face, or nil on failure
+    public func pointInFace() -> SIMD3<Double>? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTBOPToolsPointInFace(handle, &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Check if this shape is empty (has no sub-shapes).
+    ///
+    /// Uses BOPTools_AlgoTools3D::IsEmptyShape.
+    public var isEmpty: Bool {
+        OCCTBOPToolsIsEmptyShape(handle)
+    }
+
+    /// Check if this shell is open (not all edges shared by two faces).
+    ///
+    /// Uses BOPTools_AlgoTools::IsOpenShell.
+    public var isOpenShell: Bool {
+        OCCTBOPToolsIsOpenShell(handle)
+    }
 }
