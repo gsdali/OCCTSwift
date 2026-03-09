@@ -160,7 +160,13 @@
 //
 // --- ChFi2d ---
 // ChFi2d_AnaFilletAlgo               → OCCTShapeAnaFillet*
+// ChFi2d_Builder                      → OCCTChFi2dAdd*, OCCTChFi2dModify*, OCCTChFi2dRemove*
+// ChFi2d_ChamferAPI                   → OCCTChFi2dChamferEdges
 // ChFi2d_FilletAlgo                   → OCCTShapeFilletAlgo*
+// ChFi2d_FilletAPI                    → OCCTChFi2dFilletEdges
+//
+// --- FilletSurf ---
+// FilletSurf_Builder                  → OCCTFilletSurfBuild, OCCTFilletSurfError
 //
 // --- Contap ---
 // Contap_ContAna                      → OCCTContapSphereDir, OCCTContapCylinderDir, OCCTContapSphereEye
@@ -334,6 +340,7 @@
 // LocOpe_DPrism                       → OCCTLocOpeDPrism
 // LocOpe_FindEdges                    → OCCTLocOpeCommonEdges
 // LocOpe_FindEdgesInFace              → OCCTLocOpeEdgesInFace
+// LocOpe_Gluer                        → OCCTLocOpeGlue
 // LocOpe_LinearForm                   → OCCTShapeLocalLinearForm
 // LocOpe_Pipe                         → OCCTLocOpePipe
 // LocOpe_Prism                        → OCCTLocOpePrism
@@ -8699,6 +8706,156 @@ OCCTShapeRef _Nullable OCCTLocOpeSplitByWires(OCCTShapeRef _Nonnull shape,
 /// @return Result shape, or NULL on failure
 OCCTShapeRef _Nullable OCCTLocOpeSplitByWiresAuto(OCCTShapeRef _Nonnull shape,
     const OCCTShapeRef _Nonnull * _Nonnull wires, int32_t wireCount);
+
+// MARK: - LocOpe_Gluer (v0.72.0)
+
+/// Glue two shapes by binding matching faces and edges using LocOpe_Gluer.
+/// @param baseShape Base shape
+/// @param gluedShape Shape to glue onto base
+/// @param baseFaces Base shape faces to bind (parallel array with gluedFaces)
+/// @param gluedFaces Glued shape faces to bind
+/// @param faceCount Number of face pairs
+/// @param baseEdges Base shape edges to bind (parallel array with gluedEdges), may be NULL
+/// @param gluedEdges Glued shape edges to bind, may be NULL
+/// @param edgeCount Number of edge pairs
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTLocOpeGlue(OCCTShapeRef _Nonnull baseShape,
+    OCCTShapeRef _Nonnull gluedShape,
+    const OCCTShapeRef _Nonnull * _Nonnull baseFaces,
+    const OCCTShapeRef _Nonnull * _Nonnull gluedFaces,
+    int32_t faceCount,
+    const OCCTShapeRef _Nullable * _Nullable baseEdges,
+    const OCCTShapeRef _Nullable * _Nullable gluedEdges,
+    int32_t edgeCount);
+
+// MARK: - ChFi2d_Builder (v0.72.0)
+
+/// Add a 2D fillet at a vertex on a planar face.
+/// @param face Planar face shape
+/// @param vertexIndex 0-based vertex index
+/// @param radius Fillet radius
+/// @return Result face with fillet, or NULL on failure
+OCCTShapeRef _Nullable OCCTChFi2dAddFillet(OCCTShapeRef _Nonnull face,
+    int32_t vertexIndex, double radius);
+
+/// Add a 2D chamfer between two edges on a planar face (two distances).
+/// @param face Planar face shape
+/// @param edge1Index 0-based index of first edge
+/// @param edge2Index 0-based index of second edge
+/// @param d1 Distance on first edge
+/// @param d2 Distance on second edge
+/// @return Result face with chamfer, or NULL on failure
+OCCTShapeRef _Nullable OCCTChFi2dAddChamfer(OCCTShapeRef _Nonnull face,
+    int32_t edge1Index, int32_t edge2Index, double d1, double d2);
+
+/// Add a 2D chamfer at a vertex on a planar face (distance + angle).
+/// @param face Planar face shape
+/// @param edgeIndex 0-based edge index
+/// @param vertexIndex 0-based vertex index on that edge
+/// @param distance Distance on edge
+/// @param angle Chamfer angle in radians
+/// @return Result face with chamfer, or NULL on failure
+OCCTShapeRef _Nullable OCCTChFi2dAddChamferAngle(OCCTShapeRef _Nonnull face,
+    int32_t edgeIndex, int32_t vertexIndex, double distance, double angle);
+
+/// Modify an existing fillet radius on a face using ChFi2d_Builder.
+/// @param originalFace The original face before any fillet was added
+/// @param modifiedFace The face with existing fillet
+/// @param filletEdgeIndex 0-based index of the fillet edge in modified face
+/// @param newRadius New fillet radius
+/// @return Result face with modified fillet, or NULL on failure
+OCCTShapeRef _Nullable OCCTChFi2dModifyFillet(OCCTShapeRef _Nonnull originalFace,
+    OCCTShapeRef _Nonnull modifiedFace, int32_t filletEdgeIndex, double newRadius);
+
+/// Remove a fillet from a face using ChFi2d_Builder.
+/// @param originalFace The original face before fillet was added
+/// @param modifiedFace The face with existing fillet
+/// @param filletEdgeIndex 0-based index of the fillet edge in modified face
+/// @return Result face with fillet removed, or NULL on failure
+OCCTShapeRef _Nullable OCCTChFi2dRemoveFillet(OCCTShapeRef _Nonnull originalFace,
+    OCCTShapeRef _Nonnull modifiedFace, int32_t filletEdgeIndex);
+
+/// Remove a chamfer from a face using ChFi2d_Builder.
+/// @param originalFace The original face before chamfer was added
+/// @param modifiedFace The face with existing chamfer
+/// @param chamferEdgeIndex 0-based index of the chamfer edge in modified face
+/// @return Result face with chamfer removed, or NULL on failure
+OCCTShapeRef _Nullable OCCTChFi2dRemoveChamfer(OCCTShapeRef _Nonnull originalFace,
+    OCCTShapeRef _Nonnull modifiedFace, int32_t chamferEdgeIndex);
+
+// MARK: - ChFi2d_ChamferAPI (v0.72.0)
+
+/// Result of a 2D chamfer operation between two edges.
+typedef struct {
+    OCCTShapeRef _Nullable chamferEdge;
+    OCCTShapeRef _Nullable modifiedEdge1;
+    OCCTShapeRef _Nullable modifiedEdge2;
+} OCCTChamfer2DResult;
+
+/// Create a chamfer between two linear edges.
+/// @param edge1 First edge
+/// @param edge2 Second edge
+/// @param d1 Distance on first edge
+/// @param d2 Distance on second edge
+/// @return Chamfer result with chamfer edge and modified edges
+OCCTChamfer2DResult OCCTChFi2dChamferEdges(OCCTShapeRef _Nonnull edge1,
+    OCCTShapeRef _Nonnull edge2, double d1, double d2);
+
+// MARK: - ChFi2d_FilletAPI (v0.72.0)
+
+/// Result of a 2D fillet operation between two edges.
+typedef struct {
+    OCCTShapeRef _Nullable filletEdge;
+    OCCTShapeRef _Nullable modifiedEdge1;
+    OCCTShapeRef _Nullable modifiedEdge2;
+    int32_t solutionCount;
+} OCCTFillet2DResult;
+
+/// Create a fillet between two edges in a plane.
+/// @param edge1 First edge
+/// @param edge2 Second edge
+/// @param planeNx/Ny/Nz Plane normal
+/// @param radius Fillet radius
+/// @param nearX/Y/Z Point near desired fillet location
+/// @return Fillet result with fillet edge, modified edges, and solution count
+OCCTFillet2DResult OCCTChFi2dFilletEdges(OCCTShapeRef _Nonnull edge1,
+    OCCTShapeRef _Nonnull edge2,
+    double planeNx, double planeNy, double planeNz,
+    double radius,
+    double nearX, double nearY, double nearZ);
+
+// MARK: - FilletSurf_Builder (v0.72.0)
+
+/// Info about a single fillet surface from FilletSurf_Builder.
+typedef struct {
+    OCCTSurfaceRef _Nullable surface;
+    OCCTShapeRef _Nullable supportFace1;
+    OCCTShapeRef _Nullable supportFace2;
+    double tolerance;
+    double firstParam;
+    double lastParam;
+    int32_t startStatus; // FilletSurf_StatusType: 0=OneExtremityOnFace, 1=TwoExtremityOnFace, etc.
+    int32_t endStatus;
+} OCCTFilletSurfInfo;
+
+/// Compute fillet surfaces on a shape.
+/// @param shape Input shape
+/// @param edges Array of edge shapes to fillet
+/// @param edgeCount Number of edges
+/// @param radius Fillet radius
+/// @param outSurfaces Pointer to receive allocated array of fillet surface info (caller must free surfaces + array)
+/// @param outCount Number of fillet surfaces
+/// @return 0=IsOk, 1=IsNotOk, 2=IsPartial
+int32_t OCCTFilletSurfBuild(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t edgeCount,
+    double radius,
+    OCCTFilletSurfInfo* _Nullable * _Nonnull outSurfaces, int32_t* _Nonnull outCount);
+
+/// Get the error status when FilletSurf_Builder fails.
+/// @return 0=EdgeNotG1, 1=FacesNotG1, 2=EdgeNotOnShape, 3=NotSharpEdge, 4=PbFilletCompute
+int32_t OCCTFilletSurfError(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t edgeCount,
+    double radius);
 
 #ifdef __cplusplus
 }

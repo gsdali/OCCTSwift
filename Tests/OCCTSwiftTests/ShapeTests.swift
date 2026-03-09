@@ -20596,6 +20596,129 @@ struct BRepFeatGluerTests {
     }
 }
 
+// MARK: - v0.72.0: TKFeat remainder + TKFillet
+
+@Suite("LocOpe_Gluer Tests")
+struct LocOpeGluerTests {
+    @Test("glue two boxes by face")
+    func glueByFace() {
+        let box1 = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(origin: SIMD3(10, 0, 0), width: 10, height: 10, depth: 10)
+        if let b1 = box1, let b2 = box2 {
+            let faces1 = b1.subShapes(ofType: .face)
+            let faces2 = b2.subShapes(ofType: .face)
+            for f1 in faces1 {
+                for f2 in faces2 {
+                    let result = b1.locOpeGlue(b2, facePairs: [(base: f1, glued: f2)])
+                    if let r = result {
+                        let rFaces = r.subShapes(ofType: .face)
+                        #expect(rFaces.count < faces1.count + faces2.count)
+                        return
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("ChFi2d_Builder Tests")
+struct ChFi2dBuilderTests {
+    func makeRectFace() -> Shape? {
+        guard let wire = Wire.rectangle(width: 10, height: 10) else { return nil }
+        return Shape.face(from: wire)
+    }
+
+    @Test("add fillet at vertex")
+    func addFillet() {
+        if let face = makeRectFace() {
+            let result = face.addFillet2d(vertexIndex: 0, radius: 2.0)
+            if let r = result {
+                // Fillet adds an arc edge, so edge count should increase
+                let origEdges = face.subShapes(ofType: .edge).count
+                let newEdges = r.subShapes(ofType: .edge).count
+                #expect(newEdges > origEdges)
+            }
+        }
+    }
+
+    @Test("add chamfer between edges")
+    func addChamfer() {
+        if let face = makeRectFace() {
+            let result = face.addChamfer2d(edge1Index: 0, edge2Index: 1, d1: 2.0, d2: 2.0)
+            if let r = result {
+                let origEdges = face.subShapes(ofType: .edge).count
+                let newEdges = r.subShapes(ofType: .edge).count
+                #expect(newEdges > origEdges)
+            }
+        }
+    }
+
+    @Test("add chamfer with angle")
+    func addChamferAngle() {
+        if let face = makeRectFace() {
+            let result = face.addChamfer2dAngle(edgeIndex: 0, vertexIndex: 0, distance: 2.0, angle: .pi / 4)
+            if let r = result {
+                let origEdges = face.subShapes(ofType: .edge).count
+                let newEdges = r.subShapes(ofType: .edge).count
+                #expect(newEdges > origEdges)
+            }
+        }
+    }
+}
+
+@Suite("ChFi2d_ChamferAPI Tests")
+struct ChFi2dChamferAPITests {
+    @Test("chamfer between two linear edges")
+    func chamferEdges() {
+        let e1 = Shape.edgeFromPoints(SIMD3(0, 0, 0), SIMD3(10, 0, 0))
+        let e2 = Shape.edgeFromPoints(SIMD3(10, 0, 0), SIMD3(10, 10, 0))
+        if let e1, let e2 {
+            let result = Shape.chamfer2dEdges(edge1: e1, edge2: e2, d1: 3.0, d2: 3.0)
+            if let r = result {
+                #expect(r.chamferEdge.isValid)
+            }
+        }
+    }
+}
+
+@Suite("ChFi2d_FilletAPI Tests")
+struct ChFi2dFilletAPITests {
+    @Test("fillet between two edges")
+    func filletEdges() {
+        let e1 = Shape.edgeFromPoints(SIMD3(0, 0, 0), SIMD3(10, 0, 0))
+        let e2 = Shape.edgeFromPoints(SIMD3(10, 0, 0), SIMD3(10, 10, 0))
+        if let e1, let e2 {
+            let result = Shape.fillet2dEdges(edge1: e1, edge2: e2,
+                planeNormal: SIMD3(0, 0, 1), radius: 2.0,
+                nearPoint: SIMD3(10, 0, 0))
+            if let r = result {
+                #expect(r.solutionCount >= 1)
+            }
+        }
+    }
+}
+
+@Suite("FilletSurf_Builder Tests")
+struct FilletSurfBuilderTests {
+    @Test("fillet surface on box edge")
+    func filletSurface() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.subShapes(ofType: .edge)
+            // Try edges until we find one that produces a fillet surface
+            for edge in edges {
+                let result = b.filletSurfaces(edges: [edge], radius: 1.0)
+                if let r = result, r.status != 1, !r.surfaces.isEmpty {
+                    let info = r.surfaces[0]
+                    #expect(info.tolerance < 1.0)
+                    #expect(info.lastParameter > info.firstParameter)
+                    return
+                }
+            }
+        }
+    }
+}
+
 @Suite("LocOpe_Spliter v71 Tests")
 struct LocOpeSpliterV71Tests {
     @Test("split by wire on face")

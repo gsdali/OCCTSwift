@@ -26863,3 +26863,282 @@ OCCTShapeRef _Nullable OCCTLocOpeSplitByWiresAuto(OCCTShapeRef _Nonnull shape,
         return new OCCTShape(result);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.72.0: TKFeat remainder + TKFillet
+
+#include <LocOpe_Gluer.hxx>
+#include <ChFi2d_Builder.hxx>
+#include <ChFi2d_ConstructionError.hxx>
+#include <ChFi2d_ChamferAPI.hxx>
+#include <ChFi2d_FilletAPI.hxx>
+#include <FilletSurf_Builder.hxx>
+#include <FilletSurf_StatusDone.hxx>
+#include <FilletSurf_ErrorTypeStatus.hxx>
+#include <FilletSurf_StatusType.hxx>
+
+// --- LocOpe_Gluer ---
+
+OCCTShapeRef _Nullable OCCTLocOpeGlue(OCCTShapeRef _Nonnull baseShape,
+    OCCTShapeRef _Nonnull gluedShape,
+    const OCCTShapeRef _Nonnull * _Nonnull baseFaces,
+    const OCCTShapeRef _Nonnull * _Nonnull gluedFaces,
+    int32_t faceCount,
+    const OCCTShapeRef _Nullable * _Nullable baseEdges,
+    const OCCTShapeRef _Nullable * _Nullable gluedEdges,
+    int32_t edgeCount) {
+    try {
+        LocOpe_Gluer gluer(baseShape->shape, gluedShape->shape);
+        for (int32_t i = 0; i < faceCount; i++) {
+            gluer.Bind(TopoDS::Face(gluedFaces[i]->shape),
+                       TopoDS::Face(baseFaces[i]->shape));
+        }
+        if (baseEdges && gluedEdges) {
+            for (int32_t i = 0; i < edgeCount; i++) {
+                if (baseEdges[i] && gluedEdges[i]) {
+                    gluer.Bind(TopoDS::Edge(gluedEdges[i]->shape),
+                               TopoDS::Edge(baseEdges[i]->shape));
+                }
+            }
+        }
+        gluer.Perform();
+        if (!gluer.IsDone()) return nullptr;
+        const TopoDS_Shape& result = gluer.ResultingShape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- ChFi2d_Builder ---
+
+OCCTShapeRef _Nullable OCCTChFi2dAddFillet(OCCTShapeRef _Nonnull face,
+    int32_t vertexIndex, double radius) {
+    try {
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        ChFi2d_Builder builder(f);
+
+        TopTools_IndexedMapOfShape vertexMap;
+        TopExp::MapShapes(f, TopAbs_VERTEX, vertexMap);
+        int32_t idx = vertexIndex + 1;
+        if (idx < 1 || idx > vertexMap.Extent()) return nullptr;
+        TopoDS_Vertex v = TopoDS::Vertex(vertexMap(idx));
+
+        builder.AddFillet(v, radius);
+        if (builder.Status() != ChFi2d_IsDone) return nullptr;
+        TopoDS_Face result = builder.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTChFi2dAddChamfer(OCCTShapeRef _Nonnull face,
+    int32_t edge1Index, int32_t edge2Index, double d1, double d2) {
+    try {
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        ChFi2d_Builder builder(f);
+
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(f, TopAbs_EDGE, edgeMap);
+        int32_t idx1 = edge1Index + 1;
+        int32_t idx2 = edge2Index + 1;
+        if (idx1 < 1 || idx1 > edgeMap.Extent()) return nullptr;
+        if (idx2 < 1 || idx2 > edgeMap.Extent()) return nullptr;
+        TopoDS_Edge e1 = TopoDS::Edge(edgeMap(idx1));
+        TopoDS_Edge e2 = TopoDS::Edge(edgeMap(idx2));
+
+        builder.AddChamfer(e1, e2, d1, d2);
+        if (builder.Status() != ChFi2d_IsDone) return nullptr;
+        TopoDS_Face result = builder.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTChFi2dAddChamferAngle(OCCTShapeRef _Nonnull face,
+    int32_t edgeIndex, int32_t vertexIndex, double distance, double angle) {
+    try {
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        ChFi2d_Builder builder(f);
+
+        TopTools_IndexedMapOfShape edgeMap, vertexMap;
+        TopExp::MapShapes(f, TopAbs_EDGE, edgeMap);
+        TopExp::MapShapes(f, TopAbs_VERTEX, vertexMap);
+        int32_t ei = edgeIndex + 1;
+        int32_t vi = vertexIndex + 1;
+        if (ei < 1 || ei > edgeMap.Extent()) return nullptr;
+        if (vi < 1 || vi > vertexMap.Extent()) return nullptr;
+        TopoDS_Edge e = TopoDS::Edge(edgeMap(ei));
+        TopoDS_Vertex v = TopoDS::Vertex(vertexMap(vi));
+
+        builder.AddChamfer(e, v, distance, angle);
+        if (builder.Status() != ChFi2d_IsDone) return nullptr;
+        TopoDS_Face result = builder.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTChFi2dModifyFillet(OCCTShapeRef _Nonnull originalFace,
+    OCCTShapeRef _Nonnull modifiedFace, int32_t filletEdgeIndex, double newRadius) {
+    try {
+        const TopoDS_Face& origF = TopoDS::Face(originalFace->shape);
+        const TopoDS_Face& modF = TopoDS::Face(modifiedFace->shape);
+        ChFi2d_Builder builder;
+        builder.Init(origF, modF);
+
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(modF, TopAbs_EDGE, edgeMap);
+        int32_t idx = filletEdgeIndex + 1;
+        if (idx < 1 || idx > edgeMap.Extent()) return nullptr;
+        TopoDS_Edge filletEdge = TopoDS::Edge(edgeMap(idx));
+
+        builder.ModifyFillet(filletEdge, newRadius);
+        if (builder.Status() != ChFi2d_IsDone) return nullptr;
+        TopoDS_Face result = builder.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTChFi2dRemoveFillet(OCCTShapeRef _Nonnull originalFace,
+    OCCTShapeRef _Nonnull modifiedFace, int32_t filletEdgeIndex) {
+    try {
+        const TopoDS_Face& origF = TopoDS::Face(originalFace->shape);
+        const TopoDS_Face& modF = TopoDS::Face(modifiedFace->shape);
+        ChFi2d_Builder builder;
+        builder.Init(origF, modF);
+
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(modF, TopAbs_EDGE, edgeMap);
+        int32_t idx = filletEdgeIndex + 1;
+        if (idx < 1 || idx > edgeMap.Extent()) return nullptr;
+        TopoDS_Edge filletEdge = TopoDS::Edge(edgeMap(idx));
+
+        builder.RemoveFillet(filletEdge);
+        if (builder.Status() != ChFi2d_IsDone) return nullptr;
+        TopoDS_Face result = builder.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTChFi2dRemoveChamfer(OCCTShapeRef _Nonnull originalFace,
+    OCCTShapeRef _Nonnull modifiedFace, int32_t chamferEdgeIndex) {
+    try {
+        const TopoDS_Face& origF = TopoDS::Face(originalFace->shape);
+        const TopoDS_Face& modF = TopoDS::Face(modifiedFace->shape);
+        ChFi2d_Builder builder;
+        builder.Init(origF, modF);
+
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(modF, TopAbs_EDGE, edgeMap);
+        int32_t idx = chamferEdgeIndex + 1;
+        if (idx < 1 || idx > edgeMap.Extent()) return nullptr;
+        TopoDS_Edge chamferEdge = TopoDS::Edge(edgeMap(idx));
+
+        builder.RemoveChamfer(chamferEdge);
+        if (builder.Status() != ChFi2d_IsDone) return nullptr;
+        TopoDS_Face result = builder.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- ChFi2d_ChamferAPI ---
+
+OCCTChamfer2DResult OCCTChFi2dChamferEdges(OCCTShapeRef _Nonnull edge1,
+    OCCTShapeRef _Nonnull edge2, double d1, double d2) {
+    OCCTChamfer2DResult result = {nullptr, nullptr, nullptr};
+    try {
+        TopoDS_Edge e1 = TopoDS::Edge(edge1->shape);
+        TopoDS_Edge e2 = TopoDS::Edge(edge2->shape);
+        ChFi2d_ChamferAPI chamfer(e1, e2);
+        if (!chamfer.Perform()) return result;
+        TopoDS_Edge me1, me2;
+        TopoDS_Edge chamferEdge = chamfer.Result(me1, me2, d1, d2);
+        if (chamferEdge.IsNull()) return result;
+        result.chamferEdge = new OCCTShape(chamferEdge);
+        result.modifiedEdge1 = new OCCTShape(me1);
+        result.modifiedEdge2 = new OCCTShape(me2);
+        return result;
+    } catch (...) { return result; }
+}
+
+// --- ChFi2d_FilletAPI ---
+
+OCCTFillet2DResult OCCTChFi2dFilletEdges(OCCTShapeRef _Nonnull edge1,
+    OCCTShapeRef _Nonnull edge2,
+    double planeNx, double planeNy, double planeNz,
+    double radius,
+    double nearX, double nearY, double nearZ) {
+    OCCTFillet2DResult result = {nullptr, nullptr, nullptr, 0};
+    try {
+        TopoDS_Edge e1 = TopoDS::Edge(edge1->shape);
+        TopoDS_Edge e2 = TopoDS::Edge(edge2->shape);
+        gp_Pln plane(gp_Pnt(0, 0, 0), gp_Dir(planeNx, planeNy, planeNz));
+        ChFi2d_FilletAPI fillet(e1, e2, plane);
+        if (!fillet.Perform(radius)) return result;
+        gp_Pnt nearPt(nearX, nearY, nearZ);
+        result.solutionCount = fillet.NbResults(nearPt);
+        TopoDS_Edge me1, me2;
+        TopoDS_Edge filletEdge = fillet.Result(nearPt, me1, me2);
+        if (filletEdge.IsNull()) return result;
+        result.filletEdge = new OCCTShape(filletEdge);
+        result.modifiedEdge1 = new OCCTShape(me1);
+        result.modifiedEdge2 = new OCCTShape(me2);
+        return result;
+    } catch (...) { return result; }
+}
+
+// --- FilletSurf_Builder ---
+
+int32_t OCCTFilletSurfBuild(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t edgeCount,
+    double radius,
+    OCCTFilletSurfInfo* _Nullable * _Nonnull outSurfaces, int32_t* _Nonnull outCount) {
+    *outSurfaces = nullptr;
+    *outCount = 0;
+    try {
+        NCollection_List<TopoDS_Shape> edgeList;
+        for (int32_t i = 0; i < edgeCount; i++) {
+            edgeList.Append(edges[i]->shape);
+        }
+        FilletSurf_Builder fb(shape->shape, edgeList, radius);
+        fb.Perform();
+        FilletSurf_StatusDone status = fb.IsDone();
+        if (status == FilletSurf_IsNotOk) return 1;
+
+        int32_t n = fb.NbSurface();
+        *outCount = n;
+        if (n > 0) {
+            *outSurfaces = (OCCTFilletSurfInfo*)calloc(n, sizeof(OCCTFilletSurfInfo));
+            for (int32_t i = 0; i < n; i++) {
+                const Handle(Geom_Surface)& surf = fb.SurfaceFillet(i + 1);
+                if (!surf.IsNull()) {
+                    (*outSurfaces)[i].surface = new OCCTSurface(surf);
+                }
+                (*outSurfaces)[i].supportFace1 = new OCCTShape(fb.SupportFace1(i + 1));
+                (*outSurfaces)[i].supportFace2 = new OCCTShape(fb.SupportFace2(i + 1));
+                (*outSurfaces)[i].tolerance = fb.TolApp3d(i + 1);
+                (*outSurfaces)[i].firstParam = fb.FirstParameter();
+                (*outSurfaces)[i].lastParam = fb.LastParameter();
+                (*outSurfaces)[i].startStatus = (int32_t)fb.StartSectionStatus();
+                (*outSurfaces)[i].endStatus = (int32_t)fb.EndSectionStatus();
+            }
+        }
+        return (status == FilletSurf_IsOk) ? 0 : 2;
+    } catch (...) { return 1; }
+}
+
+int32_t OCCTFilletSurfError(OCCTShapeRef _Nonnull shape,
+    const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t edgeCount,
+    double radius) {
+    try {
+        NCollection_List<TopoDS_Shape> edgeList;
+        for (int32_t i = 0; i < edgeCount; i++) {
+            edgeList.Append(edges[i]->shape);
+        }
+        FilletSurf_Builder fb(shape->shape, edgeList, radius);
+        fb.Perform();
+        return (int32_t)fb.StatusError();
+    } catch (...) { return 4; }
+}

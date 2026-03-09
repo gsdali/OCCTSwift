@@ -8807,4 +8807,253 @@ extension Shape {
         }) else { return nil }
         return Shape(handle: ref)
     }
+
+    // MARK: - LocOpe_Gluer (v0.72.0)
+
+    /// Glue another shape onto this shape using LocOpe_Gluer with face and edge binding.
+    ///
+    /// - Parameters:
+    ///   - gluedShape: Shape to glue.
+    ///   - facePairs: Matching face pairs (base from this shape, glued from gluedShape).
+    ///   - edgePairs: Optional matching edge pairs for precise alignment.
+    /// - Returns: Result shape, or nil on failure.
+    public func locOpeGlue(_ gluedShape: Shape,
+                           facePairs: [(base: Shape, glued: Shape)],
+                           edgePairs: [(base: Shape, glued: Shape)] = []) -> Shape? {
+        let baseFaces = facePairs.map { $0.base.handle as OCCTShapeRef }
+        let gluedFaces = facePairs.map { $0.glued.handle as OCCTShapeRef }
+        let baseEdges = edgePairs.map { $0.base.handle as OCCTShapeRef? }
+        let gluedEdges = edgePairs.map { $0.glued.handle as OCCTShapeRef? }
+
+        let ref: OCCTShapeRef? = baseFaces.withUnsafeBufferPointer { baseFBuf in
+            gluedFaces.withUnsafeBufferPointer { gluedFBuf in
+                if edgePairs.isEmpty {
+                    return OCCTLocOpeGlue(handle, gluedShape.handle,
+                        baseFBuf.baseAddress!, gluedFBuf.baseAddress!,
+                        Int32(facePairs.count), nil, nil, 0)
+                } else {
+                    return baseEdges.withUnsafeBufferPointer { baseEBuf in
+                        gluedEdges.withUnsafeBufferPointer { gluedEBuf in
+                            OCCTLocOpeGlue(handle, gluedShape.handle,
+                                baseFBuf.baseAddress!, gluedFBuf.baseAddress!,
+                                Int32(facePairs.count),
+                                baseEBuf.baseAddress!, gluedEBuf.baseAddress!,
+                                Int32(edgePairs.count))
+                        }
+                    }
+                }
+            }
+        }
+        guard let ref else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ChFi2d_Builder (v0.72.0)
+
+    /// Add a 2D fillet at a vertex on a planar face.
+    ///
+    /// Uses ChFi2d_Builder to create a fillet arc at the given vertex.
+    /// - Parameters:
+    ///   - vertexIndex: 0-based index of the vertex to fillet.
+    ///   - radius: Fillet radius.
+    /// - Returns: Result face with fillet, or nil on failure.
+    public func addFillet2d(vertexIndex: Int, radius: Double) -> Shape? {
+        guard let ref = OCCTChFi2dAddFillet(handle, Int32(vertexIndex), radius) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Add a 2D chamfer between two edges on a planar face.
+    ///
+    /// Uses ChFi2d_Builder with two distances.
+    /// - Parameters:
+    ///   - edge1Index: 0-based index of first edge.
+    ///   - edge2Index: 0-based index of second edge.
+    ///   - d1: Distance on first edge.
+    ///   - d2: Distance on second edge.
+    /// - Returns: Result face with chamfer, or nil on failure.
+    public func addChamfer2d(edge1Index: Int, edge2Index: Int, d1: Double, d2: Double) -> Shape? {
+        guard let ref = OCCTChFi2dAddChamfer(handle, Int32(edge1Index), Int32(edge2Index), d1, d2) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Add a 2D chamfer at a vertex on a planar face (distance + angle).
+    ///
+    /// Uses ChFi2d_Builder with distance and angle.
+    /// - Parameters:
+    ///   - edgeIndex: 0-based index of the reference edge.
+    ///   - vertexIndex: 0-based index of the vertex.
+    ///   - distance: Distance on edge.
+    ///   - angle: Chamfer angle in radians.
+    /// - Returns: Result face with chamfer, or nil on failure.
+    public func addChamfer2dAngle(edgeIndex: Int, vertexIndex: Int, distance: Double, angle: Double) -> Shape? {
+        guard let ref = OCCTChFi2dAddChamferAngle(handle, Int32(edgeIndex), Int32(vertexIndex), distance, angle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Modify a fillet radius on a face that already has a fillet.
+    ///
+    /// Uses ChFi2d_Builder::Init(original, modified) + ModifyFillet.
+    /// - Parameters:
+    ///   - originalFace: The face before any fillet was added.
+    ///   - filletEdgeIndex: 0-based index of the fillet edge in this face.
+    ///   - newRadius: New fillet radius.
+    /// - Returns: Result face with modified fillet, or nil on failure.
+    public func modifyFillet2d(originalFace: Shape, filletEdgeIndex: Int, newRadius: Double) -> Shape? {
+        guard let ref = OCCTChFi2dModifyFillet(originalFace.handle, handle, Int32(filletEdgeIndex), newRadius) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Remove a fillet from a face.
+    ///
+    /// Uses ChFi2d_Builder::Init(original, modified) + RemoveFillet.
+    /// - Parameters:
+    ///   - originalFace: The face before the fillet was added.
+    ///   - filletEdgeIndex: 0-based index of the fillet edge in this face.
+    /// - Returns: Result face with fillet removed, or nil on failure.
+    public func removeFillet2d(originalFace: Shape, filletEdgeIndex: Int) -> Shape? {
+        guard let ref = OCCTChFi2dRemoveFillet(originalFace.handle, handle, Int32(filletEdgeIndex)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Remove a chamfer from a face.
+    ///
+    /// Uses ChFi2d_Builder::Init(original, modified) + RemoveChamfer.
+    /// - Parameters:
+    ///   - originalFace: The face before the chamfer was added.
+    ///   - chamferEdgeIndex: 0-based index of the chamfer edge in this face.
+    /// - Returns: Result face with chamfer removed, or nil on failure.
+    public func removeChamfer2d(originalFace: Shape, chamferEdgeIndex: Int) -> Shape? {
+        guard let ref = OCCTChFi2dRemoveChamfer(originalFace.handle, handle, Int32(chamferEdgeIndex)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // MARK: - ChFi2d_ChamferAPI (v0.72.0)
+
+    /// Result of a 2D chamfer between two edges.
+    public struct Chamfer2DEdgeResult: Sendable {
+        /// The chamfer edge.
+        public let chamferEdge: Shape
+        /// Modified first edge.
+        public let modifiedEdge1: Shape
+        /// Modified second edge.
+        public let modifiedEdge2: Shape
+    }
+
+    /// Create a chamfer between two linear edges using ChFi2d_ChamferAPI.
+    ///
+    /// - Parameters:
+    ///   - edge1: First edge.
+    ///   - edge2: Second edge.
+    ///   - d1: Distance on first edge.
+    ///   - d2: Distance on second edge.
+    /// - Returns: Chamfer result with edges, or nil on failure.
+    public static func chamfer2dEdges(edge1: Shape, edge2: Shape, d1: Double, d2: Double) -> Chamfer2DEdgeResult? {
+        let result = OCCTChFi2dChamferEdges(edge1.handle, edge2.handle, d1, d2)
+        guard let ce = result.chamferEdge, let me1 = result.modifiedEdge1, let me2 = result.modifiedEdge2 else { return nil }
+        return Chamfer2DEdgeResult(chamferEdge: Shape(handle: ce), modifiedEdge1: Shape(handle: me1), modifiedEdge2: Shape(handle: me2))
+    }
+
+    // MARK: - ChFi2d_FilletAPI (v0.72.0)
+
+    /// Result of a 2D fillet between two edges.
+    public struct Fillet2DEdgeResult: Sendable {
+        /// The fillet edge.
+        public let filletEdge: Shape
+        /// Modified first edge.
+        public let modifiedEdge1: Shape
+        /// Modified second edge.
+        public let modifiedEdge2: Shape
+        /// Number of possible solutions.
+        public let solutionCount: Int
+    }
+
+    /// Create a fillet between two edges in a plane using ChFi2d_FilletAPI.
+    ///
+    /// Automatically selects analytical or iterative algorithm.
+    /// - Parameters:
+    ///   - edge1: First edge.
+    ///   - edge2: Second edge.
+    ///   - planeNormal: Normal direction of the plane containing the edges.
+    ///   - radius: Fillet radius.
+    ///   - nearPoint: Point near desired fillet location (for choosing among solutions).
+    /// - Returns: Fillet result with edges and solution count, or nil on failure.
+    public static func fillet2dEdges(edge1: Shape, edge2: Shape,
+                                     planeNormal: SIMD3<Double>,
+                                     radius: Double,
+                                     nearPoint: SIMD3<Double>) -> Fillet2DEdgeResult? {
+        let result = OCCTChFi2dFilletEdges(edge1.handle, edge2.handle,
+            planeNormal.x, planeNormal.y, planeNormal.z,
+            radius, nearPoint.x, nearPoint.y, nearPoint.z)
+        guard let fe = result.filletEdge, let me1 = result.modifiedEdge1, let me2 = result.modifiedEdge2 else { return nil }
+        return Fillet2DEdgeResult(filletEdge: Shape(handle: fe), modifiedEdge1: Shape(handle: me1),
+                                  modifiedEdge2: Shape(handle: me2), solutionCount: Int(result.solutionCount))
+    }
+
+    // MARK: - FilletSurf_Builder (v0.72.0)
+
+    /// Information about a computed fillet surface.
+    public struct FilletSurfaceInfo: Sendable {
+        /// The fillet surface geometry.
+        public let surface: Surface
+        /// First support face.
+        public let supportFace1: Shape
+        /// Second support face.
+        public let supportFace2: Shape
+        /// Approximation tolerance achieved.
+        public let tolerance: Double
+        /// First parameter on edge.
+        public let firstParameter: Double
+        /// Last parameter on edge.
+        public let lastParameter: Double
+        /// Start section status.
+        public let startStatus: Int
+        /// End section status.
+        public let endStatus: Int
+    }
+
+    /// Result of fillet surface computation.
+    public struct FilletSurfaceResult: Sendable {
+        /// Fillet surface info for each computed surface.
+        public let surfaces: [FilletSurfaceInfo]
+        /// Status: 0=ok, 1=notOk, 2=partial.
+        public let status: Int
+    }
+
+    /// Compute fillet surfaces on this shape using FilletSurf_Builder.
+    ///
+    /// Returns geometric fillet surface info (NURBS surfaces, support faces, curves)
+    /// without modifying the shape topology.
+    /// - Parameters:
+    ///   - edges: Edges to fillet.
+    ///   - radius: Fillet radius.
+    /// - Returns: Fillet surface result, or nil on failure.
+    public func filletSurfaces(edges: [Shape], radius: Double) -> FilletSurfaceResult? {
+        let edgeHandles = edges.map { $0.handle as OCCTShapeRef }
+        var outSurfaces: UnsafeMutablePointer<OCCTFilletSurfInfo>?
+        var outCount: Int32 = 0
+        let status = edgeHandles.withUnsafeBufferPointer { buf in
+            OCCTFilletSurfBuild(handle, buf.baseAddress!, Int32(edges.count), radius, &outSurfaces, &outCount)
+        }
+        if status == 1 && outCount == 0 { return nil }
+
+        var infos: [FilletSurfaceInfo] = []
+        if let outSurfaces {
+            for i in 0..<Int(outCount) {
+                let info = outSurfaces[i]
+                guard let surfH = info.surface, let sf1 = info.supportFace1, let sf2 = info.supportFace2 else { continue }
+                infos.append(FilletSurfaceInfo(
+                    surface: Surface(handle: surfH),
+                    supportFace1: Shape(handle: sf1),
+                    supportFace2: Shape(handle: sf2),
+                    tolerance: info.tolerance,
+                    firstParameter: info.firstParam,
+                    lastParameter: info.lastParam,
+                    startStatus: Int(info.startStatus),
+                    endStatus: Int(info.endStatus)
+                ))
+            }
+            free(outSurfaces)
+        }
+        return FilletSurfaceResult(surfaces: infos, status: Int(status))
+    }
 }
