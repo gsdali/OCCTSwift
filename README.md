@@ -1265,6 +1265,20 @@ OCCTSwift wraps a **subset** of OCCT's functionality. The bridge layer (`OCCTBri
 | `shape.isValid` | `BRepCheck_Analyzer` |
 | `shape.healed()` | `ShapeFix_Shape` |
 
+### What's NOT Wrapped (and Why)
+
+Some OCCT classes cannot be wrapped through a C bridge because they rely on **C++ inheritance patterns** that have no equivalent in C or Swift:
+
+- **ChFi3d_FilBuilder / ChFi3d_ChBuilder** — These fillet/chamfer builder classes inherit from `ChFi3d_Builder`, which is a complex stateful base class with protected virtual methods. The public API is deeply coupled to internal OCCT data structures (`ChFiDS_SurfData`, `ChFiDS_Stripe`, etc.) that would require wrapping an entire tree of internal types. **You don't need these directly** — the higher-level `BRepFilletAPI_MakeFillet` (exposed as `Shape.filleted()`, `Shape.filletEvolving()`, etc.) uses `ChFi3d_FilBuilder` internally, so all the functionality is already available through the cleaner public API.
+
+- **Approx_FitAndDivide / Approx_FitAndDivide2d** — Require implementing the abstract `AppCont_Function` interface in C++, which means providing callback functions for evaluation. Cannot be driven from Swift without a C++ subclass.
+
+- **BRepBlend_AppSurface** — Requires implementing the abstract `Approx_SweepFunction` interface. Same pattern — needs a C++ subclass providing evaluation callbacks.
+
+- **BRepBlend_\*, BlendFunc_\*, ChFiKPart_\*, ChFiDS_\*** — Internal implementation classes used by the fillet/chamfer algorithms. Not intended for direct use; their functionality is exposed through the `BRepFilletAPI_*` public APIs.
+
+In general, OCCT classes that require **subclassing with virtual method overrides** or that serve as **internal implementation details** of higher-level algorithms are not wrappable through a C function bridge. The wrapped APIs always provide equivalent or better functionality through OCCT's public algorithm classes.
+
 ### What's NOT Wrapped (Yet)
 
 OCCT has thousands of classes. Some notable ones not yet exposed:
