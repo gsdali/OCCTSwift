@@ -27142,3 +27142,326 @@ int32_t OCCTFilletSurfError(OCCTShapeRef _Nonnull shape,
         return (int32_t)fb.StatusError();
     } catch (...) { return 4; }
 }
+
+// MARK: - v0.73.0: TKHlr — Extended HLR, ReflectLines, TopCnx, Intrv
+
+#include <HLRAppli_ReflectLines.hxx>
+#include <HLRBRep_TypeOfResultingEdge.hxx>
+#include <TopCnx_EdgeFaceTransition.hxx>
+#include <Intrv_Interval.hxx>
+#include <Intrv_Intervals.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+
+// --- Extended HLR edge categories ---
+
+OCCTShapeRef _Nullable OCCTHLRGetEdgesByCategory(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    OCCTHLREdgeCategory category) {
+    if (!shape) return nullptr;
+    try {
+        gp_Dir viewDir(dirX, dirY, dirZ);
+        gp_Ax2 projAxis(gp_Pnt(0, 0, 0), viewDir);
+        HLRAlgo_Projector projector(projAxis);
+
+        Handle(HLRBRep_Algo) algo = new HLRBRep_Algo();
+        algo->Add(shape->shape);
+        algo->Projector(projector);
+        algo->Update();
+        algo->Hide();
+
+        HLRBRep_HLRToShape hlrToShape(algo);
+        TopoDS_Shape result;
+
+        switch (category) {
+            case OCCTHLREdgeVisibleSharp:      result = hlrToShape.VCompound(); break;
+            case OCCTHLREdgeVisibleSmooth:     result = hlrToShape.Rg1LineVCompound(); break;
+            case OCCTHLREdgeVisibleSewn:       result = hlrToShape.RgNLineVCompound(); break;
+            case OCCTHLREdgeVisibleOutline:    result = hlrToShape.OutLineVCompound(); break;
+            case OCCTHLREdgeVisibleIso:        result = hlrToShape.IsoLineVCompound(); break;
+            case OCCTHLREdgeVisibleOutline3d:  result = hlrToShape.OutLineVCompound3d(); break;
+            case OCCTHLREdgeHiddenSharp:       result = hlrToShape.HCompound(); break;
+            case OCCTHLREdgeHiddenSmooth:      result = hlrToShape.Rg1LineHCompound(); break;
+            case OCCTHLREdgeHiddenSewn:        result = hlrToShape.RgNLineHCompound(); break;
+            case OCCTHLREdgeHiddenOutline:     result = hlrToShape.OutLineHCompound(); break;
+            case OCCTHLREdgeHiddenIso:         result = hlrToShape.IsoLineHCompound(); break;
+            default: return nullptr;
+        }
+
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTHLRPolyGetEdgesByCategory(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    OCCTHLREdgeCategory category) {
+    if (!shape) return nullptr;
+    // IsoLine and Outline3d not available for poly HLR
+    if (category == OCCTHLREdgeVisibleIso || category == OCCTHLREdgeHiddenIso ||
+        category == OCCTHLREdgeVisibleOutline3d) return nullptr;
+    try {
+        // Ensure triangulation
+        BRepMesh_IncrementalMesh mesh(shape->shape, 0.1);
+
+        gp_Dir viewDir(dirX, dirY, dirZ);
+        gp_Ax2 projAxis(gp_Pnt(0, 0, 0), viewDir);
+        HLRAlgo_Projector projector(projAxis);
+
+        Handle(HLRBRep_PolyAlgo) polyAlgo = new HLRBRep_PolyAlgo();
+        polyAlgo->Load(shape->shape);
+        polyAlgo->Projector(projector);
+        polyAlgo->Update();
+
+        HLRBRep_PolyHLRToShape polyToShape;
+        polyToShape.Update(polyAlgo);
+
+        TopoDS_Shape result;
+        switch (category) {
+            case OCCTHLREdgeVisibleSharp:   result = polyToShape.VCompound(); break;
+            case OCCTHLREdgeVisibleSmooth:  result = polyToShape.Rg1LineVCompound(); break;
+            case OCCTHLREdgeVisibleSewn:    result = polyToShape.RgNLineVCompound(); break;
+            case OCCTHLREdgeVisibleOutline: result = polyToShape.OutLineVCompound(); break;
+            case OCCTHLREdgeHiddenSharp:    result = polyToShape.HCompound(); break;
+            case OCCTHLREdgeHiddenSmooth:   result = polyToShape.Rg1LineHCompound(); break;
+            case OCCTHLREdgeHiddenSewn:     result = polyToShape.RgNLineHCompound(); break;
+            case OCCTHLREdgeHiddenOutline:  result = polyToShape.OutLineHCompound(); break;
+            default: return nullptr;
+        }
+
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTHLRCompoundOfEdges(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    int32_t edgeType, bool visible, bool in3d) {
+    if (!shape) return nullptr;
+    try {
+        gp_Dir viewDir(dirX, dirY, dirZ);
+        gp_Ax2 projAxis(gp_Pnt(0, 0, 0), viewDir);
+        HLRAlgo_Projector projector(projAxis);
+
+        Handle(HLRBRep_Algo) algo = new HLRBRep_Algo();
+        algo->Add(shape->shape);
+        algo->Projector(projector);
+        algo->Update();
+        algo->Hide();
+
+        HLRBRep_HLRToShape hlrToShape(algo);
+        TopoDS_Shape result = hlrToShape.CompoundOfEdges(
+            (HLRBRep_TypeOfResultingEdge)edgeType, visible, in3d);
+
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- HLRAppli_ReflectLines ---
+
+OCCTShapeRef _Nullable OCCTHLRReflectLines(OCCTShapeRef _Nonnull shape,
+    double nx, double ny, double nz,
+    double xAt, double yAt, double zAt,
+    double xUp, double yUp, double zUp) {
+    if (!shape) return nullptr;
+    try {
+        HLRAppli_ReflectLines rl(shape->shape);
+        rl.SetAxes(nx, ny, nz, xAt, yAt, zAt, xUp, yUp, zUp);
+        rl.Perform();
+        TopoDS_Shape result = rl.GetResult();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTHLRReflectLinesFiltered(OCCTShapeRef _Nonnull shape,
+    double nx, double ny, double nz,
+    double xAt, double yAt, double zAt,
+    double xUp, double yUp, double zUp,
+    int32_t edgeType, bool visible, bool in3d) {
+    if (!shape) return nullptr;
+    try {
+        HLRAppli_ReflectLines rl(shape->shape);
+        rl.SetAxes(nx, ny, nz, xAt, yAt, zAt, xUp, yUp, zUp);
+        rl.Perform();
+        TopoDS_Shape result = rl.GetCompoundOf3dEdges(
+            (HLRBRep_TypeOfResultingEdge)edgeType, visible, in3d);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- TopCnx_EdgeFaceTransition ---
+
+OCCTEdgeFaceTransitionResult OCCTTopCnxEdgeFaceTransition(
+    double edgeTangentX, double edgeTangentY, double edgeTangentZ,
+    double edgeNormalX, double edgeNormalY, double edgeNormalZ,
+    double edgeCurvature,
+    const double* _Nonnull faceTangents,
+    const double* _Nonnull faceNormals,
+    const double* _Nonnull faceCurvatures,
+    const int32_t* _Nonnull faceOrientations,
+    const int32_t* _Nonnull faceTransitions,
+    const int32_t* _Nonnull faceBoundaryTransitions,
+    const double* _Nonnull tolerances,
+    int32_t faceCount) {
+    OCCTEdgeFaceTransitionResult result = {0, 0};
+    try {
+        TopCnx_EdgeFaceTransition eft;
+        gp_Dir tgt(edgeTangentX, edgeTangentY, edgeTangentZ);
+
+        // Check if edge is linear (zero normal)
+        double normMag = sqrt(edgeNormalX*edgeNormalX + edgeNormalY*edgeNormalY + edgeNormalZ*edgeNormalZ);
+        if (normMag < 1e-10) {
+            eft.Reset(tgt);
+        } else {
+            gp_Dir norm(edgeNormalX, edgeNormalY, edgeNormalZ);
+            eft.Reset(tgt, norm, edgeCurvature);
+        }
+
+        for (int32_t i = 0; i < faceCount; i++) {
+            gp_Dir faceTang(faceTangents[i*3], faceTangents[i*3+1], faceTangents[i*3+2]);
+            gp_Dir faceNorm(faceNormals[i*3], faceNormals[i*3+1], faceNormals[i*3+2]);
+            eft.AddInterference(tolerances[i], faceTang, faceNorm, faceCurvatures[i],
+                (TopAbs_Orientation)faceOrientations[i],
+                (TopAbs_Orientation)faceTransitions[i],
+                (TopAbs_Orientation)faceBoundaryTransitions[i]);
+        }
+
+        result.transition = (int32_t)eft.Transition();
+        result.boundaryTransition = (int32_t)eft.BoundaryTransition();
+    } catch (...) {}
+    return result;
+}
+
+// --- Intrv_Interval ---
+
+struct OCCTIntrvInterval {
+    Intrv_Interval interval;
+};
+
+OCCTIntrvIntervalRef _Nonnull OCCTIntrvIntervalCreate(double start, double end,
+    float tolStart, float tolEnd) {
+    auto* ref = new OCCTIntrvInterval();
+    ref->interval = Intrv_Interval(start, tolStart, end, tolEnd);
+    return ref;
+}
+
+void OCCTIntrvIntervalRelease(OCCTIntrvIntervalRef _Nonnull interval) {
+    delete interval;
+}
+
+OCCTIntrvBounds OCCTIntrvIntervalBounds(OCCTIntrvIntervalRef _Nonnull interval) {
+    OCCTIntrvBounds b;
+    interval->interval.Bounds(b.start, b.tolStart, b.end, b.tolEnd);
+    return b;
+}
+
+bool OCCTIntrvIntervalIsProbablyEmpty(OCCTIntrvIntervalRef _Nonnull interval) {
+    return interval->interval.IsProbablyEmpty();
+}
+
+int32_t OCCTIntrvIntervalPosition(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return (int32_t)interval->interval.Position(other->interval);
+}
+
+bool OCCTIntrvIntervalIsBefore(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsBefore(other->interval);
+}
+
+bool OCCTIntrvIntervalIsAfter(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsAfter(other->interval);
+}
+
+bool OCCTIntrvIntervalIsInside(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsInside(other->interval);
+}
+
+bool OCCTIntrvIntervalIsEnclosing(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsEnclosing(other->interval);
+}
+
+bool OCCTIntrvIntervalIsSimilar(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsSimilar(other->interval);
+}
+
+void OCCTIntrvIntervalSetStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol) {
+    interval->interval.SetStart(start, tol);
+}
+
+void OCCTIntrvIntervalSetEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol) {
+    interval->interval.SetEnd(end, tol);
+}
+
+void OCCTIntrvIntervalFuseAtStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol) {
+    interval->interval.FuseAtStart(start, tol);
+}
+
+void OCCTIntrvIntervalFuseAtEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol) {
+    interval->interval.FuseAtEnd(end, tol);
+}
+
+void OCCTIntrvIntervalCutAtStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol) {
+    interval->interval.CutAtStart(start, tol);
+}
+
+void OCCTIntrvIntervalCutAtEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol) {
+    interval->interval.CutAtEnd(end, tol);
+}
+
+// --- Intrv_Intervals ---
+
+struct OCCTIntrvIntervals {
+    Intrv_Intervals intervals;
+};
+
+OCCTIntrvIntervalsRef _Nonnull OCCTIntrvIntervalsCreate(double start, double end) {
+    auto* ref = new OCCTIntrvIntervals();
+    ref->intervals = Intrv_Intervals(Intrv_Interval(start, end));
+    return ref;
+}
+
+OCCTIntrvIntervalsRef _Nonnull OCCTIntrvIntervalsCreateEmpty(void) {
+    auto* ref = new OCCTIntrvIntervals();
+    ref->intervals = Intrv_Intervals();
+    return ref;
+}
+
+void OCCTIntrvIntervalsRelease(OCCTIntrvIntervalsRef _Nonnull intervals) {
+    delete intervals;
+}
+
+int32_t OCCTIntrvIntervalsCount(OCCTIntrvIntervalsRef _Nonnull intervals) {
+    return (int32_t)intervals->intervals.NbIntervals();
+}
+
+OCCTIntrvBounds OCCTIntrvIntervalsValue(OCCTIntrvIntervalsRef _Nonnull intervals, int32_t index) {
+    OCCTIntrvBounds b = {0, 0, 0, 0};
+    try {
+        const Intrv_Interval& iv = intervals->intervals.Value(index);
+        iv.Bounds(b.start, b.tolStart, b.end, b.tolEnd);
+    } catch (...) {}
+    return b;
+}
+
+void OCCTIntrvIntervalsUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
+    intervals->intervals.Unite(Intrv_Interval(start, end));
+}
+
+void OCCTIntrvIntervalsSubtract(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
+    intervals->intervals.Subtract(Intrv_Interval(start, end));
+}
+
+void OCCTIntrvIntervalsIntersect(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
+    intervals->intervals.Intersect(Intrv_Interval(start, end));
+}
+
+void OCCTIntrvIntervalsXUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
+    intervals->intervals.XUnite(Intrv_Interval(start, end));
+}

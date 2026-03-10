@@ -20767,3 +20767,293 @@ struct LocOpeSpliterV71Tests {
         }
     }
 }
+
+// MARK: - v0.73.0: TKHlr Tests
+
+@Suite("HLR Extended Edge Categories Tests")
+struct HLRExtendedEdgeCategoryTests {
+    @Test("exact HLR visible sharp edges on box")
+    func exactVisibleSharp() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.hlrEdges(direction: SIMD3(1, 1, 1), category: .visibleSharp)
+            if let e = edges {
+                #expect(e.subShapes(ofType: .edge).count > 0)
+            }
+        }
+    }
+
+    @Test("exact HLR hidden sharp edges on box")
+    func exactHiddenSharp() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.hlrEdges(direction: SIMD3(1, 1, 1), category: .hiddenSharp)
+            if let e = edges {
+                #expect(e.subShapes(ofType: .edge).count > 0)
+            }
+        }
+    }
+
+    @Test("exact HLR cylinder outlines")
+    func cylinderOutlines() {
+        let cyl = Shape.cylinder(radius: 5, height: 20)
+        if let c = cyl {
+            let outlines = c.hlrEdges(direction: SIMD3(1, 0, 0), category: .visibleOutline)
+            if let o = outlines {
+                #expect(o.subShapes(ofType: .edge).count > 0)
+            }
+        }
+    }
+
+    @Test("poly HLR visible sharp edges on box")
+    func polyVisibleSharp() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.hlrPolyEdges(direction: SIMD3(1, 1, 1), category: .visibleSharp)
+            if let e = edges {
+                #expect(e.subShapes(ofType: .edge).count > 0)
+            }
+        }
+    }
+
+    @Test("poly HLR hidden sharp edges on box")
+    func polyHiddenSharp() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.hlrPolyEdges(direction: SIMD3(1, 1, 1), category: .hiddenSharp)
+            if let e = edges {
+                #expect(e.subShapes(ofType: .edge).count > 0)
+            }
+        }
+    }
+
+    @Test("compound of edges generic API")
+    func compoundOfEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.hlrCompoundOfEdges(direction: SIMD3(1, 1, 1),
+                edgeType: .sharp, visible: true, in3d: true)
+            if let e = edges {
+                #expect(e.subShapes(ofType: .edge).count > 0)
+            }
+        }
+    }
+}
+
+@Suite("HLR ReflectLines Tests")
+struct HLRReflectLinesTests {
+    @Test("reflect lines on sphere")
+    func reflectLinesSphere() {
+        let sphere = Shape.sphere(radius: 10)
+        if let s = sphere {
+            let result = s.reflectLines(
+                normal: SIMD3(0, 0, 1),
+                viewPoint: SIMD3(0, 0, 100),
+                up: SIMD3(0, 1, 0))
+            if let r = result {
+                #expect(r.subShapes(ofType: .edge).count > 0)
+            }
+        }
+    }
+
+    @Test("reflect lines filtered by edge type")
+    func reflectLinesFiltered() {
+        let sphere = Shape.sphere(radius: 10)
+        if let s = sphere {
+            let result = s.reflectLinesFiltered(
+                normal: SIMD3(0, 0, 1),
+                viewPoint: SIMD3(0, 0, 100),
+                up: SIMD3(0, 1, 0),
+                edgeType: .outLine,
+                visible: true, in3d: true)
+            // May or may not have edges depending on geometry
+            _ = result
+        }
+    }
+}
+
+@Suite("TopCnx EdgeFaceTransition Tests")
+struct TopCnxEdgeFaceTransitionTests {
+    @Test("linear edge with single face")
+    func linearEdgeSingleFace() {
+        let face = Shape.FaceInterference(
+            tangent: SIMD3(1, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            curvature: 0,
+            orientation: 0, // FORWARD
+            transition: 0,  // FORWARD
+            boundaryTransition: 0, // FORWARD
+            tolerance: 1e-6)
+
+        let result = Shape.edgeFaceTransition(
+            edgeTangent: SIMD3(1, 0, 0),
+            edgeNormal: SIMD3(0, 0, 0), // linear
+            edgeCurvature: 0,
+            faces: [face])
+
+        #expect(result.transition >= 0 && result.transition <= 3)
+        #expect(result.boundaryTransition >= 0 && result.boundaryTransition <= 3)
+    }
+
+    @Test("curved edge with two faces")
+    func curvedEdgeTwoFaces() {
+        let face1 = Shape.FaceInterference(
+            tangent: SIMD3(1, 0, 0),
+            normal: SIMD3(0, 0, 1),
+            curvature: 0,
+            orientation: 0, transition: 0, boundaryTransition: 0,
+            tolerance: 1e-6)
+        let face2 = Shape.FaceInterference(
+            tangent: SIMD3(1, 0, 0),
+            normal: SIMD3(0, 0, -1),
+            curvature: 0,
+            orientation: 1, transition: 1, boundaryTransition: 1,
+            tolerance: 1e-6)
+
+        let result = Shape.edgeFaceTransition(
+            edgeTangent: SIMD3(1, 0, 0),
+            edgeNormal: SIMD3(0, 1, 0),
+            edgeCurvature: 0.1,
+            faces: [face1, face2])
+
+        #expect(result.transition >= 0 && result.transition <= 3)
+    }
+}
+
+@Suite("Intrv_Interval Tests")
+struct IntrvIntervalTests {
+    @Test("create and get bounds")
+    func createAndBounds() {
+        let iv = Interval(start: 1.0, end: 5.0)
+        let b = iv.bounds
+        #expect(abs(b.start - 1.0) < 1e-10)
+        #expect(abs(b.end - 5.0) < 1e-10)
+    }
+
+    @Test("create with tolerances")
+    func createWithTolerances() {
+        let iv = Interval(start: 1.0, end: 5.0, tolStart: 0.01, tolEnd: 0.02)
+        let b = iv.bounds
+        #expect(abs(b.tolStart - 0.01) < 1e-6)
+        #expect(abs(b.tolEnd - 0.02) < 1e-6)
+    }
+
+    @Test("probably empty")
+    func probablyEmpty() {
+        let big = Interval(start: 0, end: 10)
+        #expect(!big.isProbablyEmpty)
+
+        let empty = Interval(start: 5, end: 5, tolStart: 1.0, tolEnd: 1.0)
+        #expect(empty.isProbablyEmpty)
+    }
+
+    @Test("before and after")
+    func beforeAfter() {
+        let a = Interval(start: 1, end: 3)
+        let b = Interval(start: 5, end: 8)
+        #expect(a.isBefore(b))
+        #expect(b.isAfter(a))
+    }
+
+    @Test("inside and enclosing")
+    func insideEnclosing() {
+        let outer = Interval(start: 0, end: 10)
+        let inner = Interval(start: 2, end: 8)
+        #expect(inner.isInside(outer))
+        #expect(outer.isEnclosing(inner))
+    }
+
+    @Test("similar")
+    func similar() {
+        let a = Interval(start: 0, end: 10)
+        let b = Interval(start: 0, end: 10)
+        #expect(a.isSimilar(to: b))
+    }
+
+    @Test("position")
+    func position() {
+        let a = Interval(start: 1, end: 3)
+        let b = Interval(start: 5, end: 8)
+        #expect(a.position(relativeTo: b) == 0) // Before
+    }
+
+    @Test("set and modify bounds")
+    func modifyBounds() {
+        let iv = Interval(start: 0, end: 10)
+        iv.setStart(2)
+        iv.setEnd(8)
+        let b = iv.bounds
+        #expect(abs(b.start - 2.0) < 1e-10)
+        #expect(abs(b.end - 8.0) < 1e-10)
+    }
+
+    @Test("fuse and cut")
+    func fuseCut() {
+        let iv = Interval(start: 3, end: 7)
+        iv.fuseAtStart(1)
+        #expect(abs(iv.bounds.start - 1.0) < 1e-10)
+        iv.fuseAtEnd(9)
+        #expect(abs(iv.bounds.end - 9.0) < 1e-10)
+
+        iv.cutAtStart(2)
+        #expect(abs(iv.bounds.start - 2.0) < 1e-10)
+        iv.cutAtEnd(8)
+        #expect(abs(iv.bounds.end - 8.0) < 1e-10)
+    }
+}
+
+@Suite("Intrv_Intervals Tests")
+struct IntrvIntervalsTests {
+    @Test("create from single interval")
+    func createSingle() {
+        let set = IntervalSet(start: 1, end: 5)
+        #expect(set.count == 1)
+        let b = set.bounds(at: 0)
+        #expect(abs(b.start - 1.0) < 1e-10)
+        #expect(abs(b.end - 5.0) < 1e-10)
+    }
+
+    @Test("create empty")
+    func createEmpty() {
+        let set = IntervalSet()
+        #expect(set.count == 0)
+    }
+
+    @Test("unite non-overlapping")
+    func uniteNonOverlapping() {
+        let set = IntervalSet(start: 1, end: 3)
+        set.unite(start: 5, end: 8)
+        #expect(set.count == 2)
+    }
+
+    @Test("unite overlapping merges")
+    func uniteOverlapping() {
+        let set = IntervalSet(start: 1, end: 5)
+        set.unite(start: 3, end: 8)
+        #expect(set.count == 1)
+    }
+
+    @Test("subtract middle")
+    func subtractMiddle() {
+        let set = IntervalSet(start: 0, end: 10)
+        set.subtract(start: 3, end: 7)
+        #expect(set.count == 2)
+    }
+
+    @Test("intersect")
+    func intersect() {
+        let set = IntervalSet(start: 0, end: 10)
+        set.intersect(start: 3, end: 7)
+        #expect(set.count == 1)
+        let b = set.bounds(at: 0)
+        #expect(abs(b.start - 3.0) < 1e-10)
+        #expect(abs(b.end - 7.0) < 1e-10)
+    }
+
+    @Test("xUnite symmetric difference")
+    func xUnite() {
+        let set = IntervalSet(start: 0, end: 5)
+        set.xUnite(start: 3, end: 8)
+        #expect(set.count == 2)
+    }
+}

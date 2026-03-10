@@ -111,7 +111,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Polygon Interference** | 2 | polygonInterference, polygonSelfInterference |
 | **ChFi2d Edge Operations** | 2 | chamfer2dEdges, fillet2dEdges |
 | **FilletSurf** | 2 | filletSurfaces, filletSurfError |
-| **Total** | **1172** | |
+| **HLR Extended** | 6 | hlrEdges (by category), hlrPolyEdges, hlrCompoundOfEdges, reflectLines, reflectLinesFiltered, edgeFaceTransition |
+| **Interval Arithmetic** | 23 | Interval create/bounds/isProbablyEmpty/position/isBefore/isAfter/isInside/isEnclosing/isSimilar/setStart/setEnd/fuseAtStart/fuseAtEnd/cutAtStart/cutAtEnd, IntervalSet create/createEmpty/count/bounds/unite/subtract/intersect/xUnite |
+| **Total** | **1201** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -378,6 +380,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **ChFi2d Builder**: ChFi2d_Builder — add fillets and chamfers to planar face vertices/edges, modify/remove existing fillets and chamfers
 - **ChFi2d Edge APIs**: ChFi2d_ChamferAPI — chamfer between two standalone edges; ChFi2d_FilletAPI — fillet between two edges with plane normal and near point
 - **FilletSurf Builder**: FilletSurf_Builder — compute fillet surfaces on 3D shape edges with surface/curve/PCurve extraction and error diagnostics
+- **Extended HLR Edge Categories**: Fine-grained hidden line removal — extract visible/hidden sharp, smooth, sewn, outline, iso-parameter, and 3D outline edges independently from exact and polygon-based HLR
+- **Generic CompoundOfEdges**: HLRBRep_HLRToShape.CompoundOfEdges — flexible edge extraction by type, visibility, and 2D/3D mode
+- **Reflect Lines**: HLRAppli_ReflectLines — compute silhouette/reflection lines on shapes for rendering and technical drawing, with filtered edge type extraction
+- **Edge-Face Transition**: TopCnx_EdgeFaceTransition — compute cumulated topological orientation transition at edge-face boundaries with curvature support
+- **Interval Arithmetic**: Intrv_Interval — tolerance-aware real intervals with spatial relationship queries (before, after, inside, enclosing, similar, position), bound modification (set, fuse, cut)
+- **Interval Set Operations**: Intrv_Intervals — sorted non-overlapping interval sequences with set-theoretic operations (union, subtract, intersect, symmetric difference)
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1344,7 +1352,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1172 OCCT operations** across 67 categories with 1520 tests across 476 suites.
+OCCTSwift now wraps **1201 OCCT operations** across 69 categories with 1546 tests across 481 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

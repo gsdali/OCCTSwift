@@ -9056,4 +9056,302 @@ extension Shape {
         }
         return FilletSurfaceResult(surfaces: infos, status: Int(status))
     }
+
+    // MARK: - v0.73.0: TKHlr — Extended HLR, ReflectLines, TopCnx, Intrv
+
+    /// Fine-grained HLR edge categories for exact and polygon-based hidden line removal.
+    public enum HLREdgeCategory: Int32, Sendable {
+        case visibleSharp = 0       /// Visible C0-continuity (sharp) edges
+        case visibleSmooth = 1      /// Visible G1-continuity (smooth) edges
+        case visibleSewn = 2        /// Visible CN-continuity (sewn) edges
+        case visibleOutline = 3     /// Visible silhouette/outline edges
+        case visibleIso = 4         /// Visible isoparameter lines (exact HLR only)
+        case visibleOutline3d = 5   /// Visible outline edges in 3D (exact HLR only)
+        case hiddenSharp = 6        /// Hidden C0-continuity (sharp) edges
+        case hiddenSmooth = 7       /// Hidden G1-continuity (smooth) edges
+        case hiddenSewn = 8         /// Hidden CN-continuity (sewn) edges
+        case hiddenOutline = 9      /// Hidden silhouette/outline edges
+        case hiddenIso = 10         /// Hidden isoparameter lines (exact HLR only)
+    }
+
+    /// HLR resulting edge type for generic CompoundOfEdges and ReflectLines APIs.
+    public enum HLREdgeType: Int32, Sendable {
+        case undefined = 0
+        case isoLine = 1
+        case outLine = 2
+        case rg1Line = 3   /// G1-continuity smooth
+        case rgNLine = 4   /// CN-continuity sewn
+        case sharp = 5     /// C0-continuity sharp
+    }
+
+    /// Get edges by fine-grained category using exact HLR (hidden line removal).
+    public func hlrEdges(direction: SIMD3<Double>, category: HLREdgeCategory) -> Shape? {
+        guard let h = OCCTHLRGetEdgesByCategory(handle, direction.x, direction.y, direction.z,
+            OCCTHLREdgeCategory(rawValue: UInt32(category.rawValue))) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get edges by fine-grained category using fast polygon-based HLR.
+    /// Note: `.visibleIso`, `.hiddenIso`, and `.visibleOutline3d` are not available for poly HLR.
+    public func hlrPolyEdges(direction: SIMD3<Double>, category: HLREdgeCategory) -> Shape? {
+        guard let h = OCCTHLRPolyGetEdgesByCategory(handle, direction.x, direction.y, direction.z,
+            OCCTHLREdgeCategory(rawValue: UInt32(category.rawValue))) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get edges using the generic CompoundOfEdges API from exact HLR.
+    public func hlrCompoundOfEdges(direction: SIMD3<Double>, edgeType: HLREdgeType,
+                                    visible: Bool, in3d: Bool) -> Shape? {
+        guard let h = OCCTHLRCompoundOfEdges(handle, direction.x, direction.y, direction.z,
+            edgeType.rawValue, visible, in3d) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Compute reflect (silhouette) lines on a shape.
+    /// - Parameters:
+    ///   - normal: View plane normal direction
+    ///   - viewPoint: View target point (eye position)
+    ///   - up: Up direction
+    /// - Returns: Compound of reflect line edges in 3D, or nil on failure
+    public func reflectLines(normal: SIMD3<Double>, viewPoint: SIMD3<Double>,
+                             up: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTHLRReflectLines(handle,
+            normal.x, normal.y, normal.z,
+            viewPoint.x, viewPoint.y, viewPoint.z,
+            up.x, up.y, up.z) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Compute reflect lines and get specific edge types.
+    public func reflectLinesFiltered(normal: SIMD3<Double>, viewPoint: SIMD3<Double>,
+                                      up: SIMD3<Double>, edgeType: HLREdgeType,
+                                      visible: Bool, in3d: Bool) -> Shape? {
+        guard let h = OCCTHLRReflectLinesFiltered(handle,
+            normal.x, normal.y, normal.z,
+            viewPoint.x, viewPoint.y, viewPoint.z,
+            up.x, up.y, up.z,
+            edgeType.rawValue, visible, in3d) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Result of edge-face transition computation.
+    public struct EdgeFaceTransitionResult: Sendable {
+        /// TopAbs_Orientation: 0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL
+        public let transition: Int
+        /// TopAbs_Orientation for boundary
+        public let boundaryTransition: Int
+    }
+
+    /// Face interference description for edge-face transition computation.
+    public struct FaceInterference: Sendable {
+        public let tangent: SIMD3<Double>
+        public let normal: SIMD3<Double>
+        public let curvature: Double
+        public let orientation: Int32      // TopAbs_Orientation
+        public let transition: Int32       // TopAbs_Orientation
+        public let boundaryTransition: Int32 // TopAbs_Orientation
+        public let tolerance: Double
+
+        public init(tangent: SIMD3<Double>, normal: SIMD3<Double>, curvature: Double,
+                    orientation: Int32, transition: Int32, boundaryTransition: Int32,
+                    tolerance: Double) {
+            self.tangent = tangent
+            self.normal = normal
+            self.curvature = curvature
+            self.orientation = orientation
+            self.transition = transition
+            self.boundaryTransition = boundaryTransition
+            self.tolerance = tolerance
+        }
+    }
+
+    /// Compute cumulated edge-face transition for multiple face interferences on an edge.
+    /// - Parameters:
+    ///   - edgeTangent: Edge tangent direction
+    ///   - edgeNormal: Edge normal direction (zero vector for linear edges)
+    ///   - edgeCurvature: Edge curvature (0 for linear edges)
+    ///   - faces: Array of face interference descriptions
+    /// - Returns: Transition result with cumulated orientation
+    public static func edgeFaceTransition(edgeTangent: SIMD3<Double>,
+                                          edgeNormal: SIMD3<Double>,
+                                          edgeCurvature: Double,
+                                          faces: [FaceInterference]) -> EdgeFaceTransitionResult {
+        var faceTangents: [Double] = []
+        var faceNormals: [Double] = []
+        var faceCurvatures: [Double] = []
+        var faceOrientations: [Int32] = []
+        var faceTransitions: [Int32] = []
+        var faceBoundaryTr: [Int32] = []
+        var tolerances: [Double] = []
+
+        for face in faces {
+            faceTangents.append(contentsOf: [face.tangent.x, face.tangent.y, face.tangent.z])
+            faceNormals.append(contentsOf: [face.normal.x, face.normal.y, face.normal.z])
+            faceCurvatures.append(face.curvature)
+            faceOrientations.append(face.orientation)
+            faceTransitions.append(face.transition)
+            faceBoundaryTr.append(face.boundaryTransition)
+            tolerances.append(face.tolerance)
+        }
+
+        let r = OCCTTopCnxEdgeFaceTransition(
+            edgeTangent.x, edgeTangent.y, edgeTangent.z,
+            edgeNormal.x, edgeNormal.y, edgeNormal.z,
+            edgeCurvature,
+            faceTangents, faceNormals, faceCurvatures,
+            faceOrientations, faceTransitions, faceBoundaryTr,
+            tolerances, Int32(faces.count))
+
+        return EdgeFaceTransitionResult(
+            transition: Int(r.transition),
+            boundaryTransition: Int(r.boundaryTransition))
+    }
+}
+
+// MARK: - Intrv_Interval (Interval with Tolerances)
+
+/// A real interval [start, end] with optional start/end tolerances.
+public final class Interval: @unchecked Sendable {
+    public let handle: OCCTIntrvIntervalRef
+
+    /// Create an interval with bounds and optional tolerances.
+    public init(start: Double, end: Double, tolStart: Float = 0, tolEnd: Float = 0) {
+        handle = OCCTIntrvIntervalCreate(start, end, tolStart, tolEnd)
+    }
+
+    deinit {
+        OCCTIntrvIntervalRelease(handle)
+    }
+
+    /// Interval bounds.
+    public struct Bounds: Sendable {
+        public let start: Double
+        public let end: Double
+        public let tolStart: Float
+        public let tolEnd: Float
+    }
+
+    /// Get interval bounds and tolerances.
+    public var bounds: Bounds {
+        let b = OCCTIntrvIntervalBounds(handle)
+        return Bounds(start: b.start, end: b.end, tolStart: b.tolStart, tolEnd: b.tolEnd)
+    }
+
+    /// True if the interval is probably empty (start + tolStart > end - tolEnd).
+    public var isProbablyEmpty: Bool {
+        OCCTIntrvIntervalIsProbablyEmpty(handle)
+    }
+
+    /// Position of this interval relative to another.
+    /// Returns Intrv_Position enum value (0=Before, ..., 12=After).
+    public func position(relativeTo other: Interval) -> Int {
+        Int(OCCTIntrvIntervalPosition(handle, other.handle))
+    }
+
+    /// True if this interval is entirely before the other.
+    public func isBefore(_ other: Interval) -> Bool {
+        OCCTIntrvIntervalIsBefore(handle, other.handle)
+    }
+
+    /// True if this interval is entirely after the other.
+    public func isAfter(_ other: Interval) -> Bool {
+        OCCTIntrvIntervalIsAfter(handle, other.handle)
+    }
+
+    /// True if this interval is entirely inside the other.
+    public func isInside(_ other: Interval) -> Bool {
+        OCCTIntrvIntervalIsInside(handle, other.handle)
+    }
+
+    /// True if this interval entirely encloses the other.
+    public func isEnclosing(_ other: Interval) -> Bool {
+        OCCTIntrvIntervalIsEnclosing(handle, other.handle)
+    }
+
+    /// True if this interval has the same bounds as the other.
+    public func isSimilar(to other: Interval) -> Bool {
+        OCCTIntrvIntervalIsSimilar(handle, other.handle)
+    }
+
+    /// Set the start bound.
+    public func setStart(_ start: Double, tolerance: Float = 0) {
+        OCCTIntrvIntervalSetStart(handle, start, tolerance)
+    }
+
+    /// Set the end bound.
+    public func setEnd(_ end: Double, tolerance: Float = 0) {
+        OCCTIntrvIntervalSetEnd(handle, end, tolerance)
+    }
+
+    /// Extend start bound outward (fuse).
+    public func fuseAtStart(_ start: Double, tolerance: Float = 0) {
+        OCCTIntrvIntervalFuseAtStart(handle, start, tolerance)
+    }
+
+    /// Extend end bound outward (fuse).
+    public func fuseAtEnd(_ end: Double, tolerance: Float = 0) {
+        OCCTIntrvIntervalFuseAtEnd(handle, end, tolerance)
+    }
+
+    /// Cut (trim) start bound inward.
+    public func cutAtStart(_ start: Double, tolerance: Float = 0) {
+        OCCTIntrvIntervalCutAtStart(handle, start, tolerance)
+    }
+
+    /// Cut (trim) end bound inward.
+    public func cutAtEnd(_ end: Double, tolerance: Float = 0) {
+        OCCTIntrvIntervalCutAtEnd(handle, end, tolerance)
+    }
+}
+
+// MARK: - Intrv_Intervals (Sorted Non-Overlapping Interval Sequence)
+
+/// A sorted sequence of non-overlapping intervals with set-theoretic operations.
+public final class IntervalSet: @unchecked Sendable {
+    public let handle: OCCTIntrvIntervalsRef
+
+    /// Create an interval set containing a single interval.
+    public init(start: Double, end: Double) {
+        handle = OCCTIntrvIntervalsCreate(start, end)
+    }
+
+    /// Create an empty interval set.
+    public init() {
+        handle = OCCTIntrvIntervalsCreateEmpty()
+    }
+
+    deinit {
+        OCCTIntrvIntervalsRelease(handle)
+    }
+
+    /// Number of intervals in the set.
+    public var count: Int {
+        Int(OCCTIntrvIntervalsCount(handle))
+    }
+
+    /// Get bounds of interval at index (0-based).
+    public func bounds(at index: Int) -> Interval.Bounds {
+        let b = OCCTIntrvIntervalsValue(handle, Int32(index + 1)) // 1-based in OCCT
+        return Interval.Bounds(start: b.start, end: b.end, tolStart: b.tolStart, tolEnd: b.tolEnd)
+    }
+
+    /// Add an interval (union).
+    public func unite(start: Double, end: Double) {
+        OCCTIntrvIntervalsUnite(handle, start, end)
+    }
+
+    /// Subtract an interval.
+    public func subtract(start: Double, end: Double) {
+        OCCTIntrvIntervalsSubtract(handle, start, end)
+    }
+
+    /// Intersect with an interval.
+    public func intersect(start: Double, end: Double) {
+        OCCTIntrvIntervalsIntersect(handle, start, end)
+    }
+
+    /// Symmetric difference (exclusive union) with an interval.
+    public func xUnite(start: Double, end: Double) {
+        OCCTIntrvIntervalsXUnite(handle, start, end)
+    }
 }

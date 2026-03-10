@@ -16,6 +16,16 @@
 // Use this to find the bridge function for any OCCT class you know.
 // Generated from OCCTBridge.mm #include directives.
 //
+// --- HLRAppli ---
+// HLRAppli_ReflectLines               → OCCTHLRReflectLines*
+//
+// --- Intrv ---
+// Intrv_Interval                      → OCCTIntrvInterval*
+// Intrv_Intervals                     → OCCTIntrvIntervals*
+//
+// --- TopCnx ---
+// TopCnx_EdgeFaceTransition           → OCCTTopCnxEdgeFaceTransition*
+//
 // --- Adaptor2d/3d ---
 // Adaptor2d_Curve2d                   → OCCTApproxCurve2d
 // Adaptor3d_Curve                     → OCCTShapePlateCurves, OCCTShapePlateMixed
@@ -8856,6 +8866,191 @@ int32_t OCCTFilletSurfBuild(OCCTShapeRef _Nonnull shape,
 int32_t OCCTFilletSurfError(OCCTShapeRef _Nonnull shape,
     const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t edgeCount,
     double radius);
+
+// MARK: - v0.73.0: TKHlr — Extended HLR, ReflectLines, TopCnx, Intrv
+
+/// Extended HLR edge category type for fine-grained edge extraction
+typedef enum {
+    OCCTHLREdgeVisibleSharp = 0,     ///< Visible C0-continuity (sharp) edges
+    OCCTHLREdgeVisibleSmooth = 1,    ///< Visible G1-continuity (smooth) edges
+    OCCTHLREdgeVisibleSewn = 2,      ///< Visible CN-continuity (sewn) edges
+    OCCTHLREdgeVisibleOutline = 3,   ///< Visible silhouette/outline edges
+    OCCTHLREdgeVisibleIso = 4,       ///< Visible isoparameter lines (exact HLR only)
+    OCCTHLREdgeVisibleOutline3d = 5, ///< Visible outline edges in 3D (exact HLR only)
+    OCCTHLREdgeHiddenSharp = 6,      ///< Hidden C0-continuity (sharp) edges
+    OCCTHLREdgeHiddenSmooth = 7,     ///< Hidden G1-continuity (smooth) edges
+    OCCTHLREdgeHiddenSewn = 8,       ///< Hidden CN-continuity (sewn) edges
+    OCCTHLREdgeHiddenOutline = 9,    ///< Hidden silhouette/outline edges
+    OCCTHLREdgeHiddenIso = 10        ///< Hidden isoparameter lines (exact HLR only)
+} OCCTHLREdgeCategory;
+
+/// Get edges by fine-grained category from an exact HLR drawing.
+/// @param shape Input shape
+/// @param dirX,dirY,dirZ View direction
+/// @param category Edge category to extract
+/// @return Shape containing edges, or NULL if none
+OCCTShapeRef _Nullable OCCTHLRGetEdgesByCategory(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    OCCTHLREdgeCategory category);
+
+/// Get edges by fine-grained category from a polygon-based (fast) HLR drawing.
+/// Note: IsoLine and Outline3d categories are not available for poly HLR (returns NULL).
+/// @param shape Input shape (must be triangulated)
+/// @param dirX,dirY,dirZ View direction
+/// @param category Edge category to extract
+/// @return Shape containing edges, or NULL if none
+OCCTShapeRef _Nullable OCCTHLRPolyGetEdgesByCategory(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    OCCTHLREdgeCategory category);
+
+/// Get edges using the generic CompoundOfEdges API from exact HLR.
+/// @param shape Input shape
+/// @param dirX,dirY,dirZ View direction
+/// @param edgeType 0=Undefined, 1=IsoLine, 2=OutLine, 3=Rg1Line, 4=RgNLine, 5=Sharp
+/// @param visible true for visible edges, false for hidden
+/// @param in3d true for 3D result, false for 2D projected
+/// @return Shape containing edges, or NULL if none
+OCCTShapeRef _Nullable OCCTHLRCompoundOfEdges(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    int32_t edgeType, bool visible, bool in3d);
+
+// --- HLRAppli_ReflectLines ---
+
+/// Compute reflect (silhouette) lines on a shape.
+/// @param shape Input shape
+/// @param nx,ny,nz View plane normal direction
+/// @param xAt,yAt,zAt View target point
+/// @param xUp,yUp,zUp Up direction
+/// @return Compound of reflect line edges in 3D, or NULL on failure
+OCCTShapeRef _Nullable OCCTHLRReflectLines(OCCTShapeRef _Nonnull shape,
+    double nx, double ny, double nz,
+    double xAt, double yAt, double zAt,
+    double xUp, double yUp, double zUp);
+
+/// Compute reflect lines and get specific edge types.
+/// @param shape Input shape
+/// @param nx,ny,nz View plane normal direction
+/// @param xAt,yAt,zAt View target point
+/// @param xUp,yUp,zUp Up direction
+/// @param edgeType 0=Undefined, 1=IsoLine, 2=OutLine, 3=Rg1Line, 4=RgNLine, 5=Sharp
+/// @param visible true for visible, false for hidden
+/// @param in3d true for 3D result, false for 2D projected
+/// @return Compound of edges, or NULL on failure
+OCCTShapeRef _Nullable OCCTHLRReflectLinesFiltered(OCCTShapeRef _Nonnull shape,
+    double nx, double ny, double nz,
+    double xAt, double yAt, double zAt,
+    double xUp, double yUp, double zUp,
+    int32_t edgeType, bool visible, bool in3d);
+
+// --- TopCnx_EdgeFaceTransition ---
+
+/// Result of edge-face transition computation.
+typedef struct {
+    int32_t transition;          ///< TopAbs_Orientation: 0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL
+    int32_t boundaryTransition;  ///< TopAbs_Orientation for boundary
+} OCCTEdgeFaceTransitionResult;
+
+/// Compute cumulated edge-face transition for multiple face interferences on an edge.
+/// @param edgeTangentX,Y,Z Edge tangent direction
+/// @param edgeNormalX,Y,Z Edge normal direction (0,0,0 for linear edge)
+/// @param edgeCurvature Edge curvature (0 for linear edge)
+/// @param faceTangentX,Y,Z Array of face tangent directions (3 doubles per face)
+/// @param faceNormalX,Y,Z Array of face normal directions (3 doubles per face)
+/// @param faceCurvatures Array of face curvatures at edge
+/// @param faceOrientations Array of face orientations (TopAbs_Orientation values)
+/// @param faceTransitions Array of face transitions (TopAbs_Orientation values)
+/// @param faceBoundaryTr Array of face boundary transitions (TopAbs_Orientation values)
+/// @param tolerances Array of tolerances per face
+/// @param faceCount Number of faces
+/// @return Transition result
+OCCTEdgeFaceTransitionResult OCCTTopCnxEdgeFaceTransition(
+    double edgeTangentX, double edgeTangentY, double edgeTangentZ,
+    double edgeNormalX, double edgeNormalY, double edgeNormalZ,
+    double edgeCurvature,
+    const double* _Nonnull faceTangents,
+    const double* _Nonnull faceNormals,
+    const double* _Nonnull faceCurvatures,
+    const int32_t* _Nonnull faceOrientations,
+    const int32_t* _Nonnull faceTransitions,
+    const int32_t* _Nonnull faceBoundaryTransitions,
+    const double* _Nonnull tolerances,
+    int32_t faceCount);
+
+// --- Intrv_Interval ---
+
+/// Opaque handle for an interval with tolerances
+typedef struct OCCTIntrvInterval* OCCTIntrvIntervalRef;
+
+/// Create an interval [start, end] with optional tolerances.
+OCCTIntrvIntervalRef _Nonnull OCCTIntrvIntervalCreate(double start, double end,
+    float tolStart, float tolEnd);
+
+/// Release an interval.
+void OCCTIntrvIntervalRelease(OCCTIntrvIntervalRef _Nonnull interval);
+
+/// Get interval bounds.
+typedef struct {
+    double start;
+    double end;
+    float tolStart;
+    float tolEnd;
+} OCCTIntrvBounds;
+
+OCCTIntrvBounds OCCTIntrvIntervalBounds(OCCTIntrvIntervalRef _Nonnull interval);
+
+/// Check if interval is probably empty.
+bool OCCTIntrvIntervalIsProbablyEmpty(OCCTIntrvIntervalRef _Nonnull interval);
+
+/// Get position of interval relative to another.
+/// Returns Intrv_Position enum: 0=Before, 1=JustBefore, 2=OverlappingAtStart, ...12=After
+int32_t OCCTIntrvIntervalPosition(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other);
+
+/// Check spatial relationships between intervals.
+bool OCCTIntrvIntervalIsBefore(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other);
+bool OCCTIntrvIntervalIsAfter(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other);
+bool OCCTIntrvIntervalIsInside(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other);
+bool OCCTIntrvIntervalIsEnclosing(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other);
+bool OCCTIntrvIntervalIsSimilar(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other);
+
+/// Modify interval bounds.
+void OCCTIntrvIntervalSetStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol);
+void OCCTIntrvIntervalSetEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol);
+void OCCTIntrvIntervalFuseAtStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol);
+void OCCTIntrvIntervalFuseAtEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol);
+void OCCTIntrvIntervalCutAtStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol);
+void OCCTIntrvIntervalCutAtEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol);
+
+// --- Intrv_Intervals ---
+
+/// Opaque handle for a sorted sequence of non-overlapping intervals
+typedef struct OCCTIntrvIntervals* OCCTIntrvIntervalsRef;
+
+/// Create an interval sequence from a single interval.
+OCCTIntrvIntervalsRef _Nonnull OCCTIntrvIntervalsCreate(double start, double end);
+
+/// Create an empty interval sequence.
+OCCTIntrvIntervalsRef _Nonnull OCCTIntrvIntervalsCreateEmpty(void);
+
+/// Release an interval sequence.
+void OCCTIntrvIntervalsRelease(OCCTIntrvIntervalsRef _Nonnull intervals);
+
+/// Get number of intervals in the sequence.
+int32_t OCCTIntrvIntervalsCount(OCCTIntrvIntervalsRef _Nonnull intervals);
+
+/// Get bounds of interval at index (1-based).
+OCCTIntrvBounds OCCTIntrvIntervalsValue(OCCTIntrvIntervalsRef _Nonnull intervals, int32_t index);
+
+/// Set operations on interval sequences (mutate in place).
+void OCCTIntrvIntervalsUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end);
+void OCCTIntrvIntervalsSubtract(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end);
+void OCCTIntrvIntervalsIntersect(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end);
+void OCCTIntrvIntervalsXUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end);
 
 #ifdef __cplusplus
 }
