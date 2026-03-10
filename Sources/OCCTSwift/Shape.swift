@@ -9355,3 +9355,192 @@ public final class IntervalSet: @unchecked Sendable {
         OCCTIntrvIntervalsXUnite(handle, start, end)
     }
 }
+
+// MARK: - ShapeRayIntersection (BRepIntCurveSurface_Inter)
+
+/// Iterator for line/curve–shape intersection results.
+public final class ShapeRayIntersection: @unchecked Sendable {
+    let handle: OCCTCurveSurfaceInterRef
+
+    /// A single intersection hit.
+    public struct Hit {
+        public let x: Double, y: Double, z: Double
+        public let u: Double, v: Double
+        public let w: Double
+    }
+
+    /// Create intersection of a line with a shape.
+    public init?(shape: Shape, originX: Double, originY: Double, originZ: Double,
+                 dirX: Double, dirY: Double, dirZ: Double, tolerance: Double = 1e-6) {
+        guard let h = OCCTCurveSurfaceInterCreateLine(
+            shape.handle, originX, originY, originZ, dirX, dirY, dirZ, tolerance) else { return nil }
+        self.handle = h
+    }
+
+    /// Create intersection of a curve with a shape.
+    public init?(shape: Shape, curve: Curve3D, tolerance: Double = 1e-6) {
+        guard let h = OCCTCurveSurfaceInterCreateCurve(shape.handle, curve.handle, tolerance) else { return nil }
+        self.handle = h
+    }
+
+    deinit { OCCTCurveSurfaceInterRelease(handle) }
+
+    /// Check if more results are available.
+    public var hasMore: Bool { OCCTCurveSurfaceInterMore(handle) }
+
+    /// Advance to next result.
+    public func next() { OCCTCurveSurfaceInterNext(handle) }
+
+    /// Get current hit data.
+    public var currentHit: Hit {
+        let h = OCCTCurveSurfaceInterHit(handle)
+        return Hit(x: h.x, y: h.y, z: h.z, u: h.u, v: h.v, w: h.w)
+    }
+
+    /// Get face at current hit.
+    public var currentFace: Face? {
+        guard let f = OCCTCurveSurfaceInterFace(handle) else { return nil }
+        return Face(handle: f)
+    }
+
+    /// Collect all hits.
+    public func allHits() -> [Hit] {
+        var hits: [Hit] = []
+        while hasMore {
+            hits.append(currentHit)
+            next()
+        }
+        return hits
+    }
+}
+
+// MARK: - ShapeConstruct (Triangulation)
+
+extension Shape {
+    /// Create a triangulated face from 3D points.
+    public static func triangulationFromPoints(_ points: [(Double, Double, Double)]) -> Shape? {
+        var coords: [Double] = []
+        for p in points {
+            coords.append(p.0); coords.append(p.1); coords.append(p.2)
+        }
+        guard let ref = OCCTShapeConstructTriangulationFromPoints(coords, Int32(points.count)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a triangulated face from a wire.
+    public static func triangulationFromWire(_ wire: Wire) -> Shape? {
+        guard let ref = OCCTShapeConstructTriangulationFromWire(wire.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - Surface Extensions (ShapeCustom_Surface periodic + gap)
+
+extension Surface {
+    /// Convert surface to periodic form. Returns nil if already periodic or not convertible.
+    public func convertToPeriodic() -> Surface? {
+        guard let ref = OCCTSurfaceConvertToPeriodic(handle) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Get conversion gap (distance between original and converted surface).
+    public var conversionGap: Double {
+        OCCTSurfaceConversionGap(handle)
+    }
+}
+
+// MARK: - MeshCinert (Linear Mass Properties from Mesh)
+
+/// Linear mass properties computed from mesh polygon points.
+public struct MeshCinertResult {
+    public let mass: Double
+    public let centerX: Double, centerY: Double, centerZ: Double
+}
+
+extension Edge {
+    /// Prepare polygon points from a meshed edge.
+    public func meshPolygonPoints() -> [(Double, Double, Double)] {
+        var coords = [Double](repeating: 0, count: 3000) // up to 1000 points
+        let count = OCCTMeshCinertPreparePolygon(handle, &coords, 1000)
+        var points: [(Double, Double, Double)] = []
+        for i in 0..<Int(count) {
+            points.append((coords[i*3], coords[i*3+1], coords[i*3+2]))
+        }
+        return points
+    }
+}
+
+/// Compute linear mass properties from polygon points.
+public func meshCinertCompute(points: [(Double, Double, Double)]) -> MeshCinertResult {
+    var coords: [Double] = []
+    for p in points {
+        coords.append(p.0); coords.append(p.1); coords.append(p.2)
+    }
+    let r = OCCTMeshCinertCompute(coords, Int32(points.count))
+    return MeshCinertResult(mass: r.mass, centerX: r.centerX, centerY: r.centerY, centerZ: r.centerZ)
+}
+
+// MARK: - MeshProps (Surface/Volume Properties from Mesh)
+
+/// Mesh property type.
+public enum MeshPropsType {
+    case volume
+    case surface
+}
+
+/// Mesh surface/volume properties result.
+public struct MeshPropsResult {
+    public let mass: Double
+    public let centerX: Double, centerY: Double, centerZ: Double
+}
+
+extension Face {
+    /// Compute mesh properties for a triangulated face.
+    public func meshProps(type: MeshPropsType) -> MeshPropsResult {
+        let t: OCCTMeshPropsType = (type == .surface) ? OCCTMeshPropsSurface : OCCTMeshPropsVolume
+        let r = OCCTMeshPropsCompute(handle, t)
+        return MeshPropsResult(mass: r.mass, centerX: r.centerX, centerY: r.centerY, centerZ: r.centerZ)
+    }
+}
+
+// MARK: - MeshShapeTool (Static Mesh Utilities)
+
+extension Face {
+    /// Maximum tolerance of edges/vertices on this face.
+    public var maxMeshTolerance: Double {
+        OCCTMeshShapeToolMaxFaceTolerance(handle)
+    }
+
+    /// Get UV parameter points of an edge on this face.
+    public func uvPoints(edge: Edge) -> (u1: Double, v1: Double, u2: Double, v2: Double)? {
+        let r = OCCTMeshShapeToolUVPoints(edge.handle, handle)
+        guard r.success else { return nil }
+        return (r.u1, r.v1, r.u2, r.v2)
+    }
+}
+
+extension Shape {
+    /// Maximum dimension of the shape's bounding box (for mesh sizing).
+    public var meshMaxDimension: Double {
+        OCCTMeshShapeToolBoxMaxDimension(handle)
+    }
+}
+
+// MARK: - ValidateEdge (BRepLib_ValidateEdge)
+
+/// Edge validation result (3D curve vs curve-on-surface consistency).
+public struct ValidateEdgeResult {
+    public let isDone: Bool
+    public let isWithinTolerance: Bool
+    public let maxDistance: Double
+    public let tolerance: Double
+}
+
+extension Edge {
+    /// Validate edge geometry on a face (3D curve vs curve-on-surface consistency).
+    public func validate(on face: Face, tolerance: Double = 1e-3) -> ValidateEdgeResult {
+        let r = OCCTValidateEdge(handle, face.handle, tolerance)
+        return ValidateEdgeResult(isDone: r.isDone, isWithinTolerance: r.isWithinTolerance,
+                                   maxDistance: r.maxDistance, tolerance: r.tolerance)
+    }
+}

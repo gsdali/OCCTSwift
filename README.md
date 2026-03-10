@@ -113,7 +113,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **FilletSurf** | 2 | filletSurfaces, filletSurfError |
 | **HLR Extended** | 6 | hlrEdges (by category), hlrPolyEdges, hlrCompoundOfEdges, reflectLines, reflectLinesFiltered, edgeFaceTransition |
 | **Interval Arithmetic** | 23 | Interval create/bounds/isProbablyEmpty/position/isBefore/isAfter/isInside/isEnclosing/isSimilar/setStart/setEnd/fuseAtStart/fuseAtEnd/cutAtStart/cutAtEnd, IntervalSet create/createEmpty/count/bounds/unite/subtract/intersect/xUnite |
-| **Total** | **1201** | |
+| **Ray-Shape Intersection (BRepIntCurveSurface)** | 4 | lineIntersection, curveIntersection, allHits, hitFace |
+| **ShapeConstruct Triangulation** | 2 | triangulationFromPoints, triangulationFromWire |
+| **Surface Periodic Conversion** | 2 | convertToPeriodic, conversionGap |
+| **Mesh Linear Properties** | 2 | meshPolygonPoints (edge), meshCinertCompute |
+| **Mesh Surface/Volume Properties** | 2 | meshProps(surface), meshProps(volume) |
+| **Mesh Shape Utilities** | 3 | maxMeshTolerance, meshMaxDimension, uvPoints |
+| **Edge Validation** | 1 | validate(on:face:tolerance:) |
+| **Total** | **1217** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -386,6 +393,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Edge-Face Transition**: TopCnx_EdgeFaceTransition — compute cumulated topological orientation transition at edge-face boundaries with curvature support
 - **Interval Arithmetic**: Intrv_Interval — tolerance-aware real intervals with spatial relationship queries (before, after, inside, enclosing, similar, position), bound modification (set, fuse, cut)
 - **Interval Set Operations**: Intrv_Intervals — sorted non-overlapping interval sequences with set-theoretic operations (union, subtract, intersect, symmetric difference)
+- **Line/Curve–Shape Intersection**: BRepIntCurveSurface_Inter — cast lines or curves through shapes to find all intersection points with surface parameters, face identification, and batch hit collection
+- **Triangulation from Points/Wire**: ShapeConstruct_MakeTriangulation — create triangulated faces from point arrays or wire outlines
+- **Surface Periodic Conversion**: ShapeCustom_Surface — convert surfaces to periodic form with gap measurement
+- **Mesh Linear Properties**: BRepGProp_MeshCinert — extract polygon points from meshed edges and compute length/center of mass
+- **Mesh Surface/Volume Properties**: BRepGProp_MeshProps — compute area or volume contribution from face triangulations
+- **Mesh Shape Utilities**: BRepMesh_ShapeTool — face tolerance, bounding box max dimension, edge UV parameter extraction
+- **Edge Validation**: BRepLib_ValidateEdge — validate 3D curve vs curve-on-surface consistency with tolerance checking
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1352,7 +1366,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1201 OCCT operations** across 69 categories with 1546 tests across 481 suites.
+OCCTSwift now wraps **1217 OCCT operations** across 76 categories with 1561 tests across 488 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

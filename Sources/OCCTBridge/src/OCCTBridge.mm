@@ -27465,3 +27465,317 @@ void OCCTIntrvIntervalsIntersect(OCCTIntrvIntervalsRef _Nonnull intervals, doubl
 void OCCTIntrvIntervalsXUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
     intervals->intervals.XUnite(Intrv_Interval(start, end));
 }
+
+// MARK: - v0.74.0: BRepIntCurveSurface_Inter, ShapeConstruct_MakeTriangulation,
+//                   ShapeCustom_Surface (periodic), BRepGProp_MeshCinert/MeshProps,
+//                   BRepMesh_ShapeTool, BRepLib_ValidateEdge
+
+#include <BRepIntCurveSurface_Inter.hxx>
+#include <Geom_Line.hxx>
+#include <GeomAdaptor_Curve.hxx>
+#include <ShapeConstruct_MakeTriangulation.hxx>
+#include <NCollection_Array1.hxx>
+#include <BRepGProp_MeshCinert.hxx>
+#include <BRepGProp_MeshProps.hxx>
+#include <BRepMesh_ShapeTool.hxx>
+#include <BRepLib_ValidateEdge.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <Bnd_Box.hxx>
+#include <BRepBndLib.hxx>
+
+struct OCCTCurveSurfaceInter {
+    BRepIntCurveSurface_Inter inter;
+};
+
+// --- BRepIntCurveSurface_Inter ---
+
+OCCTCurveSurfaceInterRef _Nullable OCCTCurveSurfaceInterCreateLine(
+    OCCTShapeRef _Nonnull shape,
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        auto* ref = new OCCTCurveSurfaceInter();
+        gp_Lin line(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        ref->inter.Init(shape->shape, line, tolerance);
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurveSurfaceInterRef _Nullable OCCTCurveSurfaceInterCreateCurve(
+    OCCTShapeRef _Nonnull shape,
+    OCCTCurve3DRef _Nonnull curve,
+    double tolerance) {
+    if (!shape || !curve) return nullptr;
+    try {
+        auto* ref = new OCCTCurveSurfaceInter();
+        GeomAdaptor_Curve gac(curve->curve);
+        ref->inter.Init(shape->shape, gac, tolerance);
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTCurveSurfaceInterRelease(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    delete inter;
+}
+
+bool OCCTCurveSurfaceInterMore(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    try { return inter->inter.More(); } catch (...) { return false; }
+}
+
+void OCCTCurveSurfaceInterNext(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    try { inter->inter.Next(); } catch (...) {}
+}
+
+OCCTCurveSurfaceHit OCCTCurveSurfaceInterHit(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    OCCTCurveSurfaceHit hit = {};
+    try {
+        gp_Pnt pt = inter->inter.Pnt();
+        hit.x = pt.X(); hit.y = pt.Y(); hit.z = pt.Z();
+        hit.u = inter->inter.U();
+        hit.v = inter->inter.V();
+        hit.w = inter->inter.W();
+    } catch (...) {}
+    return hit;
+}
+
+OCCTFaceRef _Nullable OCCTCurveSurfaceInterFace(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    try {
+        TopoDS_Face face = inter->inter.Face();
+        if (face.IsNull()) return nullptr;
+        auto* ref = new OCCTFace();
+        ref->face = face;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTCurveSurfaceInterAllHits(OCCTCurveSurfaceInterRef _Nonnull inter,
+                                      OCCTCurveSurfaceHit* _Nonnull hits,
+                                      int32_t maxHits) {
+    int32_t count = 0;
+    try {
+        while (inter->inter.More() && count < maxHits) {
+            gp_Pnt pt = inter->inter.Pnt();
+            hits[count].x = pt.X(); hits[count].y = pt.Y(); hits[count].z = pt.Z();
+            hits[count].u = inter->inter.U();
+            hits[count].v = inter->inter.V();
+            hits[count].w = inter->inter.W();
+            count++;
+            inter->inter.Next();
+        }
+    } catch (...) {}
+    return count;
+}
+
+// --- ShapeConstruct_MakeTriangulation ---
+
+OCCTShapeRef _Nullable OCCTShapeConstructTriangulationFromPoints(
+    const double* _Nonnull coords, int32_t pointCount) {
+    if (pointCount < 3) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> points(1, pointCount);
+        for (int32_t i = 0; i < pointCount; i++) {
+            points.SetValue(i + 1, gp_Pnt(coords[i*3], coords[i*3+1], coords[i*3+2]));
+        }
+        ShapeConstruct_MakeTriangulation maker(points);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        TopoDS_Shape result = maker.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef _Nullable OCCTShapeConstructTriangulationFromWire(OCCTWireRef _Nonnull wire) {
+    if (!wire) return nullptr;
+    try {
+        ShapeConstruct_MakeTriangulation maker(wire->wire);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        TopoDS_Shape result = maker.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- ShapeCustom_Surface: ConvertToPeriodic, Gap ---
+
+OCCTSurfaceRef _Nullable OCCTSurfaceConvertToPeriodic(OCCTSurfaceRef _Nonnull surface) {
+    if (!surface) return nullptr;
+    try {
+        ShapeCustom_Surface sc(surface->surface);
+        Handle(Geom_Surface) periodic = sc.ConvertToPeriodic(Standard_False);
+        if (periodic.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = periodic;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+double OCCTSurfaceConversionGap(OCCTSurfaceRef _Nonnull surface) {
+    if (!surface) return -1.0;
+    try {
+        ShapeCustom_Surface sc(surface->surface);
+        // Trigger a conversion to populate gap
+        sc.ConvertToAnalytical(1e-3, Standard_False);
+        return sc.Gap();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+// --- BRepGProp_MeshCinert ---
+
+int32_t OCCTMeshCinertPreparePolygon(OCCTEdgeRef _Nonnull edge,
+                                      double* _Nonnull coords,
+                                      int32_t maxPoints) {
+    if (!edge) return 0;
+    try {
+        Handle(NCollection_HArray1<gp_Pnt>) polyPts;
+        BRepGProp_MeshCinert::PreparePolygon(TopoDS::Edge(edge->edge), polyPts);
+        if (polyPts.IsNull() || polyPts->Length() == 0) return 0;
+        int32_t count = std::min((int32_t)polyPts->Length(), maxPoints);
+        for (int32_t i = 0; i < count; i++) {
+            const gp_Pnt& pt = polyPts->Value(polyPts->Lower() + i);
+            coords[i*3] = pt.X();
+            coords[i*3+1] = pt.Y();
+            coords[i*3+2] = pt.Z();
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTMeshCinertResult OCCTMeshCinertCompute(const double* _Nonnull coords, int32_t pointCount) {
+    OCCTMeshCinertResult result = {};
+    if (pointCount < 2) return result;
+    try {
+        NCollection_Array1<gp_Pnt> points(1, pointCount);
+        for (int32_t i = 0; i < pointCount; i++) {
+            points.SetValue(i + 1, gp_Pnt(coords[i*3], coords[i*3+1], coords[i*3+2]));
+        }
+        BRepGProp_MeshCinert cinert;
+        cinert.SetLocation(gp_Pnt(0, 0, 0));
+        cinert.Perform(points);
+        result.mass = cinert.Mass();
+        gp_Pnt cm = cinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// --- BRepGProp_MeshProps ---
+
+OCCTMeshPropsResult OCCTMeshPropsCompute(OCCTFaceRef _Nonnull face, OCCTMeshPropsType type) {
+    OCCTMeshPropsResult result = {};
+    if (!face) return result;
+    try {
+        TopLoc_Location loc;
+        Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(TopoDS::Face(face->face), loc);
+        if (tri.IsNull()) return result;
+
+        BRepGProp_MeshProps::BRepGProp_MeshObjType objType =
+            (type == OCCTMeshPropsSurface) ? BRepGProp_MeshProps::Sinert : BRepGProp_MeshProps::Vinert;
+        BRepGProp_MeshProps props(objType);
+        props.SetLocation(gp_Pnt(0, 0, 0));
+        props.Perform(tri, loc, TopoDS::Face(face->face).Orientation());
+        result.mass = props.Mass();
+        gp_Pnt cm = props.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// --- BRepMesh_ShapeTool ---
+
+double OCCTMeshShapeToolMaxFaceTolerance(OCCTFaceRef _Nonnull face) {
+    if (!face) return 0;
+    try {
+        return BRepMesh_ShapeTool::MaxFaceTolerance(TopoDS::Face(face->face));
+    } catch (...) {
+        return 0;
+    }
+}
+
+double OCCTMeshShapeToolBoxMaxDimension(OCCTShapeRef _Nonnull shape) {
+    if (!shape) return 0;
+    try {
+        Bnd_Box bbox;
+        BRepBndLib::Add(shape->shape, bbox);
+        double maxDim = 0;
+        BRepMesh_ShapeTool::BoxMaxDimension(bbox, maxDim);
+        return maxDim;
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTUVPointsResult OCCTMeshShapeToolUVPoints(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _Nonnull face) {
+    OCCTUVPointsResult result = {};
+    if (!edge || !face) return result;
+    try {
+        gp_Pnt2d uv1, uv2;
+        result.success = BRepMesh_ShapeTool::UVPoints(
+            TopoDS::Edge(edge->edge), TopoDS::Face(face->face), uv1, uv2);
+        if (result.success) {
+            result.u1 = uv1.X(); result.v1 = uv1.Y();
+            result.u2 = uv2.X(); result.v2 = uv2.Y();
+        }
+    } catch (...) {}
+    return result;
+}
+
+// --- BRepLib_ValidateEdge ---
+
+OCCTValidateEdgeResult OCCTValidateEdge(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _Nonnull face, double tolerance) {
+    OCCTValidateEdgeResult result = {};
+    if (!edge || !face) return result;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->edge);
+        TopoDS_Face f = TopoDS::Face(face->face);
+
+        Handle(BRepAdaptor_Curve) curve3d = new BRepAdaptor_Curve(e);
+
+        double first, last;
+        Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(e, f, first, last);
+        if (pcurve.IsNull()) return result;
+
+        Handle(BRepAdaptor_Surface) brepSurf = new BRepAdaptor_Surface(f);
+        Handle(Geom2dAdaptor_Curve) gac2d = new Geom2dAdaptor_Curve(pcurve, first, last);
+        Handle(Adaptor3d_CurveOnSurface) curveOnSurf = new Adaptor3d_CurveOnSurface(gac2d, brepSurf);
+
+        BRepLib_ValidateEdge validator(curve3d, curveOnSurf, Standard_True);
+        validator.Process();
+
+        result.isDone = validator.IsDone();
+        if (result.isDone) {
+            result.maxDistance = validator.GetMaxDistance();
+            result.tolerance = tolerance;
+            result.isWithinTolerance = validator.CheckTolerance(tolerance);
+        }
+    } catch (...) {}
+    return result;
+}

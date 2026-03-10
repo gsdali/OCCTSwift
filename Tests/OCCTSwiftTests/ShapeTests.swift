@@ -21057,3 +21057,197 @@ struct IntrvIntervalsTests {
         #expect(set.count == 2)
     }
 }
+
+// MARK: - v0.74.0: ShapeRayIntersection, ShapeConstruct, ShapeCustom Surface, MeshCinert, MeshProps, MeshShapeTool, ValidateEdge
+
+@Suite("ShapeRayIntersection Tests")
+struct ShapeRayIntersectionTests {
+    @Test("line intersection with box")
+    func lineBoxIntersection() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        if let inter = ShapeRayIntersection(shape: box, originX: 5, originY: 5, originZ: -10,
+                                             dirX: 0, dirY: 0, dirZ: 1) {
+            let hits = inter.allHits()
+            #expect(hits.count >= 2)
+        }
+    }
+
+    @Test("curve intersection with sphere")
+    func curveSphereIntersection() {
+        let sphere = Shape.sphere(radius: 5)!
+        if let line = Curve3D.line(through: SIMD3(0, 0, -10), direction: SIMD3(0, 0, 1)) {
+            if let inter = ShapeRayIntersection(shape: sphere, curve: line) {
+                let hits = inter.allHits()
+                #expect(hits.count >= 2)
+            }
+        }
+    }
+
+    @Test("hit face access")
+    func hitFaceAccess() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        if let inter = ShapeRayIntersection(shape: box, originX: 5, originY: 5, originZ: -10,
+                                             dirX: 0, dirY: 0, dirZ: 1) {
+            if inter.hasMore {
+                let hit = inter.currentHit
+                #expect(hit.z >= -6 && hit.z <= 6)
+                if let face = inter.currentFace {
+                    #expect(face.area() > 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("ShapeConstruct Triangulation Tests")
+struct ShapeConstructTriangulationTests {
+    @Test("triangulation from points")
+    func fromPoints() {
+        let points: [(Double, Double, Double)] = [
+            (0, 0, 0), (10, 0, 0), (10, 10, 0), (0, 10, 0)
+        ]
+        let shape = Shape.triangulationFromPoints(points)
+        #expect(shape != nil)
+    }
+
+    @Test("triangulation from wire")
+    func fromWire() {
+        if let w = Wire.polygon3D([SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(5, 10, 0)], closed: true) {
+            let shape = Shape.triangulationFromWire(w)
+            #expect(shape != nil)
+        }
+    }
+}
+
+@Suite("ShapeCustom Surface Periodic Tests")
+struct ShapeCustomSurfacePeriodicTests {
+    @Test("convert to periodic")
+    func convertToPeriodic() {
+        if let surf = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5) {
+            // Cylinder surface is already periodic — result may be nil
+            let _ = surf.convertToPeriodic()
+            // Just verify no crash
+        }
+    }
+
+    @Test("conversion gap")
+    func conversionGap() {
+        if let surf = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5) {
+            let gap = surf.conversionGap
+            #expect(gap >= 0)
+        }
+    }
+}
+
+@Suite("BRepGProp MeshCinert Tests")
+struct MeshCinertTests {
+    @Test("prepare polygon and compute")
+    func prepareAndCompute() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let _ = box.mesh(linearDeflection: 0.1)
+        let edges = box.edges()
+        if let edge = edges.first {
+            let points = edge.meshPolygonPoints()
+            #expect(points.count > 0)
+            if points.count >= 2 {
+                let result = meshCinertCompute(points: points)
+                #expect(result.mass > 0)
+            }
+        }
+    }
+}
+
+@Suite("BRepGProp MeshProps Tests")
+struct MeshPropsTests {
+    @Test("surface mesh properties")
+    func surfaceProps() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let _ = box.mesh(linearDeflection: 0.1)
+        let faces = box.faces()
+        if let face = faces.first {
+            let result = face.meshProps(type: .surface)
+            #expect(result.mass > 0)
+        }
+    }
+
+    @Test("volume mesh properties")
+    func volumeProps() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let _ = box.mesh(linearDeflection: 0.1)
+        let faces = box.faces()
+        if let face = faces.first {
+            let result = face.meshProps(type: .volume)
+            // Volume contribution from single face may be zero or small — just don't crash
+            let _ = result.mass
+        }
+    }
+}
+
+@Suite("BRepMesh ShapeTool Tests")
+struct MeshShapeToolTests {
+    @Test("max face tolerance")
+    func maxFaceTolerance() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let _ = box.mesh(linearDeflection: 0.1)
+        let faces = box.faces()
+        if let face = faces.first {
+            let tol = face.maxMeshTolerance
+            #expect(tol > 0)
+        }
+    }
+
+    @Test("box max dimension")
+    func boxMaxDimension() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let maxDim = box.meshMaxDimension
+        #expect(abs(maxDim - 10.0) < 1.0)
+    }
+
+    @Test("UV points on edge")
+    func uvPoints() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let _ = box.mesh(linearDeflection: 0.1)
+        let faces = box.faces()
+        if let face = faces.first {
+            // Get edges of this face by exploring box edges
+            let edges = box.edges()
+            if let edge = edges.first {
+                let uv = face.uvPoints(edge: edge)
+                // Some edges may not be on this face — just verify no crash
+                let _ = uv
+            }
+        }
+    }
+}
+
+@Suite("BRepLib ValidateEdge Tests")
+struct ValidateEdgeTests {
+    @Test("validate edge on face")
+    func validateEdge() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let faces = cyl.faces()
+        for face in faces {
+            let result = cyl.edges().first.map { $0.validate(on: face) }
+            if let r = result, r.isDone {
+                #expect(r.maxDistance >= 0)
+                return
+            }
+        }
+    }
+
+    @Test("check tolerance")
+    func checkTolerance() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let faces = cyl.faces()
+        let edges = cyl.edges()
+        for face in faces {
+            for edge in edges {
+                let result = edge.validate(on: face, tolerance: 1.0)
+                if result.isDone {
+                    let _ = result.isWithinTolerance
+                    return
+                }
+            }
+        }
+    }
+}

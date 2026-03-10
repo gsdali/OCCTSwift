@@ -124,16 +124,23 @@
 // --- BRepGProp ---
 // BRepGProp                           → OCCTShapeVolume, OCCTShapeSurfaceArea, OCCTShapeGetCenterOfMass
 // BRepGProp_Face                      → OCCTFaceGProp*
+// BRepGProp_MeshCinert                → OCCTMeshCinert*
+// BRepGProp_MeshProps                 → OCCTMeshProps*
+//
+// --- BRepIntCurveSurface ---
+// BRepIntCurveSurface_Inter           → OCCTCurveSurfaceInter*
 //
 // --- BRepLib ---
 // BRepLib_MakeEdge                    → OCCTBRepLibEdge*
 // BRepLib_MakeFace                    → OCCTBRepLibFace*
 // BRepLib_MakeShell                   → OCCTBRepLibShell*
 // BRepLib_MakeSolid                   → OCCTBRepLibSolidFromShell
+// BRepLib_ValidateEdge                → OCCTValidateEdge
 //
 // --- BRepMesh ---
 // BRepMesh_Deflection                 → OCCTDeflectionCompute, OCCTDeflectionIsConsistent
 // BRepMesh_IncrementalMesh            → OCCTShapeCreateMesh*
+// BRepMesh_ShapeTool                  → OCCTMeshShapeTool*
 //
 // --- BRepOffset ---
 // BRepOffset_Analyse                  → OCCTEdgeGetConvexity
@@ -389,10 +396,14 @@
 // ShapeBuild_Edge                     → OCCTShapeBuildEdge*
 // ShapeBuild_Vertex                   → OCCTShapeBuildVertex*
 //
+// --- ShapeConstruct ---
+// ShapeConstruct_MakeTriangulation    → OCCTShapeConstructTriangulation*
+//
 // --- ShapeCustom ---
 // ShapeCustom_BSplineRestriction      → OCCTShapeBSplineRestriction*
 // ShapeCustom_Curve2d                 → OCCTCurve2DIsLinear, OCCTCurve2DConvertToLine, OCCTCurve2DSimplifyBSpline
 // ShapeCustom_DirectModification      → OCCTShapeDirectModification
+// ShapeCustom_Surface                 → OCCTSurfaceConvertToAnalytical, OCCTSurfaceConvertToPeriodic, OCCTSurfaceConversionGap
 // ShapeCustom_SweptToElementary       → OCCTShapeSweptToElementary
 // ShapeCustom_TrsfModification        → OCCTShapeTrsfModificationScale
 //
@@ -9051,6 +9062,128 @@ void OCCTIntrvIntervalsUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double st
 void OCCTIntrvIntervalsSubtract(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end);
 void OCCTIntrvIntervalsIntersect(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end);
 void OCCTIntrvIntervalsXUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end);
+
+// MARK: - BRepIntCurveSurface_Inter (Ray/Curve–Shape Intersection)
+
+/// Opaque handle for BRepIntCurveSurface_Inter iterator.
+typedef struct OCCTCurveSurfaceInter* OCCTCurveSurfaceInterRef;
+
+/// Result for each intersection hit.
+typedef struct {
+    double x, y, z;  // Intersection point
+    double u, v;      // Surface parameters
+    double w;         // Curve parameter
+} OCCTCurveSurfaceHit;
+
+/// Create a line–shape intersection iterator.
+OCCTCurveSurfaceInterRef _Nullable OCCTCurveSurfaceInterCreateLine(
+    OCCTShapeRef _Nonnull shape,
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double tolerance);
+
+/// Create a curve–shape intersection iterator (uses existing Curve3D).
+OCCTCurveSurfaceInterRef _Nullable OCCTCurveSurfaceInterCreateCurve(
+    OCCTShapeRef _Nonnull shape,
+    OCCTCurve3DRef _Nonnull curve,
+    double tolerance);
+
+/// Release the iterator.
+void OCCTCurveSurfaceInterRelease(OCCTCurveSurfaceInterRef _Nonnull inter);
+
+/// Check if more results are available.
+bool OCCTCurveSurfaceInterMore(OCCTCurveSurfaceInterRef _Nonnull inter);
+
+/// Advance to next result.
+void OCCTCurveSurfaceInterNext(OCCTCurveSurfaceInterRef _Nonnull inter);
+
+/// Get current hit data.
+OCCTCurveSurfaceHit OCCTCurveSurfaceInterHit(OCCTCurveSurfaceInterRef _Nonnull inter);
+
+/// Get the face hit at current position.
+OCCTFaceRef _Nullable OCCTCurveSurfaceInterFace(OCCTCurveSurfaceInterRef _Nonnull inter);
+
+/// Collect all hits into an array. Returns count, fills hits array (caller provides buffer).
+int32_t OCCTCurveSurfaceInterAllHits(OCCTCurveSurfaceInterRef _Nonnull inter,
+                                      OCCTCurveSurfaceHit* _Nonnull hits,
+                                      int32_t maxHits);
+
+// MARK: - ShapeConstruct_MakeTriangulation
+
+/// Build a triangulated face from an array of 3D points.
+OCCTShapeRef _Nullable OCCTShapeConstructTriangulationFromPoints(
+    const double* _Nonnull coords, int32_t pointCount);
+
+/// Build a triangulated face from a wire.
+OCCTShapeRef _Nullable OCCTShapeConstructTriangulationFromWire(OCCTWireRef _Nonnull wire);
+
+// MARK: - ShapeCustom_Surface (additional: ConvertToPeriodic, Gap)
+
+/// Convert surface to periodic form. Returns null if already periodic or not convertible.
+OCCTSurfaceRef _Nullable OCCTSurfaceConvertToPeriodic(OCCTSurfaceRef _Nonnull surface);
+
+/// Get gap after last ShapeCustom_Surface conversion.
+double OCCTSurfaceConversionGap(OCCTSurfaceRef _Nonnull surface);
+
+// MARK: - BRepGProp_MeshCinert (Mesh Linear Properties)
+
+/// Prepare polygon points from a meshed edge. Returns point count, fills coords (x,y,z triples).
+int32_t OCCTMeshCinertPreparePolygon(OCCTEdgeRef _Nonnull edge,
+                                      double* _Nonnull coords,
+                                      int32_t maxPoints);
+
+/// Compute linear mass properties of a polygon (length, center of mass).
+typedef struct {
+    double mass;       // Length
+    double centerX, centerY, centerZ;
+} OCCTMeshCinertResult;
+
+OCCTMeshCinertResult OCCTMeshCinertCompute(const double* _Nonnull coords, int32_t pointCount);
+
+// MARK: - BRepGProp_MeshProps (Mesh Surface/Volume Properties)
+
+/// Mesh property type.
+typedef enum {
+    OCCTMeshPropsVolume = 0,  // Vinert
+    OCCTMeshPropsSurface = 1  // Sinert
+} OCCTMeshPropsType;
+
+/// Compute mesh properties for a triangulated face.
+typedef struct {
+    double mass;  // Area (Sinert) or volume contribution (Vinert)
+    double centerX, centerY, centerZ;
+} OCCTMeshPropsResult;
+
+OCCTMeshPropsResult OCCTMeshPropsCompute(OCCTFaceRef _Nonnull face, OCCTMeshPropsType type);
+
+// MARK: - BRepMesh_ShapeTool (Static Mesh Utilities)
+
+/// Get maximum tolerance of edges/vertices on a face.
+double OCCTMeshShapeToolMaxFaceTolerance(OCCTFaceRef _Nonnull face);
+
+/// Get maximum dimension of a shape's bounding box.
+double OCCTMeshShapeToolBoxMaxDimension(OCCTShapeRef _Nonnull shape);
+
+/// Get UV parameter points of an edge on a face.
+typedef struct {
+    double u1, v1, u2, v2;
+    bool success;
+} OCCTUVPointsResult;
+
+OCCTUVPointsResult OCCTMeshShapeToolUVPoints(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _Nonnull face);
+
+// MARK: - BRepLib_ValidateEdge
+
+/// Validate edge geometry (3D curve vs curve-on-surface consistency).
+typedef struct {
+    bool isDone;
+    bool isWithinTolerance;  // at default tolerance
+    double maxDistance;
+    double tolerance;        // tolerance used for check
+} OCCTValidateEdgeResult;
+
+/// Validate an edge on a face. Returns validation metrics.
+OCCTValidateEdgeResult OCCTValidateEdge(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _Nonnull face, double tolerance);
 
 #ifdef __cplusplus
 }
