@@ -27779,3 +27779,393 @@ OCCTValidateEdgeResult OCCTValidateEdge(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _
     } catch (...) {}
     return result;
 }
+
+// MARK: - v0.75.0: BiTgte_Blend, GeomConvert_ApproxCurve/Surface, GCPnts,
+//                   BRepGProp_Cinert/Sinert/Vinert, ShapeConstruct_ProjectCurveOnSurface,
+//                   BRepPreviewAPI_MakeBox
+
+#include <BiTgte_Blend.hxx>
+#include <GeomConvert_ApproxCurve.hxx>
+#include <GeomConvert_ApproxSurface.hxx>
+#include <GCPnts_QuasiUniformAbscissa.hxx>
+#include <GCPnts_TangentialDeflection.hxx>
+#include <BRepGProp_Cinert.hxx>
+#include <BRepGProp_Sinert.hxx>
+#include <BRepGProp_Vinert.hxx>
+#include <BRepGProp_Face.hxx>
+#include <BRepPreviewAPI_MakeBox.hxx>
+#include <ShapeConstruct_ProjectCurveOnSurface.hxx>
+#include <Geom2d_Curve.hxx>
+
+// --- BiTgte_Blend ---
+
+OCCTShapeRef _Nullable OCCTBiTgteBlend(OCCTShapeRef _Nonnull shape,
+                                        const int32_t* _Nonnull edgeIndices,
+                                        int32_t edgeCount,
+                                        double radius,
+                                        double tolerance,
+                                        bool nubs) {
+    if (!shape || edgeCount <= 0) return nullptr;
+    try {
+        BiTgte_Blend blend(shape->shape, radius, tolerance, nubs);
+
+        // Collect edges by index
+        TopExp_Explorer edgeExp(shape->shape, TopAbs_EDGE);
+        std::vector<TopoDS_Edge> allEdges;
+        while (edgeExp.More()) {
+            allEdges.push_back(TopoDS::Edge(edgeExp.Current()));
+            edgeExp.Next();
+        }
+
+        for (int32_t i = 0; i < edgeCount; i++) {
+            int32_t idx = edgeIndices[i];
+            if (idx >= 0 && idx < (int32_t)allEdges.size()) {
+                blend.SetEdge(allEdges[idx]);
+            }
+        }
+
+        blend.Perform(true);
+        if (!blend.IsDone()) return nullptr;
+
+        TopoDS_Shape result = blend.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTBiTgteBlendInfo OCCTBiTgteBlendInfo_(OCCTShapeRef _Nonnull shape,
+                                          const int32_t* _Nonnull edgeIndices,
+                                          int32_t edgeCount,
+                                          double radius,
+                                          double tolerance) {
+    OCCTBiTgteBlendInfo info = {};
+    if (!shape || edgeCount <= 0) return info;
+    try {
+        BiTgte_Blend blend(shape->shape, radius, tolerance, false);
+
+        TopExp_Explorer edgeExp(shape->shape, TopAbs_EDGE);
+        std::vector<TopoDS_Edge> allEdges;
+        while (edgeExp.More()) {
+            allEdges.push_back(TopoDS::Edge(edgeExp.Current()));
+            edgeExp.Next();
+        }
+
+        for (int32_t i = 0; i < edgeCount; i++) {
+            int32_t idx = edgeIndices[i];
+            if (idx >= 0 && idx < (int32_t)allEdges.size()) {
+                blend.SetEdge(allEdges[idx]);
+            }
+        }
+
+        blend.Perform(true);
+        info.isDone = blend.IsDone();
+        if (info.isDone) {
+            info.nbSurfaces = blend.NbSurfaces();
+        }
+    } catch (...) {}
+    return info;
+}
+
+// --- GeomConvert_ApproxCurve ---
+
+static GeomAbs_Shape intToContinuity(int32_t c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C2;
+    }
+}
+
+OCCTApproxCurveResult OCCTGeomConvertApproxCurve(OCCTCurve3DRef _Nonnull curve,
+                                                  double tolerance,
+                                                  int32_t continuity,
+                                                  int32_t maxSegments,
+                                                  int32_t maxDegree) {
+    OCCTApproxCurveResult result = {};
+    if (!curve) return result;
+    try {
+        GeomConvert_ApproxCurve approx(curve->curve, tolerance,
+                                        intToContinuity(continuity), maxSegments, maxDegree);
+        result.isDone = approx.IsDone();
+        result.hasResult = approx.HasResult();
+        if (result.hasResult) {
+            result.maxError = approx.MaxError();
+            Handle(Geom_BSplineCurve) bspl = approx.Curve();
+            if (!bspl.IsNull()) {
+                auto* ref = new OCCTCurve3D();
+                ref->curve = bspl;
+                result.curve = ref;
+            }
+        }
+    } catch (...) {}
+    return result;
+}
+
+// --- GeomConvert_ApproxSurface ---
+
+OCCTApproxSurfaceResult OCCTGeomConvertApproxSurface(OCCTSurfaceRef _Nonnull surface,
+                                                      double tolerance,
+                                                      int32_t uContinuity,
+                                                      int32_t vContinuity,
+                                                      int32_t maxDegree,
+                                                      int32_t maxSegments) {
+    OCCTApproxSurfaceResult result = {};
+    if (!surface) return result;
+    try {
+        GeomConvert_ApproxSurface approx(surface->surface, tolerance,
+                                          intToContinuity(uContinuity),
+                                          intToContinuity(vContinuity),
+                                          maxDegree, maxDegree, maxSegments, 1);
+        result.isDone = approx.IsDone();
+        result.hasResult = approx.HasResult();
+        if (result.hasResult) {
+            result.maxError = approx.MaxError();
+            Handle(Geom_BSplineSurface) bspl = approx.Surface();
+            if (!bspl.IsNull()) {
+                auto* ref = new OCCTSurface();
+                ref->surface = bspl;
+                result.surface = ref;
+            }
+        }
+    } catch (...) {}
+    return result;
+}
+
+// --- GCPnts_QuasiUniformAbscissa ---
+
+int32_t OCCTGCPntsQuasiUniform(OCCTEdgeRef _Nonnull edge,
+                                int32_t nbPoints,
+                                double* _Nonnull params,
+                                int32_t maxParams) {
+    if (!edge || nbPoints < 2) return 0;
+    try {
+        BRepAdaptor_Curve curve(TopoDS::Edge(edge->edge));
+        GCPnts_QuasiUniformAbscissa sampler(curve, nbPoints);
+        if (!sampler.IsDone()) return 0;
+        int32_t count = std::min((int32_t)sampler.NbPoints(), maxParams);
+        for (int32_t i = 0; i < count; i++) {
+            params[i] = sampler.Parameter(i + 1); // 1-based
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGCPntsQuasiUniformCurve(OCCTCurve3DRef _Nonnull curve,
+                                      int32_t nbPoints,
+                                      double* _Nonnull params,
+                                      int32_t maxParams) {
+    if (!curve || nbPoints < 2) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        GCPnts_QuasiUniformAbscissa sampler(adaptor, nbPoints);
+        if (!sampler.IsDone()) return 0;
+        int32_t count = std::min((int32_t)sampler.NbPoints(), maxParams);
+        for (int32_t i = 0; i < count; i++) {
+            params[i] = sampler.Parameter(i + 1);
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// --- GCPnts_TangentialDeflection ---
+
+int32_t OCCTGCPntsTangentialDeflection(OCCTEdgeRef _Nonnull edge,
+                                        double angularDeflection,
+                                        double curvatureDeflection,
+                                        int32_t minPoints,
+                                        double* _Nonnull params,
+                                        double* _Nullable coords,
+                                        int32_t maxPoints) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve curve(TopoDS::Edge(edge->edge));
+        GCPnts_TangentialDeflection sampler(curve, angularDeflection, curvatureDeflection,
+                                             std::max((int)minPoints, 2));
+        int32_t count = std::min((int32_t)sampler.NbPoints(), maxPoints);
+        for (int32_t i = 0; i < count; i++) {
+            params[i] = sampler.Parameter(i + 1);
+            if (coords) {
+                gp_Pnt pt = sampler.Value(i + 1);
+                coords[i*3] = pt.X();
+                coords[i*3+1] = pt.Y();
+                coords[i*3+2] = pt.Z();
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGCPntsTangentialDeflectionCurve(OCCTCurve3DRef _Nonnull curve,
+                                             double angularDeflection,
+                                             double curvatureDeflection,
+                                             int32_t minPoints,
+                                             double* _Nonnull params,
+                                             double* _Nullable coords,
+                                             int32_t maxPoints) {
+    if (!curve) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        GCPnts_TangentialDeflection sampler(adaptor, angularDeflection, curvatureDeflection,
+                                             std::max((int)minPoints, 2));
+        int32_t count = std::min((int32_t)sampler.NbPoints(), maxPoints);
+        for (int32_t i = 0; i < count; i++) {
+            params[i] = sampler.Parameter(i + 1);
+            if (coords) {
+                gp_Pnt pt = sampler.Value(i + 1);
+                coords[i*3] = pt.X();
+                coords[i*3+1] = pt.Y();
+                coords[i*3+2] = pt.Z();
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// --- BRepGProp_Cinert ---
+
+OCCTCurveInertiaResult OCCTBRepGPropCinert(OCCTEdgeRef _Nonnull edge) {
+    OCCTCurveInertiaResult result = {};
+    if (!edge) return result;
+    try {
+        BRepAdaptor_Curve curve(TopoDS::Edge(edge->edge));
+        BRepGProp_Cinert cinert(curve, gp_Pnt(0, 0, 0));
+        result.mass = cinert.Mass();
+        gp_Pnt cm = cinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// --- BRepGProp_Sinert ---
+
+OCCTFaceSurfaceInertia OCCTBRepGPropSinert(OCCTFaceRef _Nonnull face) {
+    OCCTFaceSurfaceInertia result = {};
+    if (!face) return result;
+    try {
+        BRepGProp_Face gpropFace(TopoDS::Face(face->face));
+        BRepGProp_Sinert sinert;
+        sinert.SetLocation(gp_Pnt(0, 0, 0));
+        sinert.Perform(gpropFace);
+        result.mass = sinert.Mass();
+        gp_Pnt cm = sinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+OCCTFaceSurfaceInertia OCCTBRepGPropSinertAdaptive(OCCTFaceRef _Nonnull face, double epsilon) {
+    OCCTFaceSurfaceInertia result = {};
+    if (!face) return result;
+    try {
+        BRepGProp_Face gpropFace(TopoDS::Face(face->face));
+        BRepGProp_Sinert sinert;
+        sinert.SetLocation(gp_Pnt(0, 0, 0));
+        double err = sinert.Perform(gpropFace, epsilon);
+        result.mass = sinert.Mass();
+        result.epsilon = err;
+        gp_Pnt cm = sinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// --- BRepGProp_Vinert ---
+
+OCCTFaceVolumeInertia OCCTBRepGPropVinert(OCCTFaceRef _Nonnull face) {
+    OCCTFaceVolumeInertia result = {};
+    if (!face) return result;
+    try {
+        BRepGProp_Face gpropFace(TopoDS::Face(face->face));
+        BRepGProp_Vinert vinert;
+        vinert.SetLocation(gp_Pnt(0, 0, 0));
+        vinert.Perform(gpropFace);
+        result.mass = vinert.Mass();
+        gp_Pnt cm = vinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+OCCTFaceVolumeInertia OCCTBRepGPropVinertPlane(OCCTFaceRef _Nonnull face,
+                                                  double planeNX, double planeNY, double planeNZ,
+                                                  double planeDist) {
+    OCCTFaceVolumeInertia result = {};
+    if (!face) return result;
+    try {
+        BRepGProp_Face gpropFace(TopoDS::Face(face->face));
+        gp_Dir normal(planeNX, planeNY, planeNZ);
+        gp_Pln plane(gp_Pnt(normal.X() * planeDist, normal.Y() * planeDist, normal.Z() * planeDist), normal);
+        BRepGProp_Vinert vinert(gpropFace, plane, gp_Pnt(0, 0, 0));
+        result.mass = vinert.Mass();
+        gp_Pnt cm = vinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// --- ShapeConstruct_ProjectCurveOnSurface ---
+
+OCCTCurve2DRef _Nullable OCCTProjectCurveOnSurface(OCCTCurve3DRef _Nonnull curve,
+                                                     OCCTSurfaceRef _Nonnull surface,
+                                                     double firstParam,
+                                                     double lastParam,
+                                                     double precision) {
+    if (!curve || !surface) return nullptr;
+    try {
+        Handle(ShapeConstruct_ProjectCurveOnSurface) projector =
+            new ShapeConstruct_ProjectCurveOnSurface();
+        projector->Init(surface->surface, precision);
+
+        Handle(Geom2d_Curve) curve2d;
+        bool ok = projector->Perform(curve->curve, firstParam, lastParam, curve2d);
+        if (!ok || curve2d.IsNull()) return nullptr;
+
+        auto* ref = new OCCTCurve2D();
+        ref->curve = curve2d;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- BRepPreviewAPI_MakeBox ---
+
+OCCTShapeRef _Nullable OCCTPreviewBox(double dx, double dy, double dz) {
+    try {
+        BRepPreviewAPI_MakeBox preview;
+        preview.Init(dx, dy, dz);
+        preview.Build();
+        if (!preview.IsDone()) return nullptr;
+        TopoDS_Shape result = preview.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}

@@ -9544,3 +9544,182 @@ extension Edge {
                                    maxDistance: r.maxDistance, tolerance: r.tolerance)
     }
 }
+
+// MARK: - BiTgte_Blend (Rolling-Ball Blend)
+
+extension Shape {
+    /// Create a rolling-ball blend on specified edges.
+    public func biTgteBlend(edgeIndices: [Int], radius: Double, tolerance: Double = 1e-3, nubs: Bool = false) -> Shape? {
+        let indices = edgeIndices.map { Int32($0) }
+        guard let ref = indices.withUnsafeBufferPointer({ buf in
+            OCCTBiTgteBlend(handle, buf.baseAddress!, Int32(edgeIndices.count), radius, tolerance, nubs)
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - GeomConvert_ApproxCurve/Surface
+
+/// Continuity level for approximation.
+public enum ApproxContinuity: Int32 {
+    case c0 = 0, c1 = 1, c2 = 2, c3 = 3
+}
+
+/// Result of curve approximation as BSpline.
+public struct ApproxCurveResult {
+    public let curve: Curve3D?
+    public let maxError: Double
+    public let isDone: Bool
+    public let hasResult: Bool
+}
+
+extension Curve3D {
+    /// Approximate this curve as a BSpline with detailed result (error, status).
+    public func approxWithDetails(tolerance: Double, continuity: ApproxContinuity = .c2,
+                                   maxSegments: Int = 100, maxDegree: Int = 8) -> ApproxCurveResult {
+        let r = OCCTGeomConvertApproxCurve(handle, tolerance, continuity.rawValue,
+                                            Int32(maxSegments), Int32(maxDegree))
+        let curve: Curve3D? = r.curve.map { Curve3D(handle: $0) }
+        return ApproxCurveResult(curve: curve, maxError: r.maxError, isDone: r.isDone, hasResult: r.hasResult)
+    }
+}
+
+/// Result of surface approximation as BSpline.
+public struct ApproxSurfaceResult {
+    public let surface: Surface?
+    public let maxError: Double
+    public let isDone: Bool
+    public let hasResult: Bool
+}
+
+extension Surface {
+    /// Approximate this surface as a BSpline with detailed result (error, status).
+    public func approxWithDetails(tolerance: Double, uContinuity: ApproxContinuity = .c1,
+                                   vContinuity: ApproxContinuity = .c1,
+                                   maxDegree: Int = 8, maxSegments: Int = 100) -> ApproxSurfaceResult {
+        let r = OCCTGeomConvertApproxSurface(handle, tolerance, uContinuity.rawValue,
+                                              vContinuity.rawValue, Int32(maxDegree), Int32(maxSegments))
+        let surf: Surface? = r.surface.map { Surface(handle: $0) }
+        return ApproxSurfaceResult(surface: surf, maxError: r.maxError, isDone: r.isDone, hasResult: r.hasResult)
+    }
+}
+
+// MARK: - GCPnts_QuasiUniformAbscissa
+
+extension Edge {
+    /// Compute quasi-uniform parameter distribution on this edge.
+    public func quasiUniformParameters(count: Int) -> [Double] {
+        var params = [Double](repeating: 0, count: count)
+        let n = OCCTGCPntsQuasiUniform(handle, Int32(count), &params, Int32(count))
+        return Array(params.prefix(Int(n)))
+    }
+}
+
+// MARK: - GCPnts_TangentialDeflection
+
+/// A sampled point from tangential deflection.
+public struct TangentialDeflectionPoint {
+    public let parameter: Double
+    public let x: Double, y: Double, z: Double
+}
+
+extension Edge {
+    /// Sample this edge using tangential deflection criteria.
+    public func tangentialDeflectionPoints(angularDeflection: Double = 0.1,
+                                           curvatureDeflection: Double = 0.1,
+                                           minPoints: Int = 2) -> [TangentialDeflectionPoint] {
+        let maxPts: Int32 = 10000
+        var params = [Double](repeating: 0, count: Int(maxPts))
+        var coords = [Double](repeating: 0, count: Int(maxPts) * 3)
+        let n = OCCTGCPntsTangentialDeflection(handle, angularDeflection, curvatureDeflection,
+                                                Int32(minPoints), &params, &coords, maxPts)
+        return (0..<Int(n)).map { i in
+            TangentialDeflectionPoint(parameter: params[i], x: coords[i*3], y: coords[i*3+1], z: coords[i*3+2])
+        }
+    }
+}
+
+// MARK: - BRepGProp_Cinert (Curve Inertia per Edge)
+
+/// Curve inertia properties (length and center of mass).
+public struct CurveInertia {
+    public let length: Double
+    public let centerX: Double, centerY: Double, centerZ: Double
+}
+
+extension Edge {
+    /// Compute curve linear inertia (length and center of mass).
+    public var curveInertia: CurveInertia {
+        let r = OCCTBRepGPropCinert(handle)
+        return CurveInertia(length: r.mass, centerX: r.centerX, centerY: r.centerY, centerZ: r.centerZ)
+    }
+}
+
+// MARK: - BRepGProp_Sinert (Surface Inertia per Face)
+
+/// Face surface inertia properties (area and center of mass).
+public struct FaceSurfaceInertia {
+    public let area: Double
+    public let centerX: Double, centerY: Double, centerZ: Double
+    public let epsilon: Double
+}
+
+extension Face {
+    /// Compute surface inertia (area and center of mass).
+    public var surfaceInertia: FaceSurfaceInertia {
+        let r = OCCTBRepGPropSinert(handle)
+        return FaceSurfaceInertia(area: r.mass, centerX: r.centerX, centerY: r.centerY, centerZ: r.centerZ, epsilon: 0)
+    }
+
+    /// Compute surface inertia with adaptive integration.
+    public func surfaceInertia(epsilon: Double) -> FaceSurfaceInertia {
+        let r = OCCTBRepGPropSinertAdaptive(handle, epsilon)
+        return FaceSurfaceInertia(area: r.mass, centerX: r.centerX, centerY: r.centerY, centerZ: r.centerZ, epsilon: r.epsilon)
+    }
+}
+
+// MARK: - BRepGProp_Vinert (Volume Inertia per Face)
+
+/// Face volume inertia contribution.
+public struct FaceVolumeInertia {
+    public let volume: Double
+    public let centerX: Double, centerY: Double, centerZ: Double
+}
+
+extension Face {
+    /// Compute volume inertia contribution from this face.
+    public var volumeInertia: FaceVolumeInertia {
+        let r = OCCTBRepGPropVinert(handle)
+        return FaceVolumeInertia(volume: r.mass, centerX: r.centerX, centerY: r.centerY, centerZ: r.centerZ)
+    }
+
+    /// Compute volume inertia with reference plane.
+    public func volumeInertia(planeNormal: SIMD3<Double>, planeDistance: Double = 0) -> FaceVolumeInertia {
+        let r = OCCTBRepGPropVinertPlane(handle, planeNormal.x, planeNormal.y, planeNormal.z, planeDistance)
+        return FaceVolumeInertia(volume: r.mass, centerX: r.centerX, centerY: r.centerY, centerZ: r.centerZ)
+    }
+}
+
+// MARK: - ShapeConstruct_ProjectCurveOnSurface
+
+extension Curve3D {
+    /// Project this 3D curve onto a surface as a 2D curve.
+    public func projectOnSurface(_ surface: Surface, firstParam: Double? = nil,
+                                  lastParam: Double? = nil, precision: Double = 1e-6) -> Curve2D? {
+        let domain = self.domain
+        let f = firstParam ?? domain.lowerBound
+        let l = lastParam ?? domain.upperBound
+        guard let ref = OCCTProjectCurveOnSurface(handle, surface.handle, f, l, precision) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - BRepPreviewAPI_MakeBox
+
+extension Shape {
+    /// Create a preview box shape (handles degenerate dimensions: face, edge, vertex).
+    public static func previewBox(width: Double, height: Double, depth: Double) -> Shape? {
+        guard let ref = OCCTPreviewBox(width, height, depth) else { return nil }
+        return Shape(handle: ref)
+    }
+}

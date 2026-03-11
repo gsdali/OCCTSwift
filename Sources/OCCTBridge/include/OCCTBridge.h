@@ -9185,6 +9185,147 @@ typedef struct {
 /// Validate an edge on a face. Returns validation metrics.
 OCCTValidateEdgeResult OCCTValidateEdge(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _Nonnull face, double tolerance);
 
+// MARK: - BiTgte_Blend (Rolling-Ball Blend)
+
+/// Result of BiTgte_Blend operation.
+typedef struct {
+    bool isDone;
+    int32_t nbSurfaces;
+} OCCTBiTgteBlendInfo;
+
+/// Create rolling-ball blend on shape edges.
+OCCTShapeRef _Nullable OCCTBiTgteBlend(OCCTShapeRef _Nonnull shape,
+                                        const int32_t* _Nonnull edgeIndices,
+                                        int32_t edgeCount,
+                                        double radius,
+                                        double tolerance,
+                                        bool nubs);
+
+/// Get blend info (isDone, nbSurfaces) without building result.
+OCCTBiTgteBlendInfo OCCTBiTgteBlendInfo_(OCCTShapeRef _Nonnull shape,
+                                          const int32_t* _Nonnull edgeIndices,
+                                          int32_t edgeCount,
+                                          double radius,
+                                          double tolerance);
+
+// MARK: - GeomConvert_ApproxCurve
+
+/// Approximate a curve as BSpline.
+typedef struct {
+    OCCTCurve3DRef _Nullable curve;  // result BSpline (as Curve3D)
+    double maxError;
+    bool isDone;
+    bool hasResult;
+} OCCTApproxCurveResult;
+
+OCCTApproxCurveResult OCCTGeomConvertApproxCurve(OCCTCurve3DRef _Nonnull curve,
+                                                  double tolerance,
+                                                  int32_t continuity,
+                                                  int32_t maxSegments,
+                                                  int32_t maxDegree);
+
+// MARK: - GeomConvert_ApproxSurface
+
+/// Approximate a surface as BSpline surface.
+typedef struct {
+    OCCTSurfaceRef _Nullable surface;  // result BSpline surface
+    double maxError;
+    bool isDone;
+    bool hasResult;
+} OCCTApproxSurfaceResult;
+
+OCCTApproxSurfaceResult OCCTGeomConvertApproxSurface(OCCTSurfaceRef _Nonnull surface,
+                                                      double tolerance,
+                                                      int32_t uContinuity,
+                                                      int32_t vContinuity,
+                                                      int32_t maxDegree,
+                                                      int32_t maxSegments);
+
+// MARK: - GCPnts_QuasiUniformAbscissa
+
+/// Compute quasi-uniform parameter distribution on an edge curve.
+/// Returns parameter count, fills params array.
+int32_t OCCTGCPntsQuasiUniform(OCCTEdgeRef _Nonnull edge,
+                                int32_t nbPoints,
+                                double* _Nonnull params,
+                                int32_t maxParams);
+
+/// Quasi-uniform sampling on a Curve3D.
+int32_t OCCTGCPntsQuasiUniformCurve(OCCTCurve3DRef _Nonnull curve,
+                                      int32_t nbPoints,
+                                      double* _Nonnull params,
+                                      int32_t maxParams);
+
+// MARK: - GCPnts_TangentialDeflection
+
+/// Tangential deflection-based parameter/point sampling on an edge curve.
+/// Returns point count, fills params and optionally coords (x,y,z triples).
+int32_t OCCTGCPntsTangentialDeflection(OCCTEdgeRef _Nonnull edge,
+                                        double angularDeflection,
+                                        double curvatureDeflection,
+                                        int32_t minPoints,
+                                        double* _Nonnull params,
+                                        double* _Nullable coords,
+                                        int32_t maxPoints);
+
+/// Tangential deflection sampling on a Curve3D.
+int32_t OCCTGCPntsTangentialDeflectionCurve(OCCTCurve3DRef _Nonnull curve,
+                                             double angularDeflection,
+                                             double curvatureDeflection,
+                                             int32_t minPoints,
+                                             double* _Nonnull params,
+                                             double* _Nullable coords,
+                                             int32_t maxPoints);
+
+// MARK: - BRepGProp_Cinert (Curve Inertia)
+
+/// Compute curve linear inertia properties for an edge.
+typedef struct {
+    double mass;  // Length
+    double centerX, centerY, centerZ;
+} OCCTCurveInertiaResult;
+
+OCCTCurveInertiaResult OCCTBRepGPropCinert(OCCTEdgeRef _Nonnull edge);
+
+// MARK: - BRepGProp_Sinert (Surface Inertia per Face)
+
+/// Compute surface inertia properties for a single face.
+typedef struct {
+    double mass;  // Area
+    double centerX, centerY, centerZ;
+    double epsilon;  // Adaptive integration error (0 for non-adaptive)
+} OCCTFaceSurfaceInertia;
+
+OCCTFaceSurfaceInertia OCCTBRepGPropSinert(OCCTFaceRef _Nonnull face);
+OCCTFaceSurfaceInertia OCCTBRepGPropSinertAdaptive(OCCTFaceRef _Nonnull face, double epsilon);
+
+// MARK: - BRepGProp_Vinert (Volume Inertia per Face)
+
+/// Compute volume inertia properties from a single face.
+typedef struct {
+    double mass;  // Volume contribution
+    double centerX, centerY, centerZ;
+} OCCTFaceVolumeInertia;
+
+OCCTFaceVolumeInertia OCCTBRepGPropVinert(OCCTFaceRef _Nonnull face);
+OCCTFaceVolumeInertia OCCTBRepGPropVinertPlane(OCCTFaceRef _Nonnull face,
+                                                double planeNX, double planeNY, double planeNZ,
+                                                double planeDist);
+
+// MARK: - ShapeConstruct_ProjectCurveOnSurface
+
+/// Project a 3D curve onto a surface, returning a 2D curve.
+OCCTCurve2DRef _Nullable OCCTProjectCurveOnSurface(OCCTCurve3DRef _Nonnull curve,
+                                                     OCCTSurfaceRef _Nonnull surface,
+                                                     double firstParam,
+                                                     double lastParam,
+                                                     double precision);
+
+// MARK: - BRepPreviewAPI_MakeBox
+
+/// Create a preview box shape (handles degenerate dimensions: face, edge, vertex).
+OCCTShapeRef _Nullable OCCTPreviewBox(double dx, double dy, double dz);
+
 #ifdef __cplusplus
 }
 #endif

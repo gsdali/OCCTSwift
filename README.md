@@ -120,7 +120,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Mesh Surface/Volume Properties** | 2 | meshProps(surface), meshProps(volume) |
 | **Mesh Shape Utilities** | 3 | maxMeshTolerance, meshMaxDimension, uvPoints |
 | **Edge Validation** | 1 | validate(on:face:tolerance:) |
-| **Total** | **1217** | |
+| **BiTgte Blend** | 1 | biTgteBlend (rolling-ball blend on edges) |
+| **GeomConvert Approx** | 2 | approxWithDetails (curve), approxWithDetails (surface) |
+| **GCPnts Sampling** | 2 | quasiUniformParameters (edge), tangentialDeflectionPoints (edge) |
+| **BRepGProp Per-Face** | 5 | curveInertia, surfaceInertia, surfaceInertia(epsilon:), volumeInertia, volumeInertia(planeNormal:) |
+| **Curve-Surface Projection** | 1 | projectOnSurface |
+| **Preview Shapes** | 1 | previewBox (degenerate-safe box preview) |
+| **Total** | **1229** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -400,6 +406,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Mesh Surface/Volume Properties**: BRepGProp_MeshProps — compute area or volume contribution from face triangulations
 - **Mesh Shape Utilities**: BRepMesh_ShapeTool — face tolerance, bounding box max dimension, edge UV parameter extraction
 - **Edge Validation**: BRepLib_ValidateEdge — validate 3D curve vs curve-on-surface consistency with tolerance checking
+- **Rolling Ball Blend**: BiTgte_Blend — tangent-tangent rolling-ball blending on shape edges with NbSurfaces query
+- **Curve/Surface Approximation**: GeomConvert_ApproxCurve/ApproxSurface — approximate any curve or surface as BSpline with tolerance, continuity, max segments, and max degree control
+- **Edge Quasi-Uniform Sampling**: GCPnts_QuasiUniformAbscissa — quasi-uniform arc-length sampling on edges
+- **Tangential Deflection Sampling**: GCPnts_TangentialDeflection — adaptive sampling by angular and curvature deflection criteria on edges
+- **Per-Face Inertia Properties**: BRepGProp_Cinert/Sinert/Vinert — compute curve length, surface area, and volume contribution from individual edges and faces
+- **Curve-on-Surface Projection**: ShapeConstruct_ProjectCurveOnSurface — project 3D curves onto surfaces to obtain 2D parametric curves
+- **Preview Box**: BRepPreviewAPI_MakeBox — create box previews that handle degenerate dimensions (zero width/height/depth → face, edge, or vertex)
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
