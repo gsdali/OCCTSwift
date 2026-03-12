@@ -133,7 +133,16 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Axis2Placement (Geom_Axis2Placement)** | 7 | create, location, mainDirection, xDirection, yDirection, setDirection, setXDirection |
 | **ShapeConstruct Curve** | 4 | convertSegmentToBSpline3D, convertSegmentToBSpline2D, adjustEndpoints3D, adjustEndpoints2D |
 | **Bisector Intersection** | 2 | bisectorIntersections (point-point bisector intersection), BisectorPoint data |
-| **Total** | **1270** | |
+| **GeomLib Tool** | 3 | parameterOf (3D curve), parametersOf (surface UV), parameterOf (2D curve) |
+| **GeomLib IsPlanarSurface** | 2 | isPlanar, planarPlane (extract plane from surface) |
+| **GeomLib CheckBSpline** | 4 | checkBSplineTangents (3D/2D), fixBSplineTangents (3D/2D) |
+| **GeomLib Interpolate** | 1 | polynomialInterpolation (BSpline through points at parameters) |
+| **GccAna Circ2d2TanRad** | 2 | circlesTangentToLines, circlesThroughPointsWithRadius |
+| **GccAna Circ2dTanCen** | 2 | circleThroughPointCentered, circleTangentToLineCentered |
+| **GccAna Lin2d2Tan** | 2 | lineThroughPoints, linesTangentToCircleThroughPoint |
+| **Approx SameParameter** | 1 | checkSameParameter (3D vs 2D on surface) |
+| **ShapeUpgrade CurveSplit** | 3 | splitByContinuity (3D/2D), convertToBezierSegments (2D) |
+| **Total** | **1290** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -427,6 +436,16 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **3D Coordinate System**: Geom_Axis2Placement — Handle-wrapped coordinate system (origin + N + Vx) with direction/X-direction mutation, Y-direction derivation
 - **Curve Conversion**: ShapeConstruct_Curve — convert any 3D/2D curve segment to BSpline, adjust curve endpoints to match target points
 - **Bisector Intersection**: Bisector_Inter — compute intersection points between perpendicular bisectors of point pairs
+- **Parameter Finding**: GeomLib_Tool — find curve parameters and surface UV coordinates from 3D/2D points
+- **Surface Planarity Check**: GeomLib_IsPlanarSurface — test if any surface is planar, extract the plane
+- **BSpline Tangent Check/Fix**: GeomLib_CheckBSplineCurve / Check2dBSplineCurve — detect and fix reversed end tangents on 3D/2D BSplines
+- **Polynomial Interpolation**: GeomLib_Interpolate — create BSpline curves through points at specified parameter values
+- **Circle Tangent Radius**: GccAna_Circ2d2TanRad — circles tangent to two lines or through two points with given radius
+- **Circle Tangent Center**: GccAna_Circ2dTanCen — circles tangent to line or through point with given center
+- **Line Two Tangent**: GccAna_Lin2d2Tan — lines through two points or tangent to circle through point
+- **Same Parameter Check**: Approx_SameParameter — verify 2D/3D curve parameterization consistency on surfaces
+- **Curve Continuity Splitting**: ShapeUpgrade_SplitCurve3d/2dContinuity — split curves at C0/C1/C2 discontinuities
+- **2D Curve to Bezier**: ShapeUpgrade_ConvertCurve2dToBezier — decompose 2D curves into Bezier segments
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1393,7 +1412,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1270 OCCT operations** across 83 categories with 1609 tests across 505 suites.
+OCCTSwift now wraps **1290 OCCT operations** across 93 categories with 1631 tests across 514 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

@@ -21713,3 +21713,225 @@ struct BisectorIntersectionTests {
         let _ = results
     }
 }
+
+// MARK: - v0.77.0 Tests
+
+@Suite("GeomLib Tool Tests")
+struct GeomLibToolTests {
+    @Test("parameter on 3D line")
+    func parameterOn3DLine() {
+        if let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)) {
+            let param = line.parameterOf(point: SIMD3(5, 0, 0))
+            if let p = param { #expect(abs(p - 5.0) < 1e-6) }
+        }
+    }
+
+    @Test("parameters on surface")
+    func parametersOnSurface() {
+        if let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            let uv = plane.parametersOf(point: SIMD3(3, 4, 0))
+            if let uv = uv {
+                #expect(abs(uv.u - 3.0) < 1e-6)
+                #expect(abs(uv.v - 4.0) < 1e-6)
+            }
+        }
+    }
+
+    @Test("parameter on 2D line")
+    func parameterOn2DLine() {
+        if let line = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 0)) {
+            let param = line.parameterOf(point: SIMD2(7, 0))
+            if let p = param { #expect(abs(p - 7.0) < 1e-6) }
+        }
+    }
+}
+
+@Suite("GeomLib IsPlanarSurface Tests")
+struct GeomLibIsPlanarSurfaceTests {
+    @Test("plane is planar")
+    func planeIsPlanar() {
+        if let plane = Surface.plane(origin: SIMD3(1, 2, 3), normal: SIMD3(0, 0, 1)) {
+            #expect(plane.isPlanar())
+        }
+    }
+
+    @Test("get plane from planar surface")
+    func getPlane() {
+        if let plane = Surface.plane(origin: SIMD3(1, 2, 3), normal: SIMD3(0, 0, 1)) {
+            let result = plane.planarPlane()
+            if let r = result {
+                #expect(abs(r.origin.z - 3.0) < 1e-6)
+                #expect(abs(r.normal.z) > 0.99)
+            }
+        }
+    }
+
+    @Test("cylinder is not planar")
+    func cylinderNotPlanar() {
+        if let cyl = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5) {
+            #expect(!cyl.isPlanar())
+        }
+    }
+}
+
+@Suite("GeomLib CheckBSpline Tests")
+struct GeomLibCheckBSplineTests {
+    @Test("check 3D BSpline tangents")
+    func check3D() {
+        if let bsp = Curve3D.bspline(poles: [SIMD3(0,0,0), SIMD3(1,2,0), SIMD3(3,1,0), SIMD3(4,0,0)], knots: [0.0, 1.0], multiplicities: [4, 4], degree: 3) {
+            let result = bsp.checkBSplineTangents()
+            // May be nil for simple Bezier-like BSplines — just verify no crash
+            let _ = result
+        }
+    }
+
+    @Test("fix 3D BSpline tangents")
+    func fix3D() {
+        if let bsp = Curve3D.bspline(poles: [SIMD3(0,0,0), SIMD3(1,2,0), SIMD3(3,1,0), SIMD3(4,0,0)], knots: [0.0, 1.0], multiplicities: [4, 4], degree: 3) {
+            let fixed = bsp.fixBSplineTangents(fixFirst: false, fixLast: false)
+            let _ = fixed
+        }
+    }
+
+    @Test("check 2D BSpline tangents")
+    func check2D() {
+        if let bsp = Curve2D.bspline(poles: [SIMD2(0,0), SIMD2(1,2), SIMD2(3,1), SIMD2(4,0)],
+                                      knots: [0.0, 1.0], multiplicities: [4, 4], degree: 3) {
+            let result = bsp.checkBSplineTangents()
+            let _ = result
+        }
+    }
+
+    @Test("fix 2D BSpline tangents")
+    func fix2D() {
+        if let bsp = Curve2D.bspline(poles: [SIMD2(0,0), SIMD2(1,2), SIMD2(3,1), SIMD2(4,0)],
+                                      knots: [0.0, 1.0], multiplicities: [4, 4], degree: 3) {
+            let fixed = bsp.fixBSplineTangents(fixFirst: false, fixLast: false)
+            let _ = fixed
+        }
+    }
+}
+
+@Suite("GeomLib Interpolate Tests")
+struct GeomLibInterpolateTests {
+    @Test("polynomial interpolation")
+    func interpolate() {
+        let points: [SIMD3<Double>] = [SIMD3(0,0,0), SIMD3(1,1,0), SIMD3(2,0,0), SIMD3(3,-1,0), SIMD3(4,0,0)]
+        let params = [0.0, 0.25, 0.5, 0.75, 1.0]
+        let curve = Curve3D.polynomialInterpolation(degree: 3, points: points, parameters: params)
+        #expect(curve != nil)
+    }
+
+    @Test("interpolated curve endpoints")
+    func endpoints() {
+        let points: [SIMD3<Double>] = [SIMD3(0,0,0), SIMD3(2,2,0), SIMD3(4,0,0)]
+        let params = [0.0, 0.5, 1.0]
+        if let curve = Curve3D.polynomialInterpolation(degree: 3, points: points, parameters: params) {
+            let dom = curve.domain
+            let start = curve.point(at: dom.lowerBound)
+            let end = curve.point(at: dom.upperBound)
+            #expect(abs(start.x) < 1e-6 && abs(start.y) < 1e-6)
+            #expect(abs(end.x - 4.0) < 1e-6 && abs(end.y) < 1e-6)
+        }
+    }
+}
+
+@Suite("GccAna Circ2d2TanRad Tests")
+struct GccAnaCirc2d2TanRadTests {
+    @Test("circles through two points with radius")
+    func pointsWithRadius() {
+        let results = circlesThroughPointsWithRadius(SIMD2(0, 0), SIMD2(2, 0), radius: 2.0)
+        #expect(results.count == 2)
+        for r in results {
+            #expect(abs(r.radius - 2.0) < 1e-6)
+        }
+    }
+
+    @Test("circles tangent to two perpendicular lines")
+    func tangentToLines() {
+        let results = circlesTangentToLines(SIMD2(0, 0), SIMD2(1, 0),
+                                             SIMD2(0, 0), SIMD2(0, 1),
+                                             radius: 5.0)
+        #expect(results.count == 4)
+    }
+}
+
+@Suite("GccAna Circ2dTanCen Tests")
+struct GccAnaCirc2dTanCenTests {
+    @Test("circle through point centered")
+    func pointCentered() {
+        let result = circleThroughPointCentered(point: SIMD2(3, 0), center: SIMD2(0, 0))
+        if let r = result { #expect(abs(r.radius - 3.0) < 1e-6) }
+    }
+
+    @Test("circle tangent to line centered")
+    func lineCentered() {
+        let result = circleTangentToLineCentered(lineOrigin: SIMD2(0, 5), lineDirection: SIMD2(1, 0),
+                                                  center: SIMD2(0, 0))
+        if let r = result { #expect(abs(r.radius - 5.0) < 1e-6) }
+    }
+}
+
+@Suite("GccAna Lin2d2Tan Tests")
+struct GccAnaLin2d2TanTests {
+    @Test("line through two points")
+    func throughPoints() {
+        let result = lineThroughPoints(SIMD2(0, 0), SIMD2(1, 1))
+        #expect(result != nil)
+        if let r = result {
+            #expect(abs(abs(r.direction.x) - abs(r.direction.y)) < 1e-6)
+        }
+    }
+
+    @Test("lines tangent to circle through point")
+    func tangentCircle() {
+        let results = linesTangentToCircleThroughPoint(circleCenter: SIMD2(0, 0), circleRadius: 1.0,
+                                                        point: SIMD2(3, 0))
+        #expect(results.count >= 1)
+    }
+}
+
+@Suite("Approx SameParameter Tests")
+struct ApproxSameParameterTests {
+    @Test("same parameter on line/plane")
+    func sameParamLinePlane() {
+        if let line3d = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+           let line2d = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 0)),
+           let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            let result = line3d.checkSameParameter(curve2D: line2d, surface: plane)
+            if let r = result {
+                #expect(r.isSameParameter)
+            }
+        }
+    }
+}
+
+@Suite("ShapeUpgrade SplitCurve Tests")
+struct ShapeUpgradeSplitCurveTests {
+    @Test("split smooth 3D curve")
+    func splitSmooth3D() {
+        if let bsp = Curve3D.bspline(poles: [SIMD3(0,0,0), SIMD3(1,2,0), SIMD3(3,1,0), SIMD3(4,0,0)],
+                                      knots: [0.0, 1.0], multiplicities: [4, 4], degree: 3) {
+            let segments = bsp.splitByContinuity(criterion: 2)
+            #expect(segments.count >= 1)
+        }
+    }
+
+    @Test("split smooth 2D curve")
+    func splitSmooth2D() {
+        if let bsp = Curve2D.bspline(poles: [SIMD2(0,0), SIMD2(1,2), SIMD2(3,1), SIMD2(4,0)],
+                                      knots: [0.0, 1.0], multiplicities: [4, 4], degree: 3) {
+            let segments = bsp.splitByContinuity(criterion: 2)
+            #expect(segments.count >= 1)
+        }
+    }
+
+    @Test("convert 2D curve to Bezier")
+    func convertToBezier() {
+        if let bsp = Curve2D.bspline(poles: [SIMD2(0,0), SIMD2(1,2), SIMD2(3,1), SIMD2(4,0)],
+                                      knots: [0.0, 1.0], multiplicities: [4, 4], degree: 3) {
+            let segments = bsp.convertToBezierSegments()
+            #expect(segments.count >= 1)
+        }
+    }
+}

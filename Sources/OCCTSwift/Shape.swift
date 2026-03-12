@@ -10020,3 +10020,277 @@ public func bisectorIntersections(
                              paramOnSecond: points[i].paramOnSecond)
     }
 }
+
+// MARK: - GeomLib_Tool (Parameter Finding)
+
+extension Curve3D {
+    /// Find the parameter of a 3D point on this curve.
+    /// Returns nil if the point is beyond maxDistance from the curve.
+    public func parameterOf(point: SIMD3<Double>, maxDistance: Double = 1.0) -> Double? {
+        var param: Double = 0
+        let ok = OCCTGeomLibToolParameter3D(handle, point.x, point.y, point.z, maxDistance, &param)
+        return ok ? param : nil
+    }
+}
+
+extension Surface {
+    /// Find the UV parameters of a 3D point on this surface.
+    /// Returns nil if the point is beyond maxDistance from the surface.
+    public func parametersOf(point: SIMD3<Double>, maxDistance: Double = 1.0) -> (u: Double, v: Double)? {
+        var u: Double = 0, v: Double = 0
+        let ok = OCCTGeomLibToolParametersSurface(handle, point.x, point.y, point.z, maxDistance, &u, &v)
+        return ok ? (u, v) : nil
+    }
+}
+
+extension Curve2D {
+    /// Find the parameter of a 2D point on this curve.
+    /// Returns nil if the point is beyond maxDistance from the curve.
+    public func parameterOf(point: SIMD2<Double>, maxDistance: Double = 1.0) -> Double? {
+        var param: Double = 0
+        let ok = OCCTGeomLibToolParameter2D(handle, point.x, point.y, maxDistance, &param)
+        return ok ? param : nil
+    }
+}
+
+// MARK: - GeomLib_IsPlanarSurface
+
+extension Surface {
+    /// Check if this surface is planar within tolerance.
+    public func isPlanar(tolerance: Double = 1e-7) -> Bool {
+        OCCTGeomLibIsPlanarSurface(handle, tolerance)
+    }
+
+    /// If planar, returns the plane parameters: origin, normal, X direction.
+    /// Returns nil if the surface is not planar.
+    public func planarPlane(tolerance: Double = 1e-7) -> (origin: SIMD3<Double>, normal: SIMD3<Double>, xDirection: SIMD3<Double>)? {
+        var ox: Double = 0, oy: Double = 0, oz: Double = 0
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        var xx: Double = 0, xy: Double = 0, xz: Double = 0
+        let ok = OCCTGeomLibPlanarSurfacePlane(handle, tolerance,
+                                                &ox, &oy, &oz, &nx, &ny, &nz, &xx, &xy, &xz)
+        guard ok else { return nil }
+        return (SIMD3(ox, oy, oz), SIMD3(nx, ny, nz), SIMD3(xx, xy, xz))
+    }
+}
+
+// MARK: - GeomLib_CheckBSplineCurve / Check2dBSplineCurve
+
+extension Curve3D {
+    /// Check if this BSpline curve has reversed end tangents.
+    /// Returns (needFixFirst, needFixLast) or nil if not a BSpline or check failed.
+    public func checkBSplineTangents(tolerance: Double = 0.01, angularTolerance: Double = 0.1) -> (fixFirst: Bool, fixLast: Bool)? {
+        var first = false, last = false
+        let ok = OCCTGeomLibCheckBSpline3D(handle, tolerance, angularTolerance, &first, &last)
+        return ok ? (first, last) : nil
+    }
+
+    /// Fix reversed end tangents on a BSpline curve. Returns new curve or nil.
+    public func fixBSplineTangents(fixFirst: Bool, fixLast: Bool,
+                                    tolerance: Double = 0.01, angularTolerance: Double = 0.1) -> Curve3D? {
+        guard let ref = OCCTGeomLibFixBSpline3D(handle, tolerance, angularTolerance, fixFirst, fixLast) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+extension Curve2D {
+    /// Check if this BSpline 2D curve has reversed end tangents.
+    /// Returns (needFixFirst, needFixLast) or nil if not a BSpline or check failed.
+    public func checkBSplineTangents(tolerance: Double = 0.01, angularTolerance: Double = 0.1) -> (fixFirst: Bool, fixLast: Bool)? {
+        var first = false, last = false
+        let ok = OCCTGeomLibCheckBSpline2D(handle, tolerance, angularTolerance, &first, &last)
+        return ok ? (first, last) : nil
+    }
+
+    /// Fix reversed end tangents on a BSpline 2D curve. Returns new curve or nil.
+    public func fixBSplineTangents(fixFirst: Bool, fixLast: Bool,
+                                    tolerance: Double = 0.01, angularTolerance: Double = 0.1) -> Curve2D? {
+        guard let ref = OCCTGeomLibFixBSpline2D(handle, tolerance, angularTolerance, fixFirst, fixLast) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - GeomLib_Interpolate
+
+extension Curve3D {
+    /// Create a BSpline curve by polynomial interpolation of points at given parameters.
+    public static func polynomialInterpolation(degree: Int, points: [SIMD3<Double>], parameters: [Double]) -> Curve3D? {
+        guard points.count == parameters.count, points.count >= 2 else { return nil }
+        var xyz = [Double]()
+        xyz.reserveCapacity(points.count * 3)
+        for p in points { xyz.append(p.x); xyz.append(p.y); xyz.append(p.z) }
+        guard let ref = OCCTGeomLibInterpolate(Int32(degree), Int32(points.count), xyz, parameters) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+// MARK: - GccAna_Circ2d2TanRad
+
+/// Circle solution in 2D (center + radius).
+public struct Circle2DSolution: Sendable {
+    public let center: SIMD2<Double>
+    public let radius: Double
+}
+
+/// Find circles tangent to two lines with given radius.
+public func circlesTangentToLines(_ l1Origin: SIMD2<Double>, _ l1Direction: SIMD2<Double>,
+                                   _ l2Origin: SIMD2<Double>, _ l2Direction: SIMD2<Double>,
+                                   radius: Double, tolerance: Double = 1e-6) -> [Circle2DSolution] {
+    var solutions = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(), count: 8)
+    let n = solutions.withUnsafeMutableBufferPointer { buf in
+        OCCTGccAnaCirc2d2TanRadLineLin(l1Origin.x, l1Origin.y, l1Direction.x, l1Direction.y,
+                                        l2Origin.x, l2Origin.y, l2Direction.x, l2Direction.y,
+                                        radius, tolerance, buf.baseAddress, Int32(buf.count))
+    }
+    return (0..<Int(n)).map { i in
+        Circle2DSolution(center: SIMD2(solutions[i].centerX, solutions[i].centerY),
+                         radius: solutions[i].radius)
+    }
+}
+
+/// Find circles through two points with given radius.
+public func circlesThroughPointsWithRadius(_ p1: SIMD2<Double>, _ p2: SIMD2<Double>,
+                                            radius: Double, tolerance: Double = 1e-6) -> [Circle2DSolution] {
+    var solutions = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(), count: 8)
+    let n = solutions.withUnsafeMutableBufferPointer { buf in
+        OCCTGccAnaCirc2d2TanRadPntPnt(p1.x, p1.y, p2.x, p2.y, radius, tolerance,
+                                       buf.baseAddress, Int32(buf.count))
+    }
+    return (0..<Int(n)).map { i in
+        Circle2DSolution(center: SIMD2(solutions[i].centerX, solutions[i].centerY),
+                         radius: solutions[i].radius)
+    }
+}
+
+// MARK: - GccAna_Circ2dTanCen
+
+/// Find circle centered at a point passing through another point.
+public func circleThroughPointCentered(point: SIMD2<Double>, center: SIMD2<Double>) -> Circle2DSolution? {
+    var solutions = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(), count: 4)
+    let n = solutions.withUnsafeMutableBufferPointer { buf in
+        OCCTGccAnaCirc2dTanCenPntPnt(point.x, point.y, center.x, center.y,
+                                      buf.baseAddress, Int32(buf.count))
+    }
+    guard n > 0 else { return nil }
+    return Circle2DSolution(center: SIMD2(solutions[0].centerX, solutions[0].centerY),
+                            radius: solutions[0].radius)
+}
+
+/// Find circle tangent to a line centered at a point.
+public func circleTangentToLineCentered(lineOrigin: SIMD2<Double>, lineDirection: SIMD2<Double>,
+                                         center: SIMD2<Double>) -> Circle2DSolution? {
+    var solutions = [OCCTCircle2DSolution](repeating: OCCTCircle2DSolution(), count: 4)
+    let n = solutions.withUnsafeMutableBufferPointer { buf in
+        OCCTGccAnaCirc2dTanCenLinPnt(lineOrigin.x, lineOrigin.y, lineDirection.x, lineDirection.y,
+                                      center.x, center.y, buf.baseAddress, Int32(buf.count))
+    }
+    guard n > 0 else { return nil }
+    return Circle2DSolution(center: SIMD2(solutions[0].centerX, solutions[0].centerY),
+                            radius: solutions[0].radius)
+}
+
+// MARK: - GccAna_Lin2d2Tan
+
+/// Line solution in 2D (origin + direction).
+public struct Line2DSolution: Sendable {
+    public let origin: SIMD2<Double>
+    public let direction: SIMD2<Double>
+}
+
+/// Find line through two points.
+public func lineThroughPoints(_ p1: SIMD2<Double>, _ p2: SIMD2<Double>,
+                               tolerance: Double = 1e-6) -> Line2DSolution? {
+    var solutions = [OCCTLine2DSolution](repeating: OCCTLine2DSolution(), count: 4)
+    let n = solutions.withUnsafeMutableBufferPointer { buf in
+        OCCTGccAnaLin2d2TanPntPnt(p1.x, p1.y, p2.x, p2.y, tolerance,
+                                   buf.baseAddress, Int32(buf.count))
+    }
+    guard n > 0 else { return nil }
+    return Line2DSolution(origin: SIMD2(solutions[0].originX, solutions[0].originY),
+                          direction: SIMD2(solutions[0].dirX, solutions[0].dirY))
+}
+
+/// Find lines tangent to a circle through a point.
+public func linesTangentToCircleThroughPoint(circleCenter: SIMD2<Double>, circleRadius: Double,
+                                              point: SIMD2<Double>,
+                                              tolerance: Double = 1e-6) -> [Line2DSolution] {
+    var solutions = [OCCTLine2DSolution](repeating: OCCTLine2DSolution(), count: 4)
+    let n = solutions.withUnsafeMutableBufferPointer { buf in
+        OCCTGccAnaLin2d2TanCircPnt(circleCenter.x, circleCenter.y, circleRadius,
+                                    point.x, point.y, tolerance,
+                                    buf.baseAddress, Int32(buf.count))
+    }
+    return (0..<Int(n)).map { i in
+        Line2DSolution(origin: SIMD2(solutions[i].originX, solutions[i].originY),
+                       direction: SIMD2(solutions[i].dirX, solutions[i].dirY))
+    }
+}
+
+// MARK: - Approx_SameParameter
+
+/// Result of same-parameter check between 3D and 2D curves on a surface.
+public struct SameParameterResult: Sendable {
+    /// True if the curves already have the same parameterization.
+    public let isSameParameter: Bool
+    /// Maximum distance between the 3D curve and the surface evaluation of the 2D curve.
+    public let toleranceReached: Double
+}
+
+extension Curve3D {
+    /// Check if a 2D curve on a surface has the same parameterization as this 3D curve.
+    public func checkSameParameter(curve2D: Curve2D, surface: Surface,
+                                    tolerance: Double = 1e-6) -> SameParameterResult? {
+        var isSame = false
+        var tolReached: Double = 0
+        let ok = OCCTApproxSameParameter(handle, curve2D.handle, surface.handle,
+                                          tolerance, &isSame, &tolReached)
+        guard ok else { return nil }
+        return SameParameterResult(isSameParameter: isSame, toleranceReached: tolReached)
+    }
+}
+
+// MARK: - ShapeUpgrade Curve Splitting
+
+extension Curve3D {
+    /// Split this 3D curve at continuity breaks.
+    /// Criterion: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN.
+    public func splitByContinuity(criterion: Int = 2, tolerance: Double = 1e-6) -> [Curve3D] {
+        var refs = [OCCTCurve3DRef?](repeating: nil, count: 32)
+        let n = refs.withUnsafeMutableBufferPointer { buf in
+            OCCTSplitCurve3dContinuity(handle, Int32(criterion), tolerance,
+                                        buf.baseAddress, Int32(buf.count))
+        }
+        return (0..<Int(n)).compactMap { i in
+            guard let ref = refs[i] else { return nil }
+            return Curve3D(handle: ref)
+        }
+    }
+}
+
+extension Curve2D {
+    /// Split this 2D curve at continuity breaks.
+    /// Criterion: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN.
+    public func splitByContinuity(criterion: Int = 2, tolerance: Double = 1e-6) -> [Curve2D] {
+        var refs = [OCCTCurve2DRef?](repeating: nil, count: 32)
+        let n = refs.withUnsafeMutableBufferPointer { buf in
+            OCCTSplitCurve2dContinuity(handle, Int32(criterion), tolerance,
+                                        buf.baseAddress, Int32(buf.count))
+        }
+        return (0..<Int(n)).compactMap { i in
+            guard let ref = refs[i] else { return nil }
+            return Curve2D(handle: ref)
+        }
+    }
+
+    /// Convert this 2D curve to Bezier segments (via ShapeUpgrade).
+    public func convertToBezierSegments() -> [Curve2D] {
+        var refs = [OCCTCurve2DRef?](repeating: nil, count: 64)
+        let n = refs.withUnsafeMutableBufferPointer { buf in
+            OCCTConvertCurve2dToBezier(handle, buf.baseAddress, Int32(buf.count))
+        }
+        return (0..<Int(n)).compactMap { i in
+            guard let ref = refs[i] else { return nil }
+            return Curve2D(handle: ref)
+        }
+    }
+}

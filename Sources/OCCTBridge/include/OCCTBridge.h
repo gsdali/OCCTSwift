@@ -9443,6 +9443,135 @@ int OCCTBisectorInterPointPoint(double ax, double ay, double bx, double by,
                                  OCCTBisectorIntersectionPoint* _Nullable outPoints,
                                  int maxPoints);
 
+// MARK: - GeomLib_Tool (Parameter Finding)
+
+/// Find parameter of 3D point on 3D curve. Returns false if point is beyond maxDist.
+bool OCCTGeomLibToolParameter3D(OCCTCurve3DRef _Nonnull curve, double px, double py, double pz,
+                                 double maxDist, double* _Nonnull outParam);
+
+/// Find UV parameters of 3D point on surface. Returns false if point is beyond maxDist.
+bool OCCTGeomLibToolParametersSurface(OCCTSurfaceRef _Nonnull surface,
+                                       double px, double py, double pz,
+                                       double maxDist,
+                                       double* _Nonnull outU, double* _Nonnull outV);
+
+/// Find parameter of 2D point on 2D curve. Returns false if point is beyond maxDist.
+bool OCCTGeomLibToolParameter2D(OCCTCurve2DRef _Nonnull curve, double px, double py,
+                                 double maxDist, double* _Nonnull outParam);
+
+// MARK: - GeomLib_IsPlanarSurface
+
+/// Check if a surface is planar within tolerance. Returns true if planar.
+bool OCCTGeomLibIsPlanarSurface(OCCTSurfaceRef _Nonnull surface, double tolerance);
+
+/// If surface is planar, get the plane parameters (origin + normal + X direction).
+bool OCCTGeomLibPlanarSurfacePlane(OCCTSurfaceRef _Nonnull surface, double tolerance,
+                                    double* _Nonnull ox, double* _Nonnull oy, double* _Nonnull oz,
+                                    double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz,
+                                    double* _Nonnull xx, double* _Nonnull xy, double* _Nonnull xz);
+
+// MARK: - GeomLib_CheckBSplineCurve / Check2dBSplineCurve
+
+/// Check BSpline 3D curve for reversed end tangents. Returns true if check completed.
+bool OCCTGeomLibCheckBSpline3D(OCCTCurve3DRef _Nonnull curve, double tolerance, double angularTol,
+                                bool* _Nonnull needFixFirst, bool* _Nonnull needFixLast);
+
+/// Fix BSpline 3D curve end tangents, returns new curve or NULL if not needed.
+OCCTCurve3DRef _Nullable OCCTGeomLibFixBSpline3D(OCCTCurve3DRef _Nonnull curve,
+                                                   double tolerance, double angularTol,
+                                                   bool fixFirst, bool fixLast);
+
+/// Check BSpline 2D curve for reversed end tangents. Returns true if check completed.
+bool OCCTGeomLibCheckBSpline2D(OCCTCurve2DRef _Nonnull curve, double tolerance, double angularTol,
+                                bool* _Nonnull needFixFirst, bool* _Nonnull needFixLast);
+
+/// Fix BSpline 2D curve end tangents, returns new curve or NULL if not needed.
+OCCTCurve2DRef _Nullable OCCTGeomLibFixBSpline2D(OCCTCurve2DRef _Nonnull curve,
+                                                   double tolerance, double angularTol,
+                                                   bool fixFirst, bool fixLast);
+
+// MARK: - GeomLib_Interpolate
+
+/// Interpolate 3D points at given parameters to create BSpline curve.
+/// degree: polynomial degree (typically 3). numPoints: count of points/params.
+OCCTCurve3DRef _Nullable OCCTGeomLibInterpolate(int degree, int numPoints,
+                                                  const double* _Nonnull pointsXYZ,
+                                                  const double* _Nonnull parameters);
+
+// MARK: - GccAna_Circ2d2TanRad
+
+/// Find circles tangent to two lines with given radius. Returns solution count.
+int OCCTGccAnaCirc2d2TanRadLineLin(double l1px, double l1py, double l1dx, double l1dy,
+                                     double l2px, double l2py, double l2dx, double l2dy,
+                                     double radius, double tolerance,
+                                     OCCTCircle2DSolution* _Nullable outSolutions, int maxSolutions);
+
+/// Find circles through two points with given radius. Returns solution count.
+int OCCTGccAnaCirc2d2TanRadPntPnt(double p1x, double p1y, double p2x, double p2y,
+                                    double radius, double tolerance,
+                                    OCCTCircle2DSolution* _Nullable outSolutions, int maxSolutions);
+
+// MARK: - GccAna_Circ2dTanCen
+
+/// Find circle through a point centered at another point. Returns solution count.
+int OCCTGccAnaCirc2dTanCenPntPnt(double px, double py, double cx, double cy,
+                                   OCCTCircle2DSolution* _Nullable outSolutions, int maxSolutions);
+
+/// Find circle tangent to a line centered at a point. Returns solution count.
+int OCCTGccAnaCirc2dTanCenLinPnt(double lpx, double lpy, double ldx, double ldy,
+                                   double cx, double cy,
+                                   OCCTCircle2DSolution* _Nullable outSolutions, int maxSolutions);
+
+// MARK: - GccAna_Lin2d2Tan
+
+/// Line through two points result.
+typedef struct {
+    double originX, originY;
+    double dirX, dirY;
+} OCCTLine2DSolution;
+
+/// Find line through two points. Returns solution count (0 or 1).
+int OCCTGccAnaLin2d2TanPntPnt(double p1x, double p1y, double p2x, double p2y,
+                                double tolerance,
+                                OCCTLine2DSolution* _Nullable outSolutions, int maxSolutions);
+
+/// Find lines tangent to a circle through a point. Returns solution count.
+int OCCTGccAnaLin2d2TanCircPnt(double cx, double cy, double radius,
+                                 double px, double py, double tolerance,
+                                 OCCTLine2DSolution* _Nullable outSolutions, int maxSolutions);
+
+// MARK: - Approx_SameParameter
+
+/// Check if 2D curve on surface has same parameterization as 3D curve.
+/// Returns true if check completed. outIsSame is true if already same parameter.
+/// outTolReached is the max distance between 3D curve and surface evaluation.
+bool OCCTApproxSameParameter(OCCTCurve3DRef _Nonnull curve3d,
+                              OCCTCurve2DRef _Nonnull curve2d,
+                              OCCTSurfaceRef _Nonnull surface,
+                              double tolerance,
+                              bool* _Nonnull outIsSame,
+                              double* _Nonnull outTolReached);
+
+// MARK: - ShapeUpgrade_SplitCurve3dContinuity
+
+/// Split 3D curve at continuity breaks. criterion: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN.
+/// Returns number of resulting curve segments, or 0 on failure.
+int OCCTSplitCurve3dContinuity(OCCTCurve3DRef _Nonnull curve, int criterion, double tolerance,
+                                 OCCTCurve3DRef _Nullable* _Nullable outCurves, int maxCurves);
+
+// MARK: - ShapeUpgrade_SplitCurve2dContinuity
+
+/// Split 2D curve at continuity breaks. criterion: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN.
+/// Returns number of resulting curve segments, or 0 on failure.
+int OCCTSplitCurve2dContinuity(OCCTCurve2DRef _Nonnull curve, int criterion, double tolerance,
+                                 OCCTCurve2DRef _Nullable* _Nullable outCurves, int maxCurves);
+
+// MARK: - ShapeUpgrade_ConvertCurve2dToBezier
+
+/// Convert 2D curve to Bezier segments. Returns number of segments, or 0 on failure.
+int OCCTConvertCurve2dToBezier(OCCTCurve2DRef _Nonnull curve,
+                                OCCTCurve2DRef _Nullable* _Nullable outCurves, int maxCurves);
+
 #ifdef __cplusplus
 }
 #endif
