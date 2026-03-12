@@ -9326,6 +9326,123 @@ OCCTCurve2DRef _Nullable OCCTProjectCurveOnSurface(OCCTCurve3DRef _Nonnull curve
 /// Create a preview box shape (handles degenerate dimensions: face, edge, vertex).
 OCCTShapeRef _Nullable OCCTPreviewBox(double dx, double dy, double dz);
 
+// MARK: - Geom_CartesianPoint (3D Geometric Point)
+
+typedef struct OCCTGeomPoint3D* OCCTGeomPoint3DRef;
+
+OCCTGeomPoint3DRef _Nonnull OCCTGeomPoint3DCreate(double x, double y, double z);
+void OCCTGeomPoint3DRelease(OCCTGeomPoint3DRef _Nonnull ref);
+double OCCTGeomPoint3DX(OCCTGeomPoint3DRef _Nonnull ref);
+double OCCTGeomPoint3DY(OCCTGeomPoint3DRef _Nonnull ref);
+double OCCTGeomPoint3DZ(OCCTGeomPoint3DRef _Nonnull ref);
+void OCCTGeomPoint3DSetCoord(OCCTGeomPoint3DRef _Nonnull ref, double x, double y, double z);
+double OCCTGeomPoint3DDistance(OCCTGeomPoint3DRef _Nonnull ref, OCCTGeomPoint3DRef _Nonnull other);
+double OCCTGeomPoint3DSquareDistance(OCCTGeomPoint3DRef _Nonnull ref, OCCTGeomPoint3DRef _Nonnull other);
+void OCCTGeomPoint3DTranslate(OCCTGeomPoint3DRef _Nonnull ref, double dx, double dy, double dz);
+
+// MARK: - Geom_Direction (3D Unit Vector)
+
+typedef struct OCCTGeomDirection* OCCTGeomDirectionRef;
+
+OCCTGeomDirectionRef _Nonnull OCCTGeomDirectionCreate(double x, double y, double z);
+void OCCTGeomDirectionRelease(OCCTGeomDirectionRef _Nonnull ref);
+void OCCTGeomDirectionCoords(OCCTGeomDirectionRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTGeomDirectionSetCoord(OCCTGeomDirectionRef _Nonnull ref, double x, double y, double z);
+/// Cross product of two unit directions, returns new direction.
+OCCTGeomDirectionRef _Nullable OCCTGeomDirectionCrossed(OCCTGeomDirectionRef _Nonnull ref, OCCTGeomDirectionRef _Nonnull other);
+
+// MARK: - Geom_VectorWithMagnitude (3D Vector)
+
+typedef struct OCCTGeomVector3D* OCCTGeomVector3DRef;
+
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DCreate(double x, double y, double z);
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DFromPoints(double x1, double y1, double z1,
+                                                         double x2, double y2, double z2);
+void OCCTGeomVector3DRelease(OCCTGeomVector3DRef _Nonnull ref);
+void OCCTGeomVector3DCoords(OCCTGeomVector3DRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+double OCCTGeomVector3DMagnitude(OCCTGeomVector3DRef _Nonnull ref);
+double OCCTGeomVector3DDot(OCCTGeomVector3DRef _Nonnull ref, OCCTGeomVector3DRef _Nonnull other);
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DAdded(OCCTGeomVector3DRef _Nonnull ref, OCCTGeomVector3DRef _Nonnull other);
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DMultiplied(OCCTGeomVector3DRef _Nonnull ref, double scalar);
+OCCTGeomVector3DRef _Nullable OCCTGeomVector3DNormalized(OCCTGeomVector3DRef _Nonnull ref);
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DCrossed(OCCTGeomVector3DRef _Nonnull ref, OCCTGeomVector3DRef _Nonnull other);
+
+// MARK: - Geom_Axis1Placement (3D Axis)
+
+typedef struct OCCTAxis1Placement* OCCTAxis1PlacementRef;
+
+OCCTAxis1PlacementRef _Nonnull OCCTAxis1PlacementCreate(double px, double py, double pz,
+                                                         double dx, double dy, double dz);
+void OCCTAxis1PlacementRelease(OCCTAxis1PlacementRef _Nonnull ref);
+void OCCTAxis1PlacementLocation(OCCTAxis1PlacementRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTAxis1PlacementDirection(OCCTAxis1PlacementRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTAxis1PlacementReverse(OCCTAxis1PlacementRef _Nonnull ref);
+OCCTAxis1PlacementRef _Nonnull OCCTAxis1PlacementReversed(OCCTAxis1PlacementRef _Nonnull ref);
+void OCCTAxis1PlacementSetDirection(OCCTAxis1PlacementRef _Nonnull ref, double dx, double dy, double dz);
+void OCCTAxis1PlacementSetLocation(OCCTAxis1PlacementRef _Nonnull ref, double px, double py, double pz);
+
+// MARK: - Geom_Axis2Placement (3D Coordinate System)
+
+typedef struct OCCTAxis2Placement* OCCTAxis2PlacementRef;
+
+OCCTAxis2PlacementRef _Nonnull OCCTAxis2PlacementCreate(double px, double py, double pz,
+                                                         double nx, double ny, double nz,
+                                                         double vx, double vy, double vz);
+void OCCTAxis2PlacementRelease(OCCTAxis2PlacementRef _Nonnull ref);
+void OCCTAxis2PlacementLocation(OCCTAxis2PlacementRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTAxis2PlacementDirection(OCCTAxis2PlacementRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTAxis2PlacementXDirection(OCCTAxis2PlacementRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTAxis2PlacementYDirection(OCCTAxis2PlacementRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTAxis2PlacementSetDirection(OCCTAxis2PlacementRef _Nonnull ref, double nx, double ny, double nz);
+void OCCTAxis2PlacementSetXDirection(OCCTAxis2PlacementRef _Nonnull ref, double vx, double vy, double vz);
+
+// MARK: - ShapeConstruct_Curve
+
+/// Convert any 3D curve segment to BSpline.
+OCCTCurve3DRef _Nullable OCCTShapeConstructConvertToBSpline3D(OCCTCurve3DRef _Nonnull curve,
+                                                                double first, double last, double precision);
+/// Convert any 2D curve segment to BSpline.
+OCCTCurve2DRef _Nullable OCCTShapeConstructConvertToBSpline2D(OCCTCurve2DRef _Nonnull curve,
+                                                                double first, double last, double precision);
+/// Adjust 3D curve endpoints to match given points.
+bool OCCTShapeConstructAdjustCurve3D(OCCTCurve3DRef _Nonnull curve,
+                                      double p1x, double p1y, double p1z,
+                                      double p2x, double p2y, double p2z);
+/// Adjust 2D curve endpoints to match given points.
+bool OCCTShapeConstructAdjustCurve2D(OCCTCurve2DRef _Nonnull curve,
+                                      double p1x, double p1y,
+                                      double p2x, double p2y);
+
+// MARK: - Bisector_PointOnBis / PolyBis / Inter
+
+typedef struct {
+    double paramOnC1;
+    double paramOnC2;
+    double paramOnBis;
+    double distance;
+    double pointX, pointY;
+    bool isInfinite;
+} OCCTBisectorPointOnBis;
+
+/// Create a PointOnBis value.
+OCCTBisectorPointOnBis OCCTBisectorPointOnBisCreate(double param1, double param2,
+                                                      double paramBis, double distance,
+                                                      double px, double py);
+
+/// Bisector intersection point result.
+typedef struct {
+    double x, y;
+    double paramOnFirst;
+    double paramOnSecond;
+} OCCTBisectorIntersectionPoint;
+
+/// Compute intersections between two point-bisectors. Returns number of intersection points.
+/// Bisector of (ax,ay)-(bx,by) is intersected with bisector of (cx,cy)-(dx,dy).
+int OCCTBisectorInterPointPoint(double ax, double ay, double bx, double by,
+                                 double cx, double cy, double dx, double dy,
+                                 OCCTBisectorIntersectionPoint* _Nullable outPoints,
+                                 int maxPoints);
+
 #ifdef __cplusplus
 }
 #endif

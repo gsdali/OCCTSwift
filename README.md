@@ -126,7 +126,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepGProp Per-Face** | 5 | curveInertia, surfaceInertia, surfaceInertia(epsilon:), volumeInertia, volumeInertia(planeNormal:) |
 | **Curve-Surface Projection** | 1 | projectOnSurface |
 | **Preview Shapes** | 1 | previewBox (degenerate-safe box preview) |
-| **Total** | **1229** | |
+| **GeomPoint3D (Geom_CartesianPoint)** | 8 | create, x, y, z, setCoordinates, distance, squareDistance, translate |
+| **GeomDirection (Geom_Direction)** | 4 | create, coordinates, setCoordinates, crossed |
+| **GeomVector3D (Geom_VectorWithMagnitude)** | 9 | create, fromPoints, coordinates, magnitude, dot, added, multiplied, normalized, crossed |
+| **Axis1Placement (Geom_Axis1Placement)** | 7 | create, location, direction, reverse, reversed, setDirection, setLocation |
+| **Axis2Placement (Geom_Axis2Placement)** | 7 | create, location, mainDirection, xDirection, yDirection, setDirection, setXDirection |
+| **ShapeConstruct Curve** | 4 | convertSegmentToBSpline3D, convertSegmentToBSpline2D, adjustEndpoints3D, adjustEndpoints2D |
+| **Bisector Intersection** | 2 | bisectorIntersections (point-point bisector intersection), BisectorPoint data |
+| **Total** | **1270** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -413,6 +420,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Per-Face Inertia Properties**: BRepGProp_Cinert/Sinert/Vinert — compute curve length, surface area, and volume contribution from individual edges and faces
 - **Curve-on-Surface Projection**: ShapeConstruct_ProjectCurveOnSurface — project 3D curves onto surfaces to obtain 2D parametric curves
 - **Preview Box**: BRepPreviewAPI_MakeBox — create box previews that handle degenerate dimensions (zero width/height/depth → face, edge, or vertex)
+- **3D Geometric Points**: Geom_CartesianPoint — Handle-wrapped 3D points with coordinate access, mutation, distance computation, translation
+- **3D Directions**: Geom_Direction — Handle-wrapped unit directions with auto-normalization, cross product, coordinate access
+- **3D Vectors**: Geom_VectorWithMagnitude — Handle-wrapped 3D vectors with magnitude, dot/cross products, addition, scalar multiplication, normalization
+- **3D Axis Placement**: Geom_Axis1Placement — Handle-wrapped axis (point + direction) with reversal, mutation
+- **3D Coordinate System**: Geom_Axis2Placement — Handle-wrapped coordinate system (origin + N + Vx) with direction/X-direction mutation, Y-direction derivation
+- **Curve Conversion**: ShapeConstruct_Curve — convert any 3D/2D curve segment to BSpline, adjust curve endpoints to match target points
+- **Bisector Intersection**: Bisector_Inter — compute intersection points between perpendicular bisectors of point pairs
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1379,7 +1393,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1217 OCCT operations** across 76 categories with 1561 tests across 488 suites.
+OCCTSwift now wraps **1270 OCCT operations** across 83 categories with 1609 tests across 505 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 
