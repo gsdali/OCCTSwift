@@ -9785,6 +9785,187 @@ int OCCTPolyMergeNodes(OCCTShapeRef _Nonnull shapeRef,
                          int maxVertices, int maxIndices,
                          int* _Nullable outTriangleCount);
 
+// MARK: - v0.79.0: Poly_CoherentTriangulation, BRepFill_Evolved/OffsetAncestors/NSections,
+//                   BRepExtrema_DistanceSS, BRepGProp_VinertGK, GeomFill_Profiler/Stretch/
+//                   LocationDraft/GuideTrihedronAC/GuideTrihedronPlan/SectionPlacement/AppSurf,
+//                   ShapeFix_ComposeShell
+
+// --- Poly_CoherentTriangulation ---
+typedef void* OCCTCoherentTriangulationRef;
+
+OCCTCoherentTriangulationRef OCCTCoherentTriangulationCreate(void);
+OCCTCoherentTriangulationRef OCCTCoherentTriangulationCreateFromMesh(OCCTShapeRef _Nonnull shapeRef);
+int OCCTCoherentTriangulationSetNode(OCCTCoherentTriangulationRef _Nonnull ref, double x, double y, double z);
+bool OCCTCoherentTriangulationAddTriangle(OCCTCoherentTriangulationRef _Nonnull ref, int n0, int n1, int n2);
+bool OCCTCoherentTriangulationRemoveTriangle(OCCTCoherentTriangulationRef _Nonnull ref, int triIndex);
+int OCCTCoherentTriangulationNTriangles(OCCTCoherentTriangulationRef _Nonnull ref);
+int OCCTCoherentTriangulationComputeLinks(OCCTCoherentTriangulationRef _Nonnull ref);
+int OCCTCoherentTriangulationNLinks(OCCTCoherentTriangulationRef _Nonnull ref);
+void OCCTCoherentTriangulationSetDeflection(OCCTCoherentTriangulationRef _Nonnull ref, double deflection);
+double OCCTCoherentTriangulationDeflection(OCCTCoherentTriangulationRef _Nonnull ref);
+bool OCCTCoherentTriangulationRemoveDegenerated(OCCTCoherentTriangulationRef _Nonnull ref, double tolerance);
+/// Converts back to standard Poly_Triangulation; returns vertex/triangle counts
+bool OCCTCoherentTriangulationGetResult(OCCTCoherentTriangulationRef _Nonnull ref,
+                                         int* _Nonnull outNbNodes, int* _Nonnull outNbTriangles);
+/// Gets node coordinates (1-based index into result triangulation)
+bool OCCTCoherentTriangulationNodeCoords(OCCTCoherentTriangulationRef _Nonnull ref, int nodeIndex,
+                                          double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTCoherentTriangulationRelease(OCCTCoherentTriangulationRef _Nonnull ref);
+
+// --- BRepFill_Evolved ---
+/// Create evolved shape from face spine + wire profile
+OCCTShapeRef _Nullable OCCTBRepFillEvolved(OCCTShapeRef _Nonnull spineFaceRef,
+                                            OCCTShapeRef _Nonnull profileWireRef,
+                                            double axOriginX, double axOriginY, double axOriginZ,
+                                            double axNormalX, double axNormalY, double axNormalZ,
+                                            double axXDirX, double axXDirY, double axXDirZ,
+                                            int joinType, bool makeSolid);
+
+// --- BRepFill_OffsetAncestors ---
+typedef void* OCCTOffsetAncestorsRef;
+
+OCCTOffsetAncestorsRef OCCTBRepFillOffsetAncestorsCreate(OCCTShapeRef _Nonnull faceRef, double offset, int joinType);
+bool OCCTBRepFillOffsetAncestorsIsDone(OCCTOffsetAncestorsRef _Nonnull ref);
+bool OCCTBRepFillOffsetAncestorsHasAncestor(OCCTOffsetAncestorsRef _Nonnull ref, OCCTShapeRef _Nonnull edgeRef);
+OCCTShapeRef _Nullable OCCTBRepFillOffsetAncestorsGetAncestor(OCCTOffsetAncestorsRef _Nonnull ref, OCCTShapeRef _Nonnull edgeRef);
+void OCCTBRepFillOffsetAncestorsRelease(OCCTOffsetAncestorsRef _Nonnull ref);
+
+// --- BRepExtrema_DistanceSS ---
+typedef struct {
+    double distance;
+    double point1X, point1Y, point1Z;
+    double point2X, point2Y, point2Z;
+    int solutionCount;
+    bool isDone;
+} OCCTDistanceSSResult;
+
+OCCTDistanceSSResult OCCTBRepExtremaDistanceSS(OCCTShapeRef _Nonnull shape1Ref,
+                                                OCCTShapeRef _Nonnull shape2Ref,
+                                                double deflection);
+
+// --- BRepGProp_VinertGK ---
+typedef struct {
+    double mass;
+    double errorReached;
+    double absoluteError;
+    double centerX, centerY, centerZ;
+} OCCTVinertGKResult;
+
+OCCTVinertGKResult OCCTBRepGPropVinertGK(OCCTShapeRef _Nonnull faceRef,
+                                           double locX, double locY, double locZ,
+                                           double tolerance, bool computeCG);
+
+// --- GeomFill_Profiler ---
+typedef void* OCCTGeomFillProfilerRef;
+
+OCCTGeomFillProfilerRef OCCTGeomFillProfilerCreate(void);
+void OCCTGeomFillProfilerAddCurve(OCCTGeomFillProfilerRef _Nonnull ref, OCCTCurve3DRef _Nonnull curveRef);
+bool OCCTGeomFillProfilerPerform(OCCTGeomFillProfilerRef _Nonnull ref, double tolerance);
+int OCCTGeomFillProfilerDegree(OCCTGeomFillProfilerRef _Nonnull ref);
+int OCCTGeomFillProfilerNbPoles(OCCTGeomFillProfilerRef _Nonnull ref);
+int OCCTGeomFillProfilerNbKnots(OCCTGeomFillProfilerRef _Nonnull ref);
+bool OCCTGeomFillProfilerIsPeriodic(OCCTGeomFillProfilerRef _Nonnull ref);
+/// Gets poles for curve at index (1-based). outX/Y/Z must be sized to NbPoles.
+bool OCCTGeomFillProfilerPoles(OCCTGeomFillProfilerRef _Nonnull ref, int curveIndex,
+                                double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ, int maxPoles);
+/// Gets knots and multiplicities. Arrays must be sized to NbKnots.
+bool OCCTGeomFillProfilerKnotsAndMults(OCCTGeomFillProfilerRef _Nonnull ref,
+                                        double* _Nonnull outKnots, int* _Nonnull outMults, int maxKnots);
+void OCCTGeomFillProfilerRelease(OCCTGeomFillProfilerRef _Nonnull ref);
+
+// --- GeomFill_Stretch ---
+typedef struct {
+    int nbUPoles;
+    int nbVPoles;
+    bool isRational;
+} OCCTStretchFillResult;
+
+/// Create stretch-filled surface from 4 boundary point arrays.
+/// Each array is (x,y,z) triples; count is number of points per boundary.
+OCCTStretchFillResult OCCTGeomFillStretch(const double* _Nonnull p1, const double* _Nonnull p2,
+                                           const double* _Nonnull p3, const double* _Nonnull p4,
+                                           int count,
+                                           double* _Nullable outPoles, int maxPoles);
+
+// --- GeomFill_LocationDraft ---
+typedef void* OCCTLocationDraftRef;
+
+OCCTLocationDraftRef OCCTGeomFillLocationDraftCreate(double dirX, double dirY, double dirZ, double angle);
+bool OCCTGeomFillLocationDraftSetCurve(OCCTLocationDraftRef _Nonnull ref, OCCTCurve3DRef _Nonnull curveRef);
+bool OCCTGeomFillLocationDraftD0(OCCTLocationDraftRef _Nonnull ref, double param,
+                                  double* _Nonnull mat, double* _Nonnull vecX, double* _Nonnull vecY, double* _Nonnull vecZ);
+void OCCTGeomFillLocationDraftSetAngle(OCCTLocationDraftRef _Nonnull ref, double angle);
+void OCCTGeomFillLocationDraftDirection(OCCTLocationDraftRef _Nonnull ref,
+                                         double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+void OCCTGeomFillLocationDraftRelease(OCCTLocationDraftRef _Nonnull ref);
+
+// --- GeomFill_GuideTrihedronAC ---
+typedef void* OCCTGuideTrihedronACRef;
+
+OCCTGuideTrihedronACRef OCCTGeomFillGuideTrihedronACCreate(OCCTCurve3DRef _Nonnull guideCurveRef);
+bool OCCTGeomFillGuideTrihedronACSetCurve(OCCTGuideTrihedronACRef _Nonnull ref, OCCTCurve3DRef _Nonnull pathCurveRef);
+bool OCCTGeomFillGuideTrihedronACD0(OCCTGuideTrihedronACRef _Nonnull ref, double param,
+                                     double* _Nonnull tX, double* _Nonnull tY, double* _Nonnull tZ,
+                                     double* _Nonnull nX, double* _Nonnull nY, double* _Nonnull nZ,
+                                     double* _Nonnull bX, double* _Nonnull bY, double* _Nonnull bZ);
+void OCCTGeomFillGuideTrihedronACRelease(OCCTGuideTrihedronACRef _Nonnull ref);
+
+// --- GeomFill_GuideTrihedronPlan ---
+typedef void* OCCTGuideTrihedronPlanRef;
+
+OCCTGuideTrihedronPlanRef OCCTGeomFillGuideTrihedronPlanCreate(OCCTCurve3DRef _Nonnull guideCurveRef);
+bool OCCTGeomFillGuideTrihedronPlanSetCurve(OCCTGuideTrihedronPlanRef _Nonnull ref, OCCTCurve3DRef _Nonnull pathCurveRef);
+bool OCCTGeomFillGuideTrihedronPlanD0(OCCTGuideTrihedronPlanRef _Nonnull ref, double param,
+                                       double* _Nonnull tX, double* _Nonnull tY, double* _Nonnull tZ,
+                                       double* _Nonnull nX, double* _Nonnull nY, double* _Nonnull nZ,
+                                       double* _Nonnull bX, double* _Nonnull bY, double* _Nonnull bZ);
+void OCCTGeomFillGuideTrihedronPlanRelease(OCCTGuideTrihedronPlanRef _Nonnull ref);
+
+// --- GeomFill_SectionPlacement ---
+typedef struct {
+    double parameterOnPath;
+    double parameterOnSection;
+    double distance;
+    double angle;
+    bool isDone;
+} OCCTSectionPlacementResult;
+
+/// Place a section curve on a path using LocationDraft law
+OCCTSectionPlacementResult OCCTGeomFillSectionPlacement(OCCTCurve3DRef _Nonnull pathCurveRef,
+                                                         OCCTCurve3DRef _Nonnull sectionCurveRef,
+                                                         double dirX, double dirY, double dirZ,
+                                                         double draftAngle, double tolerance);
+
+// --- BRepFill_NSections ---
+typedef void* OCCTNSectionsRef;
+
+/// Create N-section law from array of wire shapes
+OCCTNSectionsRef OCCTBRepFillNSectionsCreate(const OCCTShapeRef _Nonnull * _Nonnull wireRefs, int count);
+int OCCTBRepFillNSectionsNbLaw(OCCTNSectionsRef _Nonnull ref);
+bool OCCTBRepFillNSectionsIsConstant(OCCTNSectionsRef _Nonnull ref);
+bool OCCTBRepFillNSectionsIsVertex(OCCTNSectionsRef _Nonnull ref);
+void OCCTBRepFillNSectionsRelease(OCCTNSectionsRef _Nonnull ref);
+
+// --- GeomFill_AppSurf ---
+typedef struct {
+    int uDegree;
+    int vDegree;
+    int nbUPoles;
+    int nbVPoles;
+    int nbUKnots;
+    int nbVKnots;
+    bool isDone;
+} OCCTAppSurfResult;
+
+/// Approximate surface from N section curves (uses GeomFill_SectionGenerator + GeomFill_AppSurf)
+OCCTAppSurfResult OCCTGeomFillAppSurf(const OCCTCurve3DRef _Nonnull * _Nonnull curveRefs, int count,
+                                       int degMin, int degMax, double tol3d, double tol2d);
+
+// --- ShapeFix_ComposeShell ---
+/// Perform compose shell on a face with composite surface grid
+/// Returns the result shape (shell or compound of faces)
+OCCTShapeRef _Nullable OCCTShapeFixComposeShell(OCCTShapeRef _Nonnull faceRef, double precision);
+
 #ifdef __cplusplus
 }
 #endif

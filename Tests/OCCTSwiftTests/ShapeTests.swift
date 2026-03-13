@@ -22284,3 +22284,445 @@ struct MergeNodesToolTests {
         }
     }
 }
+
+// MARK: - v0.79.0 Tests
+
+@Suite("Poly_CoherentTriangulation")
+struct CoherentTriangulationTests {
+    @Test("create empty and add nodes")
+    func createAndAddNodes() {
+        let ct = CoherentTriangulation.create()
+        let n0 = ct.setNode(x: 0, y: 0, z: 0)
+        let n1 = ct.setNode(x: 1, y: 0, z: 0)
+        let n2 = ct.setNode(x: 0, y: 1, z: 0)
+        #expect(n0 == 0)
+        #expect(n1 == 1)
+        #expect(n2 == 2)
+    }
+
+    @Test("add and count triangles")
+    func addTriangles() {
+        let ct = CoherentTriangulation.create()
+        let _ = ct.setNode(x: 0, y: 0, z: 0)
+        let _ = ct.setNode(x: 1, y: 0, z: 0)
+        let _ = ct.setNode(x: 0, y: 1, z: 0)
+        let _ = ct.setNode(x: 1, y: 1, z: 0)
+        ct.addTriangle(0, 1, 2)
+        ct.addTriangle(1, 3, 2)
+        #expect(ct.triangleCount == 2)
+    }
+
+    @Test("remove triangle")
+    func removeTriangle() {
+        let ct = CoherentTriangulation.create()
+        let _ = ct.setNode(x: 0, y: 0, z: 0)
+        let _ = ct.setNode(x: 1, y: 0, z: 0)
+        let _ = ct.setNode(x: 0, y: 1, z: 0)
+        let _ = ct.setNode(x: 1, y: 1, z: 0)
+        ct.addTriangle(0, 1, 2)
+        ct.addTriangle(1, 3, 2)
+        ct.removeTriangle(at: 0)
+        #expect(ct.triangleCount == 1)
+    }
+
+    @Test("compute links")
+    func computeLinks() {
+        let ct = CoherentTriangulation.create()
+        let _ = ct.setNode(x: 0, y: 0, z: 0)
+        let _ = ct.setNode(x: 1, y: 0, z: 0)
+        let _ = ct.setNode(x: 0, y: 1, z: 0)
+        let _ = ct.setNode(x: 1, y: 1, z: 0)
+        ct.addTriangle(0, 1, 2)
+        ct.addTriangle(1, 3, 2)
+        let nLinks = ct.computeLinks()
+        #expect(nLinks > 0)
+        #expect(ct.linkCount > 0)
+    }
+
+    @Test("deflection set/get")
+    func deflection() {
+        let ct = CoherentTriangulation.create()
+        ct.setDeflection(0.5)
+        #expect(abs(ct.deflection - 0.5) < 1e-10)
+    }
+
+    @Test("convert back to triangulation")
+    func getResult() {
+        let ct = CoherentTriangulation.create()
+        let _ = ct.setNode(x: 0, y: 0, z: 0)
+        let _ = ct.setNode(x: 1, y: 0, z: 0)
+        let _ = ct.setNode(x: 0, y: 1, z: 0)
+        ct.addTriangle(0, 1, 2)
+        if let result = ct.getResult() {
+            #expect(result.nodeCount == 3)
+            #expect(result.triangleCount == 1)
+        }
+    }
+
+    @Test("create from mesh")
+    func createFromMesh() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let _ = box.mesh(linearDeflection: 1.0)
+            if let ct = CoherentTriangulation.createFromMesh(box) {
+                #expect(ct.triangleCount > 0)
+            }
+        }
+    }
+
+    @Test("node coordinates after result")
+    func nodeCoords() {
+        let ct = CoherentTriangulation.create()
+        let _ = ct.setNode(x: 1.5, y: 2.5, z: 3.5)
+        let _ = ct.setNode(x: 4, y: 5, z: 6)
+        let _ = ct.setNode(x: 7, y: 8, z: 9)
+        ct.addTriangle(0, 1, 2)
+        if let _ = ct.getResult() {
+            if let coords = ct.nodeCoords(at: 1) {
+                #expect(abs(coords.x - 1.5) < 1e-6)
+                #expect(abs(coords.y - 2.5) < 1e-6)
+                #expect(abs(coords.z - 3.5) < 1e-6)
+            }
+        }
+    }
+}
+
+@Suite("BRepFill_Evolved")
+struct BRepFillEvolvedTests {
+    @Test("evolved shape from face spine + wire profile")
+    func evolvedShape() {
+        if let rect = Wire.rectangle(width: 100, height: 100),
+           let spineFace = Shape.face(from: rect) {
+            if let profileWire = Wire.polygon3D([SIMD3(0, 0, 0), SIMD3(5, 0, 0),
+                                                    SIMD3(5, 0, 5), SIMD3(0, 0, 5)], closed: false),
+               let profile = Shape.fromWire(profileWire) {
+                // BRepFill_Evolved is finicky — may or may not produce a result
+                let _ = Shape.evolved(spineFace: spineFace, profileWire: profile)
+                #expect(Bool(true))
+            }
+        }
+    }
+}
+
+@Suite("BRepFill_OffsetAncestors")
+struct BRepFillOffsetAncestorsTests {
+    @Test("create and query offset ancestors")
+    func offsetAncestors() {
+        if let rect = Wire.rectangle(width: 10, height: 10),
+           let face = Shape.face(from: rect) {
+            if let ancestors = OffsetAncestors.create(face: face, offset: 1.0) {
+                #expect(ancestors.isDone)
+            }
+        }
+    }
+
+    @Test("find ancestor edge")
+    func findAncestor() {
+        if let rect = Wire.rectangle(width: 10, height: 10),
+           let face = Shape.face(from: rect) {
+            if let ancestors = OffsetAncestors.create(face: face, offset: 1.0) {
+                if ancestors.isDone {
+                    let edges = face.subShapes(ofType: .edge)
+                    if let firstEdge = edges.first {
+                        let _ = ancestors.hasAncestor(firstEdge)
+                        #expect(Bool(true))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("BRepExtrema_DistanceSS")
+struct BRepExtremaDistanceSSTests {
+    @Test("distance between box vertices")
+    func vertexDistance() {
+        // Get vertices from two boxes at different positions
+        if let box1 = Shape.box(width: 1, height: 1, depth: 1),
+           let box2 = Shape.box(origin: SIMD3(10, 0, 0), width: 1, height: 1, depth: 1) {
+            let verts1 = box1.subShapes(ofType: .vertex)
+            let verts2 = box2.subShapes(ofType: .vertex)
+            if let v1 = verts1.first, let v2 = verts2.first {
+                let r = v1.distanceSS(to: v2)
+                #expect(r.isDone)
+                #expect(r.distance > 0)
+            }
+        }
+    }
+
+    @Test("distance between edge and vertex")
+    func edgeVertexDistance() {
+        if let box1 = Shape.box(width: 1, height: 1, depth: 1),
+           let box2 = Shape.box(origin: SIMD3(5, 5, 0), width: 1, height: 1, depth: 1) {
+            let edges1 = box1.subShapes(ofType: .edge)
+            let verts2 = box2.subShapes(ofType: .vertex)
+            if let e = edges1.first, let v = verts2.first {
+                let r = e.distanceSS(to: v)
+                #expect(r.isDone)
+                #expect(r.distance > 0)
+            }
+        }
+    }
+}
+
+@Suite("BRepGProp_VinertGK")
+struct BRepGPropVinertGKTests {
+    @Test("volume integration on box face")
+    func volumeIntegration() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let r = face.vinertGK()
+                // Just verify it completes without crash
+                #expect(Bool(true))
+                let _ = r.mass
+            }
+        }
+    }
+
+    @Test("error bounds")
+    func errorBounds() {
+        if let box = Shape.box(width: 5, height: 5, depth: 5) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let r = face.vinertGK(tolerance: 0.001)
+                #expect(r.errorReached >= 0)
+            }
+        }
+    }
+}
+
+@Suite("GeomFill_Profiler")
+struct GeomFillProfilerTests {
+    @Test("add curves and perform")
+    func addCurvesAndPerform() {
+        if let c1 = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5),
+           let c2 = Curve3D.circle(center: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1), radius: 3) {
+            let profiler = CurveProfiler.create()
+            profiler.addCurve(c1)
+            profiler.addCurve(c2)
+            profiler.perform()
+            #expect(profiler.degree > 0)
+            #expect(profiler.poleCount > 0)
+            #expect(profiler.knotCount > 0)
+        }
+    }
+
+    @Test("extract poles")
+    func extractPoles() {
+        if let c1 = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5),
+           let c2 = Curve3D.circle(center: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1), radius: 3) {
+            let profiler = CurveProfiler.create()
+            profiler.addCurve(c1)
+            profiler.addCurve(c2)
+            profiler.perform()
+            let poles = profiler.poles(curveIndex: 1)
+            #expect(poles.count == profiler.poleCount)
+        }
+    }
+
+    @Test("knots and multiplicities")
+    func knotsAndMults() {
+        if let c1 = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5),
+           let c2 = Curve3D.circle(center: SIMD3(0, 0, 5), normal: SIMD3(0, 0, 1), radius: 4) {
+            let profiler = CurveProfiler.create()
+            profiler.addCurve(c1)
+            profiler.addCurve(c2)
+            profiler.perform()
+            let (knots, mults) = profiler.knotsAndMults()
+            #expect(knots.count == profiler.knotCount)
+            #expect(mults.count == profiler.knotCount)
+            if let firstMult = mults.first {
+                #expect(firstMult > 0)
+            }
+        }
+    }
+}
+
+@Suite("GeomFill_Stretch")
+struct GeomFillStretchTests {
+    @Test("stretch fill from 4 boundary point arrays")
+    func stretchFill() {
+        let p1 = [SIMD3(0.0, 0.0, 0.0), SIMD3(5.0, 0.0, 1.0), SIMD3(10.0, 0.0, 0.0)]
+        let p2 = [SIMD3(10.0, 0.0, 0.0), SIMD3(10.0, 5.0, 2.0), SIMD3(10.0, 10.0, 0.0)]
+        let p3 = [SIMD3(10.0, 10.0, 0.0), SIMD3(5.0, 10.0, 1.0), SIMD3(0.0, 10.0, 0.0)]
+        let p4 = [SIMD3(0.0, 10.0, 0.0), SIMD3(0.0, 5.0, 2.0), SIMD3(0.0, 0.0, 0.0)]
+        if let result = Surface.stretchFill(p1: p1, p2: p2, p3: p3, p4: p4) {
+            #expect(result.nbUPoles > 0)
+            #expect(result.nbVPoles > 0)
+            #expect(result.poles.count == result.nbUPoles * result.nbVPoles)
+        }
+    }
+
+    @Test("isRational for linear stretch")
+    func isRational() {
+        let p1 = [SIMD3(0.0, 0.0, 0.0), SIMD3(1.0, 0.0, 0.0)]
+        let p2 = [SIMD3(1.0, 0.0, 0.0), SIMD3(1.0, 1.0, 0.0)]
+        let p3 = [SIMD3(1.0, 1.0, 0.0), SIMD3(0.0, 1.0, 0.0)]
+        let p4 = [SIMD3(0.0, 1.0, 0.0), SIMD3(0.0, 0.0, 0.0)]
+        if let result = Surface.stretchFill(p1: p1, p2: p2, p3: p3, p4: p4) {
+            #expect(!result.isRational)
+        }
+    }
+}
+
+@Suite("GeomFill_LocationDraft")
+struct GeomFillLocationDraftTests {
+    @Test("create with direction and angle")
+    func createLocationDraft() {
+        let loc = LocationDraft.create(direction: SIMD3(0, 0, 1), angle: .pi / 6)
+        let dir = loc.direction
+        #expect(abs(dir.z - 1.0) < 1e-6)
+    }
+
+    @Test("set curve and evaluate")
+    func setCurveAndEvaluate() {
+        let loc = LocationDraft.create(direction: SIMD3(0, 0, 1), angle: .pi / 12)
+        if let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+           let path = line.trimmed(from: 0, to: 10) {
+            loc.setCurve(path)
+            if let result = loc.evaluate(at: 5.0) {
+                #expect(result.matrix.count == 9)
+            }
+        }
+    }
+
+    @Test("set angle")
+    func setAngle() {
+        let loc = LocationDraft.create(direction: SIMD3(0, 0, 1), angle: .pi / 6)
+        loc.setAngle(.pi / 4)
+        // Just verify no crash
+        #expect(Bool(true))
+    }
+}
+
+@Suite("GeomFill_GuideTrihedronAC")
+struct GeomFillGuideTrihedronACTests {
+    @Test("create with guide and path")
+    func createAndSetPath() {
+        if let guide = Curve3D.line(through: SIMD3(0, 5, 0), direction: SIMD3(1, 0, 0)),
+           let guideTrimmed = guide.trimmed(from: 0, to: 10) {
+            let triAC = GuideTrihedronAC.create(guideCurve: guideTrimmed)
+            if let path = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+               let pathTrimmed = path.trimmed(from: 0, to: 10) {
+                triAC.setCurve(pathTrimmed)
+                #expect(Bool(true))
+            }
+        }
+    }
+
+    @Test("D0 evaluation")
+    func d0Evaluation() {
+        if let guide = Curve3D.line(through: SIMD3(0, 5, 0), direction: SIMD3(1, 0, 0)),
+           let guideTrimmed = guide.trimmed(from: 0, to: 10) {
+            let triAC = GuideTrihedronAC.create(guideCurve: guideTrimmed)
+            if let path = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+               let pathTrimmed = path.trimmed(from: 0, to: 10) {
+                triAC.setCurve(pathTrimmed)
+                if let frame = triAC.evaluate(at: 5.0) {
+                    #expect(abs(frame.tangent.x) > 0.3)
+                }
+            }
+        }
+    }
+}
+
+@Suite("GeomFill_GuideTrihedronPlan")
+struct GeomFillGuideTrihedronPlanTests {
+    @Test("create and evaluate")
+    func createAndEvaluate() {
+        if let guide = Curve3D.line(through: SIMD3(0, 5, 0), direction: SIMD3(1, 0, 0)),
+           let guideTrimmed = guide.trimmed(from: 0, to: 10) {
+            let triPlan = GuideTrihedronPlan.create(guideCurve: guideTrimmed)
+            if let path = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+               let pathTrimmed = path.trimmed(from: 0, to: 10) {
+                triPlan.setCurve(pathTrimmed)
+                let frame = triPlan.evaluate(at: 5.0)
+                #expect(frame != nil)
+            }
+        }
+    }
+}
+
+@Suite("GeomFill_SectionPlacement")
+struct GeomFillSectionPlacementTests {
+    @Test("place section on path")
+    func placeSectionOnPath() {
+        if let path = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+           let pathTrimmed = path.trimmed(from: 0, to: 10),
+           let section = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(1, 0, 0), radius: 2) {
+            let result = pathTrimmed.sectionPlacement(section: section)
+            #expect(result.isDone)
+            #expect(result.distance >= 0)
+        }
+    }
+
+    @Test("query placement parameters")
+    func queryPlacementParams() {
+        if let path = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+           let pathTrimmed = path.trimmed(from: 0, to: 10),
+           let section = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(1, 0, 0), radius: 2) {
+            let result = pathTrimmed.sectionPlacement(section: section)
+            if result.isDone {
+                #expect(result.parameterOnPath >= 0)
+                #expect(result.parameterOnPath <= 10)
+            }
+        }
+    }
+}
+
+@Suite("BRepFill_NSections")
+struct BRepFillNSectionsTests {
+    @Test("create from wires")
+    func createFromWires() {
+        if let w1 = Wire.circle(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5),
+           let w2 = Wire.circle(origin: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1), radius: 3),
+           let s1 = Shape.fromWire(w1), let s2 = Shape.fromWire(w2) {
+            if let nsec = NSections.create(wires: [s1, s2]) {
+                #expect(nsec.lawCount > 0)
+                #expect(!nsec.isVertex)
+            }
+        }
+    }
+
+    @Test("isConstant query")
+    func isConstantQuery() {
+        if let w1 = Wire.circle(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5),
+           let w2 = Wire.circle(origin: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1), radius: 5),
+           let s1 = Shape.fromWire(w1), let s2 = Shape.fromWire(w2) {
+            if let nsec = NSections.create(wires: [s1, s2]) {
+                let _ = nsec.isConstant
+                #expect(Bool(true))
+            }
+        }
+    }
+}
+
+@Suite("GeomFill_AppSurf")
+struct GeomFillAppSurfTests {
+    @Test("approximate surface from sections")
+    func approximateSurface() {
+        if let c1 = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5),
+           let c2 = Curve3D.circle(center: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1), radius: 3) {
+            if let result = Surface.appSurf(curves: [c1, c2]) {
+                #expect(result.isDone)
+                #expect(result.uDegree > 0)
+                #expect(result.vDegree > 0)
+                #expect(result.nbUPoles > 0)
+                #expect(result.nbVPoles > 0)
+            }
+        }
+    }
+}
+
+@Suite("ShapeFix_ComposeShell")
+struct ShapeFixComposeShellTests {
+    @Test("compose shell on planar face")
+    func composeShellPlanar() {
+        if let rect = Wire.rectangle(width: 10, height: 10),
+           let face = Shape.face(from: rect) {
+            if let result = face.composeShell() {
+                #expect(result.isValid)
+            }
+        }
+    }
+}

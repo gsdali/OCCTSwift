@@ -149,7 +149,21 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Poly_Polygon3D** | 8 | create, createWithParams, nodeCount, node, nodes, hasParameters, parameter, deflection |
 | **Poly_PolygonOnTriangulation** | 7 | create, createWithParams, nodeCount, nodeIndex, hasParameters, parameter, deflection |
 | **Poly_MergeNodesTool** | 1 | mergedMeshNodes (merge duplicate vertices from shape triangulations) |
-| **Total** | **1326** | |
+| **Poly_CoherentTriangulation** | 12 | create, createFromMesh, setNode, addTriangle, removeTriangle, triangleCount, computeLinks, linkCount, deflection, removeDegenerated, getResult, nodeCoords |
+| **BRepFill_Evolved** | 1 | evolved (face spine + wire profile sweep) |
+| **BRepFill_OffsetAncestors** | 3 | create, hasAncestor, ancestor (trace offset wire edge ancestry) |
+| **BRepExtrema_DistanceSS** | 1 | distanceSS (sub-shape to sub-shape minimum distance) |
+| **BRepGProp_VinertGK** | 1 | vinertGK (Gauss-Kronrod volume integration on face) |
+| **GeomFill_Profiler** | 8 | create, addCurve, perform, degree, poleCount, knotCount, isPeriodic, poles, knotsAndMults |
+| **GeomFill_Stretch** | 1 | stretchFill (4-boundary stretch surface) |
+| **GeomFill_LocationDraft** | 4 | create, setCurve, evaluate, setAngle, direction |
+| **GeomFill_GuideTrihedronAC** | 2 | create+setCurve, evaluate (arc-length corrected guide frame) |
+| **GeomFill_GuideTrihedronPlan** | 2 | create+setCurve, evaluate (planar guide frame) |
+| **GeomFill_SectionPlacement** | 1 | sectionPlacement (place section on sweep path) |
+| **BRepFill_NSections** | 3 | create, lawCount, isConstant, isVertex |
+| **GeomFill_AppSurf** | 1 | appSurf (approximate surface from section curves) |
+| **ShapeFix_ComposeShell** | 1 | composeShell (split face into sub-faces) |
+| **Total** | **1367** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
