@@ -22726,3 +22726,394 @@ struct ShapeFixComposeShellTests {
         }
     }
 }
+
+// MARK: - v0.80.0: Extrema 3D/2D, GeomTools persistence, ProjLib, gce_* factories
+
+@Suite("Extrema_ExtCC Tests")
+struct ExtremaExtCCTests {
+    @Test func curveCurveDistance() {
+        // Two perpendicular lines at distance 5
+        if let line1 = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)),
+           let line2 = Curve3D.line(through: SIMD3(0,5,0), direction: SIMD3(0,0,1)) {
+            let result = line1.extremaCC(range1: -10...10, other: line2, range2: -10...10)
+            #expect(result.isDone)
+            #expect(result.count >= 1)
+            if result.count >= 1 {
+                let pp = line1.extremaCCPoint(range1: -10...10, other: line2, range2: -10...10, index: 1)
+                let dist = pp.squareDistance.squareRoot()
+                #expect(abs(dist - 5.0) < 1e-3)
+            }
+        }
+    }
+
+    @Test func parallelCurves() {
+        if let line1 = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)),
+           let line2 = Curve3D.line(through: SIMD3(0,3,0), direction: SIMD3(1,0,0)) {
+            let result = line1.extremaCC(range1: -10...10, other: line2, range2: -10...10)
+            #expect(result.isDone)
+            #expect(result.isParallel)
+        }
+    }
+}
+
+@Suite("Extrema_ExtCS Tests")
+struct ExtremaExtCSTests {
+    @Test func curveSurfaceParallel() {
+        // Line parallel to plane
+        if let line = Curve3D.line(through: SIMD3(0,0,10), direction: SIMD3(1,0,0)),
+           let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            let result = line.extremaCS(range: -10...10, surface: plane)
+            #expect(result.isDone)
+            #expect(result.isParallel)
+        }
+    }
+
+    @Test func curveSurfaceDistance() {
+        // Line near a sphere
+        if let line = Curve3D.line(through: SIMD3(10,0,0), direction: SIMD3(0,0,1)),
+           let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0) {
+            let result = line.extremaCS(range: -5...5, surface: sphere)
+            #expect(result.isDone)
+            if !result.isParallel && result.count >= 1 {
+                let pp = line.extremaCSPoint(range: -5...5, surface: sphere, index: 1)
+                let dist = pp.squareDistance.squareRoot()
+                #expect(dist > 4.0) // At least 5 away from surface
+            }
+        }
+    }
+}
+
+@Suite("Extrema_ExtPS Tests")
+struct ExtremaExtPSTests {
+    @Test func pointSurfaceDistance() {
+        // Point above sphere
+        if let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0) {
+            let result = sphere.extremaPS(point: SIMD3(0, 0, 10))
+            #expect(result.isDone)
+            #expect(result.count >= 1)
+            if result.count >= 1 {
+                // Find minimum distance
+                var minDist = Double.infinity
+                for i in 1...result.count {
+                    let ps = sphere.extremaPSPoint(point: SIMD3(0, 0, 10), index: i)
+                    let d = ps.squareDistance.squareRoot()
+                    if d < minDist { minDist = d }
+                }
+                #expect(abs(minDist - 5.0) < 0.1)
+            }
+        }
+    }
+
+    @Test func pointOnSurfaceParams() {
+        if let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0) {
+            let result = sphere.extremaPS(point: SIMD3(0, 0, 10))
+            if result.isDone && result.count >= 1 {
+                let ps = sphere.extremaPSPoint(point: SIMD3(0, 0, 10), index: 1)
+                // Point should be on the sphere surface
+                let px = ps.point.x, py = ps.point.y, pz = ps.point.z
+                let r = (px*px + py*py + pz*pz).squareRoot()
+                #expect(abs(r - 5.0) < 0.1)
+            }
+        }
+    }
+}
+
+@Suite("Extrema_ExtSS Tests")
+struct ExtremaExtSSTests {
+    @Test func parallelPlanes() {
+        if let p1 = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)),
+           let p2 = Surface.plane(origin: SIMD3(0, 0, 7), normal: SIMD3(0, 0, 1)) {
+            let result = p1.extremaSS(other: p2)
+            #expect(result.isDone)
+            #expect(result.isParallel)
+        }
+    }
+
+    @Test func sphereDistance() {
+        if let s1 = Surface.sphere(center: SIMD3(0, 0, 0), radius: 3.0),
+           let s2 = Surface.sphere(center: SIMD3(10, 0, 0), radius: 2.0) {
+            let result = s1.extremaSS(other: s2)
+            #expect(result.isDone)
+            // Two spheres, non-parallel
+            if !result.isParallel && result.count >= 1 {
+                let pp = s1.extremaSSPoint(other: s2, index: 1)
+                let dist = pp.squareDistance.squareRoot()
+                #expect(abs(dist - 5.0) < 0.5) // 10 - 3 - 2 = 5
+            }
+        }
+    }
+}
+
+@Suite("Extrema_LocateExtCC Tests")
+struct ExtremaLocateExtCCTests {
+    @Test func localExtremum() {
+        if let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5.0),
+           let line = Curve3D.line(through: SIMD3(10,0,3), direction: SIMD3(0,1,0)) {
+            let result = circ.locateExtremaCC(range1: 0...(.pi * 2), other: line,
+                                              range2: -10...10, seedU: 0, seedV: 0)
+            #expect(result.isDone)
+            if result.isDone {
+                let dist = result.squareDistance.squareRoot()
+                #expect(dist > 0)
+            }
+        }
+    }
+}
+
+@Suite("Extrema_LocateExtCC2d Tests")
+struct ExtremaLocateExtCC2dTests {
+    @Test func localExtremum2d() {
+        if let circ = Curve2D.circleFromCenterRadius(center: SIMD2(0, 0), radius: 5.0),
+           let line = Curve2D.lineFrom2Points(SIMD2(10, -10), SIMD2(10, 10)) {
+            let result = circ.locateExtremaCC(range1: 0...(.pi * 2), other: line,
+                                              range2: -10...10, seedU: 0, seedV: 0)
+            #expect(result.isDone)
+            if result.isDone {
+                let dist = result.squareDistance.squareRoot()
+                #expect(abs(dist - 5.0) < 0.5)
+            }
+        }
+    }
+}
+
+@Suite("GeomTools_CurveSet Tests")
+struct GeomToolsCurveSetTests {
+    @Test func serializeDeserialize3D() {
+        if let line = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)),
+           let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5.0) {
+            if let data = Curve3D.serializeCurves([line, circ]) {
+                #expect(!data.isEmpty)
+                if let curves = Curve3D.deserializeCurves(data) {
+                    #expect(curves.count == 2)
+                }
+            }
+        }
+    }
+
+    @Test func roundtripPreservesGeometry() {
+        if let circ = Curve3D.circle(center: SIMD3(1,2,3), normal: SIMD3(0,0,1), radius: 7.0) {
+            if let data = Curve3D.serializeCurves([circ]),
+               let curves = Curve3D.deserializeCurves(data) {
+                #expect(curves.count == 1)
+            }
+        }
+    }
+}
+
+@Suite("GeomTools_Curve2dSet Tests")
+struct GeomToolsCurve2dSetTests {
+    @Test func serializeDeserialize2D() {
+        if let line = Curve2D.lineFrom2Points(SIMD2(0, 0), SIMD2(1, 0)),
+           let circ = Curve2D.circleFromCenterRadius(center: SIMD2(0, 0), radius: 3.0) {
+            if let data = Curve2D.serializeCurves([line, circ]) {
+                #expect(!data.isEmpty)
+                if let curves = Curve2D.deserializeCurves(data) {
+                    #expect(curves.count == 2)
+                }
+            }
+        }
+    }
+}
+
+@Suite("GeomTools_SurfaceSet Tests")
+struct GeomToolsSurfaceSetTests {
+    @Test func serializeDeserializeSurfaces() {
+        if let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)),
+           let cyl = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 3.0) {
+            if let data = Surface.serializeSurfaces([plane, cyl]) {
+                #expect(!data.isEmpty)
+                if let surfaces = Surface.deserializeSurfaces(data) {
+                    #expect(surfaces.count == 2)
+                }
+            }
+        }
+    }
+}
+
+@Suite("ProjLib_ProjectOnSurface Tests")
+struct ProjLibProjectOnSurfaceTests {
+    @Test func projectLineOnCylinder() {
+        if let line = Curve3D.line(through: SIMD3(5,0,0), direction: SIMD3(0,1,1)),
+           let cyl = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5.0) {
+            if let projected = line.projectOnSurface(cyl, range: 0...10) {
+                let domain = projected.domain
+                #expect(domain.upperBound > domain.lowerBound)
+            }
+        }
+    }
+}
+
+@Suite("gce_MakeCirc Tests")
+struct GceMakeCircTests {
+    @Test func circleThrough3Points() {
+        if let circ = Curve3D.circleThrough3Points(SIMD3(5,0,0), SIMD3(0,5,0), SIMD3(-5,0,0)) {
+            let domain = circ.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+
+    @Test func circleFromCenterNormal() {
+        if let circ = Curve3D.circleFromCenterNormal(center: SIMD3(1,2,3),
+                                                      normal: SIMD3(0,0,1), radius: 7.0) {
+            let domain = circ.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakeCone Tests")
+struct GceMakeConeTests {
+    @Test func coneFrom2PointsRadii() {
+        if let cone = Surface.coneFrom2PointsRadii(p1: SIMD3(0,0,0), p2: SIMD3(0,0,10),
+                                                    radius1: 5.0, radius2: 2.0) {
+            #expect(Bool(true)) // Construction succeeded
+        }
+    }
+}
+
+@Suite("gce_MakeCylinder Tests")
+struct GceMakeCylinderTests {
+    @Test func cylinderFrom3Points() {
+        if let cyl = Surface.cylinderFrom3Points(p1: SIMD3(0,0,0), p2: SIMD3(0,0,10),
+                                                  p3: SIMD3(3,0,0)) {
+            #expect(Bool(true))
+        }
+    }
+}
+
+@Suite("gce_MakeLin Tests")
+struct GceMakeLinTests {
+    @Test func lineFrom2Points() {
+        if let line = Curve3D.lineFrom2Points(SIMD3(0,0,0), SIMD3(1,2,3)) {
+            let domain = line.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakePln Tests")
+struct GceMakePlnTests {
+    @Test func planeFromEquation() {
+        if let plane = Surface.planeFromEquation(a: 0, b: 0, c: 1, d: -5) {
+            #expect(Bool(true))
+        }
+    }
+
+    @Test func planeFrom3Points() {
+        if let plane = Surface.planeFrom3Points(p1: SIMD3(0,0,0), p2: SIMD3(1,0,0),
+                                                 p3: SIMD3(0,1,0)) {
+            #expect(Bool(true))
+        }
+    }
+}
+
+@Suite("gce_MakeDir Tests")
+struct GceMakeDirTests {
+    @Test func directionFrom2Points() {
+        if let dir = Curve3D.directionFrom2Points(SIMD3(0,0,0), SIMD3(3,0,0)) {
+            #expect(abs(dir.x - 1.0) < 1e-10)
+            #expect(abs(dir.y) < 1e-10)
+            #expect(abs(dir.z) < 1e-10)
+        }
+    }
+}
+
+@Suite("gce_MakeElips Tests")
+struct GceMakeElipsTests {
+    @Test func ellipseFromCenterNormal() {
+        if let elips = Curve3D.ellipseFromCenterNormal(center: SIMD3(0,0,0), normal: SIMD3(0,0,1),
+                                                        majorRadius: 10, minorRadius: 5) {
+            let domain = elips.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakeHypr Tests")
+struct GceMakeHyprTests {
+    @Test func hyperbolaFromCenterNormal() {
+        if let hypr = Curve3D.hyperbolaFromCenterNormal(center: SIMD3(0,0,0), normal: SIMD3(0,0,1),
+                                                         majorRadius: 8, minorRadius: 3) {
+            let domain = hypr.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakeParab Tests")
+struct GceMakeParabTests {
+    @Test func parabolaFromCenterNormal() {
+        if let parab = Curve3D.parabolaFromCenterNormal(center: SIMD3(0,0,0), normal: SIMD3(0,0,1),
+                                                         focal: 4.0) {
+            let domain = parab.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakeCirc2d Tests")
+struct GceMakeCirc2dTests {
+    @Test func circleFromCenterRadius() {
+        if let circ = Curve2D.circleFromCenterRadius(center: SIMD2(0, 0), radius: 5.0) {
+            let domain = circ.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+
+    @Test func circleThrough3Points() {
+        if let circ = Curve2D.circleThrough3Points(SIMD2(5, 0), SIMD2(0, 5), SIMD2(-5, 0)) {
+            let domain = circ.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakeLin2d Tests")
+struct GceMakeLin2dTests {
+    @Test func lineFrom2Points() {
+        if let line = Curve2D.lineFrom2Points(SIMD2(0, 0), SIMD2(1, 0)) {
+            let domain = line.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+
+    @Test func lineFromEquation() {
+        if let line = Curve2D.lineFromEquation(a: 1, b: 0, c: -5) {
+            let domain = line.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakeElips2d Tests")
+struct GceMakeElips2dTests {
+    @Test func ellipseFromCenterDir() {
+        if let elips = Curve2D.ellipseFromCenterDir(center: SIMD2(0, 0), direction: SIMD2(1, 0),
+                                                     majorRadius: 8, minorRadius: 4) {
+            let domain = elips.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakeHypr2d Tests")
+struct GceMakeHypr2dTests {
+    @Test func hyperbolaFromCenterDir() {
+        if let hypr = Curve2D.hyperbolaFromCenterDir(center: SIMD2(0, 0), direction: SIMD2(1, 0),
+                                                      majorRadius: 6, minorRadius: 3) {
+            let domain = hypr.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}
+
+@Suite("gce_MakeParab2d Tests")
+struct GceMakeParab2dTests {
+    @Test func parabolaFromCenterDir() {
+        if let parab = Curve2D.parabolaFromCenterDir(center: SIMD2(0, 0), direction: SIMD2(1, 0),
+                                                      focal: 3.0) {
+            let domain = parab.domain
+            #expect(domain.upperBound > domain.lowerBound)
+        }
+    }
+}

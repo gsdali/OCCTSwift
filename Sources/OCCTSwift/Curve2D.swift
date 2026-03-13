@@ -1830,4 +1830,109 @@ extension Curve2D {
         let code = FairCurveCode(rawValue: outCode) ?? .ok
         return (Curve2D(handle: h), code)
     }
+
+    // MARK: - v0.80.0: Extrema, gce factories, GeomTools persistence
+
+    /// Result of local 2D curve-curve extrema search
+    public struct LocalExtrema2dResult: Sendable {
+        public let isDone: Bool
+        public let squareDistance: Double
+        public let point1: SIMD2<Double>
+        public let param1: Double
+        public let point2: SIMD2<Double>
+        public let param2: Double
+    }
+
+    /// Find local 2D curve-curve extremum near seed parameters
+    public func locateExtremaCC(range1: ClosedRange<Double>? = nil,
+                                other: Curve2D,
+                                range2: ClosedRange<Double>? = nil,
+                                seedU: Double, seedV: Double) -> LocalExtrema2dResult {
+        let d1 = range1 ?? domain
+        let d2 = range2 ?? other.domain
+        let r = OCCTExtremaLocateExtCC2d(handle, d1.lowerBound, d1.upperBound,
+                                          other.handle, d2.lowerBound, d2.upperBound,
+                                          seedU, seedV)
+        return LocalExtrema2dResult(isDone: r.isDone, squareDistance: r.squareDistance,
+                                    point1: SIMD2(r.x1, r.y1), param1: r.param1,
+                                    point2: SIMD2(r.x2, r.y2), param2: r.param2)
+    }
+
+    /// Create a 2D circle from center + radius (gce_MakeCirc2d)
+    public static func circleFromCenterRadius(center: SIMD2<Double>,
+                                              radius: Double) -> Curve2D? {
+        guard let h = OCCTGceMakeCirc2dFromCenterRadius(center.x, center.y, radius) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Create a 2D circle through 3 points (gce_MakeCirc2d)
+    public static func circleThrough3Points(_ p1: SIMD2<Double>, _ p2: SIMD2<Double>,
+                                            _ p3: SIMD2<Double>) -> Curve2D? {
+        guard let h = OCCTGceMakeCirc2dFrom3Points(p1.x, p1.y, p2.x, p2.y,
+                                                    p3.x, p3.y) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Create a 2D line from 2 points (gce_MakeLin2d)
+    public static func lineFrom2Points(_ p1: SIMD2<Double>, _ p2: SIMD2<Double>) -> Curve2D? {
+        guard let h = OCCTGceMakeLin2dFrom2Points(p1.x, p1.y, p2.x, p2.y) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Create a 2D line from equation Ax+By+C=0 (gce_MakeLin2d)
+    public static func lineFromEquation(a: Double, b: Double, c: Double) -> Curve2D? {
+        guard let h = OCCTGceMakeLin2dFromEquation(a, b, c) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Create a 2D ellipse (gce_MakeElips2d)
+    public static func ellipseFromCenterDir(center: SIMD2<Double>, direction: SIMD2<Double>,
+                                            majorRadius: Double,
+                                            minorRadius: Double) -> Curve2D? {
+        guard let h = OCCTGceMakeElips2d(center.x, center.y, direction.x, direction.y,
+                                          majorRadius, minorRadius) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Create a 2D hyperbola (gce_MakeHypr2d)
+    public static func hyperbolaFromCenterDir(center: SIMD2<Double>, direction: SIMD2<Double>,
+                                              majorRadius: Double,
+                                              minorRadius: Double) -> Curve2D? {
+        guard let h = OCCTGceMakeHypr2d(center.x, center.y, direction.x, direction.y,
+                                          majorRadius, minorRadius) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Create a 2D parabola (gce_MakeParab2d)
+    public static func parabolaFromCenterDir(center: SIMD2<Double>, direction: SIMD2<Double>,
+                                             focal: Double) -> Curve2D? {
+        guard let h = OCCTGceMakeParab2d(center.x, center.y, direction.x, direction.y,
+                                          focal) else { return nil }
+        return Curve2D(handle: h)
+    }
+
+    /// Serialize 2D curves to string via GeomTools_Curve2dSet
+    public static func serializeCurves(_ curves: [Curve2D]) -> String? {
+        let handles = curves.map { $0.handle as OCCTCurve2DRef }
+        guard let cStr = handles.withUnsafeBufferPointer({
+            OCCTGeomToolsCurve2dSetWrite($0.baseAddress!, Int32(curves.count))
+        }) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(cStr)
+        return result
+    }
+
+    /// Deserialize 2D curves from string via GeomTools_Curve2dSet
+    public static func deserializeCurves(_ data: String) -> [Curve2D]? {
+        var count: Int32 = 0
+        guard let arr = OCCTGeomToolsCurve2dSetRead(data, &count), count > 0 else { return nil }
+        var curves: [Curve2D] = []
+        for i in 0..<Int(count) {
+            if let h = arr[i] {
+                curves.append(Curve2D(handle: h))
+            }
+        }
+        free(arr)
+        return curves.isEmpty ? nil : curves
+    }
 }

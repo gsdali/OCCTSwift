@@ -163,7 +163,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepFill_NSections** | 3 | create, lawCount, isConstant, isVertex |
 | **GeomFill_AppSurf** | 1 | appSurf (approximate surface from section curves) |
 | **ShapeFix_ComposeShell** | 1 | composeShell (split face into sub-faces) |
-| **Total** | **1367** | |
+| **Extrema 3D/2D** | 10 | extremaCC, extremaCCPoint, extremaCS, extremaCSPoint, extremaPS, extremaPSPoint, extremaSS, extremaSSPoint, locateExtremaCC, locateExtremaCC2d |
+| **GeomTools Persistence** | 6 | serializeCurves (3D), deserializeCurves (3D), serializeCurves (2D), deserializeCurves (2D), serializeSurfaces, deserializeSurfaces |
+| **ProjLib Projection** | 1 | projectOnSurface (BSpline approximation) |
+| **gce 3D Geometry Factories** | 11 | circleThrough3Points, circleFromCenterNormal, lineFrom2Points, directionFrom2Points, ellipseFromCenterNormal, hyperbolaFromCenterNormal, parabolaFromCenterNormal, coneFrom2PointsRadii, cylinderFrom3Points, planeFromEquation, planeFrom3Points |
+| **gce 2D Geometry Factories** | 7 | circleFromCenterRadius, circleThrough3Points, lineFrom2Points, lineFromEquation, ellipseFromCenterDir, hyperbolaFromCenterDir, parabolaFromCenterDir |
+| **Total** | **1402** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 

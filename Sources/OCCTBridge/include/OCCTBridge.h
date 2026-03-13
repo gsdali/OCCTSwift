@@ -9966,6 +9966,242 @@ OCCTAppSurfResult OCCTGeomFillAppSurf(const OCCTCurve3DRef _Nonnull * _Nonnull c
 /// Returns the result shape (shell or compound of faces)
 OCCTShapeRef _Nullable OCCTShapeFixComposeShell(OCCTShapeRef _Nonnull faceRef, double precision);
 
+// MARK: - v0.80.0: Extrema 3D/2D, GeomTools persistence, ProjLib, gce_* factories
+
+// --- Extrema_ExtCC: Curve-Curve distance ---
+typedef struct {
+    bool isDone;
+    bool isParallel;
+    int nbExt;
+} OCCTExtremaExtCCResult;
+
+/// Compute curve-to-curve extrema
+OCCTExtremaExtCCResult OCCTExtremaExtCC(OCCTCurve3DRef _Nonnull curve1, double u1First, double u1Last,
+                                         OCCTCurve3DRef _Nonnull curve2, double u2First, double u2Last);
+
+typedef struct {
+    double squareDistance;
+    double x1, y1, z1;  // Point on curve 1
+    double param1;
+    double x2, y2, z2;  // Point on curve 2
+    double param2;
+} OCCTExtremaPointPair;
+
+/// Get Nth extremum from curve-curve computation (1-based index)
+OCCTExtremaPointPair OCCTExtremaExtCCPoint(OCCTCurve3DRef _Nonnull curve1, double u1First, double u1Last,
+                                            OCCTCurve3DRef _Nonnull curve2, double u2First, double u2Last,
+                                            int index);
+
+// --- Extrema_ExtCS: Curve-Surface distance ---
+typedef struct {
+    bool isDone;
+    bool isParallel;
+    int nbExt;
+} OCCTExtremaExtCSResult;
+
+/// Compute curve-to-surface extrema
+OCCTExtremaExtCSResult OCCTExtremaExtCS(OCCTCurve3DRef _Nonnull curve, double uFirst, double uLast,
+                                         OCCTSurfaceRef _Nonnull surface);
+
+/// Get Nth extremum from curve-surface computation
+OCCTExtremaPointPair OCCTExtremaExtCSPoint(OCCTCurve3DRef _Nonnull curve, double uFirst, double uLast,
+                                            OCCTSurfaceRef _Nonnull surface, int index);
+
+// --- Extrema_ExtPS: Point-Surface distance ---
+typedef struct {
+    bool isDone;
+    int nbExt;
+} OCCTExtremaExtPSResult;
+
+/// Compute point-to-surface extrema
+OCCTExtremaExtPSResult OCCTExtremaExtPS(double px, double py, double pz,
+                                         OCCTSurfaceRef _Nonnull surface);
+
+typedef struct {
+    double squareDistance;
+    double x, y, z;
+    double u, v;
+} OCCTExtremaPointOnSurf;
+
+/// Get Nth extremum from point-surface computation
+OCCTExtremaPointOnSurf OCCTExtremaExtPSPoint(double px, double py, double pz,
+                                              OCCTSurfaceRef _Nonnull surface, int index);
+
+// --- Extrema_ExtSS: Surface-Surface distance ---
+typedef struct {
+    bool isDone;
+    bool isParallel;
+    int nbExt;
+} OCCTExtremaExtSSResult;
+
+/// Compute surface-to-surface extrema
+OCCTExtremaExtSSResult OCCTExtremaExtSS(OCCTSurfaceRef _Nonnull surface1,
+                                         OCCTSurfaceRef _Nonnull surface2);
+
+/// Get Nth extremum from surface-surface computation
+OCCTExtremaPointPair OCCTExtremaExtSSPoint(OCCTSurfaceRef _Nonnull surface1,
+                                            OCCTSurfaceRef _Nonnull surface2, int index);
+
+// --- Extrema_LocateExtCC: Local curve-curve distance ---
+typedef struct {
+    bool isDone;
+    double squareDistance;
+    double x1, y1, z1, param1;
+    double x2, y2, z2, param2;
+} OCCTExtremaLocateExtCCResult;
+
+/// Find local curve-curve extremum near seed parameters
+OCCTExtremaLocateExtCCResult OCCTExtremaLocateExtCC(OCCTCurve3DRef _Nonnull curve1, double u1First, double u1Last,
+                                                     OCCTCurve3DRef _Nonnull curve2, double u2First, double u2Last,
+                                                     double seedU, double seedV);
+
+// --- Extrema_LocateExtCC2d: Local 2D curve-curve distance ---
+typedef struct {
+    bool isDone;
+    double squareDistance;
+    double x1, y1, param1;
+    double x2, y2, param2;
+} OCCTExtremaLocateExtCC2dResult;
+
+/// Find local 2D curve-curve extremum near seed parameters
+OCCTExtremaLocateExtCC2dResult OCCTExtremaLocateExtCC2d(OCCTCurve2DRef _Nonnull curve1, double u1First, double u1Last,
+                                                         OCCTCurve2DRef _Nonnull curve2, double u2First, double u2Last,
+                                                         double seedU, double seedV);
+
+// --- GeomTools_CurveSet: 3D curve collection with persistence ---
+/// Serialize a set of 3D curves to string
+const char * _Nullable OCCTGeomToolsCurveSetWrite(const OCCTCurve3DRef _Nonnull * _Nonnull curveRefs, int count);
+
+/// Deserialize 3D curves from string; returns array count via outCount
+OCCTCurve3DRef _Nullable * _Nullable OCCTGeomToolsCurveSetRead(const char * _Nonnull data, int * _Nonnull outCount);
+
+/// Free array of curve refs returned by CurveSetRead
+void OCCTGeomToolsCurveSetFreeArray(OCCTCurve3DRef _Nullable * _Nullable array, int count);
+
+// --- GeomTools_Curve2dSet: 2D curve collection with persistence ---
+/// Serialize a set of 2D curves to string
+const char * _Nullable OCCTGeomToolsCurve2dSetWrite(const OCCTCurve2DRef _Nonnull * _Nonnull curveRefs, int count);
+
+/// Deserialize 2D curves from string
+OCCTCurve2DRef _Nullable * _Nullable OCCTGeomToolsCurve2dSetRead(const char * _Nonnull data, int * _Nonnull outCount);
+
+/// Free array of curve2d refs
+void OCCTGeomToolsCurve2dSetFreeArray(OCCTCurve2DRef _Nullable * _Nullable array, int count);
+
+// --- GeomTools_SurfaceSet: Surface collection with persistence ---
+/// Serialize a set of surfaces to string
+const char * _Nullable OCCTGeomToolsSurfaceSetWrite(const OCCTSurfaceRef _Nonnull * _Nonnull surfRefs, int count);
+
+/// Deserialize surfaces from string
+OCCTSurfaceRef _Nullable * _Nullable OCCTGeomToolsSurfaceSetRead(const char * _Nonnull data, int * _Nonnull outCount);
+
+/// Free array of surface refs
+void OCCTGeomToolsSurfaceSetFreeArray(OCCTSurfaceRef _Nullable * _Nullable array, int count);
+
+/// Free string returned by GeomTools*Write functions
+void OCCTGeomToolsFreeString(const char * _Nullable str);
+
+// --- ProjLib_ProjectOnSurface ---
+/// Project a 3D curve onto a surface, returning BSpline approximation
+OCCTCurve3DRef _Nullable OCCTProjLibProjectOnSurface(OCCTCurve3DRef _Nonnull curve, double uFirst, double uLast,
+                                                      OCCTSurfaceRef _Nonnull surface, double tolerance);
+
+// --- gce_MakeCirc: Circle from 3 points ---
+/// Create a 3D circle through 3 points (returns Geom_Circle)
+OCCTCurve3DRef _Nullable OCCTGceMakeCircFrom3Points(double p1x, double p1y, double p1z,
+                                                     double p2x, double p2y, double p2z,
+                                                     double p3x, double p3y, double p3z);
+
+/// Create a 3D circle from center + normal + radius
+OCCTCurve3DRef _Nullable OCCTGceMakeCircFromCenterNormal(double cx, double cy, double cz,
+                                                          double nx, double ny, double nz,
+                                                          double radius);
+
+// --- gce_MakeCone ---
+/// Create a conical surface from 2 points (axis) + 2 radii
+OCCTSurfaceRef _Nullable OCCTGceMakeCone(double p1x, double p1y, double p1z,
+                                          double p2x, double p2y, double p2z,
+                                          double radius1, double radius2);
+
+// --- gce_MakeCylinder ---
+/// Create a cylindrical surface from 3 points (P1-P2 axis, P3 radius)
+OCCTSurfaceRef _Nullable OCCTGceMakeCylinderFrom3Points(double p1x, double p1y, double p1z,
+                                                         double p2x, double p2y, double p2z,
+                                                         double p3x, double p3y, double p3z);
+
+// --- gce_MakeLin ---
+/// Create a line from 2 points
+OCCTCurve3DRef _Nullable OCCTGceMakeLinFrom2Points(double p1x, double p1y, double p1z,
+                                                    double p2x, double p2y, double p2z);
+
+// --- gce_MakePln ---
+/// Create a plane from equation Ax+By+Cz+D=0
+OCCTSurfaceRef _Nullable OCCTGceMakePlnFromEquation(double a, double b, double c, double d);
+
+/// Create a plane from 3 points
+OCCTSurfaceRef _Nullable OCCTGceMakePlnFrom3Points(double p1x, double p1y, double p1z,
+                                                    double p2x, double p2y, double p2z,
+                                                    double p3x, double p3y, double p3z);
+
+// --- gce_MakeDir ---
+/// Create a direction from 2 points (P1→P2)
+bool OCCTGceMakeDir(double p1x, double p1y, double p1z,
+                     double p2x, double p2y, double p2z,
+                     double * _Nonnull outX, double * _Nonnull outY, double * _Nonnull outZ);
+
+// --- gce_MakeElips ---
+/// Create an ellipse from center, normal, major axis direction, and radii
+OCCTCurve3DRef _Nullable OCCTGceMakeElips(double cx, double cy, double cz,
+                                           double nx, double ny, double nz,
+                                           double majorRadius, double minorRadius);
+
+// --- gce_MakeHypr ---
+/// Create a hyperbola from center, normal, and radii
+OCCTCurve3DRef _Nullable OCCTGceMakeHypr(double cx, double cy, double cz,
+                                          double nx, double ny, double nz,
+                                          double majorRadius, double minorRadius);
+
+// --- gce_MakeParab ---
+/// Create a parabola from center, normal, and focal length
+OCCTCurve3DRef _Nullable OCCTGceMakeParab(double cx, double cy, double cz,
+                                           double nx, double ny, double nz,
+                                           double focal);
+
+// --- gce_MakeCirc2d ---
+/// Create a 2D circle from center + radius
+OCCTCurve2DRef _Nullable OCCTGceMakeCirc2dFromCenterRadius(double cx, double cy, double radius);
+
+/// Create a 2D circle from 3 points
+OCCTCurve2DRef _Nullable OCCTGceMakeCirc2dFrom3Points(double p1x, double p1y,
+                                                       double p2x, double p2y,
+                                                       double p3x, double p3y);
+
+// --- gce_MakeLin2d ---
+/// Create a 2D line from 2 points
+OCCTCurve2DRef _Nullable OCCTGceMakeLin2dFrom2Points(double p1x, double p1y,
+                                                      double p2x, double p2y);
+
+/// Create a 2D line from equation Ax+By+C=0
+OCCTCurve2DRef _Nullable OCCTGceMakeLin2dFromEquation(double a, double b, double c);
+
+// --- gce_MakeElips2d ---
+/// Create a 2D ellipse from center, major axis direction, and radii
+OCCTCurve2DRef _Nullable OCCTGceMakeElips2d(double cx, double cy,
+                                             double dirX, double dirY,
+                                             double majorRadius, double minorRadius);
+
+// --- gce_MakeHypr2d ---
+/// Create a 2D hyperbola from center, major axis direction, and radii
+OCCTCurve2DRef _Nullable OCCTGceMakeHypr2d(double cx, double cy,
+                                             double dirX, double dirY,
+                                             double majorRadius, double minorRadius);
+
+// --- gce_MakeParab2d ---
+/// Create a 2D parabola from center, axis direction, and focal length
+OCCTCurve2DRef _Nullable OCCTGceMakeParab2d(double cx, double cy,
+                                              double dirX, double dirY,
+                                              double focal);
+
 #ifdef __cplusplus
 }
 #endif

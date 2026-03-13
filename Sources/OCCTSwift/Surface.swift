@@ -1764,4 +1764,111 @@ extension Surface {
         guard ok else { return nil }
         return (g0, g1, g2)
     }
+
+    // MARK: - v0.80.0: Extrema, gce factories, GeomTools persistence
+
+    /// Result of point-to-surface extrema
+    public struct PointSurfaceExtrema: Sendable {
+        public let isDone: Bool
+        public let count: Int
+    }
+
+    /// Point on surface from extrema result
+    public struct ExtremaPointOnSurface: Sendable {
+        public let squareDistance: Double
+        public let point: SIMD3<Double>
+        public let u: Double
+        public let v: Double
+    }
+
+    /// Compute point-to-surface extrema
+    public func extremaPS(point: SIMD3<Double>) -> PointSurfaceExtrema {
+        let r = OCCTExtremaExtPS(point.x, point.y, point.z, handle)
+        return PointSurfaceExtrema(isDone: r.isDone, count: Int(r.nbExt))
+    }
+
+    /// Get Nth extremum from point-surface computation (1-based)
+    public func extremaPSPoint(point: SIMD3<Double>, index: Int) -> ExtremaPointOnSurface {
+        let r = OCCTExtremaExtPSPoint(point.x, point.y, point.z, handle, Int32(index))
+        return ExtremaPointOnSurface(squareDistance: r.squareDistance,
+                                     point: SIMD3(r.x, r.y, r.z), u: r.u, v: r.v)
+    }
+
+    /// Result of surface-to-surface extrema
+    public struct SurfaceSurfaceExtrema: Sendable {
+        public let isDone: Bool
+        public let isParallel: Bool
+        public let count: Int
+    }
+
+    /// Compute surface-to-surface extrema
+    public func extremaSS(other: Surface) -> SurfaceSurfaceExtrema {
+        let r = OCCTExtremaExtSS(handle, other.handle)
+        return SurfaceSurfaceExtrema(isDone: r.isDone, isParallel: r.isParallel, count: Int(r.nbExt))
+    }
+
+    /// Get Nth extremum from surface-surface computation
+    public func extremaSSPoint(other: Surface, index: Int) -> Curve3D.ExtremaPointPair {
+        let r = OCCTExtremaExtSSPoint(handle, other.handle, Int32(index))
+        return Curve3D.ExtremaPointPair(squareDistance: r.squareDistance,
+                                        point1: SIMD3(r.x1, r.y1, r.z1), param1: r.param1,
+                                        point2: SIMD3(r.x2, r.y2, r.z2), param2: r.param2)
+    }
+
+    /// Create a conical surface from 2 points (axis) + 2 radii (gce_MakeCone)
+    public static func coneFrom2PointsRadii(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                            radius1: Double, radius2: Double) -> Surface? {
+        guard let h = OCCTGceMakeCone(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z,
+                                       radius1, radius2) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a cylindrical surface from 3 points (gce_MakeCylinder)
+    public static func cylinderFrom3Points(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                           p3: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTGceMakeCylinderFrom3Points(p1.x, p1.y, p1.z,
+                                                      p2.x, p2.y, p2.z,
+                                                      p3.x, p3.y, p3.z) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a plane from equation Ax+By+Cz+D=0 (gce_MakePln)
+    public static func planeFromEquation(a: Double, b: Double, c: Double, d: Double) -> Surface? {
+        guard let h = OCCTGceMakePlnFromEquation(a, b, c, d) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a plane from 3 points (gce_MakePln)
+    public static func planeFrom3Points(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                        p3: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTGceMakePlnFrom3Points(p1.x, p1.y, p1.z,
+                                                 p2.x, p2.y, p2.z,
+                                                 p3.x, p3.y, p3.z) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Serialize surfaces to string via GeomTools_SurfaceSet
+    public static func serializeSurfaces(_ surfaces: [Surface]) -> String? {
+        let handles = surfaces.map { $0.handle as OCCTSurfaceRef }
+        guard let cStr = handles.withUnsafeBufferPointer({
+            OCCTGeomToolsSurfaceSetWrite($0.baseAddress!, Int32(surfaces.count))
+        }) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(cStr)
+        return result
+    }
+
+    /// Deserialize surfaces from string via GeomTools_SurfaceSet
+    public static func deserializeSurfaces(_ data: String) -> [Surface]? {
+        var count: Int32 = 0
+        guard let arr = OCCTGeomToolsSurfaceSetRead(data, &count), count > 0 else { return nil }
+        var surfaces: [Surface] = []
+        for i in 0..<Int(count) {
+            if let h = arr[i] {
+                surfaces.append(Surface(handle: h))
+            }
+        }
+        free(arr)
+        return surfaces.isEmpty ? nil : surfaces
+    }
 }

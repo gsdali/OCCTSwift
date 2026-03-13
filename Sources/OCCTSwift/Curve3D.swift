@@ -990,4 +990,196 @@ extension Curve3D {
             g2Angle: outG2A, g2CurvatureVariation: outG2CV,
             flags: flags)
     }
+
+    // MARK: - v0.80.0: Extrema, ProjLib, gce factories
+
+    /// Result of curve-to-curve extrema computation
+    public struct CurveCurveExtrema: Sendable {
+        public let isDone: Bool
+        public let isParallel: Bool
+        public let count: Int
+    }
+
+    /// A point pair from an extrema result
+    public struct ExtremaPointPair: Sendable {
+        public let squareDistance: Double
+        public let point1: SIMD3<Double>
+        public let param1: Double
+        public let point2: SIMD3<Double>
+        public let param2: Double
+    }
+
+    /// Compute curve-to-curve extrema (closest/farthest distances)
+    public func extremaCC(range1: ClosedRange<Double>? = nil,
+                          other: Curve3D,
+                          range2: ClosedRange<Double>? = nil) -> CurveCurveExtrema {
+        let d1 = range1 ?? domain
+        let d2 = range2 ?? other.domain
+        let r = OCCTExtremaExtCC(handle, d1.lowerBound, d1.upperBound,
+                                  other.handle, d2.lowerBound, d2.upperBound)
+        return CurveCurveExtrema(isDone: r.isDone, isParallel: r.isParallel, count: Int(r.nbExt))
+    }
+
+    /// Get Nth extremum point pair from curve-curve computation (1-based)
+    public func extremaCCPoint(range1: ClosedRange<Double>? = nil,
+                               other: Curve3D,
+                               range2: ClosedRange<Double>? = nil,
+                               index: Int) -> ExtremaPointPair {
+        let d1 = range1 ?? domain
+        let d2 = range2 ?? other.domain
+        let r = OCCTExtremaExtCCPoint(handle, d1.lowerBound, d1.upperBound,
+                                       other.handle, d2.lowerBound, d2.upperBound,
+                                       Int32(index))
+        return ExtremaPointPair(squareDistance: r.squareDistance,
+                                point1: SIMD3(r.x1, r.y1, r.z1), param1: r.param1,
+                                point2: SIMD3(r.x2, r.y2, r.z2), param2: r.param2)
+    }
+
+    /// Result of local curve-curve extrema search
+    public struct LocalExtremaResult: Sendable {
+        public let isDone: Bool
+        public let squareDistance: Double
+        public let point1: SIMD3<Double>
+        public let param1: Double
+        public let point2: SIMD3<Double>
+        public let param2: Double
+    }
+
+    /// Find local curve-curve extremum near seed parameters
+    public func locateExtremaCC(range1: ClosedRange<Double>? = nil,
+                                other: Curve3D,
+                                range2: ClosedRange<Double>? = nil,
+                                seedU: Double, seedV: Double) -> LocalExtremaResult {
+        let d1 = range1 ?? domain
+        let d2 = range2 ?? other.domain
+        let r = OCCTExtremaLocateExtCC(handle, d1.lowerBound, d1.upperBound,
+                                        other.handle, d2.lowerBound, d2.upperBound,
+                                        seedU, seedV)
+        return LocalExtremaResult(isDone: r.isDone, squareDistance: r.squareDistance,
+                                  point1: SIMD3(r.x1, r.y1, r.z1), param1: r.param1,
+                                  point2: SIMD3(r.x2, r.y2, r.z2), param2: r.param2)
+    }
+
+    /// Result of curve-to-surface extrema
+    public struct CurveSurfaceExtrema: Sendable {
+        public let isDone: Bool
+        public let isParallel: Bool
+        public let count: Int
+    }
+
+    /// Compute curve-to-surface extrema
+    public func extremaCS(range: ClosedRange<Double>? = nil,
+                          surface: Surface) -> CurveSurfaceExtrema {
+        let d = range ?? domain
+        let r = OCCTExtremaExtCS(handle, d.lowerBound, d.upperBound, surface.handle)
+        return CurveSurfaceExtrema(isDone: r.isDone, isParallel: r.isParallel, count: Int(r.nbExt))
+    }
+
+    /// Get Nth extremum from curve-surface computation
+    public func extremaCSPoint(range: ClosedRange<Double>? = nil,
+                               surface: Surface,
+                               index: Int) -> ExtremaPointPair {
+        let d = range ?? domain
+        let r = OCCTExtremaExtCSPoint(handle, d.lowerBound, d.upperBound,
+                                       surface.handle, Int32(index))
+        return ExtremaPointPair(squareDistance: r.squareDistance,
+                                point1: SIMD3(r.x1, r.y1, r.z1), param1: r.param1,
+                                point2: SIMD3(r.x2, r.y2, r.z2), param2: r.param2)
+    }
+
+    /// Project this curve onto a surface, returning BSpline approximation
+    public func projectOnSurface(_ surface: Surface, range: ClosedRange<Double>? = nil,
+                                 tolerance: Double = 1e-3) -> Curve3D? {
+        let d = range ?? domain
+        guard let h = OCCTProjLibProjectOnSurface(handle, d.lowerBound, d.upperBound,
+                                                   surface.handle, tolerance) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Create a circle through 3 points (gce_MakeCirc)
+    public static func circleThrough3Points(_ p1: SIMD3<Double>, _ p2: SIMD3<Double>,
+                                            _ p3: SIMD3<Double>) -> Curve3D? {
+        guard let h = OCCTGceMakeCircFrom3Points(p1.x, p1.y, p1.z,
+                                                  p2.x, p2.y, p2.z,
+                                                  p3.x, p3.y, p3.z) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Create a circle from center, normal, and radius (gce_MakeCirc)
+    public static func circleFromCenterNormal(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                              radius: Double) -> Curve3D? {
+        guard let h = OCCTGceMakeCircFromCenterNormal(center.x, center.y, center.z,
+                                                       normal.x, normal.y, normal.z,
+                                                       radius) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Create a line from 2 points (gce_MakeLin)
+    public static func lineFrom2Points(_ p1: SIMD3<Double>, _ p2: SIMD3<Double>) -> Curve3D? {
+        guard let h = OCCTGceMakeLinFrom2Points(p1.x, p1.y, p1.z,
+                                                 p2.x, p2.y, p2.z) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Create a direction from 2 points (gce_MakeDir)
+    public static func directionFrom2Points(_ p1: SIMD3<Double>,
+                                            _ p2: SIMD3<Double>) -> SIMD3<Double>? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTGceMakeDir(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Create an ellipse (gce_MakeElips)
+    public static func ellipseFromCenterNormal(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                               majorRadius: Double,
+                                               minorRadius: Double) -> Curve3D? {
+        guard let h = OCCTGceMakeElips(center.x, center.y, center.z,
+                                        normal.x, normal.y, normal.z,
+                                        majorRadius, minorRadius) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Create a hyperbola (gce_MakeHypr)
+    public static func hyperbolaFromCenterNormal(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                                 majorRadius: Double,
+                                                 minorRadius: Double) -> Curve3D? {
+        guard let h = OCCTGceMakeHypr(center.x, center.y, center.z,
+                                       normal.x, normal.y, normal.z,
+                                       majorRadius, minorRadius) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Create a parabola (gce_MakeParab)
+    public static func parabolaFromCenterNormal(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                                focal: Double) -> Curve3D? {
+        guard let h = OCCTGceMakeParab(center.x, center.y, center.z,
+                                        normal.x, normal.y, normal.z,
+                                        focal) else { return nil }
+        return Curve3D(handle: h)
+    }
+
+    /// Serialize curves to string via GeomTools_CurveSet
+    public static func serializeCurves(_ curves: [Curve3D]) -> String? {
+        let handles = curves.map { $0.handle as OCCTCurve3DRef }
+        guard let cStr = handles.withUnsafeBufferPointer({
+            OCCTGeomToolsCurveSetWrite($0.baseAddress!, Int32(curves.count))
+        }) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(cStr)
+        return result
+    }
+
+    /// Deserialize curves from string via GeomTools_CurveSet
+    public static func deserializeCurves(_ data: String) -> [Curve3D]? {
+        var count: Int32 = 0
+        guard let arr = OCCTGeomToolsCurveSetRead(data, &count), count > 0 else { return nil }
+        var curves: [Curve3D] = []
+        for i in 0..<Int(count) {
+            if let h = arr[i] {
+                curves.append(Curve3D(handle: h))
+            }
+        }
+        free(arr)
+        return curves.isEmpty ? nil : curves
+    }
 }
