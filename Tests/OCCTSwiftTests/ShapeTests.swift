@@ -21935,3 +21935,352 @@ struct ShapeUpgradeSplitCurveTests {
         }
     }
 }
+
+// MARK: - v0.78.0: Shape Modifications, Surface Recognition & Polygon Data
+
+@Suite("BRepTools_TrsfModification")
+struct TrsfModificationTests {
+    @Test("apply translation via modifier")
+    func applyTranslation() {
+        if let box = Shape.box(width: 10, height: 20, depth: 30) {
+            // Identity rotation + translation (100, 200, 300)
+            if let result = Shape.trsfModification(box,
+                                                     a11: 1, a12: 0, a13: 0, a14: 100,
+                                                     a21: 0, a22: 1, a23: 0, a24: 200,
+                                                     a31: 0, a32: 0, a33: 1, a34: 300) {
+                #expect(result.isValid)
+                if let v = result.volume {
+                    #expect(abs(v - 6000) < 1.0)
+                }
+            }
+        }
+    }
+
+    @Test("apply rotation via modifier")
+    func applyRotation() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // 90° rotation around Z: (cos90, -sin90, 0) = (0, -1, 0), (sin90, cos90, 0) = (1, 0, 0)
+            if let result = Shape.trsfModification(box,
+                                                     a11: 0, a12: -1, a13: 0, a14: 0,
+                                                     a21: 1, a22: 0, a23: 0, a24: 0,
+                                                     a31: 0, a32: 0, a33: 1, a34: 0) {
+                #expect(result.isValid)
+            }
+        }
+    }
+}
+
+@Suite("BRepTools_GTrsfModification")
+struct GTrsfModificationTests {
+    @Test("non-uniform scale")
+    func nonUniformScale() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // First convert to NURBS for non-uniform scaling
+            if let nurbs = box.convertedToNURBS() {
+                // Scale X by 2
+                if let result = Shape.gtrsfModification(nurbs,
+                                                          a11: 2, a12: 0, a13: 0, a14: 0,
+                                                          a21: 0, a22: 1, a23: 0, a24: 0,
+                                                          a31: 0, a32: 0, a33: 1, a34: 0) {
+                    #expect(result.isValid)
+                }
+            }
+        }
+    }
+}
+
+@Suite("BRepTools_CopyModification")
+struct CopyModificationTests {
+    @Test("deep copy shape")
+    func deepCopy() {
+        if let box = Shape.box(width: 10, height: 20, depth: 30) {
+            if let copy = Shape.deepCopy(box) {
+                #expect(copy.isValid)
+                if let v = copy.volume {
+                    #expect(abs(v - 6000) < 1.0)
+                }
+            }
+        }
+    }
+
+    @Test("copy without mesh")
+    func copyWithoutMesh() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let copy = Shape.deepCopy(box, copyGeometry: true, copyMesh: false) {
+                #expect(copy.isValid)
+            }
+        }
+    }
+}
+
+@Suite("ShapeCustom_BSplineRestriction Advanced")
+struct BSplineRestrictionAdvancedTests {
+    @Test("restrict box BSpline")
+    func restrictBox() {
+        if let box = Shape.box(width: 10, height: 20, depth: 30) {
+            let result = Shape.bsplineRestrictionAdvanced(box,
+                                                            tol3d: 0.1, tol2d: 0.1,
+                                                            maxDegree: 5, maxSegments: 20)
+            // May return nil if no BSpline geometry to restrict; just verify no crash
+            if let r = result {
+                #expect(r.size.x > 0)
+            }
+        }
+    }
+}
+
+@Suite("ShapeCustom_ConvertToBSpline Advanced")
+struct ConvertToBSplineAdvancedTests {
+    @Test("convert cylinder surfaces to BSpline")
+    func convertCylinder() {
+        if let cyl = Shape.cylinder(radius: 10, height: 50) {
+            if let result = Shape.convertToBSplineAdvanced(cyl,
+                                                             extrusionMode: true,
+                                                             revolutionMode: true,
+                                                             offsetMode: true,
+                                                             planeMode: false) {
+                #expect(result.isValid)
+            }
+        }
+    }
+}
+
+@Suite("ShapeUpgrade_SplitSurface")
+struct SplitSurfaceTests {
+    @Test("split surface by continuity")
+    func splitSurfaceByContinuity() {
+        if let surf = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 10) {
+            if let bsp = surf.toBSpline() {
+                let result = bsp.splitSurfaceByContinuity(criterion: 4, tolerance: 1e-6)
+                // May or may not split, just verify no crash
+                if let r = result {
+                    #expect(r.uSplitCount >= 2)
+                }
+            }
+        }
+    }
+
+    @Test("split by angle")
+    func splitByAngle() {
+        if let surf = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 10) {
+            if let result = surf.splitByAngle(.pi / 2) {
+                #expect(result.uSplitCount >= 3) // Full circle / 90° = 4 segments, 5 split values
+            }
+        }
+    }
+
+    @Test("split by area")
+    func splitByArea() {
+        if let surf = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            if let trimmed = surf.trimmed(u1: 0, u2: 10, v1: 0, v2: 10) {
+                let result = trimmed.splitByArea(parts: 4)
+                if let r = result {
+                    #expect(r.uSplitCount >= 2)
+                }
+            }
+        }
+    }
+}
+
+@Suite("GeomConvert_CurveToAnaCurve")
+struct CurveToAnaCurveTests {
+    @Test("recognize line from BSpline")
+    func recognizeLine() {
+        if let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+           let trimmed = line.trimmed(from: 0, to: 10),
+           let bsp = trimmed.toBSpline() {
+            let domain = bsp.domain
+            if let result = bsp.toAnalytical(tolerance: 1e-4,
+                                               first: domain.lowerBound,
+                                               last: domain.upperBound) {
+                #expect(result.gap < 1e-3)
+            }
+        }
+    }
+
+    @Test("recognize circle from BSpline")
+    func recognizeCircle() {
+        if let circ = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5),
+           let trimmed = circ.trimmed(from: 0, to: .pi),
+           let bsp = trimmed.toBSpline() {
+            let domain = bsp.domain
+            if let result = bsp.toAnalytical(tolerance: 1e-4,
+                                               first: domain.lowerBound,
+                                               last: domain.upperBound) {
+                #expect(result.gap < 1e-3)
+            }
+        }
+    }
+
+    @Test("check points are linear")
+    func checkLinear() {
+        let points: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(5, 0, 0), SIMD3(10, 0, 0)]
+        let (isLinear, deviation) = Curve3D.arePointsLinear(points, tolerance: 1e-6)
+        #expect(isLinear)
+        #expect(deviation < 1e-5)
+    }
+}
+
+@Suite("GeomConvert_SurfToAnaSurf")
+struct SurfToAnaSurfTests {
+    @Test("recognize plane from BSpline")
+    func recognizePlane() {
+        if let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)),
+           let trimmed = plane.trimmed(u1: -10, u2: 10, v1: -10, v2: 10),
+           let bsp = trimmed.toBSpline() {
+            if let result = bsp.toAnalyticalWithGap(tolerance: 1e-4) {
+                #expect(result.gap < 1e-3)
+            }
+        }
+    }
+
+    @Test("is canonical")
+    func isCanonical() {
+        if let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            #expect(plane.isCanonical)
+        }
+        if let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)),
+           let trimmed = plane.trimmed(u1: -10, u2: 10, v1: -10, v2: 10),
+           let bsp = trimmed.toBSpline() {
+            #expect(!bsp.isCanonical)
+        }
+    }
+}
+
+@Suite("Geom2dConvert_ApproxArcsSegments")
+struct ApproxArcsSegmentsTests {
+    @Test("approximate circle as arcs")
+    func approxCircle() {
+        if let circ = Curve2D.circle(center: SIMD2(0, 0), radius: 5),
+           let trimmed = circ.trimmed(from: 0, to: .pi) {
+            let segments = trimmed.approxArcsAndSegments(tolerance: 0.1, angleTolerance: 0.1)
+            #expect(segments.count >= 1)
+        }
+    }
+
+    @Test("approximate line")
+    func approxLine() {
+        if let line = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 0)),
+           let trimmed = line.trimmed(from: 0, to: 10) {
+            let segments = trimmed.approxArcsAndSegments(tolerance: 0.1, angleTolerance: 0.1)
+            #expect(segments.count >= 1)
+        }
+    }
+}
+
+@Suite("Poly_Polygon2D")
+struct Polygon2DTests {
+    @Test("create and query")
+    func createAndQuery() {
+        let points: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)]
+        if let poly = Polygon2D.create(points: points) {
+            #expect(poly.nodeCount == 4)
+            if let node = poly.node(at: 1) {
+                #expect(abs(node.x - 10.0) < 1e-10)
+                #expect(abs(node.y - 0.0) < 1e-10)
+            }
+        }
+    }
+
+    @Test("deflection")
+    func deflection() {
+        let points: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(10, 0)]
+        if let poly = Polygon2D.create(points: points) {
+            poly.deflection = 0.5
+            #expect(abs(poly.deflection - 0.5) < 1e-10)
+        }
+    }
+
+    @Test("all nodes")
+    func allNodes() {
+        let points: [SIMD2<Double>] = [SIMD2(1, 2), SIMD2(3, 4), SIMD2(5, 6)]
+        if let poly = Polygon2D.create(points: points) {
+            let nodes = poly.nodes()
+            #expect(nodes.count == 3)
+            #expect(abs(nodes[2].x - 5.0) < 1e-10)
+        }
+    }
+}
+
+@Suite("Poly_Polygon3D")
+struct Polygon3DTests {
+    @Test("create without parameters")
+    func createWithoutParams() {
+        let points: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(10, 10, 0)]
+        if let poly = Polygon3D.create(points: points) {
+            #expect(poly.nodeCount == 3)
+            #expect(!poly.hasParameters)
+        }
+    }
+
+    @Test("create with parameters")
+    func createWithParams() {
+        let points: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(10, 0, 0), SIMD3(20, 0, 0)]
+        let params: [Double] = [0.0, 10.0, 20.0]
+        if let poly = Polygon3D.create(points: points, parameters: params) {
+            #expect(poly.nodeCount == 3)
+            #expect(poly.hasParameters)
+            #expect(abs(poly.parameter(at: 1) - 10.0) < 1e-10)
+        }
+    }
+
+    @Test("deflection")
+    func deflection() {
+        let points: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(10, 0, 0)]
+        if let poly = Polygon3D.create(points: points) {
+            poly.deflection = 1.0
+            #expect(abs(poly.deflection - 1.0) < 1e-10)
+        }
+    }
+}
+
+@Suite("Poly_PolygonOnTriangulation")
+struct PolygonOnTriangulationTests {
+    @Test("create without parameters")
+    func createWithoutParams() {
+        let indices: [Int32] = [1, 2, 3, 4]
+        if let poly = PolygonOnTriangulation.create(nodeIndices: indices) {
+            #expect(poly.nodeCount == 4)
+            #expect(poly.nodeIndex(at: 0) == 1)
+            #expect(poly.nodeIndex(at: 3) == 4)
+            #expect(!poly.hasParameters)
+        }
+    }
+
+    @Test("create with parameters")
+    func createWithParams() {
+        let indices: [Int32] = [1, 2, 3]
+        let params: [Double] = [0.0, 1.0, 2.0]
+        if let poly = PolygonOnTriangulation.create(nodeIndices: indices, parameters: params) {
+            #expect(poly.nodeCount == 3)
+            #expect(poly.hasParameters)
+            #expect(abs(poly.parameter(at: 1) - 1.0) < 1e-10)
+        }
+    }
+
+    @Test("deflection")
+    func deflection() {
+        let indices: [Int32] = [1, 2]
+        if let poly = PolygonOnTriangulation.create(nodeIndices: indices) {
+            poly.deflection = 0.1
+            #expect(abs(poly.deflection - 0.1) < 1e-10)
+        }
+    }
+}
+
+@Suite("Poly_MergeNodesTool")
+struct MergeNodesToolTests {
+    @Test("merge mesh nodes from shape")
+    func mergeFromShape() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // Triangulate first
+            let _ = box.mesh(linearDeflection: 1.0)
+            if let merged = mergedMeshNodes(from: box, smoothAngle: .pi / 4) {
+                #expect(merged.vertexCount > 0)
+                #expect(merged.triangleCount > 0)
+                #expect(merged.vertices.count == merged.vertexCount)
+                #expect(merged.indices.count == merged.triangleCount * 3)
+            }
+        }
+    }
+}

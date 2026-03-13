@@ -19,7 +19,7 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Face Analysis** | 11 | uvBounds, point(atU:v:), normal, gaussianCurvature, meanCurvature, principalCurvatures, surfaceType, area, project, allProjections, intersection |
 | **Edge Analysis** | 16 | parameterBounds, curveType, point(at:), curvature, tangent, normal, centerOfCurvature, torsion, project, hasCurve3D, isClosed3D, isSeam, adjacentFaces, dihedralAngle, split |
 | **Feature-Based** | 36 | boss, pocket, prism, drilled, split, glue, evolved, evolvedAdvanced, linearPattern, circularPattern, linearRib, revolutionForm, draftPrism, draftPrismThruAll, revolFeature, revolFeatureThruAll, pipeFeature, extrudedSemiInfinite, prismUntilFace, pipeFeatureFromProfile, localRevolution, localRevolutionWithOffset, locOpeDraftPrism, localPipe, localLinearForm, localRevolutionForm, splitFace, splitEdge, splitDrafts, commonEdges, edgesInFace, cylindricalHole, cylindricalHoleBlind, cylindricalHoleThruNext, cylindricalHoleStatus, locOpeGlue |
-| **Healing/Analysis** | 56 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace, freeBounds, fixedFreeBounds, withSurfacesAsBSpline, withSurfacesAsRevolution, checkSmallFaces, purgedLocations, curveOnSurfaceCheck, connectedEdges, convertedToBezier, limitTolerance, setTolerance, splitCommonVertices, connectedFaces, fixEdgeSameParameter, fixEdgeVertexTolerance, fixWireVertices, removeSmallSolids, mergeSmallSolids, bsplineRestriction(advanced), freeBoundsAnalysis, closedFreeBoundInfo, openFreeBoundInfo, closedFreeBoundWire, openFreeBoundWire, wireVertexAnalysis, wireVertexStatus, nearestPlane, shellSewing |
+| **Healing/Analysis** | 61 | analyze, fixed, unified, simplified, withoutSmallFaces, wire.fixed, face.fixed, divided, directFaces, scaledGeometry, bsplineRestriction, sweptToElementary, revolutionToElementary, convertedToBSpline, sewn, upgraded, fastSewn, normalProjection, fixedWireframe, removingInternalWires, fusedEdges, simpleOffset, fixingSmallFaces, removingLocations, quilt, splitByAngle, droppingSmallEdges, splittingFace, freeBounds, fixedFreeBounds, withSurfacesAsBSpline, withSurfacesAsRevolution, checkSmallFaces, purgedLocations, curveOnSurfaceCheck, connectedEdges, convertedToBezier, limitTolerance, setTolerance, splitCommonVertices, connectedFaces, fixEdgeSameParameter, fixEdgeVertexTolerance, fixWireVertices, removeSmallSolids, mergeSmallSolids, bsplineRestriction(advanced), freeBoundsAnalysis, closedFreeBoundInfo, openFreeBoundInfo, closedFreeBoundWire, openFreeBoundWire, wireVertexAnalysis, wireVertexStatus, nearestPlane, shellSewing, trsfModification, gtrsfModification, deepCopy(modifier), bsplineRestrictionConfigurable, convertToBSplineConfigurable |
 | **Measurement** | 26 | volume, surfaceArea, centerOfMass, properties, distance, distance(wire/edge/face), minDistance, intersects, intersects(wire/edge/face), inertiaProperties, surfaceInertiaProperties, allDistanceSolutions, isInside, findSurfaceEx, findPlane, analyzePointCloud, edgeEdgeExtrema, pointFaceExtrema, faceFaceExtrema, pointEdgeExtrema, edgeFaceExtrema, polyhedralDistance |
 | **Point Classification** | 3 | classify(point:) on solid, classify(point:) on face, classify(u:v:) on face |
 | **Shape Proximity** | 2 | proximityFaces, selfIntersects |
@@ -142,7 +142,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **GccAna Lin2d2Tan** | 2 | lineThroughPoints, linesTangentToCircleThroughPoint |
 | **Approx SameParameter** | 1 | checkSameParameter (3D vs 2D on surface) |
 | **ShapeUpgrade CurveSplit** | 3 | splitByContinuity (3D/2D), convertToBezierSegments (2D) |
-| **Total** | **1290** | |
+| **ShapeUpgrade SurfaceSplit** | 3 | splitSurfaceByContinuity, splitByAngle, splitByArea |
+| **GeomConvert Recognition** | 5 | curveToAnalytical, arePointsLinear, surfToAnalyticalWithGap, surfToAnalyticalBounded, isCanonical |
+| **Geom2dConvert** | 1 | approxArcsAndSegments (approximate 2D curves as arcs/lines) |
+| **Poly_Polygon2D** | 5 | create, nodeCount, node, nodes, deflection |
+| **Poly_Polygon3D** | 8 | create, createWithParams, nodeCount, node, nodes, hasParameters, parameter, deflection |
+| **Poly_PolygonOnTriangulation** | 7 | create, createWithParams, nodeCount, nodeIndex, hasParameters, parameter, deflection |
+| **Poly_MergeNodesTool** | 1 | mergedMeshNodes (merge duplicate vertices from shape triangulations) |
+| **Total** | **1326** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -446,6 +453,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Same Parameter Check**: Approx_SameParameter — verify 2D/3D curve parameterization consistency on surfaces
 - **Curve Continuity Splitting**: ShapeUpgrade_SplitCurve3d/2dContinuity — split curves at C0/C1/C2 discontinuities
 - **2D Curve to Bezier**: ShapeUpgrade_ConvertCurve2dToBezier — decompose 2D curves into Bezier segments
+- **Shape Modifier Transforms**: BRepTools_TrsfModification (affine transform), BRepTools_GTrsfModification (general affine / non-uniform scale), BRepTools_CopyModification (deep copy via modifier)
+- **Surface Splitting**: ShapeUpgrade_SplitSurfaceContinuity (split at C0/C1/C2 breaks), SplitSurfaceAngle (by max angle), SplitSurfaceArea (by target segment count)
+- **Analytical Curve/Surface Recognition**: GeomConvert_CurveToAnaCurve (BSpline → line/circle/ellipse), GeomConvert_SurfToAnaSurf (BSpline → plane/cylinder/cone/sphere/torus), linearity check
+- **Arc/Segment Approximation**: Geom2dConvert_ApproxArcsSegments — approximate 2D curves as sequences of arcs and line segments
+- **Polygon Data**: Poly_Polygon2D (2D polylines with deflection), Poly_Polygon3D (3D polylines with optional parameters), Poly_PolygonOnTriangulation (index-based polygons on triangulations)
+- **Mesh Node Merging**: Poly_MergeNodesTool — merge duplicate vertices across face triangulations with smooth angle and tolerance control
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements

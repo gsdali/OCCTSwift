@@ -9572,6 +9572,219 @@ int OCCTSplitCurve2dContinuity(OCCTCurve2DRef _Nonnull curve, int criterion, dou
 int OCCTConvertCurve2dToBezier(OCCTCurve2DRef _Nonnull curve,
                                 OCCTCurve2DRef _Nullable* _Nullable outCurves, int maxCurves);
 
+// MARK: - v0.78.0: Shape Modifications, Surface Recognition & Polygon Data
+
+// MARK: - BRepTools_TrsfModification
+
+/// Apply a gp_Trsf transformation to a shape via BRepTools_Modifier.
+/// Returns the modified shape, or NULL on failure.
+OCCTShapeRef _Nullable OCCTShapeTrsfModification(OCCTShapeRef _Nonnull shapeRef,
+                                                   double a11, double a12, double a13, double a14,
+                                                   double a21, double a22, double a23, double a24,
+                                                   double a31, double a32, double a33, double a34);
+
+// MARK: - BRepTools_GTrsfModification
+
+/// Apply a gp_GTrsf general transformation to a shape via BRepTools_Modifier.
+/// The shape should be NURBS-converted first for non-uniform scaling.
+/// Returns the modified shape, or NULL on failure.
+OCCTShapeRef _Nullable OCCTShapeGTrsfModification(OCCTShapeRef _Nonnull shapeRef,
+                                                    double a11, double a12, double a13, double a14,
+                                                    double a21, double a22, double a23, double a24,
+                                                    double a31, double a32, double a33, double a34);
+
+// MARK: - BRepTools_CopyModification
+
+/// Deep copy a shape via BRepTools_Modifier with optional geometry/mesh copying.
+/// Returns the copied shape, or NULL on failure.
+OCCTShapeRef _Nullable OCCTShapeCopyModification(OCCTShapeRef _Nonnull shapeRef,
+                                                   bool copyGeometry, bool copyMesh);
+
+// MARK: - ShapeCustom_BSplineRestriction (advanced)
+
+/// Restrict BSpline degree and segments with full control over parameters.
+/// Returns modified shape, or NULL on failure.
+OCCTShapeRef _Nullable OCCTShapeBSplineRestrictionAdvanced(OCCTShapeRef _Nonnull shapeRef,
+                                                             bool approxSurface, bool approxCurve3d, bool approxCurve2d,
+                                                             double tol3d, double tol2d,
+                                                             int continuity3d, int continuity2d,
+                                                             int maxDegree, int maxSegments,
+                                                             bool priorityDegree, bool convertRational);
+
+// MARK: - ShapeCustom_ConvertToBSpline (advanced)
+
+/// Convert surfaces of a shape to BSpline with per-type control.
+/// Returns modified shape, or NULL on failure.
+OCCTShapeRef _Nullable OCCTShapeConvertToBSplineAdvanced(OCCTShapeRef _Nonnull shapeRef,
+                                                           bool extrusionMode, bool revolutionMode,
+                                                           bool offsetMode, bool planeMode);
+
+// MARK: - ShapeUpgrade_SplitSurfaceContinuity
+
+/// Split a surface by continuity criterion.
+/// criterion: 0=C0, 1=G1, 2=C1, 3=G2, 4=C2, 5=C3, 6=CN
+/// Returns number of U split values (0 on failure).
+int OCCTSplitSurfaceContinuity(OCCTSurfaceRef _Nonnull surfaceRef,
+                                 int criterion, double tolerance,
+                                 int* _Nullable outUSplitCount, int* _Nullable outVSplitCount);
+
+// MARK: - ShapeUpgrade_SplitSurfaceAngle
+
+/// Split a surface by maximum angle (radians).
+/// Returns number of U split values (0 on failure).
+int OCCTSplitSurfaceAngle(OCCTSurfaceRef _Nonnull surfaceRef, double maxAngle,
+                            int* _Nullable outUSplitCount, int* _Nullable outVSplitCount);
+
+// MARK: - ShapeUpgrade_SplitSurfaceArea
+
+/// Split a surface into approximately equal-area parts.
+/// Returns number of U split values (0 on failure).
+int OCCTSplitSurfaceArea(OCCTSurfaceRef _Nonnull surfaceRef, int nbParts, bool intoSquares,
+                           int* _Nullable outUSplitCount, int* _Nullable outVSplitCount);
+
+// MARK: - GeomConvert_CurveToAnaCurve
+
+/// Result struct for curve-to-analytical conversion.
+typedef struct {
+    OCCTCurve3DRef _Nullable curve;
+    double newFirst;
+    double newLast;
+    double gap;
+    bool success;
+} OCCTCurveToAnaCurveResult;
+
+/// Convert a BSpline curve to an analytical curve (line, circle, ellipse).
+OCCTCurveToAnaCurveResult OCCTGeomConvertCurveToAnalytical(OCCTCurve3DRef _Nonnull curveRef,
+                                                             double tolerance, double first, double last);
+
+/// Check if an array of points is linear within tolerance.
+bool OCCTGeomConvertIsLinear(const double* _Nonnull points, int count, double tolerance,
+                               double* _Nullable deviation);
+
+// MARK: - GeomConvert_SurfToAnaSurf
+
+/// Result struct for surface-to-analytical conversion.
+typedef struct {
+    OCCTSurfaceRef _Nullable surface;
+    double gap;
+    bool success;
+} OCCTSurfToAnaSurfResult;
+
+/// Convert a BSpline surface to an analytical surface (plane, cylinder, cone, sphere, torus).
+OCCTSurfToAnaSurfResult OCCTGeomConvertSurfToAnalytical(OCCTSurfaceRef _Nonnull surfaceRef, double tolerance);
+
+/// Convert with UV bounds.
+OCCTSurfToAnaSurfResult OCCTGeomConvertSurfToAnalyticalBounded(OCCTSurfaceRef _Nonnull surfaceRef,
+                                                                  double tolerance,
+                                                                  double uMin, double uMax,
+                                                                  double vMin, double vMax);
+
+/// Check if a surface is already canonical (analytical).
+bool OCCTGeomConvertIsCanonical(OCCTSurfaceRef _Nonnull surfaceRef);
+
+// MARK: - Geom2dConvert_ApproxArcsSegments
+
+/// Approximate a 2D curve as arcs and line segments.
+/// Returns number of resulting curves, or 0 on failure.
+int OCCTGeom2dConvertApproxArcsSegments(OCCTCurve2DRef _Nonnull curveRef,
+                                          double tolerance, double angleTolerance,
+                                          OCCTCurve2DRef _Nullable* _Nullable outCurves, int maxCurves);
+
+// MARK: - Poly_Polygon2D
+
+typedef struct Poly_Polygon2DOpaque* OCCTPolyPolygon2DRef;
+
+/// Create a 2D polygon from points (x,y pairs).
+OCCTPolyPolygon2DRef _Nullable OCCTPolyPolygon2DCreate(const double* _Nonnull points, int count);
+
+/// Get number of nodes.
+int OCCTPolyPolygon2DNbNodes(OCCTPolyPolygon2DRef _Nonnull ref);
+
+/// Get a node's coordinates (0-based index). Returns false if out of range.
+bool OCCTPolyPolygon2DNode(OCCTPolyPolygon2DRef _Nonnull ref, int index,
+                             double* _Nonnull x, double* _Nonnull y);
+
+/// Get/set deflection.
+double OCCTPolyPolygon2DDeflection(OCCTPolyPolygon2DRef _Nonnull ref);
+void OCCTPolyPolygon2DSetDeflection(OCCTPolyPolygon2DRef _Nonnull ref, double deflection);
+
+/// Release.
+void OCCTPolyPolygon2DRelease(OCCTPolyPolygon2DRef _Nonnull ref);
+
+// MARK: - Poly_Polygon3D
+
+typedef struct Poly_Polygon3DOpaque* OCCTPolyPolygon3DRef;
+
+/// Create a 3D polygon from points (x,y,z triples).
+OCCTPolyPolygon3DRef _Nullable OCCTPolyPolygon3DCreate(const double* _Nonnull points, int count);
+
+/// Create a 3D polygon from points with parameters.
+OCCTPolyPolygon3DRef _Nullable OCCTPolyPolygon3DCreateWithParams(const double* _Nonnull points, int count,
+                                                                    const double* _Nonnull params);
+
+/// Get number of nodes.
+int OCCTPolyPolygon3DNbNodes(OCCTPolyPolygon3DRef _Nonnull ref);
+
+/// Get a node's coordinates (0-based index).
+bool OCCTPolyPolygon3DNode(OCCTPolyPolygon3DRef _Nonnull ref, int index,
+                             double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Check if polygon has parameters.
+bool OCCTPolyPolygon3DHasParameters(OCCTPolyPolygon3DRef _Nonnull ref);
+
+/// Get parameter at index (0-based).
+double OCCTPolyPolygon3DParameter(OCCTPolyPolygon3DRef _Nonnull ref, int index);
+
+/// Get/set deflection.
+double OCCTPolyPolygon3DDeflection(OCCTPolyPolygon3DRef _Nonnull ref);
+void OCCTPolyPolygon3DSetDeflection(OCCTPolyPolygon3DRef _Nonnull ref, double deflection);
+
+/// Release.
+void OCCTPolyPolygon3DRelease(OCCTPolyPolygon3DRef _Nonnull ref);
+
+// MARK: - Poly_PolygonOnTriangulation
+
+typedef struct Poly_PolygonOnTriangulationOpaque* OCCTPolyPolygonOnTriRef;
+
+/// Create a polygon on triangulation from node indices (0-based in Swift, 1-based internally).
+OCCTPolyPolygonOnTriRef _Nullable OCCTPolyPolygonOnTriCreate(const int* _Nonnull nodeIndices, int count);
+
+/// Create with parameters.
+OCCTPolyPolygonOnTriRef _Nullable OCCTPolyPolygonOnTriCreateWithParams(const int* _Nonnull nodeIndices, int count,
+                                                                         const double* _Nonnull params);
+
+/// Get number of nodes.
+int OCCTPolyPolygonOnTriNbNodes(OCCTPolyPolygonOnTriRef _Nonnull ref);
+
+/// Get node index at position (0-based).
+int OCCTPolyPolygonOnTriNode(OCCTPolyPolygonOnTriRef _Nonnull ref, int index);
+
+/// Check if has parameters.
+bool OCCTPolyPolygonOnTriHasParameters(OCCTPolyPolygonOnTriRef _Nonnull ref);
+
+/// Get parameter at index (0-based).
+double OCCTPolyPolygonOnTriParameter(OCCTPolyPolygonOnTriRef _Nonnull ref, int index);
+
+/// Get/set deflection.
+double OCCTPolyPolygonOnTriDeflection(OCCTPolyPolygonOnTriRef _Nonnull ref);
+void OCCTPolyPolygonOnTriSetDeflection(OCCTPolyPolygonOnTriRef _Nonnull ref, double deflection);
+
+/// Release.
+void OCCTPolyPolygonOnTriRelease(OCCTPolyPolygonOnTriRef _Nonnull ref);
+
+// MARK: - Poly_MergeNodesTool
+
+/// Merge nodes of a shape's face triangulations. Returns merged vertex count, 0 on failure.
+/// smoothAngle: angle threshold for normal smoothing (radians).
+/// mergeTolerance: distance threshold for merging nodes.
+/// outVertices/outNormals: interleaved x,y,z float arrays; outIndices: triangle indices.
+int OCCTPolyMergeNodes(OCCTShapeRef _Nonnull shapeRef,
+                         double smoothAngle, double mergeTolerance,
+                         float* _Nullable outVertices, float* _Nullable outNormals,
+                         uint32_t* _Nullable outIndices,
+                         int maxVertices, int maxIndices,
+                         int* _Nullable outTriangleCount);
+
 #ifdef __cplusplus
 }
 #endif

@@ -10293,4 +10293,437 @@ extension Curve2D {
             return Curve2D(handle: ref)
         }
     }
+
+    /// Approximate this 2D curve as arcs and line segments.
+    public func approxArcsAndSegments(tolerance: Double, angleTolerance: Double) -> [Curve2D] {
+        var refs = [OCCTCurve2DRef?](repeating: nil, count: 256)
+        let n = refs.withUnsafeMutableBufferPointer { buf in
+            OCCTGeom2dConvertApproxArcsSegments(handle, tolerance, angleTolerance,
+                                                  buf.baseAddress, Int32(buf.count))
+        }
+        return (0..<Int(n)).compactMap { i in
+            guard let ref = refs[i] else { return nil }
+            return Curve2D(handle: ref)
+        }
+    }
+}
+
+// MARK: - v0.78.0: Shape Modifications, Surface Recognition & Polygon Data
+
+// MARK: - Shape Modifications
+
+extension Shape {
+    /// Apply a transformation matrix via BRepTools_TrsfModification.
+    /// The 3x4 matrix is specified as row-major (a11..a14, a21..a24, a31..a34).
+    public static func trsfModification(_ shape: Shape,
+                                          a11: Double, a12: Double, a13: Double, a14: Double,
+                                          a21: Double, a22: Double, a23: Double, a24: Double,
+                                          a31: Double, a32: Double, a33: Double, a34: Double) -> Shape? {
+        guard let ref = OCCTShapeTrsfModification(shape.handle,
+                                                    a11, a12, a13, a14,
+                                                    a21, a22, a23, a24,
+                                                    a31, a32, a33, a34) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Apply a general transformation matrix via BRepTools_GTrsfModification.
+    /// Supports non-uniform scaling. Shape should be NURBS-converted first for non-affine transforms.
+    public static func gtrsfModification(_ shape: Shape,
+                                           a11: Double, a12: Double, a13: Double, a14: Double,
+                                           a21: Double, a22: Double, a23: Double, a24: Double,
+                                           a31: Double, a32: Double, a33: Double, a34: Double) -> Shape? {
+        guard let ref = OCCTShapeGTrsfModification(shape.handle,
+                                                     a11, a12, a13, a14,
+                                                     a21, a22, a23, a24,
+                                                     a31, a32, a33, a34) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Deep copy a shape via BRepTools_CopyModification.
+    public static func deepCopy(_ shape: Shape, copyGeometry: Bool = true, copyMesh: Bool = true) -> Shape? {
+        guard let ref = OCCTShapeCopyModification(shape.handle, copyGeometry, copyMesh) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Restrict BSpline degree and segments with full control (advanced version).
+    public static func bsplineRestrictionAdvanced(_ shape: Shape,
+                                                    approxSurface: Bool = true,
+                                                    approxCurve3d: Bool = true,
+                                                    approxCurve2d: Bool = true,
+                                                    tol3d: Double = 0.01,
+                                                    tol2d: Double = 0.01,
+                                                    continuity3d: Int = 2,
+                                                    continuity2d: Int = 2,
+                                                    maxDegree: Int = 5,
+                                                    maxSegments: Int = 20,
+                                                    priorityDegree: Bool = true,
+                                                    convertRational: Bool = false) -> Shape? {
+        guard let ref = OCCTShapeBSplineRestrictionAdvanced(shape.handle,
+                                                              approxSurface, approxCurve3d, approxCurve2d,
+                                                              tol3d, tol2d,
+                                                              Int32(continuity3d), Int32(continuity2d),
+                                                              Int32(maxDegree), Int32(maxSegments),
+                                                              priorityDegree, convertRational) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Convert surfaces to BSpline with per-type control.
+    public static func convertToBSplineAdvanced(_ shape: Shape,
+                                                  extrusionMode: Bool = true,
+                                                  revolutionMode: Bool = true,
+                                                  offsetMode: Bool = true,
+                                                  planeMode: Bool = false) -> Shape? {
+        guard let ref = OCCTShapeConvertToBSplineAdvanced(shape.handle,
+                                                            extrusionMode, revolutionMode,
+                                                            offsetMode, planeMode) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - Surface Splitting
+
+extension Surface {
+    /// Result of surface splitting.
+    public struct SplitResult: Sendable {
+        public let uSplitCount: Int
+        public let vSplitCount: Int
+    }
+
+    /// Split this surface by continuity criterion (ShapeUpgrade variant).
+    /// criterion: 0=C0, 1=G1, 2=C1, 3=G2, 4=C2, 5=C3, 6=CN
+    /// Returns split counts for U and V directions.
+    public func splitSurfaceByContinuity(criterion: Int, tolerance: Double) -> SplitResult? {
+        var uCount: Int32 = 0
+        var vCount: Int32 = 0
+        let n = OCCTSplitSurfaceContinuity(handle, Int32(criterion), tolerance, &uCount, &vCount)
+        if n == 0 { return nil }
+        return SplitResult(uSplitCount: Int(uCount), vSplitCount: Int(vCount))
+    }
+
+    /// Split this surface by maximum angle (radians).
+    public func splitByAngle(_ maxAngle: Double) -> SplitResult? {
+        var uCount: Int32 = 0
+        var vCount: Int32 = 0
+        let n = OCCTSplitSurfaceAngle(handle, maxAngle, &uCount, &vCount)
+        if n == 0 { return nil }
+        return SplitResult(uSplitCount: Int(uCount), vSplitCount: Int(vCount))
+    }
+
+    /// Split this surface into approximately equal-area parts.
+    public func splitByArea(parts: Int, intoSquares: Bool = false) -> SplitResult? {
+        var uCount: Int32 = 0
+        var vCount: Int32 = 0
+        let n = OCCTSplitSurfaceArea(handle, Int32(parts), intoSquares, &uCount, &vCount)
+        if n == 0 { return nil }
+        return SplitResult(uSplitCount: Int(uCount), vSplitCount: Int(vCount))
+    }
+}
+
+// MARK: - Curve/Surface Recognition
+
+/// Result of converting a curve to its analytical form.
+public struct CurveToAnalyticalResult: Sendable {
+    public let curve: Curve3D
+    public let newFirst: Double
+    public let newLast: Double
+    public let gap: Double
+}
+
+extension Curve3D {
+    /// Attempt to convert this curve to an analytical form (line, circle, ellipse).
+    public func toAnalytical(tolerance: Double, first: Double, last: Double) -> CurveToAnalyticalResult? {
+        let result = OCCTGeomConvertCurveToAnalytical(handle, tolerance, first, last)
+        guard result.success, let curveRef = result.curve else { return nil }
+        return CurveToAnalyticalResult(
+            curve: Curve3D(handle: curveRef),
+            newFirst: result.newFirst,
+            newLast: result.newLast,
+            gap: result.gap
+        )
+    }
+
+    /// Check if a set of 3D points are collinear within tolerance.
+    public static func arePointsLinear(_ points: [SIMD3<Double>], tolerance: Double) -> (isLinear: Bool, deviation: Double) {
+        var flat = [Double]()
+        flat.reserveCapacity(points.count * 3)
+        for p in points {
+            flat.append(p.x); flat.append(p.y); flat.append(p.z)
+        }
+        var deviation: Double = 0
+        let result = flat.withUnsafeBufferPointer { buf in
+            OCCTGeomConvertIsLinear(buf.baseAddress!, Int32(points.count), tolerance, &deviation)
+        }
+        return (result, deviation)
+    }
+}
+
+/// Result of converting a surface to its analytical form.
+public struct SurfaceToAnalyticalResult: Sendable {
+    public let surface: Surface
+    public let gap: Double
+}
+
+extension Surface {
+    /// Attempt to convert this surface to an analytical form with detailed result.
+    public func toAnalyticalWithGap(tolerance: Double) -> SurfaceToAnalyticalResult? {
+        let result = OCCTGeomConvertSurfToAnalytical(handle, tolerance)
+        guard result.success, let surfRef = result.surface else { return nil }
+        return SurfaceToAnalyticalResult(surface: Surface(handle: surfRef), gap: result.gap)
+    }
+
+    /// Attempt to convert this surface to analytical form within UV bounds.
+    public func toAnalyticalWithGap(tolerance: Double,
+                                      uMin: Double, uMax: Double,
+                                      vMin: Double, vMax: Double) -> SurfaceToAnalyticalResult? {
+        let result = OCCTGeomConvertSurfToAnalyticalBounded(handle, tolerance, uMin, uMax, vMin, vMax)
+        guard result.success, let surfRef = result.surface else { return nil }
+        return SurfaceToAnalyticalResult(surface: Surface(handle: surfRef), gap: result.gap)
+    }
+
+    /// Check if this surface is already a canonical (analytical) form.
+    public var isCanonical: Bool {
+        OCCTGeomConvertIsCanonical(handle)
+    }
+}
+
+// MARK: - Polygon2D
+
+/// A 2D polygon (sequence of 2D points).
+public final class Polygon2D: @unchecked Sendable {
+    let handle: OCCTPolyPolygon2DRef
+
+    init(handle: OCCTPolyPolygon2DRef) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTPolyPolygon2DRelease(handle)
+    }
+
+    /// Create a 2D polygon from points.
+    public static func create(points: [SIMD2<Double>]) -> Polygon2D? {
+        var flat = [Double]()
+        flat.reserveCapacity(points.count * 2)
+        for p in points {
+            flat.append(p.x); flat.append(p.y)
+        }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTPolyPolygon2DCreate(buf.baseAddress!, Int32(points.count))
+        }) else { return nil }
+        return Polygon2D(handle: ref)
+    }
+
+    /// Number of nodes.
+    public var nodeCount: Int {
+        Int(OCCTPolyPolygon2DNbNodes(handle))
+    }
+
+    /// Get node at index (0-based).
+    public func node(at index: Int) -> SIMD2<Double>? {
+        var x: Double = 0, y: Double = 0
+        guard OCCTPolyPolygon2DNode(handle, Int32(index), &x, &y) else { return nil }
+        return SIMD2(x, y)
+    }
+
+    /// All nodes.
+    public func nodes() -> [SIMD2<Double>] {
+        (0..<nodeCount).compactMap { node(at: $0) }
+    }
+
+    /// Deflection value.
+    public var deflection: Double {
+        get { OCCTPolyPolygon2DDeflection(handle) }
+        set { OCCTPolyPolygon2DSetDeflection(handle, newValue) }
+    }
+}
+
+// MARK: - Polygon3D
+
+/// A 3D polygon (sequence of 3D points with optional parameters).
+public final class Polygon3D: @unchecked Sendable {
+    let handle: OCCTPolyPolygon3DRef
+
+    init(handle: OCCTPolyPolygon3DRef) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTPolyPolygon3DRelease(handle)
+    }
+
+    /// Create a 3D polygon from points.
+    public static func create(points: [SIMD3<Double>]) -> Polygon3D? {
+        var flat = [Double]()
+        flat.reserveCapacity(points.count * 3)
+        for p in points {
+            flat.append(p.x); flat.append(p.y); flat.append(p.z)
+        }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTPolyPolygon3DCreate(buf.baseAddress!, Int32(points.count))
+        }) else { return nil }
+        return Polygon3D(handle: ref)
+    }
+
+    /// Create a 3D polygon from points with parameters.
+    public static func create(points: [SIMD3<Double>], parameters: [Double]) -> Polygon3D? {
+        var flat = [Double]()
+        flat.reserveCapacity(points.count * 3)
+        for p in points {
+            flat.append(p.x); flat.append(p.y); flat.append(p.z)
+        }
+        guard let ref = flat.withUnsafeBufferPointer({ ptsBuf in
+            parameters.withUnsafeBufferPointer { paramBuf in
+                OCCTPolyPolygon3DCreateWithParams(ptsBuf.baseAddress!, Int32(points.count), paramBuf.baseAddress!)
+            }
+        }) else { return nil }
+        return Polygon3D(handle: ref)
+    }
+
+    /// Number of nodes.
+    public var nodeCount: Int {
+        Int(OCCTPolyPolygon3DNbNodes(handle))
+    }
+
+    /// Get node at index (0-based).
+    public func node(at index: Int) -> SIMD3<Double>? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTPolyPolygon3DNode(handle, Int32(index), &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// All nodes.
+    public func nodes() -> [SIMD3<Double>] {
+        (0..<nodeCount).compactMap { node(at: $0) }
+    }
+
+    /// Whether this polygon has parameters.
+    public var hasParameters: Bool {
+        OCCTPolyPolygon3DHasParameters(handle)
+    }
+
+    /// Get parameter at index (0-based).
+    public func parameter(at index: Int) -> Double {
+        OCCTPolyPolygon3DParameter(handle, Int32(index))
+    }
+
+    /// Deflection value.
+    public var deflection: Double {
+        get { OCCTPolyPolygon3DDeflection(handle) }
+        set { OCCTPolyPolygon3DSetDeflection(handle, newValue) }
+    }
+}
+
+// MARK: - PolygonOnTriangulation
+
+/// A polygon defined as indices into a shared triangulation.
+public final class PolygonOnTriangulation: @unchecked Sendable {
+    let handle: OCCTPolyPolygonOnTriRef
+
+    init(handle: OCCTPolyPolygonOnTriRef) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTPolyPolygonOnTriRelease(handle)
+    }
+
+    /// Create from node indices.
+    public static func create(nodeIndices: [Int32]) -> PolygonOnTriangulation? {
+        guard let ref = nodeIndices.withUnsafeBufferPointer({ buf in
+            OCCTPolyPolygonOnTriCreate(buf.baseAddress!, Int32(nodeIndices.count))
+        }) else { return nil }
+        return PolygonOnTriangulation(handle: ref)
+    }
+
+    /// Create from node indices with parameters.
+    public static func create(nodeIndices: [Int32], parameters: [Double]) -> PolygonOnTriangulation? {
+        guard let ref = nodeIndices.withUnsafeBufferPointer({ idxBuf in
+            parameters.withUnsafeBufferPointer { paramBuf in
+                OCCTPolyPolygonOnTriCreateWithParams(idxBuf.baseAddress!, Int32(nodeIndices.count), paramBuf.baseAddress!)
+            }
+        }) else { return nil }
+        return PolygonOnTriangulation(handle: ref)
+    }
+
+    /// Number of nodes.
+    public var nodeCount: Int {
+        Int(OCCTPolyPolygonOnTriNbNodes(handle))
+    }
+
+    /// Get node index at position (0-based).
+    public func nodeIndex(at position: Int) -> Int {
+        Int(OCCTPolyPolygonOnTriNode(handle, Int32(position)))
+    }
+
+    /// Whether this polygon has parameters.
+    public var hasParameters: Bool {
+        OCCTPolyPolygonOnTriHasParameters(handle)
+    }
+
+    /// Get parameter at index (0-based).
+    public func parameter(at index: Int) -> Double {
+        OCCTPolyPolygonOnTriParameter(handle, Int32(index))
+    }
+
+    /// Deflection value.
+    public var deflection: Double {
+        get { OCCTPolyPolygonOnTriDeflection(handle) }
+        set { OCCTPolyPolygonOnTriSetDeflection(handle, newValue) }
+    }
+}
+
+// MARK: - Mesh Node Merging
+
+/// Result of merging triangulation nodes.
+public struct MergedMeshData: Sendable {
+    public let vertices: [SIMD3<Float>]
+    public let normals: [SIMD3<Float>]
+    public let indices: [UInt32]
+    public let triangleCount: Int
+    public let vertexCount: Int
+}
+
+/// Merge nodes from all face triangulations of a meshed shape.
+/// - Parameters:
+///   - shape: A shape that has been triangulated (e.g., via Mesh.from(shape:))
+///   - smoothAngle: Normal smoothing angle threshold in radians
+///   - mergeTolerance: Distance threshold for merging nodes (0 = positional only)
+/// - Returns: Merged mesh data, or nil on failure
+public func mergedMeshNodes(from shape: Shape,
+                              smoothAngle: Double,
+                              mergeTolerance: Double = 0.0) -> MergedMeshData? {
+    let maxVerts: Int32 = 1_000_000
+    let maxIdx: Int32 = 3_000_000
+    var vertices = [Float](repeating: 0, count: Int(maxVerts) * 3)
+    var normals = [Float](repeating: 0, count: Int(maxVerts) * 3)
+    var indices = [UInt32](repeating: 0, count: Int(maxIdx))
+    var triCount: Int32 = 0
+
+    let nVerts = vertices.withUnsafeMutableBufferPointer { vBuf in
+        normals.withUnsafeMutableBufferPointer { nBuf in
+            indices.withUnsafeMutableBufferPointer { iBuf in
+                OCCTPolyMergeNodes(shape.handle, smoothAngle, mergeTolerance,
+                                     vBuf.baseAddress, nBuf.baseAddress,
+                                     iBuf.baseAddress,
+                                     maxVerts, maxIdx,
+                                     &triCount)
+            }
+        }
+    }
+    if nVerts == 0 { return nil }
+
+    let nv = Int(nVerts)
+    let nt = Int(triCount)
+    var verts = [SIMD3<Float>]()
+    verts.reserveCapacity(nv)
+    var norms = [SIMD3<Float>]()
+    norms.reserveCapacity(nv)
+    for i in 0..<nv {
+        verts.append(SIMD3(vertices[i*3], vertices[i*3+1], vertices[i*3+2]))
+        norms.append(SIMD3(normals[i*3], normals[i*3+1], normals[i*3+2]))
+    }
+    let idxSlice = Array(indices.prefix(nt * 3))
+
+    return MergedMeshData(vertices: verts, normals: norms, indices: idxSlice,
+                            triangleCount: nt, vertexCount: nv)
 }

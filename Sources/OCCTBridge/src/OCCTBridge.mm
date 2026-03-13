@@ -29006,3 +29006,584 @@ int OCCTConvertCurve2dToBezier(OCCTCurve2DRef _Nonnull curveRef,
         return 0;
     }
 }
+
+// MARK: - v0.78.0: Shape Modifications, Surface Recognition & Polygon Data
+
+#include <BRepTools_GTrsfModification.hxx>
+#include <BRepTools_TrsfModification.hxx>
+#include <BRepTools_CopyModification.hxx>
+#include <ShapeCustom_BSplineRestriction.hxx>
+#include <ShapeCustom_ConvertToBSpline.hxx>
+#include <ShapeCustom_ConvertToRevolution.hxx>
+#include <ShapeUpgrade_SplitSurfaceContinuity.hxx>
+#include <ShapeUpgrade_SplitSurfaceAngle.hxx>
+#include <ShapeUpgrade_SplitSurfaceArea.hxx>
+#include <GeomConvert_CurveToAnaCurve.hxx>
+#include <GeomConvert_SurfToAnaSurf.hxx>
+#include <Geom2dConvert_ApproxArcsSegments.hxx>
+#include <Geom2dAdaptor_Curve.hxx>
+#include <Poly_Polygon2D.hxx>
+#include <Poly_Polygon3D.hxx>
+#include <Poly_PolygonOnTriangulation.hxx>
+#include <Poly_MergeNodesTool.hxx>
+
+// --- Poly opaque types ---
+
+struct Poly_Polygon2DOpaque {
+    Handle(Poly_Polygon2D) polygon;
+};
+
+struct Poly_Polygon3DOpaque {
+    Handle(Poly_Polygon3D) polygon;
+};
+
+struct Poly_PolygonOnTriangulationOpaque {
+    Handle(Poly_PolygonOnTriangulation) polygon;
+};
+
+// MARK: - BRepTools_TrsfModification
+
+OCCTShapeRef _Nullable OCCTShapeTrsfModification(OCCTShapeRef _Nonnull shapeRef,
+                                                   double a11, double a12, double a13, double a14,
+                                                   double a21, double a22, double a23, double a24,
+                                                   double a31, double a32, double a33, double a34) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        gp_Trsf trsf;
+        trsf.SetValues(a11, a12, a13, a14,
+                       a21, a22, a23, a24,
+                       a31, a32, a33, a34);
+        Handle(BRepTools_TrsfModification) mod = new BRepTools_TrsfModification(trsf);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - BRepTools_GTrsfModification
+
+OCCTShapeRef _Nullable OCCTShapeGTrsfModification(OCCTShapeRef _Nonnull shapeRef,
+                                                    double a11, double a12, double a13, double a14,
+                                                    double a21, double a22, double a23, double a24,
+                                                    double a31, double a32, double a33, double a34) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        gp_GTrsf gtrsf;
+        gtrsf.SetValue(1, 1, a11); gtrsf.SetValue(1, 2, a12); gtrsf.SetValue(1, 3, a13); gtrsf.SetValue(1, 4, a14);
+        gtrsf.SetValue(2, 1, a21); gtrsf.SetValue(2, 2, a22); gtrsf.SetValue(2, 3, a23); gtrsf.SetValue(2, 4, a24);
+        gtrsf.SetValue(3, 1, a31); gtrsf.SetValue(3, 2, a32); gtrsf.SetValue(3, 3, a33); gtrsf.SetValue(3, 4, a34);
+        Handle(BRepTools_GTrsfModification) mod = new BRepTools_GTrsfModification(gtrsf);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - BRepTools_CopyModification
+
+OCCTShapeRef _Nullable OCCTShapeCopyModification(OCCTShapeRef _Nonnull shapeRef,
+                                                   bool copyGeometry, bool copyMesh) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        Handle(BRepTools_CopyModification) mod = new BRepTools_CopyModification(copyGeometry, copyMesh);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeCustom_BSplineRestriction
+
+static GeomAbs_Shape continuityFromInt78(int c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_G1;
+        case 2: return GeomAbs_C1;
+        case 3: return GeomAbs_G2;
+        case 4: return GeomAbs_C2;
+        case 5: return GeomAbs_C3;
+        case 6: return GeomAbs_CN;
+        default: return GeomAbs_C1;
+    }
+}
+
+OCCTShapeRef _Nullable OCCTShapeBSplineRestrictionAdvanced(OCCTShapeRef _Nonnull shapeRef,
+                                                             bool approxSurface, bool approxCurve3d, bool approxCurve2d,
+                                                             double tol3d, double tol2d,
+                                                             int continuity3d, int continuity2d,
+                                                             int maxDegree, int maxSegments,
+                                                             bool priorityDegree, bool convertRational) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        Handle(ShapeCustom_BSplineRestriction) mod = new ShapeCustom_BSplineRestriction(
+            approxSurface, approxCurve3d, approxCurve2d,
+            tol3d, tol2d,
+            continuityFromInt78(continuity3d), continuityFromInt78(continuity2d),
+            maxDegree, maxSegments,
+            priorityDegree, convertRational);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeCustom_ConvertToBSpline
+
+OCCTShapeRef _Nullable OCCTShapeConvertToBSplineAdvanced(OCCTShapeRef _Nonnull shapeRef,
+                                                           bool extrusionMode, bool revolutionMode,
+                                                           bool offsetMode, bool planeMode) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        Handle(ShapeCustom_ConvertToBSpline) mod = new ShapeCustom_ConvertToBSpline();
+        mod->SetExtrusionMode(extrusionMode);
+        mod->SetRevolutionMode(revolutionMode);
+        mod->SetOffsetMode(offsetMode);
+        mod->SetPlaneMode(planeMode);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeUpgrade_SplitSurfaceContinuity
+
+int OCCTSplitSurfaceContinuity(OCCTSurfaceRef _Nonnull surfaceRef,
+                                 int criterion, double tolerance,
+                                 int* _Nullable outUSplitCount, int* _Nullable outVSplitCount) {
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        Handle(ShapeUpgrade_SplitSurfaceContinuity) splitter = new ShapeUpgrade_SplitSurfaceContinuity();
+        splitter->Init(surface);
+        splitter->SetCriterion(continuityFromInt78(criterion));
+        splitter->SetTolerance(tolerance);
+        splitter->Perform(true);
+        int uCount = splitter->USplitValues()->Length();
+        int vCount = splitter->VSplitValues()->Length();
+        if (outUSplitCount) *outUSplitCount = uCount;
+        if (outVSplitCount) *outVSplitCount = vCount;
+        return uCount;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - ShapeUpgrade_SplitSurfaceAngle
+
+int OCCTSplitSurfaceAngle(OCCTSurfaceRef _Nonnull surfaceRef, double maxAngle,
+                            int* _Nullable outUSplitCount, int* _Nullable outVSplitCount) {
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        Handle(ShapeUpgrade_SplitSurfaceAngle) splitter = new ShapeUpgrade_SplitSurfaceAngle(maxAngle);
+        splitter->Init(surface);
+        splitter->Perform(true);
+        int uCount = splitter->USplitValues()->Length();
+        int vCount = splitter->VSplitValues()->Length();
+        if (outUSplitCount) *outUSplitCount = uCount;
+        if (outVSplitCount) *outVSplitCount = vCount;
+        return uCount;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - ShapeUpgrade_SplitSurfaceArea
+
+int OCCTSplitSurfaceArea(OCCTSurfaceRef _Nonnull surfaceRef, int nbParts, bool intoSquares,
+                           int* _Nullable outUSplitCount, int* _Nullable outVSplitCount) {
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        Handle(ShapeUpgrade_SplitSurfaceArea) splitter = new ShapeUpgrade_SplitSurfaceArea();
+        splitter->Init(surface);
+        splitter->NbParts() = nbParts;
+        splitter->SetSplittingIntoSquares(intoSquares);
+        splitter->Perform(true);
+        int uCount = splitter->USplitValues()->Length();
+        int vCount = splitter->VSplitValues()->Length();
+        if (outUSplitCount) *outUSplitCount = uCount;
+        if (outVSplitCount) *outVSplitCount = vCount;
+        return uCount;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - GeomConvert_CurveToAnaCurve
+
+OCCTCurveToAnaCurveResult OCCTGeomConvertCurveToAnalytical(OCCTCurve3DRef _Nonnull curveRef,
+                                                             double tolerance, double first, double last) {
+    OCCTCurveToAnaCurveResult result = {nullptr, 0, 0, 0, false};
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve3D*>(curveRef)->curve;
+        GeomConvert_CurveToAnaCurve converter(curve);
+        Handle(Geom_Curve) resCurve;
+        double newF, newL;
+        bool ok = converter.ConvertToAnalytical(tolerance, resCurve, first, last, newF, newL);
+        if (ok && !resCurve.IsNull()) {
+            result.curve = reinterpret_cast<OCCTCurve3DRef>(new OCCTCurve3D{resCurve});
+            result.newFirst = newF;
+            result.newLast = newL;
+            result.gap = converter.Gap();
+            result.success = true;
+        }
+    } catch (...) {}
+    return result;
+}
+
+bool OCCTGeomConvertIsLinear(const double* _Nonnull points, int count, double tolerance,
+                               double* _Nullable deviation) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+        }
+        double dev = 0;
+        bool result = GeomConvert_CurveToAnaCurve::IsLinear(pts, tolerance, dev);
+        if (deviation) *deviation = dev;
+        return result;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - GeomConvert_SurfToAnaSurf
+
+OCCTSurfToAnaSurfResult OCCTGeomConvertSurfToAnalytical(OCCTSurfaceRef _Nonnull surfaceRef, double tolerance) {
+    OCCTSurfToAnaSurfResult result = {nullptr, 0, false};
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        GeomConvert_SurfToAnaSurf converter(surface);
+        Handle(Geom_Surface) resSurf = converter.ConvertToAnalytical(tolerance);
+        if (!resSurf.IsNull()) {
+            result.surface = reinterpret_cast<OCCTSurfaceRef>(new OCCTSurface{resSurf});
+            result.gap = converter.Gap();
+            result.success = true;
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTSurfToAnaSurfResult OCCTGeomConvertSurfToAnalyticalBounded(OCCTSurfaceRef _Nonnull surfaceRef,
+                                                                  double tolerance,
+                                                                  double uMin, double uMax,
+                                                                  double vMin, double vMax) {
+    OCCTSurfToAnaSurfResult result = {nullptr, 0, false};
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        GeomConvert_SurfToAnaSurf converter(surface);
+        Handle(Geom_Surface) resSurf = converter.ConvertToAnalytical(tolerance, uMin, uMax, vMin, vMax);
+        if (!resSurf.IsNull()) {
+            result.surface = reinterpret_cast<OCCTSurfaceRef>(new OCCTSurface{resSurf});
+            result.gap = converter.Gap();
+            result.success = true;
+        }
+    } catch (...) {}
+    return result;
+}
+
+bool OCCTGeomConvertIsCanonical(OCCTSurfaceRef _Nonnull surfaceRef) {
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        return GeomConvert_SurfToAnaSurf::IsCanonical(surface);
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Geom2dConvert_ApproxArcsSegments
+
+int OCCTGeom2dConvertApproxArcsSegments(OCCTCurve2DRef _Nonnull curveRef,
+                                          double tolerance, double angleTolerance,
+                                          OCCTCurve2DRef _Nullable* _Nullable outCurves, int maxCurves) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve2D*>(curveRef)->curve;
+        Geom2dAdaptor_Curve adaptor(curve);
+        Geom2dConvert_ApproxArcsSegments approx(adaptor, tolerance, angleTolerance);
+        const NCollection_Sequence<Handle(Geom2d_Curve)>& result = approx.GetResult();
+        int count = result.Length();
+        int written = 0;
+        for (int i = 1; i <= count && written < maxCurves; i++) {
+            Handle(Geom2d_Curve) c = result.Value(i);
+            if (!c.IsNull() && outCurves) {
+                outCurves[written] = reinterpret_cast<OCCTCurve2DRef>(new OCCTCurve2D{c});
+            }
+            written++;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Poly_Polygon2D
+
+OCCTPolyPolygon2DRef _Nullable OCCTPolyPolygon2DCreate(const double* _Nonnull points, int count) {
+    try {
+        NCollection_Array1<gp_Pnt2d> pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt2d(points[i * 2], points[i * 2 + 1]);
+        }
+        Handle(Poly_Polygon2D) poly = new Poly_Polygon2D(pts);
+        return reinterpret_cast<OCCTPolyPolygon2DRef>(new Poly_Polygon2DOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int OCCTPolyPolygon2DNbNodes(OCCTPolyPolygon2DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon2DOpaque*>(ref)->polygon->NbNodes();
+}
+
+bool OCCTPolyPolygon2DNode(OCCTPolyPolygon2DRef _Nonnull ref, int index,
+                             double* _Nonnull x, double* _Nonnull y) {
+    try {
+        auto* p = reinterpret_cast<Poly_Polygon2DOpaque*>(ref);
+        int idx = index + 1;
+        if (idx < 1 || idx > p->polygon->NbNodes()) return false;
+        const gp_Pnt2d& pt = p->polygon->Nodes()(idx);
+        *x = pt.X();
+        *y = pt.Y();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+double OCCTPolyPolygon2DDeflection(OCCTPolyPolygon2DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon2DOpaque*>(ref)->polygon->Deflection();
+}
+
+void OCCTPolyPolygon2DSetDeflection(OCCTPolyPolygon2DRef _Nonnull ref, double deflection) {
+    reinterpret_cast<Poly_Polygon2DOpaque*>(ref)->polygon->Deflection(deflection);
+}
+
+void OCCTPolyPolygon2DRelease(OCCTPolyPolygon2DRef _Nonnull ref) {
+    delete reinterpret_cast<Poly_Polygon2DOpaque*>(ref);
+}
+
+// MARK: - Poly_Polygon3D
+
+OCCTPolyPolygon3DRef _Nullable OCCTPolyPolygon3DCreate(const double* _Nonnull points, int count) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+        }
+        Handle(Poly_Polygon3D) poly = new Poly_Polygon3D(pts);
+        return reinterpret_cast<OCCTPolyPolygon3DRef>(new Poly_Polygon3DOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTPolyPolygon3DRef _Nullable OCCTPolyPolygon3DCreateWithParams(const double* _Nonnull points, int count,
+                                                                    const double* _Nonnull params) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        NCollection_Array1<double> par(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+            par(i + 1) = params[i];
+        }
+        Handle(Poly_Polygon3D) poly = new Poly_Polygon3D(pts, par);
+        return reinterpret_cast<OCCTPolyPolygon3DRef>(new Poly_Polygon3DOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int OCCTPolyPolygon3DNbNodes(OCCTPolyPolygon3DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon3DOpaque*>(ref)->polygon->NbNodes();
+}
+
+bool OCCTPolyPolygon3DNode(OCCTPolyPolygon3DRef _Nonnull ref, int index,
+                             double* _Nonnull x, double* _Nonnull y, double* _Nonnull z) {
+    try {
+        auto* p = reinterpret_cast<Poly_Polygon3DOpaque*>(ref);
+        int idx = index + 1;
+        if (idx < 1 || idx > p->polygon->NbNodes()) return false;
+        const gp_Pnt& pt = p->polygon->Nodes()(idx);
+        *x = pt.X(); *y = pt.Y(); *z = pt.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTPolyPolygon3DHasParameters(OCCTPolyPolygon3DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon3DOpaque*>(ref)->polygon->HasParameters();
+}
+
+double OCCTPolyPolygon3DParameter(OCCTPolyPolygon3DRef _Nonnull ref, int index) {
+    try {
+        auto* p = reinterpret_cast<Poly_Polygon3DOpaque*>(ref);
+        return p->polygon->Parameters()(index + 1);
+    } catch (...) {
+        return 0;
+    }
+}
+
+double OCCTPolyPolygon3DDeflection(OCCTPolyPolygon3DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon3DOpaque*>(ref)->polygon->Deflection();
+}
+
+void OCCTPolyPolygon3DSetDeflection(OCCTPolyPolygon3DRef _Nonnull ref, double deflection) {
+    reinterpret_cast<Poly_Polygon3DOpaque*>(ref)->polygon->Deflection(deflection);
+}
+
+void OCCTPolyPolygon3DRelease(OCCTPolyPolygon3DRef _Nonnull ref) {
+    delete reinterpret_cast<Poly_Polygon3DOpaque*>(ref);
+}
+
+// MARK: - Poly_PolygonOnTriangulation
+
+OCCTPolyPolygonOnTriRef _Nullable OCCTPolyPolygonOnTriCreate(const int* _Nonnull nodeIndices, int count) {
+    try {
+        NCollection_Array1<int> nodes(1, count);
+        for (int i = 0; i < count; i++) {
+            nodes(i + 1) = nodeIndices[i];
+        }
+        Handle(Poly_PolygonOnTriangulation) poly = new Poly_PolygonOnTriangulation(nodes);
+        return reinterpret_cast<OCCTPolyPolygonOnTriRef>(new Poly_PolygonOnTriangulationOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTPolyPolygonOnTriRef _Nullable OCCTPolyPolygonOnTriCreateWithParams(const int* _Nonnull nodeIndices, int count,
+                                                                         const double* _Nonnull params) {
+    try {
+        NCollection_Array1<int> nodes(1, count);
+        NCollection_Array1<double> par(1, count);
+        for (int i = 0; i < count; i++) {
+            nodes(i + 1) = nodeIndices[i];
+            par(i + 1) = params[i];
+        }
+        Handle(Poly_PolygonOnTriangulation) poly = new Poly_PolygonOnTriangulation(nodes, par);
+        return reinterpret_cast<OCCTPolyPolygonOnTriRef>(new Poly_PolygonOnTriangulationOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int OCCTPolyPolygonOnTriNbNodes(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    return reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref)->polygon->NbNodes();
+}
+
+int OCCTPolyPolygonOnTriNode(OCCTPolyPolygonOnTriRef _Nonnull ref, int index) {
+    try {
+        auto* p = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+        return p->polygon->Node(index + 1);
+    } catch (...) {
+        return -1;
+    }
+}
+
+bool OCCTPolyPolygonOnTriHasParameters(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    return reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref)->polygon->HasParameters();
+}
+
+double OCCTPolyPolygonOnTriParameter(OCCTPolyPolygonOnTriRef _Nonnull ref, int index) {
+    try {
+        auto* p = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+        return p->polygon->Parameter(index + 1);
+    } catch (...) {
+        return 0;
+    }
+}
+
+double OCCTPolyPolygonOnTriDeflection(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    return reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref)->polygon->Deflection();
+}
+
+void OCCTPolyPolygonOnTriSetDeflection(OCCTPolyPolygonOnTriRef _Nonnull ref, double deflection) {
+    reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref)->polygon->Deflection(deflection);
+}
+
+void OCCTPolyPolygonOnTriRelease(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    delete reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+}
+
+// MARK: - Poly_MergeNodesTool
+
+int OCCTPolyMergeNodes(OCCTShapeRef _Nonnull shapeRef,
+                         double smoothAngle, double mergeTolerance,
+                         float* _Nullable outVertices, float* _Nullable outNormals,
+                         uint32_t* _Nullable outIndices,
+                         int maxVertices, int maxIndices,
+                         int* _Nullable outTriangleCount) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        // Collect all face triangulations and merge
+        Handle(Poly_MergeNodesTool) tool = new Poly_MergeNodesTool(smoothAngle, mergeTolerance);
+        TopExp_Explorer exp(shape, TopAbs_FACE);
+        bool hasTri = false;
+        for (; exp.More(); exp.Next()) {
+            TopoDS_Face face = TopoDS::Face(exp.Current());
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+            if (!tri.IsNull()) {
+                gp_Trsf trsf = loc.IsIdentity() ? gp_Trsf() : loc.Transformation();
+                bool reversed = (face.Orientation() == TopAbs_REVERSED);
+                tool->AddTriangulation(tri, trsf, reversed);
+                hasTri = true;
+            }
+        }
+        if (!hasTri) return 0;
+        Handle(Poly_Triangulation) result = tool->Result();
+        if (result.IsNull()) return 0;
+        int nNodes = result->NbNodes();
+        int nTris = result->NbTriangles();
+        if (outTriangleCount) *outTriangleCount = nTris;
+        // Extract vertices/normals
+        if (outVertices && nNodes <= maxVertices) {
+            for (int i = 1; i <= nNodes; i++) {
+                gp_Pnt p = result->Node(i);
+                outVertices[(i-1)*3] = (float)p.X();
+                outVertices[(i-1)*3+1] = (float)p.Y();
+                outVertices[(i-1)*3+2] = (float)p.Z();
+            }
+        }
+        if (outNormals && result->HasNormals() && nNodes <= maxVertices) {
+            for (int i = 1; i <= nNodes; i++) {
+                gp_Dir n = result->Normal(i);
+                outNormals[(i-1)*3] = (float)n.X();
+                outNormals[(i-1)*3+1] = (float)n.Y();
+                outNormals[(i-1)*3+2] = (float)n.Z();
+            }
+        }
+        // Extract indices
+        if (outIndices && nTris * 3 <= maxIndices) {
+            for (int i = 1; i <= nTris; i++) {
+                Poly_Triangle t = result->Triangle(i);
+                int n1, n2, n3;
+                t.Get(n1, n2, n3);
+                outIndices[(i-1)*3] = (uint32_t)(n1 - 1);
+                outIndices[(i-1)*3+1] = (uint32_t)(n2 - 1);
+                outIndices[(i-1)*3+2] = (uint32_t)(n3 - 1);
+            }
+        }
+        return nNodes;
+    } catch (...) {
+        return 0;
+    }
+}
