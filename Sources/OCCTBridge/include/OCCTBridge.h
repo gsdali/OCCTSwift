@@ -10328,6 +10328,175 @@ float OCCTMaterialRoughnessFromSpecular(double specR, double specG, double specB
 /// Compute metallic factor from specular color
 float OCCTMaterialMetallicFromSpecular(double specR, double specG, double specB);
 
+// MARK: - v0.82.0: Quantity_Period, Quantity_Date, Font_FontMgr, Image_AlienPixMap
+
+// --- Quantity_Period ---
+
+/// Period components
+typedef struct {
+    int days;
+    int hours;
+    int minutes;
+    int seconds;
+    int milliseconds;
+    int microseconds;
+} OCCTPeriodComponents;
+
+/// Create a period from days/hours/minutes/seconds/ms/us
+/// Returns false if values are invalid
+bool OCCTPeriodCreate(int dd, int hh, int mn, int ss, int mis, int mics,
+                      int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Create a period from total seconds and microseconds
+/// Returns false if values are invalid
+bool OCCTPeriodCreateFromSeconds(int ss, int mics,
+                                  int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Decompose period into components
+OCCTPeriodComponents OCCTPeriodValues(int sec, int usec);
+
+/// Get total seconds and microseconds from period
+void OCCTPeriodTotalSeconds(int sec, int usec, int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Add two periods
+void OCCTPeriodAdd(int sec1, int usec1, int sec2, int usec2,
+                    int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Subtract period2 from period1
+void OCCTPeriodSubtract(int sec1, int usec1, int sec2, int usec2,
+                         int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Compare two periods: returns -1 (shorter), 0 (equal), 1 (longer)
+int OCCTPeriodCompare(int sec1, int usec1, int sec2, int usec2);
+
+/// Check if period values are valid
+bool OCCTPeriodIsValid(int dd, int hh, int mn, int ss, int mis, int mics);
+
+/// Check if period seconds are valid
+bool OCCTPeriodIsValidSeconds(int ss, int mics);
+
+// --- Quantity_Date ---
+
+/// Date components
+typedef struct {
+    int month;
+    int day;
+    int year;
+    int hour;
+    int minute;
+    int second;
+    int millisecond;
+    int microsecond;
+} OCCTDateComponents;
+
+/// Create a date and return its internal representation
+/// Returns false if date is invalid
+bool OCCTDateCreate(int mm, int dd, int yyyy, int hh, int mn, int ss, int mis, int mics,
+                     int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Get default date (Jan 1, 1979)
+void OCCTDateDefault(int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Decompose date into components
+OCCTDateComponents OCCTDateValues(int sec, int usec);
+
+/// Add period to date
+void OCCTDateAddPeriod(int dateSec, int dateUSec, int periodSec, int periodUSec,
+                        int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Subtract period from date
+bool OCCTDateSubtractPeriod(int dateSec, int dateUSec, int periodSec, int periodUSec,
+                             int *_Nonnull outSec, int *_Nonnull outUSec);
+
+/// Difference between two dates (returns period)
+void OCCTDateDifference(int sec1, int usec1, int sec2, int usec2,
+                         int *_Nonnull outPeriodSec, int *_Nonnull outPeriodUSec);
+
+/// Compare two dates: returns -1 (earlier), 0 (equal), 1 (later)
+int OCCTDateCompare(int sec1, int usec1, int sec2, int usec2);
+
+/// Check if date is valid
+bool OCCTDateIsValid(int mm, int dd, int yyyy, int hh, int mn, int ss, int mis, int mics);
+
+/// Check if year is a leap year
+bool OCCTDateIsLeap(int year);
+
+// --- Font_FontMgr ---
+
+/// Initialize the system font database
+void OCCTFontMgrInitDatabase(void);
+
+/// Get number of available fonts
+int OCCTFontMgrFontCount(void);
+
+/// Get font name by 0-based index. Caller must free with OCCTGeomToolsFreeString.
+const char *_Nullable OCCTFontMgrFontName(int index);
+
+/// Get font path for a given font index and aspect (0=Regular, 1=Bold, 2=Italic, 3=BoldItalic)
+/// Caller must free with OCCTGeomToolsFreeString.
+const char *_Nullable OCCTFontMgrFontPath(int index, int aspect);
+
+/// Check if font has a given aspect (0=Regular, 1=Bold, 2=Italic, 3=BoldItalic)
+bool OCCTFontMgrFontHasAspect(int index, int aspect);
+
+/// Get font aspect as string ("regular", "bold", "italic", "bold-italic")
+const char *_Nonnull OCCTFontMgrAspectToString(int aspect);
+
+// --- Image_AlienPixMap ---
+
+/// Opaque handle to Image_AlienPixMap
+typedef void *_Nullable OCCTImageRef;
+
+/// Create an empty image
+OCCTImageRef OCCTImageCreate(void);
+
+/// Release image
+void OCCTImageRelease(OCCTImageRef ref);
+
+/// Initialize image with given format and dimensions
+/// format: 0=Gray, 1=Alpha, 2=RGB, 3=BGR, 4=RGB32, 5=BGR32, 6=RGBA, 7=BGRA
+bool OCCTImageInitTrash(OCCTImageRef ref, int format, int width, int height);
+
+/// Copy image from another
+bool OCCTImageInitCopy(OCCTImageRef dst, OCCTImageRef src);
+
+/// Clear image data
+void OCCTImageClear(OCCTImageRef ref);
+
+/// Get image width
+int OCCTImageWidth(OCCTImageRef ref);
+
+/// Get image height
+int OCCTImageHeight(OCCTImageRef ref);
+
+/// Get image format
+int OCCTImageFormat(OCCTImageRef ref);
+
+/// Check if image is empty
+bool OCCTImageIsEmpty(OCCTImageRef ref);
+
+/// Get pixel color (RGBA) at coordinates
+void OCCTImageGetPixel(OCCTImageRef ref, int x, int y,
+                        float *_Nonnull r, float *_Nonnull g, float *_Nonnull b, float *_Nonnull a);
+
+/// Set pixel color (RGBA) at coordinates
+void OCCTImageSetPixel(OCCTImageRef ref, int x, int y, float r, float g, float b, float a);
+
+/// Save image to file (format determined by extension)
+bool OCCTImageSave(OCCTImageRef ref, const char *_Nonnull filePath);
+
+/// Load image from file
+bool OCCTImageLoad(OCCTImageRef ref, const char *_Nonnull filePath);
+
+/// Apply gamma correction
+bool OCCTImageAdjustGamma(OCCTImageRef ref, double gamma);
+
+/// Get size of a single pixel in bytes for a given format
+int OCCTImageSizePixelBytes(int format);
+
+/// Check if top-down is default row order
+bool OCCTImageIsTopDownDefault(void);
+
 #ifdef __cplusplus
 }
 #endif

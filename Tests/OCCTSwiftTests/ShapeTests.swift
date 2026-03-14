@@ -23359,3 +23359,304 @@ struct MaterialOCCTTests {
         #expect(accessed == count)
     }
 }
+
+// MARK: - v0.82.0: Quantity_Period, Quantity_Date, Font_FontMgr, Image_AlienPixMap
+
+@Suite("Period Tests")
+struct PeriodTests {
+    @Test func createFromComponents() {
+        if let p = Period(days: 1, hours: 2, minutes: 30, seconds: 15) {
+            let c = p.components
+            #expect(c.days == 1)
+            #expect(c.hours == 2)
+            #expect(c.minutes == 30)
+            #expect(c.seconds == 15)
+        }
+    }
+
+    @Test func createFromSeconds() {
+        if let p = Period(totalSeconds: 3661, microseconds: 500) {
+            #expect(p.totalSeconds == 3661)
+            #expect(p.totalMicroseconds == 500)
+        }
+    }
+
+    @Test func addPeriods() {
+        if let p1 = Period(hours: 1), let p2 = Period(minutes: 30) {
+            let sum = p1 + p2
+            let c = sum.components
+            #expect(c.hours == 1)
+            #expect(c.minutes == 30)
+        }
+    }
+
+    @Test func subtractPeriods() {
+        if let p1 = Period(hours: 2), let p2 = Period(minutes: 30) {
+            let diff = p1 - p2
+            let c = diff.components
+            #expect(c.hours == 1)
+            #expect(c.minutes == 30)
+        }
+    }
+
+    @Test func equality() {
+        let p1 = Period(hours: 1, minutes: 30)
+        let p2 = Period(totalSeconds: 5400)
+        if let a = p1, let b = p2 {
+            #expect(a == b)
+        }
+    }
+
+    @Test func comparison() {
+        if let p1 = Period(hours: 1), let p2 = Period(hours: 2) {
+            #expect(p1 < p2)
+            #expect(p2 > p1)
+        }
+    }
+
+    @Test func isValidComponents() {
+        #expect(Period.isValid(days: 1, hours: 2, minutes: 30))
+        #expect(!Period.isValid(days: -1))
+    }
+
+    @Test func isValidSeconds() {
+        #expect(Period.isValid(totalSeconds: 100))
+        #expect(!Period.isValid(totalSeconds: -1))
+    }
+
+    @Test func withMilliseconds() {
+        if let p = Period(seconds: 1, milliseconds: 500, microseconds: 250) {
+            let c = p.components
+            #expect(c.seconds == 1)
+            #expect(c.milliseconds == 500)
+            #expect(c.microseconds == 250)
+        }
+    }
+
+    @Test func zeroPeriod() {
+        if let p = Period(totalSeconds: 0) {
+            #expect(p.totalSeconds == 0)
+            #expect(p.totalMicroseconds == 0)
+        }
+    }
+}
+
+@Suite("OCCTDate Tests")
+struct OCCTDateTests {
+    @Test func epoch() {
+        let d = OCCTDate.epoch
+        let c = d.components
+        #expect(c.year == 1979)
+        #expect(c.month == 1)
+        #expect(c.day == 1)
+    }
+
+    @Test func createDate() {
+        if let d = OCCTDate(month: 6, day: 15, year: 2000, hour: 14, minute: 30) {
+            #expect(d.year == 2000)
+            #expect(d.month == 6)
+            #expect(d.day == 15)
+            #expect(d.hour == 14)
+            #expect(d.minute == 30)
+        }
+    }
+
+    @Test func addPeriod() {
+        if let d = OCCTDate(month: 1, day: 1, year: 2000),
+           let oneDay = Period(days: 1) {
+            let d2 = d.adding(oneDay)
+            #expect(d2.day == 2)
+        }
+    }
+
+    @Test func subtractPeriod() {
+        if let d = OCCTDate(month: 1, day: 15, year: 2000, hour: 12),
+           let sixHours = Period(hours: 6) {
+            if let d2 = d.subtracting(sixHours) {
+                #expect(d2.hour == 6)
+            }
+        }
+    }
+
+    @Test func difference() {
+        if let d1 = OCCTDate(month: 1, day: 1, year: 2000),
+           let d2 = OCCTDate(month: 1, day: 2, year: 2000) {
+            let diff = d1.difference(to: d2)
+            #expect(diff.totalSeconds == 86400)
+        }
+    }
+
+    @Test func equality() {
+        let d1 = OCCTDate(month: 6, day: 15, year: 2000, hour: 12)
+        let d2 = OCCTDate(month: 6, day: 15, year: 2000, hour: 12)
+        if let a = d1, let b = d2 {
+            #expect(a == b)
+        }
+    }
+
+    @Test func comparison() {
+        if let d1 = OCCTDate(month: 1, day: 1, year: 2000),
+           let d2 = OCCTDate(month: 1, day: 2, year: 2000) {
+            #expect(d1 < d2)
+            #expect(d2 > d1)
+        }
+    }
+
+    @Test func operatorPlus() {
+        if let d = OCCTDate(month: 1, day: 1, year: 2000),
+           let p = Period(hours: 24) {
+            let d2 = d + p
+            #expect(d2.day == 2)
+        }
+    }
+
+    @Test func isValid() {
+        #expect(OCCTDate.isValid(month: 6, day: 15, year: 2000))
+        #expect(!OCCTDate.isValid(month: 13, day: 1, year: 2000))
+        #expect(!OCCTDate.isValid(month: 2, day: 30, year: 2000))
+    }
+
+    @Test func isLeap() {
+        #expect(OCCTDate.isLeap(year: 2000))
+        #expect(!OCCTDate.isLeap(year: 1900))
+        #expect(OCCTDate.isLeap(year: 2024))
+    }
+
+    @Test func millisecondMicrosecond() {
+        if let d = OCCTDate(month: 1, day: 1, year: 2000, millisecond: 123, microsecond: 456) {
+            #expect(d.millisecond == 123)
+            #expect(d.microsecond == 456)
+        }
+    }
+
+    @Test func invalidDate() {
+        let d = OCCTDate(month: 0, day: 0, year: 1900)
+        #expect(d == nil)
+    }
+}
+
+@Suite("FontManager Tests")
+struct FontManagerTests {
+    @Test func initDatabase() {
+        FontManager.initDatabase()
+        // Should not crash
+        #expect(FontManager.fontCount >= 0)
+    }
+
+    @Test func fontCount() {
+        FontManager.initDatabase()
+        let count = FontManager.fontCount
+        #expect(count >= 0)
+    }
+
+    @Test func aspectToString() {
+        #expect(FontManager.FontAspect.regular.name == "regular")
+        #expect(FontManager.FontAspect.bold.name == "bold")
+        #expect(FontManager.FontAspect.italic.name == "italic")
+        #expect(FontManager.FontAspect.boldItalic.name == "bold-italic")
+    }
+
+    @Test func allFontNames() {
+        FontManager.initDatabase()
+        let names = FontManager.allFontNames
+        #expect(names.count == FontManager.fontCount)
+    }
+
+    @Test func fontNameOutOfRange() {
+        let name = FontManager.fontName(at: 999999)
+        #expect(name == nil)
+    }
+}
+
+@Suite("PixMap Tests")
+struct PixMapTests {
+    @Test func createEmpty() {
+        if let img = PixMap() {
+            #expect(img.isEmpty)
+        }
+    }
+
+    @Test func initTrash() {
+        if let img = PixMap() {
+            let ok = img.initTrash(format: .rgba, width: 64, height: 64)
+            #expect(ok)
+            #expect(!img.isEmpty)
+            #expect(img.width == 64)
+            #expect(img.height == 64)
+            #expect(img.format == .rgba)
+        }
+    }
+
+    @Test func initTrashRGB() {
+        if let img = PixMap() {
+            let ok = img.initTrash(format: .rgb, width: 100, height: 50)
+            #expect(ok)
+            #expect(img.width == 100)
+            #expect(img.height == 50)
+            #expect(img.format == .rgb)
+        }
+    }
+
+    @Test func setAndGetPixel() {
+        if let img = PixMap() {
+            img.initTrash(format: .rgba, width: 4, height: 4)
+            let c = Color(red: 0.8, green: 0.2, blue: 0.5, alpha: 1.0)
+            img.setPixel(at: 2, y: 2, color: c)
+            let got = img.pixel(at: 2, y: 2)
+            #expect(abs(got.red - 0.8) < 0.02)
+        }
+    }
+
+    @Test func savePPM() {
+        if let img = PixMap() {
+            img.initTrash(format: .rgb, width: 16, height: 16)
+            for y in 0..<16 {
+                for x in 0..<16 {
+                    img.setPixel(at: x, y: y,
+                                 color: Color(red: Double(x)/16.0, green: Double(y)/16.0, blue: 0.5))
+                }
+            }
+            let saved = img.save(to: "/tmp/occt_pixmap_test.ppm")
+            #expect(saved)
+        }
+    }
+
+    @Test func clear() {
+        if let img = PixMap() {
+            img.initTrash(format: .rgb, width: 32, height: 32)
+            #expect(!img.isEmpty)
+            img.clear()
+            #expect(img.isEmpty)
+        }
+    }
+
+    @Test func initCopy() {
+        if let src = PixMap(), let dst = PixMap() {
+            src.initTrash(format: .rgb, width: 8, height: 8)
+            src.setPixel(at: 0, y: 0, color: .red)
+            let ok = dst.initCopy(from: src)
+            #expect(ok)
+            #expect(dst.width == 8)
+            #expect(dst.height == 8)
+        }
+    }
+
+    @Test func formatBytesPerPixel() {
+        #expect(PixMap.Format.rgba.bytesPerPixel == 4)
+        #expect(PixMap.Format.rgb.bytesPerPixel == 3)
+        #expect(PixMap.Format.gray.bytesPerPixel == 1)
+    }
+
+    @Test func isTopDownDefault() {
+        // Just verify it doesn't crash
+        _ = PixMap.isTopDownDefault
+    }
+
+    @Test func grayFormat() {
+        if let img = PixMap() {
+            img.initTrash(format: .gray, width: 10, height: 10)
+            #expect(img.format == .gray)
+            #expect(!img.isEmpty)
+        }
+    }
+}

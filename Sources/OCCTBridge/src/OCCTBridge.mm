@@ -31226,3 +31226,392 @@ float OCCTMaterialMetallicFromSpecular(double specR, double specG, double specB)
         return Graphic3d_PBRMaterial::MetallicFromSpecular(spec);
     } catch (...) { return 0.0f; }
 }
+
+// MARK: - v0.82.0: Quantity_Period, Quantity_Date, Font_FontMgr, Image_AlienPixMap
+
+#include <Quantity_Period.hxx>
+#include <Quantity_Date.hxx>
+#include <Font_FontMgr.hxx>
+#include <Font_SystemFont.hxx>
+#include <Font_FontAspect.hxx>
+#include <Image_AlienPixMap.hxx>
+#include <Image_Format.hxx>
+
+// --- Quantity_Period ---
+
+bool OCCTPeriodCreate(int dd, int hh, int mn, int ss, int mis, int mics,
+                      int *outSec, int *outUSec) {
+    try {
+        if (!Quantity_Period::IsValid(dd, hh, mn, ss, mis, mics)) return false;
+        Quantity_Period p(dd, hh, mn, ss, mis, mics);
+        p.Values(*outSec, *outUSec);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTPeriodCreateFromSeconds(int ss, int mics, int *outSec, int *outUSec) {
+    try {
+        if (!Quantity_Period::IsValid(ss, mics)) return false;
+        Quantity_Period p(ss, mics);
+        p.Values(*outSec, *outUSec);
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTPeriodComponents OCCTPeriodValues(int sec, int usec) {
+    OCCTPeriodComponents result = {0, 0, 0, 0, 0, 0};
+    try {
+        Quantity_Period p(sec, usec);
+        p.Values(result.days, result.hours, result.minutes, result.seconds,
+                 result.milliseconds, result.microseconds);
+    } catch (...) {}
+    return result;
+}
+
+void OCCTPeriodTotalSeconds(int sec, int usec, int *outSec, int *outUSec) {
+    try {
+        Quantity_Period p(sec, usec);
+        p.Values(*outSec, *outUSec);
+    } catch (...) {
+        *outSec = 0; *outUSec = 0;
+    }
+}
+
+void OCCTPeriodAdd(int sec1, int usec1, int sec2, int usec2, int *outSec, int *outUSec) {
+    try {
+        Quantity_Period p1(sec1, usec1);
+        Quantity_Period p2(sec2, usec2);
+        Quantity_Period sum = p1 + p2;
+        sum.Values(*outSec, *outUSec);
+    } catch (...) {
+        *outSec = 0; *outUSec = 0;
+    }
+}
+
+void OCCTPeriodSubtract(int sec1, int usec1, int sec2, int usec2, int *outSec, int *outUSec) {
+    try {
+        Quantity_Period p1(sec1, usec1);
+        Quantity_Period p2(sec2, usec2);
+        Quantity_Period diff = p1 - p2;
+        diff.Values(*outSec, *outUSec);
+    } catch (...) {
+        *outSec = 0; *outUSec = 0;
+    }
+}
+
+int OCCTPeriodCompare(int sec1, int usec1, int sec2, int usec2) {
+    try {
+        Quantity_Period p1(sec1, usec1);
+        Quantity_Period p2(sec2, usec2);
+        if (p1 == p2) return 0;
+        if (p1 < p2) return -1;
+        return 1;
+    } catch (...) { return 0; }
+}
+
+bool OCCTPeriodIsValid(int dd, int hh, int mn, int ss, int mis, int mics) {
+    return Quantity_Period::IsValid(dd, hh, mn, ss, mis, mics);
+}
+
+bool OCCTPeriodIsValidSeconds(int ss, int mics) {
+    return Quantity_Period::IsValid(ss, mics);
+}
+
+// --- Quantity_Date ---
+
+bool OCCTDateCreate(int mm, int dd, int yyyy, int hh, int mn, int ss, int mis, int mics,
+                     int *outSec, int *outUSec) {
+    try {
+        if (!Quantity_Date::IsValid(mm, dd, yyyy, hh, mn, ss, mis, mics)) return false;
+        Quantity_Date d(mm, dd, yyyy, hh, mn, ss, mis, mics);
+        // Store as difference from epoch
+        Quantity_Date epoch;
+        Quantity_Period diff = d.Difference(epoch);
+        diff.Values(*outSec, *outUSec);
+        // Need to know direction - if d > epoch, sec is positive
+        if (d < epoch) { *outSec = -(*outSec); }
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTDateDefault(int *outSec, int *outUSec) {
+    *outSec = 0;
+    *outUSec = 0;
+}
+
+OCCTDateComponents OCCTDateValues(int sec, int usec) {
+    OCCTDateComponents result = {1, 1, 1979, 0, 0, 0, 0, 0};
+    try {
+        Quantity_Date epoch;
+        if (sec > 0 || (sec == 0 && usec > 0)) {
+            Quantity_Period p(sec, usec);
+            Quantity_Date d = epoch + p;
+            d.Values(result.month, result.day, result.year,
+                     result.hour, result.minute, result.second,
+                     result.millisecond, result.microsecond);
+        }
+    } catch (...) {}
+    return result;
+}
+
+void OCCTDateAddPeriod(int dateSec, int dateUSec, int periodSec, int periodUSec,
+                        int *outSec, int *outUSec) {
+    try {
+        Quantity_Date epoch;
+        Quantity_Date d = epoch;
+        if (dateSec > 0 || dateUSec > 0) {
+            d = epoch + Quantity_Period(dateSec, dateUSec);
+        }
+        Quantity_Period p(periodSec, periodUSec);
+        Quantity_Date result = d + p;
+        Quantity_Period diff = result.Difference(epoch);
+        diff.Values(*outSec, *outUSec);
+    } catch (...) {
+        *outSec = 0; *outUSec = 0;
+    }
+}
+
+bool OCCTDateSubtractPeriod(int dateSec, int dateUSec, int periodSec, int periodUSec,
+                             int *outSec, int *outUSec) {
+    try {
+        Quantity_Date epoch;
+        Quantity_Date d = epoch;
+        if (dateSec > 0 || dateUSec > 0) {
+            d = epoch + Quantity_Period(dateSec, dateUSec);
+        }
+        Quantity_Period p(periodSec, periodUSec);
+        Quantity_Date result = d - p;
+        Quantity_Period diff = result.Difference(epoch);
+        diff.Values(*outSec, *outUSec);
+        return true;
+    } catch (...) {
+        *outSec = 0; *outUSec = 0;
+        return false;
+    }
+}
+
+void OCCTDateDifference(int sec1, int usec1, int sec2, int usec2,
+                         int *outPeriodSec, int *outPeriodUSec) {
+    try {
+        Quantity_Date epoch;
+        Quantity_Date d1 = epoch;
+        Quantity_Date d2 = epoch;
+        if (sec1 > 0 || usec1 > 0) d1 = epoch + Quantity_Period(sec1, usec1);
+        if (sec2 > 0 || usec2 > 0) d2 = epoch + Quantity_Period(sec2, usec2);
+        Quantity_Period diff = d1.Difference(d2);
+        diff.Values(*outPeriodSec, *outPeriodUSec);
+    } catch (...) {
+        *outPeriodSec = 0; *outPeriodUSec = 0;
+    }
+}
+
+int OCCTDateCompare(int sec1, int usec1, int sec2, int usec2) {
+    if (sec1 < sec2) return -1;
+    if (sec1 > sec2) return 1;
+    if (usec1 < usec2) return -1;
+    if (usec1 > usec2) return 1;
+    return 0;
+}
+
+bool OCCTDateIsValid(int mm, int dd, int yyyy, int hh, int mn, int ss, int mis, int mics) {
+    return Quantity_Date::IsValid(mm, dd, yyyy, hh, mn, ss, mis, mics);
+}
+
+bool OCCTDateIsLeap(int year) {
+    return Quantity_Date::IsLeap(year);
+}
+
+// --- Font_FontMgr ---
+
+static NCollection_List<Handle(Font_SystemFont)> g_fontList;
+static bool g_fontListPopulated = false;
+
+static void ensureFontList() {
+    if (!g_fontListPopulated) {
+        Handle(Font_FontMgr) mgr = Font_FontMgr::GetInstance();
+        mgr->InitFontDataBase();
+        g_fontList = mgr->GetAvailableFonts();
+        g_fontListPopulated = true;
+    }
+}
+
+void OCCTFontMgrInitDatabase(void) {
+    try {
+        Handle(Font_FontMgr) mgr = Font_FontMgr::GetInstance();
+        mgr->InitFontDataBase();
+        g_fontList = mgr->GetAvailableFonts();
+        g_fontListPopulated = true;
+    } catch (...) {}
+}
+
+int OCCTFontMgrFontCount(void) {
+    try {
+        ensureFontList();
+        return g_fontList.Size();
+    } catch (...) { return 0; }
+}
+
+const char *_Nullable OCCTFontMgrFontName(int index) {
+    try {
+        ensureFontList();
+        int i = 0;
+        for (auto it = g_fontList.cbegin(); it != g_fontList.cend(); ++it, ++i) {
+            if (i == index) {
+                TCollection_AsciiString name = (*it)->FontName();
+                char *result = (char *)malloc(name.Length() + 1);
+                if (!result) return nullptr;
+                memcpy(result, name.ToCString(), name.Length() + 1);
+                return result;
+            }
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+const char *_Nullable OCCTFontMgrFontPath(int index, int aspect) {
+    try {
+        ensureFontList();
+        if (aspect < 0 || aspect > 3) return nullptr;
+        Font_FontAspect fa = (Font_FontAspect)aspect;
+        int i = 0;
+        for (auto it = g_fontList.cbegin(); it != g_fontList.cend(); ++it, ++i) {
+            if (i == index) {
+                TCollection_AsciiString path = (*it)->FontPath(fa);
+                if (path.IsEmpty()) return nullptr;
+                char *result = (char *)malloc(path.Length() + 1);
+                if (!result) return nullptr;
+                memcpy(result, path.ToCString(), path.Length() + 1);
+                return result;
+            }
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTFontMgrFontHasAspect(int index, int aspect) {
+    try {
+        ensureFontList();
+        if (aspect < 0 || aspect > 3) return false;
+        Font_FontAspect fa = (Font_FontAspect)aspect;
+        int i = 0;
+        for (auto it = g_fontList.cbegin(); it != g_fontList.cend(); ++it, ++i) {
+            if (i == index) {
+                return (*it)->HasFontAspect(fa);
+            }
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+const char *_Nonnull OCCTFontMgrAspectToString(int aspect) {
+    return Font_FontMgr::FontAspectToString((Font_FontAspect)aspect);
+}
+
+// --- Image_AlienPixMap ---
+
+struct OCCTImage {
+    Handle(Image_AlienPixMap) image;
+};
+
+OCCTImageRef OCCTImageCreate(void) {
+    try {
+        return (OCCTImageRef)new OCCTImage{new Image_AlienPixMap()};
+    } catch (...) { return nullptr; }
+}
+
+void OCCTImageRelease(OCCTImageRef ref) {
+    delete (OCCTImage *)ref;
+}
+
+bool OCCTImageInitTrash(OCCTImageRef ref, int format, int width, int height) {
+    if (!ref) return false;
+    try {
+        OCCTImage *img = (OCCTImage *)ref;
+        return img->image->InitTrash((Image_Format)format, width, height);
+    } catch (...) { return false; }
+}
+
+bool OCCTImageInitCopy(OCCTImageRef dst, OCCTImageRef src) {
+    if (!dst || !src) return false;
+    try {
+        OCCTImage *d = (OCCTImage *)dst;
+        OCCTImage *s = (OCCTImage *)src;
+        return d->image->InitCopy(*s->image);
+    } catch (...) { return false; }
+}
+
+void OCCTImageClear(OCCTImageRef ref) {
+    if (!ref) return;
+    try {
+        ((OCCTImage *)ref)->image->Clear();
+    } catch (...) {}
+}
+
+int OCCTImageWidth(OCCTImageRef ref) {
+    if (!ref) return 0;
+    return (int)((OCCTImage *)ref)->image->SizeX();
+}
+
+int OCCTImageHeight(OCCTImageRef ref) {
+    if (!ref) return 0;
+    return (int)((OCCTImage *)ref)->image->SizeY();
+}
+
+int OCCTImageFormat(OCCTImageRef ref) {
+    if (!ref) return 0;
+    return (int)((OCCTImage *)ref)->image->Format();
+}
+
+bool OCCTImageIsEmpty(OCCTImageRef ref) {
+    if (!ref) return true;
+    return ((OCCTImage *)ref)->image->IsEmpty();
+}
+
+void OCCTImageGetPixel(OCCTImageRef ref, int x, int y,
+                        float *r, float *g, float *b, float *a) {
+    if (!ref) { *r = 0; *g = 0; *b = 0; *a = 0; return; }
+    try {
+        Quantity_ColorRGBA c = ((OCCTImage *)ref)->image->PixelColor(x, y);
+        *r = (float)c.GetRGB().Red();
+        *g = (float)c.GetRGB().Green();
+        *b = (float)c.GetRGB().Blue();
+        *a = c.Alpha();
+    } catch (...) { *r = 0; *g = 0; *b = 0; *a = 0; }
+}
+
+void OCCTImageSetPixel(OCCTImageRef ref, int x, int y, float r, float g, float b, float a) {
+    if (!ref) return;
+    try {
+        Quantity_ColorRGBA c(r, g, b, a);
+        ((OCCTImage *)ref)->image->SetPixelColor(x, y, c);
+    } catch (...) {}
+}
+
+bool OCCTImageSave(OCCTImageRef ref, const char *filePath) {
+    if (!ref) return false;
+    try {
+        return ((OCCTImage *)ref)->image->Save(TCollection_AsciiString(filePath));
+    } catch (...) { return false; }
+}
+
+bool OCCTImageLoad(OCCTImageRef ref, const char *filePath) {
+    if (!ref) return false;
+    try {
+        return ((OCCTImage *)ref)->image->Load(TCollection_AsciiString(filePath));
+    } catch (...) { return false; }
+}
+
+bool OCCTImageAdjustGamma(OCCTImageRef ref, double gamma) {
+    if (!ref) return false;
+    try {
+        return ((OCCTImage *)ref)->image->AdjustGamma(gamma);
+    } catch (...) { return false; }
+}
+
+int OCCTImageSizePixelBytes(int format) {
+    return (int)Image_PixMap::SizePixelBytes((Image_Format)format);
+}
+
+bool OCCTImageIsTopDownDefault(void) {
+    return Image_AlienPixMap::IsTopDownDefault();
+}
