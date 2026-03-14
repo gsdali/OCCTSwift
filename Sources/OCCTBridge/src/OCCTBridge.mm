@@ -30945,3 +30945,284 @@ OCCTCurve2DRef _Nullable OCCTGceMakeParab2d(double cx, double cy,
         return (OCCTCurve2DRef)new OCCTCurve2D{parab};
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.81.0: Visualization — Quantity_Color, Quantity_ColorRGBA, Graphic3d_MaterialAspect, Graphic3d_PBRMaterial
+
+#include <Quantity_Color.hxx>
+#include <Quantity_ColorRGBA.hxx>
+#include <Quantity_NameOfColor.hxx>
+#include <Quantity_TypeOfColor.hxx>
+#include <Graphic3d_MaterialAspect.hxx>
+#include <Graphic3d_NameOfMaterial.hxx>
+#include <Graphic3d_TypeOfMaterial.hxx>
+#include <Graphic3d_PBRMaterial.hxx>
+
+// --- Quantity_Color ---
+
+bool OCCTColorFromName(const char *_Nonnull name,
+                       double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB) {
+    try {
+        Quantity_Color c;
+        if (!Quantity_Color::ColorFromName(name, c)) return false;
+        *outR = c.Red();
+        *outG = c.Green();
+        *outB = c.Blue();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTColorFromHex(const char *_Nonnull hex,
+                      double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB) {
+    try {
+        Quantity_Color c;
+        if (!Quantity_Color::ColorFromHex(hex, c)) return false;
+        *outR = c.Red();
+        *outG = c.Green();
+        *outB = c.Blue();
+        return true;
+    } catch (...) { return false; }
+}
+
+const char *_Nullable OCCTColorToHex(double r, double g, double b, bool useSRGB) {
+    try {
+        Quantity_Color c(r, g, b, Quantity_TOC_RGB);
+        TCollection_AsciiString hex = Quantity_Color::ColorToHex(c, !useSRGB);
+        char *result = (char *)malloc(hex.Length() + 1);
+        if (!result) return nullptr;
+        memcpy(result, hex.ToCString(), hex.Length() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTColorDistance(double r1, double g1, double b1,
+                         double r2, double g2, double b2) {
+    try {
+        Quantity_Color c1(r1, g1, b1, Quantity_TOC_RGB);
+        Quantity_Color c2(r2, g2, b2, Quantity_TOC_RGB);
+        return c1.Distance(c2);
+    } catch (...) { return -1.0; }
+}
+
+double OCCTColorSquareDistance(double r1, double g1, double b1,
+                                double r2, double g2, double b2) {
+    try {
+        Quantity_Color c1(r1, g1, b1, Quantity_TOC_RGB);
+        Quantity_Color c2(r2, g2, b2, Quantity_TOC_RGB);
+        return c1.SquareDistance(c2);
+    } catch (...) { return -1.0; }
+}
+
+double OCCTColorDeltaE2000(double r1, double g1, double b1,
+                            double r2, double g2, double b2) {
+    try {
+        Quantity_Color c1(r1, g1, b1, Quantity_TOC_RGB);
+        Quantity_Color c2(r2, g2, b2, Quantity_TOC_RGB);
+        return c1.DeltaE2000(c2);
+    } catch (...) { return -1.0; }
+}
+
+OCCTColorHLS OCCTColorToHLS(double r, double g, double b) {
+    OCCTColorHLS result = {0, 0, 0};
+    try {
+        Quantity_Color c(r, g, b, Quantity_TOC_RGB);
+        result.hue = c.Hue();
+        result.lightness = c.Light();
+        result.saturation = c.Saturation();
+    } catch (...) {}
+    return result;
+}
+
+void OCCTColorFromHLS(double h, double l, double s,
+                      double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB) {
+    try {
+        Quantity_Color c(h, l, s, Quantity_TOC_HLS);
+        *outR = c.Red();
+        *outG = c.Green();
+        *outB = c.Blue();
+    } catch (...) {
+        *outR = 0; *outG = 0; *outB = 0;
+    }
+}
+
+void OCCTColorChangeIntensity(double *_Nonnull r, double *_Nonnull g, double *_Nonnull b, double delta) {
+    try {
+        Quantity_Color c(*r, *g, *b, Quantity_TOC_RGB);
+        c.ChangeIntensity(delta);
+        *r = c.Red();
+        *g = c.Green();
+        *b = c.Blue();
+    } catch (...) {}
+}
+
+void OCCTColorChangeContrast(double *_Nonnull r, double *_Nonnull g, double *_Nonnull b, double delta) {
+    try {
+        Quantity_Color c(*r, *g, *b, Quantity_TOC_RGB);
+        c.ChangeContrast(delta);
+        *r = c.Red();
+        *g = c.Green();
+        *b = c.Blue();
+    } catch (...) {}
+}
+
+void OCCTColorLinearToSRGB(float inR, float inG, float inB,
+                            float *_Nonnull outR, float *_Nonnull outG, float *_Nonnull outB) {
+    try {
+        NCollection_Vec3<float> linear(inR, inG, inB);
+        NCollection_Vec3<float> srgb = Quantity_Color::Convert_LinearRGB_To_sRGB(linear);
+        *outR = srgb.r();
+        *outG = srgb.g();
+        *outB = srgb.b();
+    } catch (...) {
+        *outR = inR; *outG = inG; *outB = inB;
+    }
+}
+
+void OCCTColorSRGBToLinear(float inR, float inG, float inB,
+                            float *_Nonnull outR, float *_Nonnull outG, float *_Nonnull outB) {
+    try {
+        NCollection_Vec3<float> srgb(inR, inG, inB);
+        NCollection_Vec3<float> linear = Quantity_Color::Convert_sRGB_To_LinearRGB(srgb);
+        *outR = linear.r();
+        *outG = linear.g();
+        *outB = linear.b();
+    } catch (...) {
+        *outR = inR; *outG = inG; *outB = inB;
+    }
+}
+
+OCCTColorLab OCCTColorToLab(double r, double g, double b) {
+    OCCTColorLab result = {0, 0, 0};
+    try {
+        float fr = (float)r, fg = (float)g, fb = (float)b;
+        NCollection_Vec3<float> linear(fr, fg, fb);
+        NCollection_Vec3<float> lab = Quantity_Color::Convert_LinearRGB_To_Lab(linear);
+        result.l = lab.x();
+        result.a = lab.y();
+        result.b = lab.z();
+    } catch (...) {}
+    return result;
+}
+
+const char *_Nullable OCCTColorStringName(int index) {
+    try {
+        if (index < 0 || index >= (int)Quantity_NOC_WHITE + 1) return nullptr;
+        TCollection_AsciiString name = Quantity_Color::StringName((Quantity_NameOfColor)index);
+        char *result = (char *)malloc(name.Length() + 1);
+        if (!result) return nullptr;
+        memcpy(result, name.ToCString(), name.Length() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTColorEpsilon(void) {
+    return Quantity_Color::Epsilon();
+}
+
+// --- Quantity_ColorRGBA ---
+
+bool OCCTColorRGBAFromHex(const char *_Nonnull hex,
+                           double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB,
+                           double *_Nonnull outA) {
+    try {
+        Quantity_ColorRGBA c;
+        if (!Quantity_ColorRGBA::ColorFromHex(hex, c)) return false;
+        *outR = c.GetRGB().Red();
+        *outG = c.GetRGB().Green();
+        *outB = c.GetRGB().Blue();
+        *outA = double(c.Alpha());
+        return true;
+    } catch (...) { return false; }
+}
+
+const char *_Nullable OCCTColorRGBAToHex(double r, double g, double b, double a, bool useSRGB) {
+    try {
+        Quantity_Color rgb(r, g, b, Quantity_TOC_RGB);
+        Quantity_ColorRGBA c(rgb, float(a));
+        TCollection_AsciiString hex = Quantity_ColorRGBA::ColorToHex(c, !useSRGB);
+        char *result = (char *)malloc(hex.Length() + 1);
+        if (!result) return nullptr;
+        memcpy(result, hex.ToCString(), hex.Length() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// --- Graphic3d_MaterialAspect ---
+
+static void fillMaterialProps(const Graphic3d_MaterialAspect& mat, OCCTMaterialProperties *props) {
+    Quantity_Color ac = mat.AmbientColor();
+    props->ambientR = ac.Red(); props->ambientG = ac.Green(); props->ambientB = ac.Blue();
+    Quantity_Color dc = mat.DiffuseColor();
+    props->diffuseR = dc.Red(); props->diffuseG = dc.Green(); props->diffuseB = dc.Blue();
+    Quantity_Color sc = mat.SpecularColor();
+    props->specularR = sc.Red(); props->specularG = sc.Green(); props->specularB = sc.Blue();
+    Quantity_Color ec = mat.EmissiveColor();
+    props->emissiveR = ec.Red(); props->emissiveG = ec.Green(); props->emissiveB = ec.Blue();
+    props->transparency = mat.Transparency();
+    props->shininess = mat.Shininess();
+    props->refractionIndex = mat.RefractionIndex();
+    props->isPhysic = (mat.MaterialType() == Graphic3d_MATERIAL_PHYSIC);
+    // PBR
+    Graphic3d_PBRMaterial pbr = mat.PBRMaterial();
+    props->pbrMetallic = pbr.Metallic();
+    props->pbrRoughness = pbr.Roughness();
+    props->pbrIOR = pbr.IOR();
+    props->pbrAlpha = pbr.Alpha();
+    NCollection_Vec3<float> em = pbr.Emission();
+    props->pbrEmissionR = em.x(); props->pbrEmissionG = em.y(); props->pbrEmissionB = em.z();
+}
+
+int OCCTMaterialNumberOfMaterials(void) {
+    return Graphic3d_MaterialAspect::NumberOfMaterials();
+}
+
+const char *_Nullable OCCTMaterialName(int index) {
+    try {
+        if (index < 1 || index > Graphic3d_MaterialAspect::NumberOfMaterials()) return nullptr;
+        TCollection_AsciiString name = Graphic3d_MaterialAspect::MaterialName(index);
+        char *result = (char *)malloc(name.Length() + 1);
+        if (!result) return nullptr;
+        memcpy(result, name.ToCString(), name.Length() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTMaterialFromName(const char *_Nonnull name, OCCTMaterialProperties *_Nonnull outProps) {
+    try {
+        Graphic3d_NameOfMaterial nom;
+        if (!Graphic3d_MaterialAspect::MaterialFromName(name, nom)) return false;
+        Graphic3d_MaterialAspect mat(nom);
+        fillMaterialProps(mat, outProps);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTMaterialFromIndex(int index, OCCTMaterialProperties *_Nonnull outProps) {
+    try {
+        if (index < 1 || index > Graphic3d_MaterialAspect::NumberOfMaterials()) return false;
+        // Get name then construct
+        Graphic3d_NameOfMaterial nom = (Graphic3d_NameOfMaterial)(index - 1);
+        Graphic3d_MaterialAspect mat(nom);
+        fillMaterialProps(mat, outProps);
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- Graphic3d_PBRMaterial ---
+
+float OCCTMaterialMinRoughness(void) {
+    return Graphic3d_PBRMaterial::MinRoughness();
+}
+
+float OCCTMaterialRoughnessFromSpecular(double specR, double specG, double specB, double shininess) {
+    try {
+        Quantity_Color spec(specR, specG, specB, Quantity_TOC_RGB);
+        return Graphic3d_PBRMaterial::RoughnessFromSpecular(spec, shininess);
+    } catch (...) { return 0.5f; }
+}
+
+float OCCTMaterialMetallicFromSpecular(double specR, double specG, double specB) {
+    try {
+        Quantity_Color spec(specR, specG, specB, Quantity_TOC_RGB);
+        return Graphic3d_PBRMaterial::MetallicFromSpecular(spec);
+    } catch (...) { return 0.0f; }
+}

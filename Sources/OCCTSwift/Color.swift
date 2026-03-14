@@ -1,4 +1,5 @@
 import Foundation
+import OCCTBridge
 #if canImport(CoreGraphics)
 import CoreGraphics
 #endif
@@ -73,4 +74,132 @@ public struct Color: Sendable, Equatable, Hashable {
 
     /// Clear (fully transparent)
     public static let clear = Color(red: 0, green: 0, blue: 0, alpha: 0)
+
+    // MARK: - OCCT Color Operations (Quantity_Color / Quantity_ColorRGBA)
+
+    /// HLS (Hue-Lightness-Saturation) color components
+    public struct HLS: Sendable, Equatable {
+        public var hue: Double
+        public var lightness: Double
+        public var saturation: Double
+    }
+
+    /// CIE Lab color components
+    public struct Lab: Sendable, Equatable {
+        public var l: Double
+        public var a: Double
+        public var b: Double
+    }
+
+    /// Create a color from a named OCCT color (e.g., "RED", "BLUE", "GOLD")
+    public static func fromName(_ name: String) -> Color? {
+        var r: Double = 0, g: Double = 0, b: Double = 0
+        guard OCCTColorFromName(name, &r, &g, &b) else { return nil }
+        return Color(red: r, green: g, blue: b)
+    }
+
+    /// Create a color from a hex string (e.g., "#FF0000")
+    public static func fromHex(_ hex: String) -> Color? {
+        var r: Double = 0, g: Double = 0, b: Double = 0
+        guard OCCTColorFromHex(hex, &r, &g, &b) else { return nil }
+        return Color(red: r, green: g, blue: b)
+    }
+
+    /// Create an RGBA color from a hex string with alpha (e.g., "#FF000080")
+    public static func fromHexRGBA(_ hex: String) -> Color? {
+        var r: Double = 0, g: Double = 0, b: Double = 0, a: Double = 0
+        guard OCCTColorRGBAFromHex(hex, &r, &g, &b, &a) else { return nil }
+        return Color(red: r, green: g, blue: b, alpha: a)
+    }
+
+    /// Convert to hex string (linear RGB)
+    public func toHex(sRGB: Bool = false) -> String? {
+        guard let cStr = OCCTColorToHex(red, green, blue, sRGB) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+
+    /// Convert to hex string with alpha
+    public func toHexRGBA(sRGB: Bool = false) -> String? {
+        guard let cStr = OCCTColorRGBAToHex(red, green, blue, alpha, sRGB) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+
+    /// Euclidean distance to another color in linear RGB space
+    public func distance(to other: Color) -> Double {
+        OCCTColorDistance(red, green, blue, other.red, other.green, other.blue)
+    }
+
+    /// Square distance to another color in linear RGB space
+    public func squareDistance(to other: Color) -> Double {
+        OCCTColorSquareDistance(red, green, blue, other.red, other.green, other.blue)
+    }
+
+    /// CIE DeltaE2000 perceptual color difference
+    public func deltaE2000(to other: Color) -> Double {
+        OCCTColorDeltaE2000(red, green, blue, other.red, other.green, other.blue)
+    }
+
+    /// Get HLS (Hue-Lightness-Saturation) representation
+    public var hls: HLS {
+        let result = OCCTColorToHLS(red, green, blue)
+        return HLS(hue: result.hue, lightness: result.lightness, saturation: result.saturation)
+    }
+
+    /// Create a color from HLS values
+    public static func fromHLS(hue: Double, lightness: Double, saturation: Double) -> Color {
+        var r: Double = 0, g: Double = 0, b: Double = 0
+        OCCTColorFromHLS(hue, lightness, saturation, &r, &g, &b)
+        return Color(red: r, green: g, blue: b)
+    }
+
+    /// Return a new color with modified intensity (lightness delta)
+    public func withIntensityChanged(by delta: Double) -> Color {
+        var r = red, g = green, b = blue
+        OCCTColorChangeIntensity(&r, &g, &b, delta)
+        return Color(red: r, green: g, blue: b, alpha: alpha)
+    }
+
+    /// Return a new color with modified contrast (saturation percentage delta)
+    public func withContrastChanged(by delta: Double) -> Color {
+        var r = red, g = green, b = blue
+        OCCTColorChangeContrast(&r, &g, &b, delta)
+        return Color(red: r, green: g, blue: b, alpha: alpha)
+    }
+
+    /// Convert linear RGB to sRGB
+    public var sRGB: Color {
+        var outR: Float = 0, outG: Float = 0, outB: Float = 0
+        OCCTColorLinearToSRGB(Float(red), Float(green), Float(blue), &outR, &outG, &outB)
+        return Color(red: Double(outR), green: Double(outG), blue: Double(outB), alpha: alpha)
+    }
+
+    /// Convert sRGB to linear RGB
+    public var linearRGB: Color {
+        var outR: Float = 0, outG: Float = 0, outB: Float = 0
+        OCCTColorSRGBToLinear(Float(red), Float(green), Float(blue), &outR, &outG, &outB)
+        return Color(red: Double(outR), green: Double(outG), blue: Double(outB), alpha: alpha)
+    }
+
+    /// Convert to CIE Lab color space
+    public var lab: Lab {
+        let result = OCCTColorToLab(red, green, blue)
+        return Lab(l: result.l, a: result.a, b: result.b)
+    }
+
+    /// Get name of a named color by index (0-based). Returns nil if index out of range.
+    public static func namedColorName(at index: Int) -> String? {
+        guard let cStr = OCCTColorStringName(Int32(index)) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+
+    /// Color comparison epsilon
+    public static var epsilon: Double {
+        OCCTColorEpsilon()
+    }
 }

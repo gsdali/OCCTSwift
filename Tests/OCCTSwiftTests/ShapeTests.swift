@@ -23117,3 +23117,245 @@ struct GceMakeParab2dTests {
         }
     }
 }
+
+// MARK: - v0.81.0: Visualization — Quantity_Color, Quantity_ColorRGBA, Graphic3d_MaterialAspect, Graphic3d_PBRMaterial
+
+@Suite("Color OCCT Operations Tests")
+struct ColorOCCTTests {
+    @Test func fromName() {
+        if let c = Color.fromName("RED") {
+            #expect(c.red > 0.9)
+            #expect(c.green < 0.1)
+            #expect(c.blue < 0.1)
+        }
+    }
+
+    @Test func fromNameBlue() {
+        if let c = Color.fromName("BLUE") {
+            #expect(c.blue > 0.9)
+        }
+    }
+
+    @Test func fromNameInvalid() {
+        let c = Color.fromName("NOTACOLOR_XYZ")
+        #expect(c == nil)
+    }
+
+    @Test func fromHex() {
+        if let c = Color.fromHex("#FF0000") {
+            #expect(c.red > 0.9)
+            #expect(c.green < 0.1)
+        }
+    }
+
+    @Test func fromHexInvalid() {
+        let c = Color.fromHex("NOT_HEX")
+        #expect(c == nil)
+    }
+
+    @Test func toHex() {
+        let c = Color(red: 1.0, green: 0.0, blue: 0.0)
+        if let hex = c.toHex() {
+            #expect(!hex.isEmpty)
+        }
+    }
+
+    @Test func fromHexRGBA() {
+        if let c = Color.fromHexRGBA("#FF000080") {
+            #expect(c.red > 0.5)
+            #expect(c.alpha < 1.0)
+        }
+    }
+
+    @Test func toHexRGBA() {
+        let c = Color(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.5)
+        if let hex = c.toHexRGBA() {
+            #expect(!hex.isEmpty)
+        }
+    }
+
+    @Test func distance() {
+        let red = Color(red: 1, green: 0, blue: 0)
+        let blue = Color(red: 0, green: 0, blue: 1)
+        let d = red.distance(to: blue)
+        #expect(d > 1.0)
+    }
+
+    @Test func squareDistance() {
+        let red = Color(red: 1, green: 0, blue: 0)
+        let green = Color(red: 0, green: 1, blue: 0)
+        let sd = red.squareDistance(to: green)
+        #expect(sd > 1.0)
+    }
+
+    @Test func deltaE2000() {
+        let c1 = Color(red: 0.5, green: 0, blue: 0)
+        let c2 = Color(red: 0.6, green: 0, blue: 0)
+        let de = c1.deltaE2000(to: c2)
+        #expect(de > 0)
+    }
+
+    @Test func deltaE2000SameColor() {
+        let c = Color(red: 0.3, green: 0.5, blue: 0.7)
+        let de = c.deltaE2000(to: c)
+        #expect(de < 0.001)
+    }
+
+    @Test func hlsConversion() {
+        let red = Color(red: 1, green: 0, blue: 0)
+        let hls = red.hls
+        #expect(hls.saturation > 0.9)
+        #expect(hls.lightness > 0.9)
+    }
+
+    @Test func fromHLSRoundtrip() {
+        let original = Color(red: 0.4, green: 0.6, blue: 0.2)
+        let hls = original.hls
+        let restored = Color.fromHLS(hue: hls.hue, lightness: hls.lightness, saturation: hls.saturation)
+        #expect(abs(restored.red - original.red) < 0.01)
+        #expect(abs(restored.green - original.green) < 0.01)
+    }
+
+    @Test func changeIntensity() {
+        let c = Color(red: 0.5, green: 0.5, blue: 0.5)
+        let brighter = c.withIntensityChanged(by: 0.1)
+        #expect(brighter.red > c.red)
+    }
+
+    @Test func changeContrast() {
+        let c = Color(red: 0.5, green: 0.5, blue: 0.5)
+        let modified = c.withContrastChanged(by: 10.0)
+        // Should not crash
+        #expect(modified.red >= 0)
+    }
+
+    @Test func linearToSRGB() {
+        let linear = Color(red: 0.5, green: 0.5, blue: 0.5)
+        let srgb = linear.sRGB
+        #expect(srgb.red > 0.7) // gamma expansion makes it brighter
+    }
+
+    @Test func sRGBToLinear() {
+        let srgb = Color(red: 0.5, green: 0.5, blue: 0.5)
+        let linear = srgb.linearRGB
+        #expect(linear.red < 0.3) // gamma compression makes it darker
+    }
+
+    @Test func sRGBRoundtrip() {
+        let original = Color(red: 0.3, green: 0.6, blue: 0.9)
+        let srgb = original.sRGB
+        let back = srgb.linearRGB
+        #expect(abs(back.red - original.red) < 0.01)
+    }
+
+    @Test func toLab() {
+        let gray = Color(red: 0.5, green: 0.5, blue: 0.5)
+        let lab = gray.lab
+        #expect(lab.l > 50) // mid-gray has L* > 50
+    }
+
+    @Test func namedColorName() {
+        if let name = Color.namedColorName(at: 0) {
+            #expect(!name.isEmpty)
+        }
+    }
+
+    @Test func epsilon() {
+        let eps = Color.epsilon
+        #expect(eps > 0)
+        #expect(eps < 0.01)
+    }
+
+    @Test func alphaPreservedOnIntensityChange() {
+        let c = Color(red: 0.5, green: 0.5, blue: 0.5, alpha: 0.7)
+        let modified = c.withIntensityChanged(by: 0.1)
+        #expect(abs(modified.alpha - 0.7) < 0.001)
+    }
+}
+
+@Suite("Material OCCT Operations Tests")
+struct MaterialOCCTTests {
+    @Test func predefinedMaterialCount() {
+        let count = Material.predefinedMaterialCount
+        #expect(count > 10)
+    }
+
+    @Test func predefinedMaterialName() {
+        if let name = Material.predefinedMaterialName(at: 1) {
+            #expect(!name.isEmpty)
+        }
+    }
+
+    @Test func predefinedMaterialNameOutOfRange() {
+        let name = Material.predefinedMaterialName(at: 999)
+        #expect(name == nil)
+    }
+
+    @Test func predefinedMaterialByName() {
+        if let brass = Material.predefinedMaterial(named: "Brass") {
+            #expect(brass.isPhysic)
+            #expect(brass.shininess >= 0)
+            #expect(brass.transparency >= 0)
+        }
+    }
+
+    @Test func predefinedMaterialByNameInvalid() {
+        let m = Material.predefinedMaterial(named: "NOT_A_MATERIAL_XYZ")
+        #expect(m == nil)
+    }
+
+    @Test func predefinedMaterialByIndex() {
+        if let m = Material.predefinedMaterial(at: 1) {
+            #expect(m.shininess >= 0)
+            #expect(m.pbrRoughness >= 0)
+        }
+    }
+
+    @Test func predefinedMaterialByIndexOutOfRange() {
+        let m = Material.predefinedMaterial(at: 999)
+        #expect(m == nil)
+    }
+
+    @Test func predefinedMaterialColors() {
+        if let gold = Material.predefinedMaterial(named: "Gold") {
+            #expect(gold.diffuseColor.red >= 0)
+            #expect(gold.specularColor.red >= 0)
+            #expect(gold.ambientColor.red >= 0)
+        }
+    }
+
+    @Test func predefinedMaterialPBR() {
+        if let copper = Material.predefinedMaterial(named: "Copper") {
+            #expect(copper.pbrMetallic >= 0)
+            #expect(copper.pbrRoughness >= 0)
+            #expect(copper.pbrIOR > 1.0)
+        }
+    }
+
+    @Test func minRoughness() {
+        let mr = Material.minRoughness
+        #expect(mr > 0)
+        #expect(mr < 0.1)
+    }
+
+    @Test func roughnessFromSpecular() {
+        let r = Material.roughnessFromSpecular(color: .white, shininess: 0.8)
+        #expect(r >= 0 && r <= 1)
+    }
+
+    @Test func metallicFromSpecular() {
+        let m = Material.metallicFromSpecular(color: .white)
+        #expect(m >= 0 && m <= 1)
+    }
+
+    @Test func allPredefinedMaterialsAccessible() {
+        let count = Material.predefinedMaterialCount
+        var accessed = 0
+        for i in 1...count {
+            if Material.predefinedMaterial(at: i) != nil {
+                accessed += 1
+            }
+        }
+        #expect(accessed == count)
+    }
+}

@@ -168,7 +168,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **ProjLib Projection** | 1 | projectOnSurface (BSpline approximation) |
 | **gce 3D Geometry Factories** | 11 | circleThrough3Points, circleFromCenterNormal, lineFrom2Points, directionFrom2Points, ellipseFromCenterNormal, hyperbolaFromCenterNormal, parabolaFromCenterNormal, coneFrom2PointsRadii, cylinderFrom3Points, planeFromEquation, planeFrom3Points |
 | **gce 2D Geometry Factories** | 7 | circleFromCenterRadius, circleThrough3Points, lineFrom2Points, lineFromEquation, ellipseFromCenterDir, hyperbolaFromCenterDir, parabolaFromCenterDir |
-| **Total** | **1402** | |
+| **Quantity_Color** | 17 | fromName, fromHex, fromHexRGBA, toHex, toHexRGBA, distance, squareDistance, deltaE2000, hls, fromHLS, withIntensityChanged, withContrastChanged, sRGB, linearRGB, lab, namedColorName, epsilon |
+| **Graphic3d Material/PBR** | 7 | predefinedMaterialCount, predefinedMaterialName, predefinedMaterial(named:), predefinedMaterial(at:), minRoughness, roughnessFromSpecular, metallicFromSpecular |
+| **Total** | **1426** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -211,6 +213,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Annotations & Measurements**: Length/radius/angle/diameter dimensions with geometry extraction for Metal rendering, 3D text labels, colored point clouds
 - **Camera**: Graphic3d_Camera wrapping with Metal-compatible [0,1] NDC, projection/view matrices as simd_float4x4, project/unproject, fit to bounding box
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)
+- **Color Science**: OCCT Quantity_Color — named colors, hex parsing, linear↔sRGB, CIE Lab, DeltaE2000 perceptual distance, HLS conversion, intensity/contrast adjustment
+- **Material Library**: Predefined OCCT materials (Brass, Gold, Copper, etc.) with full property access (ambient/diffuse/specular/emissive colors, transparency, shininess, PBR metallic/roughness/IOR)
 - **Presentation Mesh**: GPU-ready triangulated mesh and edge wireframe extraction from shapes
 - **Helix Curves**: Constant-radius and tapered (conical) helical wires for springs, threads, coils
 - **KD-Tree Spatial Queries**: Fast nearest-neighbor, k-nearest, sphere range, and box queries on 3D point sets

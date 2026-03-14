@@ -10202,6 +10202,132 @@ OCCTCurve2DRef _Nullable OCCTGceMakeParab2d(double cx, double cy,
                                               double dirX, double dirY,
                                               double focal);
 
+// MARK: - v0.81.0: Visualization — Quantity_Color, Quantity_ColorRGBA, Graphic3d_MaterialAspect, Graphic3d_PBRMaterial
+
+// --- Quantity_Color ---
+
+/// HLS color components
+typedef struct {
+    double hue;
+    double lightness;
+    double saturation;
+} OCCTColorHLS;
+
+/// CIE Lab color components
+typedef struct {
+    double l;
+    double a;
+    double b;
+} OCCTColorLab;
+
+/// Create color from named color string (e.g., "RED", "BLUE")
+/// Returns false if name not recognized
+bool OCCTColorFromName(const char *_Nonnull name,
+                       double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB);
+
+/// Create color from hex string (e.g., "#FF0000")
+/// Returns false if parse fails
+bool OCCTColorFromHex(const char *_Nonnull hex,
+                      double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB);
+
+/// Convert linear RGB color to hex string. Caller must free returned string with OCCTGeomToolsFreeString.
+const char *_Nullable OCCTColorToHex(double r, double g, double b, bool useSRGB);
+
+/// Euclidean distance between two colors in linear RGB space
+double OCCTColorDistance(double r1, double g1, double b1,
+                         double r2, double g2, double b2);
+
+/// Square distance between two colors in linear RGB space
+double OCCTColorSquareDistance(double r1, double g1, double b1,
+                                double r2, double g2, double b2);
+
+/// CIE DeltaE2000 perceptual color difference
+double OCCTColorDeltaE2000(double r1, double g1, double b1,
+                            double r2, double g2, double b2);
+
+/// Convert linear RGB to HLS
+OCCTColorHLS OCCTColorToHLS(double r, double g, double b);
+
+/// Create linear RGB color from HLS values
+void OCCTColorFromHLS(double h, double l, double s,
+                      double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB);
+
+/// Modify color intensity (lightness delta)
+void OCCTColorChangeIntensity(double *_Nonnull r, double *_Nonnull g, double *_Nonnull b, double delta);
+
+/// Modify color contrast (saturation percentage delta)
+void OCCTColorChangeContrast(double *_Nonnull r, double *_Nonnull g, double *_Nonnull b, double delta);
+
+/// Convert linear RGB to sRGB
+void OCCTColorLinearToSRGB(float inR, float inG, float inB,
+                            float *_Nonnull outR, float *_Nonnull outG, float *_Nonnull outB);
+
+/// Convert sRGB to linear RGB
+void OCCTColorSRGBToLinear(float inR, float inG, float inB,
+                            float *_Nonnull outR, float *_Nonnull outG, float *_Nonnull outB);
+
+/// Convert linear RGB to CIE Lab
+OCCTColorLab OCCTColorToLab(double r, double g, double b);
+
+/// Get string name for a named color index (0-based)
+const char *_Nullable OCCTColorStringName(int index);
+
+/// Color comparison epsilon
+double OCCTColorEpsilon(void);
+
+// --- Quantity_ColorRGBA ---
+
+/// Create RGBA color from hex string with alpha (e.g., "#FF000080")
+bool OCCTColorRGBAFromHex(const char *_Nonnull hex,
+                           double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB,
+                           double *_Nonnull outA);
+
+/// Convert RGBA color to hex string (with alpha). Caller must free with OCCTGeomToolsFreeString.
+const char *_Nullable OCCTColorRGBAToHex(double r, double g, double b, double a, bool useSRGB);
+
+// --- Graphic3d_MaterialAspect ---
+
+/// Material properties struct
+typedef struct {
+    double ambientR, ambientG, ambientB;
+    double diffuseR, diffuseG, diffuseB;
+    double specularR, specularG, specularB;
+    double emissiveR, emissiveG, emissiveB;
+    float transparency;
+    float shininess;
+    float refractionIndex;
+    bool isPhysic;  // true = PHYSIC, false = ASPECT
+    // PBR properties
+    float pbrMetallic;
+    float pbrRoughness;
+    float pbrIOR;
+    float pbrAlpha;
+    float pbrEmissionR, pbrEmissionG, pbrEmissionB;
+} OCCTMaterialProperties;
+
+/// Number of predefined materials
+int OCCTMaterialNumberOfMaterials(void);
+
+/// Get name of predefined material by 1-based index. Caller must free with OCCTGeomToolsFreeString.
+const char *_Nullable OCCTMaterialName(int index);
+
+/// Get properties of a predefined material by name
+bool OCCTMaterialFromName(const char *_Nonnull name, OCCTMaterialProperties *_Nonnull outProps);
+
+/// Get properties of a predefined material by 1-based index
+bool OCCTMaterialFromIndex(int index, OCCTMaterialProperties *_Nonnull outProps);
+
+// --- Graphic3d_PBRMaterial ---
+
+/// Minimum roughness value
+float OCCTMaterialMinRoughness(void);
+
+/// Compute roughness from specular color and shininess
+float OCCTMaterialRoughnessFromSpecular(double specR, double specG, double specB, double shininess);
+
+/// Compute metallic factor from specular color
+float OCCTMaterialMetallicFromSpecular(double specR, double specG, double specB);
+
 #ifdef __cplusplus
 }
 #endif
