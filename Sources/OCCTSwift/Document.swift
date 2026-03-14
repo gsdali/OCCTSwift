@@ -2842,3 +2842,290 @@ public struct VisMaterialPBR: Sendable {
         return m
     }
 }
+
+// =============================================================================
+// MARK: - v0.84.0: VrmlAPI, Directory, Variable, Expression, XLink, DimTol, DriverTable, TObj
+// =============================================================================
+
+// MARK: - VrmlAPI_Writer
+
+/// VRML representation mode for export.
+public enum VrmlRepresentation: Int32, Sendable {
+    case shaded = 0
+    case wireFrame = 1
+    case both = 2
+}
+
+extension Shape {
+    /// Write shape to VRML file.
+    /// - Parameters:
+    ///   - url: File URL to write to (.wrl extension)
+    ///   - version: VRML version (1 or 2, default 2)
+    ///   - deflection: Mesh deflection for triangulation (default 0.01)
+    ///   - representation: Visual representation mode (default .shaded)
+    /// - Returns: true if successful
+    @discardableResult
+    public func writeVRML(to url: URL,
+                          version: Int = 2,
+                          deflection: Double = 0.01,
+                          representation: VrmlRepresentation = .shaded) -> Bool {
+        OCCTVrmlWriteShape(handle, url.path, Int32(version), deflection, representation.rawValue)
+    }
+}
+
+extension Document {
+    /// Write XDE document to VRML file with scale.
+    /// - Parameters:
+    ///   - url: File URL to write to (.wrl extension)
+    ///   - scale: Scale factor (default 1.0)
+    /// - Returns: true if successful
+    @discardableResult
+    public func writeVRML(to url: URL, scale: Double = 1.0) -> Bool {
+        OCCTVrmlWriteDocument(handle, url.path, scale)
+    }
+}
+
+// MARK: - TDataStd_Directory
+
+extension Document {
+    /// Create a new directory attribute on a label.
+    /// - Parameter labelTag: Label child tag (0 = main label)
+    @discardableResult
+    public func createDirectory(at labelTag: Int = 0) -> Bool {
+        OCCTDocumentDirectoryNew(handle, Int32(labelTag))
+    }
+
+    /// Check if a directory attribute exists on a label.
+    public func hasDirectory(at labelTag: Int = 0) -> Bool {
+        OCCTDocumentDirectoryFind(handle, Int32(labelTag))
+    }
+
+    /// Add a sub-directory under an existing directory.
+    /// - Returns: Child label tag, or nil if failed
+    public func addSubDirectory(under parentLabelTag: Int = 0) -> Int? {
+        let tag = OCCTDocumentDirectoryAddSubDirectory(handle, Int32(parentLabelTag))
+        return tag >= 0 ? Int(tag) : nil
+    }
+
+    /// Make an object label under a directory.
+    /// - Returns: Child label tag, or nil if failed
+    public func makeObjectLabel(under parentLabelTag: Int = 0) -> Int? {
+        let tag = OCCTDocumentDirectoryMakeObjectLabel(handle, Int32(parentLabelTag))
+        return tag >= 0 ? Int(tag) : nil
+    }
+}
+
+// MARK: - TDataStd_Variable
+
+extension Document {
+    /// Set a variable attribute on a label.
+    @discardableResult
+    public func setVariable(at labelTag: Int) -> Bool {
+        OCCTDocumentVariableSet(handle, Int32(labelTag))
+    }
+
+    /// Set variable name.
+    @discardableResult
+    public func setVariableName(_ name: String, at labelTag: Int) -> Bool {
+        OCCTDocumentVariableSetName(handle, Int32(labelTag), name)
+    }
+
+    /// Get variable name.
+    public func variableName(at labelTag: Int) -> String? {
+        guard let cStr = OCCTDocumentVariableGetName(handle, Int32(labelTag)) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+
+    /// Set variable value.
+    @discardableResult
+    public func setVariableValue(_ value: Double, at labelTag: Int) -> Bool {
+        OCCTDocumentVariableSetValue(handle, Int32(labelTag), value)
+    }
+
+    /// Get variable value.
+    public func variableValue(at labelTag: Int) -> Double {
+        OCCTDocumentVariableGetValue(handle, Int32(labelTag))
+    }
+
+    /// Check if variable has a value.
+    public func variableIsValued(at labelTag: Int) -> Bool {
+        OCCTDocumentVariableIsValued(handle, Int32(labelTag))
+    }
+
+    /// Set variable unit string.
+    @discardableResult
+    public func setVariableUnit(_ unit: String, at labelTag: Int) -> Bool {
+        OCCTDocumentVariableSetUnit(handle, Int32(labelTag), unit)
+    }
+
+    /// Get variable unit string.
+    public func variableUnit(at labelTag: Int) -> String? {
+        guard let cStr = OCCTDocumentVariableGetUnit(handle, Int32(labelTag)) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+
+    /// Set variable constant flag.
+    @discardableResult
+    public func setVariableConstant(_ isConstant: Bool, at labelTag: Int) -> Bool {
+        OCCTDocumentVariableSetConstant(handle, Int32(labelTag), isConstant)
+    }
+
+    /// Check if variable is constant.
+    public func variableIsConstant(at labelTag: Int) -> Bool {
+        OCCTDocumentVariableIsConstant(handle, Int32(labelTag))
+    }
+
+    /// Assign expression to variable on same label.
+    @discardableResult
+    public func assignExpression(at labelTag: Int) -> Bool {
+        OCCTDocumentVariableAssignExpression(handle, Int32(labelTag))
+    }
+
+    /// Remove expression from variable.
+    @discardableResult
+    public func desassignExpression(at labelTag: Int) -> Bool {
+        OCCTDocumentVariableDesassignExpression(handle, Int32(labelTag))
+    }
+
+    /// Check if variable has an assigned expression.
+    public func variableIsAssigned(at labelTag: Int) -> Bool {
+        OCCTDocumentVariableIsAssigned(handle, Int32(labelTag))
+    }
+}
+
+// MARK: - TDataStd_Expression
+
+extension Document {
+    /// Set an expression attribute on a label.
+    @discardableResult
+    public func setExpression(at labelTag: Int) -> Bool {
+        OCCTDocumentExpressionSet(handle, Int32(labelTag))
+    }
+
+    /// Set expression string.
+    @discardableResult
+    public func setExpressionString(_ expression: String, at labelTag: Int) -> Bool {
+        OCCTDocumentExpressionSetString(handle, Int32(labelTag), expression)
+    }
+
+    /// Get expression string.
+    public func expressionString(at labelTag: Int) -> String? {
+        guard let cStr = OCCTDocumentExpressionGetString(handle, Int32(labelTag)) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+
+    /// Get expression name.
+    public func expressionName(at labelTag: Int) -> String? {
+        guard let cStr = OCCTDocumentExpressionGetName(handle, Int32(labelTag)) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+}
+
+// MARK: - TDocStd_XLink
+
+extension Document {
+    /// Set an external link attribute on a label.
+    @discardableResult
+    public func setXLink(at labelTag: Int) -> Bool {
+        OCCTDocumentXLinkSet(handle, Int32(labelTag))
+    }
+
+    /// Set XLink document entry path.
+    @discardableResult
+    public func setXLinkDocumentEntry(_ entry: String, at labelTag: Int) -> Bool {
+        OCCTDocumentXLinkSetDocumentEntry(handle, Int32(labelTag), entry)
+    }
+
+    /// Get XLink document entry path.
+    public func xLinkDocumentEntry(at labelTag: Int) -> String? {
+        guard let cStr = OCCTDocumentXLinkGetDocumentEntry(handle, Int32(labelTag)) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+
+    /// Set XLink label entry string.
+    @discardableResult
+    public func setXLinkLabelEntry(_ entry: String, at labelTag: Int) -> Bool {
+        OCCTDocumentXLinkSetLabelEntry(handle, Int32(labelTag), entry)
+    }
+
+    /// Get XLink label entry string.
+    public func xLinkLabelEntry(at labelTag: Int) -> String? {
+        guard let cStr = OCCTDocumentXLinkGetLabelEntry(handle, Int32(labelTag)) else { return nil }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+}
+
+// MARK: - XCAFDimTolObjects_Tool
+
+extension Document {
+    /// Count of dimension objects via XCAFDimTolObjects_Tool.
+    public var dimTolToolDimensionCount: Int {
+        Int(OCCTDocumentDimTolDimensionCount(handle))
+    }
+
+    /// Count of geometric tolerance objects via XCAFDimTolObjects_Tool.
+    public var dimTolToolToleranceCount: Int {
+        Int(OCCTDocumentDimTolToleranceCount(handle))
+    }
+}
+
+// MARK: - TPrsStd_DriverTable
+
+/// Presentation driver table (global singleton for OCAF presentation drivers).
+public enum DriverTable: Sendable {
+    /// Initialize the global driver table with standard drivers.
+    public static func initStandard() {
+        OCCTDriverTableInitStandard()
+    }
+
+    /// Check if the global driver table exists.
+    public static var exists: Bool {
+        OCCTDriverTableExists()
+    }
+
+    /// Clear all drivers from the global table.
+    public static func clear() {
+        OCCTDriverTableClear()
+    }
+}
+
+// MARK: - TObj_Application
+
+/// TObj application singleton for OCAF-based document management.
+public final class TObjApplication: @unchecked Sendable {
+    private let ref: OCCTTObjAppRef
+
+    private init(ref: OCCTTObjAppRef) {
+        self.ref = ref
+    }
+
+    /// Get the singleton TObj_Application instance.
+    public static var shared: TObjApplication? {
+        guard let ref = OCCTTObjApplicationGetInstance() else { return nil }
+        return TObjApplication(ref: ref)
+    }
+
+    /// Whether verbose logging is enabled.
+    public var isVerbose: Bool {
+        get { OCCTTObjApplicationIsVerbose(ref) }
+        set { OCCTTObjApplicationSetVerbose(ref, newValue) }
+    }
+
+    /// Create a new document via TObj_Application.
+    public func createDocument() -> Document? {
+        guard let docRef = OCCTTObjApplicationCreateDocument(ref) else { return nil }
+        return Document(handle: docRef)
+    }
+}

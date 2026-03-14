@@ -10942,6 +10942,160 @@ OCCTVisMaterialPBR OCCTVisMaterialPBRDefault(void);
 bool OCCTVisMaterialPBRIsEqual(const OCCTVisMaterialPBR *_Nonnull a,
                                  const OCCTVisMaterialPBR *_Nonnull b);
 
+// =============================================================================
+// MARK: - v0.84.0: VrmlAPI, TDataStd Directory/Variable/Expression, TDocStd_XLink,
+//         XCAFDimTolObjects_Tool, TPrsStd_DriverTable, TObj_Application
+// =============================================================================
+
+// --- VrmlAPI_Writer ---
+
+/// VRML representation mode
+typedef enum {
+    OCCTVrmlRepresentationShaded = 0,
+    OCCTVrmlRepresentationWireFrame = 1,
+    OCCTVrmlRepresentationBoth = 2
+} OCCTVrmlRepresentation;
+
+/// Write a shape to VRML file (version 1 or 2)
+bool OCCTVrmlWriteShape(OCCTShapeRef _Nonnull shape,
+                        const char* _Nonnull filePath,
+                        int version,
+                        double deflection,
+                        int representation);
+
+/// Write an XDE document to VRML file with scale
+bool OCCTVrmlWriteDocument(OCCTDocumentRef _Nonnull document,
+                           const char* _Nonnull filePath,
+                           double scale);
+
+// --- TDataStd_Directory ---
+
+/// Create a new directory attribute on a document label
+/// labelTag: 0 = main label, >0 = child tag
+bool OCCTDocumentDirectoryNew(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Find a directory attribute on a label
+bool OCCTDocumentDirectoryFind(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Add a sub-directory under an existing directory, returns child label tag
+int OCCTDocumentDirectoryAddSubDirectory(OCCTDocumentRef _Nonnull document, int parentLabelTag);
+
+/// Make an object label under a directory, returns child label tag
+int OCCTDocumentDirectoryMakeObjectLabel(OCCTDocumentRef _Nonnull document, int parentLabelTag);
+
+// --- TDataStd_Variable ---
+
+/// Set a variable attribute on a label
+bool OCCTDocumentVariableSet(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Set variable name
+bool OCCTDocumentVariableSetName(OCCTDocumentRef _Nonnull document, int labelTag,
+                                  const char* _Nonnull name);
+
+/// Get variable name (caller must free with OCCTGeomToolsFreeString)
+const char* _Nullable OCCTDocumentVariableGetName(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Set variable value
+bool OCCTDocumentVariableSetValue(OCCTDocumentRef _Nonnull document, int labelTag, double value);
+
+/// Get variable value
+double OCCTDocumentVariableGetValue(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Check if variable is valued
+bool OCCTDocumentVariableIsValued(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Set variable unit
+bool OCCTDocumentVariableSetUnit(OCCTDocumentRef _Nonnull document, int labelTag,
+                                  const char* _Nonnull unit);
+
+/// Get variable unit (caller must free with OCCTGeomToolsFreeString)
+const char* _Nullable OCCTDocumentVariableGetUnit(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Set variable constant flag
+bool OCCTDocumentVariableSetConstant(OCCTDocumentRef _Nonnull document, int labelTag, bool isConstant);
+
+/// Get variable constant flag
+bool OCCTDocumentVariableIsConstant(OCCTDocumentRef _Nonnull document, int labelTag);
+
+// --- TDataStd_Expression ---
+
+/// Set an expression attribute on a label
+bool OCCTDocumentExpressionSet(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Set expression string
+bool OCCTDocumentExpressionSetString(OCCTDocumentRef _Nonnull document, int labelTag,
+                                      const char* _Nonnull expression);
+
+/// Get expression string (caller must free with OCCTGeomToolsFreeString)
+const char* _Nullable OCCTDocumentExpressionGetString(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Get expression name (caller must free with OCCTGeomToolsFreeString)
+const char* _Nullable OCCTDocumentExpressionGetName(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Assign expression to variable on same label (creates expression if needed)
+bool OCCTDocumentVariableAssignExpression(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Remove expression assignment from variable
+bool OCCTDocumentVariableDesassignExpression(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Check if variable has assigned expression
+bool OCCTDocumentVariableIsAssigned(OCCTDocumentRef _Nonnull document, int labelTag);
+
+// --- TDocStd_XLink ---
+
+/// Set an external link attribute on a label
+bool OCCTDocumentXLinkSet(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Set XLink document entry path
+bool OCCTDocumentXLinkSetDocumentEntry(OCCTDocumentRef _Nonnull document, int labelTag,
+                                        const char* _Nonnull entry);
+
+/// Get XLink document entry path (caller must free with OCCTGeomToolsFreeString)
+const char* _Nullable OCCTDocumentXLinkGetDocumentEntry(OCCTDocumentRef _Nonnull document, int labelTag);
+
+/// Set XLink label entry string
+bool OCCTDocumentXLinkSetLabelEntry(OCCTDocumentRef _Nonnull document, int labelTag,
+                                     const char* _Nonnull entry);
+
+/// Get XLink label entry string (caller must free with OCCTGeomToolsFreeString)
+const char* _Nullable OCCTDocumentXLinkGetLabelEntry(OCCTDocumentRef _Nonnull document, int labelTag);
+
+// --- XCAFDimTolObjects_Tool ---
+
+/// Get count of dimension objects in XDE document
+int OCCTDocumentDimTolDimensionCount(OCCTDocumentRef _Nonnull document);
+
+/// Get count of geometric tolerance objects in XDE document
+int OCCTDocumentDimTolToleranceCount(OCCTDocumentRef _Nonnull document);
+
+// --- TPrsStd_DriverTable ---
+
+/// Initialize global presentation driver table with standard drivers
+void OCCTDriverTableInitStandard(void);
+
+/// Check if global driver table exists
+bool OCCTDriverTableExists(void);
+
+/// Clear all drivers from global table
+void OCCTDriverTableClear(void);
+
+// --- TObj_Application ---
+
+/// Opaque handle for TObj_Application
+typedef void* OCCTTObjAppRef;
+
+/// Get singleton TObj_Application instance
+OCCTTObjAppRef _Nullable OCCTTObjApplicationGetInstance(void);
+
+/// Set verbose flag on TObj_Application
+void OCCTTObjApplicationSetVerbose(OCCTTObjAppRef _Nonnull app, bool verbose);
+
+/// Get verbose flag from TObj_Application
+bool OCCTTObjApplicationIsVerbose(OCCTTObjAppRef _Nonnull app);
+
+/// Create a new document via TObj_Application
+OCCTDocumentRef _Nullable OCCTTObjApplicationCreateDocument(OCCTTObjAppRef _Nonnull app);
+
 #ifdef __cplusplus
 }
 #endif

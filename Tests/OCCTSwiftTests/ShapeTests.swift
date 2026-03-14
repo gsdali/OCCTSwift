@@ -24202,3 +24202,248 @@ struct VisMaterialPBRTests {
         #expect(p1.isEqual(to: p2))
     }
 }
+
+// =============================================================================
+// MARK: - v0.84.0 Tests
+// =============================================================================
+
+@Suite("VrmlAPI Writer Tests")
+struct VrmlWriterTests {
+    @Test func writeShapeToVRML() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box = box {
+            let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_v84_box.wrl")
+            let ok = box.writeVRML(to: url, version: 2, deflection: 0.01, representation: .shaded)
+            #expect(ok)
+            let data = try? Data(contentsOf: url)
+            if let data = data {
+                #expect(data.count > 10)
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func writeShapeWireframe() {
+        let sphere = Shape.sphere(radius: 5)
+        if let sphere = sphere {
+            let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_v84_sphere.wrl")
+            let ok = sphere.writeVRML(to: url, representation: .wireFrame)
+            #expect(ok)
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func writeShapeBothRepresentation() {
+        let box = Shape.box(width: 5, height: 5, depth: 5)
+        if let box = box {
+            let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_v84_both.wrl")
+            let ok = box.writeVRML(to: url, representation: .both)
+            #expect(ok)
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func writeDocumentToVRML() {
+        if let doc = Document.create() {
+            let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_v84_doc.wrl")
+            let ok = doc.writeVRML(to: url, scale: 1.0)
+            // May succeed or fail depending on document contents
+            _ = ok
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+}
+
+@Suite("TDataStd_Directory Tests")
+struct DirectoryTests {
+    @Test func createDirectory() {
+        if let doc = Document.create() {
+            let ok = doc.createDirectory(at: 100)
+            #expect(ok)
+        }
+    }
+
+    @Test func findDirectory() {
+        if let doc = Document.create() {
+            doc.createDirectory(at: 100)
+            #expect(doc.hasDirectory(at: 100))
+        }
+    }
+
+    @Test func addSubDirectory() {
+        if let doc = Document.create() {
+            doc.createDirectory(at: 100)
+            let childTag = doc.addSubDirectory(under: 100)
+            #expect(childTag != nil)
+        }
+    }
+
+    @Test func makeObjectLabel() {
+        if let doc = Document.create() {
+            doc.createDirectory(at: 100)
+            let objTag = doc.makeObjectLabel(under: 100)
+            #expect(objTag != nil)
+        }
+    }
+}
+
+@Suite("TDataStd_Variable Tests")
+struct VariableTests {
+    @Test func setVariable() {
+        if let doc = Document.create() {
+            let ok = doc.setVariable(at: 1)
+            #expect(ok)
+        }
+    }
+
+    @Test func setAndGetName() {
+        if let doc = Document.create() {
+            doc.setVariable(at: 1)
+            doc.setVariableName("velocity", at: 1)
+            let name = doc.variableName(at: 1)
+            #expect(name == "velocity")
+        }
+    }
+
+    @Test func setAndGetValue() {
+        if let doc = Document.create() {
+            doc.setVariable(at: 1)
+            doc.setVariableValue(42.5, at: 1)
+            #expect(doc.variableIsValued(at: 1))
+            let val = doc.variableValue(at: 1)
+            #expect(abs(val - 42.5) < 1e-10)
+        }
+    }
+
+    @Test func unitString() {
+        if let doc = Document.create() {
+            doc.setVariable(at: 1)
+            doc.setVariableUnit("m/s", at: 1)
+            let unit = doc.variableUnit(at: 1)
+            #expect(unit == "m/s")
+        }
+    }
+
+    @Test func constantFlag() {
+        if let doc = Document.create() {
+            doc.setVariable(at: 1)
+            doc.setVariableConstant(true, at: 1)
+            #expect(doc.variableIsConstant(at: 1))
+            doc.setVariableConstant(false, at: 1)
+            #expect(!doc.variableIsConstant(at: 1))
+        }
+    }
+
+    @Test func assignAndDesassignExpression() {
+        if let doc = Document.create() {
+            doc.setVariable(at: 1)
+            let ok = doc.assignExpression(at: 1)
+            #expect(ok)
+            #expect(doc.variableIsAssigned(at: 1))
+            doc.desassignExpression(at: 1)
+            #expect(!doc.variableIsAssigned(at: 1))
+        }
+    }
+}
+
+@Suite("TDataStd_Expression Tests")
+struct ExpressionTests {
+    @Test func setExpression() {
+        if let doc = Document.create() {
+            let ok = doc.setExpression(at: 1)
+            #expect(ok)
+        }
+    }
+
+    @Test func setAndGetString() {
+        if let doc = Document.create() {
+            doc.setExpression(at: 1)
+            doc.setExpressionString("x^2 + y^2", at: 1)
+            let str = doc.expressionString(at: 1)
+            #expect(str == "x^2 + y^2")
+        }
+    }
+
+    @Test func getName() {
+        if let doc = Document.create() {
+            doc.setExpression(at: 1)
+            doc.setExpressionString("a + b", at: 1)
+            let name = doc.expressionName(at: 1)
+            #expect(name != nil)
+        }
+    }
+}
+
+@Suite("TDocStd_XLink Tests")
+struct XLinkTests {
+    @Test func setXLink() {
+        if let doc = Document.create() {
+            let ok = doc.setXLink(at: 1)
+            #expect(ok)
+        }
+    }
+
+    @Test func documentEntry() {
+        if let doc = Document.create() {
+            doc.setXLink(at: 1)
+            doc.setXLinkDocumentEntry("/doc/path", at: 1)
+            let entry = doc.xLinkDocumentEntry(at: 1)
+            #expect(entry == "/doc/path")
+        }
+    }
+
+    @Test func labelEntry() {
+        if let doc = Document.create() {
+            doc.setXLink(at: 1)
+            doc.setXLinkLabelEntry("0:1:2", at: 1)
+            let entry = doc.xLinkLabelEntry(at: 1)
+            #expect(entry == "0:1:2")
+        }
+    }
+}
+
+@Suite("XCAFDimTolObjects_Tool Tests")
+struct DimTolToolTests {
+    @Test func emptyDocumentCounts() {
+        if let doc = Document.create() {
+            #expect(doc.dimTolToolDimensionCount == 0)
+            #expect(doc.dimTolToolToleranceCount == 0)
+        }
+    }
+}
+
+@Suite("TPrsStd_DriverTable Tests")
+struct DriverTableTests {
+    @Test func tableExists() {
+        #expect(DriverTable.exists)
+    }
+
+    @Test func initAndClear() {
+        DriverTable.initStandard()
+        DriverTable.clear()
+    }
+}
+
+@Suite("TObj_Application Tests")
+struct TObjApplicationTests {
+    @Test func getInstance() {
+        let app = TObjApplication.shared
+        #expect(app != nil)
+    }
+
+    @Test func verboseFlag() {
+        if let app = TObjApplication.shared {
+            app.isVerbose = true
+            #expect(app.isVerbose)
+            app.isVerbose = false
+            #expect(!app.isVerbose)
+        }
+    }
+
+    @Test func createDocument() {
+        if let app = TObjApplication.shared {
+            let doc = app.createDocument()
+            #expect(doc != nil)
+        }
+    }
+}

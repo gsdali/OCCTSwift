@@ -188,7 +188,15 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **XCAFPrs_Style** | 7 | isEmpty, setColorSurf, getColorSurf, setColorCurv, setVisibility, isVisible, isEqual |
 | **XCAFDoc_VisMaterialCommon** | 1 | create (struct with diffuse/ambient/specular/emissive, shininess, transparency) |
 | **XCAFDoc_VisMaterialPBR** | 1 | create (struct with baseColor, metallic, roughness, IOR, emissiveFactor) |
-| **Total** | **1562** | |
+| **VrmlAPI_Writer** | 2 | writeVRML (shape), writeVRML (document with scale) |
+| **TDataStd_Directory** | 4 | createDirectory, hasDirectory, addSubDirectory, makeObjectLabel |
+| **TDataStd_Variable** | 13 | setVariable, setVariableName, variableName, setVariableValue, variableValue, variableIsValued, setVariableUnit, variableUnit, setVariableConstant, variableIsConstant, assignExpression, desassignExpression, variableIsAssigned |
+| **TDataStd_Expression** | 4 | setExpression, setExpressionString, expressionString, expressionName |
+| **TDocStd_XLink** | 5 | setXLink, setXLinkDocumentEntry, xLinkDocumentEntry, setXLinkLabelEntry, xLinkLabelEntry |
+| **XCAFDimTolObjects_Tool** | 2 | dimTolToolDimensionCount, dimTolToolToleranceCount |
+| **TPrsStd_DriverTable** | 3 | initStandard, exists, clear |
+| **TObj_Application** | 4 | shared, isVerbose, setVerbose, createDocument |
+| **Total** | **1599** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -507,6 +515,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Arc/Segment Approximation**: Geom2dConvert_ApproxArcsSegments — approximate 2D curves as sequences of arcs and line segments
 - **Polygon Data**: Poly_Polygon2D (2D polylines with deflection), Poly_Polygon3D (3D polylines with optional parameters), Poly_PolygonOnTriangulation (index-based polygons on triangulations)
 - **Mesh Node Merging**: Poly_MergeNodesTool — merge duplicate vertices across face triangulations with smooth angle and tolerance control
+- **VRML Export**: VrmlAPI_Writer — write shapes to VRML files (v1/v2) with shaded, wireframe, or both representations; XDE document export with scale
+- **Directory Attributes**: TDataStd_Directory — hierarchical directory structures in OCAF documents with sub-directories and object labels
+- **Variable Attributes**: TDataStd_Variable — named variables with values, units, constant flags, and expression assignment in OCAF documents
+- **Expression Attributes**: TDataStd_Expression — mathematical expression strings with variable references in OCAF documents
+- **External Links**: TDocStd_XLink — cross-document references with document entry paths and label entry strings
+- **GD&T Tool Queries**: XCAFDimTolObjects_Tool — query dimension and tolerance object counts from XDE documents
+- **Presentation Driver Table**: TPrsStd_DriverTable — global OCAF presentation driver registry with standard initialization and cleanup
+- **TObj Application**: TObj_Application — singleton OCAF application for document creation with verbose logging control
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
