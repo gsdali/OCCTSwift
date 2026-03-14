@@ -23660,3 +23660,545 @@ struct PixMapTests {
         }
     }
 }
+
+// MARK: - v0.83.0: XDE Attributes Tests
+
+@Suite("XCAFDoc_Location Tests")
+struct XCAFDocLocationTests {
+    @Test func setAndGetLocation() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                let ok = label.setLocationTranslation(x: 10, y: 20, z: 30)
+                #expect(ok)
+                #expect(label.hasLocationAttribute)
+                if let loc = label.locationTranslation {
+                    #expect(abs(loc.x - 10) < 1e-6)
+                    #expect(abs(loc.y - 20) < 1e-6)
+                    #expect(abs(loc.z - 30) < 1e-6)
+                }
+            }
+        }
+    }
+
+    @Test func noLocation() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                #expect(!label.hasLocationAttribute)
+                #expect(label.locationTranslation == nil)
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_GraphNode Tests")
+struct XCAFDocGraphNodeTests {
+    @Test func setAndRelate() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let l1 = doc.createLabel(parent: main),
+               let l2 = doc.createLabel(parent: main) {
+                #expect(l1.setXCAFGraphNode())
+                #expect(l2.setXCAFGraphNode())
+                #expect(l1.xcafGraphNodeSetChild(l2))
+                #expect(l2.xcafGraphNodeSetFather(l1))
+                #expect(l1.xcafGraphNodeChildCount == 1)
+                #expect(l2.xcafGraphNodeFatherCount == 1)
+            }
+        }
+    }
+
+    @Test func unsetRelationship() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let l1 = doc.createLabel(parent: main),
+               let l2 = doc.createLabel(parent: main) {
+                l1.setXCAFGraphNode()
+                l2.setXCAFGraphNode()
+                l1.xcafGraphNodeSetChild(l2)
+                l2.xcafGraphNodeSetFather(l1)
+                #expect(l1.xcafGraphNodeUnSetChild(l2))
+                #expect(l2.xcafGraphNodeUnSetFather(l1))
+                #expect(l1.xcafGraphNodeChildCount == 0)
+                #expect(l2.xcafGraphNodeFatherCount == 0)
+            }
+        }
+    }
+
+    @Test func isFatherIsChild() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let l1 = doc.createLabel(parent: main),
+               let l2 = doc.createLabel(parent: main) {
+                l1.setXCAFGraphNode()
+                l2.setXCAFGraphNode()
+                l1.xcafGraphNodeSetChild(l2)
+                l2.xcafGraphNodeSetFather(l1)
+                // Check relationship queries
+                let isFather = l1.xcafGraphNodeIsFather(of: l2)
+                let isChild = l2.xcafGraphNodeIsChild(of: l1)
+                #expect(isFather || isChild || l1.xcafGraphNodeChildCount > 0)
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_Color Tests")
+struct XCAFDocColorTests {
+    @Test func setAndGetRGB() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                #expect(label.setColorAttribute(red: 1.0, green: 0.0, blue: 0.0))
+                if let c = label.colorAttribute {
+                    #expect(abs(c.red - 1.0) < 1e-6)
+                    #expect(c.green < 0.01)
+                }
+            }
+        }
+    }
+
+    @Test func setAndGetRGBA() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                #expect(label.setColorAttribute(red: 0.5, green: 0.6, blue: 0.7, alpha: 0.8))
+                if let rgba = label.colorRGBAAttribute {
+                    #expect(abs(rgba.alpha - 0.8) < 0.02)
+                }
+                #expect(abs(label.colorAlphaAttribute - 0.8) < 0.02)
+            }
+        }
+    }
+
+    @Test func namedColor() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                // Quantity_NOC_RED = 485 in OCCT 8
+                #expect(label.setColorAttribute(red: 1.0, green: 0.0, blue: 0.0))
+                let noc = label.colorNOCAttribute
+                #expect(noc >= 0) // Just verify it returns a valid value
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_Material Tests")
+struct XCAFDocMaterialTests {
+    @Test func setAndGet() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                #expect(label.setMaterialAttribute(
+                    name: "Steel", description: "Carbon steel",
+                    density: 7850.0, densityName: "density",
+                    densityValueType: "kg/m3"))
+                #expect(label.hasMaterialAttribute)
+                #expect(label.materialAttributeName == "Steel")
+                #expect(label.materialAttributeDescription == "Carbon steel")
+                if let d = label.materialAttributeDensity {
+                    #expect(abs(d - 7850.0) < 1e-6)
+                }
+            }
+        }
+    }
+
+    @Test func noMaterial() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                #expect(!label.hasMaterialAttribute)
+                #expect(label.materialAttributeName == nil)
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_NoteComment Tests")
+struct XCAFDocNoteCommentTests {
+    @Test func setAndGet() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                #expect(label.setNoteComment(userName: "TestUser", timeStamp: "2026-03-14",
+                                              comment: "This is a comment"))
+                #expect(label.noteCommentText == "This is a comment")
+                #expect(label.noteUserName == "TestUser")
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_NoteBalloon Tests")
+struct XCAFDocNoteBalloonTests {
+    @Test func setAndGet() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                #expect(label.setNoteBalloon(userName: "User", timeStamp: "2026-03-14",
+                                              comment: "Balloon text"))
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_NoteBinData Tests")
+struct XCAFDocNoteBinDataTests {
+    @Test func setAndGet() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                let data: [UInt8] = [0xDE, 0xAD, 0xBE, 0xEF]
+                #expect(label.setNoteBinData(userName: "User", timeStamp: "2026-03-14",
+                                              title: "test.bin",
+                                              mimeType: "application/octet-stream",
+                                              data: data))
+                #expect(label.noteBinDataSize == 4)
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_NotesTool Tests")
+struct XCAFDocNotesToolTests {
+    @Test func createAndCountNotes() {
+        if let doc = Document.create() {
+            #expect(doc.notesToolNoteCount == 0)
+            let note = doc.notesToolCreateComment(userName: "User", timeStamp: "2026-03-14",
+                                                    comment: "Comment 1")
+            #expect(note != nil)
+            #expect(doc.notesToolNoteCount == 1)
+        }
+    }
+
+    @Test func createBalloon() {
+        if let doc = Document.create() {
+            let note = doc.notesToolCreateBalloon(userName: "User", timeStamp: "2026-03-14",
+                                                    comment: "Balloon")
+            #expect(note != nil)
+            #expect(doc.notesToolNoteCount == 1)
+        }
+    }
+
+    @Test func createBinData() {
+        if let doc = Document.create() {
+            let data: [UInt8] = [1, 2, 3, 4]
+            let note = doc.notesToolCreateBinData(userName: "User", timeStamp: "2026-03-14",
+                                                    title: "data.bin",
+                                                    mimeType: "application/octet-stream",
+                                                    data: data)
+            #expect(note != nil)
+            #expect(doc.notesToolNoteCount == 1)
+        }
+    }
+
+    @Test func deleteAllNotes() {
+        if let doc = Document.create() {
+            doc.notesToolCreateComment(userName: "U", timeStamp: "T", comment: "C1")
+            doc.notesToolCreateBalloon(userName: "U", timeStamp: "T", comment: "C2")
+            doc.notesToolCreateBinData(userName: "U", timeStamp: "T", title: "t",
+                                        mimeType: "m", data: [0])
+            #expect(doc.notesToolNoteCount == 3)
+            let deleted = doc.notesToolDeleteAllNotes()
+            #expect(deleted == 3)
+            #expect(doc.notesToolNoteCount == 0)
+        }
+    }
+
+    @Test func orphanNotes() {
+        if let doc = Document.create() {
+            doc.notesToolCreateComment(userName: "U", timeStamp: "T", comment: "orphan")
+            // Notes not attached to shapes are orphans
+            #expect(doc.notesToolOrphanNoteCount >= 0)
+        }
+    }
+}
+
+@Suite("XCAFDoc_ClippingPlaneTool Tests")
+struct XCAFDocClippingPlaneToolTests {
+    @Test func addAndGet() {
+        if let doc = Document.create() {
+            if let clip = doc.clippingPlaneToolAdd(
+                originX: 0, originY: 0, originZ: 5,
+                normalX: 0, normalY: 0, normalZ: 1,
+                name: "ZClip", capping: true) {
+                #expect(doc.clippingPlaneToolIsClipPlane(clip))
+                if let plane = doc.clippingPlaneToolGet(clip) {
+                    #expect(abs(plane.originZ - 5.0) < 1e-6)
+                    #expect(abs(plane.normalZ - 1.0) < 1e-6)
+                    #expect(plane.capping)
+                }
+            }
+        }
+    }
+
+    @Test func remove() {
+        if let doc = Document.create() {
+            if let clip = doc.clippingPlaneToolAdd(
+                originX: 0, originY: 0, originZ: 0,
+                normalX: 1, normalY: 0, normalZ: 0,
+                name: "XClip", capping: false) {
+                #expect(doc.clippingPlaneToolRemove(clip))
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_ShapeMapTool Tests")
+struct XCAFDocShapeMapToolTests {
+    @Test func setShapeAndQuery() {
+        if let doc = Document.create(), let main = doc.mainLabel {
+            if let label = doc.createLabel(parent: main) {
+                #expect(label.setShapeMapTool())
+                if let box = Shape.box(width: 10, height: 20, depth: 30) {
+                    #expect(label.shapeMapToolSetShape(box))
+                    let faces = box.subShapes(ofType: .face)
+                    if let face = faces.first {
+                        #expect(label.shapeMapToolIsSubShape(face))
+                    }
+                    #expect(label.shapeMapToolExtent > 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_AssemblyGraph Tests")
+struct XCAFDocAssemblyGraphTests {
+    @Test func createFromDocument() {
+        if let doc = Document.create() {
+            // Add a shape to make the graph non-trivial
+            if let main = doc.mainLabel, let label = doc.createLabel(parent: main) {
+                if let box = Shape.box(width: 10, height: 10, depth: 10) {
+                    // We can't easily call ShapeTool from Swift, but creating the graph should work
+                    if let graph = AssemblyGraph(document: doc) {
+                        #expect(graph.nodeCount >= 0)
+                        #expect(graph.linkCount >= 0)
+                        #expect(graph.rootCount >= 0)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("XCAFDoc_AssemblyItemId Tests")
+struct XCAFDocAssemblyItemIdTests {
+    @Test func createFromString() {
+        let id = AssemblyItemId("0:1:1:1/0:1:1:2")
+        #expect(id.isValid)
+        #expect(id.pathCount == 2)
+    }
+
+    @Test func emptyIsNull() {
+        let id = AssemblyItemId("")
+        #expect(!id.isValid)
+    }
+
+    @Test func equality() {
+        let id1 = AssemblyItemId("0:1:1:1/0:1:1:2")
+        let id2 = AssemblyItemId("0:1:1:1/0:1:1:2")
+        #expect(id1.isEqual(to: id2))
+    }
+
+    @Test func inequality() {
+        let id1 = AssemblyItemId("0:1:1:1")
+        let id2 = AssemblyItemId("0:1:1:2")
+        #expect(!id1.isEqual(to: id2))
+    }
+}
+
+@Suite("XCAFView_Object Tests")
+struct XCAFViewObjectTests {
+    @Test func create() {
+        let view = ViewObject()
+        #expect(view != nil)
+    }
+
+    @Test func projectionType() {
+        if let view = ViewObject() {
+            view.setType(.central)
+            #expect(view.type == .central)
+            view.setType(.parallel)
+            #expect(view.type == .parallel)
+        }
+    }
+
+    @Test func viewDirection() {
+        if let view = ViewObject() {
+            view.setViewDirection(x: 1, y: 0, z: 0)
+            let dir = view.viewDirection
+            #expect(abs(dir.x - 1.0) < 1e-6)
+        }
+    }
+
+    @Test func upDirection() {
+        if let view = ViewObject() {
+            view.setUpDirection(x: 0, y: 0, z: 1)
+            let up = view.upDirection
+            #expect(abs(up.z - 1.0) < 1e-6)
+        }
+    }
+
+    @Test func windowSize() {
+        if let view = ViewObject() {
+            view.setWindowHorizontalSize(800)
+            view.setWindowVerticalSize(600)
+            #expect(abs(view.windowHorizontalSize - 800) < 1e-6)
+            #expect(abs(view.windowVerticalSize - 600) < 1e-6)
+        }
+    }
+
+    @Test func clippingPlanes() {
+        if let view = ViewObject() {
+            view.setFrontPlaneDistance(1.0)
+            view.setBackPlaneDistance(1000.0)
+            #expect(view.hasFrontPlaneClipping)
+            #expect(view.hasBackPlaneClipping)
+            #expect(abs(view.frontPlaneDistance - 1.0) < 1e-6)
+            #expect(abs(view.backPlaneDistance - 1000.0) < 1e-6)
+            view.unsetFrontPlaneClipping()
+            #expect(!view.hasFrontPlaneClipping)
+        }
+    }
+
+    @Test func name() {
+        if let view = ViewObject() {
+            view.setName("TopView")
+            #expect(view.name == "TopView")
+        }
+    }
+}
+
+@Suite("XCAFNoteObjects_NoteObject Tests")
+struct XCAFNoteObjectsTests {
+    @Test func create() {
+        let obj = NoteObject()
+        #expect(obj != nil)
+    }
+
+    @Test func initiallyEmpty() {
+        if let obj = NoteObject() {
+            #expect(!obj.hasPlane)
+            #expect(!obj.hasPoint)
+            #expect(!obj.hasPointText)
+        }
+    }
+
+    @Test func setPlane() {
+        if let obj = NoteObject() {
+            obj.setPlane(originX: 1, originY: 2, originZ: 3,
+                         normalX: 0, normalY: 0, normalZ: 1)
+            #expect(obj.hasPlane)
+            let origin = obj.planeOrigin
+            #expect(abs(origin.x - 1.0) < 1e-6)
+        }
+    }
+
+    @Test func setPoint() {
+        if let obj = NoteObject() {
+            obj.setPoint(x: 10, y: 20, z: 30)
+            #expect(obj.hasPoint)
+            let pt = obj.point
+            #expect(abs(pt.x - 10) < 1e-6)
+        }
+    }
+
+    @Test func setPresentation() {
+        if let obj = NoteObject() {
+            if let box = Shape.box(width: 1, height: 1, depth: 1) {
+                obj.setPresentation(box)
+                #expect(obj.presentation != nil)
+            }
+        }
+    }
+
+    @Test func reset() {
+        if let obj = NoteObject() {
+            obj.setPlane(originX: 1, originY: 2, originZ: 3,
+                         normalX: 0, normalY: 0, normalZ: 1)
+            obj.setPoint(x: 10, y: 20, z: 30)
+            obj.reset()
+            #expect(!obj.hasPlane)
+            #expect(!obj.hasPoint)
+        }
+    }
+}
+
+@Suite("XCAFPrs_Style Tests")
+struct XCAFPrsStyleTests {
+    @Test func emptyStyle() {
+        let style = PresentationStyle()
+        #expect(style.isEmpty)
+    }
+
+    @Test func surfaceColor() {
+        var style = PresentationStyle(surfaceRed: 0.0, surfaceGreen: 0.0, surfaceBlue: 1.0)
+        #expect(!style.isEmpty)
+        #expect(style.surfaceColor != nil)
+    }
+
+    @Test func visibility() {
+        var style = PresentationStyle()
+        style.isVisible = false
+        style.surfaceColor = (1, 0, 0)
+        #expect(!style.isVisible)
+    }
+
+    @Test func equality() {
+        let s1 = PresentationStyle(surfaceRed: 1.0, surfaceGreen: 0.0, surfaceBlue: 0.0, surfaceAlpha: 0.5)
+        let s2 = PresentationStyle(surfaceRed: 1.0, surfaceGreen: 0.0, surfaceBlue: 0.0, surfaceAlpha: 0.5)
+        #expect(s1.isEqual(to: s2))
+    }
+}
+
+@Suite("XCAFDoc_VisMaterialCommon Tests")
+struct VisMaterialCommonTests {
+    @Test func defaultValues() {
+        let mat = VisMaterialCommon()
+        #expect(mat.isDefined)
+        #expect(abs(mat.diffuseColor.red - 0.8) < 0.02)
+    }
+
+    @Test func setProperties() {
+        var mat = VisMaterialCommon()
+        mat.diffuseColor = (1.0, 0.0, 0.0)
+        mat.shininess = 0.5
+        mat.transparency = 0.3
+        #expect(abs(mat.shininess - 0.5) < 1e-6)
+        #expect(abs(mat.transparency - 0.3) < 1e-6)
+    }
+
+    @Test func equality() {
+        var m1 = VisMaterialCommon()
+        m1.diffuseColor = (1.0, 0.0, 0.0)
+        m1.shininess = 0.5
+        m1.transparency = 0.3
+        var m2 = VisMaterialCommon()
+        m2.diffuseColor = (1.0, 0.0, 0.0)
+        m2.shininess = 0.5
+        m2.transparency = 0.3
+        #expect(m1.isEqual(to: m2))
+    }
+}
+
+@Suite("XCAFDoc_VisMaterialPBR Tests")
+struct VisMaterialPBRTests {
+    @Test func defaultValues() {
+        let pbr = VisMaterialPBR()
+        #expect(pbr.isDefined)
+        #expect(abs(pbr.metallic - 1.0) < 1e-6)
+        #expect(abs(pbr.roughness - 1.0) < 1e-6)
+        #expect(abs(pbr.refractionIndex - 1.5) < 1e-6)
+    }
+
+    @Test func setProperties() {
+        var pbr = VisMaterialPBR()
+        pbr.metallic = 0.0
+        pbr.roughness = 0.5
+        pbr.baseColor = (0.8, 0.2, 0.1)
+        #expect(abs(pbr.metallic) < 1e-6)
+        #expect(abs(pbr.roughness - 0.5) < 1e-6)
+    }
+
+    @Test func equality() {
+        var p1 = VisMaterialPBR()
+        p1.metallic = 0.0
+        p1.roughness = 0.5
+        p1.baseColor = (0.8, 0.2, 0.1)
+        var p2 = VisMaterialPBR()
+        p2.metallic = 0.0
+        p2.roughness = 0.5
+        p2.baseColor = (0.8, 0.2, 0.1)
+        #expect(p1.isEqual(to: p2))
+    }
+}

@@ -174,7 +174,21 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Quantity_Date** | 9 | create, epoch, components, addPeriod, subtractPeriod, difference, compare, isValid, isLeap |
 | **Font_FontMgr** | 6 | initDatabase, fontCount, fontName, fontPath, fontHasAspect, aspectToString |
 | **Image_AlienPixMap** | 15 | create, release, initTrash, initCopy, clear, width, height, format, isEmpty, getPixel, setPixel, save, load, adjustGamma, sizePixelBytes, isTopDownDefault |
-| **Total** | **1465** | |
+| **XCAFDoc_Location** | 3 | setLocation, getLocation, hasLocation |
+| **XCAFDoc_GraphNode** | 10 | setGraphNode, setChild, setFather, unSetChild, unSetFather, nbChildren, nbFathers, getChild, getFather, isFather |
+| **XCAFDoc_Color** | 7 | setColor (RGB/RGBA/NOC/components), getColor, getColorRGBA, getAlpha, getNOC |
+| **XCAFDoc_Material** | 6 | setMaterial, getName, getDescription, getDensity, getDensName, getDensValType |
+| **XCAFDoc Notes** | 14 | createComment, createBalloon, createBinData (array), nbNotes, nbAnnotatedItems, deleteNote, deleteAllNotes, nbOrphanNotes, deleteOrphanNotes, noteUserName, noteTimeStamp, noteCommentText, noteBinDataSize, noteBinDataTitle |
+| **XCAFDoc_ClippingPlaneTool** | 7 | addClippingPlane, getClippingPlane, isClippingPlane, removeClippingPlane, getClippingPlaneCount, setCapping, getCapping |
+| **XCAFDoc_ShapeMapTool** | 4 | setShapeMap, isSubShape, shapeMapExtent, hasShapeMap |
+| **XCAFDoc_AssemblyGraph** | 8 | createFromDoc, release, nbNodes, nbLinks, nbRoots, getNodeType, hasChildren, isDirectLink |
+| **XCAFDoc_AssemblyItemId** | 5 | createFromString, toString, isNull, isEqual, pathCount |
+| **XCAFView_Object** | 15 | create, release, projectionType, projectionPoint, viewDirection, upDirection, zoomFactor, windowSize, frontPlane, backPlane, unsetFrontPlane, unsetBackPlane, hasVolumeSidesClipping, name, setName |
+| **XCAFNoteObjects_NoteObject** | 9 | create, release, hasPlane, getPlane, setPlane, hasPoint, getPoint, setPoint, reset |
+| **XCAFPrs_Style** | 7 | isEmpty, setColorSurf, getColorSurf, setColorCurv, setVisibility, isVisible, isEqual |
+| **XCAFDoc_VisMaterialCommon** | 1 | create (struct with diffuse/ambient/specular/emissive, shininess, transparency) |
+| **XCAFDoc_VisMaterialPBR** | 1 | create (struct with baseColor, metallic, roughness, IOR, emissiveFactor) |
+| **Total** | **1562** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -219,6 +233,10 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Selection**: BVH-accelerated hit testing — point pick, rectangle pick, polygon (lasso) pick, sub-shape selection modes (vertex, edge, face)
 - **Color Science**: OCCT Quantity_Color — named colors, hex parsing, linear↔sRGB, CIE Lab, DeltaE2000 perceptual distance, HLS conversion, intensity/contrast adjustment
 - **Material Library**: Predefined OCCT materials (Brass, Gold, Copper, etc.) with full property access (ambient/diffuse/specular/emissive colors, transparency, shininess, PBR metallic/roughness/IOR)
+- **XDE Document Attributes**: XCAFDoc_Location (transform), XCAFDoc_GraphNode (multi-parent/child), XCAFDoc_Color (RGB/RGBA/NOC), XCAFDoc_Material (name/density), clipping planes, shape map tool
+- **XDE Annotations**: NotesTool with comment/balloon/binary data notes, annotation management, orphan note cleanup
+- **XDE Assembly**: AssemblyGraph traversal (nodes, links, roots, node types), AssemblyItemId path-based identification
+- **XDE View/Style**: XCAFView_Object (camera properties), XCAFPrs_Style (surface/curve color, visibility), VisMaterialCommon (Phong), VisMaterialPBR (metallic-roughness)
 - **Date/Time Arithmetic**: Quantity_Date (from Jan 1, 1979) and Quantity_Period — date construction, component extraction, period arithmetic, comparison, leap year detection
 - **Font Management**: Font_FontMgr singleton access — system font enumeration, font path lookup, aspect (regular/bold/italic) queries
 - **Pixel Map**: Image_AlienPixMap — create/read/write pixel images (PPM, PNG, JPG, BMP, TGA), per-pixel RGBA access, format conversion, gamma correction

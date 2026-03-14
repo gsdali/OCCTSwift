@@ -2087,3 +2087,758 @@ extension Document {
         OCCTDocumentEditorRescaleGeometry(handle, labelId, scaleFactor, forceIfNotRoot)
     }
 }
+
+// MARK: - XCAFDoc_Location (v0.83.0)
+
+extension AssemblyNode {
+    /// Set a TopLoc_Location (translation) on this label.
+    @discardableResult
+    public func setLocationTranslation(x: Double, y: Double, z: Double) -> Bool {
+        OCCTDocumentSetLocation(document.handle, labelId, x, y, z)
+    }
+
+    /// Get the TopLoc_Location translation from this label.
+    public var locationTranslation: (x: Double, y: Double, z: Double)? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTDocumentGetLocationTranslation(document.handle, labelId, &x, &y, &z) else { return nil }
+        return (x, y, z)
+    }
+
+    /// Whether this label has an XCAFDoc_Location attribute.
+    public var hasLocationAttribute: Bool {
+        OCCTDocumentHasLocation(document.handle, labelId)
+    }
+}
+
+// MARK: - XCAFDoc_GraphNode (v0.83.0)
+
+extension AssemblyNode {
+    /// Set an XCAFDoc_GraphNode attribute on this label.
+    @discardableResult
+    public func setXCAFGraphNode() -> Bool {
+        OCCTDocumentSetGraphNodeAttr(document.handle, labelId)
+    }
+
+    /// Set a child relationship: this node's graph node gets the child's graph node.
+    @discardableResult
+    public func xcafGraphNodeSetChild(_ child: AssemblyNode) -> Bool {
+        OCCTDocumentGraphNodeSetChild(document.handle, labelId, child.labelId)
+    }
+
+    /// Set a father relationship: this node's graph node gets the parent's graph node as father.
+    @discardableResult
+    public func xcafGraphNodeSetFather(_ parent: AssemblyNode) -> Bool {
+        OCCTDocumentGraphNodeSetFather(document.handle, labelId, parent.labelId)
+    }
+
+    /// Unset a child relationship.
+    @discardableResult
+    public func xcafGraphNodeUnSetChild(_ child: AssemblyNode) -> Bool {
+        OCCTDocumentGraphNodeUnSetChild(document.handle, labelId, child.labelId)
+    }
+
+    /// Unset a father relationship.
+    @discardableResult
+    public func xcafGraphNodeUnSetFather(_ parent: AssemblyNode) -> Bool {
+        OCCTDocumentGraphNodeUnSetFather(document.handle, labelId, parent.labelId)
+    }
+
+    /// Number of children in the XCAFDoc_GraphNode.
+    public var xcafGraphNodeChildCount: Int32 {
+        OCCTDocumentGraphNodeNbChildren(document.handle, labelId)
+    }
+
+    /// Number of fathers in the XCAFDoc_GraphNode.
+    public var xcafGraphNodeFatherCount: Int32 {
+        OCCTDocumentGraphNodeNbFathers(document.handle, labelId)
+    }
+
+    /// Check if this node is a father of another node in the XCAFDoc_GraphNode.
+    public func xcafGraphNodeIsFather(of other: AssemblyNode) -> Bool {
+        OCCTDocumentGraphNodeIsFather(document.handle, labelId, other.labelId)
+    }
+
+    /// Check if this node is a child of another node in the XCAFDoc_GraphNode.
+    public func xcafGraphNodeIsChild(of other: AssemblyNode) -> Bool {
+        OCCTDocumentGraphNodeIsChild(document.handle, labelId, other.labelId)
+    }
+}
+
+// MARK: - XCAFDoc_Color (v0.83.0)
+
+extension AssemblyNode {
+    /// Set an XCAFDoc_Color attribute from RGB.
+    @discardableResult
+    public func setColorAttribute(red: Double, green: Double, blue: Double) -> Bool {
+        OCCTDocumentSetColorAttr(document.handle, labelId, red, green, blue)
+    }
+
+    /// Set an XCAFDoc_Color attribute from RGBA.
+    @discardableResult
+    public func setColorAttribute(red: Double, green: Double, blue: Double, alpha: Float) -> Bool {
+        OCCTDocumentSetColorRGBAAttr(document.handle, labelId, red, green, blue, alpha)
+    }
+
+    /// Set an XCAFDoc_Color attribute from a named color.
+    @discardableResult
+    public func setColorAttribute(namedColor noc: Int32) -> Bool {
+        OCCTDocumentSetColorNOCAttr(document.handle, labelId, noc)
+    }
+
+    /// Get the RGB color from an XCAFDoc_Color attribute.
+    public var colorAttribute: (red: Double, green: Double, blue: Double)? {
+        var r: Double = 0, g: Double = 0, b: Double = 0
+        guard OCCTDocumentGetColorAttr(document.handle, labelId, &r, &g, &b) else { return nil }
+        return (r, g, b)
+    }
+
+    /// Get the RGBA color from an XCAFDoc_Color attribute.
+    public var colorRGBAAttribute: (red: Double, green: Double, blue: Double, alpha: Float)? {
+        var r: Double = 0, g: Double = 0, b: Double = 0
+        var a: Float = 1.0
+        guard OCCTDocumentGetColorRGBAAttr(document.handle, labelId, &r, &g, &b, &a) else { return nil }
+        return (r, g, b, a)
+    }
+
+    /// Get the alpha value from an XCAFDoc_Color attribute.
+    public var colorAlphaAttribute: Float {
+        OCCTDocumentGetColorAlphaAttr(document.handle, labelId)
+    }
+
+    /// Get the named color (NOC) from an XCAFDoc_Color attribute, or -1 if not set.
+    public var colorNOCAttribute: Int32 {
+        OCCTDocumentGetColorNOCAttr(document.handle, labelId)
+    }
+}
+
+// MARK: - XCAFDoc_Material (v0.83.0)
+
+extension AssemblyNode {
+    /// Set an XCAFDoc_Material attribute on this label.
+    @discardableResult
+    public func setMaterialAttribute(name: String, description: String, density: Double,
+                                      densityName: String, densityValueType: String) -> Bool {
+        OCCTDocumentSetMaterialAttr(document.handle, labelId, name, description, density, densityName, densityValueType)
+    }
+
+    /// Get the material name from an XCAFDoc_Material attribute.
+    public var materialAttributeName: String? {
+        guard let cStr = OCCTDocumentGetMaterialAttrName(document.handle, labelId) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+
+    /// Get the material description from an XCAFDoc_Material attribute.
+    public var materialAttributeDescription: String? {
+        guard let cStr = OCCTDocumentGetMaterialAttrDescription(document.handle, labelId) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+
+    /// Get the material density from an XCAFDoc_Material attribute.
+    public var materialAttributeDensity: Double? {
+        var density: Double = 0
+        guard OCCTDocumentGetMaterialAttrDensity(document.handle, labelId, &density) else { return nil }
+        return density
+    }
+
+    /// Whether this label has an XCAFDoc_Material attribute.
+    public var hasMaterialAttribute: Bool {
+        OCCTDocumentHasMaterialAttr(document.handle, labelId)
+    }
+}
+
+// MARK: - XCAFDoc_NoteComment / NoteBalloon / NoteBinData (v0.83.0)
+
+extension AssemblyNode {
+    /// Set an XCAFDoc_NoteComment attribute on this label.
+    @discardableResult
+    public func setNoteComment(userName: String, timeStamp: String, comment: String) -> Bool {
+        OCCTDocumentSetNoteComment(document.handle, labelId, userName, timeStamp, comment)
+    }
+
+    /// Get the comment text from an XCAFDoc_NoteComment attribute.
+    public var noteCommentText: String? {
+        guard let cStr = OCCTDocumentGetNoteCommentText(document.handle, labelId) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+
+    /// Get the user name from a note attribute.
+    public var noteUserName: String? {
+        guard let cStr = OCCTDocumentGetNoteUserName(document.handle, labelId) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+
+    /// Set an XCAFDoc_NoteBalloon attribute on this label.
+    @discardableResult
+    public func setNoteBalloon(userName: String, timeStamp: String, comment: String) -> Bool {
+        OCCTDocumentSetNoteBalloon(document.handle, labelId, userName, timeStamp, comment)
+    }
+
+    /// Set an XCAFDoc_NoteBinData attribute on this label.
+    @discardableResult
+    public func setNoteBinData(userName: String, timeStamp: String, title: String,
+                                mimeType: String, data: [UInt8]) -> Bool {
+        data.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetNoteBinData(document.handle, labelId, userName, timeStamp,
+                                       title, mimeType, buf.baseAddress!, Int32(data.count))
+        }
+    }
+
+    /// Get the size of binary data from an XCAFDoc_NoteBinData attribute.
+    public var noteBinDataSize: Int32 {
+        OCCTDocumentGetNoteBinDataSize(document.handle, labelId)
+    }
+}
+
+// MARK: - XCAFDoc_NotesTool (v0.83.0)
+
+extension Document {
+    /// Get the number of notes via NotesTool.
+    public var notesToolNoteCount: Int32 {
+        OCCTDocumentNotesToolNbNotes(handle)
+    }
+
+    /// Create a comment note via NotesTool. Returns the note label node.
+    public func notesToolCreateComment(userName: String, timeStamp: String, comment: String) -> AssemblyNode? {
+        let labelId = OCCTDocumentNotesToolCreateComment(handle, userName, timeStamp, comment)
+        guard labelId >= 0 else { return nil }
+        return AssemblyNode(document: self, labelId: labelId)
+    }
+
+    /// Create a balloon note via NotesTool. Returns the note label node.
+    public func notesToolCreateBalloon(userName: String, timeStamp: String, comment: String) -> AssemblyNode? {
+        let labelId = OCCTDocumentNotesToolCreateBalloon(handle, userName, timeStamp, comment)
+        guard labelId >= 0 else { return nil }
+        return AssemblyNode(document: self, labelId: labelId)
+    }
+
+    /// Create a binary data note via NotesTool. Returns the note label node.
+    public func notesToolCreateBinData(userName: String, timeStamp: String, title: String,
+                                        mimeType: String, data: [UInt8]) -> AssemblyNode? {
+        let labelId = data.withUnsafeBufferPointer { buf in
+            OCCTDocumentNotesToolCreateBinData(handle, userName, timeStamp,
+                                                title, mimeType, buf.baseAddress!, Int32(data.count))
+        }
+        guard labelId >= 0 else { return nil }
+        return AssemblyNode(document: self, labelId: labelId)
+    }
+
+    /// Delete a note by its label node.
+    @discardableResult
+    public func notesToolDeleteNote(_ node: AssemblyNode) -> Bool {
+        OCCTDocumentNotesToolDeleteNote(handle, node.labelId)
+    }
+
+    /// Delete all notes. Returns the number of deleted notes.
+    @discardableResult
+    public func notesToolDeleteAllNotes() -> Int32 {
+        OCCTDocumentNotesToolDeleteAllNotes(handle)
+    }
+
+    /// Get the number of orphan notes.
+    public var notesToolOrphanNoteCount: Int32 {
+        OCCTDocumentNotesToolNbOrphanNotes(handle)
+    }
+
+    /// Delete all orphan notes. Returns the number of deleted notes.
+    @discardableResult
+    public func notesToolDeleteOrphanNotes() -> Int32 {
+        OCCTDocumentNotesToolDeleteOrphanNotes(handle)
+    }
+}
+
+// MARK: - XCAFDoc_ClippingPlaneTool (v0.83.0)
+
+extension Document {
+    /// Add a clipping plane. Returns the clipping plane label node.
+    public func clippingPlaneToolAdd(originX: Double, originY: Double, originZ: Double,
+                                      normalX: Double, normalY: Double, normalZ: Double,
+                                      name: String, capping: Bool) -> AssemblyNode? {
+        let labelId = OCCTDocumentClipPlaneToolAdd(handle,
+                                                     originX, originY, originZ,
+                                                     normalX, normalY, normalZ,
+                                                     name, capping)
+        guard labelId >= 0 else { return nil }
+        return AssemblyNode(document: self, labelId: labelId)
+    }
+
+    /// Get a clipping plane from a label.
+    public func clippingPlaneToolGet(_ node: AssemblyNode) -> (originX: Double, originY: Double, originZ: Double,
+                                                                normalX: Double, normalY: Double, normalZ: Double,
+                                                                capping: Bool)? {
+        var ox: Double = 0, oy: Double = 0, oz: Double = 0
+        var nx: Double = 0, ny: Double = 0, nz: Double = 0
+        var cap = false
+        guard OCCTDocumentClipPlaneToolGet(handle, node.labelId, &ox, &oy, &oz, &nx, &ny, &nz, &cap) else { return nil }
+        return (ox, oy, oz, nx, ny, nz, cap)
+    }
+
+    /// Check if a label is a clipping plane.
+    public func clippingPlaneToolIsClipPlane(_ node: AssemblyNode) -> Bool {
+        OCCTDocumentClipPlaneToolIsClipPlane(handle, node.labelId)
+    }
+
+    /// Remove a clipping plane.
+    @discardableResult
+    public func clippingPlaneToolRemove(_ node: AssemblyNode) -> Bool {
+        OCCTDocumentClipPlaneToolRemove(handle, node.labelId)
+    }
+}
+
+// MARK: - XCAFDoc_ShapeMapTool (v0.83.0)
+
+extension AssemblyNode {
+    /// Set a ShapeMapTool attribute on this label.
+    @discardableResult
+    public func setShapeMapTool() -> Bool {
+        OCCTDocumentSetShapeMapTool(document.handle, labelId)
+    }
+
+    /// Set a shape on the ShapeMapTool.
+    @discardableResult
+    public func shapeMapToolSetShape(_ shape: Shape) -> Bool {
+        OCCTDocumentShapeMapToolSetShape(document.handle, labelId, shape.handle)
+    }
+
+    /// Check if a shape is a sub-shape in the ShapeMapTool.
+    public func shapeMapToolIsSubShape(_ shape: Shape) -> Bool {
+        OCCTDocumentShapeMapToolIsSubShape(document.handle, labelId, shape.handle)
+    }
+
+    /// Get the extent (number of entries) of the ShapeMapTool's map.
+    public var shapeMapToolExtent: Int32 {
+        OCCTDocumentShapeMapToolExtent(document.handle, labelId)
+    }
+}
+
+// MARK: - XCAFDoc_AssemblyGraph (v0.83.0)
+
+/// Wrapper for XCAFDoc_AssemblyGraph — read-only graph of assembly structure.
+public final class AssemblyGraph: @unchecked Sendable {
+    private let handle: OCCTAssemblyGraphRef
+
+    /// Create an assembly graph from a document.
+    public init?(document: Document) {
+        guard let h = OCCTAssemblyGraphCreate(document.handle) else { return nil }
+        self.handle = h
+    }
+
+    deinit {
+        OCCTAssemblyGraphRelease(handle)
+    }
+
+    /// Number of nodes in the graph.
+    public var nodeCount: Int32 {
+        OCCTAssemblyGraphNbNodes(handle)
+    }
+
+    /// Number of links in the graph.
+    public var linkCount: Int32 {
+        OCCTAssemblyGraphNbLinks(handle)
+    }
+
+    /// Number of root nodes.
+    public var rootCount: Int32 {
+        OCCTAssemblyGraphNbRoots(handle)
+    }
+
+    /// Assembly graph node type.
+    public enum NodeType: Int32 {
+        case node = 0
+        case occurrence = 1
+        case part = 2
+        case instance = 3
+        case subshape = 4
+        case free = 5
+    }
+
+    /// Get the type of a node by 1-based index.
+    public func nodeType(at index: Int32) -> NodeType? {
+        let raw = OCCTAssemblyGraphGetNodeType(handle, index)
+        guard raw >= 0 else { return nil }
+        return NodeType(rawValue: raw)
+    }
+}
+
+// MARK: - XCAFDoc_AssemblyItemId (v0.83.0)
+
+/// Value-type wrapper for XCAFDoc_AssemblyItemId (represented as a string path).
+public struct AssemblyItemId: Sendable {
+    /// The string representation (e.g. "0:1:1:1/0:1:1:2")
+    public let path: String
+
+    public init(_ path: String) {
+        self.path = path
+    }
+
+    /// Whether this item ID is valid (non-null).
+    public var isValid: Bool {
+        OCCTAssemblyItemIdIsValid(path)
+    }
+
+    /// Number of path entries.
+    public var pathCount: Int32 {
+        OCCTAssemblyItemIdPathCount(path)
+    }
+
+    /// Check equality with another item ID.
+    public func isEqual(to other: AssemblyItemId) -> Bool {
+        OCCTAssemblyItemIdIsEqual(path, other.path)
+    }
+}
+
+// MARK: - XCAFView_Object (v0.83.0)
+
+/// Wrapper for XCAFView_Object — standalone view definition.
+public final class ViewObject: @unchecked Sendable {
+    private let handle: OCCTViewObjectRef
+
+    /// Create a new empty view object.
+    public init?() {
+        guard let h = OCCTViewObjectCreate() else { return nil }
+        self.handle = h
+    }
+
+    deinit {
+        OCCTViewObjectRelease(handle)
+    }
+
+    /// Projection type.
+    public enum ProjectionType: Int32 {
+        case central = 0
+        case parallel = 1
+    }
+
+    /// Set the projection type.
+    public func setType(_ type: ProjectionType) {
+        OCCTViewObjectSetType(handle, type.rawValue)
+    }
+
+    /// Get the projection type.
+    public var type: ProjectionType {
+        ProjectionType(rawValue: OCCTViewObjectGetType(handle)) ?? .central
+    }
+
+    /// Set the view direction.
+    public func setViewDirection(x: Double, y: Double, z: Double) {
+        OCCTViewObjectSetViewDirection(handle, x, y, z)
+    }
+
+    /// Get the view direction.
+    public var viewDirection: (x: Double, y: Double, z: Double) {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        OCCTViewObjectGetViewDirection(handle, &x, &y, &z)
+        return (x, y, z)
+    }
+
+    /// Set the up direction.
+    public func setUpDirection(x: Double, y: Double, z: Double) {
+        OCCTViewObjectSetUpDirection(handle, x, y, z)
+    }
+
+    /// Get the up direction.
+    public var upDirection: (x: Double, y: Double, z: Double) {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        OCCTViewObjectGetUpDirection(handle, &x, &y, &z)
+        return (x, y, z)
+    }
+
+    /// Set the window horizontal size.
+    public func setWindowHorizontalSize(_ size: Double) {
+        OCCTViewObjectSetWindowHSize(handle, size)
+    }
+
+    /// Get the window horizontal size.
+    public var windowHorizontalSize: Double {
+        OCCTViewObjectGetWindowHSize(handle)
+    }
+
+    /// Set the window vertical size.
+    public func setWindowVerticalSize(_ size: Double) {
+        OCCTViewObjectSetWindowVSize(handle, size)
+    }
+
+    /// Get the window vertical size.
+    public var windowVerticalSize: Double {
+        OCCTViewObjectGetWindowVSize(handle)
+    }
+
+    /// Set the front plane distance (enables front clipping).
+    public func setFrontPlaneDistance(_ dist: Double) {
+        OCCTViewObjectSetFrontPlaneDistance(handle, dist)
+    }
+
+    /// Get the front plane distance.
+    public var frontPlaneDistance: Double {
+        OCCTViewObjectGetFrontPlaneDistance(handle)
+    }
+
+    /// Whether front plane clipping is enabled.
+    public var hasFrontPlaneClipping: Bool {
+        OCCTViewObjectHasFrontPlaneClipping(handle)
+    }
+
+    /// Unset front plane clipping.
+    public func unsetFrontPlaneClipping() {
+        OCCTViewObjectUnsetFrontPlaneClipping(handle)
+    }
+
+    /// Set the back plane distance (enables back clipping).
+    public func setBackPlaneDistance(_ dist: Double) {
+        OCCTViewObjectSetBackPlaneDistance(handle, dist)
+    }
+
+    /// Get the back plane distance.
+    public var backPlaneDistance: Double {
+        OCCTViewObjectGetBackPlaneDistance(handle)
+    }
+
+    /// Whether back plane clipping is enabled.
+    public var hasBackPlaneClipping: Bool {
+        OCCTViewObjectHasBackPlaneClipping(handle)
+    }
+
+    /// Unset back plane clipping.
+    public func unsetBackPlaneClipping() {
+        OCCTViewObjectUnsetBackPlaneClipping(handle)
+    }
+
+    /// Set the name of this view.
+    public func setName(_ name: String) {
+        OCCTViewObjectSetName(handle, name)
+    }
+
+    /// Get the name of this view.
+    public var name: String? {
+        guard let cStr = OCCTViewObjectGetName(handle) else { return nil }
+        let result = String(cString: cStr)
+        OCCTStringFree(cStr)
+        return result
+    }
+}
+
+// MARK: - XCAFNoteObjects_NoteObject (v0.83.0)
+
+/// Wrapper for XCAFNoteObjects_NoteObject — note annotation data.
+public final class NoteObject: @unchecked Sendable {
+    private let handle: OCCTNoteObjectRef
+
+    /// Create a new empty note object.
+    public init?() {
+        guard let h = OCCTNoteObjectCreate() else { return nil }
+        self.handle = h
+    }
+
+    deinit {
+        OCCTNoteObjectRelease(handle)
+    }
+
+    /// Whether a plane is set.
+    public var hasPlane: Bool {
+        OCCTNoteObjectHasPlane(handle)
+    }
+
+    /// Whether a point is set.
+    public var hasPoint: Bool {
+        OCCTNoteObjectHasPoint(handle)
+    }
+
+    /// Whether a point text is set.
+    public var hasPointText: Bool {
+        OCCTNoteObjectHasPointText(handle)
+    }
+
+    /// Set the plane (origin + normal).
+    public func setPlane(originX: Double, originY: Double, originZ: Double,
+                          normalX: Double, normalY: Double, normalZ: Double) {
+        OCCTNoteObjectSetPlane(handle, originX, originY, originZ, normalX, normalY, normalZ)
+    }
+
+    /// Get the plane origin.
+    public var planeOrigin: (x: Double, y: Double, z: Double) {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        OCCTNoteObjectGetPlane(handle, &x, &y, &z)
+        return (x, y, z)
+    }
+
+    /// Set a point.
+    public func setPoint(x: Double, y: Double, z: Double) {
+        OCCTNoteObjectSetPoint(handle, x, y, z)
+    }
+
+    /// Get the point.
+    public var point: (x: Double, y: Double, z: Double) {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        OCCTNoteObjectGetPoint(handle, &x, &y, &z)
+        return (x, y, z)
+    }
+
+    /// Set a presentation shape.
+    public func setPresentation(_ shape: Shape) {
+        OCCTNoteObjectSetPresentation(handle, shape.handle)
+    }
+
+    /// Get the presentation shape.
+    public var presentation: Shape? {
+        guard let ref = OCCTNoteObjectGetPresentation(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Reset all data.
+    public func reset() {
+        OCCTNoteObjectReset(handle)
+    }
+}
+
+// MARK: - XCAFPrs_Style (v0.83.0)
+
+/// Value-type wrapper for XCAFPrs_Style — visual presentation style.
+public struct PresentationStyle: Sendable {
+    /// Surface color (RGB).
+    public var surfaceColor: (red: Double, green: Double, blue: Double)?
+    /// Surface alpha.
+    public var surfaceAlpha: Float
+    /// Curve color (RGB).
+    public var curveColor: (red: Double, green: Double, blue: Double)?
+    /// Whether the style is visible.
+    public var isVisible: Bool
+
+    /// Create an empty style.
+    public init() {
+        self.surfaceColor = nil
+        self.surfaceAlpha = 1.0
+        self.curveColor = nil
+        self.isVisible = true
+    }
+
+    /// Create a style with a surface color.
+    public init(surfaceRed: Double, surfaceGreen: Double, surfaceBlue: Double, surfaceAlpha: Float = 1.0) {
+        self.surfaceColor = (surfaceRed, surfaceGreen, surfaceBlue)
+        self.surfaceAlpha = surfaceAlpha
+        self.curveColor = nil
+        self.isVisible = true
+    }
+
+    /// Whether the style is empty (no colors set, visible).
+    public var isEmpty: Bool {
+        let s = toOCCT()
+        return s.isEmpty
+    }
+
+    /// Check equality with another style.
+    public func isEqual(to other: PresentationStyle) -> Bool {
+        var s1 = toOCCT()
+        var s2 = other.toOCCT()
+        return OCCTXCAFPrsStyleIsEqual(&s1, &s2)
+    }
+
+    private func toOCCT() -> OCCTXCAFPrsStyle {
+        if let sc = surfaceColor, let cc = curveColor {
+            return OCCTXCAFPrsStyleCreateFull(sc.red, sc.green, sc.blue, surfaceAlpha,
+                                               cc.red, cc.green, cc.blue, isVisible)
+        } else if let sc = surfaceColor {
+            var s = OCCTXCAFPrsStyleCreateWithSurfColor(sc.red, sc.green, sc.blue, surfaceAlpha)
+            s.isVisible = isVisible
+            return s
+        } else {
+            var s = OCCTXCAFPrsStyleCreate()
+            s.isVisible = isVisible
+            return s
+        }
+    }
+}
+
+// MARK: - XCAFDoc_VisMaterialCommon (v0.83.0)
+
+/// Phong material properties (diffuse, ambient, specular, emissive, shininess, transparency).
+public struct VisMaterialCommon: Sendable {
+    public var diffuseColor: (red: Double, green: Double, blue: Double)
+    public var ambientColor: (red: Double, green: Double, blue: Double)
+    public var specularColor: (red: Double, green: Double, blue: Double)
+    public var emissiveColor: (red: Double, green: Double, blue: Double)
+    public var shininess: Float
+    public var transparency: Float
+    public var isDefined: Bool
+
+    /// Create with default values (from OCCT defaults).
+    public init() {
+        let d = OCCTVisMaterialCommonDefault()
+        self.diffuseColor = (d.diffuseR, d.diffuseG, d.diffuseB)
+        self.ambientColor = (d.ambientR, d.ambientG, d.ambientB)
+        self.specularColor = (d.specularR, d.specularG, d.specularB)
+        self.emissiveColor = (d.emissiveR, d.emissiveG, d.emissiveB)
+        self.shininess = d.shininess
+        self.transparency = d.transparency
+        self.isDefined = d.isDefined
+    }
+
+    /// Check equality with another VisMaterialCommon.
+    public func isEqual(to other: VisMaterialCommon) -> Bool {
+        var a = toOCCT()
+        var b = other.toOCCT()
+        return OCCTVisMaterialCommonIsEqual(&a, &b)
+    }
+
+    private func toOCCT() -> OCCTVisMaterialCommon {
+        var m = OCCTVisMaterialCommon()
+        m.diffuseR = diffuseColor.red; m.diffuseG = diffuseColor.green; m.diffuseB = diffuseColor.blue
+        m.ambientR = ambientColor.red; m.ambientG = ambientColor.green; m.ambientB = ambientColor.blue
+        m.specularR = specularColor.red; m.specularG = specularColor.green; m.specularB = specularColor.blue
+        m.emissiveR = emissiveColor.red; m.emissiveG = emissiveColor.green; m.emissiveB = emissiveColor.blue
+        m.shininess = shininess
+        m.transparency = transparency
+        m.isDefined = isDefined
+        return m
+    }
+}
+
+// MARK: - XCAFDoc_VisMaterialPBR (v0.83.0)
+
+/// PBR material properties (base color, metallic, roughness, IOR, emission).
+public struct VisMaterialPBR: Sendable {
+    public var baseColor: (red: Double, green: Double, blue: Double)
+    public var baseColorAlpha: Float
+    public var metallic: Float
+    public var roughness: Float
+    public var refractionIndex: Float
+    public var emissionColor: (red: Double, green: Double, blue: Double)
+    public var isDefined: Bool
+
+    /// Create with default values (from OCCT defaults).
+    public init() {
+        let d = OCCTVisMaterialPBRDefault()
+        self.baseColor = (d.baseColorR, d.baseColorG, d.baseColorB)
+        self.baseColorAlpha = d.baseColorAlpha
+        self.metallic = d.metallic
+        self.roughness = d.roughness
+        self.refractionIndex = d.refractionIndex
+        self.emissionColor = (d.emissionR, d.emissionG, d.emissionB)
+        self.isDefined = d.isDefined
+    }
+
+    /// Check equality with another VisMaterialPBR.
+    public func isEqual(to other: VisMaterialPBR) -> Bool {
+        var a = toOCCT()
+        var b = other.toOCCT()
+        return OCCTVisMaterialPBRIsEqual(&a, &b)
+    }
+
+    private func toOCCT() -> OCCTVisMaterialPBR {
+        var m = OCCTVisMaterialPBR()
+        m.baseColorR = baseColor.red; m.baseColorG = baseColor.green; m.baseColorB = baseColor.blue
+        m.baseColorAlpha = baseColorAlpha
+        m.metallic = metallic
+        m.roughness = roughness
+        m.refractionIndex = refractionIndex
+        m.emissionR = emissionColor.red; m.emissionG = emissionColor.green; m.emissionB = emissionColor.blue
+        m.isDefined = isDefined
+        return m
+    }
+}

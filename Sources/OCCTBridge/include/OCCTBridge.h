@@ -466,10 +466,33 @@
 // TNaming_Tool                        → OCCTDocumentNaming*
 //
 // --- XCAFDoc ---
+// XCAFDoc_AssemblyGraph               → OCCTAssemblyGraph*
+// XCAFDoc_AssemblyItemId              → OCCTAssemblyItemId*
+// XCAFDoc_ClippingPlaneTool           → OCCTDocumentClipPlaneTool*
+// XCAFDoc_Color                       → OCCTDocumentSet/GetColorAttr*
 // XCAFDoc_ColorTool                   → OCCTXCAFShape*Color*
 // XCAFDoc_Editor                      → OCCTXCAFEditorExpand, OCCTXCAFRescaleGeometry
+// XCAFDoc_GraphNode                   → OCCTDocumentGraphNode*
 // XCAFDoc_LayerTool                   → OCCTXCAFSet/Get/FindLayer*
+// XCAFDoc_Location                    → OCCTDocumentSet/GetLocation*
+// XCAFDoc_Material                    → OCCTDocumentSet/GetMaterialAttr*
+// XCAFDoc_NoteBalloon                 → OCCTDocumentSetNoteBalloon
+// XCAFDoc_NoteBinData                 → OCCTDocumentSet/GetNoteBinData*
+// XCAFDoc_NoteComment                 → OCCTDocumentSet/GetNoteComment*
+// XCAFDoc_NotesTool                   → OCCTDocumentNotesTool*
+// XCAFDoc_ShapeMapTool                → OCCTDocumentShapeMapTool*
 // XCAFDoc_ShapeTool                   → OCCTXCAFShape*
+// XCAFDoc_VisMaterialCommon           → OCCTVisMaterialCommon*
+// XCAFDoc_VisMaterialPBR              → OCCTVisMaterialPBR*
+//
+// --- XCAFNoteObjects ---
+// XCAFNoteObjects_NoteObject          → OCCTNoteObject*
+//
+// --- XCAFPrs ---
+// XCAFPrs_Style                       → OCCTXCAFPrsStyle*
+//
+// --- XCAFView ---
+// XCAFView_Object                     → OCCTViewObject*
 //
 // --- gp (core geometry) ---
 // gp_Pnt/gp_Vec/gp_Dir               → (used throughout all bridge functions)
@@ -10496,6 +10519,428 @@ int OCCTImageSizePixelBytes(int format);
 
 /// Check if top-down is default row order
 bool OCCTImageIsTopDownDefault(void);
+
+// MARK: - v0.83.0: XDE Attributes — Location, GraphNode, Color, Material, Notes, Views, Styles
+
+// --- XCAFDoc_Location ---
+
+/// Set a TopLoc_Location (translation) on a label
+bool OCCTDocumentSetLocation(OCCTDocumentRef doc, int64_t labelId,
+                              double tx, double ty, double tz);
+
+/// Get the TopLoc_Location translation from a label
+bool OCCTDocumentGetLocationTranslation(OCCTDocumentRef doc, int64_t labelId,
+                                         double *_Nonnull outX, double *_Nonnull outY, double *_Nonnull outZ);
+
+/// Check if a label has an XCAFDoc_Location attribute
+bool OCCTDocumentHasLocation(OCCTDocumentRef doc, int64_t labelId);
+
+// --- XCAFDoc_GraphNode ---
+
+/// Set an XCAFDoc_GraphNode attribute on a label (creates or retrieves it)
+bool OCCTDocumentSetGraphNodeAttr(OCCTDocumentRef doc, int64_t labelId);
+
+/// Set a child relationship: parent's graph node gets child's graph node
+bool OCCTDocumentGraphNodeSetChild(OCCTDocumentRef doc, int64_t parentLabelId, int64_t childLabelId);
+
+/// Set a father relationship: child's graph node gets parent's graph node
+bool OCCTDocumentGraphNodeSetFather(OCCTDocumentRef doc, int64_t childLabelId, int64_t parentLabelId);
+
+/// Unset a child relationship
+bool OCCTDocumentGraphNodeUnSetChild(OCCTDocumentRef doc, int64_t parentLabelId, int64_t childLabelId);
+
+/// Unset a father relationship
+bool OCCTDocumentGraphNodeUnSetFather(OCCTDocumentRef doc, int64_t childLabelId, int64_t parentLabelId);
+
+/// Get number of children of a graph node
+int32_t OCCTDocumentGraphNodeNbChildren(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get number of fathers of a graph node
+int32_t OCCTDocumentGraphNodeNbFathers(OCCTDocumentRef doc, int64_t labelId);
+
+/// Check if node is father of another
+bool OCCTDocumentGraphNodeIsFather(OCCTDocumentRef doc, int64_t labelId, int64_t otherLabelId);
+
+/// Check if node is child of another
+bool OCCTDocumentGraphNodeIsChild(OCCTDocumentRef doc, int64_t labelId, int64_t otherLabelId);
+
+// --- XCAFDoc_Color ---
+
+/// Set color attribute from RGB on a label
+bool OCCTDocumentSetColorAttr(OCCTDocumentRef doc, int64_t labelId,
+                               double r, double g, double b);
+
+/// Set color attribute from RGBA on a label
+bool OCCTDocumentSetColorRGBAAttr(OCCTDocumentRef doc, int64_t labelId,
+                                    double r, double g, double b, float alpha);
+
+/// Set color attribute from named color on a label
+bool OCCTDocumentSetColorNOCAttr(OCCTDocumentRef doc, int64_t labelId, int32_t noc);
+
+/// Get color from XCAFDoc_Color attribute on a label
+bool OCCTDocumentGetColorAttr(OCCTDocumentRef doc, int64_t labelId,
+                               double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB);
+
+/// Get RGBA from XCAFDoc_Color attribute on a label
+bool OCCTDocumentGetColorRGBAAttr(OCCTDocumentRef doc, int64_t labelId,
+                                    double *_Nonnull outR, double *_Nonnull outG, double *_Nonnull outB,
+                                    float *_Nonnull outAlpha);
+
+/// Get alpha from XCAFDoc_Color attribute
+float OCCTDocumentGetColorAlphaAttr(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get named color from XCAFDoc_Color attribute
+int32_t OCCTDocumentGetColorNOCAttr(OCCTDocumentRef doc, int64_t labelId);
+
+// --- XCAFDoc_Material ---
+
+/// Set material attribute on a label
+bool OCCTDocumentSetMaterialAttr(OCCTDocumentRef doc, int64_t labelId,
+                                  const char *_Nonnull name,
+                                  const char *_Nonnull description,
+                                  double density,
+                                  const char *_Nonnull densName,
+                                  const char *_Nonnull densValType);
+
+/// Get material name from attribute. Caller must free with OCCTStringFree.
+const char *_Nullable OCCTDocumentGetMaterialAttrName(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get material description. Caller must free with OCCTStringFree.
+const char *_Nullable OCCTDocumentGetMaterialAttrDescription(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get material density from attribute
+bool OCCTDocumentGetMaterialAttrDensity(OCCTDocumentRef doc, int64_t labelId,
+                                          double *_Nonnull outDensity);
+
+/// Check if label has XCAFDoc_Material attribute
+bool OCCTDocumentHasMaterialAttr(OCCTDocumentRef doc, int64_t labelId);
+
+// --- XCAFDoc_NoteComment ---
+
+/// Set a NoteComment attribute on a label
+bool OCCTDocumentSetNoteComment(OCCTDocumentRef doc, int64_t labelId,
+                                 const char *_Nonnull userName,
+                                 const char *_Nonnull timeStamp,
+                                 const char *_Nonnull comment);
+
+/// Get comment text from NoteComment. Caller must free with OCCTStringFree.
+const char *_Nullable OCCTDocumentGetNoteCommentText(OCCTDocumentRef doc, int64_t labelId);
+
+/// Get note user name. Caller must free with OCCTStringFree.
+const char *_Nullable OCCTDocumentGetNoteUserName(OCCTDocumentRef doc, int64_t labelId);
+
+// --- XCAFDoc_NoteBalloon ---
+
+/// Set a NoteBalloon attribute on a label
+bool OCCTDocumentSetNoteBalloon(OCCTDocumentRef doc, int64_t labelId,
+                                 const char *_Nonnull userName,
+                                 const char *_Nonnull timeStamp,
+                                 const char *_Nonnull comment);
+
+// --- XCAFDoc_NoteBinData ---
+
+/// Set a NoteBinData attribute on a label (binary data from byte array)
+bool OCCTDocumentSetNoteBinData(OCCTDocumentRef doc, int64_t labelId,
+                                 const char *_Nonnull userName,
+                                 const char *_Nonnull timeStamp,
+                                 const char *_Nonnull title,
+                                 const char *_Nonnull mimeType,
+                                 const uint8_t *_Nonnull data,
+                                 int32_t dataSize);
+
+/// Get binary data size from NoteBinData
+int32_t OCCTDocumentGetNoteBinDataSize(OCCTDocumentRef doc, int64_t labelId);
+
+// --- XCAFDoc_NotesTool ---
+
+/// Get or create NotesTool on document, returns number of notes (≥0) or -1 on error
+int32_t OCCTDocumentNotesToolNbNotes(OCCTDocumentRef doc);
+
+/// Create a comment note via NotesTool. Returns label ID of created note.
+int64_t OCCTDocumentNotesToolCreateComment(OCCTDocumentRef doc,
+                                             const char *_Nonnull userName,
+                                             const char *_Nonnull timeStamp,
+                                             const char *_Nonnull comment);
+
+/// Create a balloon note via NotesTool. Returns label ID of created note.
+int64_t OCCTDocumentNotesToolCreateBalloon(OCCTDocumentRef doc,
+                                             const char *_Nonnull userName,
+                                             const char *_Nonnull timeStamp,
+                                             const char *_Nonnull comment);
+
+/// Create a binary data note via NotesTool. Returns label ID of created note.
+int64_t OCCTDocumentNotesToolCreateBinData(OCCTDocumentRef doc,
+                                             const char *_Nonnull userName,
+                                             const char *_Nonnull timeStamp,
+                                             const char *_Nonnull title,
+                                             const char *_Nonnull mimeType,
+                                             const uint8_t *_Nonnull data,
+                                             int32_t dataSize);
+
+/// Delete a note by label ID. Returns true on success.
+bool OCCTDocumentNotesToolDeleteNote(OCCTDocumentRef doc, int64_t noteLabelId);
+
+/// Delete all notes. Returns the number of deleted notes.
+int32_t OCCTDocumentNotesToolDeleteAllNotes(OCCTDocumentRef doc);
+
+/// Get number of orphan notes.
+int32_t OCCTDocumentNotesToolNbOrphanNotes(OCCTDocumentRef doc);
+
+/// Delete all orphan notes. Returns number of deleted notes.
+int32_t OCCTDocumentNotesToolDeleteOrphanNotes(OCCTDocumentRef doc);
+
+// --- XCAFDoc_ClippingPlaneTool ---
+
+/// Add a clipping plane. Returns label ID of created plane or -1 on error.
+int64_t OCCTDocumentClipPlaneToolAdd(OCCTDocumentRef doc,
+                                       double planeOrigX, double planeOrigY, double planeOrigZ,
+                                       double planeNormX, double planeNormY, double planeNormZ,
+                                       const char *_Nonnull name, bool capping);
+
+/// Get clipping plane from label.
+bool OCCTDocumentClipPlaneToolGet(OCCTDocumentRef doc, int64_t labelId,
+                                    double *_Nonnull origX, double *_Nonnull origY, double *_Nonnull origZ,
+                                    double *_Nonnull normX, double *_Nonnull normY, double *_Nonnull normZ,
+                                    bool *_Nonnull capping);
+
+/// Check if label is a clipping plane
+bool OCCTDocumentClipPlaneToolIsClipPlane(OCCTDocumentRef doc, int64_t labelId);
+
+/// Remove a clipping plane
+bool OCCTDocumentClipPlaneToolRemove(OCCTDocumentRef doc, int64_t labelId);
+
+// --- XCAFDoc_ShapeMapTool ---
+
+/// Set ShapeMapTool attribute on a label
+bool OCCTDocumentSetShapeMapTool(OCCTDocumentRef doc, int64_t labelId);
+
+/// Set shape on ShapeMapTool
+bool OCCTDocumentShapeMapToolSetShape(OCCTDocumentRef doc, int64_t labelId, OCCTShapeRef shape);
+
+/// Check if shape is a sub-shape in the ShapeMapTool
+bool OCCTDocumentShapeMapToolIsSubShape(OCCTDocumentRef doc, int64_t labelId, OCCTShapeRef shape);
+
+/// Get the extent (number of entries) of the ShapeMapTool's map
+int32_t OCCTDocumentShapeMapToolExtent(OCCTDocumentRef doc, int64_t labelId);
+
+// --- XCAFDoc_AssemblyGraph ---
+
+/// Opaque handle to assembly graph
+typedef void *_Nullable OCCTAssemblyGraphRef;
+
+/// Create an assembly graph from a document
+OCCTAssemblyGraphRef OCCTAssemblyGraphCreate(OCCTDocumentRef doc);
+
+/// Release assembly graph
+void OCCTAssemblyGraphRelease(OCCTAssemblyGraphRef ref);
+
+/// Number of nodes in the assembly graph
+int32_t OCCTAssemblyGraphNbNodes(OCCTAssemblyGraphRef ref);
+
+/// Number of links in the assembly graph
+int32_t OCCTAssemblyGraphNbLinks(OCCTAssemblyGraphRef ref);
+
+/// Number of root nodes in the assembly graph
+int32_t OCCTAssemblyGraphNbRoots(OCCTAssemblyGraphRef ref);
+
+/// Get node type (0=node, 1=occurrence, 2=part, 3=instance, 4=subshape, 5=free)
+int32_t OCCTAssemblyGraphGetNodeType(OCCTAssemblyGraphRef ref, int32_t nodeIndex);
+
+// --- XCAFDoc_AssemblyItemId ---
+
+/// Create an AssemblyItemId from string, check if valid. Returns true if valid.
+bool OCCTAssemblyItemIdIsValid(const char *_Nonnull str);
+
+/// Get path count from an AssemblyItemId string
+int32_t OCCTAssemblyItemIdPathCount(const char *_Nonnull str);
+
+/// Check equality of two AssemblyItemId strings
+bool OCCTAssemblyItemIdIsEqual(const char *_Nonnull str1, const char *_Nonnull str2);
+
+// --- XCAFView_Object ---
+
+/// Opaque handle to XCAFView_Object
+typedef void *_Nullable OCCTViewObjectRef;
+
+/// Create a new XCAFView_Object
+OCCTViewObjectRef OCCTViewObjectCreate(void);
+
+/// Release view object
+void OCCTViewObjectRelease(OCCTViewObjectRef ref);
+
+/// Set projection type (0=central, 1=parallel)
+void OCCTViewObjectSetType(OCCTViewObjectRef ref, int32_t type);
+
+/// Get projection type (0=central, 1=parallel)
+int32_t OCCTViewObjectGetType(OCCTViewObjectRef ref);
+
+/// Set view direction
+void OCCTViewObjectSetViewDirection(OCCTViewObjectRef ref, double x, double y, double z);
+
+/// Get view direction
+void OCCTViewObjectGetViewDirection(OCCTViewObjectRef ref,
+                                      double *_Nonnull x, double *_Nonnull y, double *_Nonnull z);
+
+/// Set up direction
+void OCCTViewObjectSetUpDirection(OCCTViewObjectRef ref, double x, double y, double z);
+
+/// Get up direction
+void OCCTViewObjectGetUpDirection(OCCTViewObjectRef ref,
+                                    double *_Nonnull x, double *_Nonnull y, double *_Nonnull z);
+
+/// Set window horizontal size
+void OCCTViewObjectSetWindowHSize(OCCTViewObjectRef ref, double size);
+
+/// Get window horizontal size
+double OCCTViewObjectGetWindowHSize(OCCTViewObjectRef ref);
+
+/// Set window vertical size
+void OCCTViewObjectSetWindowVSize(OCCTViewObjectRef ref, double size);
+
+/// Get window vertical size
+double OCCTViewObjectGetWindowVSize(OCCTViewObjectRef ref);
+
+/// Set front plane distance (enables front clipping)
+void OCCTViewObjectSetFrontPlaneDistance(OCCTViewObjectRef ref, double dist);
+
+/// Get front plane distance
+double OCCTViewObjectGetFrontPlaneDistance(OCCTViewObjectRef ref);
+
+/// Has front plane clipping
+bool OCCTViewObjectHasFrontPlaneClipping(OCCTViewObjectRef ref);
+
+/// Unset front plane clipping
+void OCCTViewObjectUnsetFrontPlaneClipping(OCCTViewObjectRef ref);
+
+/// Set back plane distance (enables back clipping)
+void OCCTViewObjectSetBackPlaneDistance(OCCTViewObjectRef ref, double dist);
+
+/// Get back plane distance
+double OCCTViewObjectGetBackPlaneDistance(OCCTViewObjectRef ref);
+
+/// Has back plane clipping
+bool OCCTViewObjectHasBackPlaneClipping(OCCTViewObjectRef ref);
+
+/// Unset back plane clipping
+void OCCTViewObjectUnsetBackPlaneClipping(OCCTViewObjectRef ref);
+
+/// Set name. Pass empty string for no name.
+void OCCTViewObjectSetName(OCCTViewObjectRef ref, const char *_Nonnull name);
+
+/// Get name. Caller must free with OCCTStringFree.
+const char *_Nullable OCCTViewObjectGetName(OCCTViewObjectRef ref);
+
+// --- XCAFNoteObjects_NoteObject ---
+
+/// Opaque handle to XCAFNoteObjects_NoteObject
+typedef void *_Nullable OCCTNoteObjectRef;
+
+/// Create a new NoteObject
+OCCTNoteObjectRef OCCTNoteObjectCreate(void);
+
+/// Release note object
+void OCCTNoteObjectRelease(OCCTNoteObjectRef ref);
+
+/// Has plane
+bool OCCTNoteObjectHasPlane(OCCTNoteObjectRef ref);
+
+/// Has point
+bool OCCTNoteObjectHasPoint(OCCTNoteObjectRef ref);
+
+/// Has point text
+bool OCCTNoteObjectHasPointText(OCCTNoteObjectRef ref);
+
+/// Set plane (origin + normal)
+void OCCTNoteObjectSetPlane(OCCTNoteObjectRef ref,
+                              double origX, double origY, double origZ,
+                              double normX, double normY, double normZ);
+
+/// Get plane origin
+void OCCTNoteObjectGetPlane(OCCTNoteObjectRef ref,
+                              double *_Nonnull origX, double *_Nonnull origY, double *_Nonnull origZ);
+
+/// Set point
+void OCCTNoteObjectSetPoint(OCCTNoteObjectRef ref, double x, double y, double z);
+
+/// Get point
+void OCCTNoteObjectGetPoint(OCCTNoteObjectRef ref,
+                              double *_Nonnull x, double *_Nonnull y, double *_Nonnull z);
+
+/// Set presentation shape
+void OCCTNoteObjectSetPresentation(OCCTNoteObjectRef ref, OCCTShapeRef shape);
+
+/// Get presentation shape (returns null if not set)
+OCCTShapeRef OCCTNoteObjectGetPresentation(OCCTNoteObjectRef ref);
+
+/// Reset all data
+void OCCTNoteObjectReset(OCCTNoteObjectRef ref);
+
+// --- XCAFPrs_Style ---
+
+/// XCAFPrs_Style data as a struct
+typedef struct {
+    double surfR, surfG, surfB;
+    float surfAlpha;
+    bool hasSurfColor;
+    double curvR, curvG, curvB;
+    bool hasCurvColor;
+    bool isVisible;
+    bool isEmpty;
+} OCCTXCAFPrsStyle;
+
+/// Create a default (empty) style
+OCCTXCAFPrsStyle OCCTXCAFPrsStyleCreate(void);
+
+/// Create a style with surface color
+OCCTXCAFPrsStyle OCCTXCAFPrsStyleCreateWithSurfColor(double r, double g, double b, float alpha);
+
+/// Create a style with surface and curve colors
+OCCTXCAFPrsStyle OCCTXCAFPrsStyleCreateFull(double surfR, double surfG, double surfB, float surfAlpha,
+                                              double curvR, double curvG, double curvB,
+                                              bool visible);
+
+/// Check if two styles are equal
+bool OCCTXCAFPrsStyleIsEqual(const OCCTXCAFPrsStyle *_Nonnull s1, const OCCTXCAFPrsStyle *_Nonnull s2);
+
+// --- XCAFDoc_VisMaterialCommon ---
+
+/// Phong material data struct
+typedef struct {
+    double diffuseR, diffuseG, diffuseB;
+    double ambientR, ambientG, ambientB;
+    double specularR, specularG, specularB;
+    double emissiveR, emissiveG, emissiveB;
+    float shininess;
+    float transparency;
+    bool isDefined;
+} OCCTVisMaterialCommon;
+
+/// Get default VisMaterialCommon values
+OCCTVisMaterialCommon OCCTVisMaterialCommonDefault(void);
+
+/// Check equality of two VisMaterialCommon
+bool OCCTVisMaterialCommonIsEqual(const OCCTVisMaterialCommon *_Nonnull a,
+                                    const OCCTVisMaterialCommon *_Nonnull b);
+
+// --- XCAFDoc_VisMaterialPBR ---
+
+/// PBR material data struct
+typedef struct {
+    double baseColorR, baseColorG, baseColorB;
+    float baseColorAlpha;
+    float metallic;
+    float roughness;
+    float refractionIndex;
+    double emissionR, emissionG, emissionB;
+    bool isDefined;
+} OCCTVisMaterialPBR;
+
+/// Get default VisMaterialPBR values
+OCCTVisMaterialPBR OCCTVisMaterialPBRDefault(void);
+
+/// Check equality of two VisMaterialPBR
+bool OCCTVisMaterialPBRIsEqual(const OCCTVisMaterialPBR *_Nonnull a,
+                                 const OCCTVisMaterialPBR *_Nonnull b);
 
 #ifdef __cplusplus
 }
