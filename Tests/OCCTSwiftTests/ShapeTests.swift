@@ -24667,3 +24667,345 @@ struct IDFilterTests {
         }
     }
 }
+
+// MARK: - v0.86.0: TDataStd Extended Attributes + ShapeFix + FindContigousEdges
+
+@Suite("BooleanArray Tests")
+struct BooleanArrayTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let values: [Bool] = [true, false, true, false, true]
+        #expect(doc.setBooleanArray(tag: 300, values: values))
+        if let result = doc.booleanArray(tag: 300) {
+            #expect(result.count == 5)
+            #expect(result[0] == true)
+            #expect(result[1] == false)
+            #expect(result[2] == true)
+        }
+    }
+
+    @Test func hasBooleanArray() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasBooleanArray(tag: 301))
+        _ = doc.setBooleanArray(tag: 301, values: [true])
+        #expect(doc.hasBooleanArray(tag: 301))
+    }
+
+    @Test func emptyArrayReturnsNil() {
+        guard let doc = Document.create() else { return }
+        #expect(doc.booleanArray(tag: 302) == nil)
+    }
+}
+
+@Suite("BooleanList Tests")
+struct BooleanListTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let values: [Bool] = [true, false, true]
+        #expect(doc.setBooleanList(tag: 310, values: values))
+        if let result = doc.booleanList(tag: 310) {
+            #expect(result.count == 3)
+            #expect(result[0] == true)
+            #expect(result[1] == false)
+        }
+    }
+
+    @Test func appendAndClear() {
+        guard let doc = Document.create() else { return }
+        _ = doc.setBooleanList(tag: 311, values: [])
+        #expect(doc.booleanListAppend(tag: 311, value: true))
+        #expect(doc.booleanListAppend(tag: 311, value: false))
+        if let result = doc.booleanList(tag: 311) {
+            #expect(result.count == 2)
+        }
+        #expect(doc.booleanListClear(tag: 311))
+        if let result = doc.booleanList(tag: 311) {
+            #expect(result.count == 0)
+        }
+    }
+
+    @Test func hasBooleanList() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasBooleanList(tag: 312))
+        _ = doc.setBooleanList(tag: 312, values: [true])
+        #expect(doc.hasBooleanList(tag: 312))
+    }
+}
+
+@Suite("ByteArray Tests")
+struct ByteArrayTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let values: [UInt8] = [42, 255, 0, 128]
+        #expect(doc.setByteArray(tag: 320, values: values))
+        if let result = doc.byteArray(tag: 320) {
+            #expect(result.count == 4)
+            #expect(result[0] == 42)
+            #expect(result[1] == 255)
+            #expect(result[3] == 128)
+        }
+    }
+
+    @Test func hasByteArray() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasByteArray(tag: 321))
+        _ = doc.setByteArray(tag: 321, values: [1, 2, 3])
+        #expect(doc.hasByteArray(tag: 321))
+    }
+}
+
+@Suite("IntegerList Tests")
+struct IntegerListTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let values: [Int32] = [10, 20, 30]
+        #expect(doc.setIntegerList(tag: 330, values: values))
+        if let result = doc.integerList(tag: 330) {
+            #expect(result.count == 3)
+            #expect(result[0] == 10)
+            #expect(result[2] == 30)
+        }
+    }
+
+    @Test func appendAndClear() {
+        guard let doc = Document.create() else { return }
+        _ = doc.setIntegerList(tag: 331, values: [])
+        #expect(doc.integerListAppend(tag: 331, value: 42))
+        #expect(doc.integerListAppend(tag: 331, value: 99))
+        if let result = doc.integerList(tag: 331) {
+            #expect(result.count == 2)
+            #expect(result[0] == 42)
+        }
+        #expect(doc.integerListClear(tag: 331))
+        if let result = doc.integerList(tag: 331) {
+            #expect(result.count == 0)
+        }
+    }
+
+    @Test func hasIntegerList() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasIntegerList(tag: 332))
+        _ = doc.setIntegerList(tag: 332, values: [1])
+        #expect(doc.hasIntegerList(tag: 332))
+    }
+}
+
+@Suite("RealList Tests")
+struct RealListTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let values: [Double] = [1.5, 2.7, 3.14]
+        #expect(doc.setRealList(tag: 340, values: values))
+        if let result = doc.realList(tag: 340) {
+            #expect(result.count == 3)
+            #expect(abs(result[0] - 1.5) < 1e-10)
+            #expect(abs(result[2] - 3.14) < 1e-10)
+        }
+    }
+
+    @Test func appendAndClear() {
+        guard let doc = Document.create() else { return }
+        _ = doc.setRealList(tag: 341, values: [])
+        #expect(doc.realListAppend(tag: 341, value: 0.5))
+        #expect(doc.realListAppend(tag: 341, value: 1.5))
+        if let result = doc.realList(tag: 341) {
+            #expect(result.count == 2)
+        }
+        #expect(doc.realListClear(tag: 341))
+        if let result = doc.realList(tag: 341) {
+            #expect(result.count == 0)
+        }
+    }
+
+    @Test func hasRealList() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasRealList(tag: 342))
+        _ = doc.setRealList(tag: 342, values: [1.0])
+        #expect(doc.hasRealList(tag: 342))
+    }
+}
+
+@Suite("ExtStringArray Tests")
+struct ExtStringArrayTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let values = ["Hello", "World", "Test"]
+        #expect(doc.setExtStringArray(tag: 350, values: values))
+        if let len = doc.extStringArrayLength(tag: 350) {
+            #expect(len == 3)
+        }
+        if let v = doc.extStringArrayValue(tag: 350, index: 1) {
+            #expect(v == "Hello")
+        }
+        if let v = doc.extStringArrayValue(tag: 350, index: 2) {
+            #expect(v == "World")
+        }
+    }
+
+    @Test func hasExtStringArray() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasExtStringArray(tag: 351))
+        _ = doc.setExtStringArray(tag: 351, values: ["A"])
+        #expect(doc.hasExtStringArray(tag: 351))
+    }
+}
+
+@Suite("ExtStringList Tests")
+struct ExtStringListTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let values = ["Alpha", "Beta", "Gamma"]
+        #expect(doc.setExtStringList(tag: 360, values: values))
+        if let count = doc.extStringListCount(tag: 360) {
+            #expect(count == 3)
+        }
+        if let v = doc.extStringListValue(tag: 360, index: 0) {
+            #expect(v == "Alpha")
+        }
+        if let v = doc.extStringListValue(tag: 360, index: 2) {
+            #expect(v == "Gamma")
+        }
+    }
+
+    @Test func appendAndClear() {
+        guard let doc = Document.create() else { return }
+        _ = doc.setExtStringList(tag: 361, values: [])
+        #expect(doc.extStringListAppend(tag: 361, value: "X"))
+        #expect(doc.extStringListAppend(tag: 361, value: "Y"))
+        if let count = doc.extStringListCount(tag: 361) {
+            #expect(count == 2)
+        }
+        #expect(doc.extStringListClear(tag: 361))
+        if let count = doc.extStringListCount(tag: 361) {
+            #expect(count == 0)
+        }
+    }
+
+    @Test func hasExtStringList() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasExtStringList(tag: 362))
+        _ = doc.setExtStringList(tag: 362, values: ["A"])
+        #expect(doc.hasExtStringList(tag: 362))
+    }
+}
+
+@Suite("ReferenceArray Tests")
+struct ReferenceArrayTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let refs: [Int32] = [400, 401, 402]
+        #expect(doc.setReferenceArray(tag: 370, refTags: refs))
+        if let result = doc.referenceArray(tag: 370) {
+            #expect(result.count == 3)
+            #expect(result[0] == 400)
+            #expect(result[1] == 401)
+            #expect(result[2] == 402)
+        }
+    }
+
+    @Test func hasReferenceArray() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasReferenceArray(tag: 371))
+        _ = doc.setReferenceArray(tag: 371, refTags: [500])
+        #expect(doc.hasReferenceArray(tag: 371))
+    }
+}
+
+@Suite("ReferenceList Tests")
+struct ReferenceListTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        let refs: [Int32] = [410, 411]
+        #expect(doc.setReferenceList(tag: 380, refTags: refs))
+        if let result = doc.referenceList(tag: 380) {
+            #expect(result.count == 2)
+            #expect(result[0] == 410)
+            #expect(result[1] == 411)
+        }
+    }
+
+    @Test func appendAndClear() {
+        guard let doc = Document.create() else { return }
+        _ = doc.setReferenceList(tag: 381, refTags: [])
+        #expect(doc.referenceListAppend(tag: 381, refTag: 420))
+        #expect(doc.referenceListAppend(tag: 381, refTag: 421))
+        if let result = doc.referenceList(tag: 381) {
+            #expect(result.count == 2)
+        }
+        #expect(doc.referenceListClear(tag: 381))
+        if let result = doc.referenceList(tag: 381) {
+            #expect(result.count == 0)
+        }
+    }
+
+    @Test func hasReferenceList() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasReferenceList(tag: 382))
+        _ = doc.setReferenceList(tag: 382, refTags: [500])
+        #expect(doc.hasReferenceList(tag: 382))
+    }
+}
+
+@Suite("Relation Tests")
+struct RelationTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        #expect(doc.setRelation(tag: 390, relation: "x + y = z"))
+        if let rel = doc.relation(tag: 390) {
+            #expect(rel == "x + y = z")
+        }
+    }
+
+    @Test func hasRelation() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasRelation(tag: 391))
+        _ = doc.setRelation(tag: 391, relation: "a = b")
+        #expect(doc.hasRelation(tag: 391))
+    }
+}
+
+@Suite("ShapeFix Solid Tests")
+struct ShapeFixSolidTests {
+    @Test func fixSolid() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let fixed = box.fixSolid() {
+                #expect(fixed.isValid)
+            }
+        }
+    }
+
+    @Test func solidFromShellFixed() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let result = box.solidFromShellFixed()
+            #expect(result != nil)
+        }
+    }
+}
+
+@Suite("ShapeFix EdgeConnect Tests")
+struct ShapeFixEdgeConnectTests {
+    @Test func fixEdgeConnect() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let fixed = box.fixEdgeConnect()
+            #expect(fixed != nil)
+        }
+    }
+}
+
+@Suite("FindContigousEdges Tests")
+struct FindContigousEdgesTests {
+    @Test func findOnBox() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let result = box.findContigousEdges()
+            #expect(result.contigousEdgeCount >= 0)
+            #expect(result.degeneratedShapeCount >= 0)
+        }
+    }
+
+    @Test func findWithTolerance() {
+        if let sphere = Shape.sphere(radius: 5) {
+            let result = sphere.findContigousEdges(tolerance: 0.001)
+            #expect(result.degeneratedShapeCount >= 0)
+        }
+    }
+}

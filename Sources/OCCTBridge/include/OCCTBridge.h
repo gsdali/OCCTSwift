@@ -11239,6 +11239,198 @@ bool OCCTIDFilterIsKept(OCCTIDFilterRef _Nonnull filter, const char* _Nonnull gu
 /// Check if a GUID is ignored
 bool OCCTIDFilterIsIgnored(OCCTIDFilterRef _Nonnull filter, const char* _Nonnull guidString);
 
+// MARK: - TDataStd_BooleanArray
+
+/// Set a boolean array attribute on a label (1-based indices)
+bool OCCTDocumentSetBooleanArray(OCCTDocumentRef _Nonnull document, int tag,
+                                  int lower, int upper,
+                                  const bool* _Nonnull values, int count);
+
+/// Get a boolean array attribute from a label. Returns count, fills values buffer.
+int OCCTDocumentGetBooleanArray(OCCTDocumentRef _Nonnull document, int tag,
+                                 bool* _Nullable values, int maxCount);
+
+/// Check if a label has a boolean array attribute
+bool OCCTDocumentHasBooleanArray(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_BooleanList
+
+/// Set a boolean list attribute on a label
+bool OCCTDocumentSetBooleanList(OCCTDocumentRef _Nonnull document, int tag,
+                                 const bool* _Nonnull values, int count);
+
+/// Get a boolean list attribute from a label. Returns count, fills values buffer.
+int OCCTDocumentGetBooleanList(OCCTDocumentRef _Nonnull document, int tag,
+                                bool* _Nullable values, int maxCount);
+
+/// Append a value to a boolean list attribute
+bool OCCTDocumentBooleanListAppend(OCCTDocumentRef _Nonnull document, int tag, bool value);
+
+/// Clear a boolean list attribute
+bool OCCTDocumentBooleanListClear(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Check if a label has a boolean list attribute
+bool OCCTDocumentHasBooleanList(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_ByteArray
+
+/// Set a byte array attribute on a label (0-based indices)
+bool OCCTDocumentSetByteArray(OCCTDocumentRef _Nonnull document, int tag,
+                               int lower, int upper,
+                               const uint8_t* _Nonnull values, int count);
+
+/// Get a byte array attribute from a label. Returns count, fills values buffer.
+int OCCTDocumentGetByteArray(OCCTDocumentRef _Nonnull document, int tag,
+                              uint8_t* _Nullable values, int maxCount);
+
+/// Check if a label has a byte array attribute
+bool OCCTDocumentHasByteArray(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_IntegerList
+
+/// Set an integer list attribute on a label
+bool OCCTDocumentSetIntegerList(OCCTDocumentRef _Nonnull document, int tag,
+                                 const int* _Nonnull values, int count);
+
+/// Get an integer list attribute from a label. Returns count, fills values buffer.
+int OCCTDocumentGetIntegerList(OCCTDocumentRef _Nonnull document, int tag,
+                                int* _Nullable values, int maxCount);
+
+/// Append a value to an integer list attribute
+bool OCCTDocumentIntegerListAppend(OCCTDocumentRef _Nonnull document, int tag, int value);
+
+/// Clear an integer list attribute
+bool OCCTDocumentIntegerListClear(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Check if a label has an integer list attribute
+bool OCCTDocumentHasIntegerList(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_RealList
+
+/// Set a real list attribute on a label
+bool OCCTDocumentSetRealList(OCCTDocumentRef _Nonnull document, int tag,
+                              const double* _Nonnull values, int count);
+
+/// Get a real list attribute from a label. Returns count, fills values buffer.
+int OCCTDocumentGetRealList(OCCTDocumentRef _Nonnull document, int tag,
+                             double* _Nullable values, int maxCount);
+
+/// Append a value to a real list attribute
+bool OCCTDocumentRealListAppend(OCCTDocumentRef _Nonnull document, int tag, double value);
+
+/// Clear a real list attribute
+bool OCCTDocumentRealListClear(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Check if a label has a real list attribute
+bool OCCTDocumentHasRealList(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_ExtStringArray
+
+/// Set an extended string array attribute on a label (1-based indices)
+bool OCCTDocumentSetExtStringArray(OCCTDocumentRef _Nonnull document, int tag,
+                                    int lower, int upper,
+                                    const char* _Nonnull const* _Nonnull values, int count);
+
+/// Get an extended string array element by index (1-based). Caller must free() the result.
+char* _Nullable OCCTDocumentGetExtStringArrayValue(OCCTDocumentRef _Nonnull document, int tag, int index);
+
+/// Get the bounds of an extended string array. Returns length, or -1 if not found.
+int OCCTDocumentGetExtStringArrayLength(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Check if a label has an extended string array attribute
+bool OCCTDocumentHasExtStringArray(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_ExtStringList
+
+/// Set an extended string list attribute on a label
+bool OCCTDocumentSetExtStringList(OCCTDocumentRef _Nonnull document, int tag,
+                                   const char* _Nonnull const* _Nonnull values, int count);
+
+/// Get extended string list count from a label. Returns count, or -1 if not found.
+int OCCTDocumentGetExtStringListCount(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Get extended string list element by index (0-based). Caller must free() the result.
+char* _Nullable OCCTDocumentGetExtStringListValue(OCCTDocumentRef _Nonnull document, int tag, int index);
+
+/// Append a string to an extended string list attribute
+bool OCCTDocumentExtStringListAppend(OCCTDocumentRef _Nonnull document, int tag,
+                                      const char* _Nonnull value);
+
+/// Clear an extended string list attribute
+bool OCCTDocumentExtStringListClear(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Check if a label has an extended string list attribute
+bool OCCTDocumentHasExtStringList(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_ReferenceArray
+
+/// Set a reference array attribute on a label (array of label tags)
+bool OCCTDocumentSetReferenceArray(OCCTDocumentRef _Nonnull document, int tag,
+                                    int lower, int upper,
+                                    const int* _Nonnull refTags, int count);
+
+/// Get a reference array from a label. Returns count, fills refTags buffer with tags.
+int OCCTDocumentGetReferenceArray(OCCTDocumentRef _Nonnull document, int tag,
+                                   int* _Nullable refTags, int maxCount);
+
+/// Check if a label has a reference array attribute
+bool OCCTDocumentHasReferenceArray(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_ReferenceList
+
+/// Set a reference list attribute on a label (list of label tags)
+bool OCCTDocumentSetReferenceList(OCCTDocumentRef _Nonnull document, int tag,
+                                   const int* _Nonnull refTags, int count);
+
+/// Get a reference list from a label. Returns count, fills refTags buffer with tags.
+int OCCTDocumentGetReferenceList(OCCTDocumentRef _Nonnull document, int tag,
+                                  int* _Nullable refTags, int maxCount);
+
+/// Append a reference to a reference list attribute
+bool OCCTDocumentReferenceListAppend(OCCTDocumentRef _Nonnull document, int tag, int refTag);
+
+/// Clear a reference list attribute
+bool OCCTDocumentReferenceListClear(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Check if a label has a reference list attribute
+bool OCCTDocumentHasReferenceList(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_Relation
+
+/// Set a relation string on a label
+bool OCCTDocumentSetRelation(OCCTDocumentRef _Nonnull document, int tag,
+                              const char* _Nonnull relation);
+
+/// Get a relation string from a label. Caller must free() the result.
+char* _Nullable OCCTDocumentGetRelation(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Check if a label has a relation attribute
+bool OCCTDocumentHasRelation(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - ShapeFix_Solid
+
+/// Fix a solid shape (topology and orientation). Returns fixed shape or NULL.
+OCCTShapeRef _Nullable OCCTShapeFixSolid(OCCTShapeRef _Nonnull shape);
+
+/// Create a solid from a shell using ShapeFix_Solid
+OCCTShapeRef _Nullable OCCTShapeSolidFromShell(OCCTShapeRef _Nonnull shellShape);
+
+// MARK: - ShapeFix_EdgeConnect
+
+/// Connect edges in a shape by extending/trimming to match
+OCCTShapeRef _Nullable OCCTShapeFixEdgeConnect(OCCTShapeRef _Nonnull shape);
+
+// MARK: - BRepOffsetAPI_FindContigousEdges
+
+/// Result struct for contiguous edge finding
+typedef struct {
+    int contigousEdgeCount;
+    int degeneratedShapeCount;
+} OCCTContigousEdgeResult;
+
+/// Find contiguous edges in a shape
+OCCTContigousEdgeResult OCCTShapeFindContigousEdges(OCCTShapeRef _Nonnull shape, double tolerance);
+
 #ifdef __cplusplus
 }
 #endif

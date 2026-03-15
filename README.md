@@ -202,7 +202,20 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Message_Report** | 7 | create, release, addAlert, alertCount, clearAlerts, sendAlerts, isActive |
 | **RWMesh_CoordinateSystemConverter** | 2 | convertPoint, convertNormal |
 | **TDF_IDFilter** | 8 | create, release, keep, ignore, isKept, isIgnored, copy, setIgnoreAll |
-| **Total** | **1633** | |
+| **TDataStd_BooleanArray** | 3 | setBooleanArray, booleanArray, hasBooleanArray |
+| **TDataStd_BooleanList** | 5 | setBooleanList, booleanList, booleanListAppend, booleanListClear, hasBooleanList |
+| **TDataStd_ByteArray** | 3 | setByteArray, byteArray, hasByteArray |
+| **TDataStd_IntegerList** | 5 | setIntegerList, integerList, integerListAppend, integerListClear, hasIntegerList |
+| **TDataStd_RealList** | 5 | setRealList, realList, realListAppend, realListClear, hasRealList |
+| **TDataStd_ExtStringArray** | 4 | setExtStringArray, extStringArrayValue, extStringArrayLength, hasExtStringArray |
+| **TDataStd_ExtStringList** | 6 | setExtStringList, extStringListCount, extStringListValue, extStringListAppend, extStringListClear, hasExtStringList |
+| **TDataStd_ReferenceArray** | 3 | setReferenceArray, referenceArray, hasReferenceArray |
+| **TDataStd_ReferenceList** | 5 | setReferenceList, referenceList, referenceListAppend, referenceListClear, hasReferenceList |
+| **TDataStd_Relation** | 3 | setRelation, relation, hasRelation |
+| **ShapeFix_Solid** | 2 | fixSolid, solidFromShellFixed |
+| **ShapeFix_EdgeConnect** | 1 | fixEdgeConnect |
+| **BRepOffsetAPI_FindContigousEdges** | 1 | findContigousEdges |
+| **Total** | **1679** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -535,6 +548,15 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Alert Reports**: Message_Report — collect, count, and broadcast alert messages with severity levels
 - **Coordinate System Conversion**: RWMesh_CoordinateSystemConverter — convert points and normals between Z-up and Y-up coordinate systems
 - **Attribute Filtering**: TDF_IDFilter — keep/ignore GUID-based attribute filters for selective OCAF document operations
+- **Boolean Arrays/Lists**: TDataStd_BooleanArray/BooleanList — store and retrieve boolean value collections on OCAF labels
+- **Byte Arrays**: TDataStd_ByteArray — store and retrieve raw byte data on OCAF labels
+- **Integer/Real Lists**: TDataStd_IntegerList/RealList — ordered numeric list attributes with append, clear, and bulk set/get
+- **Extended String Arrays/Lists**: TDataStd_ExtStringArray/ExtStringList — Unicode string collections on OCAF labels
+- **Label Reference Arrays/Lists**: TDataStd_ReferenceArray/ReferenceList — store arrays and lists of label cross-references
+- **Relation Attributes**: TDataStd_Relation — mathematical relation/constraint strings on OCAF labels
+- **Solid Fixing**: ShapeFix_Solid — fix solid topology and orientation, create solids from shells
+- **Edge Connection**: ShapeFix_EdgeConnect — connect edges by extending/trimming to match
+- **Contiguous Edge Detection**: BRepOffsetAPI_FindContigousEdges — find shared edges and degenerated shapes
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements

@@ -3388,3 +3388,392 @@ public final class IDFilter: @unchecked Sendable {
         OCCTIDFilterIsIgnored(ref, guidString)
     }
 }
+
+// MARK: - TDataStd_BooleanArray
+
+public extension Document {
+    /// Set a boolean array attribute on a label.
+    func setBooleanArray(tag: Int, values: [Bool]) -> Bool {
+        let cValues = values.map { $0 }
+        return cValues.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetBooleanArray(handle, Int32(tag), 1, Int32(values.count),
+                                         buf.baseAddress!, Int32(values.count))
+        }
+    }
+
+    /// Get a boolean array attribute from a label.
+    func booleanArray(tag: Int) -> [Bool]? {
+        let count = OCCTDocumentGetBooleanArray(handle, Int32(tag), nil, 0)
+        if count < 0 { return nil }
+        if count == 0 { return [] }
+        var values = [Bool](repeating: false, count: Int(count))
+        _ = values.withUnsafeMutableBufferPointer { buf in
+            OCCTDocumentGetBooleanArray(handle, Int32(tag), buf.baseAddress!, count)
+        }
+        return values
+    }
+
+    /// Check if a label has a boolean array attribute.
+    func hasBooleanArray(tag: Int) -> Bool {
+        OCCTDocumentHasBooleanArray(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_BooleanList
+
+public extension Document {
+    /// Set a boolean list attribute on a label.
+    func setBooleanList(tag: Int, values: [Bool]) -> Bool {
+        values.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetBooleanList(handle, Int32(tag), buf.baseAddress!, Int32(values.count))
+        }
+    }
+
+    /// Get a boolean list attribute from a label.
+    func booleanList(tag: Int) -> [Bool]? {
+        let count = OCCTDocumentGetBooleanList(handle, Int32(tag), nil, 0)
+        if count < 0 { return nil }
+        if count == 0 { return [] }
+        var values = [Bool](repeating: false, count: Int(count))
+        _ = values.withUnsafeMutableBufferPointer { buf in
+            OCCTDocumentGetBooleanList(handle, Int32(tag), buf.baseAddress!, count)
+        }
+        return values
+    }
+
+    /// Append a value to a boolean list attribute.
+    func booleanListAppend(tag: Int, value: Bool) -> Bool {
+        OCCTDocumentBooleanListAppend(handle, Int32(tag), value)
+    }
+
+    /// Clear a boolean list attribute.
+    func booleanListClear(tag: Int) -> Bool {
+        OCCTDocumentBooleanListClear(handle, Int32(tag))
+    }
+
+    /// Check if a label has a boolean list attribute.
+    func hasBooleanList(tag: Int) -> Bool {
+        OCCTDocumentHasBooleanList(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_ByteArray
+
+public extension Document {
+    /// Set a byte array attribute on a label.
+    func setByteArray(tag: Int, values: [UInt8]) -> Bool {
+        values.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetByteArray(handle, Int32(tag), 0, Int32(values.count - 1),
+                                      buf.baseAddress!, Int32(values.count))
+        }
+    }
+
+    /// Get a byte array attribute from a label.
+    func byteArray(tag: Int) -> [UInt8]? {
+        let count = OCCTDocumentGetByteArray(handle, Int32(tag), nil, 0)
+        if count < 0 { return nil }
+        if count == 0 { return [] }
+        var values = [UInt8](repeating: 0, count: Int(count))
+        _ = values.withUnsafeMutableBufferPointer { buf in
+            OCCTDocumentGetByteArray(handle, Int32(tag), buf.baseAddress!, count)
+        }
+        return values
+    }
+
+    /// Check if a label has a byte array attribute.
+    func hasByteArray(tag: Int) -> Bool {
+        OCCTDocumentHasByteArray(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_IntegerList
+
+public extension Document {
+    /// Set an integer list attribute on a label.
+    func setIntegerList(tag: Int, values: [Int32]) -> Bool {
+        values.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetIntegerList(handle, Int32(tag), buf.baseAddress!, Int32(values.count))
+        }
+    }
+
+    /// Get an integer list attribute from a label.
+    func integerList(tag: Int) -> [Int32]? {
+        let count = OCCTDocumentGetIntegerList(handle, Int32(tag), nil, 0)
+        if count < 0 { return nil }
+        if count == 0 { return [] }
+        var values = [Int32](repeating: 0, count: Int(count))
+        _ = values.withUnsafeMutableBufferPointer { buf in
+            OCCTDocumentGetIntegerList(handle, Int32(tag), buf.baseAddress!, count)
+        }
+        return values
+    }
+
+    /// Append a value to an integer list attribute.
+    func integerListAppend(tag: Int, value: Int32) -> Bool {
+        OCCTDocumentIntegerListAppend(handle, Int32(tag), value)
+    }
+
+    /// Clear an integer list attribute.
+    func integerListClear(tag: Int) -> Bool {
+        OCCTDocumentIntegerListClear(handle, Int32(tag))
+    }
+
+    /// Check if a label has an integer list attribute.
+    func hasIntegerList(tag: Int) -> Bool {
+        OCCTDocumentHasIntegerList(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_RealList
+
+public extension Document {
+    /// Set a real list attribute on a label.
+    func setRealList(tag: Int, values: [Double]) -> Bool {
+        values.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetRealList(handle, Int32(tag), buf.baseAddress!, Int32(values.count))
+        }
+    }
+
+    /// Get a real list attribute from a label.
+    func realList(tag: Int) -> [Double]? {
+        let count = OCCTDocumentGetRealList(handle, Int32(tag), nil, 0)
+        if count < 0 { return nil }
+        if count == 0 { return [] }
+        var values = [Double](repeating: 0, count: Int(count))
+        _ = values.withUnsafeMutableBufferPointer { buf in
+            OCCTDocumentGetRealList(handle, Int32(tag), buf.baseAddress!, count)
+        }
+        return values
+    }
+
+    /// Append a value to a real list attribute.
+    func realListAppend(tag: Int, value: Double) -> Bool {
+        OCCTDocumentRealListAppend(handle, Int32(tag), value)
+    }
+
+    /// Clear a real list attribute.
+    func realListClear(tag: Int) -> Bool {
+        OCCTDocumentRealListClear(handle, Int32(tag))
+    }
+
+    /// Check if a label has a real list attribute.
+    func hasRealList(tag: Int) -> Bool {
+        OCCTDocumentHasRealList(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_ExtStringArray
+
+public extension Document {
+    /// Set an extended string array attribute on a label.
+    func setExtStringArray(tag: Int, values: [String]) -> Bool {
+        var result = false
+        let count = values.count
+        let cStrings: [UnsafePointer<CChar>] = values.map { str in
+            (str as NSString).utf8String!
+        }
+        cStrings.withUnsafeBufferPointer { buf in
+            result = OCCTDocumentSetExtStringArray(handle, Int32(tag), 1, Int32(count),
+                                                    buf.baseAddress!, Int32(count))
+        }
+        return result
+    }
+
+    /// Get an extended string array element by index (1-based).
+    func extStringArrayValue(tag: Int, index: Int) -> String? {
+        guard let cStr = OCCTDocumentGetExtStringArrayValue(handle, Int32(tag), Int32(index)) else { return nil }
+        defer { free(cStr) }
+        return String(cString: cStr)
+    }
+
+    /// Get the length of an extended string array.
+    func extStringArrayLength(tag: Int) -> Int? {
+        let len = OCCTDocumentGetExtStringArrayLength(handle, Int32(tag))
+        return len >= 0 ? Int(len) : nil
+    }
+
+    /// Check if a label has an extended string array attribute.
+    func hasExtStringArray(tag: Int) -> Bool {
+        OCCTDocumentHasExtStringArray(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_ExtStringList
+
+public extension Document {
+    /// Set an extended string list attribute on a label.
+    func setExtStringList(tag: Int, values: [String]) -> Bool {
+        var result = false
+        let count = values.count
+        let cStrings: [UnsafePointer<CChar>] = values.map { str in
+            (str as NSString).utf8String!
+        }
+        cStrings.withUnsafeBufferPointer { buf in
+            result = OCCTDocumentSetExtStringList(handle, Int32(tag),
+                                                   buf.baseAddress!, Int32(count))
+        }
+        return result
+    }
+
+    /// Get the count of an extended string list.
+    func extStringListCount(tag: Int) -> Int? {
+        let count = OCCTDocumentGetExtStringListCount(handle, Int32(tag))
+        return count >= 0 ? Int(count) : nil
+    }
+
+    /// Get an extended string list element by index (0-based).
+    func extStringListValue(tag: Int, index: Int) -> String? {
+        guard let cStr = OCCTDocumentGetExtStringListValue(handle, Int32(tag), Int32(index)) else { return nil }
+        defer { free(cStr) }
+        return String(cString: cStr)
+    }
+
+    /// Append a string to an extended string list attribute.
+    func extStringListAppend(tag: Int, value: String) -> Bool {
+        OCCTDocumentExtStringListAppend(handle, Int32(tag), value)
+    }
+
+    /// Clear an extended string list attribute.
+    func extStringListClear(tag: Int) -> Bool {
+        OCCTDocumentExtStringListClear(handle, Int32(tag))
+    }
+
+    /// Check if a label has an extended string list attribute.
+    func hasExtStringList(tag: Int) -> Bool {
+        OCCTDocumentHasExtStringList(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_ReferenceArray
+
+public extension Document {
+    /// Set a reference array attribute on a label (array of label tags).
+    func setReferenceArray(tag: Int, refTags: [Int32]) -> Bool {
+        refTags.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetReferenceArray(handle, Int32(tag), 1, Int32(refTags.count),
+                                           buf.baseAddress!, Int32(refTags.count))
+        }
+    }
+
+    /// Get a reference array from a label (array of label tags).
+    func referenceArray(tag: Int) -> [Int32]? {
+        let count = OCCTDocumentGetReferenceArray(handle, Int32(tag), nil, 0)
+        if count < 0 { return nil }
+        if count == 0 { return [] }
+        var tags = [Int32](repeating: 0, count: Int(count))
+        _ = tags.withUnsafeMutableBufferPointer { buf in
+            OCCTDocumentGetReferenceArray(handle, Int32(tag), buf.baseAddress!, count)
+        }
+        return tags
+    }
+
+    /// Check if a label has a reference array attribute.
+    func hasReferenceArray(tag: Int) -> Bool {
+        OCCTDocumentHasReferenceArray(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_ReferenceList
+
+public extension Document {
+    /// Set a reference list attribute on a label (list of label tags).
+    func setReferenceList(tag: Int, refTags: [Int32]) -> Bool {
+        refTags.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetReferenceList(handle, Int32(tag),
+                                          buf.baseAddress!, Int32(refTags.count))
+        }
+    }
+
+    /// Get a reference list from a label (list of label tags).
+    func referenceList(tag: Int) -> [Int32]? {
+        let count = OCCTDocumentGetReferenceList(handle, Int32(tag), nil, 0)
+        if count < 0 { return nil }
+        if count == 0 { return [] }
+        var tags = [Int32](repeating: 0, count: Int(count))
+        _ = tags.withUnsafeMutableBufferPointer { buf in
+            OCCTDocumentGetReferenceList(handle, Int32(tag), buf.baseAddress!, count)
+        }
+        return tags
+    }
+
+    /// Append a reference to a reference list attribute.
+    func referenceListAppend(tag: Int, refTag: Int32) -> Bool {
+        OCCTDocumentReferenceListAppend(handle, Int32(tag), refTag)
+    }
+
+    /// Clear a reference list attribute.
+    func referenceListClear(tag: Int) -> Bool {
+        OCCTDocumentReferenceListClear(handle, Int32(tag))
+    }
+
+    /// Check if a label has a reference list attribute.
+    func hasReferenceList(tag: Int) -> Bool {
+        OCCTDocumentHasReferenceList(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_Relation
+
+public extension Document {
+    /// Set a relation string on a label.
+    func setRelation(tag: Int, relation: String) -> Bool {
+        OCCTDocumentSetRelation(handle, Int32(tag), relation)
+    }
+
+    /// Get a relation string from a label.
+    func relation(tag: Int) -> String? {
+        guard let cStr = OCCTDocumentGetRelation(handle, Int32(tag)) else { return nil }
+        defer { free(cStr) }
+        return String(cString: cStr)
+    }
+
+    /// Check if a label has a relation attribute.
+    func hasRelation(tag: Int) -> Bool {
+        OCCTDocumentHasRelation(handle, Int32(tag))
+    }
+}
+
+// MARK: - ShapeFix_Solid
+
+public extension Shape {
+    /// Fix a solid shape (topology and orientation).
+    func fixSolid() -> Shape? {
+        guard let ref = OCCTShapeFixSolid(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a solid from a shell shape using ShapeFix_Solid.
+    func solidFromShellFixed() -> Shape? {
+        guard let ref = OCCTShapeSolidFromShell(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - ShapeFix_EdgeConnect
+
+public extension Shape {
+    /// Connect edges in a shape by extending/trimming to match.
+    func fixEdgeConnect() -> Shape? {
+        guard let ref = OCCTShapeFixEdgeConnect(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - BRepOffsetAPI_FindContigousEdges
+
+public extension Shape {
+    /// Result of contiguous edge finding.
+    struct ContigousEdgeResult: Sendable {
+        public let contigousEdgeCount: Int
+        public let degeneratedShapeCount: Int
+    }
+
+    /// Find contiguous edges in a shape.
+    func findContigousEdges(tolerance: Double = 1.0e-6) -> ContigousEdgeResult {
+        let result = OCCTShapeFindContigousEdges(handle, tolerance)
+        return ContigousEdgeResult(
+            contigousEdgeCount: Int(result.contigousEdgeCount),
+            degeneratedShapeCount: Int(result.degeneratedShapeCount)
+        )
+    }
+}
