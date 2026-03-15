@@ -24447,3 +24447,223 @@ struct TObjApplicationTests {
         }
     }
 }
+
+// =============================================================================
+// MARK: - v0.85.0 Tests
+// =============================================================================
+
+@Suite("UnitsAPI Tests")
+struct UnitsAPITests {
+    @Test func mmToM() {
+        let result = Units.convert(1000, from: "mm", to: "m")
+        #expect(abs(result - 1.0) < 1e-6)
+    }
+
+    @Test func mToMM() {
+        let result = Units.convert(1.0, from: "m", to: "mm")
+        #expect(abs(result - 1000.0) < 1e-6)
+    }
+
+    @Test func inchToMM() {
+        let result = Units.convert(1.0, from: "in", to: "mm")
+        #expect(abs(result - 25.4) < 0.01)
+    }
+
+    @Test func degToRad() {
+        let result = Units.convert(180.0, from: "deg", to: "rad")
+        #expect(abs(result - .pi) < 1e-6)
+    }
+
+    @Test func toSI() {
+        let result = Units.toSI(1000.0, from: "mm")
+        #expect(abs(result - 1.0) < 1e-6)
+    }
+
+    @Test func fromSI() {
+        let result = Units.fromSI(1.0, to: "mm")
+        #expect(abs(result - 1000.0) < 1e-6)
+    }
+
+    @Test func kgToG() {
+        let result = Units.convert(1.0, from: "kg", to: "g")
+        #expect(abs(result - 1000.0) < 1e-6)
+    }
+
+    @Test func localSystem() {
+        Units.setLocalSystem(.si)
+        #expect(Units.localSystem == .si)
+    }
+}
+
+@Suite("BinTools Shape I/O Tests")
+struct BinToolsTests {
+    @Test func writeAndReadBinaryData() {
+        if let box = Shape.box(width: 10, height: 20, depth: 30) {
+            if let data = box.toBinaryData() {
+                #expect(data.count > 10)
+                if let readShape = Shape.fromBinaryData(data) {
+                    #expect(readShape.isValid)
+                }
+            }
+        }
+    }
+
+    @Test func writeAndReadBinaryFile() {
+        if let box = Shape.box(width: 10, height: 20, depth: 30) {
+            let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_v85_bin.brep")
+            let ok = box.writeBinary(to: url)
+            #expect(ok)
+            if let readShape = Shape.loadBinary(from: url) {
+                #expect(readShape.isValid)
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func sphereRoundtrip() {
+        if let sphere = Shape.sphere(radius: 5) {
+            if let data = sphere.toBinaryData() {
+                if let readShape = Shape.fromBinaryData(data) {
+                    #expect(readShape.isValid)
+                }
+            }
+        }
+    }
+}
+
+@Suite("Message_Messenger Tests")
+struct MessengerTests {
+    @Test func createMessenger() {
+        let msg = Messenger()
+        #expect(msg != nil)
+    }
+
+    @Test func printerCount() {
+        if let msg = Messenger() {
+            #expect(msg.printerCount == 1)
+        }
+    }
+
+    @Test func sendMessage() {
+        if let msg = Messenger() {
+            msg.send("Test from Swift", gravity: .info)
+        }
+    }
+
+    @Test func addFilePrinter() {
+        if let msg = Messenger() {
+            let path = NSTemporaryDirectory() + "test_v85_msg.txt"
+            let ok = msg.addFilePrinter(path: path, gravity: .info)
+            #expect(ok)
+            #expect(msg.printerCount == 2)
+            try? FileManager.default.removeItem(atPath: path)
+        }
+    }
+
+    @Test func removeAllPrinters() {
+        if let msg = Messenger() {
+            msg.removeAllPrinters()
+            #expect(msg.printerCount == 0)
+        }
+    }
+}
+
+@Suite("Message_Report Tests")
+struct ReportTests {
+    @Test func createReport() {
+        let report = Report()
+        #expect(report != nil)
+    }
+
+    @Test func setAndGetLimit() {
+        if let report = Report() {
+            report.limit = 100
+            #expect(report.limit == 100)
+        }
+    }
+
+    @Test func clearReport() {
+        if let report = Report() {
+            report.clear()
+            report.clear(gravity: .warning)
+        }
+    }
+
+    @Test func dumpReport() {
+        if let report = Report() {
+            let str = report.dump()
+            _ = str  // empty report dumps empty string
+        }
+    }
+}
+
+@Suite("Coordinate System Tests")
+struct CoordinateSystemTests {
+    @Test func zUpDirection() {
+        let up = coordinateSystemUpDirection(.zUp)
+        #expect(abs(up.z - 1.0) < 1e-10)
+    }
+
+    @Test func yUpDirection() {
+        let up = coordinateSystemUpDirection(.yUp)
+        #expect(abs(up.y - 1.0) < 1e-10)
+    }
+
+    @Test func convertWithScaling() {
+        let result = convertCoordinateSystem(x: 1000, y: 0, z: 500,
+                                              from: .zUp, inputUnit: 0.001,
+                                              to: .zUp, outputUnit: 1.0)
+        #expect(abs(result.x - 1.0) < 1e-6)
+        #expect(abs(result.z - 0.5) < 1e-6)
+    }
+
+    @Test func convertZupToYup() {
+        let result = convertCoordinateSystem(x: 1, y: 2, z: 3,
+                                              from: .zUp, inputUnit: 1.0,
+                                              to: .yUp, outputUnit: 1.0)
+        // Z-up (X,Y,Z) → Y-up (X,Z,-Y)
+        #expect(abs(result.x - 1.0) < 1e-6)
+        #expect(abs(result.y - 3.0) < 1e-6)
+        #expect(abs(result.z + 2.0) < 1e-6)
+    }
+}
+
+@Suite("TDF_IDFilter Tests")
+struct IDFilterTests {
+    @Test func createFilter() {
+        let filter = IDFilter(ignoreAll: true)
+        #expect(filter != nil)
+        if let f = filter {
+            #expect(f.isIgnoreAll)
+        }
+    }
+
+    @Test func keepMode() {
+        if let filter = IDFilter(ignoreAll: false) {
+            #expect(!filter.isIgnoreAll)
+        }
+    }
+
+    @Test func keepGUID() {
+        if let filter = IDFilter(ignoreAll: true) {
+            let guid = "2a96b606-ec8b-11d0-bee7-080009dc3333"
+            filter.keep(guid)
+            #expect(filter.isKept(guid))
+        }
+    }
+
+    @Test func ignoreGUID() {
+        if let filter = IDFilter(ignoreAll: false) {
+            let guid = "2a96b606-ec8b-11d0-bee7-080009dc3333"
+            filter.ignore(guid)
+            #expect(filter.isIgnored(guid))
+        }
+    }
+
+    @Test func toggleIgnoreAll() {
+        if let filter = IDFilter(ignoreAll: true) {
+            filter.isIgnoreAll = false
+            #expect(!filter.isIgnoreAll)
+        }
+    }
+}

@@ -11096,6 +11096,149 @@ bool OCCTTObjApplicationIsVerbose(OCCTTObjAppRef _Nonnull app);
 /// Create a new document via TObj_Application
 OCCTDocumentRef _Nullable OCCTTObjApplicationCreateDocument(OCCTTObjAppRef _Nonnull app);
 
+// =============================================================================
+// MARK: - v0.85.0: UnitsAPI, BinTools, Message, RWMesh_CoordinateSystemConverter, TDF_IDFilter
+// =============================================================================
+
+// --- UnitsAPI ---
+
+/// Convert value between any two units (e.g., "mm" to "m", "deg" to "rad")
+double OCCTUnitsAnyToAny(double value, const char* _Nonnull fromUnit, const char* _Nonnull toUnit);
+
+/// Convert value from any unit to SI base unit
+double OCCTUnitsAnyToSI(double value, const char* _Nonnull unit);
+
+/// Convert value from SI base unit to any unit
+double OCCTUnitsAnyFromSI(double value, const char* _Nonnull unit);
+
+/// Convert value from any unit to local system
+double OCCTUnitsAnyToLS(double value, const char* _Nonnull unit);
+
+/// Convert value from local system to any unit
+double OCCTUnitsAnyFromLS(double value, const char* _Nonnull unit);
+
+/// Set local unit system (0=DEFAULT, 1=SI, 2=MDTV)
+void OCCTUnitsSetLocalSystem(int system);
+
+/// Get local unit system (0=DEFAULT, 1=SI, 2=MDTV)
+int OCCTUnitsGetLocalSystem(void);
+
+// --- BinTools Shape I/O ---
+
+/// Write a shape to binary data, returns data length (caller must free with free())
+const void* _Nullable OCCTBinToolsWriteShape(OCCTShapeRef _Nonnull shape, int* _Nonnull outLength);
+
+/// Read a shape from binary data
+OCCTShapeRef _Nullable OCCTBinToolsReadShape(const void* _Nonnull data, int length);
+
+/// Write shape to binary file
+bool OCCTBinToolsWriteShapeToFile(OCCTShapeRef _Nonnull shape, const char* _Nonnull filePath);
+
+/// Read shape from binary file
+OCCTShapeRef _Nullable OCCTBinToolsReadShapeFromFile(const char* _Nonnull filePath);
+
+// --- Message_Messenger ---
+
+/// Opaque handle for Message_Messenger
+typedef void* OCCTMessengerRef;
+
+/// Create a new messenger with default cout printer
+OCCTMessengerRef _Nullable OCCTMessengerCreate(void);
+
+/// Release a messenger
+void OCCTMessengerRelease(OCCTMessengerRef _Nonnull messenger);
+
+/// Get printer count
+int OCCTMessengerPrinterCount(OCCTMessengerRef _Nonnull messenger);
+
+/// Send a message with gravity level (0=Trace, 1=Info, 2=Warning, 3=Alarm, 4=Fail)
+void OCCTMessengerSend(OCCTMessengerRef _Nonnull messenger, const char* _Nonnull message, int gravity);
+
+/// Add a file printer to messenger, returns true if added
+bool OCCTMessengerAddFilePrinter(OCCTMessengerRef _Nonnull messenger, const char* _Nonnull filePath, int gravity);
+
+/// Remove all printers
+void OCCTMessengerRemoveAllPrinters(OCCTMessengerRef _Nonnull messenger);
+
+// --- Message_Report ---
+
+/// Opaque handle for Message_Report
+typedef void* OCCTReportRef;
+
+/// Create a new empty report
+OCCTReportRef _Nullable OCCTReportCreate(void);
+
+/// Release a report
+void OCCTReportRelease(OCCTReportRef _Nonnull report);
+
+/// Set alert limit
+void OCCTReportSetLimit(OCCTReportRef _Nonnull report, int limit);
+
+/// Get alert limit
+int OCCTReportGetLimit(OCCTReportRef _Nonnull report);
+
+/// Clear all alerts
+void OCCTReportClear(OCCTReportRef _Nonnull report);
+
+/// Clear alerts by gravity
+void OCCTReportClearByGravity(OCCTReportRef _Nonnull report, int gravity);
+
+/// Dump report to string (caller must free with OCCTGeomToolsFreeString)
+const char* _Nullable OCCTReportDump(OCCTReportRef _Nonnull report);
+
+/// Dump report by gravity to string (caller must free with OCCTGeomToolsFreeString)
+const char* _Nullable OCCTReportDumpByGravity(OCCTReportRef _Nonnull report, int gravity);
+
+// --- RWMesh_CoordinateSystemConverter ---
+
+/// Coordinate system enum (Z-up=0, Y-up=1)
+typedef enum {
+    OCCTCoordinateSystemZup = 0,
+    OCCTCoordinateSystemYup = 1
+} OCCTCoordinateSystem;
+
+/// Coordinate system converter result
+typedef struct {
+    double x, y, z;
+} OCCTPoint3D;
+
+/// Convert a 3D point between coordinate systems with unit scaling
+OCCTPoint3D OCCTCoordSystemConvert(double x, double y, double z,
+                                    int inputSystem, double inputLengthUnit,
+                                    int outputSystem, double outputLengthUnit);
+
+/// Get standard axis direction for a coordinate system
+OCCTPoint3D OCCTCoordSystemUpDirection(int system);
+
+// --- TDF_IDFilter ---
+
+/// Opaque handle for TDF_IDFilter
+typedef void* OCCTIDFilterRef;
+
+/// Create an ID filter (ignoreAll=true: ignore all except kept; false: keep all except ignored)
+OCCTIDFilterRef _Nullable OCCTIDFilterCreate(bool ignoreAll);
+
+/// Release an ID filter
+void OCCTIDFilterRelease(OCCTIDFilterRef _Nonnull filter);
+
+/// Check if filter is in ignore-all mode
+bool OCCTIDFilterIgnoreAll(OCCTIDFilterRef _Nonnull filter);
+
+/// Set ignore-all mode
+void OCCTIDFilterSetIgnoreAll(OCCTIDFilterRef _Nonnull filter, bool ignoreAll);
+
+/// Keep a GUID (in ignore-all mode, this marks the GUID as kept)
+void OCCTIDFilterKeep(OCCTIDFilterRef _Nonnull filter, const char* _Nonnull guidString);
+
+/// Ignore a GUID (in keep-all mode, this marks the GUID as ignored)
+void OCCTIDFilterIgnore(OCCTIDFilterRef _Nonnull filter, const char* _Nonnull guidString);
+
+/// Check if a GUID is kept
+bool OCCTIDFilterIsKept(OCCTIDFilterRef _Nonnull filter, const char* _Nonnull guidString);
+
+/// Check if a GUID is ignored
+bool OCCTIDFilterIsIgnored(OCCTIDFilterRef _Nonnull filter, const char* _Nonnull guidString);
+
 #ifdef __cplusplus
 }
 #endif

@@ -33211,3 +33211,341 @@ OCCTDocumentRef OCCTTObjApplicationCreateDocument(OCCTTObjAppRef app) {
         return result;
     } catch (...) { return nullptr; }
 }
+
+// =============================================================================
+// MARK: - v0.85.0: UnitsAPI, BinTools, Message, RWMesh_CoordinateSystemConverter, TDF_IDFilter
+// =============================================================================
+
+#include <UnitsAPI.hxx>
+#include <UnitsAPI_SystemUnits.hxx>
+#include <BinTools_ShapeReader.hxx>
+#include <BinTools_ShapeWriter.hxx>
+#include <Message_Messenger.hxx>
+#include <Message_Report.hxx>
+#include <Message_PrinterOStream.hxx>
+#include <Message_Gravity.hxx>
+#include <RWMesh_CoordinateSystemConverter.hxx>
+#include <RWMesh_CoordinateSystem.hxx>
+#include <TDF_IDFilter.hxx>
+
+#include <sstream>
+#include <fstream>
+
+// --- UnitsAPI ---
+
+double OCCTUnitsAnyToAny(double value, const char* fromUnit, const char* toUnit) {
+    try {
+        return UnitsAPI::AnyToAny(value, fromUnit, toUnit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsAnyToSI(double value, const char* unit) {
+    try {
+        return UnitsAPI::AnyToSI(value, unit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsAnyFromSI(double value, const char* unit) {
+    try {
+        return UnitsAPI::AnyFromSI(value, unit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsAnyToLS(double value, const char* unit) {
+    try {
+        return UnitsAPI::AnyToLS(value, unit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsAnyFromLS(double value, const char* unit) {
+    try {
+        return UnitsAPI::AnyFromLS(value, unit);
+    } catch (...) { return 0.0; }
+}
+
+void OCCTUnitsSetLocalSystem(int system) {
+    try {
+        UnitsAPI::SetLocalSystem(static_cast<UnitsAPI_SystemUnits>(system));
+    } catch (...) { }
+}
+
+int OCCTUnitsGetLocalSystem() {
+    try {
+        return static_cast<int>(UnitsAPI::LocalSystem());
+    } catch (...) { return 0; }
+}
+
+// --- BinTools Shape I/O ---
+
+const void* OCCTBinToolsWriteShape(OCCTShapeRef shape, int* outLength) {
+    try {
+        std::ostringstream oss;
+        BinTools_ShapeWriter writer;
+        writer.Write(shape->shape, oss);
+        std::string data = oss.str();
+        *outLength = (int)data.size();
+        void* buf = malloc(data.size());
+        memcpy(buf, data.data(), data.size());
+        return buf;
+    } catch (...) { *outLength = 0; return nullptr; }
+}
+
+OCCTShapeRef OCCTBinToolsReadShape(const void* data, int length) {
+    try {
+        std::string str((const char*)data, length);
+        std::istringstream iss(str);
+        BinTools_ShapeReader reader;
+        TopoDS_Shape readShape;
+        reader.Read(iss, readShape);
+        if (readShape.IsNull()) return nullptr;
+        return new OCCTShape(readShape);
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTBinToolsWriteShapeToFile(OCCTShapeRef shape, const char* filePath) {
+    try {
+        std::ofstream fout(filePath, std::ios::binary);
+        if (!fout.is_open()) return false;
+        BinTools_ShapeWriter writer;
+        writer.Write(shape->shape, fout);
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTBinToolsReadShapeFromFile(const char* filePath) {
+    try {
+        std::ifstream fin(filePath, std::ios::binary);
+        if (!fin.is_open()) return nullptr;
+        BinTools_ShapeReader reader;
+        TopoDS_Shape readShape;
+        reader.Read(fin, readShape);
+        if (readShape.IsNull()) return nullptr;
+        return new OCCTShape(readShape);
+    } catch (...) { return nullptr; }
+}
+
+// --- Message_Messenger ---
+
+OCCTMessengerRef OCCTMessengerCreate() {
+    try {
+        Handle(Message_Messenger) msg = new Message_Messenger();
+        if (msg.IsNull()) return nullptr;
+        msg->IncrementRefCounter();
+        return msg.get();
+    } catch (...) { return nullptr; }
+}
+
+void OCCTMessengerRelease(OCCTMessengerRef messenger) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        m->DecrementRefCounter();
+        if (m->GetRefCount() == 0) delete m;
+    } catch (...) { }
+}
+
+int OCCTMessengerPrinterCount(OCCTMessengerRef messenger) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        return m->Printers().Size();
+    } catch (...) { return 0; }
+}
+
+void OCCTMessengerSend(OCCTMessengerRef messenger, const char* message, int gravity) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        Message_Gravity g = static_cast<Message_Gravity>(gravity);
+        m->Send(TCollection_AsciiString(message), g);
+    } catch (...) { }
+}
+
+bool OCCTMessengerAddFilePrinter(OCCTMessengerRef messenger, const char* filePath, int gravity) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        Message_Gravity g = static_cast<Message_Gravity>(gravity);
+        Handle(Message_PrinterOStream) printer = new Message_PrinterOStream(filePath, false, g);
+        return m->AddPrinter(printer);
+    } catch (...) { return false; }
+}
+
+void OCCTMessengerRemoveAllPrinters(OCCTMessengerRef messenger) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        // Remove by type — remove all Standard_Transient printers
+        Handle(Standard_Type) printerType = STANDARD_TYPE(Message_Printer);
+        m->RemovePrinters(printerType);
+    } catch (...) { }
+}
+
+// --- Message_Report ---
+
+OCCTReportRef OCCTReportCreate() {
+    try {
+        Handle(Message_Report) report = new Message_Report();
+        if (report.IsNull()) return nullptr;
+        report->IncrementRefCounter();
+        return report.get();
+    } catch (...) { return nullptr; }
+}
+
+void OCCTReportRelease(OCCTReportRef report) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        r->DecrementRefCounter();
+        if (r->GetRefCount() == 0) delete r;
+    } catch (...) { }
+}
+
+void OCCTReportSetLimit(OCCTReportRef report, int limit) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        r->SetLimit(limit);
+    } catch (...) { }
+}
+
+int OCCTReportGetLimit(OCCTReportRef report) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        return r->Limit();
+    } catch (...) { return 0; }
+}
+
+void OCCTReportClear(OCCTReportRef report) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        r->Clear();
+    } catch (...) { }
+}
+
+void OCCTReportClearByGravity(OCCTReportRef report, int gravity) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        r->Clear(static_cast<Message_Gravity>(gravity));
+    } catch (...) { }
+}
+
+const char* OCCTReportDump(OCCTReportRef report) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        std::ostringstream oss;
+        r->Dump(oss);
+        std::string str = oss.str();
+        char* result = (char*)malloc(str.size() + 1);
+        strcpy(result, str.c_str());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTReportDumpByGravity(OCCTReportRef report, int gravity) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        std::ostringstream oss;
+        r->Dump(oss, static_cast<Message_Gravity>(gravity));
+        std::string str = oss.str();
+        char* result = (char*)malloc(str.size() + 1);
+        strcpy(result, str.c_str());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// --- RWMesh_CoordinateSystemConverter ---
+
+static RWMesh_CoordinateSystem toRWMeshCS(int sys) {
+    switch (sys) {
+        case 0: return RWMesh_CoordinateSystem_Zup;
+        case 1: return RWMesh_CoordinateSystem_Yup;
+        default: return RWMesh_CoordinateSystem_Zup;
+    }
+}
+
+OCCTPoint3D OCCTCoordSystemConvert(double x, double y, double z,
+                                    int inputSystem, double inputLengthUnit,
+                                    int outputSystem, double outputLengthUnit) {
+    OCCTPoint3D result = {x, y, z};
+    try {
+        RWMesh_CoordinateSystemConverter conv;
+        conv.SetInputCoordinateSystem(toRWMeshCS(inputSystem));
+        conv.SetInputLengthUnit(inputLengthUnit);
+        conv.SetOutputCoordinateSystem(toRWMeshCS(outputSystem));
+        conv.SetOutputLengthUnit(outputLengthUnit);
+        gp_XYZ pos(x, y, z);
+        conv.TransformPosition(pos);
+        result.x = pos.X();
+        result.y = pos.Y();
+        result.z = pos.Z();
+    } catch (...) { }
+    return result;
+}
+
+OCCTPoint3D OCCTCoordSystemUpDirection(int system) {
+    OCCTPoint3D result = {0, 0, 1};
+    try {
+        gp_Ax3 ax = RWMesh_CoordinateSystemConverter::StandardCoordinateSystem(toRWMeshCS(system));
+        gp_Dir dir = ax.Direction();
+        result.x = dir.X();
+        result.y = dir.Y();
+        result.z = dir.Z();
+    } catch (...) { }
+    return result;
+}
+
+// --- TDF_IDFilter ---
+
+OCCTIDFilterRef OCCTIDFilterCreate(bool ignoreAll) {
+    try {
+        TDF_IDFilter* filter = new TDF_IDFilter(ignoreAll);
+        return filter;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTIDFilterRelease(OCCTIDFilterRef filter) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        delete f;
+    } catch (...) { }
+}
+
+bool OCCTIDFilterIgnoreAll(OCCTIDFilterRef filter) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        return f->IgnoreAll();
+    } catch (...) { return false; }
+}
+
+void OCCTIDFilterSetIgnoreAll(OCCTIDFilterRef filter, bool ignoreAll) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        f->IgnoreAll(ignoreAll);
+    } catch (...) { }
+}
+
+void OCCTIDFilterKeep(OCCTIDFilterRef filter, const char* guidString) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        Standard_GUID guid(guidString);
+        f->Keep(guid);
+    } catch (...) { }
+}
+
+void OCCTIDFilterIgnore(OCCTIDFilterRef filter, const char* guidString) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        Standard_GUID guid(guidString);
+        f->Ignore(guid);
+    } catch (...) { }
+}
+
+bool OCCTIDFilterIsKept(OCCTIDFilterRef filter, const char* guidString) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        Standard_GUID guid(guidString);
+        return f->IsKept(guid);
+    } catch (...) { return false; }
+}
+
+bool OCCTIDFilterIsIgnored(OCCTIDFilterRef filter, const char* guidString) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        Standard_GUID guid(guidString);
+        return f->IsIgnored(guid);
+    } catch (...) { return false; }
+}

@@ -196,7 +196,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **XCAFDimTolObjects_Tool** | 2 | dimTolToolDimensionCount, dimTolToolToleranceCount |
 | **TPrsStd_DriverTable** | 3 | initStandard, exists, clear |
 | **TObj_Application** | 4 | shared, isVerbose, setVerbose, createDocument |
-| **Total** | **1599** | |
+| **UnitsAPI** | 7 | convert, toSI, fromSI, toLocalSystem, fromLocalSystem, currentSystem, check |
+| **BinTools** | 4 | toBinaryData, fromBinaryData, writeBinary, loadBinary |
+| **Message_Messenger** | 6 | create, release, send, sendInfo, sendWarning, sendAlarm |
+| **Message_Report** | 7 | create, release, addAlert, alertCount, clearAlerts, sendAlerts, isActive |
+| **RWMesh_CoordinateSystemConverter** | 2 | convertPoint, convertNormal |
+| **TDF_IDFilter** | 8 | create, release, keep, ignore, isKept, isIgnored, copy, setIgnoreAll |
+| **Total** | **1633** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -523,6 +529,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **GD&T Tool Queries**: XCAFDimTolObjects_Tool — query dimension and tolerance object counts from XDE documents
 - **Presentation Driver Table**: TPrsStd_DriverTable — global OCAF presentation driver registry with standard initialization and cleanup
 - **TObj Application**: TObj_Application — singleton OCAF application for document creation with verbose logging control
+- **Unit Conversion**: UnitsAPI — convert between SI, MDTV, and local unit systems with quantity-type validation
+- **Binary Shape I/O**: BinTools — serialize/deserialize shapes to binary data or files for compact storage and fast loading
+- **Messaging**: Message_Messenger — send info/warning/alarm messages through OCCT's messaging system
+- **Alert Reports**: Message_Report — collect, count, and broadcast alert messages with severity levels
+- **Coordinate System Conversion**: RWMesh_CoordinateSystemConverter — convert points and normals between Z-up and Y-up coordinate systems
+- **Attribute Filtering**: TDF_IDFilter — keep/ignore GUID-based attribute filters for selective OCAF document operations
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements

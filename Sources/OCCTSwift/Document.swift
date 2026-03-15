@@ -3129,3 +3129,262 @@ public final class TObjApplication: @unchecked Sendable {
         return Document(handle: docRef)
     }
 }
+
+// =============================================================================
+// MARK: - v0.85.0: UnitsAPI, BinTools, Message, CoordSystem, IDFilter
+// =============================================================================
+
+// MARK: - UnitsAPI
+
+/// Unit conversion utilities wrapping OCCT UnitsAPI.
+public enum Units: Sendable {
+    /// Convert a value between any two units (e.g., "mm" to "m", "deg" to "rad").
+    public static func convert(_ value: Double, from fromUnit: String, to toUnit: String) -> Double {
+        OCCTUnitsAnyToAny(value, fromUnit, toUnit)
+    }
+
+    /// Convert a value from any unit to SI base unit.
+    public static func toSI(_ value: Double, from unit: String) -> Double {
+        OCCTUnitsAnyToSI(value, unit)
+    }
+
+    /// Convert a value from SI base unit to any unit.
+    public static func fromSI(_ value: Double, to unit: String) -> Double {
+        OCCTUnitsAnyFromSI(value, unit)
+    }
+
+    /// Convert a value from any unit to local system.
+    public static func toLocalSystem(_ value: Double, from unit: String) -> Double {
+        OCCTUnitsAnyToLS(value, unit)
+    }
+
+    /// Convert a value from local system to any unit.
+    public static func fromLocalSystem(_ value: Double, to unit: String) -> Double {
+        OCCTUnitsAnyFromLS(value, unit)
+    }
+
+    /// Unit system type.
+    public enum SystemType: Int32, Sendable {
+        case defaultSystem = 0
+        case si = 1
+        case mdtv = 2
+    }
+
+    /// Set the local unit system.
+    public static func setLocalSystem(_ system: SystemType) {
+        OCCTUnitsSetLocalSystem(system.rawValue)
+    }
+
+    /// Get the current local unit system.
+    public static var localSystem: SystemType {
+        SystemType(rawValue: OCCTUnitsGetLocalSystem()) ?? .defaultSystem
+    }
+}
+
+// MARK: - BinTools Shape I/O
+
+extension Shape {
+    /// Write shape to binary data.
+    public func toBinaryData() -> Data? {
+        var length: Int32 = 0
+        guard let ptr = OCCTBinToolsWriteShape(handle, &length) else { return nil }
+        let data = Data(bytes: ptr, count: Int(length))
+        free(UnsafeMutableRawPointer(mutating: ptr))
+        return data
+    }
+
+    /// Read shape from binary data.
+    public static func fromBinaryData(_ data: Data) -> Shape? {
+        data.withUnsafeBytes { rawBuffer in
+            guard let ptr = rawBuffer.baseAddress else { return nil }
+            guard let ref = OCCTBinToolsReadShape(ptr, Int32(data.count)) else { return nil }
+            return Shape(handle: ref)
+        }
+    }
+
+    /// Write shape to binary file.
+    @discardableResult
+    public func writeBinary(to url: URL) -> Bool {
+        OCCTBinToolsWriteShapeToFile(handle, url.path)
+    }
+
+    /// Read shape from binary file.
+    public static func loadBinary(from url: URL) -> Shape? {
+        guard let ref = OCCTBinToolsReadShapeFromFile(url.path) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - Message_Messenger
+
+/// OCCT messaging system for dispatching messages to printers.
+public final class Messenger: @unchecked Sendable {
+    internal let ref: OCCTMessengerRef
+
+    /// Message gravity/severity level.
+    public enum Gravity: Int32, Sendable {
+        case trace = 0
+        case info = 1
+        case warning = 2
+        case alarm = 3
+        case fail = 4
+    }
+
+    private init(ref: OCCTMessengerRef) {
+        self.ref = ref
+    }
+
+    deinit {
+        OCCTMessengerRelease(ref)
+    }
+
+    /// Create a new messenger with default stdout printer.
+    public init?() {
+        guard let ref = OCCTMessengerCreate() else { return nil }
+        self.ref = ref
+    }
+
+    /// Number of attached printers.
+    public var printerCount: Int {
+        Int(OCCTMessengerPrinterCount(ref))
+    }
+
+    /// Send a message with given gravity.
+    public func send(_ message: String, gravity: Gravity = .info) {
+        OCCTMessengerSend(ref, message, gravity.rawValue)
+    }
+
+    /// Add a file printer.
+    @discardableResult
+    public func addFilePrinter(path: String, gravity: Gravity = .info) -> Bool {
+        OCCTMessengerAddFilePrinter(ref, path, gravity.rawValue)
+    }
+
+    /// Remove all printers.
+    public func removeAllPrinters() {
+        OCCTMessengerRemoveAllPrinters(ref)
+    }
+}
+
+// MARK: - Message_Report
+
+/// Collection of alerts/messages for status reporting.
+public final class Report: @unchecked Sendable {
+    internal let ref: OCCTReportRef
+
+    private init(ref: OCCTReportRef) {
+        self.ref = ref
+    }
+
+    deinit {
+        OCCTReportRelease(ref)
+    }
+
+    /// Create a new empty report.
+    public init?() {
+        guard let ref = OCCTReportCreate() else { return nil }
+        self.ref = ref
+    }
+
+    /// Maximum number of alerts to collect.
+    public var limit: Int {
+        get { Int(OCCTReportGetLimit(ref)) }
+        set { OCCTReportSetLimit(ref, Int32(newValue)) }
+    }
+
+    /// Clear all alerts.
+    public func clear() {
+        OCCTReportClear(ref)
+    }
+
+    /// Clear alerts of a specific gravity.
+    public func clear(gravity: Messenger.Gravity) {
+        OCCTReportClearByGravity(ref, gravity.rawValue)
+    }
+
+    /// Dump report contents to string.
+    public func dump() -> String {
+        guard let cStr = OCCTReportDump(ref) else { return "" }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+
+    /// Dump report contents filtered by gravity.
+    public func dump(gravity: Messenger.Gravity) -> String {
+        guard let cStr = OCCTReportDumpByGravity(ref, gravity.rawValue) else { return "" }
+        let result = String(cString: cStr)
+        OCCTGeomToolsFreeString(UnsafeMutablePointer(mutating: cStr))
+        return result
+    }
+}
+
+// MARK: - RWMesh_CoordinateSystemConverter
+
+/// Coordinate system for mesh I/O.
+public enum CoordinateSystem: Int32, Sendable {
+    case zUp = 0
+    case yUp = 1
+}
+
+/// Convert a 3D point between coordinate systems with unit scaling.
+public func convertCoordinateSystem(x: Double, y: Double, z: Double,
+                                     from inputSystem: CoordinateSystem,
+                                     inputUnit: Double,
+                                     to outputSystem: CoordinateSystem,
+                                     outputUnit: Double) -> SIMD3<Double> {
+    let r = OCCTCoordSystemConvert(x, y, z, inputSystem.rawValue, inputUnit,
+                                    outputSystem.rawValue, outputUnit)
+    return SIMD3(r.x, r.y, r.z)
+}
+
+/// Get the up direction for a coordinate system.
+public func coordinateSystemUpDirection(_ system: CoordinateSystem) -> SIMD3<Double> {
+    let r = OCCTCoordSystemUpDirection(system.rawValue)
+    return SIMD3(r.x, r.y, r.z)
+}
+
+// MARK: - TDF_IDFilter
+
+/// Attribute ID filter for OCAF document operations.
+public final class IDFilter: @unchecked Sendable {
+    internal let ref: OCCTIDFilterRef
+
+    /// Create an ID filter.
+    /// - Parameter ignoreAll: If true, all IDs are ignored except those explicitly kept.
+    ///   If false, all IDs are kept except those explicitly ignored.
+    public init?(ignoreAll: Bool = true) {
+        guard let ref = OCCTIDFilterCreate(ignoreAll) else { return nil }
+        self.ref = ref
+    }
+
+    deinit {
+        OCCTIDFilterRelease(ref)
+    }
+
+    /// Whether the filter is in ignore-all mode.
+    public var isIgnoreAll: Bool {
+        get { OCCTIDFilterIgnoreAll(ref) }
+        set { OCCTIDFilterSetIgnoreAll(ref, newValue) }
+    }
+
+    /// Mark a GUID as kept (relevant in ignore-all mode).
+    public func keep(_ guidString: String) {
+        OCCTIDFilterKeep(ref, guidString)
+    }
+
+    /// Mark a GUID as ignored (relevant in keep-all mode).
+    public func ignore(_ guidString: String) {
+        OCCTIDFilterIgnore(ref, guidString)
+    }
+
+    /// Check if a GUID is kept by the filter.
+    public func isKept(_ guidString: String) -> Bool {
+        OCCTIDFilterIsKept(ref, guidString)
+    }
+
+    /// Check if a GUID is ignored by the filter.
+    public func isIgnored(_ guidString: String) -> Bool {
+        OCCTIDFilterIsIgnored(ref, guidString)
+    }
+}
