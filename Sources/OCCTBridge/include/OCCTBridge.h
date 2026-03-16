@@ -11431,6 +11431,154 @@ typedef struct {
 /// Find contiguous edges in a shape
 OCCTContigousEdgeResult OCCTShapeFindContigousEdges(OCCTShapeRef _Nonnull shape, double tolerance);
 
+// MARK: - TDataStd_Tick
+
+/// Set a tick (boolean flag) attribute on a label
+bool OCCTDocumentSetTick(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Check if a label has a tick attribute
+bool OCCTDocumentHasTick(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Remove a tick attribute from a label
+bool OCCTDocumentRemoveTick(OCCTDocumentRef _Nonnull document, int tag);
+
+// MARK: - TDataStd_Current
+
+/// Set a label as the current label in the document
+bool OCCTDocumentSetCurrentLabel(OCCTDocumentRef _Nonnull document, int tag);
+
+/// Get the current label tag. Returns -1 if no current label.
+int OCCTDocumentGetCurrentLabel(OCCTDocumentRef _Nonnull document);
+
+/// Check if the document has a current label set
+bool OCCTDocumentHasCurrentLabel(OCCTDocumentRef _Nonnull document);
+
+// MARK: - ShapeAnalysis_Shell
+
+/// Result struct for shell analysis
+typedef struct {
+    bool hasOrientationProblems;
+    bool hasFreeEdges;
+    bool hasBadEdges;
+    bool hasConnectedEdges;
+    int freeEdgeCount;
+} OCCTShellAnalysisResult;
+
+/// Analyze shell orientation and edge connectivity
+OCCTShellAnalysisResult OCCTShapeAnalyzeShell(OCCTShapeRef _Nonnull shape);
+
+// MARK: - ShapeAnalysis_CanonicalRecognition (detailed)
+
+/// Canonical geometry types for detailed recognition
+typedef enum {
+    OCCTCanonicalTypeNone = 0,
+    OCCTCanonicalTypePlane = 1,
+    OCCTCanonicalTypeCylinder = 2,
+    OCCTCanonicalTypeCone = 3,
+    OCCTCanonicalTypeSphere = 4,
+    OCCTCanonicalTypeLine = 5,
+    OCCTCanonicalTypeCircle = 6,
+    OCCTCanonicalTypeEllipse = 7
+} OCCTCanonicalType;
+
+/// Result struct for detailed canonical recognition with geometry parameters
+typedef struct {
+    OCCTCanonicalType type;
+    double gap;
+    double originX, originY, originZ;
+    double dirX, dirY, dirZ;
+    double param1, param2;
+} OCCTCanonicalResult;
+
+/// Recognize canonical surface geometry with detailed parameters (plane/cylinder/cone/sphere)
+OCCTCanonicalResult OCCTShapeRecognizeCanonicalSurface(OCCTShapeRef _Nonnull faceShape, double tolerance);
+
+/// Recognize canonical curve geometry with detailed parameters (line/circle/ellipse)
+OCCTCanonicalResult OCCTShapeRecognizeCanonicalCurve(OCCTShapeRef _Nonnull edgeShape, double tolerance);
+
+// MARK: - Geom_Transformation
+
+/// Opaque handle for Geom_Transformation
+typedef void* OCCTGeomTransformRef;
+
+/// Create an identity transformation
+OCCTGeomTransformRef _Nullable OCCTGeomTransformCreate(void);
+
+/// Release a Geom_Transformation
+void OCCTGeomTransformRelease(OCCTGeomTransformRef _Nonnull transform);
+
+/// Set translation by vector
+void OCCTGeomTransformSetTranslation(OCCTGeomTransformRef _Nonnull transform,
+                                      double dx, double dy, double dz);
+
+/// Set rotation about an axis
+void OCCTGeomTransformSetRotation(OCCTGeomTransformRef _Nonnull transform,
+                                   double originX, double originY, double originZ,
+                                   double dirX, double dirY, double dirZ,
+                                   double angleRadians);
+
+/// Set scale about a point
+void OCCTGeomTransformSetScale(OCCTGeomTransformRef _Nonnull transform,
+                                double centerX, double centerY, double centerZ,
+                                double scaleFactor);
+
+/// Set point mirror
+void OCCTGeomTransformSetMirrorPoint(OCCTGeomTransformRef _Nonnull transform,
+                                      double x, double y, double z);
+
+/// Set axis mirror
+void OCCTGeomTransformSetMirrorAxis(OCCTGeomTransformRef _Nonnull transform,
+                                     double originX, double originY, double originZ,
+                                     double dirX, double dirY, double dirZ);
+
+/// Get scale factor
+double OCCTGeomTransformScaleFactor(OCCTGeomTransformRef _Nonnull transform);
+
+/// Check if negative (reflection)
+bool OCCTGeomTransformIsNegative(OCCTGeomTransformRef _Nonnull transform);
+
+/// Transform a point (in-place)
+void OCCTGeomTransformApply(OCCTGeomTransformRef _Nonnull transform,
+                             double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get matrix value (row 1-3, col 1-4)
+double OCCTGeomTransformValue(OCCTGeomTransformRef _Nonnull transform, int row, int col);
+
+/// Multiply two transformations, return new
+OCCTGeomTransformRef _Nullable OCCTGeomTransformMultiplied(OCCTGeomTransformRef _Nonnull t1,
+                                                            OCCTGeomTransformRef _Nonnull t2);
+
+/// Invert a transformation, return new
+OCCTGeomTransformRef _Nullable OCCTGeomTransformInverted(OCCTGeomTransformRef _Nonnull transform);
+
+// MARK: - Geom_OffsetCurve
+
+/// Create an offset curve from a Curve3D handle
+OCCTCurve3DRef _Nullable OCCTCurve3DCreateOffset(OCCTCurve3DRef _Nonnull basisCurve,
+                                                   double offset,
+                                                   double dirX, double dirY, double dirZ);
+
+/// Get offset value from an offset curve
+double OCCTCurve3DOffsetValue(OCCTCurve3DRef _Nonnull curve);
+
+/// Get offset direction from an offset curve
+bool OCCTCurve3DOffsetDirection(OCCTCurve3DRef _Nonnull curve,
+                                 double* _Nonnull dirX, double* _Nonnull dirY, double* _Nonnull dirZ);
+
+// MARK: - Geom_RectangularTrimmedSurface
+
+/// Create a rectangular trimmed surface from a surface handle
+OCCTSurfaceRef _Nullable OCCTSurfaceCreateRectangularTrimmed(OCCTSurfaceRef _Nonnull basisSurface,
+                                                               double u1, double u2,
+                                                               double v1, double v2);
+
+/// Create a single-direction trimmed surface (U or V only)
+OCCTSurfaceRef _Nullable OCCTSurfaceCreateTrimmedInU(OCCTSurfaceRef _Nonnull basisSurface,
+                                                       double param1, double param2);
+
+OCCTSurfaceRef _Nullable OCCTSurfaceCreateTrimmedInV(OCCTSurfaceRef _Nonnull basisSurface,
+                                                       double param1, double param2);
+
 #ifdef __cplusplus
 }
 #endif

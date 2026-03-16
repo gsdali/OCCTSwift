@@ -3777,3 +3777,251 @@ public extension Shape {
         )
     }
 }
+
+// MARK: - TDataStd_Tick
+
+public extension Document {
+    /// Set a tick (boolean flag) attribute on a label.
+    func setTick(tag: Int) -> Bool {
+        OCCTDocumentSetTick(handle, Int32(tag))
+    }
+
+    /// Check if a label has a tick attribute.
+    func hasTick(tag: Int) -> Bool {
+        OCCTDocumentHasTick(handle, Int32(tag))
+    }
+
+    /// Remove a tick attribute from a label.
+    func removeTick(tag: Int) -> Bool {
+        OCCTDocumentRemoveTick(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_Current
+
+public extension Document {
+    /// Set a label as the current label in the document.
+    func setCurrentLabel(tag: Int) -> Bool {
+        OCCTDocumentSetCurrentLabel(handle, Int32(tag))
+    }
+
+    /// Get the current label tag, or nil if none set.
+    func currentLabel() -> Int? {
+        let tag = OCCTDocumentGetCurrentLabel(handle)
+        return tag >= 0 ? Int(tag) : nil
+    }
+
+    /// Check if the document has a current label set.
+    func hasCurrentLabel() -> Bool {
+        OCCTDocumentHasCurrentLabel(handle)
+    }
+}
+
+// MARK: - ShapeAnalysis_Shell
+
+public extension Shape {
+    /// Result of shell analysis.
+    struct ShellAnalysisResult: Sendable {
+        public let hasOrientationProblems: Bool
+        public let hasFreeEdges: Bool
+        public let hasBadEdges: Bool
+        public let hasConnectedEdges: Bool
+        public let freeEdgeCount: Int
+    }
+
+    /// Analyze shell orientation and edge connectivity.
+    func analyzeShell() -> ShellAnalysisResult {
+        let r = OCCTShapeAnalyzeShell(handle)
+        return ShellAnalysisResult(
+            hasOrientationProblems: r.hasOrientationProblems,
+            hasFreeEdges: r.hasFreeEdges,
+            hasBadEdges: r.hasBadEdges,
+            hasConnectedEdges: r.hasConnectedEdges,
+            freeEdgeCount: Int(r.freeEdgeCount)
+        )
+    }
+}
+
+// MARK: - ShapeAnalysis_CanonicalRecognition (detailed)
+
+public extension Shape {
+    /// Canonical geometry type for detailed recognition.
+    enum CanonicalGeometryType: Int, Sendable {
+        case none = 0
+        case plane = 1
+        case cylinder = 2
+        case cone = 3
+        case sphere = 4
+        case line = 5
+        case circle = 6
+        case ellipse = 7
+    }
+
+    /// Detailed canonical recognition result with geometry parameters.
+    struct CanonicalRecognitionResult: Sendable {
+        public let type: CanonicalGeometryType
+        public let gap: Double
+        public let origin: (x: Double, y: Double, z: Double)
+        public let direction: (x: Double, y: Double, z: Double)
+        public let param1: Double
+        public let param2: Double
+    }
+
+    /// Recognize canonical surface geometry from a face with detailed parameters.
+    func recognizeCanonicalSurface(tolerance: Double = 0.01) -> CanonicalRecognitionResult {
+        let r = OCCTShapeRecognizeCanonicalSurface(handle, tolerance)
+        return CanonicalRecognitionResult(
+            type: CanonicalGeometryType(rawValue: Int(r.type.rawValue)) ?? .none,
+            gap: r.gap,
+            origin: (r.originX, r.originY, r.originZ),
+            direction: (r.dirX, r.dirY, r.dirZ),
+            param1: r.param1,
+            param2: r.param2
+        )
+    }
+
+    /// Recognize canonical curve geometry from an edge with detailed parameters.
+    func recognizeCanonicalCurve(tolerance: Double = 0.01) -> CanonicalRecognitionResult {
+        let r = OCCTShapeRecognizeCanonicalCurve(handle, tolerance)
+        return CanonicalRecognitionResult(
+            type: CanonicalGeometryType(rawValue: Int(r.type.rawValue)) ?? .none,
+            gap: r.gap,
+            origin: (r.originX, r.originY, r.originZ),
+            direction: (r.dirX, r.dirY, r.dirZ),
+            param1: r.param1,
+            param2: r.param2
+        )
+    }
+}
+
+// MARK: - Geom_Transformation
+
+/// 3D geometric transformation (Handle-wrapped).
+public final class GeomTransformation: @unchecked Sendable {
+    internal let ref: OCCTGeomTransformRef
+
+    /// Create an identity transformation.
+    public init?() {
+        guard let r = OCCTGeomTransformCreate() else { return nil }
+        self.ref = r
+    }
+
+    internal init(ref: OCCTGeomTransformRef) {
+        self.ref = ref
+    }
+
+    deinit {
+        OCCTGeomTransformRelease(ref)
+    }
+
+    /// Set translation by vector.
+    public func setTranslation(dx: Double, dy: Double, dz: Double) {
+        OCCTGeomTransformSetTranslation(ref, dx, dy, dz)
+    }
+
+    /// Set rotation about an axis.
+    public func setRotation(originX: Double, originY: Double, originZ: Double,
+                            dirX: Double, dirY: Double, dirZ: Double,
+                            angle: Double) {
+        OCCTGeomTransformSetRotation(ref, originX, originY, originZ, dirX, dirY, dirZ, angle)
+    }
+
+    /// Set scale about a point.
+    public func setScale(centerX: Double, centerY: Double, centerZ: Double, factor: Double) {
+        OCCTGeomTransformSetScale(ref, centerX, centerY, centerZ, factor)
+    }
+
+    /// Set point mirror.
+    public func setMirrorPoint(x: Double, y: Double, z: Double) {
+        OCCTGeomTransformSetMirrorPoint(ref, x, y, z)
+    }
+
+    /// Set axis mirror.
+    public func setMirrorAxis(originX: Double, originY: Double, originZ: Double,
+                              dirX: Double, dirY: Double, dirZ: Double) {
+        OCCTGeomTransformSetMirrorAxis(ref, originX, originY, originZ, dirX, dirY, dirZ)
+    }
+
+    /// Get scale factor.
+    public var scaleFactor: Double {
+        OCCTGeomTransformScaleFactor(ref)
+    }
+
+    /// Check if negative (reflection).
+    public var isNegative: Bool {
+        OCCTGeomTransformIsNegative(ref)
+    }
+
+    /// Transform a point and return the result.
+    public func apply(x: Double, y: Double, z: Double) -> (x: Double, y: Double, z: Double) {
+        var px = x, py = y, pz = z
+        OCCTGeomTransformApply(ref, &px, &py, &pz)
+        return (px, py, pz)
+    }
+
+    /// Get matrix value (row 1-3, col 1-4).
+    public func value(row: Int, col: Int) -> Double {
+        OCCTGeomTransformValue(ref, Int32(row), Int32(col))
+    }
+
+    /// Multiply with another transformation, return new.
+    public func multiplied(by other: GeomTransformation) -> GeomTransformation? {
+        guard let r = OCCTGeomTransformMultiplied(ref, other.ref) else { return nil }
+        return GeomTransformation(ref: r)
+    }
+
+    /// Return inverse transformation.
+    public func inverted() -> GeomTransformation? {
+        guard let r = OCCTGeomTransformInverted(ref) else { return nil }
+        return GeomTransformation(ref: r)
+    }
+}
+
+// MARK: - Geom_OffsetCurve
+
+public extension Curve3D {
+    /// Create an offset curve.
+    static func offset(basis: Curve3D, offset: Double,
+                       dirX: Double, dirY: Double, dirZ: Double) -> Curve3D? {
+        guard let ref = OCCTCurve3DCreateOffset(basis.handle, offset, dirX, dirY, dirZ) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Get the offset value (returns 0 if not an offset curve).
+    var offsetValue: Double {
+        OCCTCurve3DOffsetValue(handle)
+    }
+
+    /// Get the offset direction (returns nil if not an offset curve).
+    var offsetDirection: (x: Double, y: Double, z: Double)? {
+        var dx: Double = 0, dy: Double = 0, dz: Double = 0
+        if OCCTCurve3DOffsetDirection(handle, &dx, &dy, &dz) {
+            return (dx, dy, dz)
+        }
+        return nil
+    }
+}
+
+// MARK: - Geom_RectangularTrimmedSurface
+
+public extension Surface {
+    /// Create a rectangular trimmed surface.
+    static func rectangularTrimmed(basis: Surface,
+                                    u1: Double, u2: Double,
+                                    v1: Double, v2: Double) -> Surface? {
+        guard let ref = OCCTSurfaceCreateRectangularTrimmed(basis.handle, u1, u2, v1, v2) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a surface trimmed in U direction only.
+    static func trimmedInU(basis: Surface, param1: Double, param2: Double) -> Surface? {
+        guard let ref = OCCTSurfaceCreateTrimmedInU(basis.handle, param1, param2) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a surface trimmed in V direction only.
+    static func trimmedInV(basis: Surface, param1: Double, param2: Double) -> Surface? {
+        guard let ref = OCCTSurfaceCreateTrimmedInV(basis.handle, param1, param2) else { return nil }
+        return Surface(handle: ref)
+    }
+}

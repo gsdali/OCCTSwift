@@ -34152,3 +34152,377 @@ OCCTContigousEdgeResult OCCTShapeFindContigousEdges(OCCTShapeRef shape, double t
     } catch (...) {}
     return result;
 }
+
+// MARK: - TDataStd_Tick
+
+#include <TDataStd_Tick.hxx>
+
+bool OCCTDocumentSetTick(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        TDataStd_Tick::Set(label);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasTick(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_Tick) tick;
+        return label.FindAttribute(TDataStd_Tick::GetID(), tick);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentRemoveTick(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_Tick) tick;
+        if (!label.FindAttribute(TDataStd_Tick::GetID(), tick)) return false;
+        label.ForgetAttribute(TDataStd_Tick::GetID());
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_Current
+
+#include <TDataStd_Current.hxx>
+
+bool OCCTDocumentSetCurrentLabel(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        TDataStd_Current::Set(label);
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetCurrentLabel(OCCTDocumentRef document) {
+    try {
+        TDF_Label root = document->doc->Main();
+        if (!TDataStd_Current::Has(root)) return -1;
+        TDF_Label current = TDataStd_Current::Get(root);
+        return current.Tag();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentHasCurrentLabel(OCCTDocumentRef document) {
+    try {
+        TDF_Label root = document->doc->Main();
+        return TDataStd_Current::Has(root);
+    } catch (...) { return false; }
+}
+
+// MARK: - ShapeAnalysis_Shell
+
+#include <ShapeAnalysis_Shell.hxx>
+
+OCCTShellAnalysisResult OCCTShapeAnalyzeShell(OCCTShapeRef shape) {
+    OCCTShellAnalysisResult result = {false, false, false, false, 0};
+    try {
+        ShapeAnalysis_Shell analyzer;
+        // CheckOrientedShells returns true if BAD orientation found
+        result.hasOrientationProblems = analyzer.CheckOrientedShells(shape->shape, true, true);
+        result.hasFreeEdges = analyzer.HasFreeEdges();
+        result.hasBadEdges = analyzer.HasBadEdges();
+        result.hasConnectedEdges = analyzer.HasConnectedEdges();
+        if (result.hasFreeEdges) {
+            TopoDS_Compound freeEdges = analyzer.FreeEdges();
+            TopExp_Explorer edgeExp(freeEdges, TopAbs_EDGE);
+            int count = 0;
+            while (edgeExp.More()) { count++; edgeExp.Next(); }
+            result.freeEdgeCount = count;
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - ShapeAnalysis_CanonicalRecognition
+
+#include <ShapeAnalysis_CanonicalRecognition.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Cylinder.hxx>
+#include <gp_Cone.hxx>
+#include <gp_Sphere.hxx>
+#include <gp_Lin.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Elips.hxx>
+
+OCCTCanonicalResult OCCTShapeRecognizeCanonicalSurface(OCCTShapeRef faceShape, double tolerance) {
+    OCCTCanonicalResult result = {};
+    try {
+        ShapeAnalysis_CanonicalRecognition recog(faceShape->shape);
+
+        gp_Pln pln;
+        if (recog.IsPlane(tolerance, pln)) {
+            result.type = OCCTCanonicalTypePlane;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = pln.Location();
+            gp_Dir dir = pln.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            return result;
+        }
+
+        gp_Cylinder cyl;
+        if (recog.IsCylinder(tolerance, cyl)) {
+            result.type = OCCTCanonicalTypeCylinder;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = cyl.Location();
+            gp_Dir dir = cyl.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            result.param1 = cyl.Radius();
+            return result;
+        }
+
+        gp_Cone cone;
+        if (recog.IsCone(tolerance, cone)) {
+            result.type = OCCTCanonicalTypeCone;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = cone.Location();
+            gp_Dir dir = cone.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            result.param1 = cone.RefRadius();
+            result.param2 = cone.SemiAngle();
+            return result;
+        }
+
+        gp_Sphere sph;
+        if (recog.IsSphere(tolerance, sph)) {
+            result.type = OCCTCanonicalTypeSphere;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = sph.Location();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.param1 = sph.Radius();
+            return result;
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTCanonicalResult OCCTShapeRecognizeCanonicalCurve(OCCTShapeRef edgeShape, double tolerance) {
+    OCCTCanonicalResult result = {};
+    try {
+        ShapeAnalysis_CanonicalRecognition recog(edgeShape->shape);
+
+        gp_Lin lin;
+        if (recog.IsLine(tolerance, lin)) {
+            result.type = OCCTCanonicalTypeLine;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = lin.Location();
+            gp_Dir dir = lin.Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            return result;
+        }
+
+        gp_Circ circ;
+        if (recog.IsCircle(tolerance, circ)) {
+            result.type = OCCTCanonicalTypeCircle;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = circ.Location();
+            gp_Dir dir = circ.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            result.param1 = circ.Radius();
+            return result;
+        }
+
+        gp_Elips elips;
+        if (recog.IsEllipse(tolerance, elips)) {
+            result.type = OCCTCanonicalTypeEllipse;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = elips.Location();
+            gp_Dir dir = elips.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            result.param1 = elips.MajorRadius();
+            result.param2 = elips.MinorRadius();
+            return result;
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - Geom_Transformation
+
+#include <Geom_Transformation.hxx>
+
+OCCTGeomTransformRef OCCTGeomTransformCreate(void) {
+    try {
+        Handle(Geom_Transformation)* h = new Handle(Geom_Transformation)(new Geom_Transformation());
+        return h;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomTransformRelease(OCCTGeomTransformRef transform) {
+    auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+    delete h;
+}
+
+void OCCTGeomTransformSetTranslation(OCCTGeomTransformRef transform,
+                                      double dx, double dy, double dz) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        (*h)->SetTranslation(gp_Vec(dx, dy, dz));
+    } catch (...) {}
+}
+
+void OCCTGeomTransformSetRotation(OCCTGeomTransformRef transform,
+                                   double originX, double originY, double originZ,
+                                   double dirX, double dirY, double dirZ,
+                                   double angleRadians) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        gp_Ax1 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        (*h)->SetRotation(axis, angleRadians);
+    } catch (...) {}
+}
+
+void OCCTGeomTransformSetScale(OCCTGeomTransformRef transform,
+                                double centerX, double centerY, double centerZ,
+                                double scaleFactor) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        (*h)->SetScale(gp_Pnt(centerX, centerY, centerZ), scaleFactor);
+    } catch (...) {}
+}
+
+void OCCTGeomTransformSetMirrorPoint(OCCTGeomTransformRef transform,
+                                      double x, double y, double z) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        (*h)->SetMirror(gp_Pnt(x, y, z));
+    } catch (...) {}
+}
+
+void OCCTGeomTransformSetMirrorAxis(OCCTGeomTransformRef transform,
+                                     double originX, double originY, double originZ,
+                                     double dirX, double dirY, double dirZ) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        gp_Ax1 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        (*h)->SetMirror(axis);
+    } catch (...) {}
+}
+
+double OCCTGeomTransformScaleFactor(OCCTGeomTransformRef transform) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        return (*h)->ScaleFactor();
+    } catch (...) { return 1.0; }
+}
+
+bool OCCTGeomTransformIsNegative(OCCTGeomTransformRef transform) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        return (*h)->IsNegative();
+    } catch (...) { return false; }
+}
+
+void OCCTGeomTransformApply(OCCTGeomTransformRef transform,
+                             double* x, double* y, double* z) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        (*h)->Transforms(*x, *y, *z);
+    } catch (...) {}
+}
+
+double OCCTGeomTransformValue(OCCTGeomTransformRef transform, int row, int col) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        return (*h)->Value(row, col);
+    } catch (...) { return 0.0; }
+}
+
+OCCTGeomTransformRef OCCTGeomTransformMultiplied(OCCTGeomTransformRef t1,
+                                                  OCCTGeomTransformRef t2) {
+    try {
+        auto* h1 = static_cast<Handle(Geom_Transformation)*>(t1);
+        auto* h2 = static_cast<Handle(Geom_Transformation)*>(t2);
+        Handle(Geom_Transformation) result = (*h1)->Multiplied(*h2);
+        return new Handle(Geom_Transformation)(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTGeomTransformRef OCCTGeomTransformInverted(OCCTGeomTransformRef transform) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        Handle(Geom_Transformation) result = (*h)->Inverted();
+        return new Handle(Geom_Transformation)(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Geom_OffsetCurve
+
+#include <Geom_OffsetCurve.hxx>
+
+OCCTCurve3DRef OCCTCurve3DCreateOffset(OCCTCurve3DRef basisCurve,
+                                         double offset,
+                                         double dirX, double dirY, double dirZ) {
+    try {
+        Handle(Geom_OffsetCurve) oc = new Geom_OffsetCurve(
+            basisCurve->curve, offset, gp_Dir(dirX, dirY, dirZ));
+        auto* ref = new OCCTCurve3D();
+        ref->curve = oc;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTCurve3DOffsetValue(OCCTCurve3DRef curve) {
+    try {
+        Handle(Geom_OffsetCurve) oc = Handle(Geom_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return 0.0;
+        return oc->Offset();
+    } catch (...) { return 0.0; }
+}
+
+bool OCCTCurve3DOffsetDirection(OCCTCurve3DRef curve,
+                                 double* dirX, double* dirY, double* dirZ) {
+    try {
+        Handle(Geom_OffsetCurve) oc = Handle(Geom_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return false;
+        gp_Dir d = oc->Direction();
+        *dirX = d.X(); *dirY = d.Y(); *dirZ = d.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - Geom_RectangularTrimmedSurface
+
+#include <Geom_RectangularTrimmedSurface.hxx>
+
+OCCTSurfaceRef OCCTSurfaceCreateRectangularTrimmed(OCCTSurfaceRef basisSurface,
+                                                     double u1, double u2,
+                                                     double v1, double v2) {
+    try {
+        Handle(Geom_RectangularTrimmedSurface) ts =
+            new Geom_RectangularTrimmedSurface(basisSurface->surface, u1, u2, v1, v2);
+        auto* ref = new OCCTSurface();
+        ref->surface = ts;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTSurfaceCreateTrimmedInU(OCCTSurfaceRef basisSurface,
+                                             double param1, double param2) {
+    try {
+        Handle(Geom_RectangularTrimmedSurface) ts =
+            new Geom_RectangularTrimmedSurface(basisSurface->surface, param1, param2, true);
+        auto* ref = new OCCTSurface();
+        ref->surface = ts;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTSurfaceCreateTrimmedInV(OCCTSurfaceRef basisSurface,
+                                             double param1, double param2) {
+    try {
+        Handle(Geom_RectangularTrimmedSurface) ts =
+            new Geom_RectangularTrimmedSurface(basisSurface->surface, param1, param2, false);
+        auto* ref = new OCCTSurface();
+        ref->surface = ts;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+

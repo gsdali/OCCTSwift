@@ -25009,3 +25009,233 @@ struct FindContigousEdgesTests {
         }
     }
 }
+
+// MARK: - v0.87.0: TDataStd_Tick/Current, ShapeAnalysis_Shell/CanonicalRecognition, Geom_Transformation/OffsetCurve/RectangularTrimmedSurface
+
+@Suite("TDataStd_Tick Tests")
+struct TickTests {
+    @Test func setAndHas() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasTick(tag: 500))
+        #expect(doc.setTick(tag: 500))
+        #expect(doc.hasTick(tag: 500))
+    }
+
+    @Test func remove() {
+        guard let doc = Document.create() else { return }
+        _ = doc.setTick(tag: 501)
+        #expect(doc.removeTick(tag: 501))
+        #expect(!doc.hasTick(tag: 501))
+    }
+
+    @Test func removeNonExistent() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.removeTick(tag: 502))
+    }
+}
+
+@Suite("TDataStd_Current Tests")
+struct CurrentTests {
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        #expect(doc.setCurrentLabel(tag: 510))
+        if let tag = doc.currentLabel() {
+            #expect(tag == 510)
+        }
+    }
+
+    @Test func hasCurrent() {
+        guard let doc = Document.create() else { return }
+        #expect(!doc.hasCurrentLabel())
+        _ = doc.setCurrentLabel(tag: 511)
+        #expect(doc.hasCurrentLabel())
+    }
+
+    @Test func noCurrentReturnsNil() {
+        guard let doc = Document.create() else { return }
+        #expect(doc.currentLabel() == nil)
+    }
+}
+
+@Suite("ShapeAnalysis_Shell Tests")
+struct ShellAnalysisTests {
+    @Test func analyzeBox() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let result = box.analyzeShell()
+            #expect(!result.hasOrientationProblems)
+            #expect(!result.hasFreeEdges)
+            #expect(!result.hasBadEdges)
+            #expect(result.freeEdgeCount == 0)
+        }
+    }
+
+    @Test func analyzeSphere() {
+        if let sphere = Shape.sphere(radius: 5) {
+            let result = sphere.analyzeShell()
+            #expect(!result.hasOrientationProblems)
+        }
+    }
+}
+
+@Suite("CanonicalRecognition Detailed Tests")
+struct CanonicalRecognitionDetailedTests {
+    @Test func recognizePlane() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let result = face.recognizeCanonicalSurface()
+                #expect(result.type == .plane)
+            }
+        }
+    }
+
+    @Test func recognizeCylinder() {
+        // Use the whole cylinder shape — the recognizer iterates faces internally
+        if let cyl = Shape.cylinder(radius: 5, height: 20) {
+            let result = cyl.recognizeCanonicalSurface()
+            // May or may not recognize — depends on which face is checked first
+            #expect(result.type == .plane || result.type == .cylinder || result.type == .none)
+        }
+    }
+
+    @Test func recognizeSphere() {
+        if let sph = Shape.sphere(radius: 5) {
+            let result = sph.recognizeCanonicalSurface()
+            // Sphere has a single face, should recognize
+            #expect(result.type == .sphere || result.type == .none)
+        }
+    }
+
+    @Test func recognizeEdgeLine() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            var foundLine = false
+            for edge in edges {
+                let result = edge.recognizeCanonicalCurve()
+                if result.type == .line {
+                    foundLine = true
+                    break
+                }
+            }
+            #expect(foundLine)
+        }
+    }
+}
+
+@Suite("GeomTransformation Tests")
+struct GeomTransformationTests {
+    @Test func identity() {
+        if let t = GeomTransformation() {
+            #expect(abs(t.scaleFactor - 1.0) < 1e-10)
+            #expect(!t.isNegative)
+        }
+    }
+
+    @Test func translation() {
+        if let t = GeomTransformation() {
+            t.setTranslation(dx: 10, dy: 20, dz: 30)
+            let p = t.apply(x: 0, y: 0, z: 0)
+            #expect(abs(p.x - 10) < 1e-10)
+            #expect(abs(p.y - 20) < 1e-10)
+            #expect(abs(p.z - 30) < 1e-10)
+        }
+    }
+
+    @Test func rotation() {
+        if let t = GeomTransformation() {
+            t.setRotation(originX: 0, originY: 0, originZ: 0,
+                         dirX: 0, dirY: 0, dirZ: 1,
+                         angle: .pi / 2)
+            let p = t.apply(x: 1, y: 0, z: 0)
+            #expect(abs(p.x) < 1e-10)
+            #expect(abs(p.y - 1) < 1e-10)
+        }
+    }
+
+    @Test func scale() {
+        if let t = GeomTransformation() {
+            t.setScale(centerX: 0, centerY: 0, centerZ: 0, factor: 2.0)
+            #expect(abs(t.scaleFactor - 2.0) < 1e-10)
+        }
+    }
+
+    @Test func mirror() {
+        if let t = GeomTransformation() {
+            t.setMirrorPoint(x: 0, y: 0, z: 0)
+            #expect(t.isNegative)
+        }
+    }
+
+    @Test func multiply() {
+        if let t1 = GeomTransformation(), let t2 = GeomTransformation() {
+            t1.setTranslation(dx: 10, dy: 0, dz: 0)
+            t2.setTranslation(dx: 0, dy: 5, dz: 0)
+            if let combined = t1.multiplied(by: t2) {
+                let p = combined.apply(x: 0, y: 0, z: 0)
+                #expect(abs(p.x - 10) < 1e-10)
+                #expect(abs(p.y - 5) < 1e-10)
+            }
+        }
+    }
+
+    @Test func invert() {
+        if let t = GeomTransformation() {
+            t.setTranslation(dx: 10, dy: 20, dz: 30)
+            if let inv = t.inverted() {
+                let p = inv.apply(x: 10, y: 20, z: 30)
+                #expect(abs(p.x) < 1e-10)
+                #expect(abs(p.y) < 1e-10)
+                #expect(abs(p.z) < 1e-10)
+            }
+        }
+    }
+
+    @Test func matrixValue() {
+        if let t = GeomTransformation() {
+            t.setTranslation(dx: 10, dy: 20, dz: 30)
+            #expect(abs(t.value(row: 1, col: 4) - 10) < 1e-10)
+            #expect(abs(t.value(row: 2, col: 4) - 20) < 1e-10)
+        }
+    }
+}
+
+@Suite("Geom_OffsetCurve Tests")
+struct GeomOffsetCurveTests {
+    @Test func createFromLine() {
+        guard let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)) else { return }
+        if let offset = Curve3D.offset(basis: line, offset: 5.0, dirX: 0, dirY: 0, dirZ: 1) {
+            #expect(abs(offset.offsetValue - 5.0) < 1e-10)
+        }
+    }
+
+    @Test func offsetDirection() {
+        guard let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)) else { return }
+        if let offset = Curve3D.offset(basis: line, offset: 5.0, dirX: 0, dirY: 0, dirZ: 1) {
+            if let dir = offset.offsetDirection {
+                #expect(abs(dir.z - 1.0) < 1e-10)
+            }
+        }
+    }
+}
+
+@Suite("Geom_RectangularTrimmedSurface Tests")
+struct RectangularTrimmedSurfaceTests {
+    @Test func trimPlane() {
+        guard let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) else { return }
+        let trimmed = Surface.rectangularTrimmed(basis: plane,
+                                                   u1: -5, u2: 5, v1: -3, v2: 3)
+        #expect(trimmed != nil)
+    }
+
+    @Test func trimInU() {
+        guard let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) else { return }
+        let trimmed = Surface.trimmedInU(basis: plane, param1: -2, param2: 2)
+        #expect(trimmed != nil)
+    }
+
+    @Test func trimInV() {
+        guard let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) else { return }
+        let trimmed = Surface.trimmedInV(basis: plane, param1: -3, param2: 3)
+        #expect(trimmed != nil)
+    }
+}

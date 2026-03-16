@@ -215,7 +215,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **ShapeFix_Solid** | 2 | fixSolid, solidFromShellFixed |
 | **ShapeFix_EdgeConnect** | 1 | fixEdgeConnect |
 | **BRepOffsetAPI_FindContigousEdges** | 1 | findContigousEdges |
-| **Total** | **1679** | |
+| **TDataStd_Tick** | 3 | setTick, hasTick, removeTick |
+| **TDataStd_Current** | 3 | setCurrentLabel, currentLabel, hasCurrentLabel |
+| **ShapeAnalysis_Shell** | 1 | analyzeShell (orientation, free/bad/connected edges) |
+| **ShapeAnalysis_CanonicalRecognition** | 2 | recognizeCanonicalSurface, recognizeCanonicalCurve |
+| **Geom_Transformation** | 14 | create, release, setTranslation, setRotation, setScale, setMirrorPoint, setMirrorAxis, scaleFactor, isNegative, apply, value, multiplied, inverted |
+| **Geom_OffsetCurve** | 3 | offset, offsetValue, offsetDirection |
+| **Geom_RectangularTrimmedSurface** | 3 | rectangularTrimmed, trimmedInU, trimmedInV |
+| **Total** | **1708** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -557,6 +564,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Solid Fixing**: ShapeFix_Solid — fix solid topology and orientation, create solids from shells
 - **Edge Connection**: ShapeFix_EdgeConnect — connect edges by extending/trimming to match
 - **Contiguous Edge Detection**: BRepOffsetAPI_FindContigousEdges — find shared edges and degenerated shapes
+- **Tick Attributes**: TDataStd_Tick — boolean flag markers on OCAF labels with set/has/remove
+- **Current Label**: TDataStd_Current — designate and query the current active label in an OCAF document
+- **Shell Analysis**: ShapeAnalysis_Shell — analyze shell orientation, detect free/bad/connected edges
+- **Canonical Surface/Curve Recognition**: ShapeAnalysis_CanonicalRecognition — identify plane/cylinder/cone/sphere surfaces and line/circle/ellipse curves with geometry parameters and gap measurement
+- **3D Geometric Transformations**: Geom_Transformation — Handle-wrapped transformation objects with translation, rotation, scale, mirror (point/axis), composition (multiply/invert), matrix access
+- **Offset Curves**: Geom_OffsetCurve — create curves offset from a basis curve by a distance in a reference direction
+- **Rectangular Trimmed Surfaces**: Geom_RectangularTrimmedSurface — trim infinite surfaces to rectangular UV parameter bounds (full trim or single-direction U/V trim)
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
