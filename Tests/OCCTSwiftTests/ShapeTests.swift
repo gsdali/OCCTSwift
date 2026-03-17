@@ -25239,3 +25239,248 @@ struct RectangularTrimmedSurfaceTests {
         #expect(trimmed != nil)
     }
 }
+
+// MARK: - v0.88.0: TNaming Extensions, IntPackedMap, NoteBook, UAttribute, ChildNodeIterator
+
+@Suite("TNaming Extensions Tests")
+struct TNamingExtensionTests {
+
+    @Test func namingIsEmpty() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        // No naming recorded yet — should be empty
+        #expect(doc.namingIsEmpty(on: node))
+    }
+
+    @Test func namingIsEmptyAfterRecord() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        doc.recordNaming(on: node, evolution: .primitive, newShape: box)
+        #expect(!doc.namingIsEmpty(on: node))
+    }
+
+    @Test func namingVersion() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        doc.recordNaming(on: node, evolution: .primitive, newShape: box)
+        #expect(doc.namingVersion(on: node) == 0)
+        doc.setNamingVersion(on: node, version: 42)
+        #expect(doc.namingVersion(on: node) == 42)
+    }
+
+    @Test func namingOriginalShape() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        // Primitive has no old shape — original should be nil
+        doc.recordNaming(on: node, evolution: .primitive, newShape: box)
+        let original = doc.namingOriginalShape(on: node)
+        #expect(original == nil)
+    }
+
+    @Test func namingOriginalShapeFromModify() {
+        guard let doc = Document.create() else { return }
+        guard let node1 = doc.createLabel() else { return }
+        guard let node2 = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        guard let sphere = Shape.sphere(radius: 5) else { return }
+        doc.recordNaming(on: node1, evolution: .primitive, newShape: box)
+        doc.recordNaming(on: node2, evolution: .modify, oldShape: box, newShape: sphere)
+        let original = doc.namingOriginalShape(on: node2)
+        #expect(original != nil)
+    }
+
+    @Test func namingHasLabel() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        doc.recordNaming(on: node, evolution: .primitive, newShape: box)
+        #expect(doc.namingHasLabel(shape: box))
+    }
+
+    @Test func namingFindLabel() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        doc.recordNaming(on: node, evolution: .primitive, newShape: box)
+        let found = doc.namingFindLabel(shape: box)
+        #expect(found != nil)
+    }
+
+    @Test func namingValidUntil() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        doc.recordNaming(on: node, evolution: .primitive, newShape: box)
+        let valid = doc.namingValidUntil(shape: box)
+        #expect(valid >= 0)
+    }
+
+    @Test func sameShapeCount() {
+        guard let doc = Document.create() else { return }
+        guard let node1 = doc.createLabel() else { return }
+        guard let node2 = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        doc.recordNaming(on: node1, evolution: .primitive, newShape: box)
+        doc.recordNaming(on: node2, evolution: .primitive, newShape: box)
+        let count = doc.sameShapeCount(shape: box)
+        #expect(count >= 2)
+    }
+
+    @Test func sameShapeLabels() {
+        guard let doc = Document.create() else { return }
+        guard let node1 = doc.createLabel() else { return }
+        guard let node2 = doc.createLabel() else { return }
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        doc.recordNaming(on: node1, evolution: .primitive, newShape: box)
+        doc.recordNaming(on: node2, evolution: .primitive, newShape: box)
+        let labels = doc.sameShapeLabels(shape: box)
+        #expect(labels.count >= 2)
+    }
+}
+
+@Suite("IntPackedMap Tests")
+struct IntPackedMapTests {
+
+    @Test func setAndAdd() {
+        guard let doc = Document.create() else { return }
+        #expect(doc.setIntPackedMap(tag: 100))
+        #expect(doc.intPackedMapAdd(tag: 100, value: 42))
+        #expect(doc.intPackedMapAdd(tag: 100, value: 100))
+        #expect(doc.intPackedMapContains(tag: 100, value: 42))
+        #expect(doc.intPackedMapContains(tag: 100, value: 100))
+    }
+
+    @Test func extent() {
+        guard let doc = Document.create() else { return }
+        doc.setIntPackedMap(tag: 101)
+        doc.intPackedMapAdd(tag: 101, value: 1)
+        doc.intPackedMapAdd(tag: 101, value: 2)
+        doc.intPackedMapAdd(tag: 101, value: 3)
+        #expect(doc.intPackedMapCount(tag: 101) == 3)
+    }
+
+    @Test func remove() {
+        guard let doc = Document.create() else { return }
+        doc.setIntPackedMap(tag: 102)
+        doc.intPackedMapAdd(tag: 102, value: 10)
+        doc.intPackedMapAdd(tag: 102, value: 20)
+        #expect(doc.intPackedMapRemove(tag: 102, value: 10))
+        #expect(!doc.intPackedMapContains(tag: 102, value: 10))
+        #expect(doc.intPackedMapCount(tag: 102) == 1)
+    }
+
+    @Test func clearAndEmpty() {
+        guard let doc = Document.create() else { return }
+        doc.setIntPackedMap(tag: 103)
+        doc.intPackedMapAdd(tag: 103, value: 5)
+        #expect(!doc.intPackedMapIsEmpty(tag: 103))
+        doc.intPackedMapClear(tag: 103)
+        #expect(doc.intPackedMapIsEmpty(tag: 103))
+        #expect(doc.intPackedMapCount(tag: 103) == 0)
+    }
+
+    @Test func getValues() {
+        guard let doc = Document.create() else { return }
+        doc.setIntPackedMap(tag: 104)
+        doc.intPackedMapAdd(tag: 104, value: 7)
+        doc.intPackedMapAdd(tag: 104, value: 42)
+        doc.intPackedMapAdd(tag: 104, value: 99)
+        let values = doc.intPackedMapValues(tag: 104)
+        #expect(values.count == 3)
+        #expect(values.contains(7))
+        #expect(values.contains(42))
+        #expect(values.contains(99))
+    }
+
+    @Test func changeValues() {
+        guard let doc = Document.create() else { return }
+        doc.setIntPackedMap(tag: 105)
+        doc.intPackedMapAdd(tag: 105, value: 1)
+        #expect(doc.intPackedMapSetValues(tag: 105, values: [10, 20, 30, 40, 50]))
+        #expect(doc.intPackedMapCount(tag: 105) == 5)
+        #expect(doc.intPackedMapContains(tag: 105, value: 30))
+        #expect(!doc.intPackedMapContains(tag: 105, value: 1))
+    }
+}
+
+@Suite("NoteBook Tests")
+struct NoteBookTests {
+
+    @Test func createNoteBook() {
+        guard let doc = Document.create() else { return }
+        #expect(doc.setNoteBook(tag: 200))
+        #expect(doc.noteBookExists(tag: 200))
+    }
+
+    @Test func appendReal() {
+        guard let doc = Document.create() else { return }
+        doc.setNoteBook(tag: 201)
+        let childTag = doc.noteBookAppendReal(tag: 201, value: 3.14)
+        #expect(childTag != nil)
+    }
+
+    @Test func appendInteger() {
+        guard let doc = Document.create() else { return }
+        doc.setNoteBook(tag: 202)
+        let childTag = doc.noteBookAppendInteger(tag: 202, value: 42)
+        #expect(childTag != nil)
+    }
+
+    @Test func multipleAppends() {
+        guard let doc = Document.create() else { return }
+        doc.setNoteBook(tag: 203)
+        let r1 = doc.noteBookAppendReal(tag: 203, value: 1.0)
+        let r2 = doc.noteBookAppendReal(tag: 203, value: 2.0)
+        let i1 = doc.noteBookAppendInteger(tag: 203, value: 10)
+        #expect(r1 != nil)
+        #expect(r2 != nil)
+        #expect(i1 != nil)
+        // Each append creates a new child, so tags should be different
+        if let r1, let r2 { #expect(r1 != r2) }
+    }
+}
+
+@Suite("UAttribute Tests")
+struct UAttributeTests {
+
+    @Test func setAndHas() {
+        guard let doc = Document.create() else { return }
+        let guid = "12345678-1234-1234-1234-123456789012"
+        #expect(doc.setUAttribute(tag: 300, guid: guid))
+        #expect(doc.hasUAttribute(tag: 300, guid: guid))
+    }
+
+    @Test func differentGUID() {
+        guard let doc = Document.create() else { return }
+        let guid1 = "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"
+        let guid2 = "11111111-2222-3333-4444-555555555555"
+        doc.setUAttribute(tag: 301, guid: guid1)
+        #expect(doc.hasUAttribute(tag: 301, guid: guid1))
+        #expect(!doc.hasUAttribute(tag: 301, guid: guid2))
+    }
+
+    @Test func getID() {
+        guard let doc = Document.create() else { return }
+        let guid = "ABCDEF01-2345-6789-ABCD-EF0123456789"
+        doc.setUAttribute(tag: 302, guid: guid)
+        let retrieved = doc.uAttributeID(tag: 302, guid: guid)
+        #expect(retrieved != nil)
+        // The GUID should contain the original hex digits (may differ in formatting)
+        if let retrieved {
+            #expect(retrieved.lowercased().contains("abcdef01"))
+        }
+    }
+}
+
+@Suite("ChildNodeIterator Tests")
+struct ChildNodeIteratorTests {
+
+    @Test func noTreeNode() {
+        guard let doc = Document.create() else { return }
+        // No tree node set — count should be 0
+        #expect(doc.childNodeCount(tag: 400) == 0)
+    }
+}

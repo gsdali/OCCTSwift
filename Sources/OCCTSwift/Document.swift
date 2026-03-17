@@ -4025,3 +4025,184 @@ public extension Surface {
         return Surface(handle: ref)
     }
 }
+
+// MARK: - TNaming Extensions (v0.88.0)
+
+extension Document {
+
+    /// Check if a TNaming_NamedShape on a label is empty
+    public func namingIsEmpty(on node: AssemblyNode) -> Bool {
+        OCCTNamingIsEmpty(handle, node.labelId)
+    }
+
+    /// Get the version of a TNaming_NamedShape attribute
+    public func namingVersion(on node: AssemblyNode) -> Int {
+        Int(OCCTNamingGetVersion(handle, node.labelId))
+    }
+
+    /// Set the version of a TNaming_NamedShape attribute
+    @discardableResult
+    public func setNamingVersion(on node: AssemblyNode, version: Int) -> Bool {
+        OCCTNamingSetVersion(handle, node.labelId, Int32(version))
+    }
+
+    /// Get the original (old) shape from a named shape attribute
+    public func namingOriginalShape(on node: AssemblyNode) -> Shape? {
+        guard let h = OCCTNamingOriginalShape(handle, node.labelId) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Check if a shape has a label in the document's naming framework
+    public func namingHasLabel(shape: Shape) -> Bool {
+        OCCTNamingHasLabel(handle, shape.handle)
+    }
+
+    /// Find the label for a shape in the document's naming framework
+    public func namingFindLabel(shape: Shape) -> AssemblyNode? {
+        let labelId = OCCTNamingFindLabel(handle, shape.handle)
+        guard labelId >= 0 else { return nil }
+        return AssemblyNode(document: self, labelId: labelId)
+    }
+
+    /// Get the valid-until transaction number for a shape
+    public func namingValidUntil(shape: Shape) -> Int {
+        Int(OCCTNamingValidUntil(handle, shape.handle))
+    }
+
+    /// Get count of labels containing the same shape
+    public func sameShapeCount(shape: Shape) -> Int {
+        Int(OCCTNamingSameShapeCount(handle, shape.handle))
+    }
+
+    /// Get all labels containing the same shape
+    public func sameShapeLabels(shape: Shape) -> [AssemblyNode] {
+        let count = OCCTNamingSameShapeCount(handle, shape.handle)
+        guard count > 0 else { return [] }
+        var ids = [Int64](repeating: 0, count: Int(count))
+        let actual = OCCTNamingSameShapeLabels(handle, shape.handle, &ids, count)
+        return (0..<Int(actual)).map { AssemblyNode(document: self, labelId: ids[$0]) }
+    }
+}
+
+// MARK: - TDataStd_IntPackedMap (v0.88.0)
+
+extension Document {
+
+    /// Set (create) an IntPackedMap attribute on a label
+    @discardableResult
+    public func setIntPackedMap(tag: Int, isDelta: Bool = false) -> Bool {
+        OCCTIntPackedMapSet(handle, Int32(tag), isDelta)
+    }
+
+    /// Add a value to the IntPackedMap
+    @discardableResult
+    public func intPackedMapAdd(tag: Int, value: Int) -> Bool {
+        OCCTIntPackedMapAdd(handle, Int32(tag), Int32(value))
+    }
+
+    /// Remove a value from the IntPackedMap
+    @discardableResult
+    public func intPackedMapRemove(tag: Int, value: Int) -> Bool {
+        OCCTIntPackedMapRemove(handle, Int32(tag), Int32(value))
+    }
+
+    /// Check if the IntPackedMap contains a value
+    public func intPackedMapContains(tag: Int, value: Int) -> Bool {
+        OCCTIntPackedMapContains(handle, Int32(tag), Int32(value))
+    }
+
+    /// Get the count of elements in the IntPackedMap
+    public func intPackedMapCount(tag: Int) -> Int {
+        Int(OCCTIntPackedMapExtent(handle, Int32(tag)))
+    }
+
+    /// Clear all elements from the IntPackedMap
+    @discardableResult
+    public func intPackedMapClear(tag: Int) -> Bool {
+        OCCTIntPackedMapClear(handle, Int32(tag))
+    }
+
+    /// Check if the IntPackedMap is empty
+    public func intPackedMapIsEmpty(tag: Int) -> Bool {
+        OCCTIntPackedMapIsEmpty(handle, Int32(tag))
+    }
+
+    /// Get all values from the IntPackedMap
+    public func intPackedMapValues(tag: Int) -> [Int] {
+        var ptr: UnsafeMutablePointer<Int32>?
+        let count = OCCTIntPackedMapGetValues(handle, Int32(tag), &ptr)
+        guard count > 0, let ptr = ptr else { return [] }
+        defer { OCCTIntPackedMapFreeValues(ptr) }
+        return (0..<Int(count)).map { Int(ptr[$0]) }
+    }
+
+    /// Replace all values in the IntPackedMap
+    @discardableResult
+    public func intPackedMapSetValues(tag: Int, values: [Int]) -> Bool {
+        let int32Values = values.map { Int32($0) }
+        return int32Values.withUnsafeBufferPointer { buf in
+            OCCTIntPackedMapChangeValues(handle, Int32(tag), buf.baseAddress!, Int32(values.count))
+        }
+    }
+}
+
+// MARK: - TDataStd_NoteBook (v0.88.0)
+
+extension Document {
+
+    /// Create a NoteBook attribute on a label
+    @discardableResult
+    public func setNoteBook(tag: Int) -> Bool {
+        OCCTNoteBookNew(handle, Int32(tag))
+    }
+
+    /// Append a real value to the NoteBook, returns the child label tag or nil
+    public func noteBookAppendReal(tag: Int, value: Double) -> Int? {
+        let result = OCCTNoteBookAppendReal(handle, Int32(tag), value)
+        return result >= 0 ? Int(result) : nil
+    }
+
+    /// Append an integer value to the NoteBook, returns the child label tag or nil
+    public func noteBookAppendInteger(tag: Int, value: Int) -> Int? {
+        let result = OCCTNoteBookAppendInteger(handle, Int32(tag), Int32(value))
+        return result >= 0 ? Int(result) : nil
+    }
+
+    /// Check if a NoteBook exists on a label (searches up hierarchy)
+    public func noteBookExists(tag: Int) -> Bool {
+        OCCTNoteBookFind(handle, Int32(tag))
+    }
+}
+
+// MARK: - TDataStd_UAttribute (v0.88.0)
+
+extension Document {
+
+    /// Set a UAttribute with a GUID string on a label
+    @discardableResult
+    public func setUAttribute(tag: Int, guid: String) -> Bool {
+        OCCTUAttributeSet(handle, Int32(tag), guid)
+    }
+
+    /// Check if a UAttribute with a given GUID exists on a label
+    public func hasUAttribute(tag: Int, guid: String) -> Bool {
+        OCCTUAttributeHas(handle, Int32(tag), guid)
+    }
+
+    /// Get the GUID string of a UAttribute on a label
+    public func uAttributeID(tag: Int, guid: String) -> String? {
+        guard let ptr = OCCTUAttributeGetID(handle, Int32(tag), guid) else { return nil }
+        defer { OCCTUAttributeFreeGUID(ptr) }
+        return String(cString: ptr)
+    }
+}
+
+// MARK: - TDataStd_ChildNodeIterator (v0.88.0)
+
+extension Document {
+
+    /// Get count of child tree nodes on a label
+    public func childNodeCount(tag: Int, allLevels: Bool = false) -> Int {
+        Int(OCCTChildNodeIteratorCount(handle, Int32(tag), allLevels))
+    }
+}

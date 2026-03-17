@@ -222,7 +222,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Geom_Transformation** | 14 | create, release, setTranslation, setRotation, setScale, setMirrorPoint, setMirrorAxis, scaleFactor, isNegative, apply, value, multiplied, inverted |
 | **Geom_OffsetCurve** | 3 | offset, offsetValue, offsetDirection |
 | **Geom_RectangularTrimmedSurface** | 3 | rectangularTrimmed, trimmedInU, trimmedInV |
-| **Total** | **1708** | |
+| **TNaming Extensions** | 9 | namingIsEmpty, namingVersion, setNamingVersion, namingOriginalShape, namingHasLabel, namingFindLabel, namingValidUntil, sameShapeCount, sameShapeLabels |
+| **TDataStd_IntPackedMap** | 9 | setIntPackedMap, intPackedMapAdd, intPackedMapRemove, intPackedMapContains, intPackedMapCount, intPackedMapClear, intPackedMapIsEmpty, intPackedMapValues, intPackedMapSetValues |
+| **TDataStd_NoteBook** | 4 | setNoteBook, noteBookAppendReal, noteBookAppendInteger, noteBookExists |
+| **TDataStd_UAttribute** | 3 | setUAttribute, hasUAttribute, uAttributeID |
+| **TDataStd_ChildNodeIterator** | 1 | childNodeCount |
+| **Total** | **1734** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 

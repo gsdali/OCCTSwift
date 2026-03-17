@@ -34526,3 +34526,323 @@ OCCTSurfaceRef OCCTSurfaceCreateTrimmedInV(OCCTSurfaceRef basisSurface,
     } catch (...) { return nullptr; }
 }
 
+// MARK: - TNaming Extensions (v0.88.0)
+
+#include <TNaming_SameShapeIterator.hxx>
+#include <TDataStd_IntPackedMap.hxx>
+#include <TDataStd_NoteBook.hxx>
+#include <TDataStd_UAttribute.hxx>
+#include <TDataStd_ChildNodeIterator.hxx>
+#include <TColStd_HPackedMapOfInteger.hxx>
+#include <TColStd_PackedMapOfInteger.hxx>
+
+bool OCCTNamingIsEmpty(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return true;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return true;
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return true;
+        return ns->IsEmpty();
+    } catch (...) { return true; }
+}
+
+int OCCTNamingGetVersion(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return 0;
+        return ns->Version();
+    } catch (...) { return 0; }
+}
+
+bool OCCTNamingSetVersion(OCCTDocumentRef doc, int64_t labelId, int version) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return false;
+        ns->SetVersion(version);
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTNamingOriginalShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+        Handle(TNaming_NamedShape) ns;
+        if (!label.FindAttribute(TNaming_NamedShape::GetID(), ns)) return nullptr;
+        TopoDS_Shape shape = TNaming_Tool::OriginalShape(ns);
+        if (shape.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = shape;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTNamingHasLabel(OCCTDocumentRef doc, OCCTShapeRef shape) {
+    if (!doc || doc->doc.IsNull() || !shape) return false;
+    try {
+        TDF_Label root = doc->doc->Main();
+        return TNaming_Tool::HasLabel(root, shape->shape);
+    } catch (...) { return false; }
+}
+
+int64_t OCCTNamingFindLabel(OCCTDocumentRef doc, OCCTShapeRef shape) {
+    if (!doc || doc->doc.IsNull() || !shape) return -1;
+    try {
+        TDF_Label root = doc->doc->Main();
+        int transDef = 0;
+        TDF_Label label = TNaming_Tool::Label(root, shape->shape, transDef);
+        if (label.IsNull()) return -1;
+        // Find the label in the document's label array
+        for (int64_t i = 0; i < (int64_t)doc->labels.size(); i++) {
+            if (doc->labels[i].IsEqual(label)) return i;
+        }
+        // Label exists but not in our array — register it
+        return doc->registerLabel(label);
+    } catch (...) { return -1; }
+}
+
+int OCCTNamingValidUntil(OCCTDocumentRef doc, OCCTShapeRef shape) {
+    if (!doc || doc->doc.IsNull() || !shape) return -1;
+    try {
+        TDF_Label root = doc->doc->Main();
+        return TNaming_Tool::ValidUntil(root, shape->shape);
+    } catch (...) { return -1; }
+}
+
+// MARK: - TNaming_SameShapeIterator
+
+int32_t OCCTNamingSameShapeCount(OCCTDocumentRef doc, OCCTShapeRef shape) {
+    if (!doc || doc->doc.IsNull() || !shape) return 0;
+    try {
+        TDF_Label root = doc->doc->Main();
+        int count = 0;
+        for (TNaming_SameShapeIterator it(shape->shape, root); it.More(); it.Next()) count++;
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTNamingSameShapeLabels(OCCTDocumentRef doc, OCCTShapeRef shape,
+                                   int64_t* outLabelIds, int32_t maxCount) {
+    if (!doc || doc->doc.IsNull() || !shape || !outLabelIds || maxCount <= 0) return 0;
+    try {
+        TDF_Label root = doc->doc->Main();
+        int32_t i = 0;
+        for (TNaming_SameShapeIterator it(shape->shape, root); it.More() && i < maxCount; it.Next()) {
+            TDF_Label label = it.Label();
+            // Find or register the label
+            int64_t labelId = -1;
+            for (int64_t j = 0; j < (int64_t)doc->labels.size(); j++) {
+                if (doc->labels[j].IsEqual(label)) { labelId = j; break; }
+            }
+            if (labelId < 0) labelId = doc->registerLabel(label);
+            outLabelIds[i] = labelId;
+            i++;
+        }
+        return i;
+    } catch (...) { return 0; }
+}
+
+// MARK: - TDataStd_IntPackedMap
+
+bool OCCTIntPackedMapSet(OCCTDocumentRef doc, int tag, bool isDelta) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr = TDataStd_IntPackedMap::Set(label, isDelta);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTIntPackedMapAdd(OCCTDocumentRef doc, int tag, int value) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr;
+        if (!label.FindAttribute(TDataStd_IntPackedMap::GetID(), attr)) return false;
+        return attr->Add(value);
+    } catch (...) { return false; }
+}
+
+bool OCCTIntPackedMapRemove(OCCTDocumentRef doc, int tag, int value) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr;
+        if (!label.FindAttribute(TDataStd_IntPackedMap::GetID(), attr)) return false;
+        return attr->Remove(value);
+    } catch (...) { return false; }
+}
+
+bool OCCTIntPackedMapContains(OCCTDocumentRef doc, int tag, int value) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr;
+        if (!label.FindAttribute(TDataStd_IntPackedMap::GetID(), attr)) return false;
+        return attr->Contains(value);
+    } catch (...) { return false; }
+}
+
+int OCCTIntPackedMapExtent(OCCTDocumentRef doc, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr;
+        if (!label.FindAttribute(TDataStd_IntPackedMap::GetID(), attr)) return 0;
+        return attr->Extent();
+    } catch (...) { return 0; }
+}
+
+bool OCCTIntPackedMapClear(OCCTDocumentRef doc, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr;
+        if (!label.FindAttribute(TDataStd_IntPackedMap::GetID(), attr)) return false;
+        return attr->Clear();
+    } catch (...) { return false; }
+}
+
+bool OCCTIntPackedMapIsEmpty(OCCTDocumentRef doc, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr;
+        if (!label.FindAttribute(TDataStd_IntPackedMap::GetID(), attr)) return true;
+        return attr->IsEmpty();
+    } catch (...) { return true; }
+}
+
+int OCCTIntPackedMapGetValues(OCCTDocumentRef doc, int tag, int** values) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr;
+        if (!label.FindAttribute(TDataStd_IntPackedMap::GetID(), attr)) {
+            *values = nullptr; return 0;
+        }
+        const TColStd_PackedMapOfInteger& map = attr->GetMap();
+        int count = map.Extent();
+        if (count == 0) { *values = nullptr; return 0; }
+
+        *values = (int*)malloc(count * sizeof(int));
+        int i = 0;
+        for (TColStd_PackedMapOfInteger::Iterator it(map); it.More(); it.Next()) {
+            (*values)[i] = it.Key();
+            i++;
+        }
+        return count;
+    } catch (...) { *values = nullptr; return 0; }
+}
+
+void OCCTIntPackedMapFreeValues(int* values) {
+    if (values) free(values);
+}
+
+bool OCCTIntPackedMapChangeValues(OCCTDocumentRef doc, int tag,
+                                    const int* values, int count) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_IntPackedMap) attr;
+        if (!label.FindAttribute(TDataStd_IntPackedMap::GetID(), attr)) return false;
+        TColStd_PackedMapOfInteger newMap;
+        for (int i = 0; i < count; i++) {
+            newMap.Add(values[i]);
+        }
+        return attr->ChangeMap(newMap);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_NoteBook
+
+bool OCCTNoteBookNew(OCCTDocumentRef doc, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_NoteBook) nb = TDataStd_NoteBook::New(label);
+        return !nb.IsNull();
+    } catch (...) { return false; }
+}
+
+int OCCTNoteBookAppendReal(OCCTDocumentRef doc, int tag, double value) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_NoteBook) nb;
+        if (!label.FindAttribute(TDataStd_NoteBook::GetID(), nb)) return -1;
+        Handle(TDataStd_Real) attr = nb->Append(value);
+        if (attr.IsNull()) return -1;
+        return attr->Label().Tag();
+    } catch (...) { return -1; }
+}
+
+int OCCTNoteBookAppendInteger(OCCTDocumentRef doc, int tag, int value) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_NoteBook) nb;
+        if (!label.FindAttribute(TDataStd_NoteBook::GetID(), nb)) return -1;
+        Handle(TDataStd_Integer) attr = nb->Append(value);
+        if (attr.IsNull()) return -1;
+        return attr->Label().Tag();
+    } catch (...) { return -1; }
+}
+
+bool OCCTNoteBookFind(OCCTDocumentRef doc, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_NoteBook) nb;
+        return TDataStd_NoteBook::Find(label, nb);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_UAttribute
+
+bool OCCTUAttributeSet(OCCTDocumentRef doc, int tag, const char* guidString) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Standard_GUID guid(guidString);
+        Handle(TDataStd_UAttribute) attr = TDataStd_UAttribute::Set(label, guid);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTUAttributeHas(OCCTDocumentRef doc, int tag, const char* guidString) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Standard_GUID guid(guidString);
+        Handle(TDataStd_UAttribute) attr;
+        return label.FindAttribute(guid, attr);
+    } catch (...) { return false; }
+}
+
+const char* OCCTUAttributeGetID(OCCTDocumentRef doc, int tag, const char* guidString) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Standard_GUID guid(guidString);
+        Handle(TDataStd_UAttribute) attr;
+        if (!label.FindAttribute(guid, attr)) return nullptr;
+
+        const Standard_GUID& id = attr->ID();
+        Standard_SStream ss;
+        id.ShallowDump(ss);
+        std::string str = ss.str();
+        return strdup(str.c_str());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTUAttributeFreeGUID(const char* guidString) {
+    if (guidString) free((void*)guidString);
+}
+
+// MARK: - TDataStd_ChildNodeIterator
+
+int OCCTChildNodeIteratorCount(OCCTDocumentRef doc, int tag, bool allLevels) {
+    try {
+        TDF_Label label = getLabelForTag(doc, tag);
+        Handle(TDataStd_TreeNode) node;
+        if (!label.FindAttribute(TDataStd_TreeNode::GetDefaultTreeID(), node)) return 0;
+
+        int count = 0;
+        for (TDataStd_ChildNodeIterator it(node, allLevels); it.More(); it.Next()) count++;
+        return count;
+    } catch (...) { return 0; }
+}
+

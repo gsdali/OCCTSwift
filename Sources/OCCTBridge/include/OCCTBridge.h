@@ -453,17 +453,25 @@
 // TDataStd_IntegerArray/RealArray     → OCCTLabel*Array*
 // TDataStd_NamedData                  → OCCTLabelNamedData*
 // TDataStd_TreeNode                   → OCCTLabelSetTreeNode*
+// TDataStd_IntPackedMap               → OCCTIntPackedMap*
+// TDataStd_NoteBook                   → OCCTNoteBook*
+// TDataStd_UAttribute                 → OCCTUAttribute*
+// TDataStd_ChildNodeIterator          → OCCTChildNodeIteratorCount
 //
 // --- TopTrans ---
 // TopTrans_CurveTransition            → OCCTTopTransCurveTransition* (v0.68.0)
 // TopTrans_SurfaceTransition          → OCCTTopTransSurfaceTransition* (v0.67.0)
 //
 // --- TNaming ---
-// TNaming_Builder                     → OCCTDocumentNamingRecord*
+// TNaming_Builder                     → OCCTNamingBuilder*
 // TNaming_CopyShape                   → OCCTShapeDeepCopy
-// TNaming_NamedShape                  → OCCTDocumentNaming*
+// TNaming_Iterator                    → OCCTNamingIterateEntries
+// TNaming_NamedShape                  → OCCTNamingGet*, OCCTNamingIsEmpty, OCCTNamingGetVersion/SetVersion
+// TNaming_NewShapeIterator            → OCCTNamingNewShapeHistory
+// TNaming_OldShapeIterator            → OCCTNamingOldShapeHistory
+// TNaming_SameShapeIterator           → OCCTNamingSameShapeTags
 // TNaming_Selector                    → OCCTDocumentNamingSelect*, OCCTDocumentNamingResolve*
-// TNaming_Tool                        → OCCTDocumentNaming*
+// TNaming_Tool                        → OCCTNamingCurrentShape, OCCTNamingGetStoredShape, OCCTNamingOriginalShape, OCCTNamingHasLabel, OCCTNamingFindLabelTag, OCCTNamingValidUntil
 //
 // --- XCAFDoc ---
 // XCAFDoc_AssemblyGraph               → OCCTAssemblyGraph*
@@ -11578,6 +11586,108 @@ OCCTSurfaceRef _Nullable OCCTSurfaceCreateTrimmedInU(OCCTSurfaceRef _Nonnull bas
 
 OCCTSurfaceRef _Nullable OCCTSurfaceCreateTrimmedInV(OCCTSurfaceRef _Nonnull basisSurface,
                                                        double param1, double param2);
+
+// MARK: - TNaming Extensions (v0.88.0)
+
+/// Check if a TNaming_NamedShape exists and is not empty on a label (by labelId)
+bool OCCTNamingIsEmpty(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the version of a TNaming_NamedShape attribute
+int OCCTNamingGetVersion(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the version of a TNaming_NamedShape attribute
+bool OCCTNamingSetVersion(OCCTDocumentRef _Nonnull doc, int64_t labelId, int version);
+
+/// Get the original (old) shape from a named shape attribute
+OCCTShapeRef _Nullable OCCTNamingOriginalShape(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a shape has a label in the document
+bool OCCTNamingHasLabel(OCCTDocumentRef _Nonnull doc, OCCTShapeRef _Nonnull shape);
+
+/// Find the label ID for a shape in the document; returns -1 if not found
+int64_t OCCTNamingFindLabel(OCCTDocumentRef _Nonnull doc, OCCTShapeRef _Nonnull shape);
+
+/// Get the valid-until transaction number for a shape
+int OCCTNamingValidUntil(OCCTDocumentRef _Nonnull doc, OCCTShapeRef _Nonnull shape);
+
+// MARK: - TNaming_SameShapeIterator
+
+/// Get count of labels that contain the same shape
+int32_t OCCTNamingSameShapeCount(OCCTDocumentRef _Nonnull doc, OCCTShapeRef _Nonnull shape);
+
+/// Get label IDs that contain the same shape (up to maxCount)
+/// Returns actual count written to outLabelIds. Caller provides pre-allocated buffer.
+int32_t OCCTNamingSameShapeLabels(OCCTDocumentRef _Nonnull doc, OCCTShapeRef _Nonnull shape,
+                                   int64_t* _Nonnull outLabelIds, int32_t maxCount);
+
+// MARK: - TDataStd_IntPackedMap
+
+/// Set (find or create) an IntPackedMap attribute on a label
+bool OCCTIntPackedMapSet(OCCTDocumentRef _Nonnull doc, int tag, bool isDelta);
+
+/// Add an integer to the IntPackedMap
+bool OCCTIntPackedMapAdd(OCCTDocumentRef _Nonnull doc, int tag, int value);
+
+/// Remove an integer from the IntPackedMap
+bool OCCTIntPackedMapRemove(OCCTDocumentRef _Nonnull doc, int tag, int value);
+
+/// Check if the IntPackedMap contains an integer
+bool OCCTIntPackedMapContains(OCCTDocumentRef _Nonnull doc, int tag, int value);
+
+/// Get the count of elements in the IntPackedMap
+int OCCTIntPackedMapExtent(OCCTDocumentRef _Nonnull doc, int tag);
+
+/// Clear all elements from the IntPackedMap
+bool OCCTIntPackedMapClear(OCCTDocumentRef _Nonnull doc, int tag);
+
+/// Check if the IntPackedMap is empty
+bool OCCTIntPackedMapIsEmpty(OCCTDocumentRef _Nonnull doc, int tag);
+
+/// Get all values from the IntPackedMap
+/// Returns count; caller must free the values array
+int OCCTIntPackedMapGetValues(OCCTDocumentRef _Nonnull doc, int tag,
+                               int* _Nullable* _Nonnull values);
+
+/// Free values array from OCCTIntPackedMapGetValues
+void OCCTIntPackedMapFreeValues(int* _Nullable values);
+
+/// Replace all values in the IntPackedMap
+bool OCCTIntPackedMapChangeValues(OCCTDocumentRef _Nonnull doc, int tag,
+                                    const int* _Nonnull values, int count);
+
+// MARK: - TDataStd_NoteBook
+
+/// Create a NoteBook attribute on a label
+bool OCCTNoteBookNew(OCCTDocumentRef _Nonnull doc, int tag);
+
+/// Append a real value to the NoteBook, returns the child label tag or -1
+int OCCTNoteBookAppendReal(OCCTDocumentRef _Nonnull doc, int tag, double value);
+
+/// Append an integer value to the NoteBook, returns the child label tag or -1
+int OCCTNoteBookAppendInteger(OCCTDocumentRef _Nonnull doc, int tag, int value);
+
+/// Check if a NoteBook exists on a label (searches up hierarchy)
+bool OCCTNoteBookFind(OCCTDocumentRef _Nonnull doc, int tag);
+
+// MARK: - TDataStd_UAttribute
+
+/// Set a UAttribute with a GUID string on a label
+bool OCCTUAttributeSet(OCCTDocumentRef _Nonnull doc, int tag, const char* _Nonnull guidString);
+
+/// Check if a UAttribute with a given GUID exists on a label
+bool OCCTUAttributeHas(OCCTDocumentRef _Nonnull doc, int tag, const char* _Nonnull guidString);
+
+/// Get the GUID string of a UAttribute on a label (caller must free the string)
+const char* _Nullable OCCTUAttributeGetID(OCCTDocumentRef _Nonnull doc, int tag,
+                                            const char* _Nonnull guidString);
+
+/// Free a GUID string returned by OCCTUAttributeGetID
+void OCCTUAttributeFreeGUID(const char* _Nullable guidString);
+
+// MARK: - TDataStd_ChildNodeIterator
+
+/// Get child node count for a TreeNode on a label
+int OCCTChildNodeIteratorCount(OCCTDocumentRef _Nonnull doc, int tag, bool allLevels);
 
 #ifdef __cplusplus
 }
