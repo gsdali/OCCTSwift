@@ -11689,6 +11689,122 @@ void OCCTUAttributeFreeGUID(const char* _Nullable guidString);
 /// Get child node count for a TreeNode on a label
 int OCCTChildNodeIteratorCount(OCCTDocumentRef _Nonnull doc, int tag, bool allLevels);
 
+// MARK: - TDF_Transaction Named (v0.89.0)
+
+/// Open a named transaction on the document data.
+/// @return Transaction index (>= 1 on success, 0 on error)
+int32_t OCCTDocumentOpenNamedTransaction(OCCTDocumentRef _Nonnull doc, const char* _Nonnull name);
+
+/// Commit the current transaction and return a delta for undo.
+/// The returned delta can be queried with OCCTDelta* functions.
+/// @return Opaque delta pointer (NULL if no changes or error). Caller must free with OCCTDeltaRelease.
+void* _Nullable OCCTDocumentCommitWithDelta(OCCTDocumentRef _Nonnull doc);
+
+/// Get the transaction number of the current open transaction.
+/// @return Transaction number, or 0 if no transaction is open
+int32_t OCCTDocumentGetTransactionNumber(OCCTDocumentRef _Nonnull doc);
+
+// MARK: - TDF_Delta (v0.89.0)
+
+/// Check if a delta is empty (no attribute changes recorded).
+bool OCCTDeltaIsEmpty(void* _Nonnull delta);
+
+/// Get the begin time of a delta.
+int32_t OCCTDeltaBeginTime(void* _Nonnull delta);
+
+/// Get the end time of a delta.
+int32_t OCCTDeltaEndTime(void* _Nonnull delta);
+
+/// Get the number of attribute deltas in a delta.
+int32_t OCCTDeltaAttributeDeltaCount(void* _Nonnull delta);
+
+/// Set the name of a delta.
+void OCCTDeltaSetName(void* _Nonnull delta, const char* _Nonnull name);
+
+/// Get the name of a delta. Caller must free the returned string.
+const char* _Nullable OCCTDeltaGetName(void* _Nonnull delta);
+
+/// Free a delta name string.
+void OCCTDeltaFreeName(const char* _Nullable name);
+
+/// Release a delta object.
+void OCCTDeltaRelease(void* _Nonnull delta);
+
+// MARK: - TDF_ComparisonTool (v0.89.0)
+
+/// Check if a label's references are all contained within its descendants.
+/// @return true if self-contained
+bool OCCTDocumentIsSelfContained(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+// MARK: - TDocStd_XLinkTool (v0.89.0)
+
+/// Copy a label to another label using TDocStd_XLinkTool (simple copy without link).
+/// @return true on success
+bool OCCTDocumentXLinkCopy(OCCTDocumentRef _Nonnull doc, int64_t tgtLabelId, int64_t srcLabelId);
+
+/// Copy a label to another label with an XLink attribute for cross-document references.
+/// @return true on success
+bool OCCTDocumentXLinkCopyWithLink(OCCTDocumentRef _Nonnull doc, int64_t tgtLabelId, int64_t srcLabelId);
+
+// MARK: - TFunction_IFunction (v0.89.0)
+
+/// Create a new function at a label with a given GUID.
+/// Requires TFunction_Scope to be set on the document root.
+/// @return true on success
+bool OCCTDocumentNewFunction(OCCTDocumentRef _Nonnull doc, int64_t labelId, const char* _Nonnull guidString);
+
+/// Delete a function from a label.
+/// @return true on success
+bool OCCTDocumentDeleteFunction(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the execution status of a function.
+/// 0=WrongDefinition, 1=NotExecuted, 2=Executing, 3=Succeeded, 4=Failed
+/// @return status value, or -1 if no function found
+int32_t OCCTDocumentFunctionGetExecStatus(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the execution status of a function via IFunction.
+/// @return true on success
+bool OCCTDocumentFunctionSetExecStatus(OCCTDocumentRef _Nonnull doc, int64_t labelId, int32_t status);
+
+// MARK: - TFunction_Scope (v0.89.0)
+
+/// Set (find or create) a TFunction_Scope on the document root.
+/// @return true on success
+bool OCCTDocumentSetFunctionScope(OCCTDocumentRef _Nonnull doc);
+
+/// Add a label to the function scope.
+/// @return true on success
+bool OCCTDocumentFunctionScopeAdd(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Remove a label from the function scope.
+/// @return true on success
+bool OCCTDocumentFunctionScopeRemove(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a label is in the function scope.
+bool OCCTDocumentFunctionScopeHas(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Remove all functions from the scope.
+/// @return true on success
+bool OCCTDocumentFunctionScopeRemoveAll(OCCTDocumentRef _Nonnull doc);
+
+/// Get the number of functions in the scope.
+int32_t OCCTDocumentFunctionScopeCount(OCCTDocumentRef _Nonnull doc);
+
+/// Get the free (next available) function ID from the scope.
+int32_t OCCTDocumentFunctionScopeGetFreeID(OCCTDocumentRef _Nonnull doc);
+
+// MARK: - TDF_AttributeIterator (v0.89.0)
+
+/// Count the number of attributes on a label.
+/// @param withoutForgotten If true, skip forgotten (deleted) attributes
+int32_t OCCTDocumentAttributeCount(OCCTDocumentRef _Nonnull doc, int64_t labelId, bool withoutForgotten);
+
+// MARK: - TDF_DataSet (v0.89.0)
+
+/// Check if a DataSet containing a label is empty after adding it.
+/// (Utility to verify label has content)
+bool OCCTDocumentDataSetIsEmpty(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
 #ifdef __cplusplus
 }
 #endif

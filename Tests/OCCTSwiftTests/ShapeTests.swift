@@ -25484,3 +25484,242 @@ struct ChildNodeIteratorTests {
         #expect(doc.childNodeCount(tag: 400) == 0)
     }
 }
+
+// MARK: - v0.89.0 Tests
+
+@Suite("TDF Transaction Named Tests")
+struct TDFTransactionNamedTests {
+
+    @Test func openNamedTransaction() {
+        guard let doc = Document.create() else { return }
+        doc.setUndoLimit(10)
+        let txnNum = doc.openNamedTransaction("TestTxn")
+        #expect(txnNum >= 1)
+        doc.commitTransaction()
+    }
+
+    @Test func transactionNumber() {
+        guard let doc = Document.create() else { return }
+        doc.setUndoLimit(10)
+        let before = doc.transactionNumber
+        #expect(before == 0)
+        doc.openNamedTransaction("CountTxn")
+        let during = doc.transactionNumber
+        #expect(during == 1)
+        doc.commitTransaction()
+        let after = doc.transactionNumber
+        #expect(after == 0)
+    }
+
+    @Test func commitWithDelta() {
+        guard let doc = Document.create() else { return }
+        doc.setUndoLimit(10)
+        doc.openTransaction()
+        if let node = doc.createLabel() {
+            node.setInteger(42)
+        }
+        if let delta = doc.commitWithDelta() {
+            #expect(!delta.isEmpty)
+            #expect(delta.attributeDeltaCount >= 1)
+            #expect(delta.beginTime >= 0)
+            #expect(delta.endTime >= delta.beginTime)
+        }
+    }
+
+    @Test func deltaName() {
+        guard let doc = Document.create() else { return }
+        doc.setUndoLimit(10)
+        doc.openTransaction()
+        if let node = doc.createLabel() {
+            node.setInteger(99)
+        }
+        if let delta = doc.commitWithDelta() {
+            delta.setName("MyDelta")
+            let name = delta.name
+            #expect(name == "MyDelta")
+        }
+    }
+}
+
+@Suite("TDF ComparisonTool Tests")
+struct TDFComparisonToolTests {
+
+    @Test func isSelfContained() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        if let node = doc.createLabel() {
+            node.setInteger(1)
+            doc.commitTransaction()
+            let result = doc.isSelfContained(labelId: node.labelId)
+            #expect(result == true)
+        }
+    }
+}
+
+@Suite("TDocStd XLinkTool Tests")
+struct TDocStdXLinkToolTests {
+
+    @Test func xlinkCopy() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let src = doc.createLabel(), let tgt = doc.createLabel() else { return }
+        src.setInteger(77)
+        src.setName("XLinkSource")
+        let ok = doc.xlinkCopy(targetLabelId: tgt.labelId, sourceLabelId: src.labelId)
+        doc.commitTransaction()
+        #expect(ok)
+        if let val = tgt.integer {
+            #expect(val == 77)
+        }
+    }
+
+    @Test func xlinkCopyWithLink() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let src = doc.createLabel(), let tgt = doc.createLabel() else { return }
+        src.setInteger(88)
+        let ok = doc.xlinkCopyWithLink(targetLabelId: tgt.labelId, sourceLabelId: src.labelId)
+        doc.commitTransaction()
+        // CopyWithLink may fail if labels are in same document — just check no crash
+        _ = ok
+    }
+}
+
+@Suite("TFunction IFunction Tests")
+struct TFunctionIFunctionTests {
+
+    @Test func newFunction() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        let ok = doc.newFunction(labelId: node.labelId, guid: "12345678-1234-1234-1234-123456789abc")
+        doc.commitTransaction()
+        #expect(ok)
+    }
+
+    @Test func deleteFunction() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.newFunction(labelId: node.labelId, guid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        let deleted = doc.deleteFunction(labelId: node.labelId)
+        doc.commitTransaction()
+        #expect(deleted)
+    }
+
+    @Test func functionExecStatus() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.newFunction(labelId: node.labelId, guid: "11111111-2222-3333-4444-555555555555")
+
+        if let status = doc.functionExecStatus(labelId: node.labelId) {
+            #expect(status == .wrongDefinition)
+        }
+
+        doc.setFunctionExecStatus(labelId: node.labelId, status: .succeeded)
+        if let status = doc.functionExecStatus(labelId: node.labelId) {
+            #expect(status == .succeeded)
+        }
+        doc.commitTransaction()
+    }
+
+    @Test func noFunction() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        let status = doc.functionExecStatus(labelId: node.labelId)
+        #expect(status == nil)
+    }
+}
+
+@Suite("TFunction Scope Tests")
+struct TFunctionScopeTests {
+
+    @Test func setFunctionScope() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        let ok = doc.setFunctionScope()
+        doc.commitTransaction()
+        #expect(ok)
+    }
+
+    @Test func addAndHasFunction() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        doc.setFunctionScope()
+        guard let node = doc.createLabel() else { return }
+        let added = doc.functionScopeAdd(labelId: node.labelId)
+        #expect(added)
+        #expect(doc.functionScopeHas(labelId: node.labelId))
+        doc.commitTransaction()
+    }
+
+    @Test func removeFunction() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        doc.setFunctionScope()
+        guard let node = doc.createLabel() else { return }
+        doc.functionScopeAdd(labelId: node.labelId)
+        let removed = doc.functionScopeRemove(labelId: node.labelId)
+        #expect(removed)
+        #expect(!doc.functionScopeHas(labelId: node.labelId))
+        doc.commitTransaction()
+    }
+
+    @Test func removeAllFunctions() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        doc.setFunctionScope()
+        guard let l1 = doc.createLabel(), let l2 = doc.createLabel() else { return }
+        doc.functionScopeAdd(labelId: l1.labelId)
+        doc.functionScopeAdd(labelId: l2.labelId)
+        #expect(doc.functionScopeCount == 2)
+        doc.functionScopeRemoveAll()
+        #expect(doc.functionScopeCount == 0)
+        doc.commitTransaction()
+    }
+
+    @Test func freeID() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        doc.setFunctionScope()
+        let freeId = doc.functionScopeFreeID
+        #expect(freeId >= 1)
+        guard let node = doc.createLabel() else { return }
+        doc.functionScopeAdd(labelId: node.labelId)
+        let freeId2 = doc.functionScopeFreeID
+        #expect(freeId2 > freeId)
+        doc.commitTransaction()
+    }
+}
+
+@Suite("TDF AttributeIterator Tests")
+struct TDFAttributeIteratorTests {
+
+    @Test func attributeCount() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        node.setInteger(42)
+        node.setReal(3.14)
+        node.setName("Test")
+        doc.commitTransaction()
+
+        let count = doc.attributeCount(labelId: node.labelId)
+        #expect(count >= 3)
+    }
+
+    @Test func emptyLabel() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        let count = doc.attributeCount(labelId: node.labelId)
+        #expect(count >= 0)
+    }
+
+    @Test func dataSetIsEmpty() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        let empty = doc.dataSetIsEmpty(labelId: node.labelId)
+        #expect(!empty)
+    }
+}

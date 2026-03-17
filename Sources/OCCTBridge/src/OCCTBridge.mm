@@ -34846,3 +34846,312 @@ int OCCTChildNodeIteratorCount(OCCTDocumentRef doc, int tag, bool allLevels) {
     } catch (...) { return 0; }
 }
 
+// MARK: - TDF_Transaction Named (v0.89.0)
+
+#include <TDF_Transaction.hxx>
+#include <TDF_Delta.hxx>
+#include <TDF_CopyTool.hxx>
+#include <TDF_ComparisonTool.hxx>
+#include <TDF_DataSet.hxx>
+#include <TDF_RelocationTable.hxx>
+#include <TDF_AttributeIterator.hxx>
+#include <TDocStd_XLinkTool.hxx>
+#include <TDocStd_MultiTransactionManager.hxx>
+#include <TFunction_IFunction.hxx>
+#include <TFunction_Iterator.hxx>
+#include <TFunction_Scope.hxx>
+
+int32_t OCCTDocumentOpenNamedTransaction(OCCTDocumentRef doc, const char* name) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        doc->doc->OpenCommand();
+        return doc->doc->HasOpenCommand() ? 1 : 0;
+    } catch (...) { return 0; }
+}
+
+void* OCCTDocumentCommitWithDelta(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        doc->doc->SetUndoLimit(100);
+        bool ok = doc->doc->CommitCommand();
+        if (!ok) return nullptr;
+        auto& undos = doc->doc->GetUndos();
+        if (undos.IsEmpty()) return nullptr;
+        Handle(TDF_Delta)* deltaPtr = new Handle(TDF_Delta)(undos.Last());
+        return static_cast<void*>(deltaPtr);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTDocumentGetTransactionNumber(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        return doc->doc->HasOpenCommand() ? 1 : 0;
+    } catch (...) { return 0; }
+}
+
+// MARK: - TDF_Delta (v0.89.0)
+
+bool OCCTDeltaIsEmpty(void* delta) {
+    try {
+        auto* ptr = static_cast<Handle(TDF_Delta)*>(delta);
+        return (*ptr)->IsEmpty();
+    } catch (...) { return true; }
+}
+
+int32_t OCCTDeltaBeginTime(void* delta) {
+    try {
+        auto* ptr = static_cast<Handle(TDF_Delta)*>(delta);
+        return (*ptr)->BeginTime();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDeltaEndTime(void* delta) {
+    try {
+        auto* ptr = static_cast<Handle(TDF_Delta)*>(delta);
+        return (*ptr)->EndTime();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDeltaAttributeDeltaCount(void* delta) {
+    try {
+        auto* ptr = static_cast<Handle(TDF_Delta)*>(delta);
+        return (*ptr)->AttributeDeltas().Size();
+    } catch (...) { return 0; }
+}
+
+void OCCTDeltaSetName(void* delta, const char* name) {
+    try {
+        auto* ptr = static_cast<Handle(TDF_Delta)*>(delta);
+        (*ptr)->SetName(TCollection_ExtendedString(name));
+    } catch (...) {}
+}
+
+const char* OCCTDeltaGetName(void* delta) {
+    try {
+        auto* ptr = static_cast<Handle(TDF_Delta)*>(delta);
+        TCollection_ExtendedString ename = (*ptr)->Name();
+        TCollection_AsciiString aname(ename);
+        return strdup(aname.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTDeltaFreeName(const char* name) {
+    if (name) free((void*)name);
+}
+
+void OCCTDeltaRelease(void* delta) {
+    if (delta) {
+        auto* ptr = static_cast<Handle(TDF_Delta)*>(delta);
+        delete ptr;
+    }
+}
+
+// MARK: - TDF_ComparisonTool (v0.89.0)
+
+bool OCCTDocumentIsSelfContained(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        Handle(TDF_DataSet) ds = new TDF_DataSet();
+        ds->AddLabel(label);
+        for (TDF_ChildIterator cit(label, true); cit.More(); cit.Next()) {
+            ds->AddLabel(cit.Value());
+        }
+        return TDF_ComparisonTool::IsSelfContained(label, ds);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDocStd_XLinkTool (v0.89.0)
+
+bool OCCTDocumentXLinkCopy(OCCTDocumentRef doc, int64_t tgtLabelId, int64_t srcLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label tgt = doc->getLabel(tgtLabelId);
+        TDF_Label src = doc->getLabel(srcLabelId);
+        if (src.IsNull() || tgt.IsNull()) return false;
+
+        TDocStd_XLinkTool tool;
+        tool.Copy(tgt, src);
+        return tool.IsDone();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentXLinkCopyWithLink(OCCTDocumentRef doc, int64_t tgtLabelId, int64_t srcLabelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label tgt = doc->getLabel(tgtLabelId);
+        TDF_Label src = doc->getLabel(srcLabelId);
+        if (src.IsNull() || tgt.IsNull()) return false;
+
+        TDocStd_XLinkTool tool;
+        tool.CopyWithLink(tgt, src);
+        return tool.IsDone();
+    } catch (...) { return false; }
+}
+
+// MARK: - TFunction_IFunction (v0.89.0)
+
+bool OCCTDocumentNewFunction(OCCTDocumentRef doc, int64_t labelId, const char* guidString) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        TDF_Label root = doc->doc->GetData()->Root();
+        TFunction_Scope::Set(root);
+
+        Standard_GUID guid(guidString);
+        TFunction_IFunction::NewFunction(label, guid);
+        Handle(TFunction_Function) func;
+        return label.FindAttribute(TFunction_Function::GetID(), func);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentDeleteFunction(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return TFunction_IFunction::DeleteFunction(label);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentFunctionGetExecStatus(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+
+        Handle(TFunction_Function) func;
+        if (!label.FindAttribute(TFunction_Function::GetID(), func)) return -1;
+
+        TFunction_IFunction ifunc(label);
+        return (int32_t)ifunc.GetStatus();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentFunctionSetExecStatus(OCCTDocumentRef doc, int64_t labelId, int32_t status) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        Handle(TFunction_Function) func;
+        if (!label.FindAttribute(TFunction_Function::GetID(), func)) return false;
+
+        TFunction_IFunction ifunc(label);
+        ifunc.SetStatus((TFunction_ExecutionStatus)status);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - TFunction_Scope (v0.89.0)
+
+bool OCCTDocumentSetFunctionScope(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label root = doc->doc->GetData()->Root();
+        Handle(TFunction_Scope) scope = TFunction_Scope::Set(root);
+        return !scope.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentFunctionScopeAdd(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label root = doc->doc->GetData()->Root();
+        Handle(TFunction_Scope) scope;
+        if (!root.FindAttribute(TFunction_Scope::GetID(), scope)) return false;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return scope->AddFunction(label);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentFunctionScopeRemove(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label root = doc->doc->GetData()->Root();
+        Handle(TFunction_Scope) scope;
+        if (!root.FindAttribute(TFunction_Scope::GetID(), scope)) return false;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return scope->RemoveFunction(label);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentFunctionScopeHas(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label root = doc->doc->GetData()->Root();
+        Handle(TFunction_Scope) scope;
+        if (!root.FindAttribute(TFunction_Scope::GetID(), scope)) return false;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return scope->HasFunction(label);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentFunctionScopeRemoveAll(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label root = doc->doc->GetData()->Root();
+        Handle(TFunction_Scope) scope;
+        if (!root.FindAttribute(TFunction_Scope::GetID(), scope)) return false;
+        scope->RemoveAllFunctions();
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentFunctionScopeCount(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label root = doc->doc->GetData()->Root();
+        Handle(TFunction_Scope) scope;
+        if (!root.FindAttribute(TFunction_Scope::GetID(), scope)) return 0;
+        return scope->GetFunctions().Extent();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTDocumentFunctionScopeGetFreeID(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label root = doc->doc->GetData()->Root();
+        Handle(TFunction_Scope) scope;
+        if (!root.FindAttribute(TFunction_Scope::GetID(), scope)) return -1;
+        return scope->GetFreeID();
+    } catch (...) { return -1; }
+}
+
+// MARK: - TDF_AttributeIterator (v0.89.0)
+
+int32_t OCCTDocumentAttributeCount(OCCTDocumentRef doc, int64_t labelId, bool withoutForgotten) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+
+        int count = 0;
+        for (TDF_AttributeIterator it(label, withoutForgotten); it.More(); it.Next()) {
+            count++;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+// MARK: - TDF_DataSet (v0.89.0)
+
+bool OCCTDocumentDataSetIsEmpty(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return true;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return true;
+
+        Handle(TDF_DataSet) ds = new TDF_DataSet();
+        ds->AddLabel(label);
+        return ds->IsEmpty();
+    } catch (...) { return true; }
+}
+

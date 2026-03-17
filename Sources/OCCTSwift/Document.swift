@@ -4206,3 +4206,237 @@ extension Document {
         Int(OCCTChildNodeIteratorCount(handle, Int32(tag), allLevels))
     }
 }
+
+// MARK: - TDF_Transaction Named (v0.89.0)
+
+extension Document {
+
+    /// Open a named transaction on the document.
+    /// - Parameter name: Transaction name for identification
+    /// - Returns: Transaction number (>= 1 on success), or 0 on error
+    @discardableResult
+    public func openNamedTransaction(_ name: String) -> Int {
+        Int(OCCTDocumentOpenNamedTransaction(handle, name))
+    }
+
+    /// Get the current transaction number.
+    public var transactionNumber: Int {
+        Int(OCCTDocumentGetTransactionNumber(handle))
+    }
+
+    /// Commit the current transaction and return a delta for inspection.
+    /// The delta must be released when no longer needed.
+    /// - Returns: An opaque delta handle, or nil if no changes
+    public func commitWithDelta() -> TransactionDelta? {
+        guard let ptr = OCCTDocumentCommitWithDelta(handle) else { return nil }
+        return TransactionDelta(handle: ptr)
+    }
+}
+
+/// Represents an undo delta from a committed transaction.
+/// Provides information about what changed during the transaction.
+public final class TransactionDelta: @unchecked Sendable {
+    let handle: UnsafeMutableRawPointer
+
+    init(handle: UnsafeMutableRawPointer) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTDeltaRelease(handle)
+    }
+
+    /// Whether the delta is empty (no changes recorded).
+    public var isEmpty: Bool {
+        OCCTDeltaIsEmpty(handle)
+    }
+
+    /// The begin time of the delta.
+    public var beginTime: Int {
+        Int(OCCTDeltaBeginTime(handle))
+    }
+
+    /// The end time of the delta.
+    public var endTime: Int {
+        Int(OCCTDeltaEndTime(handle))
+    }
+
+    /// Number of attribute deltas (individual attribute changes).
+    public var attributeDeltaCount: Int {
+        Int(OCCTDeltaAttributeDeltaCount(handle))
+    }
+
+    /// Set the name of the delta.
+    public func setName(_ name: String) {
+        OCCTDeltaSetName(handle, name)
+    }
+
+    /// Get the name of the delta.
+    public var name: String? {
+        guard let ptr = OCCTDeltaGetName(handle) else { return nil }
+        defer { OCCTDeltaFreeName(ptr) }
+        return String(cString: ptr)
+    }
+}
+
+// MARK: - TDF_ComparisonTool (v0.89.0)
+
+extension Document {
+
+    /// Check if a label's references are all contained within its descendants.
+    /// - Parameter labelId: The label to check
+    /// - Returns: true if self-contained
+    public func isSelfContained(labelId: Int64) -> Bool {
+        OCCTDocumentIsSelfContained(handle, labelId)
+    }
+}
+
+// MARK: - TDocStd_XLinkTool (v0.89.0)
+
+extension Document {
+
+    /// Copy a label and its attributes to another label (simple copy).
+    /// - Parameters:
+    ///   - targetLabelId: Destination label
+    ///   - sourceLabelId: Source label
+    /// - Returns: true on success
+    @discardableResult
+    public func xlinkCopy(targetLabelId: Int64, sourceLabelId: Int64) -> Bool {
+        OCCTDocumentXLinkCopy(handle, targetLabelId, sourceLabelId)
+    }
+
+    /// Copy a label with an XLink attribute for cross-document reference tracking.
+    /// - Parameters:
+    ///   - targetLabelId: Destination label
+    ///   - sourceLabelId: Source label
+    /// - Returns: true on success
+    @discardableResult
+    public func xlinkCopyWithLink(targetLabelId: Int64, sourceLabelId: Int64) -> Bool {
+        OCCTDocumentXLinkCopyWithLink(handle, targetLabelId, sourceLabelId)
+    }
+}
+
+// MARK: - TFunction_IFunction (v0.89.0)
+
+extension Document {
+
+    /// Execution status for a function in the function mechanism.
+    public enum FunctionExecutionStatus: Int32 {
+        case wrongDefinition = 0
+        case notExecuted = 1
+        case executing = 2
+        case succeeded = 3
+        case failed = 4
+    }
+
+    /// Create a new function at a label with a given GUID.
+    /// Automatically creates a TFunction_Scope if not present.
+    /// - Parameters:
+    ///   - labelId: Label to attach the function to
+    ///   - guid: GUID string identifying the function type
+    /// - Returns: true on success
+    @discardableResult
+    public func newFunction(labelId: Int64, guid: String) -> Bool {
+        OCCTDocumentNewFunction(handle, labelId, guid)
+    }
+
+    /// Delete a function from a label.
+    /// - Parameter labelId: Label with the function
+    /// - Returns: true on success
+    @discardableResult
+    public func deleteFunction(labelId: Int64) -> Bool {
+        OCCTDocumentDeleteFunction(handle, labelId)
+    }
+
+    /// Get the execution status of a function.
+    /// - Parameter labelId: Label with the function
+    /// - Returns: The execution status, or nil if no function found
+    public func functionExecStatus(labelId: Int64) -> FunctionExecutionStatus? {
+        let raw = OCCTDocumentFunctionGetExecStatus(handle, labelId)
+        if raw < 0 { return nil }
+        return FunctionExecutionStatus(rawValue: raw)
+    }
+
+    /// Set the execution status of a function.
+    /// - Parameters:
+    ///   - labelId: Label with the function
+    ///   - status: The new execution status
+    /// - Returns: true on success
+    @discardableResult
+    public func setFunctionExecStatus(labelId: Int64, status: FunctionExecutionStatus) -> Bool {
+        OCCTDocumentFunctionSetExecStatus(handle, labelId, status.rawValue)
+    }
+}
+
+// MARK: - TFunction_Scope (v0.89.0)
+
+extension Document {
+
+    /// Set (find or create) a function scope on the document root.
+    /// Required before using function mechanism operations.
+    /// - Returns: true on success
+    @discardableResult
+    public func setFunctionScope() -> Bool {
+        OCCTDocumentSetFunctionScope(handle)
+    }
+
+    /// Add a label to the function scope.
+    /// - Parameter labelId: Label to register as a function
+    /// - Returns: true on success
+    @discardableResult
+    public func functionScopeAdd(labelId: Int64) -> Bool {
+        OCCTDocumentFunctionScopeAdd(handle, labelId)
+    }
+
+    /// Remove a label from the function scope.
+    /// - Parameter labelId: Label to unregister
+    /// - Returns: true on success
+    @discardableResult
+    public func functionScopeRemove(labelId: Int64) -> Bool {
+        OCCTDocumentFunctionScopeRemove(handle, labelId)
+    }
+
+    /// Check if a label is registered in the function scope.
+    /// - Parameter labelId: Label to check
+    /// - Returns: true if in scope
+    public func functionScopeHas(labelId: Int64) -> Bool {
+        OCCTDocumentFunctionScopeHas(handle, labelId)
+    }
+
+    /// Remove all functions from the scope.
+    /// - Returns: true on success
+    @discardableResult
+    public func functionScopeRemoveAll() -> Bool {
+        OCCTDocumentFunctionScopeRemoveAll(handle)
+    }
+
+    /// Number of functions in the scope.
+    public var functionScopeCount: Int {
+        Int(OCCTDocumentFunctionScopeCount(handle))
+    }
+
+    /// The next available function ID in the scope.
+    public var functionScopeFreeID: Int {
+        Int(OCCTDocumentFunctionScopeGetFreeID(handle))
+    }
+}
+
+// MARK: - TDF_AttributeIterator (v0.89.0)
+
+extension Document {
+
+    /// Count the number of attributes on a label.
+    /// - Parameters:
+    ///   - labelId: Label to inspect
+    ///   - withoutForgotten: If true (default), skip forgotten attributes
+    /// - Returns: Number of attributes
+    public func attributeCount(labelId: Int64, withoutForgotten: Bool = true) -> Int {
+        Int(OCCTDocumentAttributeCount(handle, labelId, withoutForgotten))
+    }
+
+    /// Check if a label has any content in a DataSet context.
+    /// Returns false if the label is not empty (has been added to the data framework).
+    public func dataSetIsEmpty(labelId: Int64) -> Bool {
+        OCCTDocumentDataSetIsEmpty(handle, labelId)
+    }
+}

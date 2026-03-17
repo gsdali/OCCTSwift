@@ -227,7 +227,15 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **TDataStd_NoteBook** | 4 | setNoteBook, noteBookAppendReal, noteBookAppendInteger, noteBookExists |
 | **TDataStd_UAttribute** | 3 | setUAttribute, hasUAttribute, uAttributeID |
 | **TDataStd_ChildNodeIterator** | 1 | childNodeCount |
-| **Total** | **1734** | |
+| **TDF_Transaction Named** | 3 | openNamedTransaction, commitWithDelta, transactionNumber |
+| **TDF_Delta** | 7 | deltaIsEmpty, deltaBeginTime, deltaEndTime, deltaAttributeDeltaCount, deltaSetName, deltaGetName, deltaRelease |
+| **TDF_ComparisonTool** | 1 | isSelfContained |
+| **TDocStd_XLinkTool** | 2 | xlinkCopy, xlinkCopyWithLink |
+| **TFunction_IFunction** | 4 | newFunction, deleteFunction, functionExecStatus, setFunctionExecStatus |
+| **TFunction_Scope** | 7 | setFunctionScope, functionScopeAdd, functionScopeRemove, functionScopeHas, functionScopeRemoveAll, functionScopeCount, functionScopeFreeID |
+| **TDF_AttributeIterator** | 1 | attributeCount |
+| **TDF_DataSet** | 1 | dataSetIsEmpty |
+| **Total** | **1760** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1542,7 +1550,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1290 OCCT operations** across 93 categories with 1631 tests across 514 suites.
+OCCTSwift now wraps **1760 OCCT operations** across 101 categories with 2000 tests across 634 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 
