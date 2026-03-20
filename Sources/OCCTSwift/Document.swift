@@ -4747,3 +4747,257 @@ public enum IntTools {
         OCCTIntToolsComputeIntRange(tol1, tol2, angle)
     }
 }
+
+// MARK: - ElCLib — Elementary Curve Library (v0.91.0)
+
+/// Static utility for evaluating elementary curves (line, circle, ellipse) at parameters.
+public enum ElCLib {
+
+    /// Evaluate point on a line at parameter u.
+    public static func valueOnLine(u: Double, origin: SIMD3<Double>, direction: SIMD3<Double>) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTElCLibValueOnLine(u, origin.x, origin.y, origin.z, direction.x, direction.y, direction.z, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate point on a circle at parameter u.
+    public static func valueOnCircle(u: Double, center: SIMD3<Double>, normal: SIMD3<Double>, radius: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTElCLibValueOnCircle(u, center.x, center.y, center.z, normal.x, normal.y, normal.z, radius, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate point on an ellipse at parameter u.
+    public static func valueOnEllipse(u: Double, center: SIMD3<Double>, normal: SIMD3<Double>,
+                                       majorRadius: Double, minorRadius: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTElCLibValueOnEllipse(u, center.x, center.y, center.z, normal.x, normal.y, normal.z,
+                                  majorRadius, minorRadius, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate point + tangent on a line at parameter u.
+    public static func d1OnLine(u: Double, origin: SIMD3<Double>, direction: SIMD3<Double>) -> (point: SIMD3<Double>, tangent: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0, vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTElCLibD1OnLine(u, origin.x, origin.y, origin.z, direction.x, direction.y, direction.z,
+                           &px, &py, &pz, &vx, &vy, &vz)
+        return (SIMD3(px, py, pz), SIMD3(vx, vy, vz))
+    }
+
+    /// Evaluate point + tangent on a circle at parameter u.
+    public static func d1OnCircle(u: Double, center: SIMD3<Double>, normal: SIMD3<Double>, radius: Double) -> (point: SIMD3<Double>, tangent: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0, vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTElCLibD1OnCircle(u, center.x, center.y, center.z, normal.x, normal.y, normal.z, radius,
+                             &px, &py, &pz, &vx, &vy, &vz)
+        return (SIMD3(px, py, pz), SIMD3(vx, vy, vz))
+    }
+
+    /// Get parameter of nearest point on line.
+    public static func parameterOnLine(origin: SIMD3<Double>, direction: SIMD3<Double>, point: SIMD3<Double>) -> Double {
+        OCCTElCLibParameterOnLine(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z,
+                                   point.x, point.y, point.z)
+    }
+
+    /// Get parameter of nearest point on circle.
+    public static func parameterOnCircle(center: SIMD3<Double>, normal: SIMD3<Double>, radius: Double, point: SIMD3<Double>) -> Double {
+        OCCTElCLibParameterOnCircle(center.x, center.y, center.z, normal.x, normal.y, normal.z, radius,
+                                     point.x, point.y, point.z)
+    }
+
+    /// Normalize parameter to periodic range [uFirst, uLast).
+    public static func inPeriod(u: Double, uFirst: Double, uLast: Double) -> Double {
+        OCCTElCLibInPeriod(u, uFirst, uLast)
+    }
+}
+
+// MARK: - ElSLib — Elementary Surface Library (v0.91.0)
+
+/// Static utility for evaluating elementary surfaces at (u,v) parameters.
+public enum ElSLib {
+
+    /// Evaluate point on a plane at (u,v).
+    public static func valueOnPlane(u: Double, v: Double, origin: SIMD3<Double>, normal: SIMD3<Double>) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTElSLibValueOnPlane(u, v, origin.x, origin.y, origin.z, normal.x, normal.y, normal.z, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate point on a cylinder at (u,v).
+    public static func valueOnCylinder(u: Double, v: Double, origin: SIMD3<Double>, axis: SIMD3<Double>, radius: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTElSLibValueOnCylinder(u, v, origin.x, origin.y, origin.z, axis.x, axis.y, axis.z, radius, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate point on a cone at (u,v).
+    public static func valueOnCone(u: Double, v: Double, origin: SIMD3<Double>, axis: SIMD3<Double>,
+                                    refRadius: Double, semiAngle: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTElSLibValueOnCone(u, v, origin.x, origin.y, origin.z, axis.x, axis.y, axis.z,
+                              refRadius, semiAngle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate point on a sphere at (u,v).
+    public static func valueOnSphere(u: Double, v: Double, origin: SIMD3<Double>, axis: SIMD3<Double>, radius: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTElSLibValueOnSphere(u, v, origin.x, origin.y, origin.z, axis.x, axis.y, axis.z, radius, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate point on a torus at (u,v).
+    public static func valueOnTorus(u: Double, v: Double, origin: SIMD3<Double>, axis: SIMD3<Double>,
+                                     majorRadius: Double, minorRadius: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTElSLibValueOnTorus(u, v, origin.x, origin.y, origin.z, axis.x, axis.y, axis.z,
+                               majorRadius, minorRadius, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get (u,v) parameters of nearest point on sphere.
+    public static func parametersOnSphere(origin: SIMD3<Double>, axis: SIMD3<Double>, radius: Double,
+                                           point: SIMD3<Double>) -> (u: Double, v: Double) {
+        var u = 0.0, v = 0.0
+        OCCTElSLibParametersOnSphere(origin.x, origin.y, origin.z, axis.x, axis.y, axis.z, radius,
+                                      point.x, point.y, point.z, &u, &v)
+        return (u, v)
+    }
+
+    /// Evaluate point + partial derivatives on sphere at (u,v).
+    public static func d1OnSphere(u: Double, v: Double, origin: SIMD3<Double>, axis: SIMD3<Double>,
+                                   radius: Double) -> (point: SIMD3<Double>, dU: SIMD3<Double>, dV: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var ux = 0.0, uy = 0.0, uz = 0.0
+        var vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTElSLibD1OnSphere(u, v, origin.x, origin.y, origin.z, axis.x, axis.y, axis.z, radius,
+                             &px, &py, &pz, &ux, &uy, &uz, &vx, &vy, &vz)
+        return (SIMD3(px, py, pz), SIMD3(ux, uy, uz), SIMD3(vx, vy, vz))
+    }
+}
+
+// MARK: - gp_Quaternion (v0.91.0)
+
+/// Quaternion for 3D rotation representation.
+public final class Quaternion: @unchecked Sendable {
+    let handle: OCCTQuaternionRef
+
+    init(handle: OCCTQuaternionRef) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTQuaternionRelease(handle)
+    }
+
+    /// Create a quaternion from components.
+    public convenience init(x: Double = 0, y: Double = 0, z: Double = 0, w: Double = 1) {
+        self.init(handle: OCCTQuaternionCreate(x, y, z, w))
+    }
+
+    /// Create a quaternion from axis-angle rotation.
+    public static func fromAxisAngle(axis: SIMD3<Double>, angle: Double) -> Quaternion {
+        Quaternion(handle: OCCTQuaternionCreateFromAxisAngle(axis.x, axis.y, axis.z, angle))
+    }
+
+    /// Create a quaternion from two vectors (shortest arc rotation).
+    public static func fromVectors(from: SIMD3<Double>, to: SIMD3<Double>) -> Quaternion {
+        Quaternion(handle: OCCTQuaternionCreateFromVectors(from.x, from.y, from.z, to.x, to.y, to.z))
+    }
+
+    /// Get components as (x, y, z, w).
+    public var components: (x: Double, y: Double, z: Double, w: Double) {
+        var x = 0.0, y = 0.0, z = 0.0, w = 0.0
+        OCCTQuaternionGetComponents(handle, &x, &y, &z, &w)
+        return (x, y, z, w)
+    }
+
+    /// Set Euler angles. Order: 0=Intrinsic_XYZ, etc.
+    public func setEulerAngles(order: Int32, alpha: Double, beta: Double, gamma: Double) {
+        OCCTQuaternionSetEulerAngles(handle, order, alpha, beta, gamma)
+    }
+
+    /// Get Euler angles.
+    public func getEulerAngles(order: Int32) -> (alpha: Double, beta: Double, gamma: Double) {
+        var a = 0.0, b = 0.0, g = 0.0
+        OCCTQuaternionGetEulerAngles(handle, order, &a, &b, &g)
+        return (a, b, g)
+    }
+
+    /// Get rotation matrix as 9 doubles (row-major).
+    public var matrix: [Double] {
+        var m = [Double](repeating: 0, count: 9)
+        m.withUnsafeMutableBufferPointer { buf in
+            OCCTQuaternionGetMatrix(handle, buf.baseAddress!)
+        }
+        return m
+    }
+
+    /// Rotate a vector by this quaternion.
+    public func rotate(_ vector: SIMD3<Double>) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTQuaternionMultiplyVec(handle, vector.x, vector.y, vector.z, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Multiply with another quaternion (Hamilton product).
+    public func multiplied(by other: Quaternion) -> Quaternion {
+        Quaternion(handle: OCCTQuaternionMultiply(handle, other.handle))
+    }
+
+    /// Get axis-angle representation.
+    public var axisAngle: (axis: SIMD3<Double>, angle: Double) {
+        var ax = 0.0, ay = 0.0, az = 0.0, angle = 0.0
+        OCCTQuaternionGetVectorAndAngle(handle, &ax, &ay, &az, &angle)
+        return (SIMD3(ax, ay, az), angle)
+    }
+
+    /// Get the rotation angle.
+    public var rotationAngle: Double {
+        OCCTQuaternionGetRotationAngle(handle)
+    }
+
+    /// Normalize to unit length.
+    public func normalize() {
+        OCCTQuaternionNormalize(handle)
+    }
+}
+
+// MARK: - OSD_Timer (v0.91.0)
+
+/// High-resolution wall-clock timer.
+public final class Timer: @unchecked Sendable {
+    let handle: OCCTTimerRef
+
+    public init() {
+        handle = OCCTTimerCreate()
+    }
+
+    deinit {
+        OCCTTimerRelease(handle)
+    }
+
+    /// Start the timer.
+    public func start() {
+        OCCTTimerStart(handle)
+    }
+
+    /// Stop the timer.
+    public func stop() {
+        OCCTTimerStop(handle)
+    }
+
+    /// Reset the timer to zero.
+    public func reset() {
+        OCCTTimerReset(handle)
+    }
+
+    /// Elapsed wall-clock time in seconds.
+    public var elapsedTime: Double {
+        OCCTTimerElapsedTime(handle)
+    }
+
+    /// Current wall-clock time in seconds (static).
+    public static var wallClockTime: Double {
+        OCCTTimerGetWallClockTime()
+    }
+}

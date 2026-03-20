@@ -11981,6 +11981,176 @@ bool OCCTIntToolsIsDirsCoinisdeWithTol(double dx1, double dy1, double dz1,
 /// Compute intersection range from tolerances and angle.
 double OCCTIntToolsComputeIntRange(double tol1, double tol2, double angle);
 
+// MARK: - ElCLib — Elementary Curve Library (v0.91.0)
+
+/// Evaluate point on a line at parameter u. Line defined by origin + direction.
+void OCCTElCLibValueOnLine(double u, double ox, double oy, double oz,
+                            double dx, double dy, double dz,
+                            double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Evaluate point on a circle at parameter u. Circle defined by axis + radius.
+void OCCTElCLibValueOnCircle(double u, double cx, double cy, double cz,
+                              double nx, double ny, double nz, double radius,
+                              double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Evaluate point on an ellipse at parameter u.
+void OCCTElCLibValueOnEllipse(double u, double cx, double cy, double cz,
+                               double nx, double ny, double nz,
+                               double majorRadius, double minorRadius,
+                               double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Evaluate point + tangent on a line at parameter u.
+void OCCTElCLibD1OnLine(double u, double ox, double oy, double oz,
+                         double dx, double dy, double dz,
+                         double* _Nonnull outPX, double* _Nonnull outPY, double* _Nonnull outPZ,
+                         double* _Nonnull outVX, double* _Nonnull outVY, double* _Nonnull outVZ);
+
+/// Evaluate point + tangent on a circle at parameter u.
+void OCCTElCLibD1OnCircle(double u, double cx, double cy, double cz,
+                           double nx, double ny, double nz, double radius,
+                           double* _Nonnull outPX, double* _Nonnull outPY, double* _Nonnull outPZ,
+                           double* _Nonnull outVX, double* _Nonnull outVY, double* _Nonnull outVZ);
+
+/// Get parameter of nearest point on line.
+double OCCTElCLibParameterOnLine(double ox, double oy, double oz,
+                                  double dx, double dy, double dz,
+                                  double px, double py, double pz);
+
+/// Get parameter of nearest point on circle.
+double OCCTElCLibParameterOnCircle(double cx, double cy, double cz,
+                                    double nx, double ny, double nz, double radius,
+                                    double px, double py, double pz);
+
+/// Normalize parameter to periodic range [uFirst, uLast).
+double OCCTElCLibInPeriod(double u, double uFirst, double uLast);
+
+// MARK: - ElSLib — Elementary Surface Library (v0.91.0)
+
+/// Evaluate point on a plane at (u,v). Plane defined by origin + normal.
+void OCCTElSLibValueOnPlane(double u, double v,
+                             double ox, double oy, double oz,
+                             double nx, double ny, double nz,
+                             double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Evaluate point on a cylinder at (u,v).
+void OCCTElSLibValueOnCylinder(double u, double v,
+                                double ox, double oy, double oz,
+                                double nx, double ny, double nz, double radius,
+                                double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Evaluate point on a cone at (u,v).
+void OCCTElSLibValueOnCone(double u, double v,
+                            double ox, double oy, double oz,
+                            double nx, double ny, double nz,
+                            double refRadius, double semiAngle,
+                            double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Evaluate point on a sphere at (u,v).
+void OCCTElSLibValueOnSphere(double u, double v,
+                              double ox, double oy, double oz,
+                              double nx, double ny, double nz, double radius,
+                              double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Evaluate point on a torus at (u,v).
+void OCCTElSLibValueOnTorus(double u, double v,
+                             double ox, double oy, double oz,
+                             double nx, double ny, double nz,
+                             double majorRadius, double minorRadius,
+                             double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Get (u,v) parameters of nearest point on sphere.
+void OCCTElSLibParametersOnSphere(double ox, double oy, double oz,
+                                   double nx, double ny, double nz, double radius,
+                                   double px, double py, double pz,
+                                   double* _Nonnull outU, double* _Nonnull outV);
+
+/// Evaluate point + partial derivatives on sphere at (u,v).
+void OCCTElSLibD1OnSphere(double u, double v,
+                           double ox, double oy, double oz,
+                           double nx, double ny, double nz, double radius,
+                           double* _Nonnull outPX, double* _Nonnull outPY, double* _Nonnull outPZ,
+                           double* _Nonnull outVuX, double* _Nonnull outVuY, double* _Nonnull outVuZ,
+                           double* _Nonnull outVvX, double* _Nonnull outVvY, double* _Nonnull outVvZ);
+
+// MARK: - gp_Quaternion (v0.91.0)
+
+/// Opaque quaternion reference.
+typedef struct OCCTQuaternion* OCCTQuaternionRef;
+
+/// Create a quaternion from components (x, y, z, w).
+OCCTQuaternionRef _Nonnull OCCTQuaternionCreate(double x, double y, double z, double w);
+
+/// Create a quaternion from axis-angle rotation.
+OCCTQuaternionRef _Nonnull OCCTQuaternionCreateFromAxisAngle(double ax, double ay, double az, double angle);
+
+/// Create a quaternion from two vectors (shortest arc rotation).
+OCCTQuaternionRef _Nonnull OCCTQuaternionCreateFromVectors(double fromX, double fromY, double fromZ,
+                                                            double toX, double toY, double toZ);
+
+/// Release a quaternion.
+void OCCTQuaternionRelease(OCCTQuaternionRef _Nonnull q);
+
+/// Get quaternion components.
+void OCCTQuaternionGetComponents(OCCTQuaternionRef _Nonnull q,
+                                  double* _Nonnull x, double* _Nonnull y,
+                                  double* _Nonnull z, double* _Nonnull w);
+
+/// Set Euler angles on a quaternion. Order: 0=Intrinsic_XYZ, etc.
+void OCCTQuaternionSetEulerAngles(OCCTQuaternionRef _Nonnull q, int32_t order,
+                                   double alpha, double beta, double gamma);
+
+/// Get Euler angles from a quaternion.
+void OCCTQuaternionGetEulerAngles(OCCTQuaternionRef _Nonnull q, int32_t order,
+                                   double* _Nonnull alpha, double* _Nonnull beta, double* _Nonnull gamma);
+
+/// Get rotation matrix as 9 doubles (row-major).
+void OCCTQuaternionGetMatrix(OCCTQuaternionRef _Nonnull q, double* _Nonnull matrix9);
+
+/// Rotate a vector by the quaternion.
+void OCCTQuaternionMultiplyVec(OCCTQuaternionRef _Nonnull q,
+                                double vx, double vy, double vz,
+                                double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Multiply two quaternions (Hamilton product). Returns new quaternion.
+OCCTQuaternionRef _Nonnull OCCTQuaternionMultiply(OCCTQuaternionRef _Nonnull q1, OCCTQuaternionRef _Nonnull q2);
+
+/// Get axis-angle representation.
+void OCCTQuaternionGetVectorAndAngle(OCCTQuaternionRef _Nonnull q,
+                                      double* _Nonnull ax, double* _Nonnull ay, double* _Nonnull az,
+                                      double* _Nonnull angle);
+
+/// Get the rotation angle.
+double OCCTQuaternionGetRotationAngle(OCCTQuaternionRef _Nonnull q);
+
+/// Normalize the quaternion to unit length.
+void OCCTQuaternionNormalize(OCCTQuaternionRef _Nonnull q);
+
+// MARK: - OSD_Timer (v0.91.0)
+
+/// Opaque timer reference.
+typedef struct OCCTTimer* OCCTTimerRef;
+
+/// Create a new timer (stopped).
+OCCTTimerRef _Nonnull OCCTTimerCreate(void);
+
+/// Release a timer.
+void OCCTTimerRelease(OCCTTimerRef _Nonnull timer);
+
+/// Start the timer.
+void OCCTTimerStart(OCCTTimerRef _Nonnull timer);
+
+/// Stop the timer.
+void OCCTTimerStop(OCCTTimerRef _Nonnull timer);
+
+/// Reset the timer to zero.
+void OCCTTimerReset(OCCTTimerRef _Nonnull timer);
+
+/// Get elapsed wall-clock time in seconds.
+double OCCTTimerElapsedTime(OCCTTimerRef _Nonnull timer);
+
+/// Get current wall-clock time in seconds (static).
+double OCCTTimerGetWallClockTime(void);
+
 #ifdef __cplusplus
 }
 #endif

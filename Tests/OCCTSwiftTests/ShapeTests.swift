@@ -26000,3 +26000,176 @@ struct IntToolsTests {
         #expect(range > 0)
     }
 }
+
+// MARK: - v0.91.0 Tests
+
+@Suite("ElCLib Tests")
+struct ElCLibTests {
+
+    @Test func valueOnLine() {
+        let p = ElCLib.valueOnLine(u: 5.0, origin: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0))
+        #expect(abs(p.x - 5.0) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+    }
+
+    @Test func valueOnCircle() {
+        let p = ElCLib.valueOnCircle(u: 0.0, center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 10.0)
+        #expect(abs(p.x - 10.0) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+    }
+
+    @Test func valueOnCircleAtPiOver2() {
+        let p = ElCLib.valueOnCircle(u: .pi / 2, center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 10.0)
+        #expect(abs(p.x) < 1e-10)
+        #expect(abs(p.y - 10.0) < 1e-10)
+    }
+
+    @Test func valueOnEllipse() {
+        let p = ElCLib.valueOnEllipse(u: 0.0, center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1),
+                                       majorRadius: 20.0, minorRadius: 10.0)
+        #expect(abs(p.x - 20.0) < 1e-10)
+    }
+
+    @Test func d1OnCircle() {
+        let result = ElCLib.d1OnCircle(u: 0.0, center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 10.0)
+        #expect(abs(result.point.x - 10.0) < 1e-10)
+        #expect(abs(result.tangent.y - 10.0) < 1e-10)
+    }
+
+    @Test func parameterOnLine() {
+        let u = ElCLib.parameterOnLine(origin: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0), point: SIMD3(7, 0, 0))
+        #expect(abs(u - 7.0) < 1e-10)
+    }
+
+    @Test func inPeriod() {
+        let u = ElCLib.inPeriod(u: 7.0, uFirst: 0.0, uLast: 2 * .pi)
+        #expect(u >= 0.0 && u < 2 * .pi)
+    }
+}
+
+@Suite("ElSLib Tests")
+struct ElSLibTests {
+
+    @Test func valueOnPlane() {
+        let p = ElSLib.valueOnPlane(u: 3.0, v: 4.0, origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        #expect(abs(p.x - 3.0) < 1e-10)
+        #expect(abs(p.y - 4.0) < 1e-10)
+        #expect(abs(p.z) < 1e-10)
+    }
+
+    @Test func valueOnSphere() {
+        let p = ElSLib.valueOnSphere(u: 0, v: 0, origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 10.0)
+        #expect(abs(p.x - 10.0) < 1e-10)
+    }
+
+    @Test func valueOnCylinder() {
+        let p = ElSLib.valueOnCylinder(u: 0, v: 10, origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5.0)
+        #expect(abs(p.x - 5.0) < 1e-10)
+        #expect(abs(p.z - 10.0) < 1e-10)
+    }
+
+    @Test func valueOnTorus() {
+        let p = ElSLib.valueOnTorus(u: 0, v: 0, origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1),
+                                     majorRadius: 20.0, minorRadius: 5.0)
+        #expect(abs(p.x - 25.0) < 1e-10)
+    }
+
+    @Test func parametersOnSphere() {
+        let uv = ElSLib.parametersOnSphere(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 10.0,
+                                            point: SIMD3(10, 0, 0))
+        #expect(abs(uv.u) < 1e-10)
+        #expect(abs(uv.v) < 1e-10)
+    }
+}
+
+@Suite("Quaternion Tests")
+struct QuaternionTests {
+
+    @Test func identity() {
+        let q = Quaternion()
+        let c = q.components
+        #expect(abs(c.w - 1.0) < 1e-10)
+        #expect(abs(c.x) < 1e-10)
+    }
+
+    @Test func fromAxisAngle() {
+        let q = Quaternion.fromAxisAngle(axis: SIMD3(0, 0, 1), angle: .pi / 2)
+        let rotated = q.rotate(SIMD3(1, 0, 0))
+        #expect(abs(rotated.x) < 1e-10)
+        #expect(abs(rotated.y - 1.0) < 1e-10)
+    }
+
+    @Test func fromVectors() {
+        let q = Quaternion.fromVectors(from: SIMD3(1, 0, 0), to: SIMD3(0, 1, 0))
+        let rotated = q.rotate(SIMD3(1, 0, 0))
+        #expect(abs(rotated.y - 1.0) < 1e-10)
+    }
+
+    @Test func eulerAngles() {
+        let q = Quaternion()
+        // gp_Intrinsic_XYZ = 8 in gp_EulerSequence enum
+        q.setEulerAngles(order: 8, alpha: .pi / 4, beta: 0, gamma: 0)
+        let euler = q.getEulerAngles(order: 8)
+        #expect(abs(euler.alpha - .pi / 4) < 1e-10)
+    }
+
+    @Test func matrix() {
+        let q = Quaternion.fromAxisAngle(axis: SIMD3(0, 0, 1), angle: .pi / 2)
+        let m = q.matrix
+        #expect(m.count == 9)
+    }
+
+    @Test func multiply() {
+        let q1 = Quaternion.fromAxisAngle(axis: SIMD3(0, 0, 1), angle: .pi / 4)
+        let q2 = Quaternion.fromAxisAngle(axis: SIMD3(0, 0, 1), angle: .pi / 4)
+        let q3 = q1.multiplied(by: q2)
+        let rotated = q3.rotate(SIMD3(1, 0, 0))
+        #expect(abs(rotated.x) < 1e-10)
+        #expect(abs(rotated.y - 1.0) < 1e-10)
+    }
+
+    @Test func axisAngle() {
+        let q = Quaternion.fromAxisAngle(axis: SIMD3(0, 0, 1), angle: .pi / 6)
+        let aa = q.axisAngle
+        #expect(abs(aa.angle - .pi / 6) < 1e-10)
+        #expect(abs(aa.axis.z - 1.0) < 1e-10)
+    }
+
+    @Test func rotationAngle() {
+        let q = Quaternion.fromAxisAngle(axis: SIMD3(0, 0, 1), angle: .pi / 3)
+        #expect(abs(q.rotationAngle - .pi / 3) < 1e-10)
+    }
+
+    @Test func normalize() {
+        let q = Quaternion(x: 1, y: 2, z: 3, w: 4)
+        q.normalize()
+        let c = q.components
+        let norm = sqrt(c.x*c.x + c.y*c.y + c.z*c.z + c.w*c.w)
+        #expect(abs(norm - 1.0) < 1e-10)
+    }
+}
+
+@Suite("OSD Timer Tests")
+struct OSDTimerTests {
+
+    @Test func basicTiming() {
+        let timer = Timer()
+        timer.start()
+        var sum = 0.0
+        for i in 0..<100000 { sum += sin(Double(i)) }
+        timer.stop()
+        #expect(timer.elapsedTime >= 0.0)
+    }
+
+    @Test func reset() {
+        let timer = Timer()
+        timer.start()
+        timer.stop()
+        timer.reset()
+        #expect(abs(timer.elapsedTime) < 1e-10)
+    }
+
+    @Test func wallClockTime() {
+        #expect(Timer.wallClockTime > 0)
+    }
+}
