@@ -12151,6 +12151,125 @@ double OCCTTimerElapsedTime(OCCTTimerRef _Nonnull timer);
 /// Get current wall-clock time in seconds (static).
 double OCCTTimerGetWallClockTime(void);
 
+// MARK: - Bnd_OBB — Oriented Bounding Box (v0.92.0)
+
+/// Opaque OBB reference.
+typedef struct OCCTOBB* OCCTOBBRef;
+
+/// Create an OBB from center, axes, and half-sizes.
+OCCTOBBRef _Nonnull OCCTOBBCreate(double cx, double cy, double cz,
+                                    double xDirX, double xDirY, double xDirZ,
+                                    double yDirX, double yDirY, double yDirZ,
+                                    double zDirX, double zDirY, double zDirZ,
+                                    double hx, double hy, double hz);
+
+/// Create an OBB from a shape's bounding box.
+OCCTOBBRef _Nullable OCCTOBBCreateFromShape(OCCTShapeRef _Nonnull shape);
+
+/// Release an OBB.
+void OCCTOBBRelease(OCCTOBBRef _Nonnull obb);
+
+/// Check if OBB is void (empty).
+bool OCCTOBBIsVoid(OCCTOBBRef _Nonnull obb);
+
+/// Get center of OBB.
+void OCCTOBBGetCenter(OCCTOBBRef _Nonnull obb, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get half-sizes of OBB.
+void OCCTOBBGetHalfSizes(OCCTOBBRef _Nonnull obb, double* _Nonnull hx, double* _Nonnull hy, double* _Nonnull hz);
+
+/// Check if a point is outside the OBB.
+bool OCCTOBBIsOutPoint(OCCTOBBRef _Nonnull obb, double px, double py, double pz);
+
+/// Check if another OBB is outside this OBB.
+bool OCCTOBBIsOutOBB(OCCTOBBRef _Nonnull obb1, OCCTOBBRef _Nonnull obb2);
+
+/// Enlarge the OBB by a gap value.
+void OCCTOBBEnlarge(OCCTOBBRef _Nonnull obb, double gap);
+
+/// Get square extent (diagonal squared).
+double OCCTOBBSquareExtent(OCCTOBBRef _Nonnull obb);
+
+// MARK: - Bnd_Range — 1D Range (v0.92.0)
+
+/// Opaque range reference.
+typedef struct OCCTRange* OCCTRangeRef;
+
+/// Create a range [min, max].
+OCCTRangeRef _Nonnull OCCTRangeCreate(double min, double max);
+
+/// Create a void range.
+OCCTRangeRef _Nonnull OCCTRangeCreateVoid(void);
+
+/// Release a range.
+void OCCTRangeRelease(OCCTRangeRef _Nonnull range);
+
+/// Check if range is void.
+bool OCCTRangeIsVoid(OCCTRangeRef _Nonnull range);
+
+/// Get bounds. Returns false if void.
+bool OCCTRangeGetBounds(OCCTRangeRef _Nonnull range, double* _Nonnull first, double* _Nonnull last);
+
+/// Get delta (max - min).
+double OCCTRangeDelta(OCCTRangeRef _Nonnull range);
+
+/// Check if value is in range.
+bool OCCTRangeContains(OCCTRangeRef _Nonnull range, double value);
+
+/// Extend range to include a value.
+void OCCTRangeAddValue(OCCTRangeRef _Nonnull range, double value);
+
+/// Extend range to include another range.
+void OCCTRangeAddRange(OCCTRangeRef _Nonnull range, OCCTRangeRef _Nonnull other);
+
+/// Intersect with another range (modifies this range).
+void OCCTRangeCommon(OCCTRangeRef _Nonnull range, OCCTRangeRef _Nonnull other);
+
+/// Enlarge both boundaries by delta.
+void OCCTRangeEnlarge(OCCTRangeRef _Nonnull range, double delta);
+
+/// Trim lower boundary.
+void OCCTRangeTrimFrom(OCCTRangeRef _Nonnull range, double lower);
+
+/// Trim upper boundary.
+void OCCTRangeTrimTo(OCCTRangeRef _Nonnull range, double upper);
+
+// MARK: - BRepClass3d — Point Classification (v0.92.0)
+
+/// Classify a 3D point relative to a solid shape.
+/// @return 0=IN, 1=OUT, 2=ON, 3=UNKNOWN
+int32_t OCCTShapeClassifyPoint(OCCTShapeRef _Nonnull shape,
+                                double px, double py, double pz, double tolerance);
+
+// MARK: - TDataXtd_Constraint (v0.92.0)
+
+/// Set a TDataXtd_Constraint attribute on a label.
+bool OCCTDocumentSetConstraint(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the constraint type. Types: 0=RADIUS..22=FROM
+bool OCCTDocumentConstraintSetType(OCCTDocumentRef _Nonnull doc, int64_t labelId, int32_t type);
+
+/// Get the constraint type. Returns -1 if not found.
+int32_t OCCTDocumentConstraintGetType(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the number of geometries in the constraint.
+int32_t OCCTDocumentConstraintNbGeometries(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if constraint is planar (2D).
+bool OCCTDocumentConstraintIsPlanar(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if constraint is a dimension (has value).
+bool OCCTDocumentConstraintIsDimension(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the verified flag on a constraint.
+bool OCCTDocumentConstraintSetVerified(OCCTDocumentRef _Nonnull doc, int64_t labelId, bool verified);
+
+/// Get the verified flag.
+bool OCCTDocumentConstraintGetVerified(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Clear all geometries from a constraint.
+bool OCCTDocumentConstraintClearGeometries(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
 #ifdef __cplusplus
 }
 #endif

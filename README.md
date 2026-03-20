@@ -249,7 +249,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **ElSLib** | 7 | valueOnPlane, valueOnCylinder, valueOnCone, valueOnSphere, valueOnTorus, parametersOnSphere, d1OnSphere |
 | **gp_Quaternion** | 11 | create, fromAxisAngle, fromVectors, getComponents, setEulerAngles, getEulerAngles, getMatrix, rotate, multiplied, axisAngle, rotationAngle, normalize |
 | **OSD_Timer** | 5 | start, stop, reset, elapsedTime, wallClockTime |
-| **Total** | **1831** | |
+| **Bnd_OBB** | 8 | create, fromShape, isVoid, center, halfSizes, isOutPoint, isOutOBB, enlarge, squareExtent |
+| **Bnd_Range** | 11 | create, isVoid, bounds, delta, contains, addValue, addRange, common, enlarge, trimFrom, trimTo |
+| **BRepClass3d** | 1 | classifyPoint |
+| **TDataXtd_Constraint** | 9 | set, setType, getType, nbGeometries, isPlanar, isDimension, setVerified, getVerified, clearGeometries |
+| **Total** | **1860** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1564,7 +1568,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1831 OCCT operations** across 116 categories with 2061 tests across 653 suites.
+OCCTSwift now wraps **1860 OCCT operations** across 120 categories with 2080 tests across 657 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

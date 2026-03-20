@@ -35867,3 +35867,220 @@ double OCCTTimerGetWallClockTime() {
     return OSD_Timer::GetWallClockTime();
 }
 
+// MARK: - Bnd_OBB (v0.92.0)
+
+#include <Bnd_OBB.hxx>
+#include <BRepBndLib.hxx>
+
+struct OCCTOBB {
+    Bnd_OBB obb;
+};
+
+OCCTOBBRef OCCTOBBCreate(double cx, double cy, double cz,
+                           double xDirX, double xDirY, double xDirZ,
+                           double yDirX, double yDirY, double yDirZ,
+                           double zDirX, double zDirY, double zDirZ,
+                           double hx, double hy, double hz) {
+    auto* ref = new OCCTOBB();
+    ref->obb = Bnd_OBB(gp_Pnt(cx,cy,cz),
+                        gp_Dir(xDirX,xDirY,xDirZ),
+                        gp_Dir(yDirX,yDirY,yDirZ),
+                        gp_Dir(zDirX,zDirY,zDirZ),
+                        hx, hy, hz);
+    return ref;
+}
+
+OCCTOBBRef OCCTOBBCreateFromShape(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        auto* ref = new OCCTOBB();
+        Bnd_Box bbox;
+        BRepBndLib::Add(shape->shape, bbox);
+        ref->obb = Bnd_OBB(bbox);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTOBBRelease(OCCTOBBRef obb) { delete obb; }
+
+bool OCCTOBBIsVoid(OCCTOBBRef obb) { return obb->obb.IsVoid(); }
+
+void OCCTOBBGetCenter(OCCTOBBRef obb, double* x, double* y, double* z) {
+    gp_XYZ c = obb->obb.Center();
+    *x = c.X(); *y = c.Y(); *z = c.Z();
+}
+
+void OCCTOBBGetHalfSizes(OCCTOBBRef obb, double* hx, double* hy, double* hz) {
+    *hx = obb->obb.XHSize(); *hy = obb->obb.YHSize(); *hz = obb->obb.ZHSize();
+}
+
+bool OCCTOBBIsOutPoint(OCCTOBBRef obb, double px, double py, double pz) {
+    return obb->obb.IsOut(gp_Pnt(px, py, pz));
+}
+
+bool OCCTOBBIsOutOBB(OCCTOBBRef obb1, OCCTOBBRef obb2) {
+    return obb1->obb.IsOut(obb2->obb);
+}
+
+void OCCTOBBEnlarge(OCCTOBBRef obb, double gap) {
+    obb->obb.Enlarge(gap);
+}
+
+double OCCTOBBSquareExtent(OCCTOBBRef obb) {
+    return obb->obb.SquareExtent();
+}
+
+// MARK: - Bnd_Range (v0.92.0)
+
+#include <Bnd_Range.hxx>
+
+struct OCCTRange {
+    Bnd_Range range;
+};
+
+OCCTRangeRef OCCTRangeCreate(double min, double max) {
+    auto* ref = new OCCTRange();
+    ref->range = Bnd_Range(min, max);
+    return ref;
+}
+
+OCCTRangeRef OCCTRangeCreateVoid() {
+    return new OCCTRange();
+}
+
+void OCCTRangeRelease(OCCTRangeRef range) { delete range; }
+
+bool OCCTRangeIsVoid(OCCTRangeRef range) { return range->range.IsVoid(); }
+
+bool OCCTRangeGetBounds(OCCTRangeRef range, double* first, double* last) {
+    return range->range.GetBounds(*first, *last);
+}
+
+double OCCTRangeDelta(OCCTRangeRef range) { return range->range.Delta(); }
+
+bool OCCTRangeContains(OCCTRangeRef range, double value) { return range->range.Contains(value); }
+
+void OCCTRangeAddValue(OCCTRangeRef range, double value) { range->range.Add(value); }
+
+void OCCTRangeAddRange(OCCTRangeRef range, OCCTRangeRef other) { range->range.Add(other->range); }
+
+void OCCTRangeCommon(OCCTRangeRef range, OCCTRangeRef other) { range->range.Common(other->range); }
+
+void OCCTRangeEnlarge(OCCTRangeRef range, double delta) { range->range.Enlarge(delta); }
+
+void OCCTRangeTrimFrom(OCCTRangeRef range, double lower) { range->range.TrimFrom(lower); }
+
+void OCCTRangeTrimTo(OCCTRangeRef range, double upper) { range->range.TrimTo(upper); }
+
+// MARK: - BRepClass3d (v0.92.0)
+
+#include <BRepClass3d_SClassifier.hxx>
+#include <BRepClass3d_SolidExplorer.hxx>
+
+int32_t OCCTShapeClassifyPoint(OCCTShapeRef shape, double px, double py, double pz, double tolerance) {
+    if (!shape) return 3; // UNKNOWN
+    try {
+        BRepClass3d_SolidExplorer explorer(shape->shape);
+        BRepClass3d_SClassifier classifier(explorer, gp_Pnt(px, py, pz), tolerance);
+        return (int32_t)classifier.State();
+    } catch (...) { return 3; }
+}
+
+// MARK: - TDataXtd_Constraint (v0.92.0)
+
+#include <TDataXtd_Constraint.hxx>
+#include <TDataXtd_ConstraintEnum.hxx>
+
+bool OCCTDocumentSetConstraint(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_Constraint) cst = TDataXtd_Constraint::Set(label);
+        return !cst.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentConstraintSetType(OCCTDocumentRef doc, int64_t labelId, int32_t type) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Constraint) cst;
+        if (!label.FindAttribute(TDataXtd_Constraint::GetID(), cst)) return false;
+        cst->SetType((TDataXtd_ConstraintEnum)type);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentConstraintGetType(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Constraint) cst;
+        if (!label.FindAttribute(TDataXtd_Constraint::GetID(), cst)) return -1;
+        return (int32_t)cst->GetType();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDocumentConstraintNbGeometries(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Constraint) cst;
+        if (!label.FindAttribute(TDataXtd_Constraint::GetID(), cst)) return 0;
+        return cst->NbGeometries();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDocumentConstraintIsPlanar(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Constraint) cst;
+        if (!label.FindAttribute(TDataXtd_Constraint::GetID(), cst)) return false;
+        return cst->IsPlanar();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentConstraintIsDimension(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Constraint) cst;
+        if (!label.FindAttribute(TDataXtd_Constraint::GetID(), cst)) return false;
+        return cst->IsDimension();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentConstraintSetVerified(OCCTDocumentRef doc, int64_t labelId, bool verified) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Constraint) cst;
+        if (!label.FindAttribute(TDataXtd_Constraint::GetID(), cst)) return false;
+        cst->Verified(verified);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentConstraintGetVerified(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Constraint) cst;
+        if (!label.FindAttribute(TDataXtd_Constraint::GetID(), cst)) return false;
+        return cst->Verified();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentConstraintClearGeometries(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Constraint) cst;
+        if (!label.FindAttribute(TDataXtd_Constraint::GetID(), cst)) return false;
+        cst->ClearGeometries();
+        return true;
+    } catch (...) { return false; }
+}
+

@@ -5001,3 +5001,208 @@ public final class Timer: @unchecked Sendable {
         OCCTTimerGetWallClockTime()
     }
 }
+
+// MARK: - Bnd_OBB — Oriented Bounding Box (v0.92.0)
+
+/// Oriented bounding box in 3D space.
+public final class OBB: @unchecked Sendable {
+    let handle: OCCTOBBRef
+
+    init(handle: OCCTOBBRef) { self.handle = handle }
+
+    deinit { OCCTOBBRelease(handle) }
+
+    /// Create an OBB from center, axes, and half-sizes.
+    public init(center: SIMD3<Double>, xDir: SIMD3<Double>, yDir: SIMD3<Double>, zDir: SIMD3<Double>,
+                hx: Double, hy: Double, hz: Double) {
+        handle = OCCTOBBCreate(center.x, center.y, center.z,
+                               xDir.x, xDir.y, xDir.z,
+                               yDir.x, yDir.y, yDir.z,
+                               zDir.x, zDir.y, zDir.z,
+                               hx, hy, hz)
+    }
+
+    /// Create an OBB from a shape's bounding box.
+    public static func fromShape(_ shape: Shape) -> OBB? {
+        guard let ref = OCCTOBBCreateFromShape(shape.handle) else { return nil }
+        return OBB(handle: ref)
+    }
+
+    /// Whether the OBB is void (empty).
+    public var isVoid: Bool { OCCTOBBIsVoid(handle) }
+
+    /// Center of the OBB.
+    public var center: SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTOBBGetCenter(handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Half-sizes of the OBB along its local axes.
+    public var halfSizes: SIMD3<Double> {
+        var hx = 0.0, hy = 0.0, hz = 0.0
+        OCCTOBBGetHalfSizes(handle, &hx, &hy, &hz)
+        return SIMD3(hx, hy, hz)
+    }
+
+    /// Check if a point is outside the OBB.
+    public func isOut(point: SIMD3<Double>) -> Bool {
+        OCCTOBBIsOutPoint(handle, point.x, point.y, point.z)
+    }
+
+    /// Check if another OBB is outside (no overlap).
+    public func isOut(_ other: OBB) -> Bool {
+        OCCTOBBIsOutOBB(handle, other.handle)
+    }
+
+    /// Enlarge the OBB by a gap value on all sides.
+    public func enlarge(by gap: Double) {
+        OCCTOBBEnlarge(handle, gap)
+    }
+
+    /// Square extent (diagonal squared).
+    public var squareExtent: Double { OCCTOBBSquareExtent(handle) }
+}
+
+// MARK: - Bnd_Range — 1D Range (v0.92.0)
+
+/// A 1D interval [min, max] with void state.
+public final class Range: @unchecked Sendable {
+    let handle: OCCTRangeRef
+
+    init(handle: OCCTRangeRef) { self.handle = handle }
+
+    deinit { OCCTRangeRelease(handle) }
+
+    /// Create a range [min, max].
+    public init(min: Double, max: Double) {
+        handle = OCCTRangeCreate(min, max)
+    }
+
+    /// Create a void (empty) range.
+    public init() {
+        handle = OCCTRangeCreateVoid()
+    }
+
+    /// Whether the range is void.
+    public var isVoid: Bool { OCCTRangeIsVoid(handle) }
+
+    /// Get bounds as (first, last). Returns nil if void.
+    public var bounds: (first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard OCCTRangeGetBounds(handle, &first, &last) else { return nil }
+        return (first, last)
+    }
+
+    /// Delta (max - min).
+    public var delta: Double { OCCTRangeDelta(handle) }
+
+    /// Check if value is in range.
+    public func contains(_ value: Double) -> Bool { OCCTRangeContains(handle, value) }
+
+    /// Extend range to include a value.
+    public func add(_ value: Double) { OCCTRangeAddValue(handle, value) }
+
+    /// Extend range to include another range.
+    public func add(_ other: Range) { OCCTRangeAddRange(handle, other.handle) }
+
+    /// Intersect with another range.
+    public func common(_ other: Range) { OCCTRangeCommon(handle, other.handle) }
+
+    /// Enlarge both boundaries.
+    public func enlarge(by delta: Double) { OCCTRangeEnlarge(handle, delta) }
+
+    /// Trim lower boundary.
+    public func trimFrom(_ lower: Double) { OCCTRangeTrimFrom(handle, lower) }
+
+    /// Trim upper boundary.
+    public func trimTo(_ upper: Double) { OCCTRangeTrimTo(handle, upper) }
+}
+
+// MARK: - BRepClass3d — Point Classification (v0.92.0)
+
+extension Shape {
+
+    /// Classification state for a point relative to a solid.
+    public enum PointState: Int32 {
+        case inside = 0
+        case outside = 1
+        case on = 2
+        case unknown = 3
+    }
+
+    /// Classify a 3D point relative to this solid shape.
+    /// - Parameters:
+    ///   - point: The 3D point to classify
+    ///   - tolerance: Classification tolerance
+    /// - Returns: The classification state
+    public func classifyPoint(_ point: SIMD3<Double>, tolerance: Double = 1e-6) -> PointState {
+        let raw = OCCTShapeClassifyPoint(handle, point.x, point.y, point.z, tolerance)
+        return PointState(rawValue: raw) ?? .unknown
+    }
+}
+
+// MARK: - TDataXtd_Constraint (v0.92.0)
+
+extension Document {
+
+    /// Constraint type enum matching TDataXtd_ConstraintEnum.
+    public enum ConstraintType: Int32 {
+        case radius = 0, diameter, minorRadius, majorRadius
+        case tangent, parallel, perpendicular, concentric
+        case coincident, distance, angle, equalRadius
+        case symmetry, midPoint, equalDistance, fix
+        case rigid, from
+    }
+
+    /// Set a constraint attribute on a label.
+    @discardableResult
+    public func setConstraint(labelId: Int64) -> Bool {
+        OCCTDocumentSetConstraint(handle, labelId)
+    }
+
+    /// Set the constraint type.
+    @discardableResult
+    public func constraintSetType(labelId: Int64, type: ConstraintType) -> Bool {
+        OCCTDocumentConstraintSetType(handle, labelId, type.rawValue)
+    }
+
+    /// Get the constraint type. Returns nil if not found.
+    public func constraintGetType(labelId: Int64) -> ConstraintType? {
+        let raw = OCCTDocumentConstraintGetType(handle, labelId)
+        if raw < 0 { return nil }
+        return ConstraintType(rawValue: raw)
+    }
+
+    /// Number of geometries in the constraint.
+    public func constraintNbGeometries(labelId: Int64) -> Int {
+        Int(OCCTDocumentConstraintNbGeometries(handle, labelId))
+    }
+
+    /// Check if constraint is planar (2D).
+    public func constraintIsPlanar(labelId: Int64) -> Bool {
+        OCCTDocumentConstraintIsPlanar(handle, labelId)
+    }
+
+    /// Check if constraint is a dimension (has value).
+    public func constraintIsDimension(labelId: Int64) -> Bool {
+        OCCTDocumentConstraintIsDimension(handle, labelId)
+    }
+
+    /// Set the verified flag.
+    @discardableResult
+    public func constraintSetVerified(labelId: Int64, verified: Bool) -> Bool {
+        OCCTDocumentConstraintSetVerified(handle, labelId, verified)
+    }
+
+    /// Get the verified flag.
+    public func constraintGetVerified(labelId: Int64) -> Bool {
+        OCCTDocumentConstraintGetVerified(handle, labelId)
+    }
+
+    /// Clear all geometries from a constraint.
+    @discardableResult
+    public func constraintClearGeometries(labelId: Int64) -> Bool {
+        OCCTDocumentConstraintClearGeometries(handle, labelId)
+    }
+}

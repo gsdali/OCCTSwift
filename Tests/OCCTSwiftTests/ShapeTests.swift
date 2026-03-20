@@ -26173,3 +26173,175 @@ struct OSDTimerTests {
         #expect(Timer.wallClockTime > 0)
     }
 }
+
+// MARK: - v0.92.0 Tests
+
+@Suite("Bnd OBB Tests")
+struct BndOBBTests {
+
+    @Test func createAndQuery() {
+        let obb = OBB(center: SIMD3(0, 0, 0), xDir: SIMD3(1, 0, 0), yDir: SIMD3(0, 1, 0), zDir: SIMD3(0, 0, 1),
+                      hx: 5, hy: 3, hz: 2)
+        #expect(!obb.isVoid)
+        #expect(abs(obb.center.x) < 1e-10)
+        #expect(abs(obb.halfSizes.x - 5.0) < 1e-10)
+    }
+
+    @Test func pointInOut() {
+        let obb = OBB(center: SIMD3(0, 0, 0), xDir: SIMD3(1, 0, 0), yDir: SIMD3(0, 1, 0), zDir: SIMD3(0, 0, 1),
+                      hx: 5, hy: 5, hz: 5)
+        #expect(!obb.isOut(point: SIMD3(1, 1, 1)))
+        #expect(obb.isOut(point: SIMD3(10, 10, 10)))
+    }
+
+    @Test func obbOverlap() {
+        let obb1 = OBB(center: SIMD3(0, 0, 0), xDir: SIMD3(1, 0, 0), yDir: SIMD3(0, 1, 0), zDir: SIMD3(0, 0, 1),
+                       hx: 5, hy: 5, hz: 5)
+        let obb2 = OBB(center: SIMD3(4, 0, 0), xDir: SIMD3(1, 0, 0), yDir: SIMD3(0, 1, 0), zDir: SIMD3(0, 0, 1),
+                       hx: 3, hy: 3, hz: 3)
+        #expect(!obb1.isOut(obb2))
+    }
+
+    @Test func fromShape() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let obb = OBB.fromShape(box) else {
+            #expect(Bool(false), "should create OBB from shape")
+            return
+        }
+        #expect(!obb.isVoid)
+        #expect(obb.squareExtent > 0)
+    }
+
+    @Test func enlarge() {
+        let obb = OBB(center: SIMD3(0, 0, 0), xDir: SIMD3(1, 0, 0), yDir: SIMD3(0, 1, 0), zDir: SIMD3(0, 0, 1),
+                      hx: 1, hy: 1, hz: 1)
+        obb.enlarge(by: 2.0)
+        #expect(abs(obb.halfSizes.x - 3.0) < 1e-10)
+    }
+}
+
+@Suite("Bnd Range Tests")
+struct BndRangeTests {
+
+    @Test func createAndQuery() {
+        let r = Range(min: 1.0, max: 5.0)
+        #expect(!r.isVoid)
+        if let b = r.bounds {
+            #expect(abs(b.first - 1.0) < 1e-10)
+            #expect(abs(b.last - 5.0) < 1e-10)
+        }
+        #expect(abs(r.delta - 4.0) < 1e-10)
+    }
+
+    @Test func contains() {
+        let r = Range(min: 1.0, max: 5.0)
+        #expect(r.contains(3.0))
+        #expect(!r.contains(6.0))
+    }
+
+    @Test func addValue() {
+        let r = Range(min: 2.0, max: 4.0)
+        r.add(6.0)
+        if let b = r.bounds {
+            #expect(abs(b.last - 6.0) < 1e-10)
+        }
+    }
+
+    @Test func common() {
+        let r1 = Range(min: 1.0, max: 5.0)
+        let r2 = Range(min: 3.0, max: 7.0)
+        r1.common(r2)
+        if let b = r1.bounds {
+            #expect(abs(b.first - 3.0) < 1e-10)
+            #expect(abs(b.last - 5.0) < 1e-10)
+        }
+    }
+
+    @Test func trimFromTo() {
+        let r = Range(min: 0.0, max: 10.0)
+        r.trimFrom(3.0)
+        r.trimTo(7.0)
+        if let b = r.bounds {
+            #expect(abs(b.first - 3.0) < 1e-10)
+            #expect(abs(b.last - 7.0) < 1e-10)
+        }
+    }
+
+    @Test func voidRange() {
+        let r = Range()
+        #expect(r.isVoid)
+    }
+}
+
+@Suite("BRepClass3d Tests")
+struct BRepClass3dTests {
+
+    @Test func pointInsideBox() {
+        // box(width:height:depth:) centers at origin → [-5,5] in each axis
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let state = box.classifyPoint(SIMD3(0, 0, 0))
+        #expect(state == .inside)
+    }
+
+    @Test func pointOutsideBox() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let state = box.classifyPoint(SIMD3(20, 20, 20))
+        #expect(state == .outside)
+    }
+
+    @Test func pointInsideSphere() {
+        guard let sphere = Shape.sphere(radius: 5.0) else { return }
+        let state = sphere.classifyPoint(SIMD3(0, 0, 0))
+        #expect(state == .inside)
+    }
+
+    @Test func pointOutsideSphere() {
+        guard let sphere = Shape.sphere(radius: 5.0) else { return }
+        let state = sphere.classifyPoint(SIMD3(10, 0, 0))
+        #expect(state == .outside)
+    }
+}
+
+@Suite("TDataXtd Constraint Tests")
+struct TDataXtdConstraintTests {
+
+    @Test func setAndGetType() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setConstraint(labelId: node.labelId)
+        doc.constraintSetType(labelId: node.labelId, type: .parallel)
+        doc.commitTransaction()
+
+        if let type = doc.constraintGetType(labelId: node.labelId) {
+            #expect(type == .parallel)
+        }
+    }
+
+    @Test func isPlanarAndDimension() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setConstraint(labelId: node.labelId)
+        doc.constraintSetType(labelId: node.labelId, type: .parallel)
+        doc.commitTransaction()
+        #expect(!doc.constraintIsPlanar(labelId: node.labelId))
+        #expect(!doc.constraintIsDimension(labelId: node.labelId))
+    }
+
+    @Test func verifiedFlag() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setConstraint(labelId: node.labelId)
+        doc.constraintSetVerified(labelId: node.labelId, verified: true)
+        doc.commitTransaction()
+        #expect(doc.constraintGetVerified(labelId: node.labelId))
+    }
+
+    @Test func noConstraint() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        #expect(doc.constraintGetType(labelId: node.labelId) == nil)
+    }
+}
