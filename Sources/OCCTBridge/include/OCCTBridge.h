@@ -11805,6 +11805,182 @@ int32_t OCCTDocumentAttributeCount(OCCTDocumentRef _Nonnull doc, int64_t labelId
 /// (Utility to verify label has content)
 bool OCCTDocumentDataSetIsEmpty(OCCTDocumentRef _Nonnull doc, int64_t labelId);
 
+// MARK: - TDF_ChildIDIterator (v0.90.0)
+
+/// Count child labels that have an attribute with the given GUID string.
+/// @param allLevels If true, recurse into all descendants
+int32_t OCCTDocumentChildIDCount(OCCTDocumentRef _Nonnull doc, int64_t labelId,
+                                  const char* _Nonnull guidString, bool allLevels);
+
+// MARK: - TDocStd_PathParser (v0.90.0)
+
+/// Parse a file path and return the directory (trek) component.
+/// Caller must free the returned string.
+const char* _Nullable OCCTPathParserTrek(const char* _Nonnull path);
+
+/// Parse a file path and return the filename (without extension).
+/// Caller must free the returned string.
+const char* _Nullable OCCTPathParserName(const char* _Nonnull path);
+
+/// Parse a file path and return the file extension.
+/// Caller must free the returned string.
+const char* _Nullable OCCTPathParserExtension(const char* _Nonnull path);
+
+/// Free a string returned by OCCTPathParser* functions.
+void OCCTPathParserFreeString(const char* _Nullable str);
+
+// MARK: - TFunction_DriverTable (v0.90.0)
+
+/// Check if a function driver with the given GUID is registered.
+bool OCCTFunctionDriverTableHasDriver(const char* _Nonnull guidString);
+
+/// Clear all registered function drivers.
+void OCCTFunctionDriverTableClear(void);
+
+// MARK: - TNaming_Scope (v0.90.0)
+
+/// Mark a label as valid in a naming scope context.
+/// @return true on success
+bool OCCTDocumentNamingScopeValid(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Mark a label and its children as valid.
+/// @return true on success
+bool OCCTDocumentNamingScopeValidChildren(OCCTDocumentRef _Nonnull doc, int64_t labelId, bool withRoot);
+
+/// Check if a label is valid in the naming scope.
+bool OCCTDocumentNamingScopeIsValid(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Invalidate (unvalid) a label in the naming scope.
+/// @return true on success
+bool OCCTDocumentNamingScopeUnvalid(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Clear all valid labels in the naming scope.
+void OCCTDocumentNamingScopeClear(OCCTDocumentRef _Nonnull doc);
+
+/// Get the count of valid labels in the naming scope.
+int32_t OCCTDocumentNamingScopeValidCount(OCCTDocumentRef _Nonnull doc);
+
+// MARK: - TNaming_Translator (v0.90.0)
+
+/// Deep-copy a shape using TNaming_Translator.
+/// @return New copied shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeTranslatorCopy(OCCTShapeRef _Nonnull shape);
+
+/// Check if two shapes are the same TShape (identity check).
+bool OCCTShapeIsSame(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2);
+
+// MARK: - TDataXtd_Placement (v0.90.0)
+
+/// Set a TDataXtd_Placement marker attribute on a label.
+/// @return true on success
+bool OCCTDocumentSetPlacement(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a label has a TDataXtd_Placement attribute.
+bool OCCTDocumentHasPlacement(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+// MARK: - TDataXtd_Presentation (v0.90.0)
+
+/// Set a TDataXtd_Presentation attribute on a label with a driver GUID.
+/// @return true on success
+bool OCCTDocumentSetPresentation(OCCTDocumentRef _Nonnull doc, int64_t labelId,
+                                  const char* _Nonnull driverGUID);
+
+/// Remove a TDataXtd_Presentation attribute from a label.
+void OCCTDocumentUnsetPresentation(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a presentation attribute exists on a label.
+bool OCCTDocumentHasPresentation(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the display state of a presentation.
+bool OCCTDocumentPresentationSetDisplayed(OCCTDocumentRef _Nonnull doc, int64_t labelId, bool displayed);
+
+/// Get the display state of a presentation.
+bool OCCTDocumentPresentationIsDisplayed(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the color of a presentation (Quantity_NameOfColor as int).
+bool OCCTDocumentPresentationSetColor(OCCTDocumentRef _Nonnull doc, int64_t labelId, int32_t colorIndex);
+
+/// Get the color of a presentation. Returns -1 if no own color.
+int32_t OCCTDocumentPresentationGetColor(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the transparency of a presentation [0.0, 1.0].
+bool OCCTDocumentPresentationSetTransparency(OCCTDocumentRef _Nonnull doc, int64_t labelId, double value);
+
+/// Get the transparency. Returns -1.0 if no own transparency.
+double OCCTDocumentPresentationGetTransparency(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the line width of a presentation.
+bool OCCTDocumentPresentationSetWidth(OCCTDocumentRef _Nonnull doc, int64_t labelId, double width);
+
+/// Get the line width. Returns -1.0 if no own width.
+double OCCTDocumentPresentationGetWidth(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set the display mode of a presentation (0=wireframe, 1=shaded, etc.).
+bool OCCTDocumentPresentationSetMode(OCCTDocumentRef _Nonnull doc, int64_t labelId, int32_t mode);
+
+/// Get the display mode. Returns -1 if no own mode.
+int32_t OCCTDocumentPresentationGetMode(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+// MARK: - XCAFDoc_AssemblyIterator (v0.90.0)
+
+/// Count the number of assembly items in a document.
+/// @param maxDepth Maximum depth to traverse (0 = unlimited)
+int32_t OCCTDocumentAssemblyItemCount(OCCTDocumentRef _Nonnull doc, int32_t maxDepth);
+
+// MARK: - XCAFDoc_DimTol (v0.90.0)
+
+/// Set a DimTol attribute on a label.
+/// @param kind Dimension/tolerance type code
+/// @param values Array of numeric values
+/// @param valueCount Number of values
+/// @param name Name string
+/// @param description Description string
+/// @return true on success
+bool OCCTDocumentSetDimTol(OCCTDocumentRef _Nonnull doc, int64_t labelId,
+                            int32_t kind,
+                            const double* _Nonnull values, int32_t valueCount,
+                            const char* _Nonnull name,
+                            const char* _Nonnull description);
+
+/// Get the kind of a DimTol attribute. Returns -1 if not found.
+int32_t OCCTDocumentGetDimTolKind(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the name of a DimTol attribute. Caller must free.
+const char* _Nullable OCCTDocumentGetDimTolName(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the description of a DimTol attribute. Caller must free.
+const char* _Nullable OCCTDocumentGetDimTolDescription(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the values of a DimTol attribute.
+/// @param outValues Output buffer for values
+/// @param maxCount Maximum values to return
+/// @return Number of values written
+int32_t OCCTDocumentGetDimTolValues(OCCTDocumentRef _Nonnull doc, int64_t labelId,
+                                     double* _Nonnull outValues, int32_t maxCount);
+
+/// Free a DimTol string (name or description).
+void OCCTDocumentFreeDimTolString(const char* _Nullable str);
+
+// MARK: - IntTools_Tools (v0.90.0)
+
+/// Check if two vertices are coincident (within tolerance).
+/// @return 0 if coincident, non-zero otherwise
+int32_t OCCTIntToolsComputeVV(OCCTShapeRef _Nonnull vertex1, OCCTShapeRef _Nonnull vertex2);
+
+/// Compute an intermediate parameter between two values.
+double OCCTIntToolsIntermediatePoint(double first, double last);
+
+/// Check if two directions are coincident (parallel or anti-parallel).
+bool OCCTIntToolsIsDirsCoinside(double dx1, double dy1, double dz1,
+                                 double dx2, double dy2, double dz2);
+
+/// Check if two directions are coincident within a tolerance.
+bool OCCTIntToolsIsDirsCoinisdeWithTol(double dx1, double dy1, double dz1,
+                                        double dx2, double dy2, double dz2, double tol);
+
+/// Compute intersection range from tolerances and angle.
+double OCCTIntToolsComputeIntRange(double tol1, double tol2, double angle);
+
 #ifdef __cplusplus
 }
 #endif

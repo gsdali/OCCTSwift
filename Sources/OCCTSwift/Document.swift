@@ -4440,3 +4440,310 @@ extension Document {
         OCCTDocumentDataSetIsEmpty(handle, labelId)
     }
 }
+
+// MARK: - TDF_ChildIDIterator (v0.90.0)
+
+extension Document {
+
+    /// Count child labels that have an attribute with the given GUID.
+    /// - Parameters:
+    ///   - labelId: Parent label to search
+    ///   - guid: GUID string of the attribute type
+    ///   - allLevels: If true, recurse into all descendants
+    /// - Returns: Number of matching children
+    public func childIDCount(labelId: Int64, guid: String, allLevels: Bool = false) -> Int {
+        Int(OCCTDocumentChildIDCount(handle, labelId, guid, allLevels))
+    }
+}
+
+// MARK: - TDocStd_PathParser (v0.90.0)
+
+/// Utility for parsing file paths into components.
+public enum PathParser {
+
+    /// Parse a file path and return the directory (trek) component.
+    public static func trek(_ path: String) -> String? {
+        guard let ptr = OCCTPathParserTrek(path) else { return nil }
+        defer { OCCTPathParserFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Parse a file path and return the filename (without extension).
+    public static func name(_ path: String) -> String? {
+        guard let ptr = OCCTPathParserName(path) else { return nil }
+        defer { OCCTPathParserFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Parse a file path and return the file extension.
+    public static func fileExtension(_ path: String) -> String? {
+        guard let ptr = OCCTPathParserExtension(path) else { return nil }
+        defer { OCCTPathParserFreeString(ptr) }
+        return String(cString: ptr)
+    }
+}
+
+// MARK: - TFunction_DriverTable (v0.90.0)
+
+/// Global function driver registry.
+public enum FunctionDriverTable {
+
+    /// Check if a function driver with the given GUID is registered.
+    public static func hasDriver(guid: String) -> Bool {
+        OCCTFunctionDriverTableHasDriver(guid)
+    }
+
+    /// Clear all registered function drivers.
+    public static func clear() {
+        OCCTFunctionDriverTableClear()
+    }
+}
+
+// MARK: - TNaming_Scope (v0.90.0)
+
+extension Document {
+
+    /// Mark a label as valid in the naming scope.
+    @discardableResult
+    public func namingScopeValid(labelId: Int64) -> Bool {
+        OCCTDocumentNamingScopeValid(handle, labelId)
+    }
+
+    /// Mark a label and its children as valid in the naming scope.
+    @discardableResult
+    public func namingScopeValidChildren(labelId: Int64, withRoot: Bool = true) -> Bool {
+        OCCTDocumentNamingScopeValidChildren(handle, labelId, withRoot)
+    }
+
+    /// Check if a label is valid in the naming scope.
+    public func namingScopeIsValid(labelId: Int64) -> Bool {
+        OCCTDocumentNamingScopeIsValid(handle, labelId)
+    }
+
+    /// Remove a label from the valid set in the naming scope.
+    @discardableResult
+    public func namingScopeUnvalid(labelId: Int64) -> Bool {
+        OCCTDocumentNamingScopeUnvalid(handle, labelId)
+    }
+
+    /// Clear all valid labels in the naming scope.
+    public func namingScopeClear() {
+        OCCTDocumentNamingScopeClear(handle)
+    }
+
+    /// Number of valid labels in the naming scope.
+    public var namingScopeValidCount: Int {
+        Int(OCCTDocumentNamingScopeValidCount(handle))
+    }
+}
+
+// MARK: - TNaming_Translator (v0.90.0)
+
+extension Shape {
+
+    /// Create a deep copy of this shape using TNaming_Translator.
+    /// The copy has independent topology (different TShape pointers).
+    public func translatorCopy() -> Shape? {
+        guard let ref = OCCTShapeTranslatorCopy(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Check if two shapes share the same underlying TShape.
+    public func isSame(as other: Shape) -> Bool {
+        OCCTShapeIsSame(handle, other.handle)
+    }
+}
+
+// MARK: - TDataXtd_Placement (v0.90.0)
+
+extension Document {
+
+    /// Set a placement marker attribute on a label.
+    @discardableResult
+    public func setPlacement(labelId: Int64) -> Bool {
+        OCCTDocumentSetPlacement(handle, labelId)
+    }
+
+    /// Check if a label has a placement marker attribute.
+    public func hasPlacement(labelId: Int64) -> Bool {
+        OCCTDocumentHasPlacement(handle, labelId)
+    }
+}
+
+// MARK: - TDataXtd_Presentation (v0.90.0)
+
+extension Document {
+
+    /// Set a presentation attribute on a label with a driver GUID.
+    @discardableResult
+    public func setPresentation(labelId: Int64, driverGUID: String) -> Bool {
+        OCCTDocumentSetPresentation(handle, labelId, driverGUID)
+    }
+
+    /// Remove a presentation attribute from a label.
+    public func unsetPresentation(labelId: Int64) {
+        OCCTDocumentUnsetPresentation(handle, labelId)
+    }
+
+    /// Check if a label has a presentation attribute.
+    public func hasPresentation(labelId: Int64) -> Bool {
+        OCCTDocumentHasPresentation(handle, labelId)
+    }
+
+    /// Set the display state of a presentation.
+    @discardableResult
+    public func presentationSetDisplayed(labelId: Int64, displayed: Bool) -> Bool {
+        OCCTDocumentPresentationSetDisplayed(handle, labelId, displayed)
+    }
+
+    /// Get the display state of a presentation.
+    public func presentationIsDisplayed(labelId: Int64) -> Bool {
+        OCCTDocumentPresentationIsDisplayed(handle, labelId)
+    }
+
+    /// Set the color of a presentation (Quantity_NameOfColor index).
+    @discardableResult
+    public func presentationSetColor(labelId: Int64, colorIndex: Int32) -> Bool {
+        OCCTDocumentPresentationSetColor(handle, labelId, colorIndex)
+    }
+
+    /// Get the color of a presentation. Returns nil if no own color.
+    public func presentationGetColor(labelId: Int64) -> Int32? {
+        let v = OCCTDocumentPresentationGetColor(handle, labelId)
+        return v >= 0 ? v : nil
+    }
+
+    /// Set the transparency of a presentation [0.0, 1.0].
+    @discardableResult
+    public func presentationSetTransparency(labelId: Int64, value: Double) -> Bool {
+        OCCTDocumentPresentationSetTransparency(handle, labelId, value)
+    }
+
+    /// Get the transparency. Returns nil if no own transparency.
+    public func presentationGetTransparency(labelId: Int64) -> Double? {
+        let v = OCCTDocumentPresentationGetTransparency(handle, labelId)
+        return v >= 0 ? v : nil
+    }
+
+    /// Set the line width of a presentation.
+    @discardableResult
+    public func presentationSetWidth(labelId: Int64, width: Double) -> Bool {
+        OCCTDocumentPresentationSetWidth(handle, labelId, width)
+    }
+
+    /// Get the line width. Returns nil if no own width.
+    public func presentationGetWidth(labelId: Int64) -> Double? {
+        let v = OCCTDocumentPresentationGetWidth(handle, labelId)
+        return v >= 0 ? v : nil
+    }
+
+    /// Set the display mode of a presentation (0=wireframe, 1=shaded, etc.).
+    @discardableResult
+    public func presentationSetMode(labelId: Int64, mode: Int32) -> Bool {
+        OCCTDocumentPresentationSetMode(handle, labelId, mode)
+    }
+
+    /// Get the display mode. Returns nil if no own mode.
+    public func presentationGetMode(labelId: Int64) -> Int32? {
+        let v = OCCTDocumentPresentationGetMode(handle, labelId)
+        return v >= 0 ? v : nil
+    }
+}
+
+// MARK: - XCAFDoc_AssemblyIterator (v0.90.0)
+
+extension Document {
+
+    /// Count the number of assembly items in the document.
+    /// - Parameter maxDepth: Maximum traversal depth (0 = unlimited)
+    public func assemblyItemCount(maxDepth: Int = 0) -> Int {
+        Int(OCCTDocumentAssemblyItemCount(handle, Int32(maxDepth)))
+    }
+}
+
+// MARK: - XCAFDoc_DimTol (v0.90.0)
+
+extension Document {
+
+    /// Set a dimension/tolerance attribute on a label.
+    /// - Parameters:
+    ///   - labelId: Label to set on
+    ///   - kind: Dimension/tolerance type code
+    ///   - values: Array of numeric values
+    ///   - name: Name string
+    ///   - description: Description string
+    @discardableResult
+    public func setDimTol(labelId: Int64, kind: Int32, values: [Double],
+                          name: String, description: String) -> Bool {
+        values.withUnsafeBufferPointer { buf in
+            OCCTDocumentSetDimTol(handle, labelId, kind,
+                                  buf.baseAddress!, Int32(values.count),
+                                  name, description)
+        }
+    }
+
+    /// Get the kind of a DimTol attribute. Returns nil if not found.
+    public func dimTolKind(labelId: Int64) -> Int32? {
+        let v = OCCTDocumentGetDimTolKind(handle, labelId)
+        return v >= 0 ? v : nil
+    }
+
+    /// Get the name of a DimTol attribute.
+    public func dimTolName(labelId: Int64) -> String? {
+        guard let ptr = OCCTDocumentGetDimTolName(handle, labelId) else { return nil }
+        defer { OCCTDocumentFreeDimTolString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Get the description of a DimTol attribute.
+    public func dimTolDescription(labelId: Int64) -> String? {
+        guard let ptr = OCCTDocumentGetDimTolDescription(handle, labelId) else { return nil }
+        defer { OCCTDocumentFreeDimTolString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Get the values of a DimTol attribute.
+    public func dimTolValues(labelId: Int64) -> [Double]? {
+        var buffer = [Double](repeating: 0, count: 32)
+        let count = buffer.withUnsafeMutableBufferPointer { buf in
+            OCCTDocumentGetDimTolValues(handle, labelId, buf.baseAddress!, 32)
+        }
+        if count <= 0 { return nil }
+        return Array(buffer.prefix(Int(count)))
+    }
+}
+
+// MARK: - IntTools_Tools (v0.90.0)
+
+/// Static utility functions for intersection computations.
+public enum IntTools {
+
+    /// Check if two vertex shapes are coincident (within tolerance).
+    /// - Returns: 0 if coincident, non-zero otherwise
+    public static func computeVV(_ vertex1: Shape, _ vertex2: Shape) -> Int {
+        Int(OCCTIntToolsComputeVV(vertex1.handle, vertex2.handle))
+    }
+
+    /// Compute an intermediate parameter between two values.
+    public static func intermediatePoint(first: Double, last: Double) -> Double {
+        OCCTIntToolsIntermediatePoint(first, last)
+    }
+
+    /// Check if two directions are coincident (parallel or anti-parallel).
+    public static func isDirsCoinside(dx1: Double, dy1: Double, dz1: Double,
+                                       dx2: Double, dy2: Double, dz2: Double) -> Bool {
+        OCCTIntToolsIsDirsCoinside(dx1, dy1, dz1, dx2, dy2, dz2)
+    }
+
+    /// Check if two directions are coincident within a tolerance.
+    public static func isDirsCoinside(dx1: Double, dy1: Double, dz1: Double,
+                                       dx2: Double, dy2: Double, dz2: Double,
+                                       tolerance: Double) -> Bool {
+        OCCTIntToolsIsDirsCoinisdeWithTol(dx1, dy1, dz1, dx2, dy2, dz2, tolerance)
+    }
+
+    /// Compute intersection range from tolerances and angle.
+    public static func computeIntRange(tol1: Double, tol2: Double, angle: Double) -> Double {
+        OCCTIntToolsComputeIntRange(tol1, tol2, angle)
+    }
+}

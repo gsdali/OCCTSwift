@@ -35155,3 +35155,470 @@ bool OCCTDocumentDataSetIsEmpty(OCCTDocumentRef doc, int64_t labelId) {
     } catch (...) { return true; }
 }
 
+// MARK: - TDF_ChildIDIterator (v0.90.0)
+
+#include <TDF_ChildIDIterator.hxx>
+
+int32_t OCCTDocumentChildIDCount(OCCTDocumentRef doc, int64_t labelId,
+                                  const char* guidString, bool allLevels) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Standard_GUID guid(guidString);
+        int count = 0;
+        for (TDF_ChildIDIterator it(label, guid, allLevels); it.More(); it.Next()) {
+            count++;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+// MARK: - TDocStd_PathParser (v0.90.0)
+
+#include <TDocStd_PathParser.hxx>
+
+const char* OCCTPathParserTrek(const char* path) {
+    try {
+        TCollection_ExtendedString epath(path);
+        TDocStd_PathParser parser(epath);
+        TCollection_AsciiString astr(parser.Trek());
+        return strdup(astr.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTPathParserName(const char* path) {
+    try {
+        TCollection_ExtendedString epath(path);
+        TDocStd_PathParser parser(epath);
+        TCollection_AsciiString astr(parser.Name());
+        return strdup(astr.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTPathParserExtension(const char* path) {
+    try {
+        TCollection_ExtendedString epath(path);
+        TDocStd_PathParser parser(epath);
+        TCollection_AsciiString astr(parser.Extension());
+        return strdup(astr.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTPathParserFreeString(const char* str) {
+    if (str) free((void*)str);
+}
+
+// MARK: - TFunction_DriverTable (v0.90.0)
+
+#include <TFunction_DriverTable.hxx>
+#include <TFunction_Driver.hxx>
+
+bool OCCTFunctionDriverTableHasDriver(const char* guidString) {
+    try {
+        Handle(TFunction_DriverTable) table = TFunction_DriverTable::Get();
+        if (table.IsNull()) return false;
+        Standard_GUID guid(guidString);
+        return table->HasDriver(guid);
+    } catch (...) { return false; }
+}
+
+void OCCTFunctionDriverTableClear() {
+    try {
+        Handle(TFunction_DriverTable) table = TFunction_DriverTable::Get();
+        if (!table.IsNull()) table->Clear();
+    } catch (...) {}
+}
+
+// MARK: - TNaming_Scope (v0.90.0)
+
+#include <TNaming_Scope.hxx>
+
+static TNaming_Scope& getDocNamingScope() {
+    static TNaming_Scope scope(true);
+    return scope;
+}
+
+bool OCCTDocumentNamingScopeValid(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        getDocNamingScope().Valid(label);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamingScopeValidChildren(OCCTDocumentRef doc, int64_t labelId, bool withRoot) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        getDocNamingScope().ValidChildren(label, withRoot);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamingScopeIsValid(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        return getDocNamingScope().IsValid(label);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamingScopeUnvalid(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        getDocNamingScope().Unvalid(label);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTDocumentNamingScopeClear(OCCTDocumentRef doc) {
+    try {
+        getDocNamingScope().ClearValid();
+    } catch (...) {}
+}
+
+int32_t OCCTDocumentNamingScopeValidCount(OCCTDocumentRef doc) {
+    try {
+        return getDocNamingScope().GetValid().Extent();
+    } catch (...) { return 0; }
+}
+
+// MARK: - TNaming_Translator (v0.90.0)
+
+#include <TNaming_Translator.hxx>
+
+OCCTShapeRef OCCTShapeTranslatorCopy(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        TNaming_Translator translator;
+        translator.Add(shape->shape);
+        translator.Perform();
+        if (!translator.IsDone()) return nullptr;
+        TopoDS_Shape copy = translator.Copied(shape->shape);
+        if (copy.IsNull()) return nullptr;
+        OCCTShape* result = new OCCTShape();
+        result->shape = copy;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeIsSame(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1 || !shape2) return false;
+    return shape1->shape.IsSame(shape2->shape);
+}
+
+// MARK: - TDataXtd_Placement (v0.90.0)
+
+#include <TDataXtd_Placement.hxx>
+
+bool OCCTDocumentSetPlacement(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_Placement) p = TDataXtd_Placement::Set(label);
+        return !p.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasPlacement(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_Placement) p;
+        return label.FindAttribute(TDataXtd_Placement::GetID(), p);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataXtd_Presentation (v0.90.0)
+
+#include <TDataXtd_Presentation.hxx>
+
+bool OCCTDocumentSetPresentation(OCCTDocumentRef doc, int64_t labelId, const char* driverGUID) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Standard_GUID guid(driverGUID);
+        Handle(TDataXtd_Presentation) pres = TDataXtd_Presentation::Set(label, guid);
+        return !pres.IsNull();
+    } catch (...) { return false; }
+}
+
+void OCCTDocumentUnsetPresentation(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (!label.IsNull()) TDataXtd_Presentation::Unset(label);
+    } catch (...) {}
+}
+
+bool OCCTDocumentHasPresentation(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_Presentation) pres;
+        return label.FindAttribute(TDataXtd_Presentation::GetID(), pres);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentPresentationSetDisplayed(OCCTDocumentRef doc, int64_t labelId, bool displayed) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return false;
+        pres->SetDisplayed(displayed);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentPresentationIsDisplayed(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return false;
+        return pres->IsDisplayed();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentPresentationSetColor(OCCTDocumentRef doc, int64_t labelId, int32_t colorIndex) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return false;
+        pres->SetColor((Quantity_NameOfColor)colorIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentPresentationGetColor(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return -1;
+        if (!pres->HasOwnColor()) return -1;
+        return (int32_t)pres->Color();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentPresentationSetTransparency(OCCTDocumentRef doc, int64_t labelId, double value) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return false;
+        pres->SetTransparency(value);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTDocumentPresentationGetTransparency(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1.0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return -1.0;
+        if (!pres->HasOwnTransparency()) return -1.0;
+        return pres->Transparency();
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTDocumentPresentationSetWidth(OCCTDocumentRef doc, int64_t labelId, double width) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return false;
+        pres->SetWidth(width);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTDocumentPresentationGetWidth(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1.0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return -1.0;
+        if (!pres->HasOwnWidth()) return -1.0;
+        return pres->Width();
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTDocumentPresentationSetMode(OCCTDocumentRef doc, int64_t labelId, int32_t mode) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return false;
+        pres->SetMode(mode);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentPresentationGetMode(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_Presentation) pres;
+        if (!label.FindAttribute(TDataXtd_Presentation::GetID(), pres)) return -1;
+        if (!pres->HasOwnMode()) return -1;
+        return pres->Mode();
+    } catch (...) { return -1; }
+}
+
+// MARK: - XCAFDoc_AssemblyIterator (v0.90.0)
+
+#include <XCAFDoc_AssemblyIterator.hxx>
+
+int32_t OCCTDocumentAssemblyItemCount(OCCTDocumentRef doc, int32_t maxDepth) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        int level = (maxDepth <= 0) ? INT_MAX : maxDepth;
+        XCAFDoc_AssemblyIterator iter(doc->doc, level);
+        int count = 0;
+        while (iter.More()) {
+            count++;
+            iter.Next();
+            if (count > 100000) break;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+// MARK: - XCAFDoc_DimTol (v0.90.0)
+
+#include <XCAFDoc_DimTol.hxx>
+#include <TCollection_HAsciiString.hxx>
+
+bool OCCTDocumentSetDimTol(OCCTDocumentRef doc, int64_t labelId,
+                            int32_t kind,
+                            const double* values, int32_t valueCount,
+                            const char* name, const char* description) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        Handle(NCollection_HArray1<double>) vals;
+        if (valueCount > 0) {
+            vals = new NCollection_HArray1<double>(1, valueCount);
+            for (int i = 0; i < valueCount; i++) {
+                vals->SetValue(i + 1, values[i]);
+            }
+        }
+        Handle(TCollection_HAsciiString) hName = new TCollection_HAsciiString(name);
+        Handle(TCollection_HAsciiString) hDesc = new TCollection_HAsciiString(description);
+
+        Handle(XCAFDoc_DimTol) dt = XCAFDoc_DimTol::Set(label, kind, vals, hName, hDesc);
+        return !dt.IsNull();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentGetDimTolKind(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_DimTol) dt;
+        if (!label.FindAttribute(XCAFDoc_DimTol::GetID(), dt)) return -1;
+        return dt->GetKind();
+    } catch (...) { return -1; }
+}
+
+const char* OCCTDocumentGetDimTolName(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_DimTol) dt;
+        if (!label.FindAttribute(XCAFDoc_DimTol::GetID(), dt)) return nullptr;
+        Handle(TCollection_HAsciiString) name = dt->GetName();
+        if (name.IsNull()) return nullptr;
+        return strdup(name->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTDocumentGetDimTolDescription(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_DimTol) dt;
+        if (!label.FindAttribute(XCAFDoc_DimTol::GetID(), dt)) return nullptr;
+        Handle(TCollection_HAsciiString) desc = dt->GetDescription();
+        if (desc.IsNull()) return nullptr;
+        return strdup(desc->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTDocumentGetDimTolValues(OCCTDocumentRef doc, int64_t labelId,
+                                     double* outValues, int32_t maxCount) {
+    if (!doc || doc->doc.IsNull() || !outValues) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_DimTol) dt;
+        if (!label.FindAttribute(XCAFDoc_DimTol::GetID(), dt)) return 0;
+        Handle(NCollection_HArray1<double>) vals = dt->GetVal();
+        if (vals.IsNull()) return 0;
+        int count = std::min((int)vals->Length(), (int)maxCount);
+        for (int i = 0; i < count; i++) {
+            outValues[i] = vals->Value(i + 1);
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+void OCCTDocumentFreeDimTolString(const char* str) {
+    if (str) free((void*)str);
+}
+
+// MARK: - IntTools_Tools (v0.90.0)
+
+#include <IntTools_Tools.hxx>
+
+int32_t OCCTIntToolsComputeVV(OCCTShapeRef vertex1, OCCTShapeRef vertex2) {
+    if (!vertex1 || !vertex2) return -1;
+    try {
+        return IntTools_Tools::ComputeVV(
+            TopoDS::Vertex(vertex1->shape),
+            TopoDS::Vertex(vertex2->shape));
+    } catch (...) { return -1; }
+}
+
+double OCCTIntToolsIntermediatePoint(double first, double last) {
+    try {
+        return IntTools_Tools::IntermediatePoint(first, last);
+    } catch (...) { return 0.5 * (first + last); }
+}
+
+bool OCCTIntToolsIsDirsCoinside(double dx1, double dy1, double dz1,
+                                 double dx2, double dy2, double dz2) {
+    try {
+        return IntTools_Tools::IsDirsCoinside(gp_Dir(dx1, dy1, dz1), gp_Dir(dx2, dy2, dz2));
+    } catch (...) { return false; }
+}
+
+bool OCCTIntToolsIsDirsCoinisdeWithTol(double dx1, double dy1, double dz1,
+                                        double dx2, double dy2, double dz2, double tol) {
+    try {
+        return IntTools_Tools::IsDirsCoinside(gp_Dir(dx1, dy1, dz1), gp_Dir(dx2, dy2, dz2), tol);
+    } catch (...) { return false; }
+}
+
+double OCCTIntToolsComputeIntRange(double tol1, double tol2, double angle) {
+    try {
+        return IntTools_Tools::ComputeIntRange(tol1, tol2, angle);
+    } catch (...) { return 0.0; }
+}
+

@@ -235,7 +235,17 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **TFunction_Scope** | 7 | setFunctionScope, functionScopeAdd, functionScopeRemove, functionScopeHas, functionScopeRemoveAll, functionScopeCount, functionScopeFreeID |
 | **TDF_AttributeIterator** | 1 | attributeCount |
 | **TDF_DataSet** | 1 | dataSetIsEmpty |
-| **Total** | **1760** | |
+| **TDF_ChildIDIterator** | 1 | childIDCount |
+| **TDocStd_PathParser** | 3 | trek, name, fileExtension |
+| **TFunction_DriverTable** | 2 | hasDriver, clear |
+| **TNaming_Scope** | 6 | valid, validChildren, isValid, unvalid, clear, validCount |
+| **TNaming_Translator** | 2 | translatorCopy, isSame |
+| **TDataXtd_Placement** | 2 | setPlacement, hasPlacement |
+| **TDataXtd_Presentation** | 13 | set, unset, has, setDisplayed, isDisplayed, setColor, getColor, setTransparency, getTransparency, setWidth, getWidth, setMode, getMode |
+| **XCAFDoc_AssemblyIterator** | 1 | assemblyItemCount |
+| **XCAFDoc_DimTol** | 5 | setDimTol, dimTolKind, dimTolName, dimTolDescription, dimTolValues |
+| **IntTools_Tools** | 5 | computeVV, intermediatePoint, isDirsCoinside, isDirsCoinisdeWithTol, computeIntRange |
+| **Total** | **1800** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1550,7 +1560,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1760 OCCT operations** across 101 categories with 2000 tests across 634 suites.
+OCCTSwift now wraps **1800 OCCT operations** across 112 categories with 2037 tests across 649 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

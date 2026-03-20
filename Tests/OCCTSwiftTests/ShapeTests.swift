@@ -25723,3 +25723,280 @@ struct TDFAttributeIteratorTests {
         #expect(!empty)
     }
 }
+
+// MARK: - v0.90.0 Tests
+
+@Suite("TDF ChildIDIterator Tests")
+struct TDFChildIDIteratorTests {
+
+    @Test func countByGUID() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let parent = doc.createLabel() else { return }
+        guard let c1 = doc.createLabel(parent: parent),
+              let c2 = doc.createLabel(parent: parent),
+              let c3 = doc.createLabel(parent: parent) else { return }
+        // Set Name on 2 children, leave c3 without Name
+        c1.setName("Child1")
+        c2.setName("Child2")
+        c3.setInteger(99)
+        doc.commitTransaction()
+
+        // TDataStd_Name GUID (OCCT 8.0.0-rc4)
+        let nameGUID = "2a96b608-ec8b-11d0-bee7-080009dc3333"
+        let count = doc.childIDCount(labelId: parent.labelId, guid: nameGUID)
+        #expect(count == 2)
+    }
+
+    @Test func emptyResult() {
+        guard let doc = Document.create() else { return }
+        guard let parent = doc.createLabel() else { return }
+        let count = doc.childIDCount(labelId: parent.labelId, guid: "99999999-9999-9999-9999-999999999999")
+        #expect(count == 0)
+    }
+}
+
+@Suite("TDocStd PathParser Tests")
+struct TDocStdPathParserTests {
+
+    @Test func parsePath() {
+        let trek = PathParser.trek("/home/user/docs/model.step")
+        #expect(trek != nil)
+        if let trek { #expect(trek.contains("home")) }
+    }
+
+    @Test func parseName() {
+        let name = PathParser.name("model.step")
+        #expect(name == "model")
+    }
+
+    @Test func parseExtension() {
+        let ext = PathParser.fileExtension("model.step")
+        #expect(ext == "step")
+    }
+}
+
+@Suite("TFunction DriverTable Tests")
+struct TFunctionDriverTableTests {
+
+    @Test func hasDriverUnknown() {
+        let has = FunctionDriverTable.hasDriver(guid: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        #expect(!has)
+    }
+
+    @Test func clear() {
+        FunctionDriverTable.clear()
+        // Just verify no crash
+    }
+}
+
+@Suite("TNaming Scope Tests")
+struct TNamingScopeTests {
+
+    @Test func validAndIsValid() {
+        guard let doc = Document.create() else { return }
+        doc.namingScopeClear()
+        guard let node = doc.createLabel() else { return }
+        doc.namingScopeValid(labelId: node.labelId)
+        #expect(doc.namingScopeIsValid(labelId: node.labelId))
+    }
+
+    @Test func unvalid() {
+        guard let doc = Document.create() else { return }
+        doc.namingScopeClear()
+        guard let node = doc.createLabel() else { return }
+        doc.namingScopeValid(labelId: node.labelId)
+        doc.namingScopeUnvalid(labelId: node.labelId)
+        #expect(!doc.namingScopeIsValid(labelId: node.labelId))
+    }
+
+    @Test func validCount() {
+        guard let doc = Document.create() else { return }
+        doc.namingScopeClear()
+        guard let n1 = doc.createLabel(), let n2 = doc.createLabel() else { return }
+        doc.namingScopeValid(labelId: n1.labelId)
+        doc.namingScopeValid(labelId: n2.labelId)
+        #expect(doc.namingScopeValidCount >= 2)
+        doc.namingScopeClear()
+        #expect(doc.namingScopeValidCount == 0)
+    }
+}
+
+@Suite("TNaming Translator Tests")
+struct TNamingTranslatorTests {
+
+    @Test func translatorCopy() {
+        guard let box = Shape.box(width: 10, height: 20, depth: 30) else { return }
+        guard let copy = box.translatorCopy() else {
+            #expect(Bool(false), "translatorCopy should succeed")
+            return
+        }
+        #expect(!box.isSame(as: copy))
+        #expect(copy.isValid)
+    }
+}
+
+@Suite("TDataXtd Placement Tests")
+struct TDataXtdPlacementTests {
+
+    @Test func setAndHas() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setPlacement(labelId: node.labelId)
+        doc.commitTransaction()
+        #expect(doc.hasPlacement(labelId: node.labelId))
+    }
+
+    @Test func noPlacement() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        #expect(!doc.hasPlacement(labelId: node.labelId))
+    }
+}
+
+@Suite("TDataXtd Presentation Tests")
+struct TDataXtdPresentationTests {
+
+    @Test func setAndHas() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setPresentation(labelId: node.labelId, driverGUID: "12345678-1234-1234-1234-123456789abc")
+        doc.commitTransaction()
+        #expect(doc.hasPresentation(labelId: node.labelId))
+    }
+
+    @Test func colorAndTransparency() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setPresentation(labelId: node.labelId, driverGUID: "12345678-1234-1234-1234-123456789abc")
+        doc.presentationSetColor(labelId: node.labelId, colorIndex: 12) // RED
+        doc.presentationSetTransparency(labelId: node.labelId, value: 0.5)
+        doc.commitTransaction()
+
+        if let color = doc.presentationGetColor(labelId: node.labelId) {
+            #expect(color == 12)
+        }
+        if let transparency = doc.presentationGetTransparency(labelId: node.labelId) {
+            #expect(abs(transparency - 0.5) < 1e-6)
+        }
+    }
+
+    @Test func widthAndMode() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setPresentation(labelId: node.labelId, driverGUID: "12345678-1234-1234-1234-123456789abc")
+        doc.presentationSetWidth(labelId: node.labelId, width: 2.0)
+        doc.presentationSetMode(labelId: node.labelId, mode: 1)
+        doc.commitTransaction()
+
+        if let width = doc.presentationGetWidth(labelId: node.labelId) {
+            #expect(abs(width - 2.0) < 1e-6)
+        }
+        if let mode = doc.presentationGetMode(labelId: node.labelId) {
+            #expect(mode == 1)
+        }
+    }
+
+    @Test func displayState() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setPresentation(labelId: node.labelId, driverGUID: "12345678-1234-1234-1234-123456789abc")
+        doc.presentationSetDisplayed(labelId: node.labelId, displayed: true)
+        doc.commitTransaction()
+        #expect(doc.presentationIsDisplayed(labelId: node.labelId))
+    }
+
+    @Test func unsetPresentation() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setPresentation(labelId: node.labelId, driverGUID: "12345678-1234-1234-1234-123456789abc")
+        doc.unsetPresentation(labelId: node.labelId)
+        doc.commitTransaction()
+        #expect(!doc.hasPresentation(labelId: node.labelId))
+    }
+}
+
+@Suite("XCAFDoc AssemblyIterator Tests")
+struct XCAFDocAssemblyIteratorTests {
+
+    @Test func iterateAssembly() {
+        guard let doc = Document.create() else { return }
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        doc.addShape(box)
+        let count = doc.assemblyItemCount()
+        #expect(count >= 1)
+    }
+}
+
+@Suite("XCAFDoc DimTol Tests")
+struct XCAFDocDimTolTests {
+
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setDimTol(labelId: node.labelId, kind: 1, values: [0.01, 0.05],
+                      name: "Flatness", description: "Surface flatness tolerance")
+        doc.commitTransaction()
+
+        if let kind = doc.dimTolKind(labelId: node.labelId) {
+            #expect(kind == 1)
+        }
+        if let name = doc.dimTolName(labelId: node.labelId) {
+            #expect(name == "Flatness")
+        }
+        if let desc = doc.dimTolDescription(labelId: node.labelId) {
+            #expect(desc == "Surface flatness tolerance")
+        }
+        if let vals = doc.dimTolValues(labelId: node.labelId) {
+            #expect(vals.count == 2)
+            if vals.count >= 2 {
+                #expect(abs(vals[0] - 0.01) < 1e-9)
+                #expect(abs(vals[1] - 0.05) < 1e-9)
+            }
+        }
+    }
+
+    @Test func noDimTol() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        #expect(doc.dimTolKind(labelId: node.labelId) == nil)
+    }
+}
+
+@Suite("IntTools Tests")
+struct IntToolsTests {
+
+    @Test func computeVV() {
+        guard let v1 = Shape.vertex(at: SIMD3(0, 0, 0)),
+              let v2 = Shape.vertex(at: SIMD3(0, 0, 0)) else { return }
+        #expect(IntTools.computeVV(v1, v2) == 0)
+    }
+
+    @Test func computeVVDistant() {
+        guard let v1 = Shape.vertex(at: SIMD3(0, 0, 0)),
+              let v2 = Shape.vertex(at: SIMD3(100, 100, 100)) else { return }
+        #expect(IntTools.computeVV(v1, v2) != 0)
+    }
+
+    @Test func intermediatePoint() {
+        let mid = IntTools.intermediatePoint(first: 0.0, last: 1.0)
+        #expect(mid > 0.0 && mid < 1.0)
+    }
+
+    @Test func isDirsCoinside() {
+        #expect(IntTools.isDirsCoinside(dx1: 1, dy1: 0, dz1: 0, dx2: 1, dy2: 0, dz2: 0))
+        #expect(!IntTools.isDirsCoinside(dx1: 1, dy1: 0, dz1: 0, dx2: 0, dy2: 1, dz2: 0))
+    }
+
+    @Test func computeIntRange() {
+        let range = IntTools.computeIntRange(tol1: 0.001, tol2: 0.001, angle: .pi / 4)
+        #expect(range > 0)
+    }
+}
