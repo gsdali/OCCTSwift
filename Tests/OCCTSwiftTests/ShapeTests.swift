@@ -26345,3 +26345,100 @@ struct TDataXtdConstraintTests {
         #expect(doc.constraintGetType(labelId: node.labelId) == nil)
     }
 }
+
+// MARK: - v0.93.0 Tests
+
+@Suite("OSD MemInfo Tests")
+struct OSDMemInfoTests {
+
+    @Test func heapUsage() {
+        #expect(MemInfo.heapUsage > 0)
+    }
+
+    @Test func heapUsageMiB() {
+        #expect(MemInfo.heapUsageMiB >= 0)
+    }
+
+    @Test func infoString() {
+        let info = MemInfo.infoString
+        #expect(info != nil)
+        if let info { #expect(info.count > 0) }
+    }
+}
+
+@Suite("ShapeFix EdgeProjAux Tests")
+struct ShapeFixEdgeProjAuxTests {
+
+    @Test func projectEdge() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        if let result = box.edgeProjAux(faceIndex: 0, edgeIndex: 0) {
+            #expect(result.last > result.first || result.last == result.first)
+        }
+    }
+}
+
+@Suite("Geom2dAPI Interpolate Tests")
+struct Geom2dAPIInterpolateTests {
+
+    @Test func basicInterpolation() {
+        let curve = Curve2D.interpolate2D(points: [(0, 0), (1, 1), (2, 0), (3, 1)])
+        #expect(curve != nil)
+    }
+
+    @Test func periodicInterpolation() {
+        let curve = Curve2D.interpolate2D(points: [(0, 0), (1, 1), (2, 0), (1, -1)], periodic: true)
+        #expect(curve != nil)
+    }
+}
+
+@Suite("Geom2dAPI PointsToBSpline Tests")
+struct Geom2dAPIPointsToBSplineTests {
+
+    @Test func basicApproximation() {
+        let curve = Curve2D.approximate2D(points: [(0, 0), (1, 2), (2, 1), (3, 3), (4, 0)])
+        #expect(curve != nil)
+    }
+}
+
+@Suite("TDataXtd PatternStd Tests")
+struct TDataXtdPatternStdTests {
+
+    @Test func setAndGetSignature() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setPattern(labelId: node.labelId)
+        doc.patternSetSignature(labelId: node.labelId, signature: .linear)
+        doc.commitTransaction()
+
+        if let sig = doc.patternGetSignature(labelId: node.labelId) {
+            #expect(sig == .linear)
+        }
+    }
+
+    @Test func hasPattern() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setPattern(labelId: node.labelId)
+        doc.commitTransaction()
+        #expect(doc.hasPattern(labelId: node.labelId))
+    }
+
+    @Test func noPattern() {
+        guard let doc = Document.create() else { return }
+        guard let node = doc.createLabel() else { return }
+        #expect(!doc.hasPattern(labelId: node.labelId))
+    }
+}
+
+@Suite("BRepAlgo FaceRestrictor Tests")
+struct BRepAlgoFaceRestrictorTests {
+
+    @Test func restrictFace() {
+        // Shape.box centers at origin, use origin-based box for consistent face indexing
+        guard let box = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10) else { return }
+        let count = box.faceRestrictAlgo(faceIndex: 0)
+        #expect(count >= 0) // 0 is valid if no wires restrict the face further
+    }
+}

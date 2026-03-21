@@ -36084,3 +36084,204 @@ bool OCCTDocumentConstraintClearGeometries(OCCTDocumentRef doc, int64_t labelId)
     } catch (...) { return false; }
 }
 
+// MARK: - OSD_MemInfo (v0.93.0)
+
+#include <OSD_MemInfo.hxx>
+
+int64_t OCCTMemInfoHeapUsage() {
+    try {
+        OSD_MemInfo info(true);
+        return (int64_t)info.Value(OSD_MemInfo::MemHeapUsage);
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTMemInfoWorkingSet() {
+    try {
+        OSD_MemInfo info(true);
+        return (int64_t)info.Value(OSD_MemInfo::MemWorkingSet);
+    } catch (...) { return -1; }
+}
+
+double OCCTMemInfoHeapUsageMiB() {
+    try {
+        OSD_MemInfo info(true);
+        return info.ValuePreciseMiB(OSD_MemInfo::MemHeapUsage);
+    } catch (...) { return -1.0; }
+}
+
+const char* OCCTMemInfoString() {
+    try {
+        TCollection_AsciiString str = OSD_MemInfo::PrintInfo();
+        return strdup(str.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTMemInfoFreeString(const char* str) {
+    if (str) free((void*)str);
+}
+
+// MARK: - ShapeFix_EdgeProjAux (v0.93.0)
+
+#include <ShapeFix_EdgeProjAux.hxx>
+
+bool OCCTShapeFixEdgeProjAux(OCCTShapeRef shape, int32_t faceIndex, int32_t edgeIndex,
+                              double precision, double* outFirst, double* outLast) {
+    if (!shape) return false;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return false;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        TopExp_Explorer edgeExp(face, TopAbs_EDGE);
+        for (int i = 0; i < edgeIndex && edgeExp.More(); i++) edgeExp.Next();
+        if (!edgeExp.More()) return false;
+        TopoDS_Edge edge = TopoDS::Edge(edgeExp.Current());
+
+        Handle(ShapeFix_EdgeProjAux) aux = new ShapeFix_EdgeProjAux(face, edge);
+        aux->Compute(precision);
+
+        if (aux->IsFirstDone()) *outFirst = aux->FirstParam(); else *outFirst = 0;
+        if (aux->IsLastDone()) *outLast = aux->LastParam(); else *outLast = 0;
+        return aux->IsFirstDone() && aux->IsLastDone();
+    } catch (...) { return false; }
+}
+
+// MARK: - Geom2dAPI_Interpolate (v0.93.0)
+
+#include <Geom2dAPI_Interpolate.hxx>
+
+OCCTCurve2DRef OCCTCurve2DInterpolate2D(const double* xs, const double* ys,
+                                          int32_t count, bool periodic, double tolerance) {
+    if (!xs || !ys || count < 2) return nullptr;
+    try {
+        Handle(NCollection_HArray1<gp_Pnt2d>) pts = new NCollection_HArray1<gp_Pnt2d>(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(xs[i], ys[i]));
+        }
+        Geom2dAPI_Interpolate interp(pts, periodic, tolerance);
+        interp.Perform();
+        if (!interp.IsDone()) return nullptr;
+        Handle(Geom2d_BSplineCurve) curve = interp.Curve();
+        if (curve.IsNull()) return nullptr;
+        OCCTCurve2D* result = new OCCTCurve2D();
+        result->curve = curve;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Geom2dAPI_PointsToBSpline (v0.93.0)
+
+#include <Geom2dAPI_PointsToBSpline.hxx>
+
+OCCTCurve2DRef OCCTCurve2DApproximate2D(const double* xs, const double* ys, int32_t count) {
+    if (!xs || !ys || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt2d pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt2d(xs[i], ys[i]));
+        }
+        Geom2dAPI_PointsToBSpline approx(pts);
+        if (!approx.IsDone()) return nullptr;
+        Handle(Geom2d_BSplineCurve) curve = approx.Curve();
+        if (curve.IsNull()) return nullptr;
+        OCCTCurve2D* result = new OCCTCurve2D();
+        result->curve = curve;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - TDataXtd_PatternStd (v0.93.0)
+
+#include <TDataXtd_PatternStd.hxx>
+#include <TDataXtd_Pattern.hxx>
+
+bool OCCTDocumentSetPatternStd(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TDataXtd_PatternStd) pat = TDataXtd_PatternStd::Set(label);
+        return !pat.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentPatternSetSignature(OCCTDocumentRef doc, int64_t labelId, int32_t signature) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_PatternStd) pat;
+        if (!label.FindAttribute(TDataXtd_Pattern::GetID(), pat)) return false;
+        pat->Signature(signature);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentPatternGetSignature(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_PatternStd) pat;
+        if (!label.FindAttribute(TDataXtd_Pattern::GetID(), pat)) return -1;
+        return pat->Signature();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDocumentPatternNbTrsfs(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_PatternStd) pat;
+        if (!label.FindAttribute(TDataXtd_Pattern::GetID(), pat)) return 0;
+        return pat->NbTrsfs();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDocumentHasPattern(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(TDataXtd_PatternStd) pat;
+        return label.FindAttribute(TDataXtd_Pattern::GetID(), pat);
+    } catch (...) { return false; }
+}
+
+// MARK: - BRepAlgo_FaceRestrictor (v0.93.0)
+
+#include <BRepAlgo_FaceRestrictor.hxx>
+
+int32_t OCCTShapeFaceRestrictAlgo(OCCTShapeRef shape, int32_t faceIndex,
+                                    OCCTShapeRef* outFaces, int32_t maxFaces) {
+    if (!shape) return -1;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return -1;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepAlgo_FaceRestrictor restrictor;
+        restrictor.Init(face, false, true);
+
+        // Add the face's own wires
+        TopExp_Explorer wireExp(face, TopAbs_WIRE);
+        for (; wireExp.More(); wireExp.Next()) {
+            TopoDS_Wire w = TopoDS::Wire(wireExp.Current());
+            restrictor.Add(w);
+        }
+
+        restrictor.Perform();
+        if (!restrictor.IsDone()) return -1;
+
+        int count = 0;
+        for (; restrictor.More() && count < maxFaces; restrictor.Next()) {
+            if (outFaces) {
+                OCCTShape* result = new OCCTShape();
+                result->shape = restrictor.Current();
+                outFaces[count] = result;
+            }
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+

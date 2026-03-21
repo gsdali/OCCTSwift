@@ -12270,6 +12270,79 @@ bool OCCTDocumentConstraintGetVerified(OCCTDocumentRef _Nonnull doc, int64_t lab
 /// Clear all geometries from a constraint.
 bool OCCTDocumentConstraintClearGeometries(OCCTDocumentRef _Nonnull doc, int64_t labelId);
 
+// MARK: - OSD_MemInfo (v0.93.0)
+
+/// Get heap usage in bytes.
+int64_t OCCTMemInfoHeapUsage(void);
+
+/// Get working set in bytes.
+int64_t OCCTMemInfoWorkingSet(void);
+
+/// Get heap usage in precise MiB.
+double OCCTMemInfoHeapUsageMiB(void);
+
+/// Get a full memory info string. Caller must free.
+const char* _Nullable OCCTMemInfoString(void);
+
+/// Free a memory info string.
+void OCCTMemInfoFreeString(const char* _Nullable str);
+
+// MARK: - ShapeFix_EdgeProjAux (v0.93.0)
+
+/// Project edge endpoints onto face pcurve.
+/// @param outFirst Output first parameter
+/// @param outLast Output last parameter
+/// @return true if both projections done
+bool OCCTShapeFixEdgeProjAux(OCCTShapeRef _Nonnull shape, int32_t faceIndex, int32_t edgeIndex,
+                              double precision,
+                              double* _Nonnull outFirst, double* _Nonnull outLast);
+
+// MARK: - Geom2dAPI_Interpolate (v0.93.0)
+
+/// Interpolate a 2D BSpline curve through points.
+/// @param xs Array of X coordinates
+/// @param ys Array of Y coordinates
+/// @param count Number of points
+/// @param periodic If true, create a periodic (closed) curve
+/// @param tolerance Interpolation tolerance
+/// @return Opaque curve handle, or NULL on failure. Caller must free with OCCTCurve2DRelease.
+OCCTCurve2DRef _Nullable OCCTCurve2DInterpolate2D(const double* _Nonnull xs, const double* _Nonnull ys,
+                                                     int32_t count, bool periodic, double tolerance);
+
+// MARK: - Geom2dAPI_PointsToBSpline (v0.93.0)
+
+/// Approximate a 2D BSpline curve through points.
+/// @param xs Array of X coordinates
+/// @param ys Array of Y coordinates
+/// @param count Number of points
+/// @return Opaque curve handle, or NULL on failure. Caller must free with OCCTCurve2DRelease.
+OCCTCurve2DRef _Nullable OCCTCurve2DApproximate2D(const double* _Nonnull xs, const double* _Nonnull ys,
+                                                     int32_t count);
+
+// MARK: - TDataXtd_PatternStd (v0.93.0)
+
+/// Set a TDataXtd_PatternStd attribute on a label.
+bool OCCTDocumentSetPatternStd(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set pattern signature (1=linear, 2=circular, 3=rectangular, 4=radial, 5=mirror).
+bool OCCTDocumentPatternSetSignature(OCCTDocumentRef _Nonnull doc, int64_t labelId, int32_t signature);
+
+/// Get pattern signature. Returns -1 if not found.
+int32_t OCCTDocumentPatternGetSignature(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get number of transforms in the pattern.
+int32_t OCCTDocumentPatternNbTrsfs(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a label has a pattern attribute.
+bool OCCTDocumentHasPattern(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+// MARK: - BRepAlgo_FaceRestrictor (v0.93.0)
+
+/// Restrict a face to its wires using BRepAlgo_FaceRestrictor and return result face count.
+/// @return Number of result faces, or -1 on error
+int32_t OCCTShapeFaceRestrictAlgo(OCCTShapeRef _Nonnull shape, int32_t faceIndex,
+                                    OCCTShapeRef _Nullable * _Nullable outFaces, int32_t maxFaces);
+
 #ifdef __cplusplus
 }
 #endif

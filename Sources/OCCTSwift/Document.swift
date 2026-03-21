@@ -5206,3 +5206,146 @@ extension Document {
         OCCTDocumentConstraintClearGeometries(handle, labelId)
     }
 }
+
+// MARK: - OSD_MemInfo (v0.93.0)
+
+/// Process memory information utility.
+public enum MemInfo {
+
+    /// Heap usage in bytes.
+    public static var heapUsage: Int64 { OCCTMemInfoHeapUsage() }
+
+    /// Working set in bytes.
+    public static var workingSet: Int64 { OCCTMemInfoWorkingSet() }
+
+    /// Heap usage in precise MiB.
+    public static var heapUsageMiB: Double { OCCTMemInfoHeapUsageMiB() }
+
+    /// Full memory info as a formatted string.
+    public static var infoString: String? {
+        guard let ptr = OCCTMemInfoString() else { return nil }
+        defer { OCCTMemInfoFreeString(ptr) }
+        return String(cString: ptr)
+    }
+}
+
+// MARK: - ShapeFix_EdgeProjAux (v0.93.0)
+
+extension Shape {
+
+    /// Project edge endpoints onto face pcurve.
+    /// - Parameters:
+    ///   - faceIndex: Index of the face (0-based)
+    ///   - edgeIndex: Index of the edge within the face (0-based)
+    ///   - precision: Projection precision
+    /// - Returns: (firstParam, lastParam) or nil if projection fails
+    public func edgeProjAux(faceIndex: Int, edgeIndex: Int, precision: Double = 1e-6) -> (first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard OCCTShapeFixEdgeProjAux(handle, Int32(faceIndex), Int32(edgeIndex), precision, &first, &last) else {
+            return nil
+        }
+        return (first, last)
+    }
+}
+
+// MARK: - Geom2dAPI_Interpolate (v0.93.0)
+
+extension Curve2D {
+
+    /// Interpolate a 2D BSpline curve through points.
+    /// - Parameters:
+    ///   - points: Array of 2D points (x, y)
+    ///   - periodic: If true, create a periodic (closed) curve
+    ///   - tolerance: Interpolation tolerance
+    /// - Returns: The interpolated curve, or nil on failure
+    public static func interpolate2D(points: [(Double, Double)], periodic: Bool = false, tolerance: Double = 1e-6) -> Curve2D? {
+        let xs = points.map(\.0)
+        let ys = points.map(\.1)
+        return xs.withUnsafeBufferPointer { xBuf in
+            ys.withUnsafeBufferPointer { yBuf in
+                guard let ref = OCCTCurve2DInterpolate2D(xBuf.baseAddress!, yBuf.baseAddress!,
+                                                         Int32(points.count), periodic, tolerance) else {
+                    return nil
+                }
+                return Curve2D(handle: ref)
+            }
+        }
+    }
+}
+
+// MARK: - Geom2dAPI_PointsToBSpline (v0.93.0)
+
+extension Curve2D {
+
+    /// Approximate a 2D BSpline curve through points.
+    /// - Parameter points: Array of 2D points (x, y)
+    /// - Returns: The approximated curve, or nil on failure
+    public static func approximate2D(points: [(Double, Double)]) -> Curve2D? {
+        let xs = points.map(\.0)
+        let ys = points.map(\.1)
+        return xs.withUnsafeBufferPointer { xBuf in
+            ys.withUnsafeBufferPointer { yBuf in
+                guard let ref = OCCTCurve2DApproximate2D(xBuf.baseAddress!, yBuf.baseAddress!,
+                                                          Int32(points.count)) else {
+                    return nil
+                }
+                return Curve2D(handle: ref)
+            }
+        }
+    }
+}
+
+// MARK: - TDataXtd_PatternStd (v0.93.0)
+
+extension Document {
+
+    /// Pattern type for TDataXtd_PatternStd.
+    public enum PatternSignature: Int32 {
+        case linear = 1
+        case circular = 2
+        case rectangular = 3
+        case radialCircular = 4
+        case mirror = 5
+    }
+
+    /// Set a pattern attribute on a label.
+    @discardableResult
+    public func setPattern(labelId: Int64) -> Bool {
+        OCCTDocumentSetPatternStd(handle, labelId)
+    }
+
+    /// Check if a label has a pattern attribute.
+    public func hasPattern(labelId: Int64) -> Bool {
+        OCCTDocumentHasPattern(handle, labelId)
+    }
+
+    /// Set pattern signature (type).
+    @discardableResult
+    public func patternSetSignature(labelId: Int64, signature: PatternSignature) -> Bool {
+        OCCTDocumentPatternSetSignature(handle, labelId, signature.rawValue)
+    }
+
+    /// Get pattern signature. Returns nil if not found.
+    public func patternGetSignature(labelId: Int64) -> PatternSignature? {
+        let raw = OCCTDocumentPatternGetSignature(handle, labelId)
+        if raw < 0 { return nil }
+        return PatternSignature(rawValue: raw)
+    }
+
+    /// Number of transforms in the pattern.
+    public func patternNbTrsfs(labelId: Int64) -> Int {
+        Int(OCCTDocumentPatternNbTrsfs(handle, labelId))
+    }
+}
+
+// MARK: - BRepAlgo_FaceRestrictor (v0.93.0)
+
+extension Shape {
+
+    /// Restrict a face to its wires using BRepAlgo_FaceRestrictor.
+    /// - Parameter faceIndex: Index of the face (0-based)
+    /// - Returns: Number of result faces
+    public func faceRestrictAlgo(faceIndex: Int) -> Int {
+        Int(OCCTShapeFaceRestrictAlgo(handle, Int32(faceIndex), nil, 0))
+    }
+}
