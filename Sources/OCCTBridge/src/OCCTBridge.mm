@@ -36698,4 +36698,211 @@ bool OCCTShapeFixIntersectingWires(OCCTShapeRef shape, int32_t faceIndex, double
     } catch (...) { return false; }
 }
 
+// MARK: - XCAFDoc_AssemblyItemRef (v0.96.0)
+
+#include <XCAFDoc_AssemblyItemRef.hxx>
+#include <XCAFDoc_AssemblyItemId.hxx>
+
+bool OCCTDocumentSetAssemblyItemRef(OCCTDocumentRef doc, int64_t labelId, const char* itemPath) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TCollection_AsciiString path(itemPath);
+        XCAFDoc_AssemblyItemId itemId(path);
+        Handle(XCAFDoc_AssemblyItemRef) ref = XCAFDoc_AssemblyItemRef::Set(label, itemId);
+        return !ref.IsNull();
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentGetAssemblyItemRef(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return nullptr;
+        TCollection_AsciiString path = ref->GetItem().ToString();
+        return strdup(path.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentAssemblyItemRefSetSubshape(OCCTDocumentRef doc, int64_t labelId, int32_t index) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return false;
+        ref->SetSubshapeIndex(index);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentAssemblyItemRefGetSubshape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return -1;
+        if (!ref->IsSubshapeIndex()) return -1;
+        return ref->GetSubshapeIndex();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentAssemblyItemRefHasExtra(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return false;
+        return ref->HasExtraRef();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentAssemblyItemRefClearExtra(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return false;
+        ref->ClearExtraRef();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentAssemblyItemRefIsOrphan(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return true;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return true;
+        return ref->IsOrphan();
+    } catch (...) { return true; }
+}
+
+void OCCTDocumentFreeAssemblyItemRefString(const char* str) {
+    if (str) free((void*)str);
+}
+
+// MARK: - BRepAlgo_Image (v0.96.0)
+
+#include <BRepAlgo_Image.hxx>
+
+struct OCCTBRepAlgoImage {
+    BRepAlgo_Image image;
+};
+
+OCCTBRepAlgoImageRef OCCTBRepAlgoImageCreate() { return new OCCTBRepAlgoImage(); }
+void OCCTBRepAlgoImageRelease(OCCTBRepAlgoImageRef img) { delete img; }
+
+void OCCTBRepAlgoImageSetRoot(OCCTBRepAlgoImageRef img, OCCTShapeRef shape) {
+    if (img && shape) img->image.SetRoot(shape->shape);
+}
+
+void OCCTBRepAlgoImageBind(OCCTBRepAlgoImageRef img, OCCTShapeRef oldShape, OCCTShapeRef newShape) {
+    if (img && oldShape && newShape) img->image.Bind(oldShape->shape, newShape->shape);
+}
+
+bool OCCTBRepAlgoImageHasImage(OCCTBRepAlgoImageRef img, OCCTShapeRef shape) {
+    if (!img || !shape) return false;
+    return img->image.HasImage(shape->shape);
+}
+
+bool OCCTBRepAlgoImageIsImage(OCCTBRepAlgoImageRef img, OCCTShapeRef shape) {
+    if (!img || !shape) return false;
+    return img->image.IsImage(shape->shape);
+}
+
+void OCCTBRepAlgoImageClear(OCCTBRepAlgoImageRef img) {
+    if (img) img->image.Clear();
+}
+
+// MARK: - OSD_Path (v0.96.0)
+
+#include <OSD_Path.hxx>
+
+const char* OCCTOSDPathName(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path p(apath);
+        TCollection_AsciiString name = p.Name();
+        return strdup(name.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTOSDPathExtension(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path p(apath);
+        TCollection_AsciiString ext = p.Extension();
+        return strdup(ext.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTOSDPathTrek(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path p(apath);
+        TCollection_AsciiString trek = p.Trek();
+        return strdup(trek.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTOSDPathSystemName(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path p(apath);
+        TCollection_AsciiString sysName;
+        p.SystemName(sysName);
+        return strdup(sysName.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTOSDPathFolderAndFile(const char* path, const char** outFolder, const char** outFile) {
+    try {
+        TCollection_AsciiString apath(path);
+        TCollection_AsciiString folder, file;
+        OSD_Path::FolderAndFileFromPath(apath, folder, file);
+        *outFolder = strdup(folder.ToCString());
+        *outFile = strdup(file.ToCString());
+    } catch (...) {
+        *outFolder = nullptr;
+        *outFile = nullptr;
+    }
+}
+
+bool OCCTOSDPathIsValid(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        return OSD_Path::IsValid(apath);
+    } catch (...) { return false; }
+}
+
+bool OCCTOSDPathIsUnixPath(const char* path) { return OSD_Path::IsUnixPath(path); }
+bool OCCTOSDPathIsRelative(const char* path) { return OSD_Path::IsRelativePath(path); }
+bool OCCTOSDPathIsAbsolute(const char* path) { return OSD_Path::IsAbsolutePath(path); }
+
+void OCCTOSDPathFreeString(const char* str) {
+    if (str) free((void*)str);
+}
+
+// MARK: - BRepClass_FClassifier (v0.96.0)
+
+#include <BRepClass_FaceExplorer.hxx>
+#include <BRepClass_FClassifier.hxx>
+
+int32_t OCCTShapeClassifyPoint2D(OCCTShapeRef shape, int32_t faceIndex,
+                                   double u, double v, double tolerance) {
+    if (!shape) return 3;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return 3;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepClass_FaceExplorer explorer(face);
+        BRepClass_FClassifier classifier(explorer, gp_Pnt2d(u, v), tolerance);
+        return (int32_t)classifier.State();
+    } catch (...) { return 3; }
+}
+
 

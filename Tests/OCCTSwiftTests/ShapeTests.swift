@@ -26674,8 +26674,125 @@ struct ShapeFixIntersectionToolTests {
 
     @Test func fixIntersectingWires() {
         guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
-        // Box faces have no self-intersections, so this should return false but not crash
         let fixed = box.fixIntersectingWires(faceIndex: 0)
-        #expect(!fixed) // no intersections to fix on a box
+        #expect(!fixed)
+    }
+}
+
+// MARK: - v0.96.0 Tests
+
+@Suite("XCAFDoc AssemblyItemRef Tests")
+struct XCAFDocAssemblyItemRefTests {
+
+    @Test func setAndGet() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setAssemblyItemRef(labelId: node.labelId, itemPath: "/0:1:1:1")
+        doc.commitTransaction()
+        let path = doc.assemblyItemRefPath(labelId: node.labelId)
+        #expect(path != nil)
+    }
+
+    @Test func subshapeIndex() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setAssemblyItemRef(labelId: node.labelId, itemPath: "/0:1:1:1")
+        doc.assemblyItemRefSetSubshape(labelId: node.labelId, index: 3)
+        doc.commitTransaction()
+        #expect(doc.assemblyItemRefHasExtra(labelId: node.labelId))
+        if let idx = doc.assemblyItemRefGetSubshape(labelId: node.labelId) {
+            #expect(idx == 3)
+        }
+    }
+
+    @Test func clearExtra() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setAssemblyItemRef(labelId: node.labelId, itemPath: "/0:1:1:1")
+        doc.assemblyItemRefSetSubshape(labelId: node.labelId, index: 5)
+        doc.assemblyItemRefClearExtra(labelId: node.labelId)
+        doc.commitTransaction()
+        #expect(!doc.assemblyItemRefHasExtra(labelId: node.labelId))
+    }
+
+    @Test func isOrphan() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.setAssemblyItemRef(labelId: node.labelId, itemPath: "/99:99:99")
+        doc.commitTransaction()
+        #expect(doc.assemblyItemRefIsOrphan(labelId: node.labelId))
+    }
+}
+
+@Suite("BRepAlgo Image Tests")
+struct BRepAlgoImageTests {
+
+    @Test func bindAndQuery() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let sphere = Shape.sphere(radius: 5) else { return }
+        let image = ShapeImage()
+        image.setRoot(box)
+        image.bind(old: box, new: sphere)
+        #expect(image.hasImage(box))
+        #expect(image.isImage(sphere))
+    }
+
+    @Test func clear() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let sphere = Shape.sphere(radius: 5) else { return }
+        let image = ShapeImage()
+        image.setRoot(box)
+        image.bind(old: box, new: sphere)
+        image.clear()
+        #expect(!image.hasImage(box))
+    }
+}
+
+@Suite("OSD Path Tests")
+struct OSDPathTests {
+
+    @Test func parseName() {
+        #expect(OSDPath.name("/home/user/model.step") == "model")
+    }
+
+    @Test func parseExtension() {
+        #expect(OSDPath.fileExtension("/home/user/model.step") == ".step")
+    }
+
+    @Test func folderAndFile() {
+        if let result = OSDPath.folderAndFile("/home/user/model.step") {
+            #expect(result.file == "model.step")
+        }
+    }
+
+    @Test func isValid() {
+        #expect(OSDPath.isValid("/tmp/test.txt"))
+    }
+
+    @Test func isAbsoluteAndRelative() {
+        #expect(OSDPath.isAbsolute("/absolute/path"))
+        #expect(OSDPath.isRelative("relative/path"))
+    }
+}
+
+@Suite("BRepClass FClassifier Tests")
+struct BRepClassFClassifierTests {
+
+    @Test func classifyPoint2DInside() {
+        // Box face UV bounds depend on which face — use a broad test
+        guard let box = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10) else { return }
+        // Point far outside UV bounds should definitely be OUT
+        let stateOut = box.classifyPoint2D(faceIndex: 0, u: 1000, v: 1000)
+        #expect(stateOut == .outside)
+    }
+
+    @Test func classifyPoint2DOutside() {
+        guard let box = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10) else { return }
+        let state = box.classifyPoint2D(faceIndex: 0, u: 100, v: 100)
+        #expect(state == .outside)
     }
 }

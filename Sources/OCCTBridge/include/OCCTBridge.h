@@ -12531,6 +12531,100 @@ double OCCTMathCroutDeterminant(const double* _Nonnull matrixData, int32_t n);
 /// @return true if any fixes were applied
 bool OCCTShapeFixIntersectingWires(OCCTShapeRef _Nonnull shape, int32_t faceIndex, double precision);
 
+// MARK: - XCAFDoc_AssemblyItemRef (v0.96.0)
+
+/// Set an assembly item reference on a label.
+bool OCCTDocumentSetAssemblyItemRef(OCCTDocumentRef _Nonnull doc, int64_t labelId,
+                                     const char* _Nonnull itemPath);
+
+/// Get the assembly item path string. Caller must free.
+const char* _Nullable OCCTDocumentGetAssemblyItemRef(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set subshape index on an assembly item ref.
+bool OCCTDocumentAssemblyItemRefSetSubshape(OCCTDocumentRef _Nonnull doc, int64_t labelId, int32_t index);
+
+/// Get subshape index. Returns -1 if not set.
+int32_t OCCTDocumentAssemblyItemRefGetSubshape(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if assembly item ref has extra reference (GUID or subshape).
+bool OCCTDocumentAssemblyItemRefHasExtra(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Clear extra reference from assembly item ref.
+bool OCCTDocumentAssemblyItemRefClearExtra(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if assembly item ref points to orphan (nonexistent item).
+bool OCCTDocumentAssemblyItemRefIsOrphan(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Free an assembly item ref string.
+void OCCTDocumentFreeAssemblyItemRefString(const char* _Nullable str);
+
+// MARK: - BRepAlgo_Image (v0.96.0)
+
+typedef struct OCCTBRepAlgoImage* OCCTBRepAlgoImageRef;
+
+/// Create a shape image mapping.
+OCCTBRepAlgoImageRef _Nonnull OCCTBRepAlgoImageCreate(void);
+
+/// Release a shape image.
+void OCCTBRepAlgoImageRelease(OCCTBRepAlgoImageRef _Nonnull img);
+
+/// Set root shape.
+void OCCTBRepAlgoImageSetRoot(OCCTBRepAlgoImageRef _Nonnull img, OCCTShapeRef _Nonnull shape);
+
+/// Bind old shape to new shape (replacement).
+void OCCTBRepAlgoImageBind(OCCTBRepAlgoImageRef _Nonnull img,
+                            OCCTShapeRef _Nonnull oldShape, OCCTShapeRef _Nonnull newShape);
+
+/// Check if shape has image.
+bool OCCTBRepAlgoImageHasImage(OCCTBRepAlgoImageRef _Nonnull img, OCCTShapeRef _Nonnull shape);
+
+/// Check if shape is an image of another.
+bool OCCTBRepAlgoImageIsImage(OCCTBRepAlgoImageRef _Nonnull img, OCCTShapeRef _Nonnull shape);
+
+/// Clear all mappings.
+void OCCTBRepAlgoImageClear(OCCTBRepAlgoImageRef _Nonnull img);
+
+// MARK: - OSD_Path (v0.96.0)
+
+/// Parse a path and return the filename (without extension). Caller must free.
+const char* _Nullable OCCTOSDPathName(const char* _Nonnull path);
+
+/// Parse a path and return the file extension (with dot). Caller must free.
+const char* _Nullable OCCTOSDPathExtension(const char* _Nonnull path);
+
+/// Parse a path and return the directory trek. Caller must free.
+const char* _Nullable OCCTOSDPathTrek(const char* _Nonnull path);
+
+/// Get the system name (full path). Caller must free.
+const char* _Nullable OCCTOSDPathSystemName(const char* _Nonnull path);
+
+/// Split path into folder and filename. Caller must free both.
+void OCCTOSDPathFolderAndFile(const char* _Nonnull path,
+                               const char* _Nullable * _Nonnull outFolder,
+                               const char* _Nullable * _Nonnull outFile);
+
+/// Check if a path is valid.
+bool OCCTOSDPathIsValid(const char* _Nonnull path);
+
+/// Check if path is a Unix absolute path.
+bool OCCTOSDPathIsUnixPath(const char* _Nonnull path);
+
+/// Check if path is relative.
+bool OCCTOSDPathIsRelative(const char* _Nonnull path);
+
+/// Check if path is absolute.
+bool OCCTOSDPathIsAbsolute(const char* _Nonnull path);
+
+/// Free an OSD path string.
+void OCCTOSDPathFreeString(const char* _Nullable str);
+
+// MARK: - BRepClass_FClassifier (v0.96.0)
+
+/// Classify a 2D point on a face (in UV space).
+/// @return 0=IN, 1=OUT, 2=ON, 3=UNKNOWN
+int32_t OCCTShapeClassifyPoint2D(OCCTShapeRef _Nonnull shape, int32_t faceIndex,
+                                   double u, double v, double tolerance);
+
 #ifdef __cplusplus
 }
 #endif

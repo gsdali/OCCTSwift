@@ -5667,3 +5667,147 @@ extension Shape {
         OCCTShapeFixIntersectingWires(handle, Int32(faceIndex), precision)
     }
 }
+
+// MARK: - XCAFDoc_AssemblyItemRef (v0.96.0)
+
+extension Document {
+
+    /// Set an assembly item reference on a label.
+    @discardableResult
+    public func setAssemblyItemRef(labelId: Int64, itemPath: String) -> Bool {
+        OCCTDocumentSetAssemblyItemRef(handle, labelId, itemPath)
+    }
+
+    /// Get the assembly item reference path string.
+    public func assemblyItemRefPath(labelId: Int64) -> String? {
+        guard let ptr = OCCTDocumentGetAssemblyItemRef(handle, labelId) else { return nil }
+        defer { OCCTDocumentFreeAssemblyItemRefString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Set subshape index on an assembly item ref.
+    @discardableResult
+    public func assemblyItemRefSetSubshape(labelId: Int64, index: Int32) -> Bool {
+        OCCTDocumentAssemblyItemRefSetSubshape(handle, labelId, index)
+    }
+
+    /// Get subshape index. Returns nil if not set.
+    public func assemblyItemRefGetSubshape(labelId: Int64) -> Int32? {
+        let v = OCCTDocumentAssemblyItemRefGetSubshape(handle, labelId)
+        return v >= 0 ? v : nil
+    }
+
+    /// Check if assembly item ref has extra reference.
+    public func assemblyItemRefHasExtra(labelId: Int64) -> Bool {
+        OCCTDocumentAssemblyItemRefHasExtra(handle, labelId)
+    }
+
+    /// Clear extra reference from assembly item ref.
+    @discardableResult
+    public func assemblyItemRefClearExtra(labelId: Int64) -> Bool {
+        OCCTDocumentAssemblyItemRefClearExtra(handle, labelId)
+    }
+
+    /// Check if assembly item ref is orphan.
+    public func assemblyItemRefIsOrphan(labelId: Int64) -> Bool {
+        OCCTDocumentAssemblyItemRefIsOrphan(handle, labelId)
+    }
+}
+
+// MARK: - BRepAlgo_Image (v0.96.0)
+
+/// Shape-to-shape image mapping for tracking shape history.
+public final class ShapeImage: @unchecked Sendable {
+    let handle: OCCTBRepAlgoImageRef
+
+    public init() { handle = OCCTBRepAlgoImageCreate() }
+    deinit { OCCTBRepAlgoImageRelease(handle) }
+
+    /// Set the root shape.
+    public func setRoot(_ shape: Shape) { OCCTBRepAlgoImageSetRoot(handle, shape.handle) }
+
+    /// Bind old shape to new shape (replacement).
+    public func bind(old: Shape, new: Shape) { OCCTBRepAlgoImageBind(handle, old.handle, new.handle) }
+
+    /// Check if shape has an image.
+    public func hasImage(_ shape: Shape) -> Bool { OCCTBRepAlgoImageHasImage(handle, shape.handle) }
+
+    /// Check if shape is an image of another.
+    public func isImage(_ shape: Shape) -> Bool { OCCTBRepAlgoImageIsImage(handle, shape.handle) }
+
+    /// Clear all mappings.
+    public func clear() { OCCTBRepAlgoImageClear(handle) }
+}
+
+// MARK: - OSD_Path (v0.96.0)
+
+/// File path parsing and manipulation utilities.
+public enum OSDPath {
+
+    /// Get the filename (without extension) from a path.
+    public static func name(_ path: String) -> String? {
+        guard let ptr = OCCTOSDPathName(path) else { return nil }
+        defer { OCCTOSDPathFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Get the file extension (with dot) from a path.
+    public static func fileExtension(_ path: String) -> String? {
+        guard let ptr = OCCTOSDPathExtension(path) else { return nil }
+        defer { OCCTOSDPathFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Get the directory trek from a path.
+    public static func trek(_ path: String) -> String? {
+        guard let ptr = OCCTOSDPathTrek(path) else { return nil }
+        defer { OCCTOSDPathFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Get the system-formatted path.
+    public static func systemName(_ path: String) -> String? {
+        guard let ptr = OCCTOSDPathSystemName(path) else { return nil }
+        defer { OCCTOSDPathFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Split path into folder and filename.
+    public static func folderAndFile(_ path: String) -> (folder: String, file: String)? {
+        var folderPtr: UnsafePointer<CChar>?
+        var filePtr: UnsafePointer<CChar>?
+        OCCTOSDPathFolderAndFile(path, &folderPtr, &filePtr)
+        guard let fp = folderPtr, let flp = filePtr else { return nil }
+        defer { OCCTOSDPathFreeString(fp); OCCTOSDPathFreeString(flp) }
+        return (String(cString: fp), String(cString: flp))
+    }
+
+    /// Check if path is valid.
+    public static func isValid(_ path: String) -> Bool { OCCTOSDPathIsValid(path) }
+
+    /// Check if path is a Unix path.
+    public static func isUnixPath(_ path: String) -> Bool { OCCTOSDPathIsUnixPath(path) }
+
+    /// Check if path is relative.
+    public static func isRelative(_ path: String) -> Bool { OCCTOSDPathIsRelative(path) }
+
+    /// Check if path is absolute.
+    public static func isAbsolute(_ path: String) -> Bool { OCCTOSDPathIsAbsolute(path) }
+}
+
+// MARK: - BRepClass_FClassifier (v0.96.0)
+
+extension Shape {
+
+    /// Classify a 2D point on a face (in UV parameter space).
+    /// - Parameters:
+    ///   - faceIndex: Face index (0-based)
+    ///   - u: U parameter
+    ///   - v: V parameter
+    ///   - tolerance: Classification tolerance
+    /// - Returns: Classification state
+    public func classifyPoint2D(faceIndex: Int, u: Double, v: Double, tolerance: Double = 1e-6) -> PointState {
+        let raw = OCCTShapeClassifyPoint2D(handle, Int32(faceIndex), u, v, tolerance)
+        return PointState(rawValue: raw) ?? .unknown
+    }
+}

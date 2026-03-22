@@ -276,7 +276,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **math_Householder** | 1 | solve |
 | **math_Crout** | 2 | solve, determinant |
 | **ShapeFix_IntersectionTool** | 1 | fixIntersectingWires |
-| **Total** | **1902** | |
+| **XCAFDoc_AssemblyItemRef** | 7 | setAssemblyItemRef, assemblyItemRefPath, setSubshape, getSubshape, hasExtra, clearExtra, isOrphan |
+| **BRepAlgo_Image** | 5 | create, setRoot, bind, hasImage, isImage, clear |
+| **OSD_Path** | 9 | name, fileExtension, trek, systemName, folderAndFile, isValid, isUnixPath, isRelative, isAbsolute |
+| **BRepClass_FClassifier** | 1 | classifyPoint2D |
+| **Total** | **1924** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1591,7 +1595,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1902 OCCT operations** across 144 categories with 2116 tests across 676 suites.
+OCCTSwift now wraps **1924 OCCT operations** across 148 categories with 2129 tests across 680 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 
