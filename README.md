@@ -280,7 +280,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepAlgo_Image** | 5 | create, setRoot, bind, hasImage, isImage, clear |
 | **OSD_Path** | 9 | name, fileExtension, trek, systemName, folderAndFile, isValid, isUnixPath, isRelative, isAbsolute |
 | **BRepClass_FClassifier** | 1 | classifyPoint2D |
-| **Total** | **1924** | |
+| **BRepAlgo_Loop** | 1 | buildLoops |
+| **Bnd_BoundSortBox** | 2 | create, compare |
+| **BRepGProp_Domain** | 1 | faceDomainEdgeCount |
+| **TNaming_Naming** | 2 | insertNaming, namingIsDefined |
+| **Precision** | 7 | confusion, angular, intersection, approximation, infinite, pConfusion, isInfinite |
+| **Total** | **1937** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1595,7 +1600,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1924 OCCT operations** across 148 categories with 2129 tests across 680 suites.
+OCCTSwift now wraps **1937 OCCT operations** across 153 categories with 2139 tests across 685 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

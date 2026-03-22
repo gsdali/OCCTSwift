@@ -26796,3 +26796,94 @@ struct BRepClassFClassifierTests {
         #expect(state == .outside)
     }
 }
+
+// MARK: - v0.97.0 Tests
+
+@Suite("BRepAlgo Loop Tests")
+struct BRepAlgoLoopTests {
+
+    @Test func buildLoops() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let wires = box.buildLoops(faceIndex: 0)
+        #expect(wires >= 1)
+    }
+}
+
+@Suite("Bnd BoundSortBox Tests")
+struct BndBoundSortBoxTests {
+
+    @Test func compareOverlapping() {
+        let boxes = [
+            [0.0, 0.0, 0.0, 10.0, 10.0, 10.0],
+            [50.0, 50.0, 50.0, 60.0, 60.0, 60.0],
+            [5.0, 5.0, 5.0, 15.0, 15.0, 15.0]
+        ]
+        let sorter = BoundSortBox(boxes: boxes)
+        let hits = sorter.compare(xmin: 8, ymin: 8, zmin: 8, xmax: 12, ymax: 12, zmax: 12)
+        #expect(hits.count >= 2) // overlaps boxes 0 and 2
+    }
+
+    @Test func compareNonOverlapping() {
+        let boxes = [
+            [0.0, 0.0, 0.0, 10.0, 10.0, 10.0]
+        ]
+        let sorter = BoundSortBox(boxes: boxes)
+        let hits = sorter.compare(xmin: 90, ymin: 90, zmin: 90, xmax: 95, ymax: 95, zmax: 95)
+        #expect(hits.count == 0)
+    }
+}
+
+@Suite("BRepGProp Domain Tests")
+struct BRepGPropDomainTests {
+
+    @Test func faceEdgeCount() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let count = box.faceDomainEdgeCount(faceIndex: 0)
+        #expect(count >= 3) // rectangular face has 4 edges
+    }
+}
+
+@Suite("TNaming Naming Tests")
+struct TNamingNamingTests {
+
+    @Test func insertNaming() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        let ok = doc.insertNaming(labelId: node.labelId)
+        doc.commitTransaction()
+        #expect(ok)
+    }
+
+    @Test func namingIsDefined() {
+        guard let doc = Document.create() else { return }
+        doc.openTransaction()
+        guard let node = doc.createLabel() else { return }
+        doc.insertNaming(labelId: node.labelId)
+        doc.commitTransaction()
+        // Newly inserted naming is not yet defined (no Name() called)
+        #expect(!doc.namingIsDefined(labelId: node.labelId))
+    }
+}
+
+@Suite("Precision Tests")
+struct PrecisionTests {
+
+    @Test func confusion() {
+        #expect(abs(OCCTPrecision.confusion - 1e-7) < 1e-15)
+    }
+
+    @Test func angular() {
+        #expect(abs(OCCTPrecision.angular - 1e-12) < 1e-20)
+    }
+
+    @Test func isInfinite() {
+        #expect(OCCTPrecision.isInfinite(3e100))
+        #expect(!OCCTPrecision.isInfinite(1.0))
+    }
+
+    @Test func ordering() {
+        #expect(OCCTPrecision.intersection < OCCTPrecision.confusion)
+        #expect(OCCTPrecision.approximation > OCCTPrecision.confusion)
+    }
+}

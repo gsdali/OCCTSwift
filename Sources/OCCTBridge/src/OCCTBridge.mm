@@ -36905,4 +36905,127 @@ int32_t OCCTShapeClassifyPoint2D(OCCTShapeRef shape, int32_t faceIndex,
     } catch (...) { return 3; }
 }
 
+// MARK: - BRepAlgo_Loop (v0.97.0)
 
+#include <BRepAlgo_Loop.hxx>
+
+int32_t OCCTShapeBuildLoops(OCCTShapeRef shape, int32_t faceIndex) {
+    if (!shape) return -1;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return -1;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepAlgo_Loop loop;
+        loop.Init(face);
+        TopExp_Explorer edgeExp(face, TopAbs_EDGE);
+        while (edgeExp.More()) {
+            loop.AddConstEdge(TopoDS::Edge(edgeExp.Current()));
+            edgeExp.Next();
+        }
+        loop.Perform();
+        return loop.NewWires().Size();
+    } catch (...) { return -1; }
+}
+
+// MARK: - Bnd_BoundSortBox (v0.97.0)
+
+#include <Bnd_BoundSortBox.hxx>
+
+struct OCCTBoundSortBox {
+    Bnd_BoundSortBox sorter;
+    Handle(NCollection_HArray1<Bnd_Box>) boxes;
+};
+
+OCCTBoundSortBoxRef OCCTBoundSortBoxCreate(const double* boxData, int32_t count) {
+    try {
+        auto* ref = new OCCTBoundSortBox();
+        ref->boxes = new NCollection_HArray1<Bnd_Box>(1, count);
+        Bnd_Box enclosing;
+        for (int i = 0; i < count; i++) {
+            Bnd_Box b;
+            b.Update(boxData[i*6], boxData[i*6+1], boxData[i*6+2],
+                     boxData[i*6+3], boxData[i*6+4], boxData[i*6+5]);
+            ref->boxes->SetValue(i+1, b);
+            enclosing.Add(b);
+        }
+        ref->sorter.Initialize(enclosing, ref->boxes);
+        return ref;
+    } catch (...) { return new OCCTBoundSortBox(); }
+}
+
+void OCCTBoundSortBoxRelease(OCCTBoundSortBoxRef bsb) { delete bsb; }
+
+int32_t OCCTBoundSortBoxCompare(OCCTBoundSortBoxRef bsb,
+                                  double xmin, double ymin, double zmin,
+                                  double xmax, double ymax, double zmax,
+                                  int32_t* outIndices, int32_t maxIndices) {
+    try {
+        Bnd_Box query;
+        query.Update(xmin, ymin, zmin, xmax, ymax, zmax);
+        auto& result = bsb->sorter.Compare(query);
+        int count = 0;
+        for (auto it = result.cbegin(); it != result.cend() && count < maxIndices; ++it) {
+            outIndices[count++] = *it;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+// MARK: - BRepGProp_Domain (v0.97.0)
+
+#include <BRepGProp_Domain.hxx>
+
+int32_t OCCTShapeFaceDomainEdgeCount(OCCTShapeRef shape, int32_t faceIndex) {
+    if (!shape) return 0;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return 0;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepGProp_Domain domain(face);
+        int count = 0;
+        domain.Init();
+        while (domain.More()) { count++; domain.Next(); }
+        return count;
+    } catch (...) { return 0; }
+}
+
+// MARK: - TNaming_Naming (v0.97.0)
+
+#include <TNaming_Naming.hxx>
+
+bool OCCTDocumentInsertNaming(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TNaming_Naming) naming = TNaming_Naming::Insert(label);
+        return !naming.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamingIsDefined(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TNaming_Naming) naming;
+        if (!label.FindAttribute(TNaming_Naming::GetID(), naming)) return false;
+        return naming->IsDefined();
+    } catch (...) { return false; }
+}
+
+// MARK: - Precision (v0.97.0)
+
+#include <Precision.hxx>
+
+double OCCTPrecisionConfusion() { return Precision::Confusion(); }
+double OCCTPrecisionAngular() { return Precision::Angular(); }
+double OCCTPrecisionIntersection() { return Precision::Intersection(); }
+double OCCTPrecisionApproximation() { return Precision::Approximation(); }
+double OCCTPrecisionInfinite() { return Precision::Infinite(); }
+double OCCTPrecisionPConfusion() { return Precision::PConfusion(); }
+bool OCCTPrecisionIsInfinite(double value) { return Precision::IsInfinite(value); }

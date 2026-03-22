@@ -12625,6 +12625,67 @@ void OCCTOSDPathFreeString(const char* _Nullable str);
 int32_t OCCTShapeClassifyPoint2D(OCCTShapeRef _Nonnull shape, int32_t faceIndex,
                                    double u, double v, double tolerance);
 
+// MARK: - BRepAlgo_Loop (v0.97.0)
+
+/// Build loops (wires) from edges on a face, then optionally convert to faces.
+/// @return Number of result wires/faces, or -1 on error
+int32_t OCCTShapeBuildLoops(OCCTShapeRef _Nonnull shape, int32_t faceIndex);
+
+// MARK: - Bnd_BoundSortBox (v0.97.0)
+
+typedef struct OCCTBoundSortBox* OCCTBoundSortBoxRef;
+
+/// Create a bound sort box with boxes.
+/// @param boxes Array of bounding boxes (6 doubles each: xmin,ymin,zmin,xmax,ymax,zmax)
+/// @param count Number of boxes
+OCCTBoundSortBoxRef _Nonnull OCCTBoundSortBoxCreate(const double* _Nonnull boxes, int32_t count);
+
+/// Release a bound sort box.
+void OCCTBoundSortBoxRelease(OCCTBoundSortBoxRef _Nonnull bsb);
+
+/// Find indices of boxes that intersect a query box.
+/// @return Number of hits
+int32_t OCCTBoundSortBoxCompare(OCCTBoundSortBoxRef _Nonnull bsb,
+                                  double xmin, double ymin, double zmin,
+                                  double xmax, double ymax, double zmax,
+                                  int32_t* _Nonnull outIndices, int32_t maxIndices);
+
+// MARK: - BRepGProp_Domain (v0.97.0)
+
+/// Count boundary edges of a face.
+int32_t OCCTShapeFaceDomainEdgeCount(OCCTShapeRef _Nonnull shape, int32_t faceIndex);
+
+// MARK: - TNaming_Naming (v0.97.0)
+
+/// Insert a TNaming_Naming attribute on a label.
+bool OCCTDocumentInsertNaming(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a naming attribute is defined on a label.
+bool OCCTDocumentNamingIsDefined(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+// MARK: - Precision (v0.97.0)
+
+/// Get OCCT confusion tolerance (1e-7).
+double OCCTPrecisionConfusion(void);
+
+/// Get OCCT angular tolerance (1e-12).
+double OCCTPrecisionAngular(void);
+
+/// Get OCCT intersection tolerance.
+double OCCTPrecisionIntersection(void);
+
+/// Get OCCT approximation tolerance.
+double OCCTPrecisionApproximation(void);
+
+/// Get OCCT infinite value (2e100).
+double OCCTPrecisionInfinite(void);
+
+/// Get OCCT parametric confusion tolerance.
+double OCCTPrecisionPConfusion(void);
+
+/// Check if a value is considered infinite.
+bool OCCTPrecisionIsInfinite(double value);
+
 #ifdef __cplusplus
 }
 #endif

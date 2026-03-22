@@ -5810,4 +5810,78 @@ extension Shape {
         let raw = OCCTShapeClassifyPoint2D(handle, Int32(faceIndex), u, v, tolerance)
         return PointState(rawValue: raw) ?? .unknown
     }
+
+    /// Build loops (wires) from edges on a face.
+    /// - Returns: Number of result wires, or -1 on error
+    public func buildLoops(faceIndex: Int) -> Int {
+        Int(OCCTShapeBuildLoops(handle, Int32(faceIndex)))
+    }
+
+    /// Count boundary edges of a face using BRepGProp_Domain.
+    public func faceDomainEdgeCount(faceIndex: Int) -> Int {
+        Int(OCCTShapeFaceDomainEdgeCount(handle, Int32(faceIndex)))
+    }
+}
+
+// MARK: - Bnd_BoundSortBox (v0.97.0)
+
+/// Spatial bounding box sort for fast intersection queries.
+public final class BoundSortBox: @unchecked Sendable {
+    let handle: OCCTBoundSortBoxRef
+
+    /// Create from an array of bounding boxes (each: [xmin,ymin,zmin,xmax,ymax,zmax]).
+    public init(boxes: [[Double]]) {
+        let flat = boxes.flatMap { $0 }
+        handle = flat.withUnsafeBufferPointer { buf in
+            OCCTBoundSortBoxCreate(buf.baseAddress!, Int32(boxes.count))
+        }
+    }
+
+    deinit { OCCTBoundSortBoxRelease(handle) }
+
+    /// Find indices of boxes that intersect a query box.
+    public func compare(xmin: Double, ymin: Double, zmin: Double,
+                        xmax: Double, ymax: Double, zmax: Double) -> [Int] {
+        var indices = [Int32](repeating: 0, count: 1000)
+        let count = indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBoundSortBoxCompare(handle, xmin, ymin, zmin, xmax, ymax, zmax, buf.baseAddress!, 1000)
+        }
+        return Array(indices.prefix(Int(count))).map { Int($0) }
+    }
+}
+
+// MARK: - TNaming_Naming (v0.97.0)
+
+extension Document {
+
+    /// Insert a TNaming_Naming attribute on a label.
+    @discardableResult
+    public func insertNaming(labelId: Int64) -> Bool {
+        OCCTDocumentInsertNaming(handle, labelId)
+    }
+
+    /// Check if a naming attribute is defined on a label.
+    public func namingIsDefined(labelId: Int64) -> Bool {
+        OCCTDocumentNamingIsDefined(handle, labelId)
+    }
+}
+
+// MARK: - Precision Constants (v0.97.0)
+
+/// OCCT precision constants.
+public enum OCCTPrecision {
+    /// Confusion tolerance (1e-7) — general distance tolerance.
+    public static var confusion: Double { OCCTPrecisionConfusion() }
+    /// Angular tolerance (1e-12) — for direction comparisons.
+    public static var angular: Double { OCCTPrecisionAngular() }
+    /// Intersection tolerance.
+    public static var intersection: Double { OCCTPrecisionIntersection() }
+    /// Approximation tolerance.
+    public static var approximation: Double { OCCTPrecisionApproximation() }
+    /// Infinite value (2e100).
+    public static var infinite: Double { OCCTPrecisionInfinite() }
+    /// Parametric confusion tolerance.
+    public static var pConfusion: Double { OCCTPrecisionPConfusion() }
+    /// Check if a value is considered infinite.
+    public static func isInfinite(_ value: Double) -> Bool { OCCTPrecisionIsInfinite(value) }
 }
