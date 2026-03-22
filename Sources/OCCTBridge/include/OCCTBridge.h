@@ -12343,6 +12343,118 @@ bool OCCTDocumentHasPattern(OCCTDocumentRef _Nonnull doc, int64_t labelId);
 int32_t OCCTShapeFaceRestrictAlgo(OCCTShapeRef _Nonnull shape, int32_t faceIndex,
                                     OCCTShapeRef _Nullable * _Nullable outFaces, int32_t maxFaces);
 
+// MARK: - math_Matrix (v0.94.0)
+
+typedef struct OCCTMathMatrix* OCCTMathMatrixRef;
+
+/// Create an NxN matrix initialized to a value.
+OCCTMathMatrixRef _Nonnull OCCTMathMatrixCreate(int32_t rows, int32_t cols, double initValue);
+
+/// Release a matrix.
+void OCCTMathMatrixRelease(OCCTMathMatrixRef _Nonnull m);
+
+/// Get matrix dimensions.
+int32_t OCCTMathMatrixRows(OCCTMathMatrixRef _Nonnull m);
+int32_t OCCTMathMatrixCols(OCCTMathMatrixRef _Nonnull m);
+
+/// Get/set matrix value (1-based indices).
+double OCCTMathMatrixGetValue(OCCTMathMatrixRef _Nonnull m, int32_t row, int32_t col);
+void OCCTMathMatrixSetValue(OCCTMathMatrixRef _Nonnull m, int32_t row, int32_t col, double value);
+
+/// Get matrix determinant.
+double OCCTMathMatrixDeterminant(OCCTMathMatrixRef _Nonnull m);
+
+/// Invert the matrix in-place.
+bool OCCTMathMatrixInvert(OCCTMathMatrixRef _Nonnull m);
+
+/// Multiply all elements by a scalar.
+void OCCTMathMatrixMultiplyScalar(OCCTMathMatrixRef _Nonnull m, double scalar);
+
+/// Transpose the matrix in-place.
+void OCCTMathMatrixTranspose(OCCTMathMatrixRef _Nonnull m);
+
+// MARK: - math_Gauss (v0.94.0)
+
+/// Solve linear system Ax=b using Gaussian elimination.
+/// @param matrixData Row-major NxN matrix
+/// @param n Matrix dimension
+/// @param rhs Right-hand side vector (length n)
+/// @param outSolution Output solution vector (length n)
+/// @return true on success
+bool OCCTMathGaussSolve(const double* _Nonnull matrixData, int32_t n,
+                         const double* _Nonnull rhs, double* _Nonnull outSolution);
+
+/// Compute determinant using Gauss elimination.
+double OCCTMathGaussDeterminant(const double* _Nonnull matrixData, int32_t n);
+
+// MARK: - math_SVD (v0.94.0)
+
+/// Solve least-squares system using SVD.
+/// @param matrixData Row-major MxN matrix
+/// @param rows Number of rows (M)
+/// @param cols Number of cols (N)
+/// @param rhs Right-hand side vector (length M)
+/// @param outSolution Output solution vector (length N)
+/// @return true on success
+bool OCCTMathSVDSolve(const double* _Nonnull matrixData, int32_t rows, int32_t cols,
+                       const double* _Nonnull rhs, double* _Nonnull outSolution);
+
+// MARK: - math_DirectPolynomialRoots (v0.94.0)
+
+/// Find real roots of polynomial up to degree 4.
+/// Coefficients: a*x^n + b*x^(n-1) + ... + constant
+/// @param coeffs Array of coefficients [a, b, c, ...] (2-5 elements)
+/// @param nCoeffs Number of coefficients (2=linear, 3=quadratic, 4=cubic, 5=quartic)
+/// @param outRoots Output buffer for roots (max 4)
+/// @return Number of real roots found, or -1 on error
+int32_t OCCTMathPolynomialRoots(const double* _Nonnull coeffs, int32_t nCoeffs,
+                                  double* _Nonnull outRoots);
+
+// MARK: - math_Jacobi (v0.94.0)
+
+/// Compute eigenvalues of a symmetric NxN matrix using Jacobi method.
+/// @param matrixData Row-major NxN symmetric matrix
+/// @param n Matrix dimension
+/// @param outEigenvalues Output eigenvalues (length n)
+/// @return true on success
+bool OCCTMathJacobiEigenvalues(const double* _Nonnull matrixData, int32_t n,
+                                double* _Nonnull outEigenvalues);
+
+// MARK: - Convert_CircleToBSplineCurve (v0.94.0)
+
+/// Convert a 2D circle (arc) to a BSpline curve.
+/// @param cx,cy Center coordinates
+/// @param radius Circle radius
+/// @param u1,u2 Parameter range (0 to 2*PI for full circle)
+/// @return Opaque 2D curve handle, or NULL on failure
+OCCTCurve2DRef _Nullable OCCTConvertCircleToBSpline2D(double cx, double cy, double radius,
+                                                        double u1, double u2);
+
+// MARK: - Convert_SphereToBSplineSurface (v0.94.0)
+
+/// Convert a sphere to a BSpline surface.
+/// @param ox,oy,oz Center
+/// @param nx,ny,nz Axis direction
+/// @param radius Sphere radius
+/// @return Opaque surface handle, or NULL on failure
+OCCTSurfaceRef _Nullable OCCTConvertSphereToBSplineSurface(double ox, double oy, double oz,
+                                                             double nx, double ny, double nz,
+                                                             double radius);
+
+// MARK: - OSD_Environment (v0.94.0)
+
+/// Get the value of an environment variable. Caller must free.
+const char* _Nullable OCCTEnvironmentGet(const char* _Nonnull name);
+
+/// Set an environment variable. Returns true on success.
+bool OCCTEnvironmentSet(const char* _Nonnull name, const char* _Nonnull value);
+
+/// Remove an environment variable.
+void OCCTEnvironmentRemove(const char* _Nonnull name);
+
+/// Free an environment string.
+void OCCTEnvironmentFreeString(const char* _Nullable str);
+
 #ifdef __cplusplus
 }
 #endif

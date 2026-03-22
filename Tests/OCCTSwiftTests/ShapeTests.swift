@@ -26442,3 +26442,152 @@ struct BRepAlgoFaceRestrictorTests {
         #expect(count >= 0) // 0 is valid if no wires restrict the face further
     }
 }
+
+// MARK: - v0.94.0 Tests
+
+@Suite("MathMatrix Tests")
+struct MathMatrixTests {
+
+    @Test func createAndQuery() {
+        let m = MathMatrix(rows: 3, cols: 3, initialValue: 0.0)
+        #expect(m.rows == 3)
+        #expect(m.cols == 3)
+    }
+
+    @Test func setGetValue() {
+        let m = MathMatrix(rows: 2, cols: 2)
+        m.setValue(row: 1, col: 1, value: 5.0)
+        #expect(abs(m.value(row: 1, col: 1) - 5.0) < 1e-10)
+    }
+
+    @Test func determinant() {
+        let m = MathMatrix(rows: 2, cols: 2)
+        m.setValue(row: 1, col: 1, value: 1); m.setValue(row: 1, col: 2, value: 2)
+        m.setValue(row: 2, col: 1, value: 3); m.setValue(row: 2, col: 2, value: 4)
+        #expect(abs(m.determinant - (-2.0)) < 1e-10)
+    }
+
+    @Test func invert() {
+        let m = MathMatrix(rows: 2, cols: 2)
+        m.setValue(row: 1, col: 1, value: 1); m.setValue(row: 1, col: 2, value: 2)
+        m.setValue(row: 2, col: 1, value: 3); m.setValue(row: 2, col: 2, value: 4)
+        #expect(m.invert())
+    }
+}
+
+@Suite("MathGauss Tests")
+struct MathGaussTests {
+
+    @Test func solve2x2() {
+        // 2x+y=5, x+3y=7 → x=1.6, y=1.8
+        let matrix = [2.0, 1.0, 1.0, 3.0]
+        let rhs = [5.0, 7.0]
+        if let solution = MathGauss.solve(matrix: matrix, rhs: rhs) {
+            #expect(abs(solution[0] - 1.6) < 1e-10)
+            #expect(abs(solution[1] - 1.8) < 1e-10)
+        }
+    }
+
+    @Test func determinant() {
+        let det = MathGauss.determinant(matrix: [2.0, 1.0, 1.0, 3.0], n: 2)
+        #expect(abs(det - 5.0) < 1e-10)
+    }
+}
+
+@Suite("MathSVD Tests")
+struct MathSVDTests {
+
+    @Test func leastSquares() {
+        // Overdetermined 3x2 system
+        let A = [1.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+        let b = [1.0, 2.0, 4.0]
+        if let x = MathSVD.solve(matrix: A, rows: 3, cols: 2, rhs: b) {
+            #expect(x.count == 2)
+            #expect(x[0] > 0 && x[1] > 0)
+        }
+    }
+}
+
+@Suite("MathPolynomialRoots Tests")
+struct MathPolynomialRootsTests {
+
+    @Test func quadratic() {
+        // x²-5x+6=0 → x=2,3
+        if let roots = MathPolynomialRoots.solve(coefficients: [1.0, -5.0, 6.0]) {
+            #expect(roots.count == 2)
+            let sorted = roots.sorted()
+            if sorted.count == 2 {
+                #expect(abs(sorted[0] - 2.0) < 1e-10)
+                #expect(abs(sorted[1] - 3.0) < 1e-10)
+            }
+        }
+    }
+
+    @Test func linear() {
+        // 2x+4=0 → x=-2
+        if let roots = MathPolynomialRoots.solve(coefficients: [2.0, 4.0]) {
+            #expect(roots.count == 1)
+            if roots.count == 1 { #expect(abs(roots[0] + 2.0) < 1e-10) }
+        }
+    }
+
+    @Test func noRealRoots() {
+        // x²+1=0
+        if let roots = MathPolynomialRoots.solve(coefficients: [1.0, 0.0, 1.0]) {
+            #expect(roots.count == 0)
+        }
+    }
+}
+
+@Suite("MathJacobi Tests")
+struct MathJacobiTests {
+
+    @Test func eigenvalues() {
+        // [[2,1],[1,2]] → eigenvalues 1,3
+        let matrix = [2.0, 1.0, 1.0, 2.0]
+        if let ev = MathJacobi.eigenvalues(matrix: matrix, n: 2) {
+            #expect(ev.count == 2)
+            let sorted = ev.sorted()
+            if sorted.count == 2 {
+                #expect(abs(sorted[0] - 1.0) < 1e-10)
+                #expect(abs(sorted[1] - 3.0) < 1e-10)
+            }
+        }
+    }
+}
+
+@Suite("Convert Circle Tests")
+struct ConvertCircleTests {
+
+    @Test func circleArcToBSpline() {
+        let curve = Curve2D.fromCircleArc(centerX: 0, centerY: 0, radius: 10, u1: 0, u2: .pi)
+        #expect(curve != nil)
+    }
+}
+
+@Suite("Convert Sphere Tests")
+struct ConvertSphereTests {
+
+    @Test func sphereToBSpline() {
+        let surface = Surface.fromSphere(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 10)
+        #expect(surface != nil)
+    }
+}
+
+@Suite("OSD Environment Tests")
+struct OSDEnvironmentTests {
+
+    @Test func setGetRemove() {
+        Environment.set("OCCT_SWIFT_TEST", value: "hello")
+        let val = Environment.get("OCCT_SWIFT_TEST")
+        #expect(val == "hello")
+        Environment.remove("OCCT_SWIFT_TEST")
+        let gone = Environment.get("OCCT_SWIFT_TEST")
+        #expect(gone == nil)
+    }
+
+    @Test func readHome() {
+        let home = Environment.get("HOME")
+        #expect(home != nil)
+    }
+}

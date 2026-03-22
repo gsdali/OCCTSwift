@@ -36262,7 +36262,6 @@ int32_t OCCTShapeFaceRestrictAlgo(OCCTShapeRef shape, int32_t faceIndex,
         BRepAlgo_FaceRestrictor restrictor;
         restrictor.Init(face, false, true);
 
-        // Add the face's own wires
         TopExp_Explorer wireExp(face, TopAbs_WIRE);
         for (; wireExp.More(); wireExp.Next()) {
             TopoDS_Wire w = TopoDS::Wire(wireExp.Current());
@@ -36284,4 +36283,231 @@ int32_t OCCTShapeFaceRestrictAlgo(OCCTShapeRef shape, int32_t faceIndex,
         return count;
     } catch (...) { return -1; }
 }
+
+// MARK: - math_Matrix (v0.94.0)
+
+#include <math_Matrix.hxx>
+#include <math_Vector.hxx>
+#include <math_Gauss.hxx>
+#include <math_SVD.hxx>
+#include <math_DirectPolynomialRoots.hxx>
+#include <math_Jacobi.hxx>
+
+struct OCCTMathMatrix {
+    math_Matrix mat;
+    OCCTMathMatrix(int r, int c, double v) : mat(1, r, 1, c, v) {}
+};
+
+OCCTMathMatrixRef OCCTMathMatrixCreate(int32_t rows, int32_t cols, double initValue) {
+    return new OCCTMathMatrix(rows, cols, initValue);
+}
+
+void OCCTMathMatrixRelease(OCCTMathMatrixRef m) { delete m; }
+int32_t OCCTMathMatrixRows(OCCTMathMatrixRef m) { return m->mat.RowNumber(); }
+int32_t OCCTMathMatrixCols(OCCTMathMatrixRef m) { return m->mat.ColNumber(); }
+
+double OCCTMathMatrixGetValue(OCCTMathMatrixRef m, int32_t row, int32_t col) {
+    return m->mat(row, col);
+}
+
+void OCCTMathMatrixSetValue(OCCTMathMatrixRef m, int32_t row, int32_t col, double value) {
+    m->mat(row, col) = value;
+}
+
+double OCCTMathMatrixDeterminant(OCCTMathMatrixRef m) {
+    try { return m->mat.Determinant(); } catch (...) { return 0.0; }
+}
+
+bool OCCTMathMatrixInvert(OCCTMathMatrixRef m) {
+    try { m->mat.Invert(); return true; } catch (...) { return false; }
+}
+
+void OCCTMathMatrixMultiplyScalar(OCCTMathMatrixRef m, double scalar) { m->mat.Multiply(scalar); }
+void OCCTMathMatrixTranspose(OCCTMathMatrixRef m) { m->mat.Transpose(); }
+
+// MARK: - math_Gauss (v0.94.0)
+
+bool OCCTMathGaussSolve(const double* matrixData, int32_t n,
+                         const double* rhs, double* outSolution) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Gauss gauss(A);
+        if (!gauss.IsDone()) return false;
+        math_Vector B(1, n, 0.0);
+        for (int i = 0; i < n; i++) B(i+1) = rhs[i];
+        math_Vector X(1, n, 0.0);
+        gauss.Solve(B, X);
+        for (int i = 0; i < n; i++) outSolution[i] = X(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTMathGaussDeterminant(const double* matrixData, int32_t n) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Gauss gauss(A);
+        if (!gauss.IsDone()) return 0.0;
+        return gauss.Determinant();
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - math_SVD (v0.94.0)
+
+bool OCCTMathSVDSolve(const double* matrixData, int32_t rows, int32_t cols,
+                       const double* rhs, double* outSolution) {
+    try {
+        math_Matrix A(1, rows, 1, cols, 0.0);
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++)
+                A(i+1, j+1) = matrixData[i*cols + j];
+        math_SVD svd(A);
+        if (!svd.IsDone()) return false;
+        math_Vector B(1, rows, 0.0);
+        for (int i = 0; i < rows; i++) B(i+1) = rhs[i];
+        math_Vector X(1, cols, 0.0);
+        svd.Solve(B, X);
+        for (int i = 0; i < cols; i++) outSolution[i] = X(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_DirectPolynomialRoots (v0.94.0)
+
+int32_t OCCTMathPolynomialRoots(const double* coeffs, int32_t nCoeffs, double* outRoots) {
+    try {
+        math_DirectPolynomialRoots* roots = nullptr;
+        switch (nCoeffs) {
+            case 2: roots = new math_DirectPolynomialRoots(coeffs[0], coeffs[1]); break;
+            case 3: roots = new math_DirectPolynomialRoots(coeffs[0], coeffs[1], coeffs[2]); break;
+            case 4: roots = new math_DirectPolynomialRoots(coeffs[0], coeffs[1], coeffs[2], coeffs[3]); break;
+            case 5: roots = new math_DirectPolynomialRoots(coeffs[0], coeffs[1], coeffs[2], coeffs[3], coeffs[4]); break;
+            default: return -1;
+        }
+        if (!roots->IsDone()) { delete roots; return -1; }
+        int n = roots->NbSolutions();
+        for (int i = 0; i < n && i < 4; i++) outRoots[i] = roots->Value(i+1);
+        delete roots;
+        return n;
+    } catch (...) { return -1; }
+}
+
+// MARK: - math_Jacobi (v0.94.0)
+
+bool OCCTMathJacobiEigenvalues(const double* matrixData, int32_t n, double* outEigenvalues) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Jacobi jacobi(A);
+        if (!jacobi.IsDone()) return false;
+        for (int i = 0; i < n; i++) outEigenvalues[i] = jacobi.Value(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - Convert_CircleToBSplineCurve (v0.94.0)
+
+#include <Convert_CircleToBSplineCurve.hxx>
+
+OCCTCurve2DRef OCCTConvertCircleToBSpline2D(double cx, double cy, double radius,
+                                              double u1, double u2) {
+    try {
+        gp_Circ2d circle(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), radius);
+        Convert_CircleToBSplineCurve conv(circle, u1, u2);
+        int np = conv.NbPoles(), nk = conv.NbKnots(), deg = conv.Degree();
+
+        TColgp_Array1OfPnt2d poles(1, np);
+        TColStd_Array1OfReal weights(1, np), knots(1, nk);
+        TColStd_Array1OfInteger mults(1, nk);
+        for (int i = 1; i <= np; i++) { poles(i) = conv.Pole(i); weights(i) = conv.Weight(i); }
+        for (int i = 1; i <= nk; i++) { knots(i) = conv.Knot(i); mults(i) = conv.Multiplicity(i); }
+
+        Handle(Geom2d_BSplineCurve) bsc = new Geom2d_BSplineCurve(poles, weights, knots, mults, deg);
+        if (bsc.IsNull()) return nullptr;
+        OCCTCurve2D* result = new OCCTCurve2D();
+        result->curve = bsc;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Convert_SphereToBSplineSurface (v0.94.0)
+
+#include <Convert_SphereToBSplineSurface.hxx>
+#include <Convert_ElementarySurfaceToBSplineSurface.hxx>
+
+OCCTSurfaceRef OCCTConvertSphereToBSplineSurface(double ox, double oy, double oz,
+                                                   double nx, double ny, double nz, double radius) {
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), radius);
+        Convert_SphereToBSplineSurface conv(sphere);
+        int nup = conv.NbUPoles(), nvp = conv.NbVPoles();
+        int nuk = conv.NbUKnots(), nvk = conv.NbVKnots();
+        int udeg = conv.UDegree(), vdeg = conv.VDegree();
+
+        TColgp_Array2OfPnt poles(1, nup, 1, nvp);
+        TColStd_Array2OfReal weights(1, nup, 1, nvp);
+        for (int i = 1; i <= nup; i++)
+            for (int j = 1; j <= nvp; j++) {
+                poles(i,j) = conv.Pole(i,j);
+                weights(i,j) = conv.Weight(i,j);
+            }
+
+        TColStd_Array1OfReal uknots(1, nuk), vknots(1, nvk);
+        TColStd_Array1OfInteger umults(1, nuk), vmults(1, nvk);
+        for (int i = 1; i <= nuk; i++) { uknots(i) = conv.UKnot(i); umults(i) = conv.UMultiplicity(i); }
+        for (int i = 1; i <= nvk; i++) { vknots(i) = conv.VKnot(i); vmults(i) = conv.VMultiplicity(i); }
+
+        Handle(Geom_BSplineSurface) bss = new Geom_BSplineSurface(
+            poles, weights, uknots, vknots, umults, vmults, udeg, vdeg,
+            conv.IsUPeriodic(), conv.IsVPeriodic());
+        if (bss.IsNull()) return nullptr;
+        OCCTSurface* result = new OCCTSurface();
+        result->surface = bss;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - OSD_Environment (v0.94.0)
+
+#include <OSD_Environment.hxx>
+
+const char* OCCTEnvironmentGet(const char* name) {
+    try {
+        TCollection_AsciiString aname(name);
+        OSD_Environment env(aname);
+        TCollection_AsciiString val = env.Value();
+        if (val.Length() == 0) return nullptr;
+        return strdup(val.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTEnvironmentSet(const char* name, const char* value) {
+    try {
+        TCollection_AsciiString aname(name);
+        TCollection_AsciiString aval(value);
+        OSD_Environment env(aname, aval);
+        env.Build();
+        return !env.Failed();
+    } catch (...) { return false; }
+}
+
+void OCCTEnvironmentRemove(const char* name) {
+    try {
+        TCollection_AsciiString aname(name);
+        OSD_Environment env(aname);
+        env.Remove();
+    } catch (...) {}
+}
+
+void OCCTEnvironmentFreeString(const char* str) {
+    if (str) free((void*)str);
+}
+
 

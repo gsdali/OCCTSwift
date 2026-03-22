@@ -259,7 +259,15 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Geom2dAPI_PointsToBSpline** | 1 | approximate2D |
 | **TDataXtd_PatternStd** | 5 | setPattern, hasPattern, setSignature, getSignature, nbTrsfs |
 | **BRepAlgo_FaceRestrictor** | 1 | faceRestrictAlgo |
-| **Total** | **1873** | |
+| **math_Matrix** | 8 | create, rows, cols, getValue, setValue, determinant, invert, multiplyScalar, transpose |
+| **math_Gauss** | 2 | solve, determinant |
+| **math_SVD** | 1 | solve |
+| **math_DirectPolynomialRoots** | 1 | solve |
+| **math_Jacobi** | 1 | eigenvalues |
+| **Convert_CircleToBSplineCurve** | 1 | fromCircleArc |
+| **Convert_SphereToBSplineSurface** | 1 | fromSphere |
+| **OSD_Environment** | 3 | get, set, remove |
+| **Total** | **1892** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1574,7 +1582,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1873 OCCT operations** across 126 categories with 2091 tests across 663 suites.
+OCCTSwift now wraps **1892 OCCT operations** across 135 categories with 2106 tests across 671 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

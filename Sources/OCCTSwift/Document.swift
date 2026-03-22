@@ -5349,3 +5349,195 @@ extension Shape {
         Int(OCCTShapeFaceRestrictAlgo(handle, Int32(faceIndex), nil, 0))
     }
 }
+
+// MARK: - math_Matrix (v0.94.0)
+
+/// Dense mathematical matrix with 1-based indexing.
+public final class MathMatrix: @unchecked Sendable {
+    let handle: OCCTMathMatrixRef
+
+    init(handle: OCCTMathMatrixRef) { self.handle = handle }
+    deinit { OCCTMathMatrixRelease(handle) }
+
+    /// Create a matrix with given dimensions, initialized to a value.
+    public init(rows: Int, cols: Int, initialValue: Double = 0.0) {
+        handle = OCCTMathMatrixCreate(Int32(rows), Int32(cols), initialValue)
+    }
+
+    /// Number of rows.
+    public var rows: Int { Int(OCCTMathMatrixRows(handle)) }
+    /// Number of columns.
+    public var cols: Int { Int(OCCTMathMatrixCols(handle)) }
+
+    /// Get value at (row, col) — 1-based indexing.
+    public func value(row: Int, col: Int) -> Double {
+        OCCTMathMatrixGetValue(handle, Int32(row), Int32(col))
+    }
+
+    /// Set value at (row, col) — 1-based indexing.
+    public func setValue(row: Int, col: Int, value: Double) {
+        OCCTMathMatrixSetValue(handle, Int32(row), Int32(col), value)
+    }
+
+    /// Compute determinant.
+    public var determinant: Double { OCCTMathMatrixDeterminant(handle) }
+
+    /// Invert the matrix in-place.
+    @discardableResult
+    public func invert() -> Bool { OCCTMathMatrixInvert(handle) }
+
+    /// Multiply all elements by a scalar.
+    public func multiply(by scalar: Double) { OCCTMathMatrixMultiplyScalar(handle, scalar) }
+
+    /// Transpose the matrix in-place.
+    public func transpose() { OCCTMathMatrixTranspose(handle) }
+}
+
+// MARK: - math_Gauss (v0.94.0)
+
+/// Gaussian elimination linear system solver.
+public enum MathGauss {
+
+    /// Solve Ax=b where A is NxN and b is length N.
+    /// - Parameters:
+    ///   - matrix: Row-major NxN matrix (N*N elements)
+    ///   - rhs: Right-hand side vector (N elements)
+    /// - Returns: Solution vector, or nil on failure
+    public static func solve(matrix: [Double], rhs: [Double]) -> [Double]? {
+        let n = rhs.count
+        guard matrix.count == n * n else { return nil }
+        var solution = [Double](repeating: 0, count: n)
+        let ok = matrix.withUnsafeBufferPointer { mBuf in
+            rhs.withUnsafeBufferPointer { bBuf in
+                solution.withUnsafeMutableBufferPointer { xBuf in
+                    OCCTMathGaussSolve(mBuf.baseAddress!, Int32(n), bBuf.baseAddress!, xBuf.baseAddress!)
+                }
+            }
+        }
+        return ok ? solution : nil
+    }
+
+    /// Compute determinant using Gauss elimination.
+    public static func determinant(matrix: [Double], n: Int) -> Double {
+        matrix.withUnsafeBufferPointer { buf in
+            OCCTMathGaussDeterminant(buf.baseAddress!, Int32(n))
+        }
+    }
+}
+
+// MARK: - math_SVD (v0.94.0)
+
+/// Singular Value Decomposition solver.
+public enum MathSVD {
+
+    /// Solve least-squares Ax=b where A is MxN.
+    /// - Parameters:
+    ///   - matrix: Row-major MxN matrix
+    ///   - rows: M
+    ///   - cols: N
+    ///   - rhs: Right-hand side (length M)
+    /// - Returns: Solution vector (length N), or nil on failure
+    public static func solve(matrix: [Double], rows: Int, cols: Int, rhs: [Double]) -> [Double]? {
+        guard matrix.count == rows * cols, rhs.count == rows else { return nil }
+        var solution = [Double](repeating: 0, count: cols)
+        let ok = matrix.withUnsafeBufferPointer { mBuf in
+            rhs.withUnsafeBufferPointer { bBuf in
+                solution.withUnsafeMutableBufferPointer { xBuf in
+                    OCCTMathSVDSolve(mBuf.baseAddress!, Int32(rows), Int32(cols), bBuf.baseAddress!, xBuf.baseAddress!)
+                }
+            }
+        }
+        return ok ? solution : nil
+    }
+}
+
+// MARK: - math_DirectPolynomialRoots (v0.94.0)
+
+/// Polynomial root finder (degree 1-4).
+public enum MathPolynomialRoots {
+
+    /// Find real roots of a polynomial.
+    /// - Parameter coefficients: [a, b, c, ...] for a*x^n + b*x^(n-1) + ... (2-5 elements)
+    /// - Returns: Array of real roots, or nil on error
+    public static func solve(coefficients: [Double]) -> [Double]? {
+        guard coefficients.count >= 2, coefficients.count <= 5 else { return nil }
+        var roots = [Double](repeating: 0, count: 4)
+        let n = coefficients.withUnsafeBufferPointer { cBuf in
+            roots.withUnsafeMutableBufferPointer { rBuf in
+                OCCTMathPolynomialRoots(cBuf.baseAddress!, Int32(coefficients.count), rBuf.baseAddress!)
+            }
+        }
+        if n < 0 { return nil }
+        return Array(roots.prefix(Int(n)))
+    }
+}
+
+// MARK: - math_Jacobi (v0.94.0)
+
+/// Jacobi eigenvalue solver for symmetric matrices.
+public enum MathJacobi {
+
+    /// Compute eigenvalues of a symmetric NxN matrix.
+    /// - Parameters:
+    ///   - matrix: Row-major NxN symmetric matrix
+    ///   - n: Dimension
+    /// - Returns: Eigenvalues, or nil on failure
+    public static func eigenvalues(matrix: [Double], n: Int) -> [Double]? {
+        guard matrix.count == n * n else { return nil }
+        var eigenvalues = [Double](repeating: 0, count: n)
+        let ok = matrix.withUnsafeBufferPointer { mBuf in
+            eigenvalues.withUnsafeMutableBufferPointer { eBuf in
+                OCCTMathJacobiEigenvalues(mBuf.baseAddress!, Int32(n), eBuf.baseAddress!)
+            }
+        }
+        return ok ? eigenvalues : nil
+    }
+}
+
+// MARK: - Convert_CircleToBSplineCurve (v0.94.0)
+
+extension Curve2D {
+
+    /// Convert a 2D circle arc to a BSpline curve.
+    public static func fromCircleArc(centerX: Double, centerY: Double, radius: Double,
+                                      u1: Double, u2: Double) -> Curve2D? {
+        guard let ref = OCCTConvertCircleToBSpline2D(centerX, centerY, radius, u1, u2) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - Convert_SphereToBSplineSurface (v0.94.0)
+
+extension Surface {
+
+    /// Convert a sphere to a BSpline surface.
+    public static func fromSphere(origin: SIMD3<Double>, axis: SIMD3<Double>, radius: Double) -> Surface? {
+        guard let ref = OCCTConvertSphereToBSplineSurface(origin.x, origin.y, origin.z,
+                                                           axis.x, axis.y, axis.z, radius) else { return nil }
+        return Surface(handle: ref)
+    }
+}
+
+// MARK: - OSD_Environment (v0.94.0)
+
+/// Environment variable access.
+public enum Environment {
+
+    /// Get the value of an environment variable.
+    public static func get(_ name: String) -> String? {
+        guard let ptr = OCCTEnvironmentGet(name) else { return nil }
+        defer { OCCTEnvironmentFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Set an environment variable.
+    @discardableResult
+    public static func set(_ name: String, value: String) -> Bool {
+        OCCTEnvironmentSet(name, value)
+    }
+
+    /// Remove an environment variable.
+    public static func remove(_ name: String) {
+        OCCTEnvironmentRemove(name)
+    }
+}
