@@ -5541,3 +5541,129 @@ public enum Environment {
         OCCTEnvironmentRemove(name)
     }
 }
+
+// MARK: - Convert Conic Curves to BSpline (v0.95.0)
+
+extension Curve2D {
+
+    /// Convert a 2D ellipse arc to a BSpline curve.
+    public static func fromEllipseArc(centerX: Double, centerY: Double,
+                                       majorRadius: Double, minorRadius: Double,
+                                       u1: Double, u2: Double) -> Curve2D? {
+        guard let ref = OCCTConvertEllipseToBSpline2D(centerX, centerY, majorRadius, minorRadius, u1, u2) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Convert a 2D hyperbola arc to a BSpline curve.
+    public static func fromHyperbolaArc(centerX: Double, centerY: Double,
+                                         majorRadius: Double, minorRadius: Double,
+                                         u1: Double, u2: Double) -> Curve2D? {
+        guard let ref = OCCTConvertHyperbolaToBSpline2D(centerX, centerY, majorRadius, minorRadius, u1, u2) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Convert a 2D parabola arc to a BSpline curve.
+    public static func fromParabolaArc(centerX: Double, centerY: Double, focal: Double,
+                                        u1: Double, u2: Double) -> Curve2D? {
+        guard let ref = OCCTConvertParabolaToBSpline2D(centerX, centerY, focal, u1, u2) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - Convert Elementary Surfaces to BSpline (v0.95.0)
+
+extension Surface {
+
+    /// Convert a cylinder patch to a BSpline surface.
+    public static func fromCylinder(origin: SIMD3<Double>, axis: SIMD3<Double>, radius: Double,
+                                     u1: Double, u2: Double, v1: Double, v2: Double) -> Surface? {
+        guard let ref = OCCTConvertCylinderToBSplineSurface(origin.x, origin.y, origin.z,
+                                                              axis.x, axis.y, axis.z, radius,
+                                                              u1, u2, v1, v2) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Convert a cone patch to a BSpline surface.
+    public static func fromCone(origin: SIMD3<Double>, axis: SIMD3<Double>,
+                                 semiAngle: Double, refRadius: Double,
+                                 u1: Double, u2: Double, v1: Double, v2: Double) -> Surface? {
+        guard let ref = OCCTConvertConeToBSplineSurface(origin.x, origin.y, origin.z,
+                                                          axis.x, axis.y, axis.z,
+                                                          semiAngle, refRadius,
+                                                          u1, u2, v1, v2) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Convert a full torus to a BSpline surface.
+    public static func fromTorus(origin: SIMD3<Double>, axis: SIMD3<Double>,
+                                  majorRadius: Double, minorRadius: Double) -> Surface? {
+        guard let ref = OCCTConvertTorusToBSplineSurface(origin.x, origin.y, origin.z,
+                                                           axis.x, axis.y, axis.z,
+                                                           majorRadius, minorRadius) else { return nil }
+        return Surface(handle: ref)
+    }
+}
+
+// MARK: - math_Householder (v0.95.0)
+
+/// Householder QR least-squares solver.
+public enum MathHouseholder {
+
+    /// Solve overdetermined Ax=b using Householder QR (M >= N).
+    public static func solve(matrix: [Double], rows: Int, cols: Int, rhs: [Double]) -> [Double]? {
+        guard matrix.count == rows * cols, rhs.count == rows, rows >= cols else { return nil }
+        var solution = [Double](repeating: 0, count: cols)
+        let ok = matrix.withUnsafeBufferPointer { mBuf in
+            rhs.withUnsafeBufferPointer { bBuf in
+                solution.withUnsafeMutableBufferPointer { xBuf in
+                    OCCTMathHouseholderSolve(mBuf.baseAddress!, Int32(rows), Int32(cols),
+                                             bBuf.baseAddress!, xBuf.baseAddress!)
+                }
+            }
+        }
+        return ok ? solution : nil
+    }
+}
+
+// MARK: - math_Crout (v0.95.0)
+
+/// Crout LDL^T solver for symmetric systems.
+public enum MathCrout {
+
+    /// Solve symmetric Ax=b using Crout decomposition.
+    public static func solve(matrix: [Double], rhs: [Double]) -> [Double]? {
+        let n = rhs.count
+        guard matrix.count == n * n else { return nil }
+        var solution = [Double](repeating: 0, count: n)
+        let ok = matrix.withUnsafeBufferPointer { mBuf in
+            rhs.withUnsafeBufferPointer { bBuf in
+                solution.withUnsafeMutableBufferPointer { xBuf in
+                    OCCTMathCroutSolve(mBuf.baseAddress!, Int32(n), bBuf.baseAddress!, xBuf.baseAddress!)
+                }
+            }
+        }
+        return ok ? solution : nil
+    }
+
+    /// Determinant of symmetric matrix via Crout.
+    public static func determinant(matrix: [Double], n: Int) -> Double {
+        matrix.withUnsafeBufferPointer { buf in
+            OCCTMathCroutDeterminant(buf.baseAddress!, Int32(n))
+        }
+    }
+}
+
+// MARK: - ShapeFix_IntersectionTool (v0.95.0)
+
+extension Shape {
+
+    /// Fix intersecting wires on a face of this shape.
+    /// - Parameters:
+    ///   - faceIndex: Index of the face (0-based)
+    ///   - precision: Fix precision
+    /// - Returns: true if fixes were applied
+    @discardableResult
+    public func fixIntersectingWires(faceIndex: Int, precision: Double = 1e-6) -> Bool {
+        OCCTShapeFixIntersectingWires(handle, Int32(faceIndex), precision)
+    }
+}

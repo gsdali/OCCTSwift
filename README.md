@@ -267,7 +267,16 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Convert_CircleToBSplineCurve** | 1 | fromCircleArc |
 | **Convert_SphereToBSplineSurface** | 1 | fromSphere |
 | **OSD_Environment** | 3 | get, set, remove |
-| **Total** | **1892** | |
+| **Convert_EllipseToBSplineCurve** | 1 | fromEllipseArc |
+| **Convert_HyperbolaToBSplineCurve** | 1 | fromHyperbolaArc |
+| **Convert_ParabolaToBSplineCurve** | 1 | fromParabolaArc |
+| **Convert_CylinderToBSplineSurface** | 1 | fromCylinder |
+| **Convert_ConeToBSplineSurface** | 1 | fromCone |
+| **Convert_TorusToBSplineSurface** | 1 | fromTorus |
+| **math_Householder** | 1 | solve |
+| **math_Crout** | 2 | solve, determinant |
+| **ShapeFix_IntersectionTool** | 1 | fixIntersectingWires |
+| **Total** | **1902** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1582,7 +1591,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1892 OCCT operations** across 135 categories with 2106 tests across 671 suites.
+OCCTSwift now wraps **1902 OCCT operations** across 144 categories with 2116 tests across 676 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

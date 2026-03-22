@@ -12455,6 +12455,82 @@ void OCCTEnvironmentRemove(const char* _Nonnull name);
 /// Free an environment string.
 void OCCTEnvironmentFreeString(const char* _Nullable str);
 
+// MARK: - Convert_EllipseToBSplineCurve (v0.95.0)
+
+/// Convert a 2D ellipse arc to a BSpline curve.
+OCCTCurve2DRef _Nullable OCCTConvertEllipseToBSpline2D(double cx, double cy,
+                                                         double majorRadius, double minorRadius,
+                                                         double u1, double u2);
+
+// MARK: - Convert_HyperbolaToBSplineCurve (v0.95.0)
+
+/// Convert a 2D hyperbola arc to a BSpline curve.
+OCCTCurve2DRef _Nullable OCCTConvertHyperbolaToBSpline2D(double cx, double cy,
+                                                           double majorRadius, double minorRadius,
+                                                           double u1, double u2);
+
+// MARK: - Convert_ParabolaToBSplineCurve (v0.95.0)
+
+/// Convert a 2D parabola arc to a BSpline curve.
+OCCTCurve2DRef _Nullable OCCTConvertParabolaToBSpline2D(double cx, double cy, double focal,
+                                                          double u1, double u2);
+
+// MARK: - Convert_CylinderToBSplineSurface (v0.95.0)
+
+/// Convert a cylinder patch to a BSpline surface.
+OCCTSurfaceRef _Nullable OCCTConvertCylinderToBSplineSurface(double ox, double oy, double oz,
+                                                               double nx, double ny, double nz,
+                                                               double radius,
+                                                               double u1, double u2,
+                                                               double v1, double v2);
+
+// MARK: - Convert_ConeToBSplineSurface (v0.95.0)
+
+/// Convert a cone patch to a BSpline surface.
+OCCTSurfaceRef _Nullable OCCTConvertConeToBSplineSurface(double ox, double oy, double oz,
+                                                           double nx, double ny, double nz,
+                                                           double semiAngle, double refRadius,
+                                                           double u1, double u2,
+                                                           double v1, double v2);
+
+// MARK: - Convert_TorusToBSplineSurface (v0.95.0)
+
+/// Convert a full torus to a BSpline surface.
+OCCTSurfaceRef _Nullable OCCTConvertTorusToBSplineSurface(double ox, double oy, double oz,
+                                                            double nx, double ny, double nz,
+                                                            double majorRadius, double minorRadius);
+
+// MARK: - math_Householder (v0.95.0)
+
+/// Solve overdetermined system using Householder QR.
+/// @param matrixData Row-major MxN matrix (M >= N)
+/// @param rows M, cols N
+/// @param rhs Right-hand side (length M)
+/// @param outSolution Output (length N)
+/// @return true on success
+bool OCCTMathHouseholderSolve(const double* _Nonnull matrixData, int32_t rows, int32_t cols,
+                               const double* _Nonnull rhs, double* _Nonnull outSolution);
+
+// MARK: - math_Crout (v0.95.0)
+
+/// Solve symmetric system using Crout LDL^T decomposition.
+/// @param matrixData Row-major NxN symmetric matrix
+/// @param n Matrix dimension
+/// @param rhs Right-hand side (length N)
+/// @param outSolution Output (length N)
+/// @return true on success
+bool OCCTMathCroutSolve(const double* _Nonnull matrixData, int32_t n,
+                          const double* _Nonnull rhs, double* _Nonnull outSolution);
+
+/// Determinant of symmetric matrix via Crout decomposition.
+double OCCTMathCroutDeterminant(const double* _Nonnull matrixData, int32_t n);
+
+// MARK: - ShapeFix_IntersectionTool (v0.95.0)
+
+/// Fix intersecting wires on a face of a shape.
+/// @return true if any fixes were applied
+bool OCCTShapeFixIntersectingWires(OCCTShapeRef _Nonnull shape, int32_t faceIndex, double precision);
+
 #ifdef __cplusplus
 }
 #endif

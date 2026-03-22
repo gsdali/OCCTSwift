@@ -26591,3 +26591,91 @@ struct OSDEnvironmentTests {
         #expect(home != nil)
     }
 }
+
+// MARK: - v0.95.0 Tests
+
+@Suite("Convert Conic Curves Tests")
+struct ConvertConicCurvesTests {
+
+    @Test func ellipseArc() {
+        let curve = Curve2D.fromEllipseArc(centerX: 0, centerY: 0, majorRadius: 20, minorRadius: 10, u1: 0, u2: .pi)
+        #expect(curve != nil)
+    }
+
+    @Test func hyperbolaArc() {
+        let curve = Curve2D.fromHyperbolaArc(centerX: 0, centerY: 0, majorRadius: 10, minorRadius: 5, u1: -1, u2: 1)
+        #expect(curve != nil)
+    }
+
+    @Test func parabolaArc() {
+        let curve = Curve2D.fromParabolaArc(centerX: 0, centerY: 0, focal: 5, u1: -2, u2: 2)
+        #expect(curve != nil)
+    }
+}
+
+@Suite("Convert Elementary Surfaces Tests")
+struct ConvertElementarySurfacesTests {
+
+    @Test func cylinderPatch() {
+        let s = Surface.fromCylinder(origin: SIMD3(0,0,0), axis: SIMD3(0,0,1), radius: 5,
+                                      u1: 0, u2: .pi, v1: 0, v2: 10)
+        #expect(s != nil)
+    }
+
+    @Test func conePatch() {
+        let s = Surface.fromCone(origin: SIMD3(0,0,0), axis: SIMD3(0,0,1),
+                                  semiAngle: .pi/6, refRadius: 5,
+                                  u1: 0, u2: .pi, v1: 0, v2: 10)
+        #expect(s != nil)
+    }
+
+    @Test func fullTorus() {
+        let s = Surface.fromTorus(origin: SIMD3(0,0,0), axis: SIMD3(0,0,1),
+                                   majorRadius: 20, minorRadius: 5)
+        #expect(s != nil)
+    }
+}
+
+@Suite("MathHouseholder Tests")
+struct MathHouseholderTests {
+
+    @Test func overdetermindedSolve() {
+        // 3x2 system: [[1,0],[0,1],[1,1]] x = [1,2,4]
+        let A = [1.0, 0.0, 0.0, 1.0, 1.0, 1.0]
+        let b = [1.0, 2.0, 4.0]
+        if let x = MathHouseholder.solve(matrix: A, rows: 3, cols: 2, rhs: b) {
+            #expect(x.count == 2)
+            #expect(x[0] > 0 && x[1] > 0)
+        }
+    }
+}
+
+@Suite("MathCrout Tests")
+struct MathCroutTests {
+
+    @Test func symmetricSolve() {
+        // [[4,2],[2,3]] x = [8,7] → x=1.25, y=1.5
+        let A = [4.0, 2.0, 2.0, 3.0]
+        let b = [8.0, 7.0]
+        if let x = MathCrout.solve(matrix: A, rhs: b) {
+            #expect(abs(x[0] - 1.25) < 1e-10)
+            #expect(abs(x[1] - 1.5) < 1e-10)
+        }
+    }
+
+    @Test func determinant() {
+        let det = MathCrout.determinant(matrix: [4.0, 2.0, 2.0, 3.0], n: 2)
+        #expect(abs(det - 8.0) < 1e-10)
+    }
+}
+
+@Suite("ShapeFix IntersectionTool Tests")
+struct ShapeFixIntersectionToolTests {
+
+    @Test func fixIntersectingWires() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        // Box faces have no self-intersections, so this should return false but not crash
+        let fixed = box.fixIntersectingWires(faceIndex: 0)
+        #expect(!fixed) // no intersections to fix on a box
+    }
+}

@@ -36510,4 +36510,192 @@ void OCCTEnvironmentFreeString(const char* str) {
     if (str) free((void*)str);
 }
 
+// MARK: - Convert conic/surface helpers (v0.95.0)
+
+#include <Convert_EllipseToBSplineCurve.hxx>
+#include <Convert_HyperbolaToBSplineCurve.hxx>
+#include <Convert_ParabolaToBSplineCurve.hxx>
+#include <Convert_CylinderToBSplineSurface.hxx>
+#include <Convert_ConeToBSplineSurface.hxx>
+#include <Convert_TorusToBSplineSurface.hxx>
+
+// Helper: build Geom2d_BSplineCurve from Convert_ConicToBSplineCurve result
+static OCCTCurve2DRef buildCurve2DFromConic(const Convert_ConicToBSplineCurve& conv) {
+    int np = conv.NbPoles(), nk = conv.NbKnots(), deg = conv.Degree();
+    TColgp_Array1OfPnt2d poles(1, np);
+    TColStd_Array1OfReal weights(1, np), knots(1, nk);
+    TColStd_Array1OfInteger mults(1, nk);
+    for (int i = 1; i <= np; i++) { poles(i) = conv.Pole(i); weights(i) = conv.Weight(i); }
+    for (int i = 1; i <= nk; i++) { knots(i) = conv.Knot(i); mults(i) = conv.Multiplicity(i); }
+    Handle(Geom2d_BSplineCurve) bsc = new Geom2d_BSplineCurve(poles, weights, knots, mults, deg);
+    if (bsc.IsNull()) return nullptr;
+    OCCTCurve2D* result = new OCCTCurve2D();
+    result->curve = bsc;
+    return result;
+}
+
+// Helper: build Geom_BSplineSurface from Convert_ElementarySurfaceToBSplineSurface result
+static OCCTSurfaceRef buildSurfaceFromElementary(const Convert_ElementarySurfaceToBSplineSurface& conv) {
+    int nup = conv.NbUPoles(), nvp = conv.NbVPoles();
+    int nuk = conv.NbUKnots(), nvk = conv.NbVKnots();
+    int udeg = conv.UDegree(), vdeg = conv.VDegree();
+
+    TColgp_Array2OfPnt poles(1, nup, 1, nvp);
+    TColStd_Array2OfReal weights(1, nup, 1, nvp);
+    for (int i = 1; i <= nup; i++)
+        for (int j = 1; j <= nvp; j++) {
+            poles(i,j) = conv.Pole(i,j);
+            weights(i,j) = conv.Weight(i,j);
+        }
+
+    TColStd_Array1OfReal uknots(1, nuk), vknots(1, nvk);
+    TColStd_Array1OfInteger umults(1, nuk), vmults(1, nvk);
+    for (int i = 1; i <= nuk; i++) { uknots(i) = conv.UKnot(i); umults(i) = conv.UMultiplicity(i); }
+    for (int i = 1; i <= nvk; i++) { vknots(i) = conv.VKnot(i); vmults(i) = conv.VMultiplicity(i); }
+
+    Handle(Geom_BSplineSurface) bss = new Geom_BSplineSurface(
+        poles, weights, uknots, vknots, umults, vmults, udeg, vdeg,
+        conv.IsUPeriodic(), conv.IsVPeriodic());
+    if (bss.IsNull()) return nullptr;
+    OCCTSurface* result = new OCCTSurface();
+    result->surface = bss;
+    return result;
+}
+
+OCCTCurve2DRef OCCTConvertEllipseToBSpline2D(double cx, double cy,
+                                               double majorRadius, double minorRadius,
+                                               double u1, double u2) {
+    try {
+        gp_Elips2d e(gp_Ax22d(gp_Pnt2d(cx,cy), gp_Dir2d(1,0), gp_Dir2d(0,1)), majorRadius, minorRadius);
+        Convert_EllipseToBSplineCurve conv(e, u1, u2);
+        return buildCurve2DFromConic(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTConvertHyperbolaToBSpline2D(double cx, double cy,
+                                                 double majorRadius, double minorRadius,
+                                                 double u1, double u2) {
+    try {
+        gp_Hypr2d h(gp_Ax22d(gp_Pnt2d(cx,cy), gp_Dir2d(1,0), gp_Dir2d(0,1)), majorRadius, minorRadius);
+        Convert_HyperbolaToBSplineCurve conv(h, u1, u2);
+        return buildCurve2DFromConic(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTConvertParabolaToBSpline2D(double cx, double cy, double focal,
+                                                double u1, double u2) {
+    try {
+        gp_Parab2d p(gp_Ax22d(gp_Pnt2d(cx,cy), gp_Dir2d(1,0), gp_Dir2d(0,1)), focal);
+        Convert_ParabolaToBSplineCurve conv(p, u1, u2);
+        return buildCurve2DFromConic(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTConvertCylinderToBSplineSurface(double ox, double oy, double oz,
+                                                     double nx, double ny, double nz,
+                                                     double radius,
+                                                     double u1, double u2, double v1, double v2) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), radius);
+        Convert_CylinderToBSplineSurface conv(cyl, u1, u2, v1, v2);
+        return buildSurfaceFromElementary(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTConvertConeToBSplineSurface(double ox, double oy, double oz,
+                                                 double nx, double ny, double nz,
+                                                 double semiAngle, double refRadius,
+                                                 double u1, double u2, double v1, double v2) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), semiAngle, refRadius);
+        Convert_ConeToBSplineSurface conv(cone, u1, u2, v1, v2);
+        return buildSurfaceFromElementary(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTConvertTorusToBSplineSurface(double ox, double oy, double oz,
+                                                  double nx, double ny, double nz,
+                                                  double majorRadius, double minorRadius) {
+    try {
+        gp_Torus torus(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), majorRadius, minorRadius);
+        Convert_TorusToBSplineSurface conv(torus);
+        return buildSurfaceFromElementary(conv);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - math_Householder (v0.95.0)
+
+#include <math_Householder.hxx>
+
+bool OCCTMathHouseholderSolve(const double* matrixData, int32_t rows, int32_t cols,
+                               const double* rhs, double* outSolution) {
+    try {
+        math_Matrix A(1, rows, 1, cols, 0.0);
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++)
+                A(i+1, j+1) = matrixData[i*cols + j];
+        math_Vector B(1, rows, 0.0);
+        for (int i = 0; i < rows; i++) B(i+1) = rhs[i];
+        math_Householder hh(A, B);
+        if (!hh.IsDone()) return false;
+        math_Vector sol(1, cols, 0.0);
+        hh.Value(sol, 1);
+        for (int i = 0; i < cols; i++) outSolution[i] = sol(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_Crout (v0.95.0)
+
+#include <math_Crout.hxx>
+
+bool OCCTMathCroutSolve(const double* matrixData, int32_t n,
+                          const double* rhs, double* outSolution) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Crout crout(A);
+        if (!crout.IsDone()) return false;
+        math_Vector B(1, n, 0.0);
+        for (int i = 0; i < n; i++) B(i+1) = rhs[i];
+        math_Vector X(1, n, 0.0);
+        crout.Solve(B, X);
+        for (int i = 0; i < n; i++) outSolution[i] = X(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTMathCroutDeterminant(const double* matrixData, int32_t n) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Crout crout(A);
+        if (!crout.IsDone()) return 0.0;
+        return crout.Determinant();
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - ShapeFix_IntersectionTool (v0.95.0)
+
+#include <ShapeFix_IntersectionTool.hxx>
+#include <ShapeBuild_ReShape.hxx>
+
+bool OCCTShapeFixIntersectingWires(OCCTShapeRef shape, int32_t faceIndex, double precision) {
+    if (!shape) return false;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return false;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        Handle(ShapeBuild_ReShape) ctx = new ShapeBuild_ReShape();
+        ShapeFix_IntersectionTool tool(ctx, precision, 1.0);
+        return tool.FixIntersectingWires(face);
+    } catch (...) { return false; }
+}
+
 
