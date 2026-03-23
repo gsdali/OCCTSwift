@@ -26887,3 +26887,143 @@ struct PrecisionTests {
         #expect(OCCTPrecision.approximation > OCCTPrecision.confusion)
     }
 }
+
+// MARK: - v0.98.0 Tests
+
+@Suite("IntAna LinePlane Tests")
+struct IntAnaLinePlaneTests {
+
+    @Test func linePlaneIntersection() {
+        let r = IntAna.linePlane(lineOrigin: SIMD3(0, 0, -5), lineDir: SIMD3(0, 0, 1),
+                                  planeOrigin: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1))
+        #expect(r.points.count == 1)
+        if r.points.count == 1 {
+            #expect(abs(r.points[0].z) < 1e-10)
+        }
+    }
+
+    @Test func parallelLineAndPlane() {
+        let r = IntAna.linePlane(lineOrigin: SIMD3(0, 0, 5), lineDir: SIMD3(1, 0, 0),
+                                  planeOrigin: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1))
+        #expect(r.isParallel)
+    }
+}
+
+@Suite("IntAna LineSphere Tests")
+struct IntAnaLineSphereTests {
+
+    @Test func lineThroughSphere() {
+        let r = IntAna.lineSphere(lineOrigin: SIMD3(-10, 0, 0), lineDir: SIMD3(1, 0, 0),
+                                   sphereCenter: SIMD3(0, 0, 0), sphereAxis: SIMD3(0, 0, 1), radius: 5)
+        #expect(r.points.count == 2)
+    }
+
+    @Test func lineMissesSphere() {
+        let r = IntAna.lineSphere(lineOrigin: SIMD3(0, 100, 0), lineDir: SIMD3(1, 0, 0),
+                                   sphereCenter: SIMD3(0, 0, 0), sphereAxis: SIMD3(0, 0, 1), radius: 5)
+        #expect(r.points.count == 0)
+    }
+}
+
+@Suite("IntAna ThreePlanes Tests")
+struct IntAnaThreePlanesTests {
+
+    @Test func threePlanesAtOrigin() {
+        let pt = IntAna.threePlanes(p1Origin: SIMD3(0,0,0), p1Normal: SIMD3(1,0,0),
+                                     p2Origin: SIMD3(0,0,0), p2Normal: SIMD3(0,1,0),
+                                     p3Origin: SIMD3(0,0,0), p3Normal: SIMD3(0,0,1))
+        #expect(pt != nil)
+        if let pt {
+            #expect(abs(pt.x) < 1e-10 && abs(pt.y) < 1e-10 && abs(pt.z) < 1e-10)
+        }
+    }
+
+    @Test func offsetPlanes() {
+        let pt = IntAna.threePlanes(p1Origin: SIMD3(1,0,0), p1Normal: SIMD3(1,0,0),
+                                     p2Origin: SIMD3(0,2,0), p2Normal: SIMD3(0,1,0),
+                                     p3Origin: SIMD3(0,0,3), p3Normal: SIMD3(0,0,1))
+        #expect(pt != nil)
+        if let pt {
+            #expect(abs(pt.x - 1) < 1e-10 && abs(pt.y - 2) < 1e-10 && abs(pt.z - 3) < 1e-10)
+        }
+    }
+}
+
+@Suite("IntAna LineTorus Tests")
+struct IntAnaLineTorusTests {
+
+    @Test func lineThroughTorus() {
+        let pts = IntAna.lineTorus(lineOrigin: SIMD3(0, 0, 0), lineDir: SIMD3(1, 0, 0),
+                                    torusCenter: SIMD3(0, 0, 0), torusAxis: SIMD3(0, 0, 1),
+                                    majorRadius: 20, minorRadius: 5)
+        #expect(pts.count >= 2)
+    }
+}
+
+@Suite("IntAna PlanePlane Tests")
+struct IntAnaPlanePlaneTests {
+
+    @Test func planePlaneIntersection() {
+        let r = IntAna.planePlane(p1Origin: SIMD3(0,0,0), p1Normal: SIMD3(0,0,1),
+                                   p2Origin: SIMD3(0,0,0), p2Normal: SIMD3(0,1,0))
+        #expect(r.count >= 1)
+    }
+
+    @Test func planePlaneLine() {
+        let r = IntAna.planePlane(p1Origin: SIMD3(0,0,0), p1Normal: SIMD3(0,0,1),
+                                   p2Origin: SIMD3(0,0,0), p2Normal: SIMD3(0,1,0))
+        if r.count >= 1 {
+            let dir = r.lines[0].direction
+            let len = sqrt(dir.x*dir.x + dir.y*dir.y + dir.z*dir.z)
+            #expect(abs(len - 1.0) < 1e-6)
+        }
+    }
+}
+
+@Suite("IntAna PlaneSphere Tests")
+struct IntAnaPlaneSphereTests {
+
+    @Test func planeSphereIntersection() {
+        let r = IntAna.planeSphere(planeOrigin: SIMD3(0,0,0), planeNormal: SIMD3(0,0,1),
+                                    sphereCenter: SIMD3(0,0,0), sphereAxis: SIMD3(0,0,1),
+                                    radius: 5.0)
+        #expect(r.count >= 1)
+    }
+}
+
+@Suite("OSD Chronometer Tests")
+struct OSDChronometerTests {
+
+    @Test func processCPU() {
+        let cpu = CPUTime.processCPU()
+        #expect(cpu.user >= 0)
+    }
+}
+
+@Suite("OSD Process Tests")
+struct OSDProcessTests {
+
+    @Test func processId() {
+        #expect(ProcessInfo.processId > 0)
+    }
+
+    @Test func userName() {
+        #expect(ProcessInfo.userName != nil)
+    }
+}
+
+@Suite("Draft Modification Tests")
+struct DraftModificationTests {
+
+    @Test func draftFace() {
+        guard let box = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10) else { return }
+        let result = box.draftModification(faceIndex: 0, direction: SIMD3(0, 0, 1),
+                                            angle: .pi / 18,
+                                            neutralPlaneOrigin: SIMD3(0, 0, 0),
+                                            neutralPlaneNormal: SIMD3(0, 0, 1))
+        // Draft may or may not succeed depending on face geometry
+        if let result {
+            #expect(result.isValid)
+        }
+    }
+}

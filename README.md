@@ -285,7 +285,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepGProp_Domain** | 1 | faceDomainEdgeCount |
 | **TNaming_Naming** | 2 | insertNaming, namingIsDefined |
 | **Precision** | 7 | confusion, angular, intersection, approximation, infinite, pConfusion, isInfinite |
-| **Total** | **1937** | |
+| **IntAna_IntConicQuad** | 2 | linePlane, lineSphere |
+| **IntAna_QuadQuadGeo** | 2 | planePlane, planeSphere |
+| **IntAna_Int3Pln** | 1 | threePlanes |
+| **IntAna_IntLinTorus** | 1 | lineTorus |
+| **OSD_Chronometer** | 2 | processCPU, threadCPU |
+| **OSD_Process** | 4 | processId, userName, executablePath, executableFolder |
+| **Draft_Modification** | 1 | draftModification |
+| **Total** | **1950** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1600,7 +1607,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1937 OCCT operations** across 153 categories with 2139 tests across 685 suites.
+OCCTSwift now wraps **1950 OCCT operations** across 160 categories with 2141 tests across 688 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

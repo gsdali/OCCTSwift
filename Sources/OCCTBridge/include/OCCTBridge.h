@@ -12686,6 +12686,108 @@ double OCCTPrecisionPConfusion(void);
 /// Check if a value is considered infinite.
 bool OCCTPrecisionIsInfinite(double value);
 
+// MARK: - IntAna_IntConicQuad (v0.98.0)
+
+/// Result of a conic-quadric intersection.
+typedef struct {
+    double points[12]; // up to 4 points (x,y,z each)
+    double params[4];  // parameter on conic for each point
+    int32_t count;     // number of intersection points
+    bool isParallel;
+    bool isInQuadric;
+} OCCTIntConicQuadResult;
+
+/// Intersect a line with a plane.
+OCCTIntConicQuadResult OCCTIntAnaLineQuad(double lox, double loy, double loz,
+                                            double ldx, double ldy, double ldz,
+                                            double pox, double poy, double poz,
+                                            double pnx, double pny, double pnz);
+
+/// Intersect a line with a sphere.
+OCCTIntConicQuadResult OCCTIntAnaLineSphere(double lox, double loy, double loz,
+                                              double ldx, double ldy, double ldz,
+                                              double sx, double sy, double sz,
+                                              double snx, double sny, double snz, double radius);
+
+// MARK: - IntAna_QuadQuadGeo (v0.98.0)
+
+/// Result of a quadric-quadric intersection.
+typedef struct {
+    int32_t solutionCount;
+    int32_t resultType; // IntAna_ResultType enum
+    double points[12];  // up to 4 result points
+    double lines[24];   // up to 4 lines (origin xyz + direction xyz)
+} OCCTQuadQuadGeoResult;
+
+/// Intersect two planes.
+OCCTQuadQuadGeoResult OCCTIntAnaPlanePlane(double p1ox, double p1oy, double p1oz,
+                                             double p1nx, double p1ny, double p1nz,
+                                             double p2ox, double p2oy, double p2oz,
+                                             double p2nx, double p2ny, double p2nz);
+
+/// Intersect a plane with a sphere.
+OCCTQuadQuadGeoResult OCCTIntAnaPlaneSphere(double pox, double poy, double poz,
+                                              double pnx, double pny, double pnz,
+                                              double sx, double sy, double sz,
+                                              double snx, double sny, double snz, double radius);
+
+// MARK: - IntAna_Int3Pln (v0.98.0)
+
+/// Intersect three planes. Returns intersection point or invalid point if parallel.
+/// @param outX,outY,outZ Output intersection point
+/// @return true if intersection exists
+bool OCCTIntAna3Planes(double p1ox, double p1oy, double p1oz, double p1nx, double p1ny, double p1nz,
+                        double p2ox, double p2oy, double p2oz, double p2nx, double p2ny, double p2nz,
+                        double p3ox, double p3oy, double p3oz, double p3nx, double p3ny, double p3nz,
+                        double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+// MARK: - IntAna_IntLinTorus (v0.98.0)
+
+/// Intersect a line with a torus.
+/// @param outPoints Output buffer for intersection points (max 4 * 3 = 12 doubles)
+/// @return Number of intersection points (0-4)
+int32_t OCCTIntAnaLineTorus(double lox, double loy, double loz,
+                              double ldx, double ldy, double ldz,
+                              double tox, double toy, double toz,
+                              double tnx, double tny, double tnz,
+                              double majorRadius, double minorRadius,
+                              double* _Nonnull outPoints);
+
+// MARK: - OSD_Chronometer (v0.98.0)
+
+/// Get process CPU time (user + system).
+void OCCTGetProcessCPU(double* _Nonnull userSeconds, double* _Nonnull systemSeconds);
+
+/// Get current thread CPU time.
+void OCCTGetThreadCPU(double* _Nonnull userSeconds, double* _Nonnull systemSeconds);
+
+// MARK: - OSD_Process (v0.98.0)
+
+/// Get process ID.
+int32_t OCCTProcessId(void);
+
+/// Get username. Caller must free.
+const char* _Nullable OCCTProcessUserName(void);
+
+/// Get executable path. Caller must free.
+const char* _Nullable OCCTProcessExecutablePath(void);
+
+/// Get executable folder. Caller must free.
+const char* _Nullable OCCTProcessExecutableFolder(void);
+
+/// Free a process string.
+void OCCTProcessFreeString(const char* _Nullable str);
+
+// MARK: - Draft_Modification (v0.98.0)
+
+/// Apply a draft angle to a face of a shape.
+/// @return Result shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeDraftModification(OCCTShapeRef _Nonnull shape, int32_t faceIndex,
+                                        double dirX, double dirY, double dirZ,
+                                        double angle,
+                                        double planeOX, double planeOY, double planeOZ,
+                                        double planeNX, double planeNY, double planeNZ);
+
 #ifdef __cplusplus
 }
 #endif
