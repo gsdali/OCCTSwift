@@ -6114,3 +6114,281 @@ extension Shape {
         return Shape(handle: ref)
     }
 }
+
+// MARK: - Convert_CompBezierCurvesToBSplineCurve (v0.99.0)
+
+/// Result of converting composite Bezier segments to a BSpline curve (3D).
+public struct BezierToBSplineResult {
+    public let degree: Int
+    public let poles: [SIMD3<Double>]
+    public let knots: [Double]
+    public let multiplicities: [Int]
+}
+
+/// Result of converting composite 2D Bezier segments to a BSpline curve.
+public struct BezierToBSpline2dResult {
+    public let degree: Int
+    public let poles: [SIMD2<Double>]
+    public let knots: [Double]
+    public let multiplicities: [Int]
+}
+
+/// Utilities for converting composite Bezier curves to BSpline form.
+public enum CompBezierConverter {
+
+    /// Convert a sequence of connected Bezier segments (3D) to a single BSpline curve.
+    /// - Parameters:
+    ///   - segments: Each element is an array of control points for one Bezier segment.
+    ///               All segments must have the same number of control points.
+    /// - Returns: BSpline data, or nil on failure.
+    public static func toBSpline(segments: [[SIMD3<Double>]]) -> BezierToBSplineResult? {
+        guard !segments.isEmpty,
+              let ptsPerSeg = segments.first?.count, ptsPerSeg > 0,
+              segments.allSatisfy({ $0.count == ptsPerSeg }) else { return nil }
+
+        var flat = [Double]()
+        flat.reserveCapacity(segments.count * ptsPerSeg * 3)
+        for seg in segments {
+            for pt in seg { flat += [pt.x, pt.y, pt.z] }
+        }
+
+        var raw = OCCTBezierBSplineResult()
+        let ok = flat.withUnsafeBufferPointer { buf in
+            OCCTConvertCompBezierToBSpline(buf.baseAddress!, Int32(segments.count),
+                                           Int32(ptsPerSeg), &raw)
+        }
+        guard ok else { return nil }
+
+        let nb = Int(raw.nbPoles)
+        let nk = Int(raw.nbKnots)
+
+        var poles = [SIMD3<Double>]()
+        poles.reserveCapacity(nb)
+        withUnsafeBytes(of: raw.poles) { ptr in
+            let dbl = ptr.bindMemory(to: Double.self)
+            for i in 0..<nb {
+                poles.append(SIMD3(dbl[i * 3], dbl[i * 3 + 1], dbl[i * 3 + 2]))
+            }
+        }
+
+        var knots = [Double]()
+        var mults = [Int]()
+        knots.reserveCapacity(nk)
+        mults.reserveCapacity(nk)
+        withUnsafeBytes(of: raw.knots) { kptr in
+            withUnsafeBytes(of: raw.mults) { mptr in
+                let kd = kptr.bindMemory(to: Double.self)
+                let mi = mptr.bindMemory(to: Int32.self)
+                for i in 0..<nk {
+                    knots.append(kd[i])
+                    mults.append(Int(mi[i]))
+                }
+            }
+        }
+
+        return BezierToBSplineResult(degree: Int(raw.degree), poles: poles,
+                                     knots: knots, multiplicities: mults)
+    }
+
+    /// Convert a sequence of connected 2D Bezier segments to a single BSpline curve.
+    /// - Parameters:
+    ///   - segments: Each element is an array of 2D control points for one Bezier segment.
+    ///               All segments must have the same number of control points.
+    /// - Returns: BSpline 2D data, or nil on failure.
+    public static func toBSpline2d(segments: [[SIMD2<Double>]]) -> BezierToBSpline2dResult? {
+        guard !segments.isEmpty,
+              let ptsPerSeg = segments.first?.count, ptsPerSeg > 0,
+              segments.allSatisfy({ $0.count == ptsPerSeg }) else { return nil }
+
+        var flat = [Double]()
+        flat.reserveCapacity(segments.count * ptsPerSeg * 2)
+        for seg in segments {
+            for pt in seg { flat += [pt.x, pt.y] }
+        }
+
+        var raw = OCCTBezierBSpline2dResult()
+        let ok = flat.withUnsafeBufferPointer { buf in
+            OCCTConvertCompBezier2dToBSpline2d(buf.baseAddress!, Int32(segments.count),
+                                               Int32(ptsPerSeg), &raw)
+        }
+        guard ok else { return nil }
+
+        let nb = Int(raw.nbPoles)
+        let nk = Int(raw.nbKnots)
+
+        var poles = [SIMD2<Double>]()
+        poles.reserveCapacity(nb)
+        withUnsafeBytes(of: raw.poles) { ptr in
+            let dbl = ptr.bindMemory(to: Double.self)
+            for i in 0..<nb {
+                poles.append(SIMD2(dbl[i * 2], dbl[i * 2 + 1]))
+            }
+        }
+
+        var knots = [Double]()
+        var mults = [Int]()
+        knots.reserveCapacity(nk)
+        mults.reserveCapacity(nk)
+        withUnsafeBytes(of: raw.knots) { kptr in
+            withUnsafeBytes(of: raw.mults) { mptr in
+                let kd = kptr.bindMemory(to: Double.self)
+                let mi = mptr.bindMemory(to: Int32.self)
+                for i in 0..<nk {
+                    knots.append(kd[i])
+                    mults.append(Int(mi[i]))
+                }
+            }
+        }
+
+        return BezierToBSpline2dResult(degree: Int(raw.degree), poles: poles,
+                                       knots: knots, multiplicities: mults)
+    }
+}
+
+// MARK: - Geom_OffsetSurface Extensions (v0.99.0)
+
+extension Surface {
+
+    /// Get the offset distance of this surface (only valid if it is an offset surface).
+    public var offsetValue: Double {
+        OCCTSurfaceOffsetValue(handle)
+    }
+
+    /// Set the offset distance of this surface (only has effect on offset surfaces).
+    public func setOffsetValue(_ value: Double) {
+        OCCTSurfaceSetOffsetValue(handle, value)
+    }
+
+    /// Get the basis (underlying) surface of an offset surface.
+    /// Returns nil if this surface is not an offset surface.
+    public var offsetBasis: Surface? {
+        guard let ref = OCCTSurfaceOffsetBasis(handle) else { return nil }
+        return Surface(handle: ref)
+    }
+}
+
+// MARK: - OSD_File (v0.99.0)
+
+/// A wrapper around OCCT's OSD_File for platform-independent file I/O.
+public final class OSDFile {
+
+    @usableFromInline let handle: OCCTOSDFileRef
+
+    /// Create a file object for the given file-system path.
+    public init(path: String) {
+        handle = OCCTFileCreate(path)
+    }
+
+    /// Create a file object for a URL's file path.
+    public init(url: URL) {
+        handle = OCCTFileCreate(url.path)
+    }
+
+    /// Create a temporary file (path chosen by OCCT).
+    public init() {
+        handle = OCCTFileCreateTemporary()
+    }
+
+    deinit {
+        OCCTFileRelease(handle)
+    }
+
+    /// Build (create/truncate) the file and open it for reading and writing.
+    /// - Returns: true on success.
+    @discardableResult
+    public func open() -> Bool {
+        OCCTFileOpen(handle)
+    }
+
+    /// Open an existing file for reading only.
+    /// - Returns: true on success.
+    @discardableResult
+    public func openReadOnly() -> Bool {
+        OCCTFileOpenReadOnly(handle)
+    }
+
+    /// Write a string to the file.
+    /// - Returns: true on success.
+    @discardableResult
+    public func write(_ string: String) -> Bool {
+        string.withCString { ptr in
+            OCCTFileWrite(handle, ptr, Int32(string.utf8.count))
+        }
+    }
+
+    /// Write raw bytes to the file.
+    /// - Returns: true on success.
+    @discardableResult
+    public func write(_ bytes: [UInt8]) -> Bool {
+        bytes.withUnsafeBufferPointer { buf in
+            buf.baseAddress.map { OCCTFileWrite(handle, $0, Int32(bytes.count)) } ?? false
+        }
+    }
+
+    /// Read one line from the file.
+    /// - Parameter bufSize: Maximum line length to read.
+    /// - Returns: The line string, or nil at EOF or on error.
+    public func readLine(bufSize: Int = 4096) -> String? {
+        guard let ptr = OCCTFileReadLine(handle, Int32(bufSize)) else { return nil }
+        defer { OCCTFileFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Read the entire remaining content of the file as a string.
+    public func readAll() -> String? {
+        var length: Int32 = 0
+        guard let ptr = OCCTFileReadAll(handle, &length) else { return nil }
+        defer { OCCTFileFreeString(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Close the file.
+    public func close() {
+        OCCTFileClose(handle)
+    }
+
+    /// Whether the file is currently open.
+    public var isOpen: Bool { OCCTFileIsOpen(handle) }
+
+    /// File size in bytes, or nil on error.
+    public var fileSize: Int? {
+        let sz = OCCTFileSize(handle)
+        return sz >= 0 ? Int(sz) : nil
+    }
+
+    /// Rewind the file position to the beginning.
+    public func rewind() {
+        OCCTFileRewind(handle)
+    }
+
+    /// Whether the file position is at the end.
+    public var isAtEnd: Bool { OCCTFileIsAtEnd(handle) }
+}
+
+// MARK: - ShapeFix_Wireframe Extensions (v0.99.0)
+
+extension Shape {
+
+    /// Fix only wire gaps in the shape (no small-edge removal).
+    /// - Parameter tolerance: Precision for gap detection.
+    /// - Returns: Fixed shape, or nil on failure.
+    public func fixWireGaps(tolerance: Double = 1e-7) -> Shape? {
+        guard let ref = OCCTShapeFixWireGaps(handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Fix only small edges in the shape (no gap repair).
+    /// - Parameters:
+    ///   - tolerance: Precision for small-edge detection.
+    ///   - dropSmall: If true, remove small edges; if false, merge them with neighbours.
+    ///   - limitAngle: Maximum tangent angle for merging (radians). Pass -1 for no limit.
+    /// - Returns: Fixed shape, or nil on failure.
+    public func fixSmallEdges(tolerance: Double = 1e-7,
+                               dropSmall: Bool = false,
+                               limitAngle: Double = -1) -> Shape? {
+        guard let ref = OCCTShapeFixSmallEdges(handle, tolerance, dropSmall, limitAngle) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+}

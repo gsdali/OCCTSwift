@@ -292,7 +292,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **OSD_Chronometer** | 2 | processCPU, threadCPU |
 | **OSD_Process** | 4 | processId, userName, executablePath, executableFolder |
 | **Draft_Modification** | 1 | draftModification |
-| **Total** | **1950** | |
+| **Convert_CompBezierCurvesToBSplineCurve** | 1 | toBSpline (composite 3D Bezier → BSpline) |
+| **Convert_CompBezierCurves2dToBSplineCurve2d** | 1 | toBSpline2d (composite 2D Bezier → BSpline) |
+| **Geom_OffsetSurface Extensions** | 3 | offsetValue, setOffsetValue, offsetBasis |
+| **OSD_File** | 13 | create, createTemporary, open, openReadOnly, write, readLine, readAll, close, isOpen, fileSize, rewind, isAtEnd, release |
+| **ShapeFix_Wireframe Extensions** | 2 | fixWireGaps, fixSmallEdges |
+| **Total** | **1971** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -641,6 +646,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **3D Geometric Transformations**: Geom_Transformation — Handle-wrapped transformation objects with translation, rotation, scale, mirror (point/axis), composition (multiply/invert), matrix access
 - **Offset Curves**: Geom_OffsetCurve — create curves offset from a basis curve by a distance in a reference direction
 - **Rectangular Trimmed Surfaces**: Geom_RectangularTrimmedSurface — trim infinite surfaces to rectangular UV parameter bounds (full trim or single-direction U/V trim)
+- **Composite 3D Bezier → BSpline**: Convert_CompBezierCurvesToBSplineCurve — join N connected Bezier segments into a single BSpline curve with correct degree, poles, knots, and multiplicities
+- **Composite 2D Bezier → BSpline**: Convert_CompBezierCurves2dToBSplineCurve2d — same as above for 2D parametric curves
+- **Offset Surface Introspection**: Geom_OffsetSurface — query and mutate offset distance, extract basis surface
+- **Platform-Independent File I/O**: OSD_File — OCCT's portable file wrapper with open (read/write/read-only), write string/bytes, readLine, readAll, size query, rewind, EOF check, and temporary file creation
+- **Selective Wireframe Fix**: ShapeFix_Wireframe — fix only wire gaps (fixWireGaps) or only small edges (fixSmallEdges with drop/merge mode and limit angle control) in a shape
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1607,7 +1617,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1950 OCCT operations** across 160 categories with 2141 tests across 688 suites.
+OCCTSwift now wraps **1971 OCCT operations** across 165 categories with 2159 tests across 693 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

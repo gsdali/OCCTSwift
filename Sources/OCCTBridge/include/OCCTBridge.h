@@ -232,7 +232,7 @@
 // Geom_Ellipse                        → OCCTCurve3DEllipse*
 // Geom_Hyperbola                      → OCCTCurve3DHyperbola*
 // Geom_Line                           → OCCTCurve3DLine, OCCTCurve3DSegment
-// Geom_OffsetSurface                  → OCCTSurfaceOffset
+// Geom_OffsetSurface                  → OCCTSurfaceOffset, OCCTSurfaceOffsetValue, OCCTSurfaceSetOffsetValue, OCCTSurfaceOffsetBasis (v0.99.0)
 // Geom_Parabola                       → OCCTCurve3DParabola*
 // Geom_Plane                          → OCCTSurfacePlane*
 // Geom_SphericalSurface               → OCCTSurfaceSphere
@@ -288,6 +288,10 @@
 // --- GeomConvert ---
 // GeomConvert                         → OCCTCurve3DToBSpline, OCCTCurve3DToBezierSegments
 // GeomConvert_CompCurveToBSplineCurve → OCCTCurve3DJoined
+//
+// --- Convert ---
+// Convert_CompBezierCurvesToBSplineCurve   → OCCTConvertCompBezierToBSpline (v0.99.0)
+// Convert_CompBezierCurves2dToBSplineCurve2d → OCCTConvertCompBezier2dToBSpline2d (v0.99.0)
 //
 // --- GeomFill ---
 // GeomFill_BSplineCurves              → OCCTSurfaceBSplineFill*
@@ -422,7 +426,7 @@
 // ShapeFix_SplitCommonVertex          → OCCTShapeFixSplitCommonVertex
 // ShapeFix_Wire                       → OCCTShapeFixWire*
 // ShapeFix_WireVertex                 → OCCTShapeFixWireVertices
-// ShapeFix_Wireframe                  → OCCTShapeFixWireframe
+// ShapeFix_Wireframe                  → OCCTShapeFixWireframe, OCCTShapeFixWireGaps, OCCTShapeFixSmallEdges (v0.99.0)
 //
 // --- ShapeUpgrade ---
 // ShapeUpgrade_ConvertCurve3dToBezier → OCCTShapeUpgradeConvertCurves3dToBezier
@@ -12787,6 +12791,134 @@ OCCTShapeRef _Nullable OCCTShapeDraftModification(OCCTShapeRef _Nonnull shape, i
                                         double angle,
                                         double planeOX, double planeOY, double planeOZ,
                                         double planeNX, double planeNY, double planeNZ);
+
+// MARK: - Convert_CompBezierCurvesToBSplineCurve (v0.99.0)
+
+/// Result structure for composite Bezier → BSpline 3D curve conversion.
+typedef struct {
+    int32_t degree;
+    int32_t nbPoles;
+    int32_t nbKnots;
+    double poles[300];   ///< Up to 100 3D poles (x,y,z interleaved)
+    double knots[50];
+    int32_t mults[50];
+} OCCTBezierBSplineResult;
+
+/// Convert N composite Bezier segments (3D) to a single BSpline curve.
+/// @param poles Flattened array of [x,y,z] control points; length = segCount * ptsPerSeg * 3
+/// @param segCount Number of Bezier segments
+/// @param ptsPerSeg Number of control points per segment (degree+1)
+/// @param out Result filled on success
+/// @return true on success
+bool OCCTConvertCompBezierToBSpline(const double* _Nonnull poles,
+                                    int32_t segCount, int32_t ptsPerSeg,
+                                    OCCTBezierBSplineResult* _Nonnull out);
+
+/// Result structure for composite Bezier → BSpline 2D curve conversion.
+typedef struct {
+    int32_t degree;
+    int32_t nbPoles;
+    int32_t nbKnots;
+    double poles[200];   ///< Up to 100 2D poles (x,y interleaved)
+    double knots[50];
+    int32_t mults[50];
+} OCCTBezierBSpline2dResult;
+
+/// Convert N composite Bezier segments (2D) to a single BSpline curve.
+/// @param poles Flattened array of [x,y] control points; length = segCount * ptsPerSeg * 2
+/// @param segCount Number of Bezier segments
+/// @param ptsPerSeg Number of control points per segment (degree+1)
+/// @param out Result filled on success
+/// @return true on success
+bool OCCTConvertCompBezier2dToBSpline2d(const double* _Nonnull poles,
+                                        int32_t segCount, int32_t ptsPerSeg,
+                                        OCCTBezierBSpline2dResult* _Nonnull out);
+
+// MARK: - Geom_OffsetSurface Extensions (v0.99.0)
+
+/// Get the offset distance of an offset surface.
+/// @return The offset value, or 0.0 if not an offset surface
+double OCCTSurfaceOffsetValue(OCCTSurfaceRef _Nonnull surface);
+
+/// Set the offset distance of an offset surface (mutates in place).
+void OCCTSurfaceSetOffsetValue(OCCTSurfaceRef _Nonnull surface, double offset);
+
+/// Get the basis (underlying) surface of an offset surface.
+/// @return The basis surface, or NULL if not an offset surface
+OCCTSurfaceRef _Nullable OCCTSurfaceOffsetBasis(OCCTSurfaceRef _Nonnull surface);
+
+// MARK: - OSD_File (v0.99.0)
+
+/// Opaque reference to an OSD_File object.
+typedef struct OCCTOSDFile* OCCTOSDFileRef;
+
+/// Create an OSD_File object for the given path.
+OCCTOSDFileRef _Nonnull OCCTFileCreate(const char* _Nonnull path);
+
+/// Create a temporary OSD_File object (path chosen by OCCT).
+OCCTOSDFileRef _Nonnull OCCTFileCreateTemporary(void);
+
+/// Release an OSD_File object.
+void OCCTFileRelease(OCCTOSDFileRef _Nonnull file);
+
+/// Build (create/truncate) and open the file for reading and writing.
+/// @return true on success
+bool OCCTFileOpen(OCCTOSDFileRef _Nonnull file);
+
+/// Open an existing file for reading only.
+/// @return true on success
+bool OCCTFileOpenReadOnly(OCCTOSDFileRef _Nonnull file);
+
+/// Write data to an open file.
+/// @param data Pointer to the bytes to write
+/// @param length Number of bytes to write
+/// @return true on success
+bool OCCTFileWrite(OCCTOSDFileRef _Nonnull file, const char* _Nonnull data, int32_t length);
+
+/// Read a line from an open file. Caller must free the returned string.
+/// @param bufSize Maximum line buffer size
+/// @return Heap-allocated null-terminated string, or NULL on error/EOF
+char* _Nullable OCCTFileReadLine(OCCTOSDFileRef _Nonnull file, int32_t bufSize);
+
+/// Read the entire contents of an open file. Caller must free the returned buffer.
+/// @param outLength Filled with the number of bytes returned
+/// @return Heap-allocated buffer, or NULL on error
+char* _Nullable OCCTFileReadAll(OCCTOSDFileRef _Nonnull file, int32_t* _Nonnull outLength);
+
+/// Close the file.
+void OCCTFileClose(OCCTOSDFileRef _Nonnull file);
+
+/// Return whether the file is currently open.
+bool OCCTFileIsOpen(OCCTOSDFileRef _Nonnull file);
+
+/// Return the size of the file in bytes, or -1 on error.
+int64_t OCCTFileSize(OCCTOSDFileRef _Nonnull file);
+
+/// Rewind the file position to the beginning.
+void OCCTFileRewind(OCCTOSDFileRef _Nonnull file);
+
+/// Return whether the file position is at the end.
+bool OCCTFileIsAtEnd(OCCTOSDFileRef _Nonnull file);
+
+/// Free a string returned by OCCTFileReadLine or OCCTFileReadAll.
+void OCCTFileFreeString(char* _Nullable str);
+
+// MARK: - ShapeFix_Wireframe Extensions (v0.99.0)
+
+/// Fix only wire gaps in a shape (no small-edge removal).
+/// @param shape The shape to fix
+/// @param tolerance Precision for gap detection
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeFixWireGaps(OCCTShapeRef _Nonnull shape, double tolerance);
+
+/// Fix only small edges in a shape (no gap repair).
+/// @param shape The shape to fix
+/// @param tolerance Precision for small-edge detection
+/// @param dropSmall If true, drop small edges; if false, merge them
+/// @param limitAngle Maximum angle between tangents for merging (radians); use -1 for no limit
+/// @return Fixed shape, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeFixSmallEdges(OCCTShapeRef _Nonnull shape, double tolerance,
+                                               bool dropSmall, double limitAngle);
 
 #ifdef __cplusplus
 }

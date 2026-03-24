@@ -27027,3 +27027,201 @@ struct DraftModificationTests {
         }
     }
 }
+
+// MARK: - v0.99.0 Tests
+
+@Suite("Convert_CompBezierCurvesToBSplineCurve Tests")
+struct CompBezierToBSplineTests {
+
+    @Test func singleCubicSegment3D() {
+        // One cubic Bezier segment: 4 control points
+        let seg: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 2, 0), SIMD3(3, 0, 0)
+        ]
+        if let result = CompBezierConverter.toBSpline(segments: [seg]) {
+            #expect(result.degree == 3)
+            #expect(result.poles.count == 4)
+            #expect(result.knots.count >= 2)
+            // First pole should match first control point
+            #expect(abs(result.poles[0].x) < 1e-10)
+            #expect(abs(result.poles[0].y) < 1e-10)
+            // Last pole should match last control point
+            #expect(abs(result.poles.last!.x - 3.0) < 1e-10)
+        }
+    }
+
+    @Test func twoCubicSegments3D() {
+        // Two C0-connected cubic Bezier segments (second starts where first ends)
+        let seg1: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 1, 0), SIMD3(2, 1, 0), SIMD3(3, 0, 0)
+        ]
+        let seg2: [SIMD3<Double>] = [
+            SIMD3(3, 0, 0), SIMD3(4, -1, 0), SIMD3(5, -1, 0), SIMD3(6, 0, 0)
+        ]
+        if let result = CompBezierConverter.toBSpline(segments: [seg1, seg2]) {
+            #expect(result.degree == 3)
+            // Two cubic segments joined → at least 4 poles
+            #expect(result.poles.count >= 4)
+            #expect(result.knots.count >= 2)
+        }
+    }
+
+    @Test func emptySegmentsReturnsNil() {
+        let result = CompBezierConverter.toBSpline(segments: [])
+        #expect(result == nil)
+    }
+
+    @Test func mismatchedSegmentSizesReturnsNil() {
+        let seg1: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0)]
+        let seg2: [SIMD3<Double>] = [SIMD3(1, 0, 0), SIMD3(2, 0, 0), SIMD3(3, 0, 0)]
+        let result = CompBezierConverter.toBSpline(segments: [seg1, seg2])
+        #expect(result == nil)
+    }
+}
+
+@Suite("Convert_CompBezierCurves2dToBSplineCurve2d Tests")
+struct CompBezier2dToBSpline2dTests {
+
+    @Test func singleQuadraticSegment2D() {
+        // One quadratic Bezier segment: 3 control points
+        let seg: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(1, 2), SIMD2(2, 0)
+        ]
+        if let result = CompBezierConverter.toBSpline2d(segments: [seg]) {
+            #expect(result.degree == 2)
+            #expect(result.poles.count == 3)
+            #expect(result.knots.count >= 2)
+            #expect(abs(result.poles[0].x) < 1e-10)
+            #expect(abs(result.poles[0].y) < 1e-10)
+            #expect(abs(result.poles.last!.x - 2.0) < 1e-10)
+        }
+    }
+
+    @Test func twoCubicSegments2D() {
+        let seg1: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 1), SIMD2(3, 0)
+        ]
+        let seg2: [SIMD2<Double>] = [
+            SIMD2(3, 0), SIMD2(4, -1), SIMD2(5, -1), SIMD2(6, 0)
+        ]
+        if let result = CompBezierConverter.toBSpline2d(segments: [seg1, seg2]) {
+            #expect(result.degree == 3)
+            #expect(result.poles.count >= 4)
+        }
+    }
+
+    @Test func emptySegmentsReturnsNil2D() {
+        let result = CompBezierConverter.toBSpline2d(segments: [])
+        #expect(result == nil)
+    }
+}
+
+@Suite("Geom_OffsetSurface Extension Tests")
+struct GeomOffsetSurfaceExtTests {
+
+    @Test func offsetValueRoundTrip() {
+        guard let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) else { return }
+        guard let off = plane.offset(distance: 5.0) else { return }
+        #expect(abs(off.offsetValue - 5.0) < 1e-10)
+    }
+
+    @Test func setOffsetValue() {
+        guard let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) else { return }
+        guard let off = plane.offset(distance: 3.0) else { return }
+        off.setOffsetValue(7.5)
+        #expect(abs(off.offsetValue - 7.5) < 1e-10)
+    }
+
+    @Test func offsetBasisIsNotNil() {
+        guard let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) else { return }
+        guard let off = plane.offset(distance: 2.0) else { return }
+        #expect(off.offsetBasis != nil)
+    }
+
+    @Test func nonOffsetSurfaceOffsetValueIsZero() {
+        guard let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) else { return }
+        // A plain plane has offsetValue == 0 (not an offset surface)
+        #expect(abs(plane.offsetValue) < 1e-10)
+    }
+
+    @Test func nonOffsetSurfaceOffsetBasisIsNil() {
+        guard let plane = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) else { return }
+        #expect(plane.offsetBasis == nil)
+    }
+}
+
+@Suite("OSD_File Tests")
+struct OSDFileTests {
+
+    @Test func writeAndReadBack() {
+        let tmpPath = "/tmp/occt_osdfile_test_\(Int.random(in: 0..<1_000_000)).txt"
+        let file = OSDFile(path: tmpPath)
+        let opened = file.open()
+        guard opened else { return }
+        let content = "Hello, OSD_File!\nLine 2\n"
+        let wrote = file.write(content)
+        #expect(wrote)
+        file.close()
+
+        let reader = OSDFile(path: tmpPath)
+        guard reader.openReadOnly() else { return }
+        let line1 = reader.readLine()
+        if let line1 {
+            #expect(line1.hasPrefix("Hello"))
+        }
+        reader.close()
+
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test func fileSize() {
+        let tmpPath = "/tmp/occt_osdfile_size_\(Int.random(in: 0..<1_000_000)).txt"
+        let file = OSDFile(path: tmpPath)
+        guard file.open() else { return }
+        _ = file.write("ABCDE")
+        file.close()
+
+        let reader = OSDFile(path: tmpPath)
+        guard reader.openReadOnly() else { return }
+        if let sz = reader.fileSize {
+            #expect(sz >= 5)
+        }
+        reader.close()
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+
+    @Test func isOpenFalseAfterClose() {
+        let tmpPath = "/tmp/occt_osdfile_open_\(Int.random(in: 0..<1_000_000)).txt"
+        let file = OSDFile(path: tmpPath)
+        guard file.open() else { return }
+        #expect(file.isOpen)
+        file.close()
+        #expect(!file.isOpen)
+        try? FileManager.default.removeItem(atPath: tmpPath)
+    }
+}
+
+@Suite("ShapeFix_Wireframe Extension Tests")
+struct ShapeFixWireframeExtTests {
+
+    @Test func fixWireGapsReturnsShape() {
+        guard let box = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10) else { return }
+        if let fixed = box.fixWireGaps(tolerance: 1e-7) {
+            #expect(fixed.isValid)
+        }
+    }
+
+    @Test func fixSmallEdgesDropMode() {
+        guard let box = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10) else { return }
+        if let fixed = box.fixSmallEdges(tolerance: 1e-7, dropSmall: true, limitAngle: -1) {
+            #expect(fixed.isValid)
+        }
+    }
+
+    @Test func fixSmallEdgesMergeMode() {
+        guard let box = Shape.box(origin: SIMD3(0, 0, 0), width: 10, height: 10, depth: 10) else { return }
+        if let fixed = box.fixSmallEdges(tolerance: 1e-7, dropSmall: false, limitAngle: 0.01) {
+            #expect(fixed.isValid)
+        }
+    }
+}
