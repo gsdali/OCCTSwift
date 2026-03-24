@@ -13033,6 +13033,89 @@ OCCTShapeRef _Nullable OCCTShapeFreeBoundsClosed(OCCTShapeRef _Nonnull shape, do
 /// Get the compound of open free-boundary wires.
 OCCTShapeRef _Nullable OCCTShapeFreeBoundsOpen(OCCTShapeRef _Nonnull shape, double tolerance);
 
+// MARK: - v0.101.0: Geom_TrimmedCurve, BRepLib_FindSurface, ShapeAnalysis_Surface,
+//                    Resource_Manager
+
+// --- Geom_TrimmedCurve ---
+
+/// Create a trimmed curve from basis curve between u1 and u2.
+OCCTCurve3DRef _Nullable OCCTCurve3DTrimmed(OCCTCurve3DRef _Nonnull basisCurve, double u1, double u2);
+
+/// Get start point of a trimmed (bounded) curve.
+void OCCTCurve3DStartPoint(OCCTCurve3DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get end point of a trimmed (bounded) curve.
+void OCCTCurve3DEndPoint(OCCTCurve3DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get basis curve of a trimmed curve (returns null if not a trimmed curve).
+OCCTCurve3DRef _Nullable OCCTCurve3DTrimmedBasis(OCCTCurve3DRef _Nonnull curve);
+
+/// Change trim parameters on a trimmed curve.
+bool OCCTCurve3DSetTrim(OCCTCurve3DRef _Nonnull curve, double u1, double u2);
+
+// --- BRepLib_FindSurface ---
+
+/// Find a surface (typically plane) through the edges of a shape.
+/// @param onlyPlane If true, only planes are considered
+/// @return Found surface, or NULL if not found
+OCCTSurfaceRef _Nullable OCCTFindSurface(OCCTShapeRef _Nonnull shape, double tolerance, bool onlyPlane);
+
+/// Find surface and return the tolerance reached.
+double OCCTFindSurfaceTolerance(OCCTShapeRef _Nonnull shape, double tolerance, bool onlyPlane);
+
+/// Check if the surface already existed on the shape.
+bool OCCTFindSurfaceExisted(OCCTShapeRef _Nonnull shape, double tolerance, bool onlyPlane);
+
+// --- ShapeAnalysis_Surface ---
+
+/// Project a 3D point onto a surface, returning UV parameters and gap distance.
+double OCCTSurfaceProjectPointUV(OCCTSurfaceRef _Nonnull surface,
+                                   double px, double py, double pz, double preci,
+                                   double* _Nonnull u, double* _Nonnull v);
+
+/// Check if a surface has singularities at the given precision.
+bool OCCTSurfaceHasSingularities(OCCTSurfaceRef _Nonnull surface, double preci);
+
+/// Get number of singularities on a surface.
+int32_t OCCTSurfaceNbSingularities(OCCTSurfaceRef _Nonnull surface, double preci);
+
+/// Check if surface is spatially U-closed at given precision.
+bool OCCTSurfaceIsUClosedSA(OCCTSurfaceRef _Nonnull surface, double preci);
+
+/// Check if surface is spatially V-closed at given precision.
+bool OCCTSurfaceIsVClosedSA(OCCTSurfaceRef _Nonnull surface, double preci);
+
+// --- Resource_Manager ---
+
+typedef struct OCCTResourceManager* OCCTResourceManagerRef;
+
+/// Create an empty resource manager.
+OCCTResourceManagerRef _Nonnull OCCTResourceManagerCreate(void);
+
+/// Release a resource manager.
+void OCCTResourceManagerRelease(OCCTResourceManagerRef _Nonnull mgr);
+
+/// Set a string resource.
+void OCCTResourceManagerSetString(OCCTResourceManagerRef _Nonnull mgr, const char* _Nonnull key, const char* _Nonnull value);
+
+/// Set an integer resource.
+void OCCTResourceManagerSetInt(OCCTResourceManagerRef _Nonnull mgr, const char* _Nonnull key, int32_t value);
+
+/// Set a real resource.
+void OCCTResourceManagerSetReal(OCCTResourceManagerRef _Nonnull mgr, const char* _Nonnull key, double value);
+
+/// Check if a resource key exists.
+bool OCCTResourceManagerFind(OCCTResourceManagerRef _Nonnull mgr, const char* _Nonnull key);
+
+/// Get a string resource value. Caller must free() the returned string.
+char* _Nullable OCCTResourceManagerGetString(OCCTResourceManagerRef _Nonnull mgr, const char* _Nonnull key);
+
+/// Get an integer resource value.
+int32_t OCCTResourceManagerGetInt(OCCTResourceManagerRef _Nonnull mgr, const char* _Nonnull key);
+
+/// Get a real resource value.
+double OCCTResourceManagerGetReal(OCCTResourceManagerRef _Nonnull mgr, const char* _Nonnull key);
+
 #ifdef __cplusplus
 }
 #endif

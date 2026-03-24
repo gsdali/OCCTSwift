@@ -6605,3 +6605,126 @@ extension Shape {
         return Shape(handle: ref)
     }
 }
+
+// MARK: - Geom_TrimmedCurve (v0.101.0)
+
+extension Curve3D {
+
+    /// Create a trimmed curve from this curve between parameters u1 and u2.
+    public func trimmed(u1: Double, u2: Double) -> Curve3D? {
+        guard let ref = OCCTCurve3DTrimmed(handle, u1, u2) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Get the basis curve of a trimmed curve (nil if not trimmed).
+    public var trimmedBasis: Curve3D? {
+        guard let ref = OCCTCurve3DTrimmedBasis(handle) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Change the trim parameters on a trimmed curve.
+    @discardableResult
+    public func setTrim(u1: Double, u2: Double) -> Bool {
+        OCCTCurve3DSetTrim(handle, u1, u2)
+    }
+}
+
+// MARK: - BRepLib_FindSurface (v0.101.0)
+
+extension Shape {
+
+    /// Find a surface (typically plane) through the edges of this shape.
+    public func findSurface(tolerance: Double = -1, onlyPlane: Bool = false) -> Surface? {
+        guard let ref = OCCTFindSurface(handle, tolerance, onlyPlane) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Find surface tolerance reached.
+    public func findSurfaceTolerance(tolerance: Double = -1, onlyPlane: Bool = false) -> Double? {
+        let tol = OCCTFindSurfaceTolerance(handle, tolerance, onlyPlane)
+        return tol >= 0 ? tol : nil
+    }
+
+    /// Check if a surface already existed on the shape edges.
+    public func findSurfaceExisted(tolerance: Double = -1, onlyPlane: Bool = false) -> Bool {
+        OCCTFindSurfaceExisted(handle, tolerance, onlyPlane)
+    }
+}
+
+// MARK: - ShapeAnalysis_Surface (v0.101.0)
+
+extension Surface {
+
+    /// Project a 3D point onto this surface using ShapeAnalysis_Surface, returning UV parameters and gap.
+    /// Unlike `projectPoint(_:)` (GeomAPI), this uses ShapeAnalysis for robust projection.
+    public func projectPointUV(_ point: SIMD3<Double>, precision: Double = 1e-6) -> (u: Double, v: Double, gap: Double) {
+        var u = 0.0, v = 0.0
+        let gap = OCCTSurfaceProjectPointUV(handle, point.x, point.y, point.z, precision, &u, &v)
+        return (u, v, gap)
+    }
+
+    /// Check if surface has singularities using ShapeAnalysis_Surface at the given precision.
+    public func hasSingularitiesSA(precision: Double = 1e-6) -> Bool {
+        OCCTSurfaceHasSingularities(handle, precision)
+    }
+
+    /// Number of singularities using ShapeAnalysis_Surface.
+    public func singularityCountSA(precision: Double = 1e-6) -> Int {
+        Int(OCCTSurfaceNbSingularities(handle, precision))
+    }
+
+    /// Check if surface is spatially U-closed using ShapeAnalysis_Surface.
+    public func isUClosedSA(precision: Double = -1) -> Bool {
+        OCCTSurfaceIsUClosedSA(handle, precision)
+    }
+
+    /// Check if surface is spatially V-closed using ShapeAnalysis_Surface.
+    public func isVClosedSA(precision: Double = -1) -> Bool {
+        OCCTSurfaceIsVClosedSA(handle, precision)
+    }
+}
+
+// MARK: - Resource_Manager (v0.101.0)
+
+/// Configuration key-value store using OCCT Resource_Manager.
+public final class ResourceManager: @unchecked Sendable {
+    private let ref: OCCTResourceManagerRef
+
+    public init() {
+        ref = OCCTResourceManagerCreate()
+    }
+
+    deinit {
+        OCCTResourceManagerRelease(ref)
+    }
+
+    public func setString(_ key: String, value: String) {
+        OCCTResourceManagerSetString(ref, key, value)
+    }
+
+    public func setInt(_ key: String, value: Int) {
+        OCCTResourceManagerSetInt(ref, key, Int32(value))
+    }
+
+    public func setReal(_ key: String, value: Double) {
+        OCCTResourceManagerSetReal(ref, key, value)
+    }
+
+    public func find(_ key: String) -> Bool {
+        OCCTResourceManagerFind(ref, key)
+    }
+
+    public func string(_ key: String) -> String? {
+        guard let ptr = OCCTResourceManagerGetString(ref, key) else { return nil }
+        defer { free(UnsafeMutablePointer(mutating: ptr)) }
+        return String(cString: ptr)
+    }
+
+    public func integer(_ key: String) -> Int {
+        Int(OCCTResourceManagerGetInt(ref, key))
+    }
+
+    public func real(_ key: String) -> Double {
+        OCCTResourceManagerGetReal(ref, key)
+    }
+}

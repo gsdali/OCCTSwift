@@ -27463,3 +27463,148 @@ struct FreeBoundsSimplifiedTests {
         }
     }
 }
+
+// MARK: - v0.101.0 Tests
+
+@Suite("Geom_TrimmedCurve Tests")
+struct GeomTrimmedCurveTests {
+
+    @Test func trimLineCreatesSubset() {
+        if let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+           let trimmed = line.trimmed(u1: 2.0, u2: 8.0) {
+            let sp = trimmed.startPoint
+            let ep = trimmed.endPoint
+            #expect(abs(sp.x - 2.0) < 1e-6)
+            #expect(abs(ep.x - 8.0) < 1e-6)
+        }
+    }
+
+    @Test func trimmedBasisReturnsOriginal() {
+        if let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+           let trimmed = line.trimmed(u1: 0, u2: 10) {
+            let basis = trimmed.trimmedBasis
+            #expect(basis != nil)
+        }
+    }
+
+    @Test func nonTrimmedHasNilBasis() {
+        if let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)) {
+            #expect(line.trimmedBasis == nil)
+        }
+    }
+
+    @Test func setTrimUpdatesRange() {
+        if let line = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0)),
+           let trimmed = line.trimmed(u1: 0, u2: 10) {
+            let ok = trimmed.setTrim(u1: 3.0, u2: 7.0)
+            #expect(ok)
+            let sp = trimmed.startPoint
+            #expect(abs(sp.x - 3.0) < 1e-6)
+        }
+    }
+}
+
+@Suite("BRepLib_FindSurface Tests")
+struct BRepLibFindSurfaceTests {
+
+    @Test func findSurfaceFromBoxFaceWire() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let surface = wire.findSurface(onlyPlane: true)
+                    #expect(surface != nil)
+                }
+            }
+        }
+    }
+
+    @Test func findSurfaceToleranceReturnsValue() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let tol = wire.findSurfaceTolerance(onlyPlane: true)
+                    #expect(tol != nil)
+                }
+            }
+        }
+    }
+
+    @Test func findSurfaceExistedTrue() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let existed = wire.findSurfaceExisted(onlyPlane: true)
+                    #expect(existed)
+                }
+            }
+        }
+    }
+}
+
+@Suite("ShapeAnalysis_Surface Tests")
+struct ShapeAnalysisSurfaceTests {
+
+    @Test func projectPointOnPlane() {
+        if let s = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            let result = s.projectPointUV(SIMD3(5, 3, 0))
+            #expect(abs(result.u - 5.0) < 1e-4)
+            #expect(abs(result.v - 3.0) < 1e-4)
+            #expect(result.gap < 1e-6)
+        }
+    }
+
+    @Test func projectPointOffPlane() {
+        if let s = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            let result = s.projectPointUV(SIMD3(0, 0, 10))
+            #expect(abs(result.gap - 10.0) < 1e-4)
+        }
+    }
+
+    @Test func planeHasNoSingularities() {
+        if let s = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            #expect(!s.hasSingularitiesSA())
+            #expect(s.singularityCountSA() == 0)
+        }
+    }
+
+    @Test func planeIsNotClosed() {
+        if let s = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            #expect(!s.isUClosedSA())
+            #expect(!s.isVClosedSA())
+        }
+    }
+}
+
+@Suite("Resource_Manager Tests")
+struct ResourceManagerTests {
+
+    @Test func setAndGetString() {
+        let mgr = ResourceManager()
+        mgr.setString("key1", value: "hello")
+        #expect(mgr.find("key1"))
+        #expect(mgr.string("key1") == "hello")
+    }
+
+    @Test func setAndGetInt() {
+        let mgr = ResourceManager()
+        mgr.setInt("intKey", value: 42)
+        #expect(mgr.integer("intKey") == 42)
+    }
+
+    @Test func setAndGetReal() {
+        let mgr = ResourceManager()
+        mgr.setReal("realKey", value: 3.14)
+        #expect(abs(mgr.real("realKey") - 3.14) < 1e-10)
+    }
+
+    @Test func findNonExistent() {
+        let mgr = ResourceManager()
+        #expect(!mgr.find("no_such_key"))
+    }
+}

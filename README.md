@@ -303,7 +303,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Geom_OffsetCurve Basis** | 1 | offsetBasisCurve |
 | **APIHeaderSection_MakeHeader** | 15 | StepHeader create/release/isDone, get/set name/timeStamp/author/organization/preprocessorVersion/originatingSystem |
 | **ShapeAnalysis_FreeBounds Simplified** | 3 | freeBoundsClosedCount, freeBoundsClosedWires, freeBoundsOpenWires |
-| **Total** | **1996** | |
+| **Geom_TrimmedCurve** | 5 | trimmed, startPoint, endPoint, trimmedBasis, setTrim |
+| **BRepLib_FindSurface** | 3 | findSurface, findSurfaceTolerance, findSurfaceExisted |
+| **ShapeAnalysis_Surface Extensions** | 5 | projectPointUV, hasSingularitiesSA, singularityCountSA, isUClosedSA, isVClosedSA |
+| **Resource_Manager** | 9 | create, release, setString, setInt, setReal, find, getString, getInt, getReal |
+| **Total** | **2018** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1623,7 +1627,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1996 OCCT operations** across 171 categories with 2185 tests across 699 suites.
+OCCTSwift now wraps **2018 OCCT operations** across 175 categories with 2200 tests across 703 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

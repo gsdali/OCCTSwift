@@ -37802,3 +37802,170 @@ OCCTShapeRef OCCTShapeFreeBoundsOpen(OCCTShapeRef shape, double tolerance) {
         return new OCCTShape(open);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.101.0
+
+#include <Geom_TrimmedCurve.hxx>
+#include <BRepLib_FindSurface.hxx>
+#include <ShapeAnalysis_Surface.hxx>
+#include <Resource_Manager.hxx>
+
+// --- Geom_TrimmedCurve ---
+
+OCCTCurve3DRef OCCTCurve3DTrimmed(OCCTCurve3DRef basisCurve, double u1, double u2) {
+    try {
+        Handle(Geom_TrimmedCurve) tc = new Geom_TrimmedCurve(basisCurve->curve, u1, u2);
+        OCCTCurve3D* c = new OCCTCurve3D();
+        c->curve = tc;
+        return c;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTCurve3DStartPoint(OCCTCurve3DRef curve, double* x, double* y, double* z) {
+    try {
+        gp_Pnt p = curve->curve->Value(curve->curve->FirstParameter());
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = 0; *y = 0; *z = 0; }
+}
+
+void OCCTCurve3DEndPoint(OCCTCurve3DRef curve, double* x, double* y, double* z) {
+    try {
+        gp_Pnt p = curve->curve->Value(curve->curve->LastParameter());
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = 0; *y = 0; *z = 0; }
+}
+
+OCCTCurve3DRef OCCTCurve3DTrimmedBasis(OCCTCurve3DRef curve) {
+    try {
+        Handle(Geom_TrimmedCurve) tc = Handle(Geom_TrimmedCurve)::DownCast(curve->curve);
+        if (tc.IsNull()) return nullptr;
+        OCCTCurve3D* c = new OCCTCurve3D();
+        c->curve = tc->BasisCurve();
+        return c;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTCurve3DSetTrim(OCCTCurve3DRef curve, double u1, double u2) {
+    try {
+        Handle(Geom_TrimmedCurve) tc = Handle(Geom_TrimmedCurve)::DownCast(curve->curve);
+        if (tc.IsNull()) return false;
+        tc->SetTrim(u1, u2);
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- BRepLib_FindSurface ---
+
+OCCTSurfaceRef OCCTFindSurface(OCCTShapeRef shape, double tolerance, bool onlyPlane) {
+    try {
+        BRepLib_FindSurface finder(shape->shape, tolerance, onlyPlane);
+        if (!finder.Found()) return nullptr;
+        Handle(Geom_Surface) surf = finder.Surface();
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) { return nullptr; }
+}
+
+double OCCTFindSurfaceTolerance(OCCTShapeRef shape, double tolerance, bool onlyPlane) {
+    try {
+        BRepLib_FindSurface finder(shape->shape, tolerance, onlyPlane);
+        if (!finder.Found()) return -1.0;
+        return finder.ToleranceReached();
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTFindSurfaceExisted(OCCTShapeRef shape, double tolerance, bool onlyPlane) {
+    try {
+        BRepLib_FindSurface finder(shape->shape, tolerance, onlyPlane);
+        if (!finder.Found()) return false;
+        return finder.Existed();
+    } catch (...) { return false; }
+}
+
+// --- ShapeAnalysis_Surface ---
+
+double OCCTSurfaceProjectPointUV(OCCTSurfaceRef surface, double px, double py, double pz,
+                                   double preci, double* u, double* v) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        gp_Pnt2d uv = sas->ValueOfUV(gp_Pnt(px, py, pz), preci);
+        *u = uv.X();
+        *v = uv.Y();
+        return sas->Gap();
+    } catch (...) { *u = 0; *v = 0; return -1.0; }
+}
+
+bool OCCTSurfaceHasSingularities(OCCTSurfaceRef surface, double preci) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        return sas->HasSingularities(preci);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTSurfaceNbSingularities(OCCTSurfaceRef surface, double preci) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        return sas->NbSingularities(preci);
+    } catch (...) { return 0; }
+}
+
+bool OCCTSurfaceIsUClosedSA(OCCTSurfaceRef surface, double preci) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        return sas->IsUClosed(preci);
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceIsVClosedSA(OCCTSurfaceRef surface, double preci) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        return sas->IsVClosed(preci);
+    } catch (...) { return false; }
+}
+
+// --- Resource_Manager ---
+
+struct OCCTResourceManager {
+    Handle(Resource_Manager) mgr;
+};
+
+OCCTResourceManagerRef OCCTResourceManagerCreate(void) {
+    OCCTResourceManager* rm = new OCCTResourceManager();
+    rm->mgr = new Resource_Manager();
+    return rm;
+}
+
+void OCCTResourceManagerRelease(OCCTResourceManagerRef mgr) {
+    delete mgr;
+}
+
+void OCCTResourceManagerSetString(OCCTResourceManagerRef mgr, const char* key, const char* value) {
+    try { mgr->mgr->SetResource(key, value); } catch (...) {}
+}
+
+void OCCTResourceManagerSetInt(OCCTResourceManagerRef mgr, const char* key, int32_t value) {
+    try { mgr->mgr->SetResource(key, (int)value); } catch (...) {}
+}
+
+void OCCTResourceManagerSetReal(OCCTResourceManagerRef mgr, const char* key, double value) {
+    try { mgr->mgr->SetResource(key, value); } catch (...) {}
+}
+
+bool OCCTResourceManagerFind(OCCTResourceManagerRef mgr, const char* key) {
+    try { return mgr->mgr->Find(key); } catch (...) { return false; }
+}
+
+char* OCCTResourceManagerGetString(OCCTResourceManagerRef mgr, const char* key) {
+    try {
+        const char* val = mgr->mgr->Value(key);
+        return strdup(val);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTResourceManagerGetInt(OCCTResourceManagerRef mgr, const char* key) {
+    try { return (int32_t)mgr->mgr->Integer(key); } catch (...) { return 0; }
+}
+
+double OCCTResourceManagerGetReal(OCCTResourceManagerRef mgr, const char* key) {
+    try { return mgr->mgr->Real(key); } catch (...) { return 0.0; }
+}
