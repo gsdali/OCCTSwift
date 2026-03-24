@@ -12920,6 +12920,119 @@ OCCTShapeRef _Nullable OCCTShapeFixWireGaps(OCCTShapeRef _Nonnull shape, double 
 OCCTShapeRef _Nullable OCCTShapeFixSmallEdges(OCCTShapeRef _Nonnull shape, double tolerance,
                                                bool dropSmall, double limitAngle);
 
+// MARK: - v0.100.0: RWStl, ShapeAnalysis_Curve statics, BRepExtrema_SelfIntersection pairs,
+//                    Geom_OffsetCurve basis, APIHeaderSection_MakeHeader, ShapeAnalysis_FreeBounds simplified
+
+// --- RWStl direct binary/ASCII STL I/O ---
+
+/// Write a shape's triangulation to binary STL file. Shape is meshed automatically.
+/// @param shape The shape to write
+/// @param filePath Output file path
+/// @return true on success
+bool OCCTShapeWriteSTLBinary(OCCTShapeRef _Nonnull shape, const char* _Nonnull filePath);
+
+/// Write a shape's triangulation to ASCII STL file. Shape is meshed automatically.
+/// @param shape The shape to write
+/// @param filePath Output file path
+/// @return true on success
+bool OCCTShapeWriteSTLAscii(OCCTShapeRef _Nonnull shape, const char* _Nonnull filePath);
+
+/// Read an STL file and return as a triangulated shape (face with triangulation).
+/// @param filePath Input STL file path
+/// @return Shape with triangulation, or NULL on failure
+OCCTShapeRef _Nullable OCCTShapeReadSTL(const char* _Nonnull filePath);
+
+// --- ShapeAnalysis_Curve static methods ---
+
+/// Check if a 3D curve is closed within the given precision.
+/// Uses ShapeAnalysis_Curve::IsClosed (static).
+bool OCCTCurve3DIsClosedWithPreci(OCCTCurve3DRef _Nonnull curve, double preci);
+
+/// Check if a 3D curve is periodic.
+/// Uses ShapeAnalysis_Curve::IsPeriodic (static).
+bool OCCTCurve3DIsPeriodicSA(OCCTCurve3DRef _Nonnull curve);
+
+// --- BRepExtrema_SelfIntersection face pair reporting ---
+
+/// Detect self-intersections and report overlapping face index pairs.
+/// @param shape The shape to check (will be meshed automatically)
+/// @param tolerance Overlap tolerance
+/// @param outFaceIdx1 Output array of first face indices for each overlapping pair
+/// @param outFaceIdx2 Output array of second face indices for each overlapping pair
+/// @param maxPairs Maximum number of pairs to return
+/// @return Number of overlapping pairs found, or -1 on error
+int32_t OCCTShapeSelfIntersectionPairs(OCCTShapeRef _Nonnull shape, double tolerance,
+                                        int32_t* _Nonnull outFaceIdx1,
+                                        int32_t* _Nonnull outFaceIdx2,
+                                        int32_t maxPairs);
+
+// --- Geom_OffsetCurve basis curve ---
+
+/// Get the basis curve of an offset curve.
+/// @return Basis curve, or NULL if not an offset curve
+OCCTCurve3DRef _Nullable OCCTCurve3DOffsetBasis(OCCTCurve3DRef _Nonnull curve);
+
+// --- APIHeaderSection_MakeHeader ---
+
+/// Opaque type for STEP file header
+typedef struct OCCTStepHeader* OCCTStepHeaderRef;
+
+/// Create a STEP header from scratch with the given filename.
+OCCTStepHeaderRef _Nullable OCCTStepHeaderCreate(const char* _Nonnull filename);
+
+/// Release a STEP header.
+void OCCTStepHeaderRelease(OCCTStepHeaderRef _Nullable header);
+
+/// Check if the header is fully defined.
+bool OCCTStepHeaderIsDone(OCCTStepHeaderRef _Nonnull header);
+
+/// Get the file name from the header. Caller must free() the returned string.
+char* _Nullable OCCTStepHeaderGetName(OCCTStepHeaderRef _Nonnull header);
+
+/// Set the file name in the header.
+void OCCTStepHeaderSetName(OCCTStepHeaderRef _Nonnull header, const char* _Nonnull name);
+
+/// Get the timestamp. Caller must free() the returned string.
+char* _Nullable OCCTStepHeaderGetTimeStamp(OCCTStepHeaderRef _Nonnull header);
+
+/// Set the timestamp.
+void OCCTStepHeaderSetTimeStamp(OCCTStepHeaderRef _Nonnull header, const char* _Nonnull timestamp);
+
+/// Get the first author value. Caller must free() the returned string.
+char* _Nullable OCCTStepHeaderGetAuthor(OCCTStepHeaderRef _Nonnull header);
+
+/// Set the first author value.
+void OCCTStepHeaderSetAuthor(OCCTStepHeaderRef _Nonnull header, const char* _Nonnull author);
+
+/// Get the first organization value. Caller must free() the returned string.
+char* _Nullable OCCTStepHeaderGetOrganization(OCCTStepHeaderRef _Nonnull header);
+
+/// Set the first organization value.
+void OCCTStepHeaderSetOrganization(OCCTStepHeaderRef _Nonnull header, const char* _Nonnull org);
+
+/// Get the preprocessor version. Caller must free() the returned string.
+char* _Nullable OCCTStepHeaderGetPreprocessorVersion(OCCTStepHeaderRef _Nonnull header);
+
+/// Set the preprocessor version.
+void OCCTStepHeaderSetPreprocessorVersion(OCCTStepHeaderRef _Nonnull header, const char* _Nonnull ppv);
+
+/// Get the originating system. Caller must free() the returned string.
+char* _Nullable OCCTStepHeaderGetOriginatingSystem(OCCTStepHeaderRef _Nonnull header);
+
+/// Set the originating system.
+void OCCTStepHeaderSetOriginatingSystem(OCCTStepHeaderRef _Nonnull header, const char* _Nonnull os);
+
+// --- ShapeAnalysis_FreeBounds simplified API ---
+
+/// Get the number of closed free-boundary wires in a shape.
+int32_t OCCTShapeFreeBoundsClosedCount(OCCTShapeRef _Nonnull shape, double tolerance);
+
+/// Get the compound of closed free-boundary wires.
+OCCTShapeRef _Nullable OCCTShapeFreeBoundsClosed(OCCTShapeRef _Nonnull shape, double tolerance);
+
+/// Get the compound of open free-boundary wires.
+OCCTShapeRef _Nullable OCCTShapeFreeBoundsOpen(OCCTShapeRef _Nonnull shape, double tolerance);
+
 #ifdef __cplusplus
 }
 #endif

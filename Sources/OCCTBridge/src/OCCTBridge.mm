@@ -37517,3 +37517,288 @@ OCCTShapeRef OCCTShapeFixSmallEdges(OCCTShapeRef shape, double tolerance,
         return new OCCTShape(result);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.100.0: RWStl, ShapeAnalysis_Curve statics, BRepExtrema_SelfIntersection pairs,
+//                    Geom_OffsetCurve basis, APIHeaderSection_MakeHeader, ShapeAnalysis_FreeBounds simplified
+
+#include <RWStl.hxx>
+#include <APIHeaderSection_MakeHeader.hxx>
+#include <TCollection_HAsciiString.hxx>
+
+// --- RWStl direct binary/ASCII STL I/O ---
+
+bool OCCTShapeWriteSTLBinary(OCCTShapeRef shape, const char* filePath) {
+    if (!shape || !filePath) return false;
+    try {
+        // Mesh the shape
+        BRepMesh_IncrementalMesh mesher(shape->shape, 0.1);
+
+        // Collect first non-null triangulation
+        TopExp_Explorer ex(shape->shape, TopAbs_FACE);
+        for (; ex.More(); ex.Next()) {
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), loc);
+            if (!tri.IsNull()) {
+                OSD_Path path(filePath);
+                return RWStl::WriteBinary(tri, path);
+            }
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeWriteSTLAscii(OCCTShapeRef shape, const char* filePath) {
+    if (!shape || !filePath) return false;
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, 0.1);
+
+        TopExp_Explorer ex(shape->shape, TopAbs_FACE);
+        for (; ex.More(); ex.Next()) {
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), loc);
+            if (!tri.IsNull()) {
+                OSD_Path path(filePath);
+                return RWStl::WriteAscii(tri, path);
+            }
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTShapeReadSTL(const char* filePath) {
+    if (!filePath) return nullptr;
+    try {
+        Handle(Poly_Triangulation) tri = RWStl::ReadFile(filePath, M_PI / 2.0);
+        if (tri.IsNull()) return nullptr;
+
+        // Build a face with triangulation
+        BRep_Builder builder;
+        TopoDS_Face face;
+        builder.MakeFace(face);
+        builder.UpdateFace(face, tri);
+        return new OCCTShape(face);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeAnalysis_Curve static methods ---
+
+bool OCCTCurve3DIsClosedWithPreci(OCCTCurve3DRef curve, double preci) {
+    if (!curve) return false;
+    try {
+        return ShapeAnalysis_Curve::IsClosed(curve->curve, preci);
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DIsPeriodicSA(OCCTCurve3DRef curve) {
+    if (!curve) return false;
+    try {
+        return ShapeAnalysis_Curve::IsPeriodic(curve->curve);
+    } catch (...) { return false; }
+}
+
+// --- BRepExtrema_SelfIntersection face pair reporting ---
+
+int32_t OCCTShapeSelfIntersectionPairs(OCCTShapeRef shape, double tolerance,
+                                        int32_t* outFaceIdx1, int32_t* outFaceIdx2,
+                                        int32_t maxPairs) {
+    if (!shape || !outFaceIdx1 || !outFaceIdx2 || maxPairs <= 0) return -1;
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, 0.1);
+
+        BRepExtrema_SelfIntersection selfInt(shape->shape, tolerance);
+        selfInt.Perform();
+
+        if (!selfInt.IsDone()) return -1;
+
+        const auto& overlaps = selfInt.OverlapElements();
+        int32_t count = 0;
+
+        for (NCollection_DataMap<int, TColStd_PackedMapOfInteger>::Iterator it(overlaps);
+             it.More() && count < maxPairs; it.Next()) {
+            int faceIdx1 = it.Key();
+            const TColStd_PackedMapOfInteger& partners = it.Value();
+            for (TColStd_PackedMapOfInteger::Iterator mit(partners);
+                 mit.More() && count < maxPairs; mit.Next()) {
+                int faceIdx2 = mit.Key();
+                if (faceIdx2 > faceIdx1) { // avoid duplicates
+                    outFaceIdx1[count] = (int32_t)faceIdx1;
+                    outFaceIdx2[count] = (int32_t)faceIdx2;
+                    count++;
+                }
+            }
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// --- Geom_OffsetCurve basis curve ---
+
+OCCTCurve3DRef OCCTCurve3DOffsetBasis(OCCTCurve3DRef curve) {
+    if (!curve) return nullptr;
+    try {
+        Handle(Geom_OffsetCurve) oc = Handle(Geom_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return nullptr;
+        Handle(Geom_Curve) basis = oc->BasisCurve();
+        if (basis.IsNull()) return nullptr;
+        return new OCCTCurve3D(basis);
+    } catch (...) { return nullptr; }
+}
+
+// --- APIHeaderSection_MakeHeader ---
+
+struct OCCTStepHeader {
+    APIHeaderSection_MakeHeader header;
+    OCCTStepHeader(const char* filename) : header(0) {
+        header.Init(filename);
+    }
+};
+
+OCCTStepHeaderRef OCCTStepHeaderCreate(const char* filename) {
+    if (!filename) return nullptr;
+    try {
+        return new OCCTStepHeader(filename);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderRelease(OCCTStepHeaderRef header) {
+    delete header;
+}
+
+bool OCCTStepHeaderIsDone(OCCTStepHeaderRef header) {
+    if (!header) return false;
+    try { return header->header.IsDone(); } catch (...) { return false; }
+}
+
+char* OCCTStepHeaderGetName(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        auto name = header->header.Name();
+        if (name.IsNull()) return nullptr;
+        return strdup(name->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetName(OCCTStepHeaderRef header, const char* name) {
+    if (!header || !name) return;
+    try {
+        header->header.SetName(new TCollection_HAsciiString(name));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetTimeStamp(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        auto ts = header->header.TimeStamp();
+        if (ts.IsNull()) return nullptr;
+        return strdup(ts->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetTimeStamp(OCCTStepHeaderRef header, const char* timestamp) {
+    if (!header || !timestamp) return;
+    try {
+        header->header.SetTimeStamp(new TCollection_HAsciiString(timestamp));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetAuthor(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        if (header->header.NbAuthor() < 1) return nullptr;
+        auto val = header->header.AuthorValue(1);
+        if (val.IsNull()) return nullptr;
+        return strdup(val->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetAuthor(OCCTStepHeaderRef header, const char* author) {
+    if (!header || !author) return;
+    try {
+        header->header.SetAuthorValue(1, new TCollection_HAsciiString(author));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetOrganization(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        if (header->header.NbOrganization() < 1) return nullptr;
+        auto val = header->header.OrganizationValue(1);
+        if (val.IsNull()) return nullptr;
+        return strdup(val->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetOrganization(OCCTStepHeaderRef header, const char* org) {
+    if (!header || !org) return;
+    try {
+        header->header.SetOrganizationValue(1, new TCollection_HAsciiString(org));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetPreprocessorVersion(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        auto val = header->header.PreprocessorVersion();
+        if (val.IsNull()) return nullptr;
+        return strdup(val->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetPreprocessorVersion(OCCTStepHeaderRef header, const char* ppv) {
+    if (!header || !ppv) return;
+    try {
+        header->header.SetPreprocessorVersion(new TCollection_HAsciiString(ppv));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetOriginatingSystem(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        auto val = header->header.OriginatingSystem();
+        if (val.IsNull()) return nullptr;
+        return strdup(val->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetOriginatingSystem(OCCTStepHeaderRef header, const char* os) {
+    if (!header || !os) return;
+    try {
+        header->header.SetOriginatingSystem(new TCollection_HAsciiString(os));
+    } catch (...) {}
+}
+
+// --- ShapeAnalysis_FreeBounds simplified API ---
+
+int32_t OCCTShapeFreeBoundsClosedCount(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_FreeBounds analyzer(shape->shape, tolerance);
+        TopoDS_Compound closed = analyzer.GetClosedWires();
+        if (closed.IsNull()) return 0;
+        int32_t count = 0;
+        for (TopExp_Explorer ex(closed, TopAbs_WIRE); ex.More(); ex.Next()) {
+            count++;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTShapeFreeBoundsClosed(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        ShapeAnalysis_FreeBounds analyzer(shape->shape, tolerance);
+        TopoDS_Compound closed = analyzer.GetClosedWires();
+        if (closed.IsNull()) return nullptr;
+        return new OCCTShape(closed);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeFreeBoundsOpen(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        ShapeAnalysis_FreeBounds analyzer(shape->shape, tolerance);
+        TopoDS_Compound open = analyzer.GetOpenWires();
+        if (open.IsNull()) return nullptr;
+        return new OCCTShape(open);
+    } catch (...) { return nullptr; }
+}

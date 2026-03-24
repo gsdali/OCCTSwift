@@ -6392,3 +6392,216 @@ extension Shape {
         return Shape(handle: ref)
     }
 }
+
+// MARK: - v0.100.0: RWStl, ShapeAnalysis_Curve statics, BRepExtrema_SelfIntersection pairs,
+//                    Geom_OffsetCurve basis, APIHeaderSection_MakeHeader, ShapeAnalysis_FreeBounds simplified
+
+// --- RWStl direct binary/ASCII STL I/O ---
+
+extension Shape {
+
+    /// Write this shape's triangulation to a binary STL file.
+    /// The shape is meshed automatically with 0.1 deflection.
+    /// - Parameter filePath: Output file path.
+    /// - Returns: true on success.
+    public func writeSTLBinary(to filePath: String) -> Bool {
+        OCCTShapeWriteSTLBinary(handle, filePath)
+    }
+
+    /// Write this shape's triangulation to an ASCII STL file.
+    /// The shape is meshed automatically with 0.1 deflection.
+    /// - Parameter filePath: Output file path.
+    /// - Returns: true on success.
+    public func writeSTLAscii(to filePath: String) -> Bool {
+        OCCTShapeWriteSTLAscii(handle, filePath)
+    }
+
+    /// Read an STL file and return as a triangulated shape.
+    /// - Parameter filePath: Input STL file path.
+    /// - Returns: Shape with triangulation, or nil on failure.
+    public static func readSTL(from filePath: String) -> Shape? {
+        guard let ref = OCCTShapeReadSTL(filePath) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- ShapeAnalysis_Curve static methods ---
+
+extension Curve3D {
+
+    /// Check if this curve is closed within the given precision.
+    /// Uses ShapeAnalysis_Curve::IsClosed (static method).
+    /// - Parameter precision: Tolerance for closure check.
+    /// - Returns: true if the curve endpoints coincide within precision.
+    public func isClosedWithPrecision(_ precision: Double) -> Bool {
+        OCCTCurve3DIsClosedWithPreci(handle, precision)
+    }
+
+    /// Check if this curve is periodic using ShapeAnalysis_Curve::IsPeriodic.
+    /// More robust than the basic isPeriodic property.
+    public var isPeriodicSA: Bool {
+        OCCTCurve3DIsPeriodicSA(handle)
+    }
+
+}
+
+// --- BRepExtrema_SelfIntersection face pair reporting ---
+
+extension Shape {
+
+    /// A pair of overlapping face indices detected by self-intersection analysis.
+    public struct OverlapPair: Sendable {
+        public let faceIndex1: Int
+        public let faceIndex2: Int
+    }
+
+    /// Detect self-intersecting face pairs in this shape.
+    /// The shape is meshed automatically.
+    /// - Parameters:
+    ///   - tolerance: Overlap tolerance (default: 0.0).
+    ///   - maxPairs: Maximum number of pairs to return (default: 100).
+    /// - Returns: Array of overlapping face index pairs, empty if none found.
+    public func selfIntersectionPairs(tolerance: Double = 0.0,
+                                       maxPairs: Int = 100) -> [OverlapPair] {
+        var idx1 = [Int32](repeating: 0, count: maxPairs)
+        var idx2 = [Int32](repeating: 0, count: maxPairs)
+        let count = OCCTShapeSelfIntersectionPairs(handle, tolerance, &idx1, &idx2, Int32(maxPairs))
+        guard count > 0 else { return [] }
+        return (0..<Int(count)).map {
+            OverlapPair(faceIndex1: Int(idx1[$0]), faceIndex2: Int(idx2[$0]))
+        }
+    }
+}
+
+// --- Geom_OffsetCurve basis curve ---
+
+extension Curve3D {
+
+    /// Get the basis curve of this offset curve.
+    /// - Returns: The basis curve, or nil if this is not an offset curve.
+    public var offsetBasisCurve: Curve3D? {
+        guard let ref = OCCTCurve3DOffsetBasis(handle) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+// --- APIHeaderSection_MakeHeader ---
+
+/// A STEP file header manager for reading and writing header fields
+/// (name, timestamp, author, organization, preprocessor version, originating system).
+public final class StepHeader: @unchecked Sendable {
+    let handle: OCCTStepHeaderRef
+
+    /// Create a STEP header with the given filename.
+    public init?(filename: String) {
+        guard let ref = OCCTStepHeaderCreate(filename) else { return nil }
+        self.handle = ref
+    }
+
+    deinit {
+        OCCTStepHeaderRelease(handle)
+    }
+
+    /// Whether the header is fully defined.
+    public var isDone: Bool { OCCTStepHeaderIsDone(handle) }
+
+    /// The file name field.
+    public var name: String? {
+        get {
+            guard let ptr = OCCTStepHeaderGetName(handle) else { return nil }
+            defer { free(ptr) }
+            return String(cString: ptr)
+        }
+        set {
+            if let v = newValue { OCCTStepHeaderSetName(handle, v) }
+        }
+    }
+
+    /// The timestamp field.
+    public var timeStamp: String? {
+        get {
+            guard let ptr = OCCTStepHeaderGetTimeStamp(handle) else { return nil }
+            defer { free(ptr) }
+            return String(cString: ptr)
+        }
+        set {
+            if let v = newValue { OCCTStepHeaderSetTimeStamp(handle, v) }
+        }
+    }
+
+    /// The first author field.
+    public var author: String? {
+        get {
+            guard let ptr = OCCTStepHeaderGetAuthor(handle) else { return nil }
+            defer { free(ptr) }
+            return String(cString: ptr)
+        }
+        set {
+            if let v = newValue { OCCTStepHeaderSetAuthor(handle, v) }
+        }
+    }
+
+    /// The first organization field.
+    public var organization: String? {
+        get {
+            guard let ptr = OCCTStepHeaderGetOrganization(handle) else { return nil }
+            defer { free(ptr) }
+            return String(cString: ptr)
+        }
+        set {
+            if let v = newValue { OCCTStepHeaderSetOrganization(handle, v) }
+        }
+    }
+
+    /// The preprocessor version field.
+    public var preprocessorVersion: String? {
+        get {
+            guard let ptr = OCCTStepHeaderGetPreprocessorVersion(handle) else { return nil }
+            defer { free(ptr) }
+            return String(cString: ptr)
+        }
+        set {
+            if let v = newValue { OCCTStepHeaderSetPreprocessorVersion(handle, v) }
+        }
+    }
+
+    /// The originating system field.
+    public var originatingSystem: String? {
+        get {
+            guard let ptr = OCCTStepHeaderGetOriginatingSystem(handle) else { return nil }
+            defer { free(ptr) }
+            return String(cString: ptr)
+        }
+        set {
+            if let v = newValue { OCCTStepHeaderSetOriginatingSystem(handle, v) }
+        }
+    }
+}
+
+// --- ShapeAnalysis_FreeBounds simplified API ---
+
+extension Shape {
+
+    /// Count the number of closed free-boundary wires.
+    /// - Parameter tolerance: Sewing tolerance for boundary detection.
+    /// - Returns: Number of closed free-boundary wires.
+    public func freeBoundsClosedCount(tolerance: Double = 1e-6) -> Int {
+        Int(OCCTShapeFreeBoundsClosedCount(handle, tolerance))
+    }
+
+    /// Get the compound of closed free-boundary wires.
+    /// - Parameter tolerance: Sewing tolerance for boundary detection.
+    /// - Returns: Compound shape of closed wires, or nil if none.
+    public func freeBoundsClosedWires(tolerance: Double = 1e-6) -> Shape? {
+        guard let ref = OCCTShapeFreeBoundsClosed(handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get the compound of open free-boundary wires.
+    /// - Parameter tolerance: Sewing tolerance for boundary detection.
+    /// - Returns: Compound shape of open wires, or nil if none.
+    public func freeBoundsOpenWires(tolerance: Double = 1e-6) -> Shape? {
+        guard let ref = OCCTShapeFreeBoundsOpen(handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+}

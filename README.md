@@ -297,7 +297,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Geom_OffsetSurface Extensions** | 3 | offsetValue, setOffsetValue, offsetBasis |
 | **OSD_File** | 13 | create, createTemporary, open, openReadOnly, write, readLine, readAll, close, isOpen, fileSize, rewind, isAtEnd, release |
 | **ShapeFix_Wireframe Extensions** | 2 | fixWireGaps, fixSmallEdges |
-| **Total** | **1971** | |
+| **RWStl** | 3 | writeSTLBinary, writeSTLAscii, readSTL |
+| **ShapeAnalysis_Curve Statics** | 2 | isClosedWithPrecision, isPeriodicSA |
+| **BRepExtrema_SelfIntersection Pairs** | 1 | selfIntersectionPairs (face-pair overlap reporting) |
+| **Geom_OffsetCurve Basis** | 1 | offsetBasisCurve |
+| **APIHeaderSection_MakeHeader** | 15 | StepHeader create/release/isDone, get/set name/timeStamp/author/organization/preprocessorVersion/originatingSystem |
+| **ShapeAnalysis_FreeBounds Simplified** | 3 | freeBoundsClosedCount, freeBoundsClosedWires, freeBoundsOpenWires |
+| **Total** | **1996** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1617,7 +1623,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **1971 OCCT operations** across 165 categories with 2159 tests across 693 suites.
+OCCTSwift now wraps **1996 OCCT operations** across 171 categories with 2185 tests across 699 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 
