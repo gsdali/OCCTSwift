@@ -6728,3 +6728,178 @@ public final class ResourceManager: @unchecked Sendable {
         OCCTResourceManagerGetReal(ref, key)
     }
 }
+
+// MARK: - TopExp Adjacency (v0.102.0)
+
+extension Shape {
+
+    /// Get the first (FORWARD) vertex position of an edge shape.
+    public func edgeFirstVertex() -> SIMD3<Double>? {
+        var x = 0.0, y = 0.0, z = 0.0
+        guard OCCTEdgeFirstVertex(handle, &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Get the last (REVERSED) vertex position of an edge shape.
+    public func edgeLastVertex() -> SIMD3<Double>? {
+        var x = 0.0, y = 0.0, z = 0.0
+        guard OCCTEdgeLastVertex(handle, &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Get both vertex positions of an edge shape.
+    public func edgeVertices() -> (first: SIMD3<Double>, last: SIMD3<Double>)? {
+        var x1 = 0.0, y1 = 0.0, z1 = 0.0, x2 = 0.0, y2 = 0.0, z2 = 0.0
+        guard OCCTEdgeVertices(handle, &x1, &y1, &z1, &x2, &y2, &z2) else { return nil }
+        return (SIMD3(x1, y1, z1), SIMD3(x2, y2, z2))
+    }
+
+    /// Get first and last vertex positions of a wire shape. For closed wires, both are the same.
+    public func wireVertices() -> (first: SIMD3<Double>, last: SIMD3<Double>)? {
+        var x1 = 0.0, y1 = 0.0, z1 = 0.0, x2 = 0.0, y2 = 0.0, z2 = 0.0
+        guard OCCTWireVertices(handle, &x1, &y1, &z1, &x2, &y2, &z2) else { return nil }
+        return (SIMD3(x1, y1, z1), SIMD3(x2, y2, z2))
+    }
+
+    /// Find common vertex between two edge shapes. Returns nil if no shared vertex.
+    public func commonVertex(with other: Shape) -> SIMD3<Double>? {
+        var x = 0.0, y = 0.0, z = 0.0
+        guard OCCTEdgeCommonVertex(handle, other.handle, &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Build edge→face adjacency. Returns array where each element is the number of faces sharing that edge.
+    public func edgeFaceAdjacency() -> [Int] {
+        let count = Int(OCCTEdgeFaceAdjacency(handle, nil))
+        guard count > 0 else { return [] }
+        var counts = [Int32](repeating: 0, count: count)
+        _ = OCCTEdgeFaceAdjacency(handle, &counts)
+        return counts.map { Int($0) }
+    }
+
+    /// Build vertex→edge adjacency. Returns array where each element is the number of edges sharing that vertex.
+    public func vertexEdgeAdjacency() -> [Int] {
+        let count = Int(OCCTVertexEdgeAdjacency(handle, nil))
+        guard count > 0 else { return [] }
+        var counts = [Int32](repeating: 0, count: count)
+        _ = OCCTVertexEdgeAdjacency(handle, &counts)
+        return counts.map { Int($0) }
+    }
+
+    /// Get 1-based face indices adjacent to a specific edge within this shape.
+    public func adjacentFaces(forEdge edge: Shape) -> [Int] {
+        var indices = [Int32](repeating: 0, count: 64)
+        let count = Int(OCCTEdgeAdjacentFaces(handle, edge.handle, &indices, 64))
+        return indices.prefix(count).map { Int($0) }
+    }
+
+    /// Get 1-based edge indices adjacent to a specific vertex within this shape.
+    public func adjacentEdges(forVertex vertex: Shape) -> [Int] {
+        var indices = [Int32](repeating: 0, count: 64)
+        let count = Int(OCCTVertexAdjacentEdges(handle, vertex.handle, &indices, 64))
+        return indices.prefix(count).map { Int($0) }
+    }
+}
+
+// MARK: - Poly_Connect Mesh Adjacency (v0.102.0)
+
+extension Shape {
+
+    /// Get adjacent triangles for a triangle in a meshed face.
+    /// faceIndex and triangleIndex are 1-based. Returns (adj1, adj2, adj3), 0 means no neighbor.
+    public func meshTriangleAdjacency(faceIndex: Int, triangleIndex: Int) -> (Int, Int, Int)? {
+        var a1: Int32 = 0, a2: Int32 = 0, a3: Int32 = 0
+        guard OCCTMeshTriangleAdjacency(handle, Int32(faceIndex), Int32(triangleIndex), &a1, &a2, &a3) else {
+            return nil
+        }
+        return (Int(a1), Int(a2), Int(a3))
+    }
+
+    /// Get a triangle index containing a given node. faceIndex and nodeIndex are 1-based.
+    public func meshNodeTriangle(faceIndex: Int, nodeIndex: Int) -> Int? {
+        let idx = Int(OCCTMeshNodeTriangle(handle, Int32(faceIndex), Int32(nodeIndex)))
+        return idx > 0 ? idx : nil
+    }
+
+    /// Count triangles sharing a node (triangle fan count).
+    public func meshNodeTriangleCount(faceIndex: Int, nodeIndex: Int) -> Int {
+        Int(OCCTMeshNodeTriangleCount(handle, Int32(faceIndex), Int32(nodeIndex)))
+    }
+}
+
+// MARK: - BRepOffset_Analyse Edge Classification (v0.102.0)
+
+extension Shape {
+
+    /// Concavity classification for edges.
+    public enum ConcavityType: Int, Sendable {
+        case convex = 0
+        case concave = 1
+        case tangent = 2
+        case freeBound = 3
+        case other = 4
+    }
+
+    /// Analyze edge concavity for all edges. angle is the tangency threshold in radians.
+    public func analyseEdgeConcavity(angle: Double = .pi / 6.0) -> [ConcavityType] {
+        let count = Int(OCCTAnalyseEdgeConcavity(handle, angle, nil))
+        guard count > 0 else { return [] }
+        var types = [Int32](repeating: 0, count: count)
+        _ = OCCTAnalyseEdgeConcavity(handle, angle, &types)
+        return types.map { ConcavityType(rawValue: Int($0)) ?? .other }
+    }
+
+    /// Explode shape into groups of faces connected by edges of a given concavity type.
+    public func analyseExplode(angle: Double = .pi / 6.0, type: ConcavityType) -> Shape? {
+        guard let ref = OCCTAnalyseExplode(handle, angle, Int32(type.rawValue)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Count edges of a given concavity type on a specific face.
+    public func analyseEdgesOnFace(_ face: Shape, angle: Double = .pi / 6.0, type: ConcavityType) -> Int {
+        Int(OCCTAnalyseEdgesOnFace(handle, angle, face.handle, Int32(type.rawValue)))
+    }
+
+    /// Count ancestor faces for an edge in offset analysis.
+    public func analyseAncestorCount(edge: Shape, angle: Double = .pi / 6.0) -> Int {
+        Int(OCCTAnalyseAncestorCount(handle, angle, edge.handle))
+    }
+
+    /// Count tangent edges at a vertex along a given edge.
+    public func analyseTangentEdgeCount(edge: Shape, vertex: Shape, angle: Double = .pi / 6.0) -> Int {
+        Int(OCCTAnalyseTangentEdgeCount(handle, angle, edge.handle, vertex.handle))
+    }
+}
+
+// MARK: - BRepTools_WireExplorer Extensions (v0.102.0)
+
+extension Shape {
+
+    /// Edge orientation from wire explorer.
+    public enum EdgeOrientation: Int, Sendable {
+        case forward = 0
+        case reversed = 1
+        case `internal` = 2
+        case external = 3
+    }
+
+    /// Get edge orientations within a wire, optionally with face context.
+    public func wireEdgeOrientations(face: Shape? = nil) -> [EdgeOrientation] {
+        let count = Int(OCCTWireExplorerOrientations(handle, face?.handle, nil))
+        guard count > 0 else { return [] }
+        var orientations = [Int32](repeating: 0, count: count)
+        _ = OCCTWireExplorerOrientations(handle, face?.handle, &orientations)
+        return orientations.map { EdgeOrientation(rawValue: Int($0)) ?? .forward }
+    }
+
+    /// Get connecting vertex positions from wire explorer (vertex between consecutive edges).
+    public func wireExplorerVertices(face: Shape? = nil) -> [SIMD3<Double>] {
+        let count = Int(OCCTWireExplorerVertices(handle, face?.handle, nil, nil, nil))
+        guard count > 0 else { return [] }
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        var zs = [Double](repeating: 0, count: count)
+        _ = OCCTWireExplorerVertices(handle, face?.handle, &xs, &ys, &zs)
+        return (0..<count).map { SIMD3(xs[$0], ys[$0], zs[$0]) }
+    }
+}

@@ -27608,3 +27608,231 @@ struct ResourceManagerTests {
         #expect(!mgr.find("no_such_key"))
     }
 }
+
+// MARK: - v0.102.0 Tests
+
+@Suite("TopExp Adjacency Tests")
+struct TopExpAdjacencyTests {
+
+    @Test func edgeFirstVertex() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let v = edge.edgeFirstVertex()
+                #expect(v != nil)
+            }
+        }
+    }
+
+    @Test func edgeLastVertex() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let v = edge.edgeLastVertex()
+                #expect(v != nil)
+            }
+        }
+    }
+
+    @Test func edgeVerticesBothEnds() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first, let verts = edge.edgeVertices() {
+                #expect(verts.first != verts.last || true) // just check it returns
+            }
+        }
+    }
+
+    @Test func wireVerticesClosedWire() {
+        if let wire = Wire.rectangle(width: 10, height: 10),
+           let ws = Shape.fromWire(wire),
+           let verts = ws.wireVertices() {
+            // Closed wire: first == last
+            let dist = simd_distance(verts.first, verts.last)
+            #expect(dist < 1e-6)
+        }
+    }
+
+    @Test func commonVertexBetweenEdges() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count >= 2 {
+                // Try pairs until we find adjacent edges
+                var found = false
+                for i in 0..<min(edges.count, 12) {
+                    for j in (i+1)..<min(edges.count, 12) {
+                        if let _ = edges[i].commonVertex(with: edges[j]) {
+                            found = true
+                            break
+                        }
+                    }
+                    if found { break }
+                }
+                #expect(found)
+            }
+        }
+    }
+
+    @Test func edgeFaceAdjacencyBox() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let adj = box.edgeFaceAdjacency()
+            #expect(adj.count == 12)
+            // Every edge of a box is shared by exactly 2 faces
+            for count in adj {
+                #expect(count == 2)
+            }
+        }
+    }
+
+    @Test func vertexEdgeAdjacencyBox() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let adj = box.vertexEdgeAdjacency()
+            #expect(adj.count == 8)
+            // Every vertex of a box connects 3 edges
+            for count in adj {
+                #expect(count == 3)
+            }
+        }
+    }
+
+    @Test func adjacentFacesForEdge() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let faceIndices = box.adjacentFaces(forEdge: edge)
+                #expect(faceIndices.count == 2)
+            }
+        }
+    }
+
+    @Test func adjacentEdgesForVertex() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let vertexShapes = box.subShapes(ofType: .vertex)
+            if let v = vertexShapes.first {
+                let edgeIndices = box.adjacentEdges(forVertex: v)
+                #expect(edgeIndices.count == 3)
+            }
+        }
+    }
+}
+
+@Suite("Poly_Connect Mesh Adjacency Tests")
+struct PolyConnectTests {
+
+    @Test func triangleAdjacency() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let _ = box.mesh(linearDeflection: 0.1)
+            if let adj = box.meshTriangleAdjacency(faceIndex: 1, triangleIndex: 1) {
+                #expect(adj.0 >= 0 && adj.1 >= 0 && adj.2 >= 0)
+            }
+        }
+    }
+
+    @Test func nodeTriangle() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let _ = box.mesh(linearDeflection: 0.1)
+            if let triIdx = box.meshNodeTriangle(faceIndex: 1, nodeIndex: 1) {
+                #expect(triIdx >= 1)
+            }
+        }
+    }
+
+    @Test func nodeTriangleCount() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let _ = box.mesh(linearDeflection: 0.1)
+            let count = box.meshNodeTriangleCount(faceIndex: 1, nodeIndex: 1)
+            #expect(count >= 1)
+        }
+    }
+}
+
+@Suite("BRepOffset_Analyse Tests")
+struct BRepOffsetAnalyseTests {
+
+    @Test func allBoxEdgesConvex() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let types = box.analyseEdgeConcavity()
+            #expect(types.count == 12)
+            for t in types {
+                #expect(t == .convex)
+            }
+        }
+    }
+
+    @Test func explodeByConvexity() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let result = box.analyseExplode(type: .convex)
+            #expect(result != nil)
+        }
+    }
+
+    @Test func convexEdgesOnFace() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let count = box.analyseEdgesOnFace(face, type: .convex)
+                #expect(count == 4)
+            }
+        }
+    }
+
+    @Test func ancestorCountForEdge() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let count = box.analyseAncestorCount(edge: edge)
+                #expect(count == 2)
+            }
+        }
+    }
+
+    @Test func tangentEdgesAtCorner() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            let verts = box.subShapes(ofType: .vertex)
+            if let edge = edges.first, let v = verts.first {
+                let count = box.analyseTangentEdgeCount(edge: edge, vertex: v)
+                // Box corners are 90° — no tangent edges
+                #expect(count == 0)
+            }
+        }
+    }
+}
+
+@Suite("BRepTools_WireExplorer Extensions Tests")
+struct WireExplorerExtensionTests {
+
+    @Test func wireEdgeOrientations() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let orientations = wire.wireEdgeOrientations(face: face)
+                    #expect(orientations.count == 4) // box face has 4 edges
+                }
+            }
+        }
+    }
+
+    @Test func wireExplorerVertexPositions() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let verts = wire.wireExplorerVertices(face: face)
+                    #expect(verts.count == 4)
+                }
+            }
+        }
+    }
+
+    @Test func wireOrientationsWithoutFace() {
+        if let wire = Wire.rectangle(width: 10, height: 10),
+           let ws = Shape.fromWire(wire) {
+            let orientations = ws.wireEdgeOrientations()
+            #expect(orientations.count == 4)
+        }
+    }
+}

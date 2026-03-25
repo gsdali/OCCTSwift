@@ -307,7 +307,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepLib_FindSurface** | 3 | findSurface, findSurfaceTolerance, findSurfaceExisted |
 | **ShapeAnalysis_Surface Extensions** | 5 | projectPointUV, hasSingularitiesSA, singularityCountSA, isUClosedSA, isVClosedSA |
 | **Resource_Manager** | 9 | create, release, setString, setInt, setReal, find, getString, getInt, getReal |
-| **Total** | **2018** | |
+| **TopExp Adjacency** | 9 | edgeFirstVertex, edgeLastVertex, edgeVertices, wireVertices, commonVertex, edgeFaceAdjacency, vertexEdgeAdjacency, adjacentFaces(forEdge), adjacentEdges(forVertex) |
+| **Poly_Connect Mesh Adjacency** | 3 | meshTriangleAdjacency, meshNodeTriangle, meshNodeTriangleCount |
+| **BRepOffset_Analyse** | 5 | analyseEdgeConcavity, analyseExplode, analyseEdgesOnFace, analyseAncestorCount, analyseTangentEdgeCount |
+| **BRepTools_WireExplorer Extensions** | 2 | wireEdgeOrientations, wireExplorerVertices |
+| **Total** | **2037** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1627,7 +1631,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **2018 OCCT operations** across 175 categories with 2200 tests across 703 suites.
+OCCTSwift now wraps **2037 OCCT operations** across 179 categories with 2220 tests across 707 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

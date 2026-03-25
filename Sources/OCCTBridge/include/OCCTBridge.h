@@ -13116,6 +13116,93 @@ int32_t OCCTResourceManagerGetInt(OCCTResourceManagerRef _Nonnull mgr, const cha
 /// Get a real resource value.
 double OCCTResourceManagerGetReal(OCCTResourceManagerRef _Nonnull mgr, const char* _Nonnull key);
 
+// MARK: - TopExp Adjacency (v0.102.0)
+
+/// Get the first (FORWARD) vertex of an edge. Returns vertex coordinates. Returns false if no vertex.
+bool OCCTEdgeFirstVertex(OCCTShapeRef _Nonnull edge, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the last (REVERSED) vertex of an edge. Returns vertex coordinates. Returns false if no vertex.
+bool OCCTEdgeLastVertex(OCCTShapeRef _Nonnull edge, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get both vertices of an edge. Returns false if null vertices.
+bool OCCTEdgeVertices(OCCTShapeRef _Nonnull edge,
+                      double* _Nonnull x1, double* _Nonnull y1, double* _Nonnull z1,
+                      double* _Nonnull x2, double* _Nonnull y2, double* _Nonnull z2);
+
+/// Get first and last vertices of a wire. For closed wires, both are the same vertex. Returns false if null.
+bool OCCTWireVertices(OCCTShapeRef _Nonnull wire,
+                      double* _Nonnull x1, double* _Nonnull y1, double* _Nonnull z1,
+                      double* _Nonnull x2, double* _Nonnull y2, double* _Nonnull z2);
+
+/// Find common vertex between two edges. Returns false if no shared vertex.
+bool OCCTEdgeCommonVertex(OCCTShapeRef _Nonnull edge1, OCCTShapeRef _Nonnull edge2,
+                          double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Build edge→face adjacency map. Returns number of edges, and for each edge the count of adjacent faces.
+/// adjacentFaceCounts must be pre-allocated with edgeCount entries (call with NULL first to get count).
+int32_t OCCTEdgeFaceAdjacency(OCCTShapeRef _Nonnull shape, int32_t* _Nullable adjacentFaceCounts);
+
+/// Build vertex→edge adjacency map. Returns number of vertices, and for each vertex the count of adjacent edges.
+int32_t OCCTVertexEdgeAdjacency(OCCTShapeRef _Nonnull shape, int32_t* _Nullable adjacentEdgeCounts);
+
+/// Get adjacent faces for a specific edge within a shape. Returns count of faces found.
+/// faceIndices is an output array of face indices (1-based, into indexed map). Caller allocates (max 64).
+int32_t OCCTEdgeAdjacentFaces(OCCTShapeRef _Nonnull shape, OCCTShapeRef _Nonnull edge,
+                              int32_t* _Nonnull faceIndices, int32_t maxFaces);
+
+/// Get adjacent edges for a specific vertex within a shape. Returns count of edges found.
+int32_t OCCTVertexAdjacentEdges(OCCTShapeRef _Nonnull shape, OCCTShapeRef _Nonnull vertex,
+                                int32_t* _Nonnull edgeIndices, int32_t maxEdges);
+
+// MARK: - Poly_Connect Mesh Adjacency (v0.102.0)
+
+/// Get adjacent triangles for a triangle in a mesh. adj1/adj2/adj3 are 0 if no neighbor.
+/// Returns false if invalid triangle index or no triangulation on shape.
+bool OCCTMeshTriangleAdjacency(OCCTShapeRef _Nonnull shape, int32_t faceIndex, int32_t triangleIndex,
+                                int32_t* _Nonnull adj1, int32_t* _Nonnull adj2, int32_t* _Nonnull adj3);
+
+/// Get a triangle index containing the given node. Returns 0 if invalid.
+int32_t OCCTMeshNodeTriangle(OCCTShapeRef _Nonnull shape, int32_t faceIndex, int32_t nodeIndex);
+
+/// Count triangles sharing a given node (fan count). Returns 0 if invalid.
+int32_t OCCTMeshNodeTriangleCount(OCCTShapeRef _Nonnull shape, int32_t faceIndex, int32_t nodeIndex);
+
+// MARK: - BRepOffset_Analyse Edge Classification (v0.102.0)
+
+/// Analyze edge concavity for all edges in a shape. Returns number of edges analyzed.
+/// edgeTypes must be pre-allocated with returned count entries (call with NULL first to get count).
+/// Uses existing OCCTConcavityType: 0=Convex, 1=Concave, 2=Tangent.
+int32_t OCCTAnalyseEdgeConcavity(OCCTShapeRef _Nonnull shape, double angle,
+                                  int32_t* _Nullable edgeTypes);
+
+/// Get faces grouped by edge concavity type. Returns compound of connected face groups.
+/// concavityType: 0=Convex, 1=Concave, 2=Tangent (matches OCCTConcavityType)
+OCCTShapeRef _Nullable OCCTAnalyseExplode(OCCTShapeRef _Nonnull shape, double angle,
+                                           int32_t concavityType);
+
+/// Count edges of a given concavity type on a specific face. 0=Convex, 1=Concave, 2=Tangent
+int32_t OCCTAnalyseEdgesOnFace(OCCTShapeRef _Nonnull shape, double angle,
+                                OCCTShapeRef _Nonnull face, int32_t concavityType);
+
+/// Get ancestor faces for an edge in the offset analysis.
+int32_t OCCTAnalyseAncestorCount(OCCTShapeRef _Nonnull shape, double angle, OCCTShapeRef _Nonnull edge);
+
+/// Count tangent edges at a vertex along a given edge.
+int32_t OCCTAnalyseTangentEdgeCount(OCCTShapeRef _Nonnull shape, double angle,
+                                     OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull vertex);
+
+// MARK: - BRepTools_WireExplorer Extensions (v0.102.0)
+
+/// Explore wire edges with face context. Returns edge orientations (0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL).
+/// orientations must be pre-allocated. Returns edge count.
+int32_t OCCTWireExplorerOrientations(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nullable face,
+                                      int32_t* _Nullable orientations);
+
+/// Get connecting vertices from wire explorer (vertex between consecutive edges).
+/// xs/ys/zs must be pre-allocated with edge count entries. Returns vertex count.
+int32_t OCCTWireExplorerVertices(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nullable face,
+                                  double* _Nullable xs, double* _Nullable ys, double* _Nullable zs);
+
 #ifdef __cplusplus
 }
 #endif
