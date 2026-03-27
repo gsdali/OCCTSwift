@@ -21,7 +21,7 @@ import OCCTBridge
 /// }
 /// ```
 public final class PlateSolver: @unchecked Sendable {
-    private let handle: OCCTPlateRef
+    internal let handle: OCCTPlateRef
 
     /// Create a new Plate solver.
     public init() {

@@ -38309,3 +38309,300 @@ int32_t OCCTWireExplorerVertices(OCCTShapeRef wire, OCCTShapeRef face,
         return count;
     } catch (...) { return 0; }
 }
+
+// MARK: - gce Transform Factories (v0.103.0)
+
+#include <gce_MakeMirror.hxx>
+#include <gce_MakeRotation.hxx>
+#include <gce_MakeScale.hxx>
+#include <gce_MakeTranslation.hxx>
+#include <gce_MakeMirror2d.hxx>
+#include <gce_MakeRotation2d.hxx>
+#include <gce_MakeScale2d.hxx>
+#include <gce_MakeTranslation2d.hxx>
+#include <gce_MakeDir2d.hxx>
+
+static void _storeTrsf(const gp_Trsf& t, double* matrix) {
+    for (int r = 1; r <= 3; r++)
+        for (int c = 1; c <= 4; c++)
+            matrix[(r-1)*4 + (c-1)] = t.Value(r, c);
+}
+
+static void _storeTrsf2d(const gp_Trsf2d& t, double* matrix) {
+    for (int r = 1; r <= 2; r++)
+        for (int c = 1; c <= 3; c++)
+            matrix[(r-1)*3 + (c-1)] = t.Value(r, c);
+}
+
+void OCCTMakeMirrorPoint(double px, double py, double pz, double* matrix) {
+    gce_MakeMirror mm(gp_Pnt(px, py, pz));
+    _storeTrsf(mm.Value(), matrix);
+}
+
+void OCCTMakeMirrorAxis(double px, double py, double pz, double dx, double dy, double dz, double* matrix) {
+    gce_MakeMirror mm(gp_Ax1(gp_Pnt(px,py,pz), gp_Dir(dx,dy,dz)));
+    _storeTrsf(mm.Value(), matrix);
+}
+
+void OCCTMakeMirrorPlane(double px, double py, double pz, double nx, double ny, double nz, double* matrix) {
+    gce_MakeMirror mm(gp_Pln(gp_Pnt(px,py,pz), gp_Dir(nx,ny,nz)));
+    _storeTrsf(mm.Value(), matrix);
+}
+
+void OCCTMakeRotation(double px, double py, double pz, double dx, double dy, double dz, double angle, double* matrix) {
+    gce_MakeRotation mr(gp_Ax1(gp_Pnt(px,py,pz), gp_Dir(dx,dy,dz)), angle);
+    _storeTrsf(mr.Value(), matrix);
+}
+
+void OCCTMakeScaleTransform(double px, double py, double pz, double factor, double* matrix) {
+    gce_MakeScale ms(gp_Pnt(px,py,pz), factor);
+    _storeTrsf(ms.Value(), matrix);
+}
+
+void OCCTMakeTranslationVec(double vx, double vy, double vz, double* matrix) {
+    gce_MakeTranslation mt(gp_Vec(vx,vy,vz));
+    _storeTrsf(mt.Value(), matrix);
+}
+
+void OCCTMakeTranslationPoints(double x1, double y1, double z1, double x2, double y2, double z2, double* matrix) {
+    gce_MakeTranslation mt(gp_Pnt(x1,y1,z1), gp_Pnt(x2,y2,z2));
+    _storeTrsf(mt.Value(), matrix);
+}
+
+void OCCTMakeMirror2dPoint(double px, double py, double* matrix) {
+    gce_MakeMirror2d mm(gp_Pnt2d(px,py));
+    _storeTrsf2d(mm.Value(), matrix);
+}
+
+void OCCTMakeMirror2dAxis(double px, double py, double dx, double dy, double* matrix) {
+    gce_MakeMirror2d mm(gp_Ax2d(gp_Pnt2d(px,py), gp_Dir2d(dx,dy)));
+    _storeTrsf2d(mm.Value(), matrix);
+}
+
+void OCCTMakeRotation2d(double px, double py, double angle, double* matrix) {
+    gce_MakeRotation2d mr(gp_Pnt2d(px,py), angle);
+    _storeTrsf2d(mr.Value(), matrix);
+}
+
+void OCCTMakeScale2d(double px, double py, double factor, double* matrix) {
+    gce_MakeScale2d ms(gp_Pnt2d(px,py), factor);
+    _storeTrsf2d(ms.Value(), matrix);
+}
+
+void OCCTMakeTranslation2dVec(double vx, double vy, double* matrix) {
+    gce_MakeTranslation2d mt(gp_Vec2d(vx,vy));
+    _storeTrsf2d(mt.Value(), matrix);
+}
+
+void OCCTMakeTranslation2dPoints(double x1, double y1, double x2, double y2, double* matrix) {
+    gce_MakeTranslation2d mt(gp_Pnt2d(x1,y1), gp_Pnt2d(x2,y2));
+    _storeTrsf2d(mt.Value(), matrix);
+}
+
+bool OCCTMakeDir2d(double x, double y, double* outX, double* outY) {
+    try {
+        gce_MakeDir2d md(x, y);
+        if (!md.IsDone()) return false;
+        gp_Dir2d d = md.Value();
+        *outX = d.X(); *outY = d.Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTMakeDir2dFromPoints(double x1, double y1, double x2, double y2, double* outX, double* outY) {
+    try {
+        gce_MakeDir2d md(gp_Pnt2d(x1,y1), gp_Pnt2d(x2,y2));
+        if (!md.IsDone()) return false;
+        gp_Dir2d d = md.Value();
+        *outX = d.X(); *outY = d.Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - GProp Element Properties (v0.103.0)
+
+#include <GProp_CelGProps.hxx>
+#include <GProp_PGProps.hxx>
+#include <GProp_SelGProps.hxx>
+#include <GProp_VelGProps.hxx>
+
+double OCCTGPropLineSegment(double x1, double y1, double z1, double x2, double y2, double z2,
+                             double* cx, double* cy, double* cz) {
+    try {
+        gp_Pnt p1(x1,y1,z1), p2(x2,y2,z2);
+        gp_Lin line(p1, gp_Dir(gp_Vec(p1, p2)));
+        double u2 = p1.Distance(p2);
+        GProp_CelGProps props(line, 0.0, u2, gp_Pnt(0,0,0));
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropCircularArc(double centerX, double centerY, double centerZ,
+                             double normalX, double normalY, double normalZ,
+                             double radius, double u1, double u2,
+                             double* cx, double* cy, double* cz) {
+    try {
+        gp_Ax2 ax(gp_Pnt(centerX,centerY,centerZ), gp_Dir(normalX,normalY,normalZ));
+        gp_Circ circ(ax, radius);
+        GProp_CelGProps props(circ, u1, u2, gp_Pnt(0,0,0));
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropPointSetCentroid(const double* points, int32_t count, double* cx, double* cy, double* cz) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i+1) = gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]);
+        }
+        GProp_PGProps props(pts);
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropSphereSurface(double radius, double* cx, double* cy, double* cz) {
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), radius);
+        GProp_SelGProps props(sphere, 0, 2*M_PI, -M_PI/2, M_PI/2, gp_Pnt(0,0,0));
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropSphereVolume(double radius, double* cx, double* cy, double* cz) {
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), radius);
+        GProp_VelGProps props(sphere, 0, 2*M_PI, -M_PI/2, M_PI/2, gp_Pnt(0,0,0));
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+// MARK: - Plate Constraint Extensions (v0.103.0)
+
+#include <Plate_PlaneConstraint.hxx>
+#include <Plate_LineConstraint.hxx>
+#include <Plate_FreeGtoCConstraint.hxx>
+#include <Plate_LinearScalarConstraint.hxx>
+
+bool OCCTPlateLoadPlaneConstraint(OCCTPlateRef plate, double u, double v,
+                                   double px, double py, double pz,
+                                   double nx, double ny, double nz) {
+    try {
+        auto* p = (Plate_Plate*)plate;
+        gp_XY uv(u, v);
+        gp_Pln pln(gp_Pnt(px,py,pz), gp_Dir(nx,ny,nz));
+        Plate_PlaneConstraint pc(uv, pln);
+        p->Load(pc.LSC());
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTPlateLoadLineConstraint(OCCTPlateRef plate, double u, double v,
+                                  double px, double py, double pz,
+                                  double dx, double dy, double dz) {
+    try {
+        auto* p = (Plate_Plate*)plate;
+        gp_XY uv(u, v);
+        gp_Lin lin(gp_Pnt(px,py,pz), gp_Dir(dx,dy,dz));
+        Plate_LineConstraint lc(uv, lin);
+        p->Load(lc.LSC());
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTPlateLoadFreeG1Constraint(OCCTPlateRef plate, double u, double v,
+                                    double duX, double duY, double duZ,
+                                    double dvX, double dvY, double dvZ) {
+    try {
+        auto* p = (Plate_Plate*)plate;
+        gp_XY uv(u, v);
+        Plate_D1 d1s(gp_XYZ(duX,duY,duZ), gp_XYZ(dvX,dvY,dvZ));
+        Plate_D1 d1t(gp_XYZ(duX,duY,duZ), gp_XYZ(dvX,dvY,dvZ));
+        Plate_FreeGtoCConstraint fgtoc(uv, d1s, d1t);
+        for (int i = 1; i <= fgtoc.nb_LSC(); i++) {
+            p->Load(fgtoc.LSC(i));
+        }
+        for (int i = 1; i <= fgtoc.nb_PPC(); i++) {
+            p->Load(fgtoc.GetPPC(i));
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - Law_Interpolate (v0.103.0)
+
+#include <Law_Interpolate.hxx>
+
+OCCTLawFunctionRef OCCTLawInterpolate(const double* values, int32_t count,
+                                       const double* parameters, bool periodic) {
+    try {
+        Handle(NCollection_HArray1<double>) pts = new NCollection_HArray1<double>(1, count);
+        for (int i = 0; i < count; i++) pts->SetValue(i+1, values[i]);
+
+        Law_Interpolate* interp;
+        if (parameters) {
+            Handle(NCollection_HArray1<double>) params = new NCollection_HArray1<double>(1, count);
+            for (int i = 0; i < count; i++) params->SetValue(i+1, parameters[i]);
+            interp = new Law_Interpolate(pts, params, periodic, 1e-6);
+        } else {
+            interp = new Law_Interpolate(pts, periodic, 1e-6);
+        }
+        interp->Perform();
+        if (!interp->IsDone()) { delete interp; return nullptr; }
+        Handle(Law_BSpline) curve = interp->Curve();
+        delete interp;
+        if (curve.IsNull()) return nullptr;
+        Handle(Law_Function) func = new Law_BSpFunc(curve, curve->FirstParameter(), curve->LastParameter());
+        auto result = new OCCTLawFunction();
+        result->law = func;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Bnd_Sphere (v0.103.0)
+
+struct OCCTBndSphere {
+    Bnd_Sphere sphere;
+};
+
+OCCTBndSphereRef OCCTBndSphereCreate(double cx, double cy, double cz, double radius) {
+    auto s = new OCCTBndSphere();
+    s->sphere = Bnd_Sphere(gp_XYZ(cx, cy, cz), radius, 0, 0);
+    s->sphere.SetValid(true);
+    return s;
+}
+
+void OCCTBndSphereRelease(OCCTBndSphereRef sphere) { delete sphere; }
+
+double OCCTBndSphereRadius(OCCTBndSphereRef sphere) { return sphere->sphere.Radius(); }
+
+void OCCTBndSphereCenter(OCCTBndSphereRef sphere, double* x, double* y, double* z) {
+    gp_XYZ c = sphere->sphere.Center();
+    *x = c.X(); *y = c.Y(); *z = c.Z();
+}
+
+double OCCTBndSphereDistance(OCCTBndSphereRef sphere, double x, double y, double z) {
+    return sphere->sphere.Distance(gp_XYZ(x, y, z));
+}
+
+bool OCCTBndSphereIsOut(OCCTBndSphereRef sphere, double x, double y, double z) {
+    double maxDist = 0;
+    return sphere->sphere.IsOut(gp_XYZ(x, y, z), maxDist);
+}
+
+bool OCCTBndSphereIsOutSphere(OCCTBndSphereRef s1, OCCTBndSphereRef s2) {
+    return s1->sphere.IsOut(s2->sphere);
+}
+
+void OCCTBndSphereAdd(OCCTBndSphereRef sphere, OCCTBndSphereRef other) {
+    sphere->sphere.Add(other->sphere);
+}

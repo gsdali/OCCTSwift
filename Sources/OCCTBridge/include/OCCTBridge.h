@@ -13203,6 +13203,114 @@ int32_t OCCTWireExplorerOrientations(OCCTShapeRef _Nonnull wire, OCCTShapeRef _N
 int32_t OCCTWireExplorerVertices(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nullable face,
                                   double* _Nullable xs, double* _Nullable ys, double* _Nullable zs);
 
+// MARK: - gce Transform Factories 3D (v0.103.0)
+
+/// Create a 3D point mirror transformation. Stores result in 12-element matrix (row-major 3x4).
+void OCCTMakeMirrorPoint(double px, double py, double pz, double* _Nonnull matrix);
+
+/// Create a 3D axis mirror transformation.
+void OCCTMakeMirrorAxis(double px, double py, double pz, double dx, double dy, double dz, double* _Nonnull matrix);
+
+/// Create a 3D plane mirror transformation.
+void OCCTMakeMirrorPlane(double px, double py, double pz, double nx, double ny, double nz, double* _Nonnull matrix);
+
+/// Create a 3D rotation transformation.
+void OCCTMakeRotation(double px, double py, double pz, double dx, double dy, double dz, double angle, double* _Nonnull matrix);
+
+/// Create a 3D scale transformation.
+void OCCTMakeScaleTransform(double px, double py, double pz, double factor, double* _Nonnull matrix);
+
+/// Create a 3D translation transformation from vector.
+void OCCTMakeTranslationVec(double vx, double vy, double vz, double* _Nonnull matrix);
+
+/// Create a 3D translation transformation from two points.
+void OCCTMakeTranslationPoints(double x1, double y1, double z1, double x2, double y2, double z2, double* _Nonnull matrix);
+
+// MARK: - gce Transform Factories 2D (v0.103.0)
+
+/// Create a 2D point mirror transformation. Stores result in 6-element matrix (row-major 2x3).
+void OCCTMakeMirror2dPoint(double px, double py, double* _Nonnull matrix);
+
+/// Create a 2D axis mirror transformation.
+void OCCTMakeMirror2dAxis(double px, double py, double dx, double dy, double* _Nonnull matrix);
+
+/// Create a 2D rotation transformation.
+void OCCTMakeRotation2d(double px, double py, double angle, double* _Nonnull matrix);
+
+/// Create a 2D scale transformation.
+void OCCTMakeScale2d(double px, double py, double factor, double* _Nonnull matrix);
+
+/// Create a 2D translation from vector.
+void OCCTMakeTranslation2dVec(double vx, double vy, double* _Nonnull matrix);
+
+/// Create a 2D translation from two points.
+void OCCTMakeTranslation2dPoints(double x1, double y1, double x2, double y2, double* _Nonnull matrix);
+
+/// Create a 2D direction from coordinates. Returns false if zero vector.
+bool OCCTMakeDir2d(double x, double y, double* _Nonnull outX, double* _Nonnull outY);
+
+/// Create a 2D direction from two points. Returns false if coincident.
+bool OCCTMakeDir2dFromPoints(double x1, double y1, double x2, double y2, double* _Nonnull outX, double* _Nonnull outY);
+
+// MARK: - GProp Element Properties (v0.103.0)
+
+/// Compute curve element (line segment) properties. Returns mass (length), center of mass.
+double OCCTGPropLineSegment(double x1, double y1, double z1, double x2, double y2, double z2,
+                             double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz);
+
+/// Compute curve element (circular arc) properties. Returns mass (arc length), center of mass.
+double OCCTGPropCircularArc(double centerX, double centerY, double centerZ,
+                             double normalX, double normalY, double normalZ,
+                             double radius, double u1, double u2,
+                             double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz);
+
+/// Compute point set center of mass. points is array of [x,y,z,...]. Returns mass (count).
+double OCCTGPropPointSetCentroid(const double* _Nonnull points, int32_t count,
+                                  double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz);
+
+/// Compute sphere surface area and center of mass.
+double OCCTGPropSphereSurface(double radius, double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz);
+
+/// Compute sphere volume and center of mass.
+double OCCTGPropSphereVolume(double radius, double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz);
+
+// MARK: - Plate Constraint Extensions (v0.103.0)
+
+/// Create plate plane constraint and load into solver. Returns true if loaded.
+bool OCCTPlateLoadPlaneConstraint(OCCTPlateRef _Nonnull plate, double u, double v,
+                                   double px, double py, double pz,
+                                   double nx, double ny, double nz);
+
+/// Create plate line constraint and load into solver. Returns true if loaded.
+bool OCCTPlateLoadLineConstraint(OCCTPlateRef _Nonnull plate, double u, double v,
+                                  double px, double py, double pz,
+                                  double dx, double dy, double dz);
+
+/// Create plate free G1 constraint. Returns true if loaded.
+bool OCCTPlateLoadFreeG1Constraint(OCCTPlateRef _Nonnull plate, double u, double v,
+                                    double duX, double duY, double duZ,
+                                    double dvX, double dvY, double dvZ);
+
+// MARK: - Law_Interpolate (v0.103.0)
+
+/// Create an interpolated law function from values. Returns law function ref.
+/// values/parameters are arrays of length count. If parameters is NULL, auto-parameterized.
+OCCTLawFunctionRef _Nullable OCCTLawInterpolate(const double* _Nonnull values, int32_t count,
+                                                 const double* _Nullable parameters, bool periodic);
+
+// MARK: - Bnd_Sphere (v0.103.0)
+
+/// Create a bounding sphere. Returns opaque ref.
+typedef struct OCCTBndSphere* OCCTBndSphereRef;
+OCCTBndSphereRef _Nonnull OCCTBndSphereCreate(double cx, double cy, double cz, double radius);
+void OCCTBndSphereRelease(OCCTBndSphereRef _Nonnull sphere);
+double OCCTBndSphereRadius(OCCTBndSphereRef _Nonnull sphere);
+void OCCTBndSphereCenter(OCCTBndSphereRef _Nonnull sphere, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+double OCCTBndSphereDistance(OCCTBndSphereRef _Nonnull sphere, double x, double y, double z);
+bool OCCTBndSphereIsOut(OCCTBndSphereRef _Nonnull sphere, double x, double y, double z);
+bool OCCTBndSphereIsOutSphere(OCCTBndSphereRef _Nonnull s1, OCCTBndSphereRef _Nonnull s2);
+void OCCTBndSphereAdd(OCCTBndSphereRef _Nonnull sphere, OCCTBndSphereRef _Nonnull other);
+
 #ifdef __cplusplus
 }
 #endif

@@ -311,7 +311,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Poly_Connect Mesh Adjacency** | 3 | meshTriangleAdjacency, meshNodeTriangle, meshNodeTriangleCount |
 | **BRepOffset_Analyse** | 5 | analyseEdgeConcavity, analyseExplode, analyseEdgesOnFace, analyseAncestorCount, analyseTangentEdgeCount |
 | **BRepTools_WireExplorer Extensions** | 2 | wireEdgeOrientations, wireExplorerVertices |
-| **Total** | **2037** | |
+| **gce Transform Factories 3D** | 7 | mirrorPoint, mirrorAxis, mirrorPlane, rotation, scale, translationVec, translationPoints |
+| **gce Transform Factories 2D** | 8 | mirrorPoint2d, mirrorAxis2d, rotation2d, scale2d, translationVec2d, translationPoints2d, dir2d, dir2dFromPoints |
+| **GProp Element Properties** | 5 | lineSegment, circularArc, pointSetCentroid, sphereSurface, sphereVolume |
+| **Plate Constraint Extensions** | 3 | planeConstraint, lineConstraint, freeG1Constraint |
+| **Law_Interpolate** | 1 | interpolated (BSpline from values/parameters) |
+| **Bnd_Sphere** | 8 | create, release, radius, center, distance, isOut, isOutSphere, add |
+| **Total** | **2069** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1631,7 +1637,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **2037 OCCT operations** across 179 categories with 2220 tests across 707 suites.
+OCCTSwift now wraps **2069 OCCT operations** across 185 categories with 2248 tests across 713 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

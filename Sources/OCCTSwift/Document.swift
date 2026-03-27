@@ -6903,3 +6903,276 @@ extension Shape {
         return (0..<count).map { SIMD3(xs[$0], ys[$0], zs[$0]) }
     }
 }
+
+// MARK: - gce Transform Factories (v0.103.0)
+
+/// 3D transformation matrix (row-major 3x4) from gce factories.
+public struct TransformMatrix3D: Sendable {
+    public let values: [Double] // 12 elements: row-major 3x4
+
+    /// Apply this transform to a 3D point.
+    public func apply(to point: SIMD3<Double>) -> SIMD3<Double> {
+        let x = values[0]*point.x + values[1]*point.y + values[2]*point.z + values[3]
+        let y = values[4]*point.x + values[5]*point.y + values[6]*point.z + values[7]
+        let z = values[8]*point.x + values[9]*point.y + values[10]*point.z + values[11]
+        return SIMD3(x, y, z)
+    }
+}
+
+/// 2D transformation matrix (row-major 2x3) from gce factories.
+public struct TransformMatrix2D: Sendable {
+    public let values: [Double] // 6 elements: row-major 2x3
+
+    /// Apply this transform to a 2D point.
+    public func apply(to point: SIMD2<Double>) -> SIMD2<Double> {
+        let x = values[0]*point.x + values[1]*point.y + values[2]
+        let y = values[3]*point.x + values[4]*point.y + values[5]
+        return SIMD2(x, y)
+    }
+}
+
+/// Factory methods for creating 3D transformation matrices.
+public enum TransformFactory3D {
+
+    /// Mirror about a point (central symmetry).
+    public static func mirrorPoint(_ point: SIMD3<Double>) -> TransformMatrix3D {
+        var m = [Double](repeating: 0, count: 12)
+        OCCTMakeMirrorPoint(point.x, point.y, point.z, &m)
+        return TransformMatrix3D(values: m)
+    }
+
+    /// Mirror about an axis (line).
+    public static func mirrorAxis(point: SIMD3<Double>, direction: SIMD3<Double>) -> TransformMatrix3D {
+        var m = [Double](repeating: 0, count: 12)
+        OCCTMakeMirrorAxis(point.x, point.y, point.z, direction.x, direction.y, direction.z, &m)
+        return TransformMatrix3D(values: m)
+    }
+
+    /// Mirror about a plane.
+    public static func mirrorPlane(point: SIMD3<Double>, normal: SIMD3<Double>) -> TransformMatrix3D {
+        var m = [Double](repeating: 0, count: 12)
+        OCCTMakeMirrorPlane(point.x, point.y, point.z, normal.x, normal.y, normal.z, &m)
+        return TransformMatrix3D(values: m)
+    }
+
+    /// Rotation about an axis by angle (radians).
+    public static func rotation(point: SIMD3<Double>, direction: SIMD3<Double>, angle: Double) -> TransformMatrix3D {
+        var m = [Double](repeating: 0, count: 12)
+        OCCTMakeRotation(point.x, point.y, point.z, direction.x, direction.y, direction.z, angle, &m)
+        return TransformMatrix3D(values: m)
+    }
+
+    /// Uniform scale about a point.
+    public static func scale(center: SIMD3<Double>, factor: Double) -> TransformMatrix3D {
+        var m = [Double](repeating: 0, count: 12)
+        OCCTMakeScaleTransform(center.x, center.y, center.z, factor, &m)
+        return TransformMatrix3D(values: m)
+    }
+
+    /// Translation by a vector.
+    public static func translation(_ vector: SIMD3<Double>) -> TransformMatrix3D {
+        var m = [Double](repeating: 0, count: 12)
+        OCCTMakeTranslationVec(vector.x, vector.y, vector.z, &m)
+        return TransformMatrix3D(values: m)
+    }
+
+    /// Translation from one point to another.
+    public static func translation(from p1: SIMD3<Double>, to p2: SIMD3<Double>) -> TransformMatrix3D {
+        var m = [Double](repeating: 0, count: 12)
+        OCCTMakeTranslationPoints(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, &m)
+        return TransformMatrix3D(values: m)
+    }
+}
+
+/// Factory methods for creating 2D transformation matrices.
+public enum TransformFactory2D {
+
+    /// Mirror about a point.
+    public static func mirrorPoint(_ point: SIMD2<Double>) -> TransformMatrix2D {
+        var m = [Double](repeating: 0, count: 6)
+        OCCTMakeMirror2dPoint(point.x, point.y, &m)
+        return TransformMatrix2D(values: m)
+    }
+
+    /// Mirror about an axis.
+    public static func mirrorAxis(point: SIMD2<Double>, direction: SIMD2<Double>) -> TransformMatrix2D {
+        var m = [Double](repeating: 0, count: 6)
+        OCCTMakeMirror2dAxis(point.x, point.y, direction.x, direction.y, &m)
+        return TransformMatrix2D(values: m)
+    }
+
+    /// Rotation about a point by angle (radians).
+    public static func rotation(center: SIMD2<Double>, angle: Double) -> TransformMatrix2D {
+        var m = [Double](repeating: 0, count: 6)
+        OCCTMakeRotation2d(center.x, center.y, angle, &m)
+        return TransformMatrix2D(values: m)
+    }
+
+    /// Uniform scale about a point.
+    public static func scale(center: SIMD2<Double>, factor: Double) -> TransformMatrix2D {
+        var m = [Double](repeating: 0, count: 6)
+        OCCTMakeScale2d(center.x, center.y, factor, &m)
+        return TransformMatrix2D(values: m)
+    }
+
+    /// Translation by a vector.
+    public static func translation(_ vector: SIMD2<Double>) -> TransformMatrix2D {
+        var m = [Double](repeating: 0, count: 6)
+        OCCTMakeTranslation2dVec(vector.x, vector.y, &m)
+        return TransformMatrix2D(values: m)
+    }
+
+    /// Translation from one point to another.
+    public static func translation(from p1: SIMD2<Double>, to p2: SIMD2<Double>) -> TransformMatrix2D {
+        var m = [Double](repeating: 0, count: 6)
+        OCCTMakeTranslation2dPoints(p1.x, p1.y, p2.x, p2.y, &m)
+        return TransformMatrix2D(values: m)
+    }
+
+    /// Create a 2D direction from coordinates. Returns nil if zero vector.
+    public static func direction(x: Double, y: Double) -> SIMD2<Double>? {
+        var ox = 0.0, oy = 0.0
+        guard OCCTMakeDir2d(x, y, &ox, &oy) else { return nil }
+        return SIMD2(ox, oy)
+    }
+
+    /// Create a 2D direction from two points. Returns nil if coincident.
+    public static func direction(from p1: SIMD2<Double>, to p2: SIMD2<Double>) -> SIMD2<Double>? {
+        var ox = 0.0, oy = 0.0
+        guard OCCTMakeDir2dFromPoints(p1.x, p1.y, p2.x, p2.y, &ox, &oy) else { return nil }
+        return SIMD2(ox, oy)
+    }
+}
+
+// MARK: - GProp Element Properties (v0.103.0)
+
+/// Analytical geometry property computation.
+public enum GeometryProperties {
+
+    /// Line segment properties: returns (length, centerOfMass).
+    public static func lineSegment(from p1: SIMD3<Double>, to p2: SIMD3<Double>) -> (length: Double, center: SIMD3<Double>) {
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        let mass = OCCTGPropLineSegment(p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, &cx, &cy, &cz)
+        return (mass, SIMD3(cx, cy, cz))
+    }
+
+    /// Circular arc properties: returns (arcLength, centerOfMass).
+    public static func circularArc(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                    radius: Double, u1: Double, u2: Double) -> (arcLength: Double, center: SIMD3<Double>) {
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        let mass = OCCTGPropCircularArc(center.x, center.y, center.z,
+                                         normal.x, normal.y, normal.z,
+                                         radius, u1, u2, &cx, &cy, &cz)
+        return (mass, SIMD3(cx, cy, cz))
+    }
+
+    /// Point set centroid. Returns (pointCount, centroid).
+    public static func pointSetCentroid(_ points: [SIMD3<Double>]) -> (count: Double, centroid: SIMD3<Double>) {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        let mass = OCCTGPropPointSetCentroid(flat, Int32(points.count), &cx, &cy, &cz)
+        return (mass, SIMD3(cx, cy, cz))
+    }
+
+    /// Sphere surface area (analytical).
+    public static func sphereSurfaceArea(radius: Double) -> Double {
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        return OCCTGPropSphereSurface(radius, &cx, &cy, &cz)
+    }
+
+    /// Sphere volume (analytical).
+    public static func sphereVolume(radius: Double) -> Double {
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        return OCCTGPropSphereVolume(radius, &cx, &cy, &cz)
+    }
+}
+
+// MARK: - Plate Constraint Extensions (v0.103.0)
+
+extension PlateSolver {
+    /// Load a plane constraint at UV point.
+    @discardableResult
+    public func loadPlaneConstraint(u: Double, v: Double, planePoint: SIMD3<Double>, planeNormal: SIMD3<Double>) -> Bool {
+        OCCTPlateLoadPlaneConstraint(handle, u, v,
+                                      planePoint.x, planePoint.y, planePoint.z,
+                                      planeNormal.x, planeNormal.y, planeNormal.z)
+    }
+
+    /// Load a line constraint at UV point.
+    @discardableResult
+    public func loadLineConstraint(u: Double, v: Double, linePoint: SIMD3<Double>, lineDirection: SIMD3<Double>) -> Bool {
+        OCCTPlateLoadLineConstraint(handle, u, v,
+                                     linePoint.x, linePoint.y, linePoint.z,
+                                     lineDirection.x, lineDirection.y, lineDirection.z)
+    }
+
+    /// Load a free G1 continuity constraint at UV point.
+    @discardableResult
+    public func loadFreeG1Constraint(u: Double, v: Double, du: SIMD3<Double>, dv: SIMD3<Double>) -> Bool {
+        OCCTPlateLoadFreeG1Constraint(handle, u, v, du.x, du.y, du.z, dv.x, dv.y, dv.z)
+    }
+}
+
+// MARK: - Law_Interpolate (v0.103.0)
+
+extension LawFunction {
+    /// Create an interpolated law function from values.
+    public static func interpolated(values: [Double], parameters: [Double]? = nil, periodic: Bool = false) -> LawFunction? {
+        let ref: OCCTLawFunctionRef?
+        if let params = parameters {
+            ref = params.withUnsafeBufferPointer { paramBuf in
+                values.withUnsafeBufferPointer { valBuf in
+                    OCCTLawInterpolate(valBuf.baseAddress!, Int32(values.count), paramBuf.baseAddress!, periodic)
+                }
+            }
+        } else {
+            ref = values.withUnsafeBufferPointer { valBuf in
+                OCCTLawInterpolate(valBuf.baseAddress!, Int32(values.count), nil, periodic)
+            }
+        }
+        guard let r = ref else { return nil }
+        return LawFunction(handle: r)
+    }
+}
+
+// MARK: - Bnd_Sphere (v0.103.0)
+
+/// Bounding sphere for spatial queries.
+public final class BoundingSphere: @unchecked Sendable {
+    private let ref: OCCTBndSphereRef
+
+    public init(center: SIMD3<Double>, radius: Double) {
+        ref = OCCTBndSphereCreate(center.x, center.y, center.z, radius)
+    }
+
+    deinit { OCCTBndSphereRelease(ref) }
+
+    public var radius: Double { OCCTBndSphereRadius(ref) }
+
+    public var center: SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTBndSphereCenter(ref, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Distance from sphere center to point.
+    public func distance(to point: SIMD3<Double>) -> Double {
+        OCCTBndSphereDistance(ref, point.x, point.y, point.z)
+    }
+
+    /// Check if point is outside sphere.
+    public func isOutside(_ point: SIMD3<Double>) -> Bool {
+        OCCTBndSphereIsOut(ref, point.x, point.y, point.z)
+    }
+
+    /// Check if another sphere is disjoint.
+    public func isOutside(_ other: BoundingSphere) -> Bool {
+        OCCTBndSphereIsOutSphere(ref, other.ref)
+    }
+
+    /// Merge (expand to contain) another sphere.
+    public func add(_ other: BoundingSphere) {
+        OCCTBndSphereAdd(ref, other.ref)
+    }
+}
