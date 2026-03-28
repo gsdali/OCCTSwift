@@ -38606,3 +38606,269 @@ bool OCCTBndSphereIsOutSphere(OCCTBndSphereRef s1, OCCTBndSphereRef s2) {
 void OCCTBndSphereAdd(OCCTBndSphereRef sphere, OCCTBndSphereRef other) {
     sphere->sphere.Add(other->sphere);
 }
+
+// MARK: - BndLib Analytic Bounding (v0.104.0)
+
+#include <BndLib.hxx>
+#include <BndLib_Add3dCurve.hxx>
+#include <BndLib_AddSurface.hxx>
+
+void OCCTBndLibLine(double px, double py, double pz, double dx, double dy, double dz,
+                     double p1, double p2, double tol,
+                     double* xmin, double* ymin, double* zmin,
+                     double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Lin line(gp_Pnt(px,py,pz), gp_Dir(dx,dy,dz));
+        BndLib::Add(line, p1, p2, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibCircle(double cx, double cy, double cz, double nx, double ny, double nz,
+                       double radius, double tol,
+                       double* xmin, double* ymin, double* zmin,
+                       double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Ax2 ax(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz));
+        gp_Circ circ(ax, radius);
+        BndLib::Add(circ, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibSphere(double cx, double cy, double cz, double radius, double tol,
+                       double* xmin, double* ymin, double* zmin,
+                       double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(cx,cy,cz), gp_Dir(0,0,1)), radius);
+        BndLib::Add(sphere, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibCylinder(double cx, double cy, double cz, double nx, double ny, double nz,
+                          double radius, double vmin, double vmax, double tol,
+                          double* xmin, double* ymin, double* zmin,
+                          double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz)), radius);
+        BndLib::Add(cyl, vmin, vmax, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibTorus(double cx, double cy, double cz, double nx, double ny, double nz,
+                      double majorRadius, double minorRadius, double tol,
+                      double* xmin, double* ymin, double* zmin,
+                      double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Torus torus(gp_Ax3(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz)), majorRadius, minorRadius);
+        BndLib::Add(torus, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibEdge(OCCTShapeRef shape, double tol,
+                     double* xmin, double* ymin, double* zmin,
+                     double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        BRepAdaptor_Curve ac(TopoDS::Edge(shape->shape));
+        BndLib_Add3dCurve::Add(ac, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibFace(OCCTShapeRef shape, double tol,
+                     double* xmin, double* ymin, double* zmin,
+                     double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        BRepAdaptor_Surface as(TopoDS::Face(shape->shape));
+        BndLib_AddSurface::Add(as, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+// MARK: - OSD_Host (v0.104.0)
+
+#include <OSD_Host.hxx>
+
+char* OCCTHostName(void) {
+    try {
+        OSD_Host host;
+        return strdup(host.HostName().ToCString());
+    } catch (...) { return nullptr; }
+}
+
+char* OCCTSystemVersion(void) {
+    try {
+        OSD_Host host;
+        return strdup(host.SystemVersion().ToCString());
+    } catch (...) { return nullptr; }
+}
+
+char* OCCTInternetAddress(void) {
+    try {
+        OSD_Host host;
+        return strdup(host.InternetAddress().ToCString());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - OSD_PerfMeter (v0.104.0)
+
+#include <OSD_PerfMeter.hxx>
+
+struct OCCTPerfMeter {
+    OSD_PerfMeter meter;
+};
+
+OCCTPerfMeterRef OCCTPerfMeterCreate(const char* name) {
+    auto m = new OCCTPerfMeter();
+    TCollection_AsciiString n(name);
+    m->meter.Init(n);
+    m->meter.Start();
+    return m;
+}
+
+void OCCTPerfMeterRelease(OCCTPerfMeterRef meter) { delete meter; }
+void OCCTPerfMeterStart(OCCTPerfMeterRef meter) { meter->meter.Start(); }
+void OCCTPerfMeterStop(OCCTPerfMeterRef meter) { meter->meter.Stop(); }
+double OCCTPerfMeterElapsed(OCCTPerfMeterRef meter) { return meter->meter.Elapsed(); }
+
+// MARK: - GProp Cylinder/Cone (v0.104.0)
+
+double OCCTGPropCylinderSurface(double radius, double height) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), radius);
+        GProp_SelGProps props(cyl, 0, 2*M_PI, 0, height, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropCylinderVolume(double radius, double height) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), radius);
+        GProp_VelGProps props(cyl, 0, 2*M_PI, 0, height, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropConeSurface(double semiAngle, double refRadius, double height) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), semiAngle, refRadius);
+        GProp_SelGProps props(cone, 0, 2*M_PI, 0, height, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropConeVolume(double semiAngle, double refRadius, double height) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), semiAngle, refRadius);
+        GProp_VelGProps props(cone, 0, 2*M_PI, 0, height, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+// MARK: - IntAna_IntQuadQuad (v0.104.0)
+
+#include <IntAna_IntQuadQuad.hxx>
+#include <IntAna_Quadric.hxx>
+
+int32_t OCCTIntAnaCylinderSphere(double cylRadius,
+                                   double sphCx, double sphCy, double sphCz, double sphRadius,
+                                   double tol) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), cylRadius);
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sphCx,sphCy,sphCz), gp_Dir(0,0,1)), sphRadius));
+        IntAna_IntQuadQuad iqq(cyl, quad, tol);
+        if (!iqq.IsDone()) return -1;
+        if (iqq.IdenticalElements()) return -2;
+        return (int32_t)iqq.NbCurve();
+    } catch (...) { return -1; }
+}
+
+bool OCCTIntAnaCylinderSphereIdentical(double cylRadius,
+                                         double sphCx, double sphCy, double sphCz, double sphRadius,
+                                         double tol) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), cylRadius);
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sphCx,sphCy,sphCz), gp_Dir(0,0,1)), sphRadius));
+        IntAna_IntQuadQuad iqq(cyl, quad, tol);
+        return iqq.IsDone() && iqq.IdenticalElements();
+    } catch (...) { return false; }
+}
+
+// MARK: - XCAFPrs_DocumentExplorer (v0.104.0)
+
+#include <XCAFPrs_DocumentExplorer.hxx>
+#include <XCAFPrs_DocumentNode.hxx>
+
+int32_t OCCTDocumentExplorerCount(OCCTDocumentRef docRef) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t count = 0;
+        while (explorer.More()) { count++; explorer.Next(); }
+        return count;
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTDocumentExplorerShape(OCCTDocumentRef docRef, int32_t index) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t i = 0;
+        while (explorer.More()) {
+            if (i == index) {
+                const XCAFPrs_DocumentNode& node = explorer.Current();
+                Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+                TopoDS_Shape shape;
+                shapeTool->GetShape(node.RefLabel.IsNull() ? node.Label : node.RefLabel, shape);
+                if (shape.IsNull()) return nullptr;
+                auto result = new OCCTShape();
+                result->shape = shape;
+                if (!node.Location.IsIdentity()) result->shape.Location(node.Location);
+                return result;
+            }
+            i++;
+            explorer.Next();
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+char* OCCTDocumentExplorerPathId(OCCTDocumentRef docRef, int32_t index) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t i = 0;
+        while (explorer.More()) {
+            if (i == index) {
+                return strdup(explorer.Current().Id.ToCString());
+            }
+            i++;
+            explorer.Next();
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTDocumentExplorerFindShape(OCCTDocumentRef docRef, const char* pathId) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        TCollection_AsciiString id(pathId);
+        TopoDS_Shape shape = XCAFPrs_DocumentExplorer::FindShapeFromPathId(doc, id);
+        if (shape.IsNull()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = shape;
+        return result;
+    } catch (...) { return nullptr; }
+}

@@ -13203,6 +13203,107 @@ int32_t OCCTWireExplorerOrientations(OCCTShapeRef _Nonnull wire, OCCTShapeRef _N
 int32_t OCCTWireExplorerVertices(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nullable face,
                                   double* _Nullable xs, double* _Nullable ys, double* _Nullable zs);
 
+// MARK: - BndLib Analytic Bounding (v0.104.0)
+
+/// Bounding box of a line segment. Returns xmin,ymin,zmin,xmax,ymax,zmax.
+void OCCTBndLibLine(double px, double py, double pz, double dx, double dy, double dz,
+                     double p1, double p2, double tol,
+                     double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                     double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+/// Bounding box of a full circle.
+void OCCTBndLibCircle(double cx, double cy, double cz, double nx, double ny, double nz,
+                       double radius, double tol,
+                       double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                       double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+/// Bounding box of a full sphere.
+void OCCTBndLibSphere(double cx, double cy, double cz, double radius, double tol,
+                       double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                       double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+/// Bounding box of a cylinder patch (V range).
+void OCCTBndLibCylinder(double cx, double cy, double cz, double nx, double ny, double nz,
+                          double radius, double vmin, double vmax, double tol,
+                          double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                          double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+/// Bounding box of a full torus.
+void OCCTBndLibTorus(double cx, double cy, double cz, double nx, double ny, double nz,
+                      double majorRadius, double minorRadius, double tol,
+                      double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                      double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+/// Bounding box of a 3D edge curve (BndLib_Add3dCurve).
+void OCCTBndLibEdge(OCCTShapeRef _Nonnull edge, double tol,
+                     double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                     double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+/// Bounding box of a face surface (BndLib_AddSurface).
+void OCCTBndLibFace(OCCTShapeRef _Nonnull face, double tol,
+                     double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                     double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+// MARK: - OSD_Host (v0.104.0)
+
+/// Get the hostname. Caller must free() the returned string.
+char* _Nullable OCCTHostName(void);
+
+/// Get the OS version string. Caller must free().
+char* _Nullable OCCTSystemVersion(void);
+
+/// Get the internet address. Caller must free().
+char* _Nullable OCCTInternetAddress(void);
+
+// MARK: - OSD_PerfMeter (v0.104.0)
+
+typedef struct OCCTPerfMeter* OCCTPerfMeterRef;
+OCCTPerfMeterRef _Nonnull OCCTPerfMeterCreate(const char* _Nonnull name);
+void OCCTPerfMeterRelease(OCCTPerfMeterRef _Nonnull meter);
+void OCCTPerfMeterStart(OCCTPerfMeterRef _Nonnull meter);
+void OCCTPerfMeterStop(OCCTPerfMeterRef _Nonnull meter);
+double OCCTPerfMeterElapsed(OCCTPerfMeterRef _Nonnull meter);
+
+// MARK: - GProp Cylinder/Cone (v0.104.0)
+
+/// Cylinder lateral surface area.
+double OCCTGPropCylinderSurface(double radius, double height);
+
+/// Cylinder volume.
+double OCCTGPropCylinderVolume(double radius, double height);
+
+/// Cone lateral surface area (from V=0 to V=height).
+double OCCTGPropConeSurface(double semiAngle, double refRadius, double height);
+
+/// Cone volume (from V=0 to V=height).
+double OCCTGPropConeVolume(double semiAngle, double refRadius, double height);
+
+// MARK: - IntAna_IntQuadQuad (v0.104.0)
+
+/// Cylinder-sphere intersection. Returns number of curves found.
+int32_t OCCTIntAnaCylinderSphere(double cylRadius,
+                                   double sphCx, double sphCy, double sphCz, double sphRadius,
+                                   double tol);
+
+/// Check if cylinder-sphere intersection produced identical elements.
+bool OCCTIntAnaCylinderSphereIdentical(double cylRadius,
+                                         double sphCx, double sphCy, double sphCz, double sphRadius,
+                                         double tol);
+
+// MARK: - XCAFPrs_DocumentExplorer (v0.104.0)
+
+/// Count leaf shape nodes in a document.
+int32_t OCCTDocumentExplorerCount(OCCTDocumentRef _Nonnull doc);
+
+/// Get shape at index from document explorer (0-based). Returns shape ref.
+OCCTShapeRef _Nullable OCCTDocumentExplorerShape(OCCTDocumentRef _Nonnull doc, int32_t index);
+
+/// Get path ID at index from document explorer. Caller must free().
+char* _Nullable OCCTDocumentExplorerPathId(OCCTDocumentRef _Nonnull doc, int32_t index);
+
+/// Find shape from path ID string.
+OCCTShapeRef _Nullable OCCTDocumentExplorerFindShape(OCCTDocumentRef _Nonnull doc, const char* _Nonnull pathId);
+
 // MARK: - gce Transform Factories 3D (v0.103.0)
 
 /// Create a 3D point mirror transformation. Stores result in 12-element matrix (row-major 3x4).

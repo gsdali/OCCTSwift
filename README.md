@@ -317,7 +317,13 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Plate Constraint Extensions** | 3 | planeConstraint, lineConstraint, freeG1Constraint |
 | **Law_Interpolate** | 1 | interpolated (BSpline from values/parameters) |
 | **Bnd_Sphere** | 8 | create, release, radius, center, distance, isOut, isOutSphere, add |
-| **Total** | **2069** | |
+| **BndLib Analytic Bounding** | 7 | line, circle, sphere, cylinder, torus, edge, face |
+| **OSD_Host** | 3 | hostName, systemVersion, internetAddress |
+| **OSD_PerfMeter** | 5 | create, release, start, stop, elapsed |
+| **GProp Cylinder/Cone** | 4 | cylinderSurface, cylinderVolume, coneSurface, coneVolume |
+| **IntAna_IntQuadQuad** | 2 | cylinderSphere, cylinderSphereIdentical |
+| **XCAFPrs_DocumentExplorer** | 4 | nodeCount, shapeAtIndex, pathId, findShapeFromPathId |
+| **Total** | **2094** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1637,7 +1643,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **2069 OCCT operations** across 185 categories with 2248 tests across 713 suites.
+OCCTSwift now wraps **2094 OCCT operations** across 191 categories with 2269 tests across 719 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

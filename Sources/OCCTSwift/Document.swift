@@ -6904,6 +6904,195 @@ extension Shape {
     }
 }
 
+// MARK: - BndLib Analytic Bounding (v0.104.0)
+
+/// Bounding box result from analytic geometry.
+public struct AnalyticBounds: Sendable {
+    public let min: SIMD3<Double>
+    public let max: SIMD3<Double>
+}
+
+/// Compute bounding boxes from analytic geometry primitives.
+public enum BndLib {
+
+    /// Bounding box of a line segment.
+    public static func line(origin: SIMD3<Double>, direction: SIMD3<Double>,
+                             p1: Double, p2: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var x0 = 0.0, y0 = 0.0, z0 = 0.0, x1 = 0.0, y1 = 0.0, z1 = 0.0
+        OCCTBndLibLine(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z,
+                        p1, p2, tolerance, &x0, &y0, &z0, &x1, &y1, &z1)
+        return AnalyticBounds(min: SIMD3(x0,y0,z0), max: SIMD3(x1,y1,z1))
+    }
+
+    /// Bounding box of a full circle.
+    public static func circle(center: SIMD3<Double>, normal: SIMD3<Double>,
+                               radius: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var x0 = 0.0, y0 = 0.0, z0 = 0.0, x1 = 0.0, y1 = 0.0, z1 = 0.0
+        OCCTBndLibCircle(center.x, center.y, center.z, normal.x, normal.y, normal.z,
+                          radius, tolerance, &x0, &y0, &z0, &x1, &y1, &z1)
+        return AnalyticBounds(min: SIMD3(x0,y0,z0), max: SIMD3(x1,y1,z1))
+    }
+
+    /// Bounding box of a sphere.
+    public static func sphere(center: SIMD3<Double>, radius: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var x0 = 0.0, y0 = 0.0, z0 = 0.0, x1 = 0.0, y1 = 0.0, z1 = 0.0
+        OCCTBndLibSphere(center.x, center.y, center.z, radius, tolerance,
+                          &x0, &y0, &z0, &x1, &y1, &z1)
+        return AnalyticBounds(min: SIMD3(x0,y0,z0), max: SIMD3(x1,y1,z1))
+    }
+
+    /// Bounding box of a cylinder patch.
+    public static func cylinder(center: SIMD3<Double>, axis: SIMD3<Double>,
+                                 radius: Double, vmin: Double, vmax: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var x0 = 0.0, y0 = 0.0, z0 = 0.0, x1 = 0.0, y1 = 0.0, z1 = 0.0
+        OCCTBndLibCylinder(center.x, center.y, center.z, axis.x, axis.y, axis.z,
+                            radius, vmin, vmax, tolerance, &x0, &y0, &z0, &x1, &y1, &z1)
+        return AnalyticBounds(min: SIMD3(x0,y0,z0), max: SIMD3(x1,y1,z1))
+    }
+
+    /// Bounding box of a torus.
+    public static func torus(center: SIMD3<Double>, axis: SIMD3<Double>,
+                              majorRadius: Double, minorRadius: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var x0 = 0.0, y0 = 0.0, z0 = 0.0, x1 = 0.0, y1 = 0.0, z1 = 0.0
+        OCCTBndLibTorus(center.x, center.y, center.z, axis.x, axis.y, axis.z,
+                         majorRadius, minorRadius, tolerance, &x0, &y0, &z0, &x1, &y1, &z1)
+        return AnalyticBounds(min: SIMD3(x0,y0,z0), max: SIMD3(x1,y1,z1))
+    }
+
+    /// Bounding box of a 3D edge curve.
+    public static func edge(_ edge: Shape, tolerance: Double = 0) -> AnalyticBounds {
+        var x0 = 0.0, y0 = 0.0, z0 = 0.0, x1 = 0.0, y1 = 0.0, z1 = 0.0
+        OCCTBndLibEdge(edge.handle, tolerance, &x0, &y0, &z0, &x1, &y1, &z1)
+        return AnalyticBounds(min: SIMD3(x0,y0,z0), max: SIMD3(x1,y1,z1))
+    }
+
+    /// Bounding box of a face surface.
+    public static func face(_ face: Shape, tolerance: Double = 0) -> AnalyticBounds {
+        var x0 = 0.0, y0 = 0.0, z0 = 0.0, x1 = 0.0, y1 = 0.0, z1 = 0.0
+        OCCTBndLibFace(face.handle, tolerance, &x0, &y0, &z0, &x1, &y1, &z1)
+        return AnalyticBounds(min: SIMD3(x0,y0,z0), max: SIMD3(x1,y1,z1))
+    }
+}
+
+// MARK: - OSD_Host (v0.104.0)
+
+/// System host information.
+public enum HostInfo {
+    /// Get the hostname.
+    public static var hostName: String? {
+        guard let ptr = OCCTHostName() else { return nil }
+        defer { free(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Get the OS version string.
+    public static var systemVersion: String? {
+        guard let ptr = OCCTSystemVersion() else { return nil }
+        defer { free(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Get the internet address.
+    public static var internetAddress: String? {
+        guard let ptr = OCCTInternetAddress() else { return nil }
+        defer { free(ptr) }
+        return String(cString: ptr)
+    }
+}
+
+// MARK: - OSD_PerfMeter (v0.104.0)
+
+/// Performance measurement timer.
+public final class PerfMeter: @unchecked Sendable {
+    private let ref: OCCTPerfMeterRef
+
+    public init(name: String) {
+        ref = OCCTPerfMeterCreate(name)
+    }
+
+    deinit { OCCTPerfMeterRelease(ref) }
+
+    public func start() { OCCTPerfMeterStart(ref) }
+    public func stop() { OCCTPerfMeterStop(ref) }
+    public var elapsed: Double { OCCTPerfMeterElapsed(ref) }
+}
+
+// MARK: - GProp Cylinder/Cone (v0.104.0)
+
+extension GeometryProperties {
+    /// Cylinder lateral surface area.
+    public static func cylinderSurfaceArea(radius: Double, height: Double) -> Double {
+        OCCTGPropCylinderSurface(radius, height)
+    }
+
+    /// Cylinder volume.
+    public static func cylinderVolume(radius: Double, height: Double) -> Double {
+        OCCTGPropCylinderVolume(radius, height)
+    }
+
+    /// Cone lateral surface area.
+    public static func coneSurfaceArea(semiAngle: Double, refRadius: Double, height: Double) -> Double {
+        OCCTGPropConeSurface(semiAngle, refRadius, height)
+    }
+
+    /// Cone volume.
+    public static func coneVolume(semiAngle: Double, refRadius: Double, height: Double) -> Double {
+        OCCTGPropConeVolume(semiAngle, refRadius, height)
+    }
+}
+
+// MARK: - IntAna_IntQuadQuad (v0.104.0)
+
+/// Analytic quadric-quadric intersection.
+public enum QuadricIntersection {
+    /// Intersect a cylinder (Z-axis, given radius) with a sphere. Returns curve count, or nil on failure.
+    public static func cylinderSphere(cylinderRadius: Double,
+                                       sphereCenter: SIMD3<Double>, sphereRadius: Double,
+                                       tolerance: Double = 1e-6) -> Int? {
+        let n = Int(OCCTIntAnaCylinderSphere(cylinderRadius,
+                                               sphereCenter.x, sphereCenter.y, sphereCenter.z,
+                                               sphereRadius, tolerance))
+        return n >= 0 ? n : nil
+    }
+
+    /// Check if cylinder and sphere surfaces are identical.
+    public static func cylinderSphereIdentical(cylinderRadius: Double,
+                                                sphereCenter: SIMD3<Double>, sphereRadius: Double,
+                                                tolerance: Double = 1e-6) -> Bool {
+        OCCTIntAnaCylinderSphereIdentical(cylinderRadius,
+                                            sphereCenter.x, sphereCenter.y, sphereCenter.z,
+                                            sphereRadius, tolerance)
+    }
+}
+
+// MARK: - XCAFPrs_DocumentExplorer (v0.104.0)
+
+extension Document {
+    /// Count leaf shape nodes in the document.
+    public var explorerNodeCount: Int {
+        Int(OCCTDocumentExplorerCount(handle))
+    }
+
+    /// Get shape at index from document explorer (0-based).
+    public func explorerShape(at index: Int) -> Shape? {
+        guard let ref = OCCTDocumentExplorerShape(handle, Int32(index)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get path ID at index from document explorer.
+    public func explorerPathId(at index: Int) -> String? {
+        guard let ptr = OCCTDocumentExplorerPathId(handle, Int32(index)) else { return nil }
+        defer { free(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Find shape from path ID string.
+    public func explorerFindShape(pathId: String) -> Shape? {
+        guard let ref = OCCTDocumentExplorerFindShape(handle, pathId) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
 // MARK: - gce Transform Factories (v0.103.0)
 
 /// 3D transformation matrix (row-major 3x4) from gce factories.
