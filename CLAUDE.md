@@ -82,7 +82,7 @@ Opaque handle types (`OCCTShapeRef`, `OCCTWireRef`, `OCCTFaceRef`, `OCCTEdgeRef`
 
 ## Release Process
 
-Each release adds ~20-25 new operations following this strict order:
+Each release adds ~100 new operations following this strict order:
 
 1. Ground truth C++ test at `/tmp/occt_vXX_test.mm` — compile and run
 2. C bridge declarations + implementations
@@ -118,5 +118,5 @@ Each release adds ~20-25 new operations following this strict order:
 ## User Directives
 
 - Wrap **everything** — comprehensive wrapper, leave nothing out
-- Each release should be ~20-25 new operations
+- Each release should be ~100 new operations
 - Infinite OCCT surfaces must be trimmed before converting to BSpline

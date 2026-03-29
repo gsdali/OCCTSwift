@@ -7365,3 +7365,779 @@ public final class BoundingSphere: @unchecked Sendable {
         OCCTBndSphereAdd(ref, other.ref)
     }
 }
+
+// MARK: - GC_MakeCircle (v0.105.0)
+
+extension Curve3D {
+    /// Create a 3D circle from axis (center + normal) and radius.
+    public static func gcCircle(center: SIMD3<Double>, normal: SIMD3<Double>, radius: Double) -> Curve3D? {
+        guard let ref = OCCTGCMakeCircle(center.x, center.y, center.z,
+                                          normal.x, normal.y, normal.z, radius) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D circle through 3 points.
+    public static func gcCircle(p1: SIMD3<Double>, p2: SIMD3<Double>, p3: SIMD3<Double>) -> Curve3D? {
+        guard let ref = OCCTGCMakeCircle3Points(p1.x, p1.y, p1.z,
+                                                  p2.x, p2.y, p2.z,
+                                                  p3.x, p3.y, p3.z) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D circle from center, normal, and radius (alias).
+    public static func gcCircleCenterNormal(center: SIMD3<Double>, normal: SIMD3<Double>, radius: Double) -> Curve3D? {
+        guard let ref = OCCTGCMakeCircleCenterNormal(center.x, center.y, center.z,
+                                                       normal.x, normal.y, normal.z, radius) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D circle parallel to an existing circle at given distance.
+    public static func gcCircleParallel(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                         radius: Double, distance: Double) -> Curve3D? {
+        guard let ref = OCCTGCMakeCircleParallel(center.x, center.y, center.z,
+                                                   normal.x, normal.y, normal.z,
+                                                   radius, distance) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+// MARK: - GC_MakeEllipse (v0.105.0)
+
+extension Curve3D {
+    /// Create a 3D ellipse from axis and major/minor radii.
+    public static func gcEllipse(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                  majorRadius: Double, minorRadius: Double) -> Curve3D? {
+        guard let ref = OCCTGCMakeEllipse(center.x, center.y, center.z,
+                                            normal.x, normal.y, normal.z,
+                                            majorRadius, minorRadius) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D ellipse from 3 points (S1, S2, center).
+    public static func gcEllipse(s1: SIMD3<Double>, s2: SIMD3<Double>, center: SIMD3<Double>) -> Curve3D? {
+        guard let ref = OCCTGCMakeEllipse3Points(s1.x, s1.y, s1.z,
+                                                    s2.x, s2.y, s2.z,
+                                                    center.x, center.y, center.z) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D ellipse from full Ax2 (center + normal + X direction) and radii.
+    public static func gcEllipse(center: SIMD3<Double>, normal: SIMD3<Double>, xDirection: SIMD3<Double>,
+                                  majorRadius: Double, minorRadius: Double) -> Curve3D? {
+        guard let ref = OCCTGCMakeEllipseFromElips(center.x, center.y, center.z,
+                                                      normal.x, normal.y, normal.z,
+                                                      xDirection.x, xDirection.y, xDirection.z,
+                                                      majorRadius, minorRadius) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+// MARK: - GC_MakeHyperbola (v0.105.0)
+
+extension Curve3D {
+    /// Create a 3D hyperbola from axis and major/minor radii.
+    public static func gcHyperbola(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                    majorRadius: Double, minorRadius: Double) -> Curve3D? {
+        guard let ref = OCCTGCMakeHyperbola(center.x, center.y, center.z,
+                                              normal.x, normal.y, normal.z,
+                                              majorRadius, minorRadius) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D hyperbola from 3 points (S1, S2, center).
+    public static func gcHyperbola(s1: SIMD3<Double>, s2: SIMD3<Double>, center: SIMD3<Double>) -> Curve3D? {
+        guard let ref = OCCTGCMakeHyperbola3Points(s1.x, s1.y, s1.z,
+                                                      s2.x, s2.y, s2.z,
+                                                      center.x, center.y, center.z) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+// MARK: - GCE2d_MakeCircle (v0.105.0)
+
+extension Curve2D {
+    /// Create a 2D circle from center and radius.
+    public static func gceCircle(center: SIMD2<Double>, radius: Double) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeCircleCenterRadius(center.x, center.y, radius) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D circle through 3 points.
+    public static func gceCircle(p1: SIMD2<Double>, p2: SIMD2<Double>, p3: SIMD2<Double>) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeCircle3Points(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D circle from center and point on circle.
+    public static func gceCircle(center: SIMD2<Double>, pointOn: SIMD2<Double>) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeCircleCenterPoint(center.x, center.y, pointOn.x, pointOn.y) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D circle parallel to existing circle at distance.
+    public static func gceCircleParallel(center: SIMD2<Double>, direction: SIMD2<Double>,
+                                          radius: Double, distance: Double) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeCircleParallel(center.x, center.y,
+                                                     direction.x, direction.y,
+                                                     radius, distance) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D circle from axis and radius.
+    public static func gceCircle(axisCenter: SIMD2<Double>, axisDirection: SIMD2<Double>,
+                                  radius: Double) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeCircleAxis(axisCenter.x, axisCenter.y,
+                                                 axisDirection.x, axisDirection.y,
+                                                 radius) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - GCE2d_MakeEllipse (v0.105.0)
+
+extension Curve2D {
+    /// Create a 2D ellipse from axis and radii.
+    public static func gceEllipse(center: SIMD2<Double>, xDirection: SIMD2<Double>,
+                                   majorRadius: Double, minorRadius: Double) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeEllipse(center.x, center.y,
+                                              xDirection.x, xDirection.y,
+                                              majorRadius, minorRadius) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D ellipse from 3 points (S1, S2, center).
+    public static func gceEllipse(s1: SIMD2<Double>, s2: SIMD2<Double>, center: SIMD2<Double>) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeEllipse3Points(s1.x, s1.y, s2.x, s2.y,
+                                                      center.x, center.y) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D ellipse from full Ax22d and radii.
+    public static func gceEllipse(center: SIMD2<Double>, xDirection: SIMD2<Double>,
+                                   yDirection: SIMD2<Double>,
+                                   majorRadius: Double, minorRadius: Double) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeEllipseAxis22d(center.x, center.y,
+                                                      xDirection.x, xDirection.y,
+                                                      yDirection.x, yDirection.y,
+                                                      majorRadius, minorRadius) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - GCE2d_MakeHyperbola (v0.105.0)
+
+extension Curve2D {
+    /// Create a 2D hyperbola from axis and radii.
+    public static func gceHyperbola(center: SIMD2<Double>, xDirection: SIMD2<Double>,
+                                     majorRadius: Double, minorRadius: Double) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeHyperbola(center.x, center.y,
+                                                xDirection.x, xDirection.y,
+                                                majorRadius, minorRadius) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D hyperbola from 3 points (S1, S2, center).
+    public static func gceHyperbola(s1: SIMD2<Double>, s2: SIMD2<Double>, center: SIMD2<Double>) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeHyperbola3Points(s1.x, s1.y, s2.x, s2.y,
+                                                        center.x, center.y) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - GCE2d_MakeParabola (v0.105.0)
+
+extension Curve2D {
+    /// Create a 2D parabola from axis and focal distance.
+    public static func gceParabola(center: SIMD2<Double>, direction: SIMD2<Double>,
+                                    focalDistance: Double) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeParabola(center.x, center.y,
+                                               direction.x, direction.y, focalDistance) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D parabola from directrix and focus.
+    public static func gceParabola(directrixPoint: SIMD2<Double>, directrixDirection: SIMD2<Double>,
+                                    focus: SIMD2<Double>) -> Curve2D? {
+        guard let ref = OCTGCE2dMakeParabolaDirectrixFocus(directrixPoint.x, directrixPoint.y,
+                                                             directrixDirection.x, directrixDirection.y,
+                                                             focus.x, focus.y) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - GCPnts_UniformAbscissa (v0.105.0)
+
+extension Shape {
+    /// Uniformly sample an edge by point count. Returns parameter values.
+    public func uniformAbscissa(pointCount: Int) -> [Double]? {
+        let n = Int(OCCTUniformAbscissaByCount(handle, Int32(pointCount), nil))
+        guard n > 0 else { return nil }
+        var params = [Double](repeating: 0, count: n)
+        _ = OCCTUniformAbscissaByCount(handle, Int32(pointCount), &params)
+        return params
+    }
+
+    /// Uniformly sample an edge by arc distance. Returns parameter values.
+    public func uniformAbscissa(distance: Double) -> [Double]? {
+        let n = Int(OCCTUniformAbscissaByDistance(handle, distance, nil))
+        guard n > 0 else { return nil }
+        var params = [Double](repeating: 0, count: n)
+        _ = OCCTUniformAbscissaByDistance(handle, distance, &params)
+        return params
+    }
+
+    /// Uniformly sample an edge by point count within parameter range.
+    public func uniformAbscissa(pointCount: Int, u1: Double, u2: Double) -> [Double]? {
+        let n = Int(OCCTUniformAbscissaByCountRange(handle, Int32(pointCount), u1, u2, nil))
+        guard n > 0 else { return nil }
+        var params = [Double](repeating: 0, count: n)
+        _ = OCCTUniformAbscissaByCountRange(handle, Int32(pointCount), u1, u2, &params)
+        return params
+    }
+
+    /// Uniformly sample an edge by arc distance within parameter range.
+    public func uniformAbscissa(distance: Double, u1: Double, u2: Double) -> [Double]? {
+        let n = Int(OCCTUniformAbscissaByDistanceRange(handle, distance, u1, u2, nil))
+        guard n > 0 else { return nil }
+        var params = [Double](repeating: 0, count: n)
+        _ = OCCTUniformAbscissaByDistanceRange(handle, distance, u1, u2, &params)
+        return params
+    }
+}
+
+// MARK: - GeomConvert_CompCurveToBSplineCurve (v0.105.0)
+
+extension Curve3D {
+    /// Concatenate multiple bounded 3D curves into a single BSpline.
+    public static func concatenate(_ curves: [Curve3D], tolerance: Double = 1e-4) -> Curve3D? {
+        guard !curves.isEmpty else { return nil }
+        var handles = curves.map { $0.handle as OCCTCurve3DRef }
+        guard let ref = OCCTConcatenateCurves3D(&handles, Int32(curves.count), tolerance) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+// MARK: - Geom2dConvert_CompCurveToBSplineCurve (v0.105.0)
+
+extension Curve2D {
+    /// Concatenate multiple bounded 2D curves into a single BSpline.
+    public static func concatenate(_ curves: [Curve2D], tolerance: Double = 1e-4) -> Curve2D? {
+        guard !curves.isEmpty else { return nil }
+        var handles = curves.map { $0.handle as OCCTCurve2DRef }
+        guard let ref = OCCTConcatenateCurves2D(&handles, Int32(curves.count), tolerance) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - GeomConvert_BSplineSurfaceKnotSplitting (v0.105.0)
+
+extension Surface {
+    /// Get number of U-direction knot splits for a BSpline surface at given continuity.
+    public func bsplineKnotSplitsU(continuity: Int) -> Int {
+        Int(OCCTBSplineSurfaceKnotSplitsU(handle, Int32(continuity)))
+    }
+
+    /// Get number of V-direction knot splits for a BSpline surface at given continuity.
+    public func bsplineKnotSplitsV(continuity: Int) -> Int {
+        Int(OCCTBSplineSurfaceKnotSplitsV(handle, Int32(continuity)))
+    }
+
+    /// Get U and V knot split index arrays.
+    public func bsplineKnotSplitValues(continuity: Int) -> (uSplits: [Int32], vSplits: [Int32]) {
+        let nu = bsplineKnotSplitsU(continuity: continuity)
+        let nv = bsplineKnotSplitsV(continuity: continuity)
+        var uSplits = [Int32](repeating: 0, count: max(nu, 1))
+        var vSplits = [Int32](repeating: 0, count: max(nv, 1))
+        OCCTBSplineSurfaceKnotSplitValues(handle, Int32(continuity), &uSplits, &vSplits)
+        return (Array(uSplits.prefix(nu)), Array(vSplits.prefix(nv)))
+    }
+}
+
+// MARK: - Geom2dConvert_BSplineCurveKnotSplitting (v0.105.0)
+
+extension Curve2D {
+    /// Get number of knot splits for a 2D BSpline curve at given continuity.
+    public func bsplineKnotSplits(continuity: Int) -> Int {
+        Int(OCCTBSplineCurve2dKnotSplits(handle, Int32(continuity)))
+    }
+
+    /// Get knot split indices for a 2D BSpline curve at given continuity.
+    public func bsplineKnotSplitValues(continuity: Int) -> [Int32] {
+        let n = bsplineKnotSplits(continuity: continuity)
+        guard n > 0 else { return [] }
+        var splits = [Int32](repeating: 0, count: n)
+        OCCTBSplineCurve2dKnotSplitValues(handle, Int32(continuity), &splits)
+        return splits
+    }
+}
+
+// MARK: - BndLib extras (v0.105.0)
+
+extension BndLib {
+    /// Bounding box of an ellipse.
+    public static func ellipse(center: SIMD3<Double>, normal: SIMD3<Double>, xDirection: SIMD3<Double>,
+                                majorRadius: Double, minorRadius: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var b = [Double](repeating: 0, count: 6)
+        OCCTBndLibEllipse(center.x, center.y, center.z,
+                           normal.x, normal.y, normal.z,
+                           xDirection.x, xDirection.y, xDirection.z,
+                           majorRadius, minorRadius, tolerance, &b)
+        return AnalyticBounds(min: SIMD3(b[0], b[1], b[2]), max: SIMD3(b[3], b[4], b[5]))
+    }
+
+    /// Bounding box of a cone segment.
+    public static func cone(center: SIMD3<Double>, axis: SIMD3<Double>,
+                             semiAngle: Double, refRadius: Double,
+                             vmin: Double, vmax: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var b = [Double](repeating: 0, count: 6)
+        OCCTBndLibCone(center.x, center.y, center.z,
+                        axis.x, axis.y, axis.z,
+                        semiAngle, refRadius, vmin, vmax, tolerance, &b)
+        return AnalyticBounds(min: SIMD3(b[0], b[1], b[2]), max: SIMD3(b[3], b[4], b[5]))
+    }
+
+    /// Bounding box of a circular arc.
+    public static func circleArc(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                  radius: Double, u1: Double, u2: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var b = [Double](repeating: 0, count: 6)
+        OCCTBndLibCircleArc(center.x, center.y, center.z,
+                             normal.x, normal.y, normal.z,
+                             radius, u1, u2, tolerance, &b)
+        return AnalyticBounds(min: SIMD3(b[0], b[1], b[2]), max: SIMD3(b[3], b[4], b[5]))
+    }
+
+    /// Bounding box of an ellipse arc.
+    public static func ellipseArc(center: SIMD3<Double>, normal: SIMD3<Double>, xDirection: SIMD3<Double>,
+                                   majorRadius: Double, minorRadius: Double,
+                                   u1: Double, u2: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var b = [Double](repeating: 0, count: 6)
+        OCCTBndLibEllipseArc(center.x, center.y, center.z,
+                              normal.x, normal.y, normal.z,
+                              xDirection.x, xDirection.y, xDirection.z,
+                              majorRadius, minorRadius, u1, u2, tolerance, &b)
+        return AnalyticBounds(min: SIMD3(b[0], b[1], b[2]), max: SIMD3(b[3], b[4], b[5]))
+    }
+
+    /// Bounding box of a parabola arc.
+    public static func parabolaArc(center: SIMD3<Double>, normal: SIMD3<Double>, xDirection: SIMD3<Double>,
+                                    focalDistance: Double,
+                                    u1: Double, u2: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var b = [Double](repeating: 0, count: 6)
+        OCCTBndLibParabolaArc(center.x, center.y, center.z,
+                               normal.x, normal.y, normal.z,
+                               xDirection.x, xDirection.y, xDirection.z,
+                               focalDistance, u1, u2, tolerance, &b)
+        return AnalyticBounds(min: SIMD3(b[0], b[1], b[2]), max: SIMD3(b[3], b[4], b[5]))
+    }
+
+    /// Bounding box of a hyperbola arc.
+    public static func hyperbolaArc(center: SIMD3<Double>, normal: SIMD3<Double>, xDirection: SIMD3<Double>,
+                                     majorRadius: Double, minorRadius: Double,
+                                     u1: Double, u2: Double, tolerance: Double = 0) -> AnalyticBounds {
+        var b = [Double](repeating: 0, count: 6)
+        OCCTBndLibHyperbolaArc(center.x, center.y, center.z,
+                                normal.x, normal.y, normal.z,
+                                xDirection.x, xDirection.y, xDirection.z,
+                                majorRadius, minorRadius, u1, u2, tolerance, &b)
+        return AnalyticBounds(min: SIMD3(b[0], b[1], b[2]), max: SIMD3(b[3], b[4], b[5]))
+    }
+}
+
+// MARK: - GProp Torus (v0.105.0)
+
+extension GeometryProperties {
+    /// Full torus surface area.
+    public static func torusSurfaceArea(majorRadius: Double, minorRadius: Double) -> Double {
+        OCCTGPropTorusSurface(majorRadius, minorRadius)
+    }
+
+    /// Full torus volume.
+    public static func torusVolume(majorRadius: Double, minorRadius: Double) -> Double {
+        OCCTGPropTorusVolume(majorRadius, minorRadius)
+    }
+}
+
+// MARK: - BRepTools_ReShape (v0.105.0)
+
+/// A reshape context for recording and applying shape modifications.
+public final class ReShapeContext: @unchecked Sendable {
+    private let ref: OCCTReShapeRef
+
+    public init() {
+        ref = OCCTReShapeCreate()
+    }
+
+    deinit { OCCTReShapeRelease(ref) }
+
+    /// Clear all recorded modifications.
+    public func clear() {
+        OCCTReShapeClear(ref)
+    }
+
+    /// Record removal of a shape.
+    public func remove(_ shape: Shape) {
+        OCCTReShapeRemove(ref, shape.handle)
+    }
+
+    /// Record replacement of a shape.
+    public func replace(_ oldShape: Shape, with newShape: Shape) {
+        OCCTReShapeReplace(ref, oldShape.handle, newShape.handle)
+    }
+
+    /// Check if a shape has been recorded for modification.
+    public func isRecorded(_ shape: Shape) -> Bool {
+        OCCTReShapeIsRecorded(ref, shape.handle)
+    }
+
+    /// Apply all recorded modifications to a shape.
+    public func apply(to shape: Shape) -> Shape? {
+        guard let h = OCCTReShapeApply(ref, shape.handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the replacement value for a specific shape.
+    public func value(for shape: Shape) -> Shape? {
+        guard let h = OCCTReShapeValue(ref, shape.handle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - BRepTools_Substitution (v0.105.0)
+
+extension Shape {
+    /// Substitute a subshape with a list of new shapes. Pass empty array to remove.
+    public func substitute(oldSubShape: Shape, newSubShapes: [Shape]) -> Shape? {
+        if newSubShapes.isEmpty {
+            return withUnsafePointer(to: Optional<OCCTShapeRef>.none) { _ in
+                guard let h = OCCTShapeSubstitute(handle, oldSubShape.handle, nil, 0) else { return nil }
+                return Shape(handle: h)
+            }
+        }
+        var handles = newSubShapes.map { $0.handle as OCCTShapeRef? }
+        return handles.withUnsafeMutableBufferPointer { buf in
+            guard let h = OCCTShapeSubstitute(handle, oldSubShape.handle, buf.baseAddress, Int32(newSubShapes.count)) else {
+                return nil
+            }
+            return Shape(handle: h)
+        }
+    }
+
+    /// Check if a subshape was copied during substitution.
+    public func substitutionIsCopied(subshape: Shape) -> Bool {
+        OCCTSubstitutionIsCopied(handle, subshape.handle)
+    }
+}
+
+// MARK: - BRepLib_MakeVertex (v0.105.0)
+
+extension Shape {
+    /// Create a vertex shape at the given point using BRepLib_MakeVertex.
+    public static func makeVertex(at point: SIMD3<Double>) -> Shape? {
+        guard let ref = OCCTMakeVertex(point.x, point.y, point.z) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - BRepFill_PipeShell (v0.105.0)
+
+/// Transition mode for pipe shell construction.
+public enum PipeShellTransition: Int32, Sendable {
+    case modified = 0
+    case right = 1
+    case round = 2
+}
+
+/// Builder for sweeping a profile along a spine wire with advanced control.
+public final class PipeShellBuilder: @unchecked Sendable {
+    private let ref: OCCTPipeShellRef
+
+    /// Create a pipe shell builder from a spine wire.
+    public init?(spine: Shape) {
+        guard let r = OCCTPipeShellCreate(spine.handle) else { return nil }
+        ref = r
+    }
+
+    deinit { OCCTPipeShellRelease(ref) }
+
+    /// Set Frenet trihedron mode.
+    public func setFrenet(_ frenet: Bool = true) {
+        OCCTPipeShellSetFrenet(ref, frenet)
+    }
+
+    /// Set discrete trihedron mode.
+    public func setDiscrete() {
+        OCCTPipeShellSetDiscrete(ref)
+    }
+
+    /// Set fixed binormal direction.
+    public func setFixed(binormal: SIMD3<Double>) {
+        OCCTPipeShellSetFixed(ref, binormal.x, binormal.y, binormal.z)
+    }
+
+    /// Add a profile (wire or vertex) at the current location.
+    public func add(profile: Shape) {
+        OCCTPipeShellAdd(ref, profile.handle)
+    }
+
+    /// Add a profile at a specific vertex on the spine.
+    public func add(profile: Shape, atVertex vertex: Shape) {
+        OCCTPipeShellAddAtVertex(ref, profile.handle, vertex.handle)
+    }
+
+    /// Set a profile with a scaling law.
+    public func setLaw(profile: Shape, law: LawFunction) {
+        OCCTPipeShellSetLaw(ref, profile.handle, law.handle)
+    }
+
+    /// Set tolerances.
+    public func setTolerance(tol3d: Double, boundTol: Double, tolAngular: Double) {
+        OCCTPipeShellSetTolerance(ref, tol3d, boundTol, tolAngular)
+    }
+
+    /// Set transition mode.
+    public func setTransition(_ mode: PipeShellTransition) {
+        OCCTPipeShellSetTransition(ref, mode.rawValue)
+    }
+
+    /// Build the pipe shell.
+    @discardableResult
+    public func build() -> Bool {
+        OCCTPipeShellBuild(ref)
+    }
+
+    /// Get the resulting shape.
+    public var shape: Shape? {
+        guard let h = OCCTPipeShellShape(ref) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Make the result into a solid.
+    @discardableResult
+    public func makeSolid() -> Bool {
+        OCCTPipeShellMakeSolid(ref)
+    }
+
+    /// Get the approximation error.
+    public var error: Double {
+        OCCTPipeShellError(ref)
+    }
+
+    /// Check if the pipe shell is ready to build.
+    public var isReady: Bool {
+        OCCTPipeShellIsReady(ref)
+    }
+}
+
+// MARK: - OSD_Directory (v0.105.0)
+
+/// Directory operations using OSD_Directory.
+public enum DirectoryUtils {
+    /// Check if a directory exists.
+    public static func exists(_ path: String) -> Bool {
+        OCCTDirectoryExists(path)
+    }
+
+    /// Create a directory. Returns true on success.
+    @discardableResult
+    public static func create(_ path: String) -> Bool {
+        OCCTDirectoryCreate(path)
+    }
+
+    /// Build a temporary directory. Returns the path.
+    public static func buildTemporary() -> String? {
+        guard let ptr = OCCTDirectoryBuildTemporary() else { return nil }
+        defer { free(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Remove a directory. Returns true on success.
+    @discardableResult
+    public static func remove(_ path: String) -> Bool {
+        OCCTDirectoryRemove(path)
+    }
+}
+
+// MARK: - IntAna Cone-Sphere extensions (v0.105.0)
+
+extension QuadricIntersection {
+    /// Intersect a cone (Z-axis, given semi-angle and ref radius) with a sphere.
+    /// Returns curve count, or nil on error. Returns -2 encoded as nil for identical.
+    public static func coneSphere(semiAngle: Double, refRadius: Double,
+                                   sphereCenter: SIMD3<Double>, sphereRadius: Double,
+                                   tolerance: Double = 1e-6) -> Int? {
+        let n = Int(OCCTIntAnaConeSphere(semiAngle, refRadius,
+                                          sphereCenter.x, sphereCenter.y, sphereCenter.z,
+                                          sphereRadius, tolerance))
+        return n >= 0 ? n : nil
+    }
+
+    /// Sample points along a cone-sphere intersection curve.
+    public static func coneSpherePoints(semiAngle: Double, refRadius: Double,
+                                         sphereCenter: SIMD3<Double>, sphereRadius: Double,
+                                         tolerance: Double = 1e-6,
+                                         curveIndex: Int, sampleCount: Int) -> [SIMD3<Double>] {
+        var xs = [Double](repeating: 0, count: sampleCount)
+        var ys = [Double](repeating: 0, count: sampleCount)
+        var zs = [Double](repeating: 0, count: sampleCount)
+        let actual = Int(OCCTIntAnaConeSpherePoints(semiAngle, refRadius,
+                                                      sphereCenter.x, sphereCenter.y, sphereCenter.z,
+                                                      sphereRadius, tolerance,
+                                                      Int32(curveIndex), Int32(sampleCount),
+                                                      &xs, &ys, &zs))
+        return (0..<actual).map { SIMD3(xs[$0], ys[$0], zs[$0]) }
+    }
+
+    /// Check if a cone-sphere intersection curve is open.
+    public static func coneSphereIsOpen(semiAngle: Double, refRadius: Double,
+                                         sphereCenter: SIMD3<Double>, sphereRadius: Double,
+                                         tolerance: Double = 1e-6, curveIndex: Int) -> Bool {
+        OCCTIntAnaConeSphereIsOpen(semiAngle, refRadius,
+                                    sphereCenter.x, sphereCenter.y, sphereCenter.z,
+                                    sphereRadius, tolerance, Int32(curveIndex))
+    }
+
+    /// Get the domain of a cone-sphere intersection curve.
+    public static func coneSphereDomain(semiAngle: Double, refRadius: Double,
+                                         sphereCenter: SIMD3<Double>, sphereRadius: Double,
+                                         tolerance: Double = 1e-6, curveIndex: Int) -> ClosedRange<Double> {
+        var first = 0.0, last = 0.0
+        OCCTIntAnaConeSphereGetDomain(semiAngle, refRadius,
+                                       sphereCenter.x, sphereCenter.y, sphereCenter.z,
+                                       sphereRadius, tolerance, Int32(curveIndex),
+                                       &first, &last)
+        return first...last
+    }
+}
+
+// MARK: - XCAFPrs_DocumentExplorer extensions (v0.105.0)
+
+extension Document {
+    /// Get the depth of a document explorer node at given index.
+    public func explorerDepth(at index: Int) -> Int {
+        Int(OCCTDocumentExplorerDepth(handle, Int32(index)))
+    }
+
+    /// Check if a document explorer node is an assembly.
+    public func explorerIsAssembly(at index: Int) -> Bool {
+        OCCTDocumentExplorerIsAssembly(handle, Int32(index))
+    }
+
+    /// Get the location matrix (12 doubles, row-major 3x4) for a document explorer node.
+    public func explorerLocation(at index: Int) -> [Double] {
+        var matrix = [Double](repeating: 0, count: 12)
+        OCCTDocumentExplorerLocation(handle, Int32(index), &matrix)
+        return matrix
+    }
+}
+
+// MARK: - Resource_Unicode (v0.105.0)
+
+/// Unicode format for Resource_Unicode.
+public enum UnicodeFormat: Int32, Sendable {
+    case sjis = 0
+    case euc = 1
+    case gb = 2
+    case ansi = 3
+}
+
+/// Resource_Unicode utilities.
+public enum UnicodeUtils {
+    /// Set the global Unicode format.
+    public static func setFormat(_ format: UnicodeFormat) {
+        OCCTUnicodeSetFormat(format.rawValue)
+    }
+
+    /// Get the current Unicode format.
+    public static var format: UnicodeFormat {
+        UnicodeFormat(rawValue: OCCTUnicodeGetFormat()) ?? .ansi
+    }
+
+    /// Convert a string to Unicode (UTF-8 output).
+    public static func convertToUnicode(_ input: String) -> String? {
+        guard let ptr = OCCTUnicodeConvertToUnicode(input) else { return nil }
+        defer { free(ptr) }
+        return String(cString: ptr)
+    }
+
+    /// Convert from UTF-8 to current format.
+    public static func convertFromUnicode(_ utf8Input: String, maxSize: Int = 4096) -> String? {
+        var output = [CChar](repeating: 0, count: maxSize)
+        guard OCCTUnicodeConvertFromUnicode(utf8Input, &output, Int32(maxSize)) else { return nil }
+        let result = output.withUnsafeBufferPointer { buf in
+            String(cString: buf.baseAddress!)
+        }
+        return result
+    }
+}
+
+// MARK: - GProp weighted point sets (v0.105.0)
+
+extension GeometryProperties {
+    /// Compute weighted centroid of a point set. Returns (totalMass, centroid).
+    public static func weightedCentroid(points: [SIMD3<Double>], weights: [Double]) -> (mass: Double, centroid: SIMD3<Double>) {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        let mass = OCCTGPropPointSetWeightedCentroid(flat, weights, Int32(points.count), &cx, &cy, &cz)
+        return (mass, SIMD3(cx, cy, cz))
+    }
+
+    /// Compute barycentre (equal weights) of a point set.
+    public static func barycentre(_ points: [SIMD3<Double>]) -> SIMD3<Double> {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        OCCTGPropBarycentre(flat, Int32(points.count), &cx, &cy, &cz)
+        return SIMD3(cx, cy, cz)
+    }
+}
+
+// MARK: - Draft info types (v0.105.0)
+
+/// Draft geometry information queries.
+public enum DraftInfo {
+    /// Check default EdgeInfo new geometry status.
+    public static var edgeInfoNewGeometry: Bool {
+        OCCTDraftEdgeInfoNewGeometry()
+    }
+
+    /// Check default FaceInfo new geometry status.
+    public static var faceInfoNewGeometry: Bool {
+        OCCTDraftFaceInfoNewGeometry()
+    }
+
+    /// Get default VertexInfo geometry point.
+    public static var vertexInfoGeometry: SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTDraftVertexInfoGeometry(&x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Set tangent on an EdgeInfo and check success.
+    public static func edgeInfoSetTangent(direction: SIMD3<Double>) -> Bool {
+        OCCTDraftEdgeInfoSetTangent(direction.x, direction.y, direction.z)
+    }
+
+    /// Create FaceInfo from a surface and check RootFace.
+    public static func faceInfoFromSurface(_ surface: Surface) -> Bool {
+        OCCTDraftFaceInfoFromSurface(surface.handle)
+    }
+
+    /// Add a parameter to VertexInfo and get it back.
+    public static func vertexInfoAddParameter(_ param: Double) -> Double {
+        OCCTDraftVertexInfoAddParameter(param)
+    }
+}
+
+// MARK: - GeomLib_LogSample (v0.105.0)
+
+/// Logarithmic sampling utilities.
+public enum LogSample {
+    /// Compute logarithmically spaced parameter values between a and b.
+    public static func sample(from a: Double, to b: Double, count n: Int) -> [Double] {
+        guard n > 0 else { return [] }
+        var params = [Double](repeating: 0, count: n)
+        OCCTLogSample(a, b, Int32(n), &params)
+        return params
+    }
+}

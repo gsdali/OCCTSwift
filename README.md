@@ -322,8 +322,32 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **OSD_PerfMeter** | 5 | create, release, start, stop, elapsed |
 | **GProp Cylinder/Cone** | 4 | cylinderSurface, cylinderVolume, coneSurface, coneVolume |
 | **IntAna_IntQuadQuad** | 2 | cylinderSphere, cylinderSphereIdentical |
-| **XCAFPrs_DocumentExplorer** | 4 | nodeCount, shapeAtIndex, pathId, findShapeFromPathId |
-| **Total** | **2094** | |
+| **XCAFPrs_DocumentExplorer** | 7 | nodeCount, shapeAtIndex, pathId, findShapeFromPathId, depth, isAssembly, location |
+| **GC_MakeCircle** | 4 | circle from axis+radius, 3 points, center+normal, parallel |
+| **GC_MakeEllipse** | 3 | ellipse from axis+radii, 3 points, full Ax2 |
+| **GC_MakeHyperbola** | 2 | hyperbola from axis+radii, 3 points |
+| **GCE2d_MakeCircle** | 5 | 2D circle: center+radius, 3 points, center+point, parallel, axis |
+| **GCE2d_MakeEllipse** | 3 | 2D ellipse: axis+radii, 3 points, Ax22d |
+| **GCE2d_MakeHyperbola** | 2 | 2D hyperbola: axis+radii, 3 points |
+| **GCE2d_MakeParabola** | 2 | 2D parabola: axis+focal, directrix+focus |
+| **GCPnts_UniformAbscissa** | 4 | uniform arc-length points by count/distance, full/subrange |
+| **GeomConvert_CompCurveToBSpline** | 1 | concatenate bounded 3D curves into BSpline |
+| **Geom2dConvert_CompCurveToBSpline** | 1 | concatenate bounded 2D curves into BSpline |
+| **GeomConvert_BSplineSurfaceKnotSplitting** | 3 | surface knot splits U/V count and values |
+| **Geom2dConvert_BSplineCurveKnotSplitting** | 2 | 2D curve knot split count and values |
+| **BndLib Extras** | 6 | ellipse, cone, circleArc, ellipseArc, parabolaArc, hyperbolaArc bounds |
+| **GProp Torus** | 2 | torus surface area, torus volume |
+| **BRepTools_ReShape** | 8 | create, release, clear, remove, replace, isRecorded, apply, value |
+| **BRepTools_Substitution** | 2 | substitute subshape, isCopied check |
+| **BRepLib_MakeVertex** | 1 | vertex from 3D point |
+| **BRepFill_PipeShell** | 15 | create, release, setFrenet, setDiscrete, setFixed, add, addAtVertex, setLaw, setTolerance, setTransition, build, shape, makeSolid, error, isReady |
+| **OSD_Directory** | 4 | exists, create, buildTemporary, remove |
+| **IntAna Extensions** | 4 | coneSphere intersection, curvePoints, isOpen, domain |
+| **Resource_Unicode** | 4 | setFormat, getFormat, convertToUnicode, convertFromUnicode |
+| **GProp Weighted** | 2 | weightedCentroid, barycentre |
+| **Draft Info Types** | 6 | edgeInfoNewGeometry, faceInfoNewGeometry, vertexInfoGeometry, setTangent, faceFromSurface, vertexAddParameter |
+| **GeomLib_LogSample** | 1 | logarithmic parameter sampling |
+| **Total** | **2184** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1643,7 +1667,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **2094 OCCT operations** across 191 categories with 2269 tests across 719 suites.
+OCCTSwift now wraps **2184 OCCT operations** across 216 categories with 2328 tests across 741 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

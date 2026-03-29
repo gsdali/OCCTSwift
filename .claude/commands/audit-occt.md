@@ -67,7 +67,7 @@ Scan the OCCT headers in the xcframework against the functions already declared 
    ...
 
    ### Recommended Next Release (v0.XX.0)
-   Pick ~20-25 operations from Tier 1, prioritizing:
+   Pick ~100 operations from Tier 1 and Tier 2, prioritizing:
    1. Classes that complete partially-wrapped modules
    2. Commonly needed operations with simple APIs
    3. Classes that don't require complex type hierarchies
@@ -78,7 +78,7 @@ Scan the OCCT headers in the xcframework against the functions already declared 
    - **Medium**: Multiple constructors, struct results, requires topology extraction
    - **High**: Requires Handle<> hierarchies, abstract base classes, iterators, or Law/Section types
 
-7. For the "Recommended Next Release" section, propose a concrete list of ~20-25 operations that would make a good release, following the project's convention of cohesive themed releases.
+7. For the "Recommended Next Release" section, propose a concrete list of ~100 operations that would make a good release. Group them by module for clarity. Prioritize breadth over depth — cover many classes with a few operations each rather than exhaustively wrapping one class.
 
 ## Output
 Print the full gap report to the conversation. Do NOT write it to a file unless asked.

@@ -13412,6 +13412,427 @@ bool OCCTBndSphereIsOut(OCCTBndSphereRef _Nonnull sphere, double x, double y, do
 bool OCCTBndSphereIsOutSphere(OCCTBndSphereRef _Nonnull s1, OCCTBndSphereRef _Nonnull s2);
 void OCCTBndSphereAdd(OCCTBndSphereRef _Nonnull sphere, OCCTBndSphereRef _Nonnull other);
 
+// MARK: - GC_MakeCircle (v0.105.0)
+
+/// Create a 3D circle from axis (center+normal) and radius.
+OCCTCurve3DRef _Nullable OCCTGCMakeCircle(double cx, double cy, double cz,
+                                            double nx, double ny, double nz,
+                                            double radius);
+
+/// Create a 3D circle through 3 points.
+OCCTCurve3DRef _Nullable OCCTGCMakeCircle3Points(double x1, double y1, double z1,
+                                                   double x2, double y2, double z2,
+                                                   double x3, double y3, double z3);
+
+/// Create a 3D circle from center, normal direction, and radius.
+OCCTCurve3DRef _Nullable OCCTGCMakeCircleCenterNormal(double cx, double cy, double cz,
+                                                        double nx, double ny, double nz,
+                                                        double radius);
+
+/// Create a 3D circle parallel to an existing circle at given distance.
+OCCTCurve3DRef _Nullable OCCTGCMakeCircleParallel(double cx, double cy, double cz,
+                                                    double nx, double ny, double nz,
+                                                    double radius, double dist);
+
+// MARK: - GC_MakeEllipse (v0.105.0)
+
+/// Create a 3D ellipse from axis and major/minor radii.
+OCCTCurve3DRef _Nullable OCCTGCMakeEllipse(double cx, double cy, double cz,
+                                             double nx, double ny, double nz,
+                                             double major, double minor);
+
+/// Create a 3D ellipse from 3 points (S1, S2, center).
+OCCTCurve3DRef _Nullable OCCTGCMakeEllipse3Points(double x1, double y1, double z1,
+                                                    double x2, double y2, double z2,
+                                                    double x3, double y3, double z3);
+
+/// Create a 3D ellipse from full Ax2 (center+normal+xdir) and radii.
+OCCTCurve3DRef _Nullable OCCTGCMakeEllipseFromElips(double cx, double cy, double cz,
+                                                      double nx, double ny, double nz,
+                                                      double xdx, double xdy, double xdz,
+                                                      double major, double minor);
+
+// MARK: - GC_MakeHyperbola (v0.105.0)
+
+/// Create a 3D hyperbola from axis and major/minor radii.
+OCCTCurve3DRef _Nullable OCCTGCMakeHyperbola(double cx, double cy, double cz,
+                                               double nx, double ny, double nz,
+                                               double major, double minor);
+
+/// Create a 3D hyperbola from 3 points (S1, S2, center).
+OCCTCurve3DRef _Nullable OCCTGCMakeHyperbola3Points(double x1, double y1, double z1,
+                                                      double x2, double y2, double z2,
+                                                      double x3, double y3, double z3);
+
+// MARK: - GCE2d_MakeCircle (v0.105.0)
+
+/// Create a 2D circle from center and radius.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeCircleCenterRadius(double cx, double cy, double radius);
+
+/// Create a 2D circle through 3 points.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeCircle3Points(double x1, double y1,
+                                                     double x2, double y2,
+                                                     double x3, double y3);
+
+/// Create a 2D circle from center and point on circle.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeCircleCenterPoint(double cx, double cy, double px, double py);
+
+/// Create a 2D circle parallel to existing circle at distance.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeCircleParallel(double cx, double cy,
+                                                      double dx, double dy,
+                                                      double radius, double dist);
+
+/// Create a 2D circle from axis and radius.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeCircleAxis(double cx, double cy,
+                                                  double dx, double dy,
+                                                  double radius);
+
+// MARK: - GCE2d_MakeEllipse (v0.105.0)
+
+/// Create a 2D ellipse from axis and radii.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeEllipse(double cx, double cy,
+                                               double dx, double dy,
+                                               double major, double minor);
+
+/// Create a 2D ellipse from 3 points (S1, S2, center).
+OCCTCurve2DRef _Nullable OCTGCE2dMakeEllipse3Points(double x1, double y1,
+                                                      double x2, double y2,
+                                                      double x3, double y3);
+
+/// Create a 2D ellipse from full Ax22d and radii.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeEllipseAxis22d(double cx, double cy,
+                                                      double xdx, double xdy,
+                                                      double ydx, double ydy,
+                                                      double major, double minor);
+
+// MARK: - GCE2d_MakeHyperbola (v0.105.0)
+
+/// Create a 2D hyperbola from axis and radii.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeHyperbola(double cx, double cy,
+                                                 double dx, double dy,
+                                                 double major, double minor);
+
+/// Create a 2D hyperbola from 3 points (S1, S2, center).
+OCCTCurve2DRef _Nullable OCTGCE2dMakeHyperbola3Points(double x1, double y1,
+                                                        double x2, double y2,
+                                                        double x3, double y3);
+
+// MARK: - GCE2d_MakeParabola (v0.105.0)
+
+/// Create a 2D parabola from axis and focal distance.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeParabola(double cx, double cy,
+                                                double dx, double dy,
+                                                double focal);
+
+/// Create a 2D parabola from directrix and focus.
+OCCTCurve2DRef _Nullable OCTGCE2dMakeParabolaDirectrixFocus(double dx, double dy,
+                                                              double ddx, double ddy,
+                                                              double fx, double fy);
+
+// MARK: - GCPnts_UniformAbscissa (v0.105.0)
+
+/// Uniform abscissa sampling by point count. Call with params=NULL to get count, then with allocated array.
+int32_t OCCTUniformAbscissaByCount(OCCTShapeRef _Nonnull edge, int32_t nbPoints,
+                                    double* _Nullable params);
+
+/// Uniform abscissa sampling by arc distance. Call with params=NULL to get count, then with allocated array.
+int32_t OCCTUniformAbscissaByDistance(OCCTShapeRef _Nonnull edge, double abscissa,
+                                      double* _Nullable params);
+
+/// Uniform abscissa by count within parameter range.
+int32_t OCCTUniformAbscissaByCountRange(OCCTShapeRef _Nonnull edge, int32_t nbPoints,
+                                         double u1, double u2,
+                                         double* _Nullable params);
+
+/// Uniform abscissa by distance within parameter range.
+int32_t OCCTUniformAbscissaByDistanceRange(OCCTShapeRef _Nonnull edge, double abscissa,
+                                            double u1, double u2,
+                                            double* _Nullable params);
+
+// MARK: - GeomConvert_CompCurveToBSplineCurve (v0.105.0)
+
+/// Concatenate an array of bounded 3D curves into a single BSpline curve.
+OCCTCurve3DRef _Nullable OCCTConcatenateCurves3D(OCCTCurve3DRef _Nonnull * _Nonnull curves,
+                                                   int32_t count, double tolerance);
+
+// MARK: - Geom2dConvert_CompCurveToBSplineCurve (v0.105.0)
+
+/// Concatenate an array of bounded 2D curves into a single BSpline curve.
+OCCTCurve2DRef _Nullable OCCTConcatenateCurves2D(OCCTCurve2DRef _Nonnull * _Nonnull curves,
+                                                   int32_t count, double tolerance);
+
+// MARK: - GeomConvert_BSplineSurfaceKnotSplitting (v0.105.0)
+
+/// Get number of U-direction knot splits for a BSpline surface at given continuity.
+int32_t OCCTBSplineSurfaceKnotSplitsU(OCCTSurfaceRef _Nonnull surface, int32_t continuity);
+
+/// Get number of V-direction knot splits for a BSpline surface at given continuity.
+int32_t OCCTBSplineSurfaceKnotSplitsV(OCCTSurfaceRef _Nonnull surface, int32_t continuity);
+
+/// Get U and V knot split indices for a BSpline surface at given continuity.
+void OCCTBSplineSurfaceKnotSplitValues(OCCTSurfaceRef _Nonnull surface, int32_t continuity,
+                                        int32_t* _Nonnull uSplits, int32_t* _Nonnull vSplits);
+
+// MARK: - Geom2dConvert_BSplineCurveKnotSplitting (v0.105.0)
+
+/// Get number of knot splits for a 2D BSpline curve at given continuity.
+int32_t OCCTBSplineCurve2dKnotSplits(OCCTCurve2DRef _Nonnull curve, int32_t continuity);
+
+/// Get knot split indices for a 2D BSpline curve at given continuity.
+void OCCTBSplineCurve2dKnotSplitValues(OCCTCurve2DRef _Nonnull curve, int32_t continuity,
+                                        int32_t* _Nonnull splits);
+
+// MARK: - BndLib extras (v0.105.0)
+
+/// Compute bounding box of an ellipse. bounds6 = [xmin,ymin,zmin,xmax,ymax,zmax].
+void OCCTBndLibEllipse(double cx, double cy, double cz,
+                        double nx, double ny, double nz,
+                        double xdx, double xdy, double xdz,
+                        double major, double minor, double tol,
+                        double* _Nonnull bounds6);
+
+/// Compute bounding box of a cone segment.
+void OCCTBndLibCone(double cx, double cy, double cz,
+                     double nx, double ny, double nz,
+                     double semiAngle, double refRadius,
+                     double vmin, double vmax, double tol,
+                     double* _Nonnull bounds6);
+
+/// Compute bounding box of a circular arc.
+void OCCTBndLibCircleArc(double cx, double cy, double cz,
+                          double nx, double ny, double nz,
+                          double radius, double u1, double u2, double tol,
+                          double* _Nonnull bounds6);
+
+/// Compute bounding box of an ellipse arc.
+void OCCTBndLibEllipseArc(double cx, double cy, double cz,
+                           double nx, double ny, double nz,
+                           double xdx, double xdy, double xdz,
+                           double major, double minor,
+                           double u1, double u2, double tol,
+                           double* _Nonnull bounds6);
+
+/// Compute bounding box of a parabola arc.
+void OCCTBndLibParabolaArc(double cx, double cy, double cz,
+                            double nx, double ny, double nz,
+                            double xdx, double xdy, double xdz,
+                            double focal, double u1, double u2, double tol,
+                            double* _Nonnull bounds6);
+
+/// Compute bounding box of a hyperbola arc.
+void OCCTBndLibHyperbolaArc(double cx, double cy, double cz,
+                             double nx, double ny, double nz,
+                             double xdx, double xdy, double xdz,
+                             double major, double minor,
+                             double u1, double u2, double tol,
+                             double* _Nonnull bounds6);
+
+// MARK: - GProp Torus (v0.105.0)
+
+/// Compute torus surface area (full torus).
+double OCCTGPropTorusSurface(double majorRadius, double minorRadius);
+
+/// Compute torus volume (full torus).
+double OCCTGPropTorusVolume(double majorRadius, double minorRadius);
+
+// MARK: - BRepTools_ReShape (v0.105.0)
+
+typedef struct OCCTReShape* OCCTReShapeRef;
+
+/// Create a new ReShape context.
+OCCTReShapeRef _Nonnull OCCTReShapeCreate(void);
+
+/// Release a ReShape context.
+void OCCTReShapeRelease(OCCTReShapeRef _Nonnull rs);
+
+/// Clear all recorded modifications.
+void OCCTReShapeClear(OCCTReShapeRef _Nonnull rs);
+
+/// Record a shape removal.
+void OCCTReShapeRemove(OCCTReShapeRef _Nonnull rs, OCCTShapeRef _Nonnull shape);
+
+/// Record a shape replacement.
+void OCCTReShapeReplace(OCCTReShapeRef _Nonnull rs, OCCTShapeRef _Nonnull oldShape,
+                         OCCTShapeRef _Nonnull newShape);
+
+/// Check if a shape has been recorded for modification.
+bool OCCTReShapeIsRecorded(OCCTReShapeRef _Nonnull rs, OCCTShapeRef _Nonnull shape);
+
+/// Apply all recorded modifications to a shape.
+OCCTShapeRef _Nullable OCCTReShapeApply(OCCTReShapeRef _Nonnull rs, OCCTShapeRef _Nonnull shape);
+
+/// Get the replacement value for a specific shape.
+OCCTShapeRef _Nullable OCCTReShapeValue(OCCTReShapeRef _Nonnull rs, OCCTShapeRef _Nonnull shape);
+
+// MARK: - BRepTools_Substitution (v0.105.0)
+
+/// Substitute a subshape with a list of new shapes. newSubs can be NULL (count=0) to remove.
+OCCTShapeRef _Nullable OCCTShapeSubstitute(OCCTShapeRef _Nonnull shape,
+                                            OCCTShapeRef _Nonnull oldSub,
+                                            OCCTShapeRef _Nullable * _Nullable newSubs,
+                                            int32_t newCount);
+
+/// Check if a shape was copied during substitution build.
+bool OCCTSubstitutionIsCopied(OCCTShapeRef _Nonnull shape, OCCTShapeRef _Nonnull subshape);
+
+// MARK: - BRepLib_MakeVertex (v0.105.0)
+
+/// Create a vertex shape at the given point.
+OCCTShapeRef _Nullable OCCTMakeVertex(double x, double y, double z);
+
+// MARK: - BRepFill_PipeShell (v0.105.0)
+
+typedef struct OCCTPipeShell* OCCTPipeShellRef;
+
+/// Create a pipe shell from a spine wire.
+OCCTPipeShellRef _Nullable OCCTPipeShellCreate(OCCTShapeRef _Nonnull spineWire);
+
+/// Release a pipe shell.
+void OCCTPipeShellRelease(OCCTPipeShellRef _Nonnull ps);
+
+/// Set Frenet trihedron mode.
+void OCCTPipeShellSetFrenet(OCCTPipeShellRef _Nonnull ps, bool frenet);
+
+/// Set discrete trihedron mode.
+void OCCTPipeShellSetDiscrete(OCCTPipeShellRef _Nonnull ps);
+
+/// Set fixed binormal direction.
+void OCCTPipeShellSetFixed(OCCTPipeShellRef _Nonnull ps, double bx, double by, double bz);
+
+/// Add a profile (wire or vertex) at the current location.
+void OCCTPipeShellAdd(OCCTPipeShellRef _Nonnull ps, OCCTShapeRef _Nonnull profile);
+
+/// Add a profile at a specific vertex on the spine.
+void OCCTPipeShellAddAtVertex(OCCTPipeShellRef _Nonnull ps, OCCTShapeRef _Nonnull profile,
+                               OCCTShapeRef _Nonnull vertex);
+
+/// Set a profile with a scaling law.
+void OCCTPipeShellSetLaw(OCCTPipeShellRef _Nonnull ps, OCCTShapeRef _Nonnull profile,
+                          OCCTLawFunctionRef _Nonnull law);
+
+/// Set tolerances.
+void OCCTPipeShellSetTolerance(OCCTPipeShellRef _Nonnull ps, double tol3d, double boundTol,
+                                double tolAngular);
+
+/// Set transition mode (0=Modified, 1=Right, 2=Round).
+void OCCTPipeShellSetTransition(OCCTPipeShellRef _Nonnull ps, int32_t mode);
+
+/// Build the pipe shell. Returns true on success.
+bool OCCTPipeShellBuild(OCCTPipeShellRef _Nonnull ps);
+
+/// Get the resulting shape.
+OCCTShapeRef _Nullable OCCTPipeShellShape(OCCTPipeShellRef _Nonnull ps);
+
+/// Make the result into a solid. Returns true on success.
+bool OCCTPipeShellMakeSolid(OCCTPipeShellRef _Nonnull ps);
+
+/// Get the approximation error.
+double OCCTPipeShellError(OCCTPipeShellRef _Nonnull ps);
+
+/// Check if the pipe shell is ready to build.
+bool OCCTPipeShellIsReady(OCCTPipeShellRef _Nonnull ps);
+
+// MARK: - OSD_Directory (v0.105.0)
+
+/// Check if a directory exists.
+bool OCCTDirectoryExists(const char* _Nonnull path);
+
+/// Create a directory. Returns true on success.
+bool OCCTDirectoryCreate(const char* _Nonnull path);
+
+/// Build a temporary directory. Returns path (caller must free).
+char* _Nullable OCCTDirectoryBuildTemporary(void);
+
+/// Remove a directory. Returns true on success.
+bool OCCTDirectoryRemove(const char* _Nonnull path);
+
+// MARK: - IntAna extensions (v0.105.0)
+
+/// Cone-sphere intersection curve count. Returns -1 on error, -2 if identical.
+int32_t OCCTIntAnaConeSphere(double semiAngle, double refRadius,
+                              double sphCx, double sphCy, double sphCz, double sphRadius,
+                              double tol);
+
+/// Sample points along a cone-sphere intersection curve. Returns actual number of points.
+int32_t OCCTIntAnaConeSpherePoints(double semiAngle, double refRadius,
+                                    double sphCx, double sphCy, double sphCz, double sphRadius,
+                                    double tol, int32_t curveIndex, int32_t nbSamples,
+                                    double* _Nonnull xs, double* _Nonnull ys, double* _Nonnull zs);
+
+/// Check if a cone-sphere intersection curve is open.
+bool OCCTIntAnaConeSphereIsOpen(double semiAngle, double refRadius,
+                                 double sphCx, double sphCy, double sphCz, double sphRadius,
+                                 double tol, int32_t curveIndex);
+
+/// Get the domain of a cone-sphere intersection curve.
+void OCCTIntAnaConeSphereGetDomain(double semiAngle, double refRadius,
+                                    double sphCx, double sphCy, double sphCz, double sphRadius,
+                                    double tol, int32_t curveIndex,
+                                    double* _Nonnull first, double* _Nonnull last);
+
+// MARK: - XCAFPrs_DocumentExplorer extensions (v0.105.0)
+
+/// Get the depth of a document explorer node at given index.
+int32_t OCCTDocumentExplorerDepth(OCCTDocumentRef _Nonnull doc, int32_t index);
+
+/// Check if a document explorer node is an assembly.
+bool OCCTDocumentExplorerIsAssembly(OCCTDocumentRef _Nonnull doc, int32_t index);
+
+/// Get the location matrix (12 doubles, row-major 3x4) for a document explorer node.
+void OCCTDocumentExplorerLocation(OCCTDocumentRef _Nonnull doc, int32_t index,
+                                   double* _Nonnull matrix12);
+
+// MARK: - Resource_Unicode (v0.105.0)
+
+/// Set the Resource_Unicode format. 0=SJIS, 1=EUC, 2=GB, 3=ANSI.
+void OCCTUnicodeSetFormat(int32_t format);
+
+/// Get the current Resource_Unicode format.
+int32_t OCCTUnicodeGetFormat(void);
+
+/// Convert a string from current format to UTF-8. Returns allocated string (caller must free).
+char* _Nullable OCCTUnicodeConvertToUnicode(const char* _Nonnull input);
+
+/// Convert from UTF-8 to current format. Returns true on success.
+bool OCCTUnicodeConvertFromUnicode(const char* _Nonnull utf8Input,
+                                    char* _Nonnull output, int32_t maxSize);
+
+// MARK: - GProp weighted point sets (v0.105.0)
+
+/// Compute weighted centroid of a point set. Returns total mass (sum of weights).
+double OCCTGPropPointSetWeightedCentroid(const double* _Nonnull points,
+                                          const double* _Nonnull weights, int32_t count,
+                                          double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz);
+
+/// Compute barycentre of a point set (equal weights).
+void OCCTGPropBarycentre(const double* _Nonnull points, int32_t count,
+                          double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz);
+
+// MARK: - Draft info types (v0.105.0)
+
+/// Create a Draft_EdgeInfo and query NewGeometry status.
+bool OCCTDraftEdgeInfoNewGeometry(void);
+
+/// Create a Draft_FaceInfo and query NewGeometry status.
+bool OCCTDraftFaceInfoNewGeometry(void);
+
+/// Create a Draft_VertexInfo and query its geometry point.
+void OCCTDraftVertexInfoGeometry(double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Create a Draft_EdgeInfo with tangent direction.
+bool OCCTDraftEdgeInfoSetTangent(double dx, double dy, double dz);
+
+/// Create a Draft_FaceInfo from a surface and check RootFace.
+bool OCCTDraftFaceInfoFromSurface(OCCTSurfaceRef _Nonnull surface);
+
+/// Create a Draft_VertexInfo, add a parameter, and check ChangeParameter.
+double OCCTDraftVertexInfoAddParameter(double param);
+
+// MARK: - GeomLib_LogSample (v0.105.0)
+
+/// Compute logarithmically spaced parameter values. params must be allocated with n elements.
+void OCCTLogSample(double a, double b, int32_t n, double* _Nonnull params);
+
 #ifdef __cplusplus
 }
 #endif

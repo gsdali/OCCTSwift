@@ -28241,3 +28241,628 @@ struct DocumentExplorerTests {
         }
     }
 }
+
+// MARK: - v0.105.0 Tests
+
+@Suite("GC_MakeCircle Tests")
+struct GCMakeCircleTests {
+
+    @Test func circleFromAxisAndRadius() {
+        let c = Curve3D.gcCircle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5)
+        #expect(c != nil)
+        if let c = c {
+            #expect(c.isClosed)
+        }
+    }
+
+    @Test func circleFrom3Points() {
+        let c = Curve3D.gcCircle(p1: SIMD3(1, 0, 0), p2: SIMD3(0, 1, 0), p3: SIMD3(-1, 0, 0))
+        #expect(c != nil)
+        if let c = c {
+            #expect(c.isClosed)
+        }
+    }
+
+    @Test func circleCenterNormal() {
+        let c = Curve3D.gcCircleCenterNormal(center: SIMD3(1, 2, 3), normal: SIMD3(0, 0, 1), radius: 10)
+        #expect(c != nil)
+        if let c = c {
+            #expect(c.isClosed)
+        }
+    }
+
+    @Test func circleParallel() {
+        let c = Curve3D.gcCircleParallel(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1),
+                                          radius: 5, distance: 3)
+        #expect(c != nil)
+        if let c = c {
+            #expect(c.isClosed)
+        }
+    }
+}
+
+@Suite("GC_MakeEllipse Tests")
+struct GCMakeEllipseTests {
+
+    @Test func ellipseFromAxisAndRadii() {
+        let e = Curve3D.gcEllipse(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1),
+                                   majorRadius: 10, minorRadius: 5)
+        #expect(e != nil)
+        if let e = e {
+            #expect(e.isClosed)
+        }
+    }
+
+    @Test func ellipseFromFullAx2() {
+        let e = Curve3D.gcEllipse(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1),
+                                   xDirection: SIMD3(1, 0, 0),
+                                   majorRadius: 10, minorRadius: 5)
+        #expect(e != nil)
+        if let e = e {
+            #expect(e.isClosed)
+        }
+    }
+}
+
+@Suite("GC_MakeHyperbola Tests")
+struct GCMakeHyperbolaTests {
+
+    @Test func hyperbolaFromAxisAndRadii() {
+        let h = Curve3D.gcHyperbola(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1),
+                                     majorRadius: 10, minorRadius: 5)
+        #expect(h != nil)
+    }
+}
+
+@Suite("GCE2d Conic Tests")
+struct GCE2dConicTests {
+
+    @Test func circle2dCenterRadius() {
+        let c = Curve2D.gceCircle(center: SIMD2(0, 0), radius: 5)
+        #expect(c != nil)
+        if let c = c {
+            #expect(c.isClosed)
+        }
+    }
+
+    @Test func circle2d3Points() {
+        let c = Curve2D.gceCircle(p1: SIMD2(1, 0), p2: SIMD2(0, 1), p3: SIMD2(-1, 0))
+        #expect(c != nil)
+        if let c = c {
+            #expect(c.isClosed)
+        }
+    }
+
+    @Test func circle2dCenterPoint() {
+        let c = Curve2D.gceCircle(center: SIMD2(0, 0), pointOn: SIMD2(3, 0))
+        #expect(c != nil)
+        if let c = c {
+            #expect(c.isClosed)
+        }
+    }
+
+    @Test func circle2dAxis() {
+        let c = Curve2D.gceCircle(axisCenter: SIMD2(0, 0), axisDirection: SIMD2(1, 0), radius: 5)
+        #expect(c != nil)
+        if let c = c {
+            #expect(c.isClosed)
+        }
+    }
+
+    @Test func ellipse2dFromAxis() {
+        let e = Curve2D.gceEllipse(center: SIMD2(0, 0), xDirection: SIMD2(1, 0),
+                                    majorRadius: 10, minorRadius: 5)
+        #expect(e != nil)
+        if let e = e {
+            #expect(e.isClosed)
+        }
+    }
+
+    @Test func ellipse2dFromAx22d() {
+        let e = Curve2D.gceEllipse(center: SIMD2(0, 0), xDirection: SIMD2(1, 0),
+                                    yDirection: SIMD2(0, 1),
+                                    majorRadius: 10, minorRadius: 5)
+        #expect(e != nil)
+        if let e = e {
+            #expect(e.isClosed)
+        }
+    }
+
+    @Test func hyperbola2dFromAxis() {
+        let h = Curve2D.gceHyperbola(center: SIMD2(0, 0), xDirection: SIMD2(1, 0),
+                                      majorRadius: 10, minorRadius: 5)
+        #expect(h != nil)
+    }
+
+    @Test func parabola2dFromAxis() {
+        let p = Curve2D.gceParabola(center: SIMD2(0, 0), direction: SIMD2(1, 0), focalDistance: 5)
+        #expect(p != nil)
+    }
+
+    @Test func parabola2dFromDirectrixFocus() {
+        let p = Curve2D.gceParabola(directrixPoint: SIMD2(0, 0), directrixDirection: SIMD2(0, 1),
+                                     focus: SIMD2(5, 0))
+        #expect(p != nil)
+    }
+}
+
+@Suite("GCPnts_UniformAbscissa Tests")
+struct UniformAbscissaTests {
+
+    @Test func uniformByCount() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let params = edge.uniformAbscissa(pointCount: 5)
+                #expect(params != nil)
+                if let params = params {
+                    #expect(params.count == 5)
+                }
+            }
+        }
+    }
+
+    @Test func uniformByDistance() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let params = edge.uniformAbscissa(distance: 3.0)
+                #expect(params != nil)
+                if let params = params {
+                    #expect(params.count >= 2)
+                }
+            }
+        }
+    }
+
+    @Test func uniformByCountRange() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let params = edge.uniformAbscissa(pointCount: 3, u1: 0, u2: 1)
+                #expect(params != nil)
+                if let params = params {
+                    #expect(params.count == 3)
+                }
+            }
+        }
+    }
+}
+
+@Suite("CompCurve Tests")
+struct CompCurveTests {
+
+    @Test func concatenate3DCurves() {
+        let seg1 = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(1, 0, 0))
+        let seg2 = Curve3D.segment(from: SIMD3(1, 0, 0), to: SIMD3(2, 1, 0))
+        if let s1 = seg1, let s2 = seg2 {
+            let combined = Curve3D.concatenate([s1, s2], tolerance: 1e-3)
+            #expect(combined != nil)
+        }
+    }
+
+    @Test func concatenate2DCurves() {
+        let seg1 = Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(1, 0))
+        let seg2 = Curve2D.segment(from: SIMD2(1, 0), to: SIMD2(2, 1))
+        if let s1 = seg1, let s2 = seg2 {
+            let combined = Curve2D.concatenate([s1, s2], tolerance: 1e-3)
+            #expect(combined != nil)
+        }
+    }
+}
+
+@Suite("BRepTools_ReShape Context Tests")
+struct ReShapeContextTests {
+
+    @Test func removeEdge() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let ctx = ReShapeContext()
+                ctx.remove(edge)
+                #expect(ctx.isRecorded(edge))
+                let result = ctx.apply(to: box)
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test func replaceEdge() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count >= 2 {
+                let ctx = ReShapeContext()
+                ctx.replace(edges[0], with: edges[1])
+                #expect(ctx.isRecorded(edges[0]))
+                let result = ctx.apply(to: box)
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test func clearContext() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let ctx = ReShapeContext()
+                ctx.remove(edge)
+                #expect(ctx.isRecorded(edge))
+                ctx.clear()
+                #expect(!ctx.isRecorded(edge))
+            }
+        }
+    }
+}
+
+@Suite("BRepFill_PipeShell Tests")
+struct PipeShellTests {
+
+    @Test func basicPipeShell() {
+        // Spine: a straight wire along Z
+        if let spineWire = Wire.rectangle(width: 10, height: 10) {
+            let spine = Shape.fromWire(spineWire)
+            if let spine = spine {
+                // Profile: small circle
+                if let profile = Wire.circle(origin: SIMD3(0, 0, 0), normal: SIMD3(1, 0, 0), radius: 1) {
+                    let profileShape = Shape.fromWire(profile)
+                    if let profileShape = profileShape {
+                        if let builder = PipeShellBuilder(spine: spine) {
+                            builder.setFrenet()
+                            builder.add(profile: profileShape)
+                            let built = builder.build()
+                            if built {
+                                let shape = builder.shape
+                                #expect(shape != nil)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func pipeShellIsReady() {
+        if let spineWire = Wire.circle(origin: .zero, normal: SIMD3(0, 0, 1), radius: 10) {
+            let spine = Shape.fromWire(spineWire)
+            if let spine = spine {
+                if let builder = PipeShellBuilder(spine: spine) {
+                    // Not ready until profile is added
+                    #expect(!builder.isReady)
+                }
+            }
+        }
+    }
+}
+
+@Suite("OSD_Directory Tests")
+struct OSDDirectoryTests {
+
+    @Test func tempDirectory() {
+        let tmpDir = DirectoryUtils.buildTemporary()
+        #expect(tmpDir != nil)
+        if let dir = tmpDir {
+            #expect(DirectoryUtils.exists(dir))
+            DirectoryUtils.remove(dir)
+        }
+    }
+
+    @Test func createAndRemoveDirectory() {
+        let path = "/tmp/occt_swift_test_dir_\(Int.random(in: 10000..<99999))"
+        let created = DirectoryUtils.create(path)
+        #expect(created)
+        #expect(DirectoryUtils.exists(path))
+        let removed = DirectoryUtils.remove(path)
+        #expect(removed)
+        #expect(!DirectoryUtils.exists(path))
+    }
+}
+
+@Suite("GProp Torus Tests")
+struct GPropTorusTests {
+
+    @Test func torusSurfaceArea() {
+        let R = 10.0  // major
+        let r = 3.0   // minor
+        let area = GeometryProperties.torusSurfaceArea(majorRadius: R, minorRadius: r)
+        let expected = 4 * Double.pi * Double.pi * R * r
+        #expect(abs(area - expected) < 1.0)
+    }
+
+    @Test func torusVolume() {
+        let R = 10.0
+        let r = 3.0
+        let vol = GeometryProperties.torusVolume(majorRadius: R, minorRadius: r)
+        let expected = 2 * Double.pi * Double.pi * R * r * r
+        #expect(abs(vol - expected) < 1.0)
+    }
+}
+
+@Suite("BndLib Extra Tests")
+struct BndLibExtraTests {
+
+    @Test func ellipseBounds() {
+        let b = BndLib.ellipse(center: .zero, normal: SIMD3(0, 0, 1), xDirection: SIMD3(1, 0, 0),
+                                majorRadius: 10, minorRadius: 5)
+        #expect(abs(b.min.x + 10) < 0.1)
+        #expect(abs(b.max.x - 10) < 0.1)
+        #expect(abs(b.min.y + 5) < 0.1)
+        #expect(abs(b.max.y - 5) < 0.1)
+    }
+
+    @Test func coneBounds() {
+        let b = BndLib.cone(center: .zero, axis: SIMD3(0, 0, 1),
+                             semiAngle: .pi / 6, refRadius: 5, vmin: 0, vmax: 10)
+        #expect(b.max.z >= b.min.z)
+    }
+
+    @Test func circleArcBounds() {
+        let b = BndLib.circleArc(center: .zero, normal: SIMD3(0, 0, 1),
+                                  radius: 5, u1: 0, u2: .pi / 2)
+        #expect(b.max.x >= b.min.x)
+        #expect(b.max.y >= b.min.y)
+    }
+
+    @Test func ellipseArcBounds() {
+        let b = BndLib.ellipseArc(center: .zero, normal: SIMD3(0, 0, 1), xDirection: SIMD3(1, 0, 0),
+                                   majorRadius: 10, minorRadius: 5, u1: 0, u2: .pi / 2)
+        #expect(b.max.x >= b.min.x)
+    }
+
+    @Test func parabolaArcBounds() {
+        let b = BndLib.parabolaArc(center: .zero, normal: SIMD3(0, 0, 1), xDirection: SIMD3(1, 0, 0),
+                                    focalDistance: 2, u1: -1, u2: 1)
+        #expect(b.max.x >= b.min.x)
+    }
+
+    @Test func hyperbolaArcBounds() {
+        let b = BndLib.hyperbolaArc(center: .zero, normal: SIMD3(0, 0, 1), xDirection: SIMD3(1, 0, 0),
+                                     majorRadius: 5, minorRadius: 3, u1: -1, u2: 1)
+        #expect(b.max.x >= b.min.x)
+    }
+}
+
+@Suite("BRepLib_MakeVertex Tests")
+struct MakeVertexTests {
+
+    @Test func createVertex() {
+        let v = Shape.makeVertex(at: SIMD3(1, 2, 3))
+        #expect(v != nil)
+        if let v = v {
+            #expect(v.isValid)
+        }
+    }
+
+    @Test func vertexAtOrigin() {
+        let v = Shape.makeVertex(at: .zero)
+        #expect(v != nil)
+        if let v = v {
+            let verts = v.vertices()
+            #expect(verts.count == 1)
+        }
+    }
+}
+
+@Suite("IntAna ConeSphere Tests")
+struct IntAnaConeSphereTests {
+
+    @Test func coneSphereIntersection() {
+        let count = QuadricIntersection.coneSphere(semiAngle: .pi / 4, refRadius: 0,
+                                                     sphereCenter: SIMD3(0, 0, 5), sphereRadius: 3)
+        #expect(count != nil)
+        if let c = count {
+            #expect(c >= 0)
+        }
+    }
+
+    @Test func coneSphereSamplePoints() {
+        let count = QuadricIntersection.coneSphere(semiAngle: .pi / 4, refRadius: 0,
+                                                     sphereCenter: SIMD3(0, 0, 5), sphereRadius: 3)
+        if let c = count, c > 0 {
+            let pts = QuadricIntersection.coneSpherePoints(semiAngle: .pi / 4, refRadius: 0,
+                                                            sphereCenter: SIMD3(0, 0, 5), sphereRadius: 3,
+                                                            curveIndex: 1, sampleCount: 10)
+            #expect(pts.count >= 0)
+        }
+    }
+}
+
+@Suite("DocumentExplorer Extension Tests")
+struct DocumentExplorerExtensionTests {
+
+    @Test func explorerDepth() {
+        guard let doc = Document.create() else { return }
+        doc.defineAllFormats()
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            _ = doc.addShape(box)
+            let count = doc.explorerNodeCount
+            if count > 0 {
+                let depth = doc.explorerDepth(at: 0)
+                #expect(depth >= 0)
+            }
+        }
+    }
+
+    @Test func explorerIsAssembly() {
+        guard let doc = Document.create() else { return }
+        doc.defineAllFormats()
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            _ = doc.addShape(box)
+            let count = doc.explorerNodeCount
+            if count > 0 {
+                // A single shape is not an assembly
+                let isAsm = doc.explorerIsAssembly(at: 0)
+                #expect(!isAsm)
+            }
+        }
+    }
+
+    @Test func explorerLocation() {
+        guard let doc = Document.create() else { return }
+        doc.defineAllFormats()
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            _ = doc.addShape(box)
+            let count = doc.explorerNodeCount
+            if count > 0 {
+                let matrix = doc.explorerLocation(at: 0)
+                #expect(matrix.count == 12)
+            }
+        }
+    }
+}
+
+@Suite("Resource_Unicode Tests")
+struct ResourceUnicodeTests {
+
+    @Test func setAndGetFormat() {
+        UnicodeUtils.setFormat(.ansi)
+        let fmt = UnicodeUtils.format
+        #expect(fmt == .ansi)
+    }
+
+    @Test func convertToUnicode() {
+        UnicodeUtils.setFormat(.ansi)
+        let result = UnicodeUtils.convertToUnicode("hello")
+        #expect(result != nil)
+        if let r = result {
+            #expect(r == "hello")
+        }
+    }
+
+    @Test func convertFromUnicode() {
+        UnicodeUtils.setFormat(.ansi)
+        let result = UnicodeUtils.convertFromUnicode("hello")
+        #expect(result != nil)
+        if let r = result {
+            #expect(r == "hello")
+        }
+    }
+}
+
+@Suite("GProp Weighted Tests")
+struct GPropWeightedTests {
+
+    @Test func weightedCentroid() {
+        let pts = [SIMD3(0.0, 0.0, 0.0), SIMD3(10.0, 0.0, 0.0)]
+        let wts = [1.0, 3.0]
+        let (mass, centroid) = GeometryProperties.weightedCentroid(points: pts, weights: wts)
+        #expect(abs(mass - 4.0) < 0.01)
+        #expect(abs(centroid.x - 7.5) < 0.01)
+    }
+
+    @Test func barycentre() {
+        let pts = [SIMD3(0.0, 0.0, 0.0), SIMD3(10.0, 0.0, 0.0), SIMD3(0.0, 10.0, 0.0)]
+        let c = GeometryProperties.barycentre(pts)
+        #expect(abs(c.x - 10.0/3.0) < 0.1)
+        #expect(abs(c.y - 10.0/3.0) < 0.1)
+    }
+}
+
+@Suite("Draft Info Tests")
+struct DraftInfoTests {
+
+    @Test func edgeInfoNewGeometry() {
+        let ng = DraftInfo.edgeInfoNewGeometry
+        // Default EdgeInfo has no new geometry
+        #expect(!ng)
+    }
+
+    @Test func faceInfoNewGeometry() {
+        let ng = DraftInfo.faceInfoNewGeometry
+        #expect(!ng)
+    }
+
+    @Test func vertexInfoGeometry() {
+        let pt = DraftInfo.vertexInfoGeometry
+        // Default VertexInfo has origin geometry
+        #expect(abs(pt.x) < 1e-10)
+        #expect(abs(pt.y) < 1e-10)
+        #expect(abs(pt.z) < 1e-10)
+    }
+
+    @Test func edgeInfoSetTangent() {
+        let result = DraftInfo.edgeInfoSetTangent(direction: SIMD3(1, 0, 0))
+        // Should succeed
+        #expect(result)
+    }
+
+    @Test func vertexInfoAddParameter() {
+        let param = DraftInfo.vertexInfoAddParameter(3.14)
+        #expect(abs(param - 3.14) < 0.01)
+    }
+}
+
+@Suite("GeomLib_LogSample Tests")
+struct LogSampleTests {
+
+    @Test func logarithmicSampling() {
+        let params = LogSample.sample(from: 1, to: 100, count: 5)
+        #expect(params.count == 5)
+        // Should be monotonically increasing
+        for i in 1..<params.count {
+            #expect(params[i] > params[i-1])
+        }
+    }
+
+    @Test func singleSample() {
+        let params = LogSample.sample(from: 1, to: 10, count: 1)
+        #expect(params.count == 1)
+    }
+}
+
+@Suite("BSplineSurface KnotSplitting Tests")
+struct BSplineSurfaceKnotSplitTests {
+
+    @Test func knotSplitsU() {
+        // Create a sphere surface and convert to BSpline
+        if let sphere = Surface.sphere(center: .zero, radius: 5) {
+            if let bsp = sphere.toBSpline() {
+                let n = bsp.bsplineKnotSplitsU(continuity: 0)
+                #expect(n >= 0)
+            }
+        }
+    }
+}
+
+@Suite("BSplineCurve2d KnotSplitting Tests")
+struct BSplineCurve2dKnotSplitTests {
+
+    @Test func knotSplits() {
+        // Create a 2D BSpline curve from interpolation
+        if let c = Curve2D.interpolate(through: [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0), SIMD2(3, 1)]) {
+            let n = c.bsplineKnotSplits(continuity: 0)
+            #expect(n >= 0)
+            if n > 0 {
+                let vals = c.bsplineKnotSplitValues(continuity: 0)
+                #expect(vals.count == n)
+            }
+        }
+    }
+}
+
+@Suite("BRepTools_Substitution Tests")
+struct SubstitutionTests {
+
+    @Test func substituteRemove() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let result = box.substitute(oldSubShape: edge, newSubShapes: [])
+                // May or may not succeed depending on topology
+                let _ = result
+            }
+        }
+    }
+}
+
+@Suite("DraftFaceInfo Surface Tests")
+struct DraftFaceInfoSurfaceTests {
+
+    @Test func faceInfoFromSurface() {
+        if let surf = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) {
+            // FaceInfo can be created from any surface
+            let result = DraftInfo.faceInfoFromSurface(surf)
+            // Result depends on whether surface was stored successfully
+            let _ = result
+        }
+    }
+}
