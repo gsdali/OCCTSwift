@@ -13833,6 +13833,331 @@ double OCCTDraftVertexInfoAddParameter(double param);
 /// Compute logarithmically spaced parameter values. params must be allocated with n elements.
 void OCCTLogSample(double a, double b, int32_t n, double* _Nonnull params);
 
+// MARK: - GC_MakeConicalSurface (v0.106.0)
+
+/// Create a conical surface from axis (center+normal), semi-angle, and reference radius.
+OCCTSurfaceRef _Nullable OCCTGCMakeConicalSurface(double cx, double cy, double cz,
+                                                    double nx, double ny, double nz,
+                                                    double semiAngle, double radius);
+
+/// Create a conical surface from 2 points and 2 radii.
+OCCTSurfaceRef _Nullable OCCTGCMakeConicalSurface2Pts(double x1, double y1, double z1,
+                                                       double x2, double y2, double z2,
+                                                       double r1, double r2);
+
+/// Create a conical surface from 4 points (2 on each circle).
+OCCTSurfaceRef _Nullable OCCTGCMakeConicalSurface4Pts(double x1, double y1, double z1,
+                                                       double x2, double y2, double z2,
+                                                       double x3, double y3, double z3,
+                                                       double x4, double y4, double z4);
+
+// MARK: - GC_MakeCylindricalSurface (v0.106.0)
+
+/// Create a cylindrical surface from axis (center+normal) and radius.
+OCCTSurfaceRef _Nullable OCCTGCMakeCylindricalSurface(double cx, double cy, double cz,
+                                                        double nx, double ny, double nz,
+                                                        double radius);
+
+/// Create a cylindrical surface from 3 points.
+OCCTSurfaceRef _Nullable OCCTGCMakeCylindricalSurface3Pts(double x1, double y1, double z1,
+                                                            double x2, double y2, double z2,
+                                                            double x3, double y3, double z3);
+
+/// Create a cylindrical surface from a circle (center+normal+radius).
+OCCTSurfaceRef _Nullable OCCTGCMakeCylindricalSurfaceFromCircle(double cx, double cy, double cz,
+                                                                  double nx, double ny, double nz,
+                                                                  double radius);
+
+/// Create a cylindrical surface parallel to another at a given distance.
+OCCTSurfaceRef _Nullable OCCTGCMakeCylindricalSurfaceParallel(double cx, double cy, double cz,
+                                                                double nx, double ny, double nz,
+                                                                double radius, double dist);
+
+/// Create a cylindrical surface from axis (point+direction) and radius.
+OCCTSurfaceRef _Nullable OCCTGCMakeCylindricalSurfaceAxis(double px, double py, double pz,
+                                                            double dx, double dy, double dz,
+                                                            double radius);
+
+// MARK: - GC_MakeTrimmedCone (v0.106.0)
+
+/// Create a trimmed cone from 2 points and 2 radii.
+OCCTSurfaceRef _Nullable OCCTGCMakeTrimmedCone2Pts(double x1, double y1, double z1,
+                                                     double x2, double y2, double z2,
+                                                     double r1, double r2);
+
+/// Create a trimmed cone from 4 points.
+OCCTSurfaceRef _Nullable OCCTGCMakeTrimmedCone4Pts(double x1, double y1, double z1,
+                                                     double x2, double y2, double z2,
+                                                     double x3, double y3, double z3,
+                                                     double x4, double y4, double z4);
+
+// MARK: - GC_MakeTrimmedCylinder (v0.106.0)
+
+/// Create a trimmed cylinder from a circle (center+normal+radius) and height.
+OCCTSurfaceRef _Nullable OCCTGCMakeTrimmedCylinderCircle(double cx, double cy, double cz,
+                                                           double nx, double ny, double nz,
+                                                           double radius, double height);
+
+/// Create a trimmed cylinder from axis (point+direction), radius, and height.
+OCCTSurfaceRef _Nullable OCCTGCMakeTrimmedCylinderAxis(double px, double py, double pz,
+                                                         double dx, double dy, double dz,
+                                                         double radius, double height);
+
+/// Create a trimmed cylinder from 3 points.
+OCCTSurfaceRef _Nullable OCCTGCMakeTrimmedCylinder3Pts(double x1, double y1, double z1,
+                                                         double x2, double y2, double z2,
+                                                         double x3, double y3, double z3);
+
+// MARK: - BRepLib_MakeEdge2d extensions (v0.106.0)
+
+/// Create a 2D edge from a full circle.
+OCCTShapeRef _Nullable OCCTMakeEdge2dFullCircle(double cx, double cy, double dx, double dy,
+                                                  double radius);
+
+/// Create a 2D edge from an ellipse.
+OCCTShapeRef _Nullable OCCTMakeEdge2dEllipse(double cx, double cy, double dx, double dy,
+                                               double major, double minor);
+
+/// Create a 2D edge from an ellipse arc with parameter range.
+OCCTShapeRef _Nullable OCCTMakeEdge2dEllipseArc(double cx, double cy, double dx, double dy,
+                                                  double major, double minor, double u1, double u2);
+
+/// Create a 2D edge from a Geom2d_Curve.
+OCCTShapeRef _Nullable OCCTMakeEdge2dCurve(OCCTCurve2DRef _Nonnull curve);
+
+/// Create a 2D edge from a Geom2d_Curve with parameter range.
+OCCTShapeRef _Nullable OCCTMakeEdge2dCurveRange(OCCTCurve2DRef _Nonnull curve, double u1, double u2);
+
+// MARK: - ShapeAnalysis_Wire (v0.106.0)
+
+/// Check wire edge ordering. Returns true if problem found.
+bool OCCTWireCheckOrder(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check wire connectivity. Returns true if problem found.
+bool OCCTWireCheckConnected(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check for small edges. Returns true if problem found.
+bool OCCTWireCheckSmall(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check for degenerated edges. Returns true if problem found.
+bool OCCTWireCheckDegenerated(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check wire closure. Returns true if problem found.
+bool OCCTWireCheckClosed(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check for self-intersection. Returns true if problem found.
+bool OCCTWireCheckSelfIntersection(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check for 3D gaps. Returns true if problem found.
+bool OCCTWireCheckGaps3d(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check for 2D gaps. Returns true if problem found.
+bool OCCTWireCheckGaps2d(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check edge curves consistency. Returns true if problem found.
+bool OCCTWireCheckEdgeCurves(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check for lacking edges. Returns true if problem found.
+bool OCCTWireCheckLacking(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Get the number of edges in a wire on a face.
+int32_t OCCTWireEdgeCount(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Get the minimum 3D distance gap in a wire.
+double OCCTWireMinDistance3d(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Get the maximum 3D distance gap in a wire.
+double OCCTWireMaxDistance3d(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Get the minimum 2D distance gap in a wire.
+double OCCTWireMinDistance2d(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Get the maximum 2D distance gap in a wire.
+double OCCTWireMaxDistance2d(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check connectivity of a specific edge by index (1-based).
+bool OCCTWireCheckConnectedEdge(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec, int32_t edgeIndex);
+
+/// Check if a specific edge is small (1-based).
+bool OCCTWireCheckSmallEdge(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec, int32_t edgeIndex);
+
+/// Check if a specific edge is degenerated (1-based).
+bool OCCTWireCheckDegeneratedEdge(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec, int32_t edgeIndex);
+
+/// Check 3D gap at a specific edge (1-based).
+bool OCCTWireCheckGap3dEdge(OCCTShapeRef _Nonnull wire, OCCTShapeRef _Nonnull face, double prec, int32_t edgeIndex);
+
+/// Check if a face has an outer bound wire.
+bool OCCTWireCheckOuterBound(OCCTShapeRef _Nonnull face, double prec);
+
+// MARK: - ShapeAnalysis_Edge (v0.106.0)
+
+/// Check if an edge has a 3D curve.
+bool OCCTEdgeHasCurve3dSA(OCCTShapeRef _Nonnull edge);
+
+/// Check if an edge is closed in 3D.
+bool OCCTEdgeIsClosed3dSA(OCCTShapeRef _Nonnull edge);
+
+/// Check if an edge has a PCurve on a face.
+bool OCCTEdgeHasPCurveSA(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face);
+
+/// Check if an edge is a seam edge on a face.
+bool OCCTEdgeIsSeamSA(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face);
+
+/// Check same parameter consistency. maxdev returns the maximum deviation.
+bool OCCTEdgeCheckSameParameter(OCCTShapeRef _Nonnull edge, double* _Nonnull maxdev);
+
+/// Check vertices with 3D curve positions.
+bool OCCTEdgeCheckVerticesWithCurve3d(OCCTShapeRef _Nonnull edge, double prec);
+
+/// Check vertices with PCurve positions on a face.
+bool OCCTEdgeCheckVerticesWithPCurve(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face, double prec);
+
+/// Check 3D curve vs PCurve consistency on a face.
+bool OCCTEdgeCheckCurve3dWithPCurve(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face);
+
+/// Get the first vertex position of an edge.
+void OCCTEdgeFirstVertexSA(OCCTShapeRef _Nonnull edge, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the last vertex position of an edge.
+void OCCTEdgeLastVertexSA(OCCTShapeRef _Nonnull edge, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Check vertex tolerances on a face edge. Returns true if tolerance is OK.
+bool OCCTEdgeCheckVertexTolerance(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+                                   double* _Nonnull toler1, double* _Nonnull toler2);
+
+/// Check if two edges overlap. Returns true if overlapping.
+bool OCCTEdgeCheckOverlapping(OCCTShapeRef _Nonnull edge1, OCCTShapeRef _Nonnull edge2,
+                                double* _Nonnull tolOverlap);
+
+/// Get UV bounds of an edge on a face.
+bool OCCTEdgeBoundUV(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+                      double* _Nonnull uFirst, double* _Nonnull vFirst,
+                      double* _Nonnull uLast, double* _Nonnull vLast);
+
+/// Get end tangent in 2D for an edge on a face. atEnd=true for last vertex.
+bool OCCTEdgeGetEndTangent2d(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+                              bool atEnd, double* _Nonnull px, double* _Nonnull py,
+                              double* _Nonnull tx, double* _Nonnull ty);
+
+/// Check PCurve range on a face.
+bool OCCTEdgeCheckPCurveRange(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+                               double first, double last);
+
+// MARK: - OSD_DirectoryIterator (v0.106.0)
+
+/// Count directories matching a mask in a path.
+int32_t OCCTDirectoryIteratorCount(const char* _Nonnull path, const char* _Nonnull mask);
+
+/// Get directory name at index from directory listing. Caller must free returned string.
+char* _Nullable OCCTDirectoryIteratorName(const char* _Nonnull path, const char* _Nonnull mask,
+                                           int32_t index);
+
+/// List directory names matching mask. Returns count of entries written. names array must be pre-allocated.
+int32_t OCCTDirectoryList(const char* _Nonnull path, const char* _Nonnull mask,
+                           char* _Nullable * _Nonnull names, int32_t maxCount);
+
+// MARK: - OSD_FileIterator (v0.106.0)
+
+/// Count files matching a mask in a path.
+int32_t OCCTFileIteratorCount(const char* _Nonnull path, const char* _Nonnull mask);
+
+/// Get file name at index from file listing. Caller must free returned string.
+char* _Nullable OCCTFileIteratorName(const char* _Nonnull path, const char* _Nonnull mask,
+                                      int32_t index);
+
+/// List file names matching mask. Returns count of entries written. names array must be pre-allocated.
+int32_t OCCTFileList(const char* _Nonnull path, const char* _Nonnull mask,
+                      char* _Nullable * _Nonnull names, int32_t maxCount);
+
+// MARK: - BRepFill_PipeShell extensions (v0.106.0)
+
+/// Set maximum degree for pipe shell approximation.
+void OCCTPipeShellSetMaxDegree(OCCTPipeShellRef _Nonnull ps, int32_t maxDeg);
+
+/// Set maximum number of segments for pipe shell approximation.
+void OCCTPipeShellSetMaxSegments(OCCTPipeShellRef _Nonnull ps, int32_t maxSeg);
+
+/// Force C1 approximation on pipe shell.
+void OCCTPipeShellSetForceApproxC1(OCCTPipeShellRef _Nonnull ps, bool force);
+
+/// Get the error on the generated surface.
+double OCCTPipeShellErrorOnSurface(OCCTPipeShellRef _Nonnull ps);
+
+/// Get the first shape of the pipe shell (start cap).
+OCCTShapeRef _Nullable OCCTPipeShellFirstShape(OCCTPipeShellRef _Nonnull ps);
+
+/// Get the last shape of the pipe shell (end cap).
+OCCTShapeRef _Nullable OCCTPipeShellLastShape(OCCTPipeShellRef _Nonnull ps);
+
+// MARK: - Shape topology extensions (v0.106.0)
+
+/// Get shape orientation: 0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL.
+int32_t OCCTShapeGetOrientation(OCCTShapeRef _Nonnull shape);
+
+/// Set shape orientation: 0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL.
+void OCCTShapeSetOrientation(OCCTShapeRef _Nonnull shape, int32_t orientation);
+
+/// Get a reversed copy of the shape.
+OCCTShapeRef _Nullable OCCTShapeReversed(OCCTShapeRef _Nonnull shape);
+
+/// Get a complemented copy of the shape (reversed orientation).
+OCCTShapeRef _Nullable OCCTShapeComplemented(OCCTShapeRef _Nonnull shape);
+
+/// Compose two shape orientations. Returns new shape with composed orientation.
+OCCTShapeRef _Nullable OCCTShapeComposed(OCCTShapeRef _Nonnull shape, int32_t orientation);
+
+/// Check if the shape's Free flag is set.
+bool OCCTShapeIsFree(OCCTShapeRef _Nonnull shape);
+
+/// Check if the shape's Modified flag is set.
+bool OCCTShapeIsModified(OCCTShapeRef _Nonnull shape);
+
+/// Check if the shape's Checked flag is set.
+bool OCCTShapeIsChecked(OCCTShapeRef _Nonnull shape);
+
+/// Check if the shape's Orientable flag is set.
+bool OCCTShapeIsOrientable(OCCTShapeRef _Nonnull shape);
+
+/// Check if the shape's Infinite flag is set.
+bool OCCTShapeIsInfinite(OCCTShapeRef _Nonnull shape);
+
+/// Check if the shape's Convex flag is set.
+bool OCCTShapeIsConvex(OCCTShapeRef _Nonnull shape);
+
+/// Check if the shape is empty (null).
+bool OCCTShapeIsEmpty(OCCTShapeRef _Nonnull shape);
+
+/// Check if two shapes are partners (same TShape).
+bool OCCTShapeIsPartner(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2);
+
+/// Check if two shapes are equal (same TShape + same location + same orientation).
+bool OCCTShapeIsEqual(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2);
+
+/// Get the number of direct children sub-shapes.
+int32_t OCCTShapeNbChildren(OCCTShapeRef _Nonnull shape);
+
+/// Get the hash code of a shape.
+int32_t OCCTShapeHashCode(OCCTShapeRef _Nonnull shape);
+
+// MARK: - Curve3D continuity (v0.106.0)
+
+/// Get the global continuity of a 3D curve. Returns GeomAbs_Shape as int: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN, 5=G1, 6=G2.
+int32_t OCCTCurve3DGetContinuity(OCCTCurve3DRef _Nonnull curve);
+
+// MARK: - Curve2D continuity (v0.106.0)
+
+/// Get the global continuity of a 2D curve. Returns GeomAbs_Shape as int.
+int32_t OCCTCurve2DGetContinuity(OCCTCurve2DRef _Nonnull curve);
+
+// MARK: - Surface continuity (v0.106.0)
+
+/// Get the global continuity of a surface. Returns GeomAbs_Shape as int.
+int32_t OCCTSurfaceGetContinuity(OCCTSurfaceRef _Nonnull surface);
+
+/// Get number of UV bounds for a surface.
+void OCCTSurfaceGetNBounds(OCCTSurfaceRef _Nonnull surface, int32_t* _Nonnull uSpans, int32_t* _Nonnull vSpans);
+
 #ifdef __cplusplus
 }
 #endif

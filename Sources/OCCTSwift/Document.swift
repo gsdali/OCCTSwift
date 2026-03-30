@@ -8141,3 +8141,620 @@ public enum LogSample {
         return params
     }
 }
+
+// MARK: - GC_MakeConicalSurface (v0.106.0)
+
+extension Surface {
+    /// Create a conical surface from axis (center+normal), semi-angle, and reference radius.
+    public static func gcConicalSurface(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                         semiAngle: Double, radius: Double) -> Surface? {
+        guard let h = OCCTGCMakeConicalSurface(center.x, center.y, center.z,
+                                                normal.x, normal.y, normal.z,
+                                                semiAngle, radius) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a conical surface from 2 points and 2 radii.
+    public static func gcConicalSurface2Pts(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                             r1: Double, r2: Double) -> Surface? {
+        guard let h = OCCTGCMakeConicalSurface2Pts(p1.x, p1.y, p1.z,
+                                                    p2.x, p2.y, p2.z,
+                                                    r1, r2) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a conical surface from 4 points (2 on each circle).
+    public static func gcConicalSurface4Pts(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                             p3: SIMD3<Double>, p4: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTGCMakeConicalSurface4Pts(p1.x, p1.y, p1.z,
+                                                    p2.x, p2.y, p2.z,
+                                                    p3.x, p3.y, p3.z,
+                                                    p4.x, p4.y, p4.z) else { return nil }
+        return Surface(handle: h)
+    }
+}
+
+// MARK: - GC_MakeCylindricalSurface (v0.106.0)
+
+extension Surface {
+    /// Create a cylindrical surface from axis (center+normal) and radius (GC variant).
+    public static func gcCylindricalSurface(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                              radius: Double) -> Surface? {
+        guard let h = OCCTGCMakeCylindricalSurface(center.x, center.y, center.z,
+                                                     normal.x, normal.y, normal.z,
+                                                     radius) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a cylindrical surface from 3 points (GC variant).
+    public static func gcCylindricalSurface3Pts(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                                  p3: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTGCMakeCylindricalSurface3Pts(p1.x, p1.y, p1.z,
+                                                        p2.x, p2.y, p2.z,
+                                                        p3.x, p3.y, p3.z) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a cylindrical surface from a circle (center+normal+radius).
+    public static func gcCylindricalSurfaceFromCircle(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                                       radius: Double) -> Surface? {
+        guard let h = OCCTGCMakeCylindricalSurfaceFromCircle(center.x, center.y, center.z,
+                                                               normal.x, normal.y, normal.z,
+                                                               radius) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a cylindrical surface parallel to another at a given distance.
+    public static func gcCylindricalSurfaceParallel(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                                      radius: Double, distance: Double) -> Surface? {
+        guard let h = OCCTGCMakeCylindricalSurfaceParallel(center.x, center.y, center.z,
+                                                             normal.x, normal.y, normal.z,
+                                                             radius, distance) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a cylindrical surface from axis (point+direction) and radius.
+    public static func gcCylindricalSurfaceAxis(point: SIMD3<Double>, direction: SIMD3<Double>,
+                                                  radius: Double) -> Surface? {
+        guard let h = OCCTGCMakeCylindricalSurfaceAxis(point.x, point.y, point.z,
+                                                         direction.x, direction.y, direction.z,
+                                                         radius) else { return nil }
+        return Surface(handle: h)
+    }
+}
+
+// MARK: - GC_MakeTrimmedCone (v0.106.0)
+
+extension Surface {
+    /// Create a trimmed cone from 2 points and 2 radii.
+    public static func gcTrimmedCone2Pts(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                          r1: Double, r2: Double) -> Surface? {
+        guard let h = OCCTGCMakeTrimmedCone2Pts(p1.x, p1.y, p1.z,
+                                                 p2.x, p2.y, p2.z,
+                                                 r1, r2) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a trimmed cone from 4 points.
+    public static func gcTrimmedCone4Pts(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                          p3: SIMD3<Double>, p4: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTGCMakeTrimmedCone4Pts(p1.x, p1.y, p1.z,
+                                                 p2.x, p2.y, p2.z,
+                                                 p3.x, p3.y, p3.z,
+                                                 p4.x, p4.y, p4.z) else { return nil }
+        return Surface(handle: h)
+    }
+}
+
+// MARK: - GC_MakeTrimmedCylinder (v0.106.0)
+
+extension Surface {
+    /// Create a trimmed cylinder from a circle (center+normal+radius) and height.
+    public static func gcTrimmedCylinderCircle(center: SIMD3<Double>, normal: SIMD3<Double>,
+                                                radius: Double, height: Double) -> Surface? {
+        guard let h = OCCTGCMakeTrimmedCylinderCircle(center.x, center.y, center.z,
+                                                       normal.x, normal.y, normal.z,
+                                                       radius, height) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a trimmed cylinder from axis (point+direction), radius, and height.
+    public static func gcTrimmedCylinderAxis(point: SIMD3<Double>, direction: SIMD3<Double>,
+                                              radius: Double, height: Double) -> Surface? {
+        guard let h = OCCTGCMakeTrimmedCylinderAxis(point.x, point.y, point.z,
+                                                     direction.x, direction.y, direction.z,
+                                                     radius, height) else { return nil }
+        return Surface(handle: h)
+    }
+
+    /// Create a trimmed cylinder from 3 points.
+    public static func gcTrimmedCylinder3Pts(p1: SIMD3<Double>, p2: SIMD3<Double>,
+                                              p3: SIMD3<Double>) -> Surface? {
+        guard let h = OCCTGCMakeTrimmedCylinder3Pts(p1.x, p1.y, p1.z,
+                                                     p2.x, p2.y, p2.z,
+                                                     p3.x, p3.y, p3.z) else { return nil }
+        return Surface(handle: h)
+    }
+}
+
+// MARK: - BRepLib_MakeEdge2d extensions (v0.106.0)
+
+extension Shape {
+    /// Create a 2D edge from a full circle.
+    public static func edge2dFullCircle(center: SIMD2<Double>, direction: SIMD2<Double>,
+                                         radius: Double) -> Shape? {
+        guard let h = OCCTMakeEdge2dFullCircle(center.x, center.y,
+                                                direction.x, direction.y,
+                                                radius) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create a 2D edge from an ellipse.
+    public static func edge2dEllipse(center: SIMD2<Double>, direction: SIMD2<Double>,
+                                      majorRadius: Double, minorRadius: Double) -> Shape? {
+        guard let h = OCCTMakeEdge2dEllipse(center.x, center.y,
+                                             direction.x, direction.y,
+                                             majorRadius, minorRadius) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create a 2D edge from an ellipse arc.
+    public static func edge2dEllipseArc(center: SIMD2<Double>, direction: SIMD2<Double>,
+                                         majorRadius: Double, minorRadius: Double,
+                                         u1: Double, u2: Double) -> Shape? {
+        guard let h = OCCTMakeEdge2dEllipseArc(center.x, center.y,
+                                                direction.x, direction.y,
+                                                majorRadius, minorRadius,
+                                                u1, u2) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create a 2D edge from a Curve2D.
+    public static func edge2dFromCurve(_ curve: Curve2D) -> Shape? {
+        guard let h = OCCTMakeEdge2dCurve(curve.handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Create a 2D edge from a Curve2D with parameter range.
+    public static func edge2dFromCurve(_ curve: Curve2D, u1: Double, u2: Double) -> Shape? {
+        guard let h = OCCTMakeEdge2dCurveRange(curve.handle, u1, u2) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - ShapeAnalysis_Wire (v0.106.0)
+
+/// Wire analysis utilities using ShapeAnalysis_Wire (v0.106.0).
+public enum SAWireAnalysis {
+    /// Check wire edge ordering. Returns true if problem found.
+    public static func checkOrder(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckOrder(wire.handle, face.handle, precision)
+    }
+
+    /// Check wire connectivity. Returns true if problem found.
+    public static func checkConnected(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckConnected(wire.handle, face.handle, precision)
+    }
+
+    /// Check for small edges. Returns true if problem found.
+    public static func checkSmall(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckSmall(wire.handle, face.handle, precision)
+    }
+
+    /// Check for degenerated edges. Returns true if problem found.
+    public static func checkDegenerated(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckDegenerated(wire.handle, face.handle, precision)
+    }
+
+    /// Check wire closure. Returns true if problem found.
+    public static func checkClosed(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckClosed(wire.handle, face.handle, precision)
+    }
+
+    /// Check for self-intersection. Returns true if problem found.
+    public static func checkSelfIntersection(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckSelfIntersection(wire.handle, face.handle, precision)
+    }
+
+    /// Check for 3D gaps. Returns true if problem found.
+    public static func checkGaps3d(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckGaps3d(wire.handle, face.handle, precision)
+    }
+
+    /// Check for 2D gaps. Returns true if problem found.
+    public static func checkGaps2d(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckGaps2d(wire.handle, face.handle, precision)
+    }
+
+    /// Check edge curves consistency. Returns true if problem found.
+    public static func checkEdgeCurves(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckEdgeCurves(wire.handle, face.handle, precision)
+    }
+
+    /// Check for lacking edges. Returns true if problem found.
+    public static func checkLacking(wire: Shape, face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckLacking(wire.handle, face.handle, precision)
+    }
+
+    /// Get the number of edges in a wire on a face.
+    public static func edgeCount(wire: Shape, face: Shape, precision: Double = 1e-6) -> Int {
+        Int(OCCTWireEdgeCount(wire.handle, face.handle, precision))
+    }
+
+    /// Get the minimum 3D distance gap in a wire.
+    public static func minDistance3d(wire: Shape, face: Shape, precision: Double = 1e-6) -> Double {
+        OCCTWireMinDistance3d(wire.handle, face.handle, precision)
+    }
+
+    /// Get the maximum 3D distance gap in a wire.
+    public static func maxDistance3d(wire: Shape, face: Shape, precision: Double = 1e-6) -> Double {
+        OCCTWireMaxDistance3d(wire.handle, face.handle, precision)
+    }
+
+    /// Get the minimum 2D distance gap in a wire.
+    public static func minDistance2d(wire: Shape, face: Shape, precision: Double = 1e-6) -> Double {
+        OCCTWireMinDistance2d(wire.handle, face.handle, precision)
+    }
+
+    /// Get the maximum 2D distance gap in a wire.
+    public static func maxDistance2d(wire: Shape, face: Shape, precision: Double = 1e-6) -> Double {
+        OCCTWireMaxDistance2d(wire.handle, face.handle, precision)
+    }
+
+    /// Check connectivity of a specific edge by index (1-based).
+    public static func checkConnectedEdge(wire: Shape, face: Shape, precision: Double = 1e-6,
+                                           edgeIndex: Int) -> Bool {
+        OCCTWireCheckConnectedEdge(wire.handle, face.handle, precision, Int32(edgeIndex))
+    }
+
+    /// Check if a specific edge is small (1-based).
+    public static func checkSmallEdge(wire: Shape, face: Shape, precision: Double = 1e-6,
+                                       edgeIndex: Int) -> Bool {
+        OCCTWireCheckSmallEdge(wire.handle, face.handle, precision, Int32(edgeIndex))
+    }
+
+    /// Check if a specific edge is degenerated (1-based).
+    public static func checkDegeneratedEdge(wire: Shape, face: Shape, precision: Double = 1e-6,
+                                              edgeIndex: Int) -> Bool {
+        OCCTWireCheckDegeneratedEdge(wire.handle, face.handle, precision, Int32(edgeIndex))
+    }
+
+    /// Check 3D gap at a specific edge (1-based).
+    public static func checkGap3dEdge(wire: Shape, face: Shape, precision: Double = 1e-6,
+                                       edgeIndex: Int) -> Bool {
+        OCCTWireCheckGap3dEdge(wire.handle, face.handle, precision, Int32(edgeIndex))
+    }
+
+    /// Check if a face has an outer bound wire.
+    public static func checkOuterBound(face: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTWireCheckOuterBound(face.handle, precision)
+    }
+}
+
+// MARK: - ShapeAnalysis_Edge (v0.106.0)
+
+/// Edge analysis utilities using ShapeAnalysis_Edge.
+public enum EdgeAnalysis {
+    /// Check if an edge has a 3D curve.
+    public static func hasCurve3d(_ edge: Shape) -> Bool {
+        OCCTEdgeHasCurve3dSA(edge.handle)
+    }
+
+    /// Check if an edge is closed in 3D.
+    public static func isClosed3d(_ edge: Shape) -> Bool {
+        OCCTEdgeIsClosed3dSA(edge.handle)
+    }
+
+    /// Check if an edge has a PCurve on a face.
+    public static func hasPCurve(_ edge: Shape, face: Shape) -> Bool {
+        OCCTEdgeHasPCurveSA(edge.handle, face.handle)
+    }
+
+    /// Check if an edge is a seam edge on a face.
+    public static func isSeam(_ edge: Shape, face: Shape) -> Bool {
+        OCCTEdgeIsSeamSA(edge.handle, face.handle)
+    }
+
+    /// Check same parameter consistency. Returns (ok, maxDeviation).
+    public static func checkSameParameter(_ edge: Shape) -> (ok: Bool, maxDeviation: Double) {
+        var maxdev = 0.0
+        let ok = OCCTEdgeCheckSameParameter(edge.handle, &maxdev)
+        return (ok, maxdev)
+    }
+
+    /// Check vertices with 3D curve positions.
+    public static func checkVerticesWithCurve3d(_ edge: Shape, precision: Double = 1e-6) -> Bool {
+        OCCTEdgeCheckVerticesWithCurve3d(edge.handle, precision)
+    }
+
+    /// Check vertices with PCurve positions on a face.
+    public static func checkVerticesWithPCurve(_ edge: Shape, face: Shape,
+                                                precision: Double = 1e-6) -> Bool {
+        OCCTEdgeCheckVerticesWithPCurve(edge.handle, face.handle, precision)
+    }
+
+    /// Check 3D curve vs PCurve consistency on a face.
+    public static func checkCurve3dWithPCurve(_ edge: Shape, face: Shape) -> Bool {
+        OCCTEdgeCheckCurve3dWithPCurve(edge.handle, face.handle)
+    }
+
+    /// Get the first vertex position of an edge.
+    public static func firstVertex(_ edge: Shape) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTEdgeFirstVertexSA(edge.handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get the last vertex position of an edge.
+    public static func lastVertex(_ edge: Shape) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTEdgeLastVertexSA(edge.handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Check vertex tolerances on a face edge. Returns (ok, toler1, toler2).
+    public static func checkVertexTolerance(_ edge: Shape, face: Shape) -> (ok: Bool, toler1: Double, toler2: Double) {
+        var t1 = 0.0, t2 = 0.0
+        let ok = OCCTEdgeCheckVertexTolerance(edge.handle, face.handle, &t1, &t2)
+        return (ok, t1, t2)
+    }
+
+    /// Check if two edges overlap. Returns (overlapping, tolerance).
+    public static func checkOverlapping(_ edge1: Shape, _ edge2: Shape) -> (overlapping: Bool, tolerance: Double) {
+        var tol = 0.0
+        let ok = OCCTEdgeCheckOverlapping(edge1.handle, edge2.handle, &tol)
+        return (ok, tol)
+    }
+
+    /// Get UV bounds of an edge on a face.
+    public static func boundUV(_ edge: Shape, face: Shape) -> (uFirst: Double, vFirst: Double, uLast: Double, vLast: Double)? {
+        var uf = 0.0, vf = 0.0, ul = 0.0, vl = 0.0
+        let ok = OCCTEdgeBoundUV(edge.handle, face.handle, &uf, &vf, &ul, &vl)
+        if !ok { return nil }
+        return (uf, vf, ul, vl)
+    }
+
+    /// Get end tangent in 2D for an edge on a face.
+    public static func endTangent2d(_ edge: Shape, face: Shape,
+                                     atEnd: Bool) -> (point: SIMD2<Double>, tangent: SIMD2<Double>)? {
+        var px = 0.0, py = 0.0, tx = 0.0, ty = 0.0
+        let ok = OCCTEdgeGetEndTangent2d(edge.handle, face.handle, atEnd, &px, &py, &tx, &ty)
+        if !ok { return nil }
+        return (SIMD2(px, py), SIMD2(tx, ty))
+    }
+
+    /// Check PCurve range on a face.
+    public static func checkPCurveRange(_ edge: Shape, face: Shape,
+                                         first: Double, last: Double) -> Bool {
+        OCCTEdgeCheckPCurveRange(edge.handle, face.handle, first, last)
+    }
+}
+
+// MARK: - OSD_DirectoryIterator (v0.106.0)
+
+/// Directory iteration utilities using OSD_DirectoryIterator.
+public enum DirectoryIterator {
+    /// Count directories matching a mask in a path.
+    public static func count(path: String, mask: String = "*") -> Int {
+        Int(OCCTDirectoryIteratorCount(path, mask))
+    }
+
+    /// Get directory name at index from directory listing.
+    public static func name(path: String, mask: String = "*", index: Int) -> String? {
+        guard let cStr = OCCTDirectoryIteratorName(path, mask, Int32(index)) else { return nil }
+        let result = String(cString: cStr)
+        free(cStr)
+        return result
+    }
+
+    /// List directory names matching mask.
+    public static func list(path: String, mask: String = "*", maxCount: Int = 1000) -> [String] {
+        var names = [UnsafeMutablePointer<CChar>?](repeating: nil, count: maxCount)
+        let count = Int(OCCTDirectoryList(path, mask, &names, Int32(maxCount)))
+        var result: [String] = []
+        for i in 0..<count {
+            if let cStr = names[i] {
+                result.append(String(cString: cStr))
+                free(cStr)
+            }
+        }
+        return result
+    }
+}
+
+// MARK: - OSD_FileIterator (v0.106.0)
+
+/// File iteration utilities using OSD_FileIterator.
+public enum FileIterator {
+    /// Count files matching a mask in a path.
+    public static func count(path: String, mask: String = "*") -> Int {
+        Int(OCCTFileIteratorCount(path, mask))
+    }
+
+    /// Get file name at index from file listing.
+    public static func name(path: String, mask: String = "*", index: Int) -> String? {
+        guard let cStr = OCCTFileIteratorName(path, mask, Int32(index)) else { return nil }
+        let result = String(cString: cStr)
+        free(cStr)
+        return result
+    }
+
+    /// List file names matching mask.
+    public static func list(path: String, mask: String = "*", maxCount: Int = 1000) -> [String] {
+        var names = [UnsafeMutablePointer<CChar>?](repeating: nil, count: maxCount)
+        let count = Int(OCCTFileList(path, mask, &names, Int32(maxCount)))
+        var result: [String] = []
+        for i in 0..<count {
+            if let cStr = names[i] {
+                result.append(String(cString: cStr))
+                free(cStr)
+            }
+        }
+        return result
+    }
+}
+
+// MARK: - BRepFill_PipeShell extensions (v0.106.0)
+
+extension PipeShellBuilder {
+    /// Set maximum degree for pipe shell approximation.
+    public func setMaxDegree(_ maxDeg: Int) {
+        OCCTPipeShellSetMaxDegree(ref, Int32(maxDeg))
+    }
+
+    /// Set maximum number of segments for pipe shell approximation.
+    public func setMaxSegments(_ maxSeg: Int) {
+        OCCTPipeShellSetMaxSegments(ref, Int32(maxSeg))
+    }
+
+    /// Force C1 approximation on pipe shell.
+    public func setForceApproxC1(_ force: Bool) {
+        OCCTPipeShellSetForceApproxC1(ref, force)
+    }
+
+    /// Get the error on the generated surface.
+    public var errorOnSurface: Double {
+        OCCTPipeShellErrorOnSurface(ref)
+    }
+
+    /// Get the first shape of the pipe shell (start cap).
+    public var firstShape: Shape? {
+        guard let h = OCCTPipeShellFirstShape(ref) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the last shape of the pipe shell (end cap).
+    public var lastShape: Shape? {
+        guard let h = OCCTPipeShellLastShape(ref) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - Shape topology extensions (v0.106.0)
+
+extension Shape {
+    /// Shape orientation values.
+    public enum Orientation: Int32, Sendable {
+        case forward = 0
+        case reversed = 1
+        case `internal` = 2
+        case external = 3
+    }
+
+    /// Get shape orientation.
+    public var orientation: Orientation {
+        Orientation(rawValue: OCCTShapeGetOrientation(handle)) ?? .forward
+    }
+
+    /// Set shape orientation.
+    public func setOrientation(_ orient: Orientation) {
+        OCCTShapeSetOrientation(handle, orient.rawValue)
+    }
+
+    /// Get a reversed copy of the shape.
+    public var reversed: Shape? {
+        guard let h = OCCTShapeReversed(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get a complemented copy of the shape (reversed orientation).
+    public var complemented: Shape? {
+        guard let h = OCCTShapeComplemented(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Compose with another orientation.
+    public func composed(with orient: Orientation) -> Shape? {
+        guard let h = OCCTShapeComposed(handle, orient.rawValue) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Check if the shape's Free flag is set.
+    public var isFree: Bool {
+        OCCTShapeIsFree(handle)
+    }
+
+    /// Check if the shape's Modified flag is set.
+    public var isModified: Bool {
+        OCCTShapeIsModified(handle)
+    }
+
+    /// Check if the shape's Checked flag is set.
+    public var isChecked: Bool {
+        OCCTShapeIsChecked(handle)
+    }
+
+    /// Check if the shape's Orientable flag is set.
+    public var isOrientable: Bool {
+        OCCTShapeIsOrientable(handle)
+    }
+
+    /// Check if the shape's Infinite flag is set.
+    public var isInfinite: Bool {
+        OCCTShapeIsInfinite(handle)
+    }
+
+    /// Check if the shape's Convex flag is set.
+    public var isConvex: Bool {
+        OCCTShapeIsConvex(handle)
+    }
+
+    /// Check if the shape is empty (null underlying shape).
+    public var isEmptyShape: Bool {
+        OCCTShapeIsEmpty(handle)
+    }
+
+    /// Check if two shapes are partners (same TShape).
+    public func isPartner(with other: Shape) -> Bool {
+        OCCTShapeIsPartner(handle, other.handle)
+    }
+
+    /// Check if two shapes are equal (same TShape + same location + same orientation).
+    public func isEqual(to other: Shape) -> Bool {
+        OCCTShapeIsEqual(handle, other.handle)
+    }
+
+    /// Get the number of direct children sub-shapes.
+    public var nbChildren: Int {
+        Int(OCCTShapeNbChildren(handle))
+    }
+
+    /// Get the hash code of a shape.
+    public var hashCode: Int {
+        Int(OCCTShapeHashCode(handle))
+    }
+}
+
+// MARK: - Curve3D continuity (v0.106.0)
+
+extension Curve3D {
+    /// Get the global continuity of the 3D curve as an integer (0=C0, 1=C1, 2=C2, 3=C3, 4=CN, 5=G1, 6=G2).
+    public var continuity: Int {
+        Int(OCCTCurve3DGetContinuity(handle))
+    }
+}
+
+// MARK: - Curve2D continuity (v0.106.0)
+
+extension Curve2D {
+    /// Get the global continuity of the 2D curve as an integer (0=C0, 1=C1, 2=C2, 3=C3, 4=CN, 5=G1, 6=G2).
+    public var continuity: Int {
+        Int(OCCTCurve2DGetContinuity(handle))
+    }
+}
+
+// MARK: - Surface continuity (v0.106.0)
+
+extension Surface {
+    /// Get the global continuity of the surface as an integer (0=C0, 1=C1, 2=C2, 3=C3, 4=CN, 5=G1, 6=G2).
+    public var continuity: Int {
+        Int(OCCTSurfaceGetContinuity(handle))
+    }
+
+    /// Get number of UV bound spans for the surface.
+    public var nBounds: (uSpans: Int, vSpans: Int) {
+        var u: Int32 = 0, v: Int32 = 0
+        OCCTSurfaceGetNBounds(handle, &u, &v)
+        return (Int(u), Int(v))
+    }
+}

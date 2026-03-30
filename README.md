@@ -347,7 +347,19 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **GProp Weighted** | 2 | weightedCentroid, barycentre |
 | **Draft Info Types** | 6 | edgeInfoNewGeometry, faceInfoNewGeometry, vertexInfoGeometry, setTangent, faceFromSurface, vertexAddParameter |
 | **GeomLib_LogSample** | 1 | logarithmic parameter sampling |
-| **Total** | **2184** | |
+| **GC_MakeConicalSurface** | 3 | conical surface from axis/angle/radius, 2pts+radii, 4pts |
+| **GC_MakeCylindricalSurface** | 5 | cylindrical surface from axis, 3pts, circle, parallel, axis1 |
+| **GC_MakeTrimmedCone** | 2 | trimmed cone from 2pts+radii, 4pts |
+| **GC_MakeTrimmedCylinder** | 3 | trimmed cylinder from circle+height, axis+radius+height, 3pts |
+| **BRepLib_MakeEdge2d** | 5 | 2D edges from circle, ellipse, ellipseArc, Curve2D, Curve2D+range |
+| **ShapeAnalysis_Wire** | 20 | wire quality: order, connected, small, degenerated, closed, selfIntersection, gaps, edgeCurves, lacking, distances, per-edge checks, outerBound |
+| **ShapeAnalysis_Edge** | 15 | edge quality: hasCurve3d, isClosed, hasPCurve, isSeam, sameParameter, vertices, boundUV, tangent2d, overlap |
+| **OSD_DirectoryIterator** | 3 | count, name, list directories |
+| **OSD_FileIterator** | 3 | count, name, list files |
+| **BRepFill_PipeShell Extensions** | 6 | maxDegree, maxSegments, forceC1, errorOnSurface, firstShape, lastShape |
+| **Shape Topology Extensions** | 16 | orientation, reversed, complemented, composed, isFree, isModified, isChecked, isOrientable, isInfinite, isConvex, isEmpty, isPartner, isEqual, nbChildren, hashCode |
+| **Curve/Surface Continuity** | 4 | Curve3D, Curve2D, Surface continuity, Surface nBounds |
+| **Total** | **2269** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1667,7 +1679,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **2184 OCCT operations** across 216 categories with 2328 tests across 741 suites.
+OCCTSwift now wraps **2269 OCCT operations** across 229 categories with 2394 tests across 755 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

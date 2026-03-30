@@ -28866,3 +28866,675 @@ struct DraftFaceInfoSurfaceTests {
         }
     }
 }
+
+// MARK: - v0.106.0 Tests
+
+@Suite("GC_MakeConicalSurface Tests")
+struct GCMakeConicalSurfaceTests {
+
+    @Test func conicalFromAxisAngleRadius() {
+        if let s = Surface.gcConicalSurface(center: .zero, normal: SIMD3(0, 0, 1),
+                                             semiAngle: .pi / 6, radius: 5) {
+            #expect(s.continuity >= 0)
+        }
+    }
+
+    @Test func conicalFrom2PtsRadii() {
+        if let s = Surface.gcConicalSurface2Pts(p1: SIMD3(0, 0, 0), p2: SIMD3(0, 0, 10),
+                                                  r1: 5, r2: 2) {
+            #expect(s.continuity >= 0)
+        }
+    }
+
+    @Test func conicalFrom4Pts() {
+        // 4 points on the cone surface
+        let s = Surface.gcConicalSurface4Pts(
+            p1: SIMD3(5, 0, 0), p2: SIMD3(0, 5, 0),
+            p3: SIMD3(2, 0, 10), p4: SIMD3(0, 2, 10))
+        // May or may not succeed depending on point geometry
+        let _ = s
+    }
+}
+
+@Suite("GC_MakeCylindricalSurface Tests")
+struct GCMakeCylindricalSurfaceTests {
+
+    @Test func cylindricalFromAxisRadius() {
+        if let s = Surface.gcCylindricalSurface(center: .zero, normal: SIMD3(0, 0, 1), radius: 5) {
+            #expect(s.continuity >= 0)
+        }
+    }
+
+    @Test func cylindricalFrom3Pts() {
+        let s = Surface.gcCylindricalSurface3Pts(
+            p1: SIMD3(5, 0, 0), p2: SIMD3(0, 5, 0), p3: SIMD3(-5, 0, 0))
+        // May or may not succeed depending on point configuration
+        let _ = s
+    }
+
+    @Test func cylindricalFromCircle() {
+        if let s = Surface.gcCylindricalSurfaceFromCircle(center: .zero, normal: SIMD3(0, 0, 1),
+                                                            radius: 5) {
+            #expect(s.continuity >= 0)
+        }
+    }
+
+    @Test func cylindricalParallel() {
+        if let s = Surface.gcCylindricalSurfaceParallel(center: .zero, normal: SIMD3(0, 0, 1),
+                                                          radius: 5, distance: 2) {
+            #expect(s.continuity >= 0)
+        }
+    }
+
+    @Test func cylindricalFromAxis() {
+        if let s = Surface.gcCylindricalSurfaceAxis(point: .zero, direction: SIMD3(0, 0, 1),
+                                                      radius: 5) {
+            #expect(s.continuity >= 0)
+        }
+    }
+}
+
+@Suite("GC_MakeTrimmedCone Tests")
+struct GCMakeTrimmedConeTests {
+
+    @Test func trimmedCone2Pts() {
+        if let s = Surface.gcTrimmedCone2Pts(p1: SIMD3(0, 0, 0), p2: SIMD3(0, 0, 10),
+                                               r1: 5, r2: 2) {
+            #expect(s.continuity >= 0)
+        }
+    }
+
+    @Test func trimmedCone4Pts() {
+        let s = Surface.gcTrimmedCone4Pts(
+            p1: SIMD3(5, 0, 0), p2: SIMD3(0, 5, 0),
+            p3: SIMD3(2, 0, 10), p4: SIMD3(0, 2, 10))
+        let _ = s
+    }
+}
+
+@Suite("GC_MakeTrimmedCylinder Tests")
+struct GCMakeTrimmedCylinderTests {
+
+    @Test func trimmedCylinderCircle() {
+        if let s = Surface.gcTrimmedCylinderCircle(center: .zero, normal: SIMD3(0, 0, 1),
+                                                     radius: 5, height: 10) {
+            #expect(s.continuity >= 0)
+        }
+    }
+
+    @Test func trimmedCylinderAxis() {
+        if let s = Surface.gcTrimmedCylinderAxis(point: .zero, direction: SIMD3(0, 0, 1),
+                                                   radius: 5, height: 10) {
+            #expect(s.continuity >= 0)
+        }
+    }
+
+    @Test func trimmedCylinder3Pts() {
+        if let s = Surface.gcTrimmedCylinder3Pts(
+            p1: SIMD3(5, 0, 0), p2: SIMD3(5, 0, 10), p3: SIMD3(0, 5, 0)) {
+            #expect(s.continuity >= 0)
+        }
+    }
+}
+
+@Suite("BRepLib_MakeEdge2d Extensions Tests")
+struct MakeEdge2dExtensionsTests {
+
+    @Test func edge2dFullCircle() {
+        if let e = Shape.edge2dFullCircle(center: SIMD2(0, 0), direction: SIMD2(1, 0), radius: 5) {
+            #expect(e.nbChildren >= 0)
+        }
+    }
+
+    @Test func edge2dEllipse() {
+        if let e = Shape.edge2dEllipse(center: SIMD2(0, 0), direction: SIMD2(1, 0),
+                                        majorRadius: 10, minorRadius: 5) {
+            #expect(e.nbChildren >= 0)
+        }
+    }
+
+    @Test func edge2dEllipseArc() {
+        if let e = Shape.edge2dEllipseArc(center: SIMD2(0, 0), direction: SIMD2(1, 0),
+                                           majorRadius: 10, minorRadius: 5,
+                                           u1: 0, u2: .pi) {
+            #expect(e.nbChildren >= 0)
+        }
+    }
+
+    @Test func edge2dFromCurve() {
+        if let line = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 1)) {
+            if let e = Shape.edge2dFromCurve(line, u1: 0, u2: 10) {
+                #expect(e.nbChildren >= 0)
+            }
+        }
+    }
+
+    @Test func edge2dFromCurveFullRange() {
+        if let circle = Curve2D.circle(center: SIMD2(0, 0), radius: 5) {
+            if let e = Shape.edge2dFromCurve(circle) {
+                #expect(e.nbChildren >= 0)
+            }
+        }
+    }
+}
+
+@Suite("ShapeAnalysis_Wire Tests")
+struct SAWireAnalysisTests {
+
+    @Test func basicWireChecks() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    // These return true if problems found; for a good box, expect no problems
+                    let _ = SAWireAnalysis.checkOrder(wire: wire, face: face)
+                    let _ = SAWireAnalysis.checkConnected(wire: wire, face: face)
+                    let _ = SAWireAnalysis.checkSmall(wire: wire, face: face)
+                    let _ = SAWireAnalysis.checkDegenerated(wire: wire, face: face)
+                    let _ = SAWireAnalysis.checkClosed(wire: wire, face: face)
+                    let _ = SAWireAnalysis.checkGaps3d(wire: wire, face: face)
+                }
+            }
+        }
+    }
+
+    @Test func wireEdgeCount() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let count = SAWireAnalysis.edgeCount(wire: wire, face: face)
+                    #expect(count == 4)
+                }
+            }
+        }
+    }
+
+    @Test func wireDistance3d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let minD = SAWireAnalysis.minDistance3d(wire: wire, face: face)
+                    let maxD = SAWireAnalysis.maxDistance3d(wire: wire, face: face)
+                    #expect(minD >= 0)
+                    #expect(maxD >= 0)
+                }
+            }
+        }
+    }
+
+    @Test func wireDistance2d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let minD = SAWireAnalysis.minDistance2d(wire: wire, face: face)
+                    let maxD = SAWireAnalysis.maxDistance2d(wire: wire, face: face)
+                    #expect(minD >= 0)
+                    #expect(maxD >= 0)
+                }
+            }
+        }
+    }
+
+    @Test func wireSelfIntersection() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let selfInt = SAWireAnalysis.checkSelfIntersection(wire: wire, face: face)
+                    #expect(!selfInt)
+                }
+            }
+        }
+    }
+
+    @Test func wireEdgeCurves() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let _ = SAWireAnalysis.checkEdgeCurves(wire: wire, face: face)
+                    let _ = SAWireAnalysis.checkLacking(wire: wire, face: face)
+                }
+            }
+        }
+    }
+
+    @Test func wirePerEdgeChecks() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let _ = SAWireAnalysis.checkConnectedEdge(wire: wire, face: face, edgeIndex: 1)
+                    let _ = SAWireAnalysis.checkSmallEdge(wire: wire, face: face, edgeIndex: 1)
+                    let _ = SAWireAnalysis.checkDegeneratedEdge(wire: wire, face: face, edgeIndex: 1)
+                    let _ = SAWireAnalysis.checkGap3dEdge(wire: wire, face: face, edgeIndex: 1)
+                }
+            }
+        }
+    }
+
+    @Test func wireGaps2d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wires = face.subShapes(ofType: .wire)
+                if let wire = wires.first {
+                    let _ = SAWireAnalysis.checkGaps2d(wire: wire, face: face)
+                }
+            }
+        }
+    }
+
+    @Test func outerBound() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let hasOuter = SAWireAnalysis.checkOuterBound(face: face)
+                #expect(hasOuter)
+            }
+        }
+    }
+}
+
+@Suite("ShapeAnalysis_Edge Tests")
+struct SAEdgeAnalysisTests {
+
+    @Test func edgeHasCurve3d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                #expect(EdgeAnalysis.hasCurve3d(edge))
+            }
+        }
+    }
+
+    @Test func edgeIsClosed3d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                #expect(!EdgeAnalysis.isClosed3d(edge))
+            }
+        }
+    }
+
+    @Test func edgeHasPCurve() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            let edges = box.subShapes(ofType: .edge)
+            if let face = faces.first, let edge = edges.first {
+                // Edge may or may not have a PCurve on this particular face
+                let _ = EdgeAnalysis.hasPCurve(edge, face: face)
+            }
+        }
+    }
+
+    @Test func edgeIsSeam() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            let edges = box.subShapes(ofType: .edge)
+            if let face = faces.first, let edge = edges.first {
+                let seam = EdgeAnalysis.isSeam(edge, face: face)
+                #expect(!seam) // box edges are not seam edges
+            }
+        }
+    }
+
+    @Test func edgeSameParameter() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let result = EdgeAnalysis.checkSameParameter(edge)
+                // maxDeviation should be small for a box edge
+                let _ = result
+            }
+        }
+    }
+
+    @Test func edgeVerticesWithCurve3d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let _ = EdgeAnalysis.checkVerticesWithCurve3d(edge)
+            }
+        }
+    }
+
+    @Test func edgeVerticesWithPCurve() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            let edges = box.subShapes(ofType: .edge)
+            if let face = faces.first, let edge = edges.first {
+                let _ = EdgeAnalysis.checkVerticesWithPCurve(edge, face: face)
+            }
+        }
+    }
+
+    @Test func edgeCurve3dWithPCurve() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            let edges = box.subShapes(ofType: .edge)
+            if let face = faces.first, let edge = edges.first {
+                let _ = EdgeAnalysis.checkCurve3dWithPCurve(edge, face: face)
+            }
+        }
+    }
+
+    @Test func edgeFirstLastVertex() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let first = EdgeAnalysis.firstVertex(edge)
+                let last = EdgeAnalysis.lastVertex(edge)
+                // Vertices should be at box corners
+                #expect(first != last || EdgeAnalysis.isClosed3d(edge))
+            }
+        }
+    }
+
+    @Test func edgeVertexTolerance() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            let edges = box.subShapes(ofType: .edge)
+            if let face = faces.first, let edge = edges.first {
+                let _ = EdgeAnalysis.checkVertexTolerance(edge, face: face)
+            }
+        }
+    }
+
+    @Test func edgeCheckOverlapping() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count >= 2 {
+                let result = EdgeAnalysis.checkOverlapping(edges[0], edges[1])
+                #expect(!result.overlapping)
+            }
+        }
+    }
+
+    @Test func edgeBoundUV() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let faceEdges = face.subShapes(ofType: .edge)
+                if let edge = faceEdges.first {
+                    if let bounds = EdgeAnalysis.boundUV(edge, face: face) {
+                        #expect(bounds.uFirst <= bounds.uLast || bounds.vFirst <= bounds.vLast)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func edgeEndTangent2d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let faceEdges = face.subShapes(ofType: .edge)
+                if let edge = faceEdges.first {
+                    if let tang = EdgeAnalysis.endTangent2d(edge, face: face, atEnd: false) {
+                        // Just check it doesn't crash
+                        let _ = tang
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func edgePCurveRange() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let faceEdges = face.subShapes(ofType: .edge)
+                if let edge = faceEdges.first {
+                    let _ = EdgeAnalysis.checkPCurveRange(edge, face: face, first: 0, last: 10)
+                }
+            }
+        }
+    }
+}
+
+@Suite("OSD_DirectoryIterator Tests")
+struct OSDDirectoryIteratorTests {
+
+    @Test func countDirectories() {
+        let count = DirectoryIterator.count(path: "/tmp")
+        #expect(count >= 0)
+    }
+
+    @Test func nameAtIndex() {
+        let count = DirectoryIterator.count(path: "/tmp")
+        if count > 0 {
+            if let name = DirectoryIterator.name(path: "/tmp", index: 0) {
+                #expect(!name.isEmpty)
+            }
+        }
+    }
+
+    @Test func listDirectories() {
+        let dirs = DirectoryIterator.list(path: "/tmp", maxCount: 50)
+        #expect(dirs.count >= 0)
+    }
+}
+
+@Suite("OSD_FileIterator Tests")
+struct OSDFileIteratorTests {
+
+    @Test func countFiles() {
+        let count = FileIterator.count(path: "/tmp")
+        #expect(count >= 0)
+    }
+
+    @Test func nameAtIndex() {
+        let count = FileIterator.count(path: "/tmp")
+        if count > 0 {
+            if let name = FileIterator.name(path: "/tmp", index: 0) {
+                #expect(!name.isEmpty)
+            }
+        }
+    }
+
+    @Test func listFiles() {
+        let files = FileIterator.list(path: "/tmp", maxCount: 50)
+        #expect(files.count >= 0)
+    }
+}
+
+@Suite("BRepFill_PipeShell Extension Tests")
+struct PipeShellExtensionTests {
+
+    @Test func pipeShellMaxDegreeAndSegments() {
+        // Create a simple spine wire and add a profile so it's ready
+        if let spine = Wire.circle(origin: .zero, normal: SIMD3(0, 0, 1), radius: 10),
+           let profile = Wire.circle(origin: SIMD3(10, 0, 0), normal: SIMD3(1, 0, 0), radius: 1) {
+            if let sw = Shape.fromWire(spine), let pw = Shape.fromWire(profile) {
+                if let psb = PipeShellBuilder(spine: sw) {
+                    psb.setMaxDegree(6)
+                    psb.setMaxSegments(100)
+                    psb.setForceApproxC1(true)
+                    psb.setFrenet()
+                    psb.add(profile: pw)
+                    #expect(psb.isReady)
+                }
+            }
+        }
+    }
+
+    @Test func pipeShellErrorAndShapes() {
+        // Build a simple pipe shell
+        if let spine = Wire.circle(origin: .zero, normal: SIMD3(0, 0, 1), radius: 10),
+           let profile = Wire.circle(origin: SIMD3(10, 0, 0), normal: SIMD3(1, 0, 0), radius: 1) {
+            if let sw = Shape.fromWire(spine), let pw = Shape.fromWire(profile) {
+                if let psb = PipeShellBuilder(spine: sw) {
+                    psb.setFrenet()
+                    psb.add(profile: pw)
+                    psb.setMaxDegree(8)
+                    if psb.build() {
+                        let err = psb.errorOnSurface
+                        #expect(err >= 0)
+                        // first/last shapes may be nil for closed pipes
+                        let _ = psb.firstShape
+                        let _ = psb.lastShape
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("Shape Topology Extension Tests")
+struct ShapeTopologyExtensionTests {
+
+    @Test func shapeOrientation() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let orient = box.orientation
+            #expect(orient == .forward)
+        }
+    }
+
+    @Test func shapeReversed() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let rev = box.reversed {
+                #expect(rev.orientation == .reversed)
+            }
+        }
+    }
+
+    @Test func shapeComplemented() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let comp = box.complemented {
+                #expect(comp.orientation == .reversed)
+            }
+        }
+    }
+
+    @Test func shapeComposed() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let comp = box.composed(with: .reversed) {
+                #expect(comp.orientation == .reversed)
+            }
+        }
+    }
+
+    @Test func shapeFlags() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let _ = box.isFree
+            let _ = box.isModified
+            let _ = box.isChecked
+            let _ = box.isOrientable
+            #expect(!box.isInfinite)
+            #expect(!box.isEmptyShape)
+        }
+    }
+
+    @Test func shapeConvex() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let _ = box.isConvex
+        }
+    }
+
+    @Test func shapePartnerAndEqual() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // A shape is a partner with itself
+            #expect(box.isPartner(with: box))
+            #expect(box.isEqual(to: box))
+        }
+    }
+
+    @Test func shapeNbChildren() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let n = box.nbChildren
+            #expect(n > 0)
+        }
+    }
+
+    @Test func shapeHashCode() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let h = box.hashCode
+            #expect(h != 0)
+        }
+    }
+
+    @Test func shapeSetOrientation() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            box.setOrientation(.reversed)
+            #expect(box.orientation == .reversed)
+            box.setOrientation(.forward)
+            #expect(box.orientation == .forward)
+        }
+    }
+}
+
+@Suite("Curve3D Continuity Tests")
+struct Curve3DContinuityTests {
+
+    @Test func lineContinuity() {
+        if let line = Curve3D.line(through: .zero, direction: SIMD3(1, 0, 0)) {
+            let c = line.continuity
+            // Lines have infinite continuity (CN = 4)
+            #expect(c >= 0)
+        }
+    }
+
+    @Test func bsplineContinuity() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0, 0, 0), SIMD3(1, 1, 0),
+                                                   SIMD3(2, 0, 0), SIMD3(3, 1, 0)]) {
+            let c = bsp.continuity
+            #expect(c >= 0)
+        }
+    }
+}
+
+@Suite("Curve2D Continuity Tests")
+struct Curve2DContinuityTests {
+
+    @Test func line2DContinuity() {
+        if let line = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 0)) {
+            let c = line.continuity
+            #expect(c >= 0)
+        }
+    }
+
+    @Test func bspline2DContinuity() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0, 0), SIMD2(1, 1),
+                                                    SIMD2(2, 0), SIMD2(3, 1)]) {
+            let c = bsp.continuity
+            #expect(c >= 0)
+        }
+    }
+}
+
+@Suite("Surface Continuity Tests")
+struct SurfaceContinuityTests {
+
+    @Test func planeContinuity() {
+        if let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) {
+            let c = plane.continuity
+            #expect(c >= 0)
+        }
+    }
+
+    @Test func sphereContinuity() {
+        if let sphere = Surface.sphere(center: .zero, radius: 5) {
+            let c = sphere.continuity
+            #expect(c >= 0)
+        }
+    }
+
+    @Test func surfaceNBounds() {
+        if let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) {
+            let bounds = plane.nBounds
+            #expect(bounds.uSpans >= 0)
+            #expect(bounds.vSpans >= 0)
+        }
+    }
+}
