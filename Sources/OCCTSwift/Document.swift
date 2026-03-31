@@ -9319,3 +9319,793 @@ extension Shape {
         return SIMD3(x, y, z)
     }
 }
+
+// MARK: - Extrema Elementary Distances (v0.109.0)
+
+/// Result of an elementary extrema computation.
+public struct ExtremaResult: Sendable {
+    /// Squared distance between the closest/farthest points.
+    public let squareDistance: Double
+    /// Point on the first element.
+    public let point1: SIMD3<Double>
+    /// Point on the second element.
+    public let point2: SIMD3<Double>
+}
+
+/// Elementary curve-curve distance computations (Extrema_ExtElC).
+public enum ExtremaElC {
+
+    /// Distance between two 3D lines.
+    /// Returns (isParallel, results) where results contains the extrema.
+    public static func lineToLine(
+        line1Point: SIMD3<Double>, line1Dir: SIMD3<Double>,
+        line2Point: SIMD3<Double>, line2Dir: SIMD3<Double>,
+        tolerance: Double = 1e-6
+    ) -> (isParallel: Bool, results: [ExtremaResult]) {
+        var isParallel = false
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElCLinLin(
+            line1Point.x, line1Point.y, line1Point.z,
+            line1Dir.x, line1Dir.y, line1Dir.z,
+            line2Point.x, line2Point.y, line2Point.z,
+            line2Dir.x, line2Dir.y, line2Dir.z,
+            tolerance, &isParallel, &buf, 10
+        )
+        guard n > 0 else { return (isParallel, []) }
+        let results = (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+        return (isParallel, results)
+    }
+
+    /// Distance between a 3D line and circle.
+    public static func lineToCircle(
+        linePoint: SIMD3<Double>, lineDir: SIMD3<Double>,
+        circleCenter: SIMD3<Double>, circleNormal: SIMD3<Double>, radius: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElCLinCirc(
+            linePoint.x, linePoint.y, linePoint.z,
+            lineDir.x, lineDir.y, lineDir.z,
+            circleCenter.x, circleCenter.y, circleCenter.z,
+            circleNormal.x, circleNormal.y, circleNormal.z, radius,
+            tolerance, &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance between two 3D circles.
+    public static func circleToCircle(
+        center1: SIMD3<Double>, normal1: SIMD3<Double>, radius1: Double,
+        center2: SIMD3<Double>, normal2: SIMD3<Double>, radius2: Double
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElCCircCirc(
+            center1.x, center1.y, center1.z,
+            normal1.x, normal1.y, normal1.z, radius1,
+            center2.x, center2.y, center2.z,
+            normal2.x, normal2.y, normal2.z, radius2,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance between a 3D line and ellipse.
+    public static func lineToEllipse(
+        linePoint: SIMD3<Double>, lineDir: SIMD3<Double>,
+        center: SIMD3<Double>, normal: SIMD3<Double>, xDir: SIMD3<Double>,
+        majorRadius: Double, minorRadius: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElCLinElips(
+            linePoint.x, linePoint.y, linePoint.z,
+            lineDir.x, lineDir.y, lineDir.z,
+            center.x, center.y, center.z,
+            normal.x, normal.y, normal.z,
+            xDir.x, xDir.y, xDir.z,
+            majorRadius, minorRadius, tolerance,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+}
+
+/// Elementary curve-surface distance computations (Extrema_ExtElCS).
+public enum ExtremaElCS {
+
+    /// Distance between a line and a plane.
+    public static func lineToPlane(
+        linePoint: SIMD3<Double>, lineDir: SIMD3<Double>,
+        planePoint: SIMD3<Double>, planeNormal: SIMD3<Double>
+    ) -> (isParallel: Bool, results: [ExtremaResult]) {
+        var isParallel = false
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElCSLinPlane(
+            linePoint.x, linePoint.y, linePoint.z,
+            lineDir.x, lineDir.y, lineDir.z,
+            planePoint.x, planePoint.y, planePoint.z,
+            planeNormal.x, planeNormal.y, planeNormal.z,
+            &isParallel, &buf, 10
+        )
+        guard n > 0 else { return (isParallel, []) }
+        let results = (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+        return (isParallel, results)
+    }
+
+    /// Distance between a line and a sphere.
+    public static func lineToSphere(
+        linePoint: SIMD3<Double>, lineDir: SIMD3<Double>,
+        sphereCenter: SIMD3<Double>, sphereRadius: Double
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElCSLinSphere(
+            linePoint.x, linePoint.y, linePoint.z,
+            lineDir.x, lineDir.y, lineDir.z,
+            sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance between a line and a cylinder.
+    public static func lineToCylinder(
+        linePoint: SIMD3<Double>, lineDir: SIMD3<Double>,
+        cylCenter: SIMD3<Double>, cylAxis: SIMD3<Double>, cylRadius: Double
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElCSLinCylinder(
+            linePoint.x, linePoint.y, linePoint.z,
+            lineDir.x, lineDir.y, lineDir.z,
+            cylCenter.x, cylCenter.y, cylCenter.z,
+            cylAxis.x, cylAxis.y, cylAxis.z, cylRadius,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+}
+
+/// Elementary surface-surface distance computations (Extrema_ExtElSS).
+public enum ExtremaElSS {
+
+    /// Distance between two planes.
+    public static func planeToPlane(
+        plane1Point: SIMD3<Double>, plane1Normal: SIMD3<Double>,
+        plane2Point: SIMD3<Double>, plane2Normal: SIMD3<Double>
+    ) -> (isParallel: Bool, results: [ExtremaResult]) {
+        var isParallel = false
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElSSPlanePlane(
+            plane1Point.x, plane1Point.y, plane1Point.z,
+            plane1Normal.x, plane1Normal.y, plane1Normal.z,
+            plane2Point.x, plane2Point.y, plane2Point.z,
+            plane2Normal.x, plane2Normal.y, plane2Normal.z,
+            &isParallel, &buf, 10
+        )
+        guard n > 0 else { return (isParallel, []) }
+        let results = (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+        return (isParallel, results)
+    }
+
+    /// Distance between a plane and a sphere.
+    public static func planeToSphere(
+        planePoint: SIMD3<Double>, planeNormal: SIMD3<Double>,
+        sphereCenter: SIMD3<Double>, sphereRadius: Double
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElSSPlaneSphere(
+            planePoint.x, planePoint.y, planePoint.z,
+            planeNormal.x, planeNormal.y, planeNormal.z,
+            sphereCenter.x, sphereCenter.y, sphereCenter.z, sphereRadius,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance between two spheres.
+    public static func sphereToSphere(
+        center1: SIMD3<Double>, radius1: Double,
+        center2: SIMD3<Double>, radius2: Double
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaElSSSphereSphere(
+            center1.x, center1.y, center1.z, radius1,
+            center2.x, center2.y, center2.z, radius2,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+}
+
+/// Point to elementary curve distance (Extrema_ExtPElC).
+public enum ExtremaPointCurve {
+
+    /// Distance from a point to a 3D line.
+    public static func pointToLine(
+        point: SIMD3<Double>,
+        lineOrigin: SIMD3<Double>, lineDir: SIMD3<Double>,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElCLin(
+            point.x, point.y, point.z,
+            lineOrigin.x, lineOrigin.y, lineOrigin.z,
+            lineDir.x, lineDir.y, lineDir.z,
+            tolerance, &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance from a point to a 3D circle.
+    public static func pointToCircle(
+        point: SIMD3<Double>,
+        center: SIMD3<Double>, normal: SIMD3<Double>, radius: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElCCirc(
+            point.x, point.y, point.z,
+            center.x, center.y, center.z,
+            normal.x, normal.y, normal.z, radius,
+            tolerance, &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance from a point to a 3D ellipse.
+    public static func pointToEllipse(
+        point: SIMD3<Double>,
+        center: SIMD3<Double>, normal: SIMD3<Double>, xDir: SIMD3<Double>,
+        majorRadius: Double, minorRadius: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElCElips(
+            point.x, point.y, point.z,
+            center.x, center.y, center.z,
+            normal.x, normal.y, normal.z,
+            xDir.x, xDir.y, xDir.z,
+            majorRadius, minorRadius, tolerance,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance from a point to a 3D parabola.
+    public static func pointToParabola(
+        point: SIMD3<Double>,
+        center: SIMD3<Double>, normal: SIMD3<Double>, xDir: SIMD3<Double>,
+        focal: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElCParab(
+            point.x, point.y, point.z,
+            center.x, center.y, center.z,
+            normal.x, normal.y, normal.z,
+            xDir.x, xDir.y, xDir.z,
+            focal, tolerance, &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+}
+
+/// Point to elementary surface distance (Extrema_ExtPElS).
+public enum ExtremaPointSurface {
+
+    /// Distance from a point to a plane.
+    public static func pointToPlane(
+        point: SIMD3<Double>,
+        planePoint: SIMD3<Double>, planeNormal: SIMD3<Double>,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElSPlane(
+            point.x, point.y, point.z,
+            planePoint.x, planePoint.y, planePoint.z,
+            planeNormal.x, planeNormal.y, planeNormal.z,
+            tolerance, &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance from a point to a sphere.
+    public static func pointToSphere(
+        point: SIMD3<Double>,
+        center: SIMD3<Double>, radius: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElSSphere(
+            point.x, point.y, point.z,
+            center.x, center.y, center.z, radius,
+            tolerance, &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance from a point to a cylinder.
+    public static func pointToCylinder(
+        point: SIMD3<Double>,
+        center: SIMD3<Double>, axis: SIMD3<Double>, radius: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElSCylinder(
+            point.x, point.y, point.z,
+            center.x, center.y, center.z,
+            axis.x, axis.y, axis.z, radius,
+            tolerance, &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance from a point to a cone.
+    public static func pointToCone(
+        point: SIMD3<Double>,
+        apex: SIMD3<Double>, axis: SIMD3<Double>,
+        semiAngle: Double, refRadius: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElSCone(
+            point.x, point.y, point.z,
+            apex.x, apex.y, apex.z,
+            axis.x, axis.y, axis.z,
+            semiAngle, refRadius, tolerance,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+
+    /// Distance from a point to a torus.
+    public static func pointToTorus(
+        point: SIMD3<Double>,
+        center: SIMD3<Double>, axis: SIMD3<Double>,
+        majorRadius: Double, minorRadius: Double,
+        tolerance: Double = 1e-6
+    ) -> [ExtremaResult] {
+        var buf = [OCCTExtremaElResult](repeating: OCCTExtremaElResult(), count: 10)
+        let n = OCCTExtremaExtPElSTorus(
+            point.x, point.y, point.z,
+            center.x, center.y, center.z,
+            axis.x, axis.y, axis.z,
+            majorRadius, minorRadius, tolerance,
+            &buf, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremaResult(
+                squareDistance: buf[i].squareDistance,
+                point1: SIMD3(buf[i].x1, buf[i].y1, buf[i].z1),
+                point2: SIMD3(buf[i].x2, buf[i].y2, buf[i].z2)
+            )
+        }
+    }
+}
+
+// MARK: - math_TrigonometricFunctionRoots (v0.109.0)
+
+/// Trigonometric equation solver: A*cos(x) + B*sin(x) + C*cos(2x) + D*sin(2x) + E = 0.
+public enum TrigRoots {
+
+    /// Find roots of A*cos(x) + B*sin(x) + C*cos(2x) + D*sin(2x) + E = 0 on [inf, sup].
+    public static func solve(
+        A: Double = 0, B: Double = 0, C: Double = 0, D: Double = 0, E: Double = 0,
+        from inf: Double, to sup: Double
+    ) -> [Double] {
+        var roots = [Double](repeating: 0, count: 100)
+        let n = OCCTTrigRoots(A, B, C, D, E, inf, sup, &roots, 100)
+        guard n > 0 else { return [] }
+        return Array(roots.prefix(Int(n)))
+    }
+
+    /// Check if all reals in [inf, sup] are solutions.
+    public static func hasInfiniteRoots(
+        A: Double = 0, B: Double = 0, C: Double = 0, D: Double = 0, E: Double = 0,
+        from inf: Double, to sup: Double
+    ) -> Bool {
+        OCCTTrigRootsInfinite(A, B, C, D, E, inf, sup)
+    }
+}
+
+// MARK: - IntAna2d_Conic (v0.109.0)
+
+/// 2D conic section coefficient representation.
+public struct Conic2D: Sendable {
+    /// Coefficients A, B, C, D, E, F of A*x^2 + B*x*y + C*y^2 + D*x + E*y + F = 0.
+    public let a, b, c, d, e, f: Double
+
+    /// Create from a 2D circle.
+    public static func fromCircle(
+        center: SIMD2<Double>, direction: SIMD2<Double>, radius: Double
+    ) -> Conic2D {
+        var coeffs = [Double](repeating: 0, count: 6)
+        OCCTConic2dFromCircle(center.x, center.y, direction.x, direction.y, radius, &coeffs)
+        return Conic2D(a: coeffs[0], b: coeffs[1], c: coeffs[2],
+                        d: coeffs[3], e: coeffs[4], f: coeffs[5])
+    }
+
+    /// Create from a 2D line.
+    public static func fromLine(
+        point: SIMD2<Double>, direction: SIMD2<Double>
+    ) -> Conic2D {
+        var coeffs = [Double](repeating: 0, count: 6)
+        OCCTConic2dFromLine(point.x, point.y, direction.x, direction.y, &coeffs)
+        return Conic2D(a: coeffs[0], b: coeffs[1], c: coeffs[2],
+                        d: coeffs[3], e: coeffs[4], f: coeffs[5])
+    }
+
+    /// Create from a 2D ellipse.
+    public static func fromEllipse(
+        center: SIMD2<Double>, direction: SIMD2<Double>,
+        majorRadius: Double, minorRadius: Double
+    ) -> Conic2D {
+        var coeffs = [Double](repeating: 0, count: 6)
+        OCCTConic2dFromEllipse(center.x, center.y, direction.x, direction.y,
+                                majorRadius, minorRadius, &coeffs)
+        return Conic2D(a: coeffs[0], b: coeffs[1], c: coeffs[2],
+                        d: coeffs[3], e: coeffs[4], f: coeffs[5])
+    }
+
+    /// Intersect a 2D line with a 2D circle. Returns intersection points.
+    public static func lineCircleIntersection(
+        linePoint: SIMD2<Double>, lineDir: SIMD2<Double>,
+        circleCenter: SIMD2<Double>, circleDir: SIMD2<Double>, radius: Double
+    ) -> [SIMD2<Double>] {
+        var xs = [Double](repeating: 0, count: 10)
+        var ys = [Double](repeating: 0, count: 10)
+        let n = OCCTConic2dLineCircleIntersect(
+            linePoint.x, linePoint.y, lineDir.x, lineDir.y,
+            circleCenter.x, circleCenter.y, circleDir.x, circleDir.y, radius,
+            &xs, &ys, 10
+        )
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { SIMD2(xs[$0], ys[$0]) }
+    }
+}
+
+// MARK: - BRepAlgo_NormalProjection (v0.109.0)
+
+/// Projects wires/edges onto a shape by normal projection.
+public final class NormalProjection: @unchecked Sendable {
+    private let ref: OCCTNormalProjectionRef
+
+    /// Create a normal projection targeting the given shape.
+    public init?(target: Shape) {
+        guard let r = OCCTNormalProjectionCreate(target.handle) else { return nil }
+        ref = r
+    }
+
+    deinit {
+        OCCTNormalProjectionRelease(ref)
+    }
+
+    /// Add a wire or edge to be projected.
+    public func add(_ shape: Shape) {
+        OCCTNormalProjectionAdd(ref, shape.handle)
+    }
+
+    /// Build the projection. Returns true on success.
+    @discardableResult
+    public func build() -> Bool {
+        OCCTNormalProjectionBuild(ref)
+    }
+
+    /// Get the projection result shape.
+    public var result: Shape? {
+        guard let r = OCCTNormalProjectionResult(ref) else { return nil }
+        return Shape(handle: r)
+    }
+}
+
+// MARK: - OSD_Disk (v0.109.0)
+
+/// Disk/volume information utilities.
+public enum DiskInfo {
+
+    /// Get disk total size in KB for the given path.
+    public static func size(path: String = "/") -> Int64 {
+        OCCTDiskSize(path)
+    }
+
+    /// Get disk free space in KB for the given path.
+    public static func freeSpace(path: String = "/") -> Int64 {
+        OCCTDiskFree(path)
+    }
+
+    /// Check if a disk path is valid/accessible.
+    public static func isValid(path: String) -> Bool {
+        OCCTDiskIsValid(path)
+    }
+
+    /// Get the disk/volume name for the given path.
+    public static func name(path: String = "/") -> String? {
+        guard let cstr = OCCTDiskName(path) else { return nil }
+        let result = String(cString: cstr)
+        free(cstr)
+        return result
+    }
+}
+
+// MARK: - OSD_SharedLibrary (v0.109.0)
+
+/// Shared library (dynamic library) handle.
+public final class SharedLibrary: @unchecked Sendable {
+    private let ref: OCCTSharedLibRef
+
+    /// Create a shared library handle for the given name/path.
+    public init?(name: String) {
+        guard let r = OCCTSharedLibCreate(name) else { return nil }
+        ref = r
+    }
+
+    deinit {
+        OCCTSharedLibRelease(ref)
+    }
+
+    /// Open (load) the shared library.
+    @discardableResult
+    public func open() -> Bool {
+        OCCTSharedLibOpen(ref)
+    }
+
+    /// Close (unload) the shared library.
+    public func close() {
+        OCCTSharedLibClose(ref)
+    }
+
+    /// Get the name of the shared library.
+    public var name: String? {
+        guard let cstr = OCCTSharedLibName(ref) else { return nil }
+        let result = String(cString: cstr)
+        free(cstr)
+        return result
+    }
+}
+
+// MARK: - Message_Msg (v0.109.0)
+
+/// OCCT message system utilities.
+public enum MessageSystem {
+
+    /// Get the message text for a given key.
+    public static func message(forKey key: String) -> String? {
+        guard let cstr = OCCTMessageMsgGet(key) else { return nil }
+        let result = String(cString: cstr)
+        free(cstr)
+        return result
+    }
+
+    /// Load message definitions from a file.
+    @discardableResult
+    public static func loadFile(_ path: String) -> Bool {
+        OCCTMessageMsgFileLoad(path)
+    }
+
+    /// Load the default OCCT message file.
+    @discardableResult
+    public static func loadDefault() -> Bool {
+        OCCTMessageMsgFileLoadDefault()
+    }
+
+    /// Check if a message key is registered.
+    public static func hasMessage(forKey key: String) -> Bool {
+        OCCTMessageMsgHasMsg(key)
+    }
+}
+
+// MARK: - Plate Constraint Extensions (v0.109.0)
+
+extension PlateSolver {
+
+    /// Load a global translation constraint.
+    /// All sample points are constrained to translate by the same unknown displacement.
+    @discardableResult
+    public func loadGlobalTranslation(uvPoints: [SIMD2<Double>]) -> Bool {
+        let uvs = uvPoints.flatMap { [$0.x, $0.y] }
+        return OCCTPlateLoadGlobalTranslation(handle, uvs, Int32(uvPoints.count))
+    }
+
+    /// Load a linear XYZ constraint.
+    @discardableResult
+    public func loadLinearXYZ(
+        uvPoints: [SIMD2<Double>],
+        targets: [SIMD3<Double>],
+        coefficients: [Double]
+    ) -> Bool {
+        let uvs = uvPoints.flatMap { [$0.x, $0.y] }
+        let tgts = targets.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTPlateLoadLinearXYZ(handle, uvs, tgts, coefficients, Int32(uvPoints.count))
+    }
+}
+
+// MARK: - Shape Topology Extras (v0.109.0)
+
+extension Shape {
+
+    /// Get the shape type as a string ("compound", "solid", "face", etc.).
+    public var shapeTypeString: String {
+        guard let cstr = OCCTShapeTypeString(handle) else { return "unknown" }
+        let result = String(cString: cstr)
+        free(cstr)
+        return result
+    }
+}
+
+// MARK: - Curve3D Extras (v0.109.0)
+
+extension Curve3D {
+
+    /// Reverse the curve in-place.
+    @discardableResult
+    public func reverse() -> Bool {
+        OCCTCurve3DReverse(handle)
+    }
+
+    /// Create a deep copy of this curve.
+    public func copy() -> Curve3D? {
+        guard let ref = OCCTCurve3DCopy(handle) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+// MARK: - Curve2D Extras (v0.109.0)
+
+extension Curve2D {
+
+    /// Reverse the curve in-place.
+    @discardableResult
+    public func reverse() -> Bool {
+        OCCTCurve2DReverse(handle)
+    }
+
+    /// Create a deep copy of this curve.
+    public func copy() -> Curve2D? {
+        guard let ref = OCCTCurve2DCopy(handle) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}
+
+// MARK: - Surface Extras (v0.109.0)
+
+extension Surface {
+
+    /// Get the parameter bounds of the surface.
+    public var parameterBounds: (uMin: Double, uMax: Double, vMin: Double, vMax: Double) {
+        var uMin = 0.0, uMax = 0.0, vMin = 0.0, vMax = 0.0
+        OCCTSurfaceBounds(handle, &uMin, &uMax, &vMin, &vMax)
+        return (uMin, uMax, vMin, vMax)
+    }
+
+    /// Get the surface continuity order (0=C0, 1=C1, 2=C2, 3=C3, 99=CN).
+    public var surfaceContinuityOrder: Int { Int(OCCTSurfaceContinuity(handle)) }
+
+    /// Create a deep copy of this surface.
+    public func copy() -> Surface? {
+        guard let ref = OCCTSurfaceCopy(handle) else { return nil }
+        return Surface(handle: ref)
+    }
+}

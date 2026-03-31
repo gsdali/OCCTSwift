@@ -42702,3 +42702,952 @@ OCCTCurve2DRef OCCTCurve2DOffsetBasisCurve(OCCTCurve2DRef curve) {
         return new OCCTCurve2D(basis);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - Extrema_ExtElC: Elementary Curve-Curve Distance (v0.109.0)
+
+#include <Extrema_ExtElC.hxx>
+#include <Extrema_ExtElCS.hxx>
+#include <Extrema_ExtElSS.hxx>
+#include <Extrema_ExtPElC.hxx>
+#include <Extrema_ExtPElS.hxx>
+#include <Extrema_POnCurv.hxx>
+#include <Extrema_POnSurf.hxx>
+#include <gp_Elips.hxx>
+#include <gp_Parab.hxx>
+#include <gp_Sphere.hxx>
+#include <gp_Cylinder.hxx>
+#include <gp_Cone.hxx>
+#include <gp_Torus.hxx>
+
+int32_t OCCTExtremaElCLinLin(double l1px, double l1py, double l1pz, double l1dx, double l1dy, double l1dz,
+                              double l2px, double l2py, double l2pz, double l2dx, double l2dy, double l2dz,
+                              double tolerance,
+                              bool* outIsParallel,
+                              OCCTExtremaElResult* out, int32_t max) {
+    *outIsParallel = false;
+    try {
+        gp_Lin l1(gp_Pnt(l1px, l1py, l1pz), gp_Dir(l1dx, l1dy, l1dz));
+        gp_Lin l2(gp_Pnt(l2px, l2py, l2pz), gp_Dir(l2dx, l2dy, l2dz));
+        Extrema_ExtElC ext(l1, l2, tolerance);
+        if (!ext.IsDone()) return -1;
+        *outIsParallel = ext.IsParallel();
+        if (ext.IsParallel()) {
+            if (max > 0) {
+                out[0].squareDistance = ext.SquareDistance(1);
+                out[0].x1 = 0; out[0].y1 = 0; out[0].z1 = 0;
+                out[0].x2 = 0; out[0].y2 = 0; out[0].z2 = 0;
+            }
+            return 1;
+        }
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnCurv p1, p2;
+            ext.Points(i, p1, p2);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = p1.Value().X(); out[count].y1 = p1.Value().Y(); out[count].z1 = p1.Value().Z();
+            out[count].x2 = p2.Value().X(); out[count].y2 = p2.Value().Y(); out[count].z2 = p2.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaElCLinCirc(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                               double cx, double cy, double cz, double nx, double ny, double nz, double radius,
+                               double tolerance,
+                               OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Lin l(gp_Pnt(lpx, lpy, lpz), gp_Dir(ldx, ldy, ldz));
+        gp_Circ c(gp_Ax2(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), radius);
+        Extrema_ExtElC ext(l, c, tolerance);
+        if (!ext.IsDone()) return -1;
+        if (ext.IsParallel()) return 0;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnCurv p1, p2;
+            ext.Points(i, p1, p2);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = p1.Value().X(); out[count].y1 = p1.Value().Y(); out[count].z1 = p1.Value().Z();
+            out[count].x2 = p2.Value().X(); out[count].y2 = p2.Value().Y(); out[count].z2 = p2.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaElCCircCirc(double c1x, double c1y, double c1z, double n1x, double n1y, double n1z, double r1,
+                                double c2x, double c2y, double c2z, double n2x, double n2y, double n2z, double r2,
+                                OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Circ circ1(gp_Ax2(gp_Pnt(c1x, c1y, c1z), gp_Dir(n1x, n1y, n1z)), r1);
+        gp_Circ circ2(gp_Ax2(gp_Pnt(c2x, c2y, c2z), gp_Dir(n2x, n2y, n2z)), r2);
+        Extrema_ExtElC ext(circ1, circ2);
+        if (!ext.IsDone()) return -1;
+        if (ext.IsParallel()) return 0;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnCurv p1, p2;
+            ext.Points(i, p1, p2);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = p1.Value().X(); out[count].y1 = p1.Value().Y(); out[count].z1 = p1.Value().Z();
+            out[count].x2 = p2.Value().X(); out[count].y2 = p2.Value().Y(); out[count].z2 = p2.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaElCLinElips(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                                double cx, double cy, double cz, double nx, double ny, double nz,
+                                double xdx, double xdy, double xdz,
+                                double majorRadius, double minorRadius,
+                                double tolerance,
+                                OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Lin l(gp_Pnt(lpx, lpy, lpz), gp_Dir(ldx, ldy, ldz));
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), gp_Dir(xdx, xdy, xdz));
+        gp_Elips elips(ax, majorRadius, minorRadius);
+        Extrema_ExtElC ext(l, elips);
+        if (!ext.IsDone()) return -1;
+        if (ext.IsParallel()) return 0;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnCurv p1, p2;
+            ext.Points(i, p1, p2);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = p1.Value().X(); out[count].y1 = p1.Value().Y(); out[count].z1 = p1.Value().Z();
+            out[count].x2 = p2.Value().X(); out[count].y2 = p2.Value().Y(); out[count].z2 = p2.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// MARK: - Extrema_ExtElCS (v0.109.0)
+
+int32_t OCCTExtremaElCSLinPlane(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                                 double plx, double ply, double plz, double pnx, double pny, double pnz,
+                                 bool* outIsParallel,
+                                 OCCTExtremaElResult* out, int32_t max) {
+    *outIsParallel = false;
+    try {
+        gp_Lin l(gp_Pnt(lpx, lpy, lpz), gp_Dir(ldx, ldy, ldz));
+        gp_Pln pl(gp_Pnt(plx, ply, plz), gp_Dir(pnx, pny, pnz));
+        Extrema_ExtElCS ext(l, pl);
+        if (!ext.IsDone()) return -1;
+        *outIsParallel = ext.IsParallel();
+        if (ext.IsParallel()) {
+            if (max > 0) {
+                out[0].squareDistance = ext.SquareDistance(1);
+                out[0].x1 = 0; out[0].y1 = 0; out[0].z1 = 0;
+                out[0].x2 = 0; out[0].y2 = 0; out[0].z2 = 0;
+            }
+            return 1;
+        }
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnCurv pc;
+            Extrema_POnSurf ps;
+            ext.Points(i, pc, ps);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = pc.Value().X(); out[count].y1 = pc.Value().Y(); out[count].z1 = pc.Value().Z();
+            out[count].x2 = ps.Value().X(); out[count].y2 = ps.Value().Y(); out[count].z2 = ps.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaElCSLinSphere(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                                   double cx, double cy, double cz, double radius,
+                                   OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Lin l(gp_Pnt(lpx, lpy, lpz), gp_Dir(ldx, ldy, ldz));
+        gp_Sphere sp(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(0, 0, 1)), radius);
+        Extrema_ExtElCS ext(l, sp);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnCurv pc;
+            Extrema_POnSurf ps;
+            ext.Points(i, pc, ps);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = pc.Value().X(); out[count].y1 = pc.Value().Y(); out[count].z1 = pc.Value().Z();
+            out[count].x2 = ps.Value().X(); out[count].y2 = ps.Value().Y(); out[count].z2 = ps.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaElCSLinCylinder(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                                     double cx, double cy, double cz, double nx, double ny, double nz, double radius,
+                                     OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Lin l(gp_Pnt(lpx, lpy, lpz), gp_Dir(ldx, ldy, ldz));
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), radius);
+        Extrema_ExtElCS ext(l, cyl);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnCurv pc;
+            Extrema_POnSurf ps;
+            ext.Points(i, pc, ps);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = pc.Value().X(); out[count].y1 = pc.Value().Y(); out[count].z1 = pc.Value().Z();
+            out[count].x2 = ps.Value().X(); out[count].y2 = ps.Value().Y(); out[count].z2 = ps.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// MARK: - Extrema_ExtElSS (v0.109.0)
+
+int32_t OCCTExtremaElSSPlanePlane(double pl1x, double pl1y, double pl1z, double pn1x, double pn1y, double pn1z,
+                                    double pl2x, double pl2y, double pl2z, double pn2x, double pn2y, double pn2z,
+                                    bool* outIsParallel,
+                                    OCCTExtremaElResult* out, int32_t max) {
+    *outIsParallel = false;
+    try {
+        gp_Pln pl1(gp_Pnt(pl1x, pl1y, pl1z), gp_Dir(pn1x, pn1y, pn1z));
+        gp_Pln pl2(gp_Pnt(pl2x, pl2y, pl2z), gp_Dir(pn2x, pn2y, pn2z));
+        Extrema_ExtElSS ext(pl1, pl2);
+        if (!ext.IsDone()) return -1;
+        *outIsParallel = ext.IsParallel();
+        if (ext.IsParallel()) {
+            if (max > 0) {
+                out[0].squareDistance = ext.SquareDistance(1);
+                out[0].x1 = 0; out[0].y1 = 0; out[0].z1 = 0;
+                out[0].x2 = 0; out[0].y2 = 0; out[0].z2 = 0;
+            }
+            return 1;
+        }
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnSurf ps1, ps2;
+            ext.Points(i, ps1, ps2);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = ps1.Value().X(); out[count].y1 = ps1.Value().Y(); out[count].z1 = ps1.Value().Z();
+            out[count].x2 = ps2.Value().X(); out[count].y2 = ps2.Value().Y(); out[count].z2 = ps2.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaElSSPlaneSphere(double plx, double ply, double plz, double pnx, double pny, double pnz,
+                                     double cx, double cy, double cz, double radius,
+                                     OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pln pl(gp_Pnt(plx, ply, plz), gp_Dir(pnx, pny, pnz));
+        gp_Sphere sp(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(0, 0, 1)), radius);
+        Extrema_ExtElSS ext(pl, sp);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnSurf ps1, ps2;
+            ext.Points(i, ps1, ps2);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = ps1.Value().X(); out[count].y1 = ps1.Value().Y(); out[count].z1 = ps1.Value().Z();
+            out[count].x2 = ps2.Value().X(); out[count].y2 = ps2.Value().Y(); out[count].z2 = ps2.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaElSSSphereSphere(double c1x, double c1y, double c1z, double r1,
+                                      double c2x, double c2y, double c2z, double r2,
+                                      OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Sphere sp1(gp_Ax3(gp_Pnt(c1x, c1y, c1z), gp_Dir(0, 0, 1)), r1);
+        gp_Sphere sp2(gp_Ax3(gp_Pnt(c2x, c2y, c2z), gp_Dir(0, 0, 1)), r2);
+        Extrema_ExtElSS ext(sp1, sp2);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            Extrema_POnSurf ps1, ps2;
+            ext.Points(i, ps1, ps2);
+            out[count].squareDistance = ext.SquareDistance(i);
+            out[count].x1 = ps1.Value().X(); out[count].y1 = ps1.Value().Y(); out[count].z1 = ps1.Value().Z();
+            out[count].x2 = ps2.Value().X(); out[count].y2 = ps2.Value().Y(); out[count].z2 = ps2.Value().Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// MARK: - Extrema_ExtPElC (v0.109.0)
+
+int32_t OCCTExtremaExtPElCLin(double px, double py, double pz,
+                                double lx, double ly, double lz, double ldx, double ldy, double ldz,
+                                double tolerance,
+                                OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Lin l(gp_Pnt(lx, ly, lz), gp_Dir(ldx, ldy, ldz));
+        Extrema_ExtPElC ext(p, l, tolerance, -1e10, 1e10);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaExtPElCCirc(double px, double py, double pz,
+                                 double cx, double cy, double cz, double nx, double ny, double nz, double radius,
+                                 double tolerance,
+                                 OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Circ c(gp_Ax2(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), radius);
+        Extrema_ExtPElC ext(p, c, tolerance, 0, 2 * M_PI);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaExtPElCElips(double px, double py, double pz,
+                                  double cx, double cy, double cz, double nx, double ny, double nz,
+                                  double xdx, double xdy, double xdz,
+                                  double majorRadius, double minorRadius,
+                                  double tolerance,
+                                  OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), gp_Dir(xdx, xdy, xdz));
+        gp_Elips elips(ax, majorRadius, minorRadius);
+        Extrema_ExtPElC ext(p, elips, tolerance, 0, 2 * M_PI);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaExtPElCParab(double px, double py, double pz,
+                                  double cx, double cy, double cz, double nx, double ny, double nz,
+                                  double xdx, double xdy, double xdz,
+                                  double focal,
+                                  double tolerance,
+                                  OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), gp_Dir(xdx, xdy, xdz));
+        gp_Parab parab(ax, focal);
+        Extrema_ExtPElC ext(p, parab, tolerance, -1e6, 1e6);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// MARK: - Extrema_ExtPElS (v0.109.0)
+
+int32_t OCCTExtremaExtPElSPlane(double px, double py, double pz,
+                                  double plx, double ply, double plz, double pnx, double pny, double pnz,
+                                  double tolerance,
+                                  OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Pln pl(gp_Pnt(plx, ply, plz), gp_Dir(pnx, pny, pnz));
+        Extrema_ExtPElS ext(p, pl, tolerance);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaExtPElSSphere(double px, double py, double pz,
+                                   double cx, double cy, double cz, double radius,
+                                   double tolerance,
+                                   OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Sphere sp(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(0, 0, 1)), radius);
+        Extrema_ExtPElS ext(p, sp, tolerance);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaExtPElSCylinder(double px, double py, double pz,
+                                     double cx, double cy, double cz, double nx, double ny, double nz, double radius,
+                                     double tolerance,
+                                     OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), radius);
+        Extrema_ExtPElS ext(p, cyl, tolerance);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaExtPElSCone(double px, double py, double pz,
+                                 double cx, double cy, double cz, double nx, double ny, double nz,
+                                 double semiAngle, double refRadius,
+                                 double tolerance,
+                                 OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Cone cone(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), semiAngle, refRadius);
+        Extrema_ExtPElS ext(p, cone, tolerance);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTExtremaExtPElSTorus(double px, double py, double pz,
+                                  double cx, double cy, double cz, double nx, double ny, double nz,
+                                  double majorRadius, double minorRadius,
+                                  double tolerance,
+                                  OCCTExtremaElResult* out, int32_t max) {
+    try {
+        gp_Pnt p(px, py, pz);
+        gp_Torus tor(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), majorRadius, minorRadius);
+        Extrema_ExtPElS ext(p, tor, tolerance);
+        if (!ext.IsDone()) return -1;
+        int n = ext.NbExt();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            out[count].squareDistance = ext.SquareDistance(i);
+            gp_Pnt pt = ext.Point(i).Value();
+            out[count].x1 = px; out[count].y1 = py; out[count].z1 = pz;
+            out[count].x2 = pt.X(); out[count].y2 = pt.Y(); out[count].z2 = pt.Z();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// MARK: - math_TrigonometricFunctionRoots (v0.109.0)
+
+#include <math_TrigonometricFunctionRoots.hxx>
+
+int32_t OCCTTrigRoots(double A, double B, double C, double D, double E,
+                       double inf, double sup,
+                       double* roots, int32_t maxRoots) {
+    try {
+        math_TrigonometricFunctionRoots solver(A, B, C, D, E, inf, sup);
+        if (!solver.IsDone()) return -1;
+        int n = solver.NbSolutions();
+        int count = 0;
+        for (int i = 1; i <= n && count < maxRoots; i++) {
+            roots[count++] = solver.Value(i);
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+bool OCCTTrigRootsInfinite(double A, double B, double C, double D, double E,
+                            double inf, double sup) {
+    try {
+        math_TrigonometricFunctionRoots solver(A, B, C, D, E, inf, sup);
+        if (!solver.IsDone()) return false;
+        return solver.InfiniteRoots();
+    } catch (...) { return false; }
+}
+
+// MARK: - IntAna2d_Conic (v0.109.0)
+
+#include <IntAna2d_Conic.hxx>
+#include <IntAna2d_AnaIntersection.hxx>
+#include <IntAna2d_IntPoint.hxx>
+#include <gp_Lin2d.hxx>
+#include <gp_Circ2d.hxx>
+#include <gp_Elips2d.hxx>
+
+void OCCTConic2dFromCircle(double cx, double cy, double dx, double dy, double radius,
+                            double* coeffs) {
+    try {
+        gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy)), radius);
+        IntAna2d_Conic conic(circ);
+        double A, B, C, D, E, F;
+        conic.Coefficients(A, B, C, D, E, F);
+        coeffs[0] = A; coeffs[1] = B; coeffs[2] = C;
+        coeffs[3] = D; coeffs[4] = E; coeffs[5] = F;
+    } catch (...) {
+        for (int i = 0; i < 6; i++) coeffs[i] = 0;
+    }
+}
+
+void OCCTConic2dFromLine(double px, double py, double dx, double dy,
+                          double* coeffs) {
+    try {
+        gp_Lin2d line(gp_Pnt2d(px, py), gp_Dir2d(dx, dy));
+        IntAna2d_Conic conic(line);
+        double A, B, C, D, E, F;
+        conic.Coefficients(A, B, C, D, E, F);
+        coeffs[0] = A; coeffs[1] = B; coeffs[2] = C;
+        coeffs[3] = D; coeffs[4] = E; coeffs[5] = F;
+    } catch (...) {
+        for (int i = 0; i < 6; i++) coeffs[i] = 0;
+    }
+}
+
+void OCCTConic2dFromEllipse(double cx, double cy, double dx, double dy,
+                             double majorRadius, double minorRadius,
+                             double* coeffs) {
+    try {
+        gp_Elips2d elips(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy)), majorRadius, minorRadius);
+        IntAna2d_Conic conic(elips);
+        double A, B, C, D, E, F;
+        conic.Coefficients(A, B, C, D, E, F);
+        coeffs[0] = A; coeffs[1] = B; coeffs[2] = C;
+        coeffs[3] = D; coeffs[4] = E; coeffs[5] = F;
+    } catch (...) {
+        for (int i = 0; i < 6; i++) coeffs[i] = 0;
+    }
+}
+
+int32_t OCCTConic2dLineCircleIntersect(double lpx, double lpy, double ldx, double ldy,
+                                        double cx, double cy, double cdx, double cdy, double radius,
+                                        double* xs, double* ys, int32_t max) {
+    try {
+        gp_Lin2d line(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(cdx, cdy)), radius);
+        IntAna2d_AnaIntersection inter(line, IntAna2d_Conic(circ));
+        if (!inter.IsDone()) return -1;
+        int n = inter.NbPoints();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            const IntAna2d_IntPoint& pt = inter.Point(i);
+            xs[count] = pt.Value().X();
+            ys[count] = pt.Value().Y();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// MARK: - BRepAlgo_NormalProjection (v0.109.0)
+
+#include <BRepAlgo_NormalProjection.hxx>
+
+struct OCCTNormalProjection {
+    BRepAlgo_NormalProjection proj;
+    OCCTNormalProjection(const TopoDS_Shape& s) : proj(s) {}
+};
+
+OCCTNormalProjectionRef OCCTNormalProjectionCreate(OCCTShapeRef targetShape) {
+    if (!targetShape) return nullptr;
+    try {
+        return new OCCTNormalProjection(targetShape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTNormalProjectionRelease(OCCTNormalProjectionRef proj) {
+    delete proj;
+}
+
+void OCCTNormalProjectionAdd(OCCTNormalProjectionRef proj, OCCTShapeRef wire) {
+    if (!proj || !wire) return;
+    try {
+        proj->proj.Add(wire->shape);
+    } catch (...) {}
+}
+
+bool OCCTNormalProjectionBuild(OCCTNormalProjectionRef proj) {
+    if (!proj) return false;
+    try {
+        proj->proj.SetDefaultParams();
+        proj->proj.Build();
+        return proj->proj.IsDone();
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTNormalProjectionResult(OCCTNormalProjectionRef proj) {
+    if (!proj) return nullptr;
+    try {
+        if (!proj->proj.IsDone()) return nullptr;
+        TopoDS_Shape result = proj->proj.Projection();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - OSD_Disk (v0.109.0)
+
+#include <OSD_Disk.hxx>
+#include <OSD_Path.hxx>
+
+int64_t OCCTDiskSize(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        OSD_Disk disk(opath);
+        return (int64_t)disk.DiskSize();
+    } catch (...) { return 0; }
+}
+
+int64_t OCCTDiskFree(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        OSD_Disk disk(opath);
+        return (int64_t)disk.DiskFree();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDiskIsValid(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        OSD_Disk disk(opath);
+        // If it doesn't throw, it's valid enough
+        disk.DiskSize();
+        return true;
+    } catch (...) { return false; }
+}
+
+char* OCCTDiskName(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        OSD_Disk disk(opath);
+        OSD_Path namePath = disk.Name();
+        TCollection_AsciiString nameStr;
+        namePath.SystemName(nameStr);
+        return strdup(nameStr.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - OSD_SharedLibrary (v0.109.0)
+
+#include <OSD_SharedLibrary.hxx>
+
+struct OCCTSharedLib {
+    OSD_SharedLibrary lib;
+    OCCTSharedLib(const char* name) : lib(name) {}
+};
+
+OCCTSharedLibRef OCCTSharedLibCreate(const char* name) {
+    try {
+        return new OCCTSharedLib(name);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTSharedLibRelease(OCCTSharedLibRef lib) {
+    delete lib;
+}
+
+bool OCCTSharedLibOpen(OCCTSharedLibRef lib) {
+    if (!lib) return false;
+    try {
+        return lib->lib.DlOpen(OSD_RTLD_LAZY);
+    } catch (...) { return false; }
+}
+
+void OCCTSharedLibClose(OCCTSharedLibRef lib) {
+    if (!lib) return;
+    try {
+        lib->lib.DlClose();
+    } catch (...) {}
+}
+
+char* OCCTSharedLibName(OCCTSharedLibRef lib) {
+    if (!lib) return nullptr;
+    try {
+        const char* name = lib->lib.Name();
+        return name ? strdup(name) : nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Message_Msg (v0.109.0)
+
+#include <Message_Msg.hxx>
+#include <Message_MsgFile.hxx>
+
+char* OCCTMessageMsgGet(const char* key) {
+    try {
+        Message_Msg msg(key);
+        TCollection_ExtendedString str = msg.Get();
+        TCollection_AsciiString astr(str);
+        return strdup(astr.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTMessageMsgFileLoad(const char* fileName) {
+    try {
+        return Message_MsgFile::LoadFile(fileName);
+    } catch (...) { return false; }
+}
+
+bool OCCTMessageMsgFileLoadDefault(void) {
+    try {
+        return Message_MsgFile::LoadFromEnv("CSF_XHatch", "");
+    } catch (...) { return false; }
+}
+
+bool OCCTMessageMsgHasMsg(const char* key) {
+    try {
+        return Message_MsgFile::HasMsg(TCollection_AsciiString(key));
+    } catch (...) { return false; }
+}
+
+// MARK: - Plate Constraints Extensions (v0.109.0)
+
+#include <Plate_GlobalTranslationConstraint.hxx>
+#include <Plate_LinearXYZConstraint.hxx>
+
+bool OCCTPlateLoadGlobalTranslation(OCCTPlateRef plate, const double* uvs, int32_t count) {
+    if (!plate || !uvs || count <= 0) return false;
+    try {
+        Plate_Plate* pp = (Plate_Plate*)plate;
+        NCollection_Sequence<gp_XY> pts;
+        for (int i = 0; i < count; i++) {
+            pts.Append(gp_XY(uvs[i * 2], uvs[i * 2 + 1]));
+        }
+        Plate_GlobalTranslationConstraint constraint(pts);
+        pp->Load(constraint.LXYZC());
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTPlateLoadLinearXYZ(OCCTPlateRef plate,
+                             const double* uvs,
+                             const double* targets,
+                             const double* coeffs,
+                             int32_t count) {
+    if (!plate || !uvs || !targets || !coeffs || count <= 0) return false;
+    try {
+        Plate_Plate* pp = (Plate_Plate*)plate;
+        // Build PinpointConstraints from UV+target pairs
+        NCollection_Array1<Plate_PinpointConstraint> ppc(1, count);
+        NCollection_Array2<double> coefs(1, 1, 1, count);
+        for (int i = 0; i < count; i++) {
+            gp_XY uv(uvs[i * 2], uvs[i * 2 + 1]);
+            gp_XYZ target(targets[i * 3], targets[i * 3 + 1], targets[i * 3 + 2]);
+            ppc.SetValue(i + 1, Plate_PinpointConstraint(uv, target));
+            coefs.SetValue(1, i + 1, coeffs[i]);
+        }
+        Plate_LinearXYZConstraint lc(ppc, coefs);
+        pp->Load(lc);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - Shape Topology Counting (v0.109.0)
+
+int32_t OCCTShapeCountFaces(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        int count = 0;
+        for (TopExp_Explorer ex(shape->shape, TopAbs_FACE); ex.More(); ex.Next()) count++;
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTShapeCountEdges(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        int count = 0;
+        for (TopExp_Explorer ex(shape->shape, TopAbs_EDGE); ex.More(); ex.Next()) count++;
+        return count;
+    } catch (...) { return 0; }
+}
+
+char* OCCTShapeTypeString(OCCTShapeRef shape) {
+    if (!shape) return strdup("null");
+    try {
+        switch (shape->shape.ShapeType()) {
+            case TopAbs_COMPOUND:  return strdup("compound");
+            case TopAbs_COMPSOLID: return strdup("compsolid");
+            case TopAbs_SOLID:     return strdup("solid");
+            case TopAbs_SHELL:     return strdup("shell");
+            case TopAbs_FACE:      return strdup("face");
+            case TopAbs_WIRE:      return strdup("wire");
+            case TopAbs_EDGE:      return strdup("edge");
+            case TopAbs_VERTEX:    return strdup("vertex");
+            default:               return strdup("shape");
+        }
+    } catch (...) { return strdup("unknown"); }
+}
+
+// MARK: - Curve3D Extras (v0.109.0)
+
+bool OCCTCurve3DReverse(OCCTCurve3DRef curve) {
+    if (!curve) return false;
+    try {
+        curve->curve->Reverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTCurve3DRef OCCTCurve3DCopy(OCCTCurve3DRef curve) {
+    if (!curve) return nullptr;
+    try {
+        Handle(Geom_Curve) copy = Handle(Geom_Curve)::DownCast(curve->curve->Copy());
+        if (copy.IsNull()) return nullptr;
+        return new OCCTCurve3D(copy);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTCurve3DContinuity(OCCTCurve3DRef curve) {
+    if (!curve) return -1;
+    try {
+        GeomAbs_Shape cont = curve->curve->Continuity();
+        switch (cont) {
+            case GeomAbs_C0: return 0;
+            case GeomAbs_C1: return 1;
+            case GeomAbs_C2: return 2;
+            case GeomAbs_C3: return 3;
+            case GeomAbs_CN: return 99;
+            case GeomAbs_G1: return -2;
+            case GeomAbs_G2: return -3;
+            default: return -1;
+        }
+    } catch (...) { return -1; }
+}
+
+// MARK: - Curve2D Extras (v0.109.0)
+
+bool OCCTCurve2DReverse(OCCTCurve2DRef curve) {
+    if (!curve) return false;
+    try {
+        curve->curve->Reverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTCurve2DRef OCCTCurve2DCopy(OCCTCurve2DRef curve) {
+    if (!curve) return nullptr;
+    try {
+        Handle(Geom2d_Curve) copy = Handle(Geom2d_Curve)::DownCast(curve->curve->Copy());
+        if (copy.IsNull()) return nullptr;
+        return new OCCTCurve2D(copy);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTCurve2DContinuity(OCCTCurve2DRef curve) {
+    if (!curve) return -1;
+    try {
+        GeomAbs_Shape cont = curve->curve->Continuity();
+        switch (cont) {
+            case GeomAbs_C0: return 0;
+            case GeomAbs_C1: return 1;
+            case GeomAbs_C2: return 2;
+            case GeomAbs_C3: return 3;
+            case GeomAbs_CN: return 99;
+            case GeomAbs_G1: return -2;
+            case GeomAbs_G2: return -3;
+            default: return -1;
+        }
+    } catch (...) { return -1; }
+}
+
+// MARK: - Surface Extras (v0.109.0)
+
+void OCCTSurfaceBounds(OCCTSurfaceRef surface,
+                        double* uMin, double* uMax,
+                        double* vMin, double* vMax) {
+    *uMin = 0; *uMax = 0; *vMin = 0; *vMax = 0;
+    if (!surface) return;
+    try {
+        surface->surface->Bounds(*uMin, *uMax, *vMin, *vMax);
+    } catch (...) {}
+}
+
+int32_t OCCTSurfaceContinuity(OCCTSurfaceRef surface) {
+    if (!surface) return -1;
+    try {
+        GeomAbs_Shape cont = surface->surface->Continuity();
+        switch (cont) {
+            case GeomAbs_C0: return 0;
+            case GeomAbs_C1: return 1;
+            case GeomAbs_C2: return 2;
+            case GeomAbs_C3: return 3;
+            case GeomAbs_CN: return 99;
+            case GeomAbs_G1: return -2;
+            case GeomAbs_G2: return -3;
+            default: return -1;
+        }
+    } catch (...) { return -1; }
+}
+
+OCCTSurfaceRef OCCTSurfaceCopy(OCCTSurfaceRef surface) {
+    if (!surface) return nullptr;
+    try {
+        Handle(Geom_Surface) copy = Handle(Geom_Surface)::DownCast(surface->surface->Copy());
+        if (copy.IsNull()) return nullptr;
+        return new OCCTSurface(copy);
+    } catch (...) { return nullptr; }
+}

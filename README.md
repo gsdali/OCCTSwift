@@ -385,7 +385,23 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Geom2d_Parabola Properties** | 5 | focal, setFocal, focus, eccentricity, parameter |
 | **Geom2d_Line Properties** | 6 | direction, location, setDirection, setLocation, distance, lin2d |
 | **Geom2d_OffsetCurve Properties** | 3 | offset, setOffset, basisCurve |
-| **Total** | **2458** | |
+| **Extrema_ExtElC** | 4 | lineToLine, lineToCircle, circleToCircle, lineToEllipse |
+| **Extrema_ExtElCS** | 3 | lineToPlane, lineToSphere, lineToCylinder |
+| **Extrema_ExtElSS** | 3 | planeToPlane, planeToSphere, sphereToSphere |
+| **Extrema_ExtPElC** | 4 | pointToLine, pointToCircle, pointToEllipse, pointToParabola |
+| **Extrema_ExtPElS** | 5 | pointToPlane, pointToSphere, pointToCylinder, pointToCone, pointToTorus |
+| **math_TrigonometricFunctionRoots** | 2 | solve, hasInfiniteRoots |
+| **IntAna2d_Conic** | 4 | fromCircle, fromLine, fromEllipse, lineCircleIntersection |
+| **BRepAlgo_NormalProjection** | 5 | create, release, add, build, result |
+| **OSD_Disk** | 4 | size, freeSpace, isValid, name |
+| **OSD_SharedLibrary** | 5 | create, release, open, close, name |
+| **Message_Msg** | 4 | message(forKey:), loadFile, loadDefault, hasMessage |
+| **Plate Constraint Extensions (v2)** | 2 | globalTranslation, linearXYZ |
+| **Shape Topology Counting** | 3 | faceCount, edgeCount, shapeTypeString |
+| **Curve3D Extras** | 3 | reverse, copy, continuity |
+| **Curve2D Extras** | 3 | reverse, copy, continuity |
+| **Surface Extras** | 3 | parameterBounds, surfaceContinuityOrder, copy |
+| **Total** | **2515** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -739,6 +755,16 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Offset Surface Introspection**: Geom_OffsetSurface — query and mutate offset distance, extract basis surface
 - **Platform-Independent File I/O**: OSD_File — OCCT's portable file wrapper with open (read/write/read-only), write string/bytes, readLine, readAll, size query, rewind, EOF check, and temporary file creation
 - **Selective Wireframe Fix**: ShapeFix_Wireframe — fix only wire gaps (fixWireGaps) or only small edges (fixSmallEdges with drop/merge mode and limit angle control) in a shape
+- **Elementary Extrema Distances**: Extrema_ExtElC/ExtElCS/ExtElSS/ExtPElC/ExtPElS -- closed-form distance computations between lines, circles, ellipses, planes, spheres, cylinders, cones, tori, and parabolas
+- **Trigonometric Root Finder**: math_TrigonometricFunctionRoots -- solve A*cos(x)+B*sin(x)+C*cos(2x)+D*sin(2x)+E=0 on intervals with infinite-root detection
+- **2D Conic Coefficients**: IntAna2d_Conic -- extract implicit conic equation coefficients from circles, lines, ellipses; line-circle intersection via conic representation
+- **Normal Projection**: BRepAlgo_NormalProjection -- project wires/edges onto shapes along surface normals
+- **Disk Information**: OSD_Disk -- query disk size, free space, and volume name for any path
+- **Dynamic Library Handle**: OSD_SharedLibrary -- load/unload shared libraries by path with symbol lookup
+- **Message System**: Message_Msg/MsgFile -- OCCT localized message lookup, file loading, and key checking
+- **Plate Global/Linear Constraints**: Plate_GlobalTranslationConstraint + Plate_LinearXYZConstraint -- advanced plate solver constraint modes
+- **Shape Topology Counting**: Fast face/edge counting via TopExp_Explorer plus shape type string identification
+- **Curve/Surface Extras**: In-place reverse, deep copy, parameter bounds, and continuity queries for 3D/2D curves and surfaces
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements

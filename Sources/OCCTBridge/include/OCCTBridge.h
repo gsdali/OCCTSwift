@@ -14783,6 +14783,330 @@ bool OCCTCurve2DOffsetSetValue(OCCTCurve2DRef _Nonnull curve, double offset);
 /// Get the basis curve of a Geom2d_OffsetCurve.
 OCCTCurve2DRef _Nullable OCCTCurve2DOffsetBasisCurve(OCCTCurve2DRef _Nonnull curve);
 
+// MARK: - Extrema_ExtElC: Elementary Curve-Curve Distance (v0.109.0)
+
+/// 3D elementary extrema result
+typedef struct {
+    double squareDistance;
+    double x1, y1, z1;  ///< Point on first element
+    double x2, y2, z2;  ///< Point on second element
+} OCCTExtremaElResult;
+
+/// Distance between two 3D lines (Extrema_ExtElC).
+/// @param outIsParallel Set to true if lines are parallel
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElCLinLin(double l1px, double l1py, double l1pz, double l1dx, double l1dy, double l1dz,
+                              double l2px, double l2py, double l2pz, double l2dx, double l2dy, double l2dz,
+                              double tolerance,
+                              bool* _Nonnull outIsParallel,
+                              OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Distance between a 3D line and circle (Extrema_ExtElC).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElCLinCirc(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                               double cx, double cy, double cz, double nx, double ny, double nz, double radius,
+                               double tolerance,
+                               OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Distance between two 3D circles (Extrema_ExtElC).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElCCircCirc(double c1x, double c1y, double c1z, double n1x, double n1y, double n1z, double r1,
+                                double c2x, double c2y, double c2z, double n2x, double n2y, double n2z, double r2,
+                                OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Distance between a 3D line and ellipse (Extrema_ExtElC).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElCLinElips(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                                double cx, double cy, double cz, double nx, double ny, double nz,
+                                double xdx, double xdy, double xdz,
+                                double majorRadius, double minorRadius,
+                                double tolerance,
+                                OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+// MARK: - Extrema_ExtElCS: Elementary Curve-Surface Distance (v0.109.0)
+
+/// Distance between a 3D line and plane (Extrema_ExtElCS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElCSLinPlane(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                                 double plx, double ply, double plz, double pnx, double pny, double pnz,
+                                 bool* _Nonnull outIsParallel,
+                                 OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Distance between a 3D line and sphere (Extrema_ExtElCS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElCSLinSphere(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                                   double cx, double cy, double cz, double radius,
+                                   OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Distance between a 3D line and cylinder (Extrema_ExtElCS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElCSLinCylinder(double lpx, double lpy, double lpz, double ldx, double ldy, double ldz,
+                                     double cx, double cy, double cz, double nx, double ny, double nz, double radius,
+                                     OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+// MARK: - Extrema_ExtElSS: Elementary Surface-Surface Distance (v0.109.0)
+
+/// Distance between two planes (Extrema_ExtElSS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElSSPlanePlane(double pl1x, double pl1y, double pl1z, double pn1x, double pn1y, double pn1z,
+                                    double pl2x, double pl2y, double pl2z, double pn2x, double pn2y, double pn2z,
+                                    bool* _Nonnull outIsParallel,
+                                    OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Distance between a plane and sphere (Extrema_ExtElSS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElSSPlaneSphere(double plx, double ply, double plz, double pnx, double pny, double pnz,
+                                     double cx, double cy, double cz, double radius,
+                                     OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Distance between two spheres (Extrema_ExtElSS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaElSSSphereSphere(double c1x, double c1y, double c1z, double r1,
+                                      double c2x, double c2y, double c2z, double r2,
+                                      OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+// MARK: - Extrema_ExtPElC: Point to Elementary Curve Distance (v0.109.0)
+
+/// Closest distance from a point to a 3D line (Extrema_ExtPElC).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElCLin(double px, double py, double pz,
+                                double lx, double ly, double lz, double ldx, double ldy, double ldz,
+                                double tolerance,
+                                OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Closest distance from a point to a 3D circle (Extrema_ExtPElC).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElCCirc(double px, double py, double pz,
+                                 double cx, double cy, double cz, double nx, double ny, double nz, double radius,
+                                 double tolerance,
+                                 OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Closest distance from a point to a 3D ellipse (Extrema_ExtPElC).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElCElips(double px, double py, double pz,
+                                  double cx, double cy, double cz, double nx, double ny, double nz,
+                                  double xdx, double xdy, double xdz,
+                                  double majorRadius, double minorRadius,
+                                  double tolerance,
+                                  OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Closest distance from a point to a 3D parabola (Extrema_ExtPElC).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElCParab(double px, double py, double pz,
+                                  double cx, double cy, double cz, double nx, double ny, double nz,
+                                  double xdx, double xdy, double xdz,
+                                  double focal,
+                                  double tolerance,
+                                  OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+// MARK: - Extrema_ExtPElS: Point to Elementary Surface Distance (v0.109.0)
+
+/// Closest distance from a point to a plane (Extrema_ExtPElS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElSPlane(double px, double py, double pz,
+                                  double plx, double ply, double plz, double pnx, double pny, double pnz,
+                                  double tolerance,
+                                  OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Closest distance from a point to a sphere (Extrema_ExtPElS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElSSphere(double px, double py, double pz,
+                                   double cx, double cy, double cz, double radius,
+                                   double tolerance,
+                                   OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Closest distance from a point to a cylinder (Extrema_ExtPElS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElSCylinder(double px, double py, double pz,
+                                     double cx, double cy, double cz, double nx, double ny, double nz, double radius,
+                                     double tolerance,
+                                     OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Closest distance from a point to a cone (Extrema_ExtPElS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElSCone(double px, double py, double pz,
+                                 double cx, double cy, double cz, double nx, double ny, double nz,
+                                 double semiAngle, double refRadius,
+                                 double tolerance,
+                                 OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+/// Closest distance from a point to a torus (Extrema_ExtPElS).
+/// @return Number of extrema (-1 on error)
+int32_t OCCTExtremaExtPElSTorus(double px, double py, double pz,
+                                  double cx, double cy, double cz, double nx, double ny, double nz,
+                                  double majorRadius, double minorRadius,
+                                  double tolerance,
+                                  OCCTExtremaElResult* _Nonnull out, int32_t max);
+
+// MARK: - math_TrigonometricFunctionRoots (v0.109.0)
+
+/// Find roots of A*cos(x) + B*sin(x) + C*cos(2x) + D*sin(2x) + E = 0 on [inf,sup].
+/// @return Number of roots found (-1 on error)
+int32_t OCCTTrigRoots(double A, double B, double C, double D, double E,
+                       double inf, double sup,
+                       double* _Nonnull roots, int32_t maxRoots);
+
+/// Check if all reals in [inf,sup] are solutions.
+bool OCCTTrigRootsInfinite(double A, double B, double C, double D, double E,
+                            double inf, double sup);
+
+// MARK: - IntAna2d_Conic (v0.109.0)
+
+/// Get 6 conic coefficients from a 2D circle: A*x^2 + B*x*y + C*y^2 + D*x + E*y + F = 0.
+void OCCTConic2dFromCircle(double cx, double cy, double dx, double dy, double radius,
+                            double* _Nonnull coeffs);
+
+/// Get 6 conic coefficients from a 2D line.
+void OCCTConic2dFromLine(double px, double py, double dx, double dy,
+                          double* _Nonnull coeffs);
+
+/// Get 6 conic coefficients from a 2D ellipse.
+void OCCTConic2dFromEllipse(double cx, double cy, double dx, double dy,
+                             double majorRadius, double minorRadius,
+                             double* _Nonnull coeffs);
+
+/// Intersect a 2D line with a 2D circle conic. Returns intersection points.
+/// @return Number of intersection points (-1 on error)
+int32_t OCCTConic2dLineCircleIntersect(double lpx, double lpy, double ldx, double ldy,
+                                        double cx, double cy, double cdx, double cdy, double radius,
+                                        double* _Nonnull xs, double* _Nonnull ys, int32_t max);
+
+// MARK: - BRepAlgo_NormalProjection (v0.109.0)
+
+typedef struct OCCTNormalProjection* OCCTNormalProjectionRef;
+
+/// Create a normal projection tool targeting the given shape.
+OCCTNormalProjectionRef _Nullable OCCTNormalProjectionCreate(OCCTShapeRef _Nonnull targetShape);
+
+/// Release a normal projection tool.
+void OCCTNormalProjectionRelease(OCCTNormalProjectionRef _Nullable proj);
+
+/// Add a wire/edge to be projected.
+void OCCTNormalProjectionAdd(OCCTNormalProjectionRef _Nonnull proj, OCCTShapeRef _Nonnull wire);
+
+/// Build the projection. Returns true on success.
+bool OCCTNormalProjectionBuild(OCCTNormalProjectionRef _Nonnull proj);
+
+/// Get the projection result shape.
+OCCTShapeRef _Nullable OCCTNormalProjectionResult(OCCTNormalProjectionRef _Nonnull proj);
+
+// MARK: - OSD_Disk (v0.109.0)
+
+/// Get disk total size in KB for path (0 if unavailable).
+int64_t OCCTDiskSize(const char* _Nonnull path);
+
+/// Get disk free space in KB for path (0 if unavailable).
+int64_t OCCTDiskFree(const char* _Nonnull path);
+
+/// Check if a disk path is valid/accessible.
+bool OCCTDiskIsValid(const char* _Nonnull path);
+
+/// Get the disk/volume name. Caller must free() the result.
+char* _Nullable OCCTDiskName(const char* _Nonnull path);
+
+// MARK: - OSD_SharedLibrary (v0.109.0)
+
+typedef struct OCCTSharedLib* OCCTSharedLibRef;
+
+/// Create a shared library handle by name/path.
+OCCTSharedLibRef _Nullable OCCTSharedLibCreate(const char* _Nonnull name);
+
+/// Release a shared library handle.
+void OCCTSharedLibRelease(OCCTSharedLibRef _Nullable lib);
+
+/// Open (dlopen) the shared library.
+bool OCCTSharedLibOpen(OCCTSharedLibRef _Nonnull lib);
+
+/// Close (dlclose) the shared library.
+void OCCTSharedLibClose(OCCTSharedLibRef _Nonnull lib);
+
+/// Get the name of the shared library. Caller must free() the result.
+char* _Nullable OCCTSharedLibName(OCCTSharedLibRef _Nonnull lib);
+
+// MARK: - Message_Msg (v0.109.0)
+
+/// Create a message from a key and return its text. Caller must free() the result.
+char* _Nullable OCCTMessageMsgGet(const char* _Nonnull key);
+
+/// Load message definitions from a file.
+bool OCCTMessageMsgFileLoad(const char* _Nonnull fileName);
+
+/// Load the default OCCT message file.
+bool OCCTMessageMsgFileLoadDefault(void);
+
+/// Check if a message key is registered.
+bool OCCTMessageMsgHasMsg(const char* _Nonnull key);
+
+// MARK: - Plate Constraints Extensions (v0.109.0)
+
+/// Load a global translation constraint on the plate solver.
+/// All sample points are constrained to move by the same unknown displacement.
+/// @param plate The Plate_Plate solver ref
+/// @param uvs Array of [u,v] pairs (count*2 doubles)
+/// @param count Number of UV points
+/// @return true on success
+bool OCCTPlateLoadGlobalTranslation(OCCTPlateRef _Nonnull plate,
+                                     const double* _Nonnull uvs, int32_t count);
+
+/// Load a linear XYZ constraint on the plate solver.
+/// @param plate The Plate_Plate solver ref
+/// @param uvs Array of [u,v] pairs (count*2 doubles)
+/// @param targets Array of [x,y,z] target values (count*3 doubles)
+/// @param coeffs Array of coefficients (count doubles)
+/// @param count Number of constraint points
+/// @return true on success
+bool OCCTPlateLoadLinearXYZ(OCCTPlateRef _Nonnull plate,
+                             const double* _Nonnull uvs,
+                             const double* _Nonnull targets,
+                             const double* _Nonnull coeffs,
+                             int32_t count);
+
+// MARK: - Shape Topology Counting (v0.109.0)
+
+/// Count the number of faces in a shape.
+int32_t OCCTShapeCountFaces(OCCTShapeRef _Nonnull shape);
+
+/// Count the number of edges in a shape.
+int32_t OCCTShapeCountEdges(OCCTShapeRef _Nonnull shape);
+
+/// Get the shape type as a string. Caller must free() the result.
+char* _Nullable OCCTShapeTypeString(OCCTShapeRef _Nonnull shape);
+
+// MARK: - Curve3D Extras (v0.109.0)
+
+/// Reverse the curve in-place.
+bool OCCTCurve3DReverse(OCCTCurve3DRef _Nonnull curve);
+
+/// Deep copy a 3D curve.
+OCCTCurve3DRef _Nullable OCCTCurve3DCopy(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the continuity order of a 3D curve (0=C0, 1=C1, 2=C2, 3=C3, ...).
+int32_t OCCTCurve3DContinuity(OCCTCurve3DRef _Nonnull curve);
+
+// MARK: - Curve2D Extras (v0.109.0)
+
+/// Reverse a 2D curve in-place.
+bool OCCTCurve2DReverse(OCCTCurve2DRef _Nonnull curve);
+
+/// Deep copy a 2D curve.
+OCCTCurve2DRef _Nullable OCCTCurve2DCopy(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the continuity order of a 2D curve.
+int32_t OCCTCurve2DContinuity(OCCTCurve2DRef _Nonnull curve);
+
+// MARK: - Surface Extras (v0.109.0)
+
+/// Get the parameter bounds of a surface.
+void OCCTSurfaceBounds(OCCTSurfaceRef _Nonnull surface,
+                        double* _Nonnull uMin, double* _Nonnull uMax,
+                        double* _Nonnull vMin, double* _Nonnull vMax);
+
+/// Get the continuity order of a surface (0=C0, 1=C1, 2=C2...).
+int32_t OCCTSurfaceContinuity(OCCTSurfaceRef _Nonnull surface);
+
+/// Deep copy a surface.
+OCCTSurfaceRef _Nullable OCCTSurfaceCopy(OCCTSurfaceRef _Nonnull surface);
+
 #ifdef __cplusplus
 }
 #endif
