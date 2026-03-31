@@ -40975,3 +40975,713 @@ void OCCTSurfaceGetNBounds(OCCTSurfaceRef surface, int32_t* uSpans, int32_t* vSp
         *vSpans = (v2 > v1) ? 1 : 0;
     } catch (...) {}
 }
+
+// MARK: - Geom_BSplineCurve Methods (v0.107.0)
+
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_BezierCurve.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Hatch_Hatcher.hxx>
+#include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRep_Tool.hxx>
+#include <BRepTools.hxx>
+#include <BRepLib.hxx>
+#include <TopoDS.hxx>
+#include <TopExp_Explorer.hxx>
+#include <gp_Sphere.hxx>
+#include <gp_Torus.hxx>
+#include <gp_Cone.hxx>
+
+int32_t OCCTCurve3DBSplineKnotCount(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->NbKnots();
+}
+
+int32_t OCCTCurve3DBSplinePoleCount(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->NbPoles();
+}
+
+int32_t OCCTCurve3DBSplineDegree(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->Degree();
+}
+
+bool OCCTCurve3DBSplineIsRational(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    return bs->IsRational();
+}
+
+void OCCTCurve3DBSplineGetKnots(OCCTCurve3DRef curve, double* knots) {
+    if (!curve || curve->curve.IsNull() || !knots) return;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    TColStd_Array1OfReal kArr(1, bs->NbKnots());
+    bs->Knots(kArr);
+    for (int i = 1; i <= bs->NbKnots(); i++) knots[i-1] = kArr(i);
+}
+
+void OCCTCurve3DBSplineGetMults(OCCTCurve3DRef curve, int32_t* mults) {
+    if (!curve || curve->curve.IsNull() || !mults) return;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    TColStd_Array1OfInteger mArr(1, bs->NbKnots());
+    bs->Multiplicities(mArr);
+    for (int i = 1; i <= bs->NbKnots(); i++) mults[i-1] = mArr(i);
+}
+
+void OCCTCurve3DBSplineGetPole(OCCTCurve3DRef curve, int32_t index, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return;
+    gp_Pnt p = bs->Pole(index);
+    *x = p.X(); *y = p.Y(); *z = p.Z();
+}
+
+bool OCCTCurve3DBSplineSetPole(OCCTCurve3DRef curve, int32_t index, double x, double y, double z) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return false;
+    try { bs->SetPole(index, gp_Pnt(x, y, z)); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineSetWeight(OCCTCurve3DRef curve, int32_t index, double weight) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return false;
+    try { bs->SetWeight(index, weight); return true; } catch (...) { return false; }
+}
+
+double OCCTCurve3DBSplineGetWeight(OCCTCurve3DRef curve, int32_t index) {
+    if (!curve || curve->curve.IsNull()) return 1.0;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return 1.0;
+    return bs->Weight(index);
+}
+
+bool OCCTCurve3DBSplineInsertKnot(OCCTCurve3DRef curve, double u, int32_t mult, double tol) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->InsertKnot(u, mult, tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineRemoveKnot(OCCTCurve3DRef curve, int32_t index, int32_t mult, double tol) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbKnots()) return false;
+    try { return bs->RemoveKnot(index, mult, tol); } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineSegment(OCCTCurve3DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->Segment(u1, u2); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineIncreaseDegree(OCCTCurve3DRef curve, int32_t degree) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseDegree(degree); return true; } catch (...) { return false; }
+}
+
+double OCCTCurve3DBSplineResolution(OCCTCurve3DRef curve, double tolerance3d) {
+    if (!curve || curve->curve.IsNull()) return 0.0;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0.0;
+    double uTol = 0;
+    bs->Resolution(tolerance3d, uTol);
+    return uTol;
+}
+
+bool OCCTCurve3DBSplineSetPeriodic(OCCTCurve3DRef curve, bool periodic) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try {
+        if (periodic) bs->SetPeriodic(); else bs->SetNotPeriodic();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - Geom_BSplineSurface Methods (v0.107.0)
+
+int32_t OCCTSurfaceBSplineNbUKnots(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->NbUKnots();
+}
+
+int32_t OCCTSurfaceBSplineNbVKnots(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->NbVKnots();
+}
+
+int32_t OCCTSurfaceBSplineNbUPoles(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->NbUPoles();
+}
+
+int32_t OCCTSurfaceBSplineNbVPoles(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->NbVPoles();
+}
+
+int32_t OCCTSurfaceBSplineUDegree(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->UDegree();
+}
+
+int32_t OCCTSurfaceBSplineVDegree(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->VDegree();
+}
+
+bool OCCTSurfaceBSplineIsURational(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    return bs->IsURational();
+}
+
+bool OCCTSurfaceBSplineIsVRational(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    return bs->IsVRational();
+}
+
+void OCCTSurfaceBSplineGetPole(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    if (uIndex < 1 || uIndex > bs->NbUPoles() || vIndex < 1 || vIndex > bs->NbVPoles()) return;
+    gp_Pnt p = bs->Pole(uIndex, vIndex);
+    *x = p.X(); *y = p.Y(); *z = p.Z();
+}
+
+bool OCCTSurfaceBSplineSetPole(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex, double x, double y, double z) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetPole(uIndex, vIndex, gp_Pnt(x, y, z)); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetWeight(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex, double weight) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetWeight(uIndex, vIndex, weight); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineInsertUKnot(OCCTSurfaceRef surface, double u, int32_t mult, double tol) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->InsertUKnot(u, mult, tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineInsertVKnot(OCCTSurfaceRef surface, double v, int32_t mult, double tol) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->InsertVKnot(v, mult, tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSegment(OCCTSurfaceRef surface, double u1, double u2, double v1, double v2) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->Segment(u1, u2, v1, v2); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncreaseDegree(OCCTSurfaceRef surface, int32_t uDeg, int32_t vDeg) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseDegree(uDeg, vDeg); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineExchangeUV(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->ExchangeUV(); return true; } catch (...) { return false; }
+}
+
+// MARK: - Geom2d_BSplineCurve Methods (v0.107.0)
+
+int32_t OCCTCurve2DBSplineKnotCount(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->NbKnots();
+}
+
+int32_t OCCTCurve2DBSplinePoleCount(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->NbPoles();
+}
+
+int32_t OCCTCurve2DBSplineDegree(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->Degree();
+}
+
+bool OCCTCurve2DBSplineIsRational(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    return bs->IsRational();
+}
+
+void OCCTCurve2DBSplineGetPole(OCCTCurve2DRef curve, int32_t index, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return;
+    gp_Pnt2d p = bs->Pole(index);
+    *x = p.X(); *y = p.Y();
+}
+
+bool OCCTCurve2DBSplineSetPole(OCCTCurve2DRef curve, int32_t index, double x, double y) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return false;
+    try { bs->SetPole(index, gp_Pnt2d(x, y)); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineSetWeight(OCCTCurve2DRef curve, int32_t index, double weight) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return false;
+    try { bs->SetWeight(index, weight); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineInsertKnot(OCCTCurve2DRef curve, double u, int32_t mult, double tol) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->InsertKnot(u, mult, tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineRemoveKnot(OCCTCurve2DRef curve, int32_t index, int32_t mult, double tol) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbKnots()) return false;
+    try { return bs->RemoveKnot(index, mult, tol); } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineSegment(OCCTCurve2DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->Segment(u1, u2); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineIncreaseDegree(OCCTCurve2DRef curve, int32_t degree) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseDegree(degree); return true; } catch (...) { return false; }
+}
+
+double OCCTCurve2DBSplineResolution(OCCTCurve2DRef curve, double tolerance) {
+    if (!curve || curve->curve.IsNull()) return 0.0;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0.0;
+    double uTol = 0;
+    bs->Resolution(tolerance, uTol);
+    return uTol;
+}
+
+// MARK: - Bezier Curve Methods (v0.107.0)
+
+void OCCTCurve3DBezierGetPole(OCCTCurve3DRef curve, int32_t index, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull() || index < 1 || index > bz->NbPoles()) return;
+    gp_Pnt p = bz->Pole(index);
+    *x = p.X(); *y = p.Y(); *z = p.Z();
+}
+
+bool OCCTCurve3DBezierSetPole(OCCTCurve3DRef curve, int32_t index, double x, double y, double z) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { bz->SetPole(index, gp_Pnt(x, y, z)); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierSetWeight(OCCTCurve3DRef curve, int32_t index, double weight) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { bz->SetWeight(index, weight); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierInsertPoleAfter(OCCTCurve3DRef curve, int32_t index, double x, double y, double z) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { bz->InsertPoleAfter(index, gp_Pnt(x, y, z)); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierRemovePole(OCCTCurve3DRef curve, int32_t index) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { bz->RemovePole(index); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierSegment(OCCTCurve3DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { bz->Segment(u1, u2); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierIncreaseDegree(OCCTCurve3DRef curve, int32_t degree) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { bz->Increase(degree); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierIsRational(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    return bz->IsRational();
+}
+
+int32_t OCCTCurve3DBezierDegree(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return 0;
+    return bz->Degree();
+}
+
+int32_t OCCTCurve3DBezierPoleCount(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom_BezierCurve) bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return 0;
+    return bz->NbPoles();
+}
+
+// MARK: - BRepTools/BRepLib Utilities (v0.107.0)
+
+void OCCTShapeClean(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::Clean(shape->shape); } catch (...) {}
+}
+
+void OCCTShapeCleanGeometry(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::CleanGeometry(shape->shape); } catch (...) {}
+}
+
+void OCCTShapeRemoveUnusedPCurves(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::RemoveUnusedPCurves(shape->shape); } catch (...) {}
+}
+
+void OCCTShapeUpdate(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::Update(shape->shape); } catch (...) {}
+}
+
+bool OCCTBRepLibCheckSameRange(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try { return BRepLib::CheckSameRange(TopoDS::Edge(edge->shape)); } catch (...) { return false; }
+}
+
+bool OCCTBRepLibSameRange(OCCTShapeRef edge, double tol) {
+    if (!edge) return false;
+    try { BRepLib::SameRange(TopoDS::Edge(edge->shape), tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTBRepLibBuildCurve3d(OCCTShapeRef edge, double tol) {
+    if (!edge) return false;
+    try { return BRepLib::BuildCurve3d(TopoDS::Edge(edge->shape), tol); } catch (...) { return false; }
+}
+
+void OCCTBRepLibUpdateTolerances(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepLib::UpdateTolerances(shape->shape); } catch (...) {}
+}
+
+void OCCTBRepLibUpdateInnerTolerances(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepLib::UpdateInnerTolerances(shape->shape); } catch (...) {}
+}
+
+bool OCCTBRepLibUpdateEdgeTolerance(OCCTShapeRef edge, double tol) {
+    if (!edge) return false;
+    try { return BRepLib::UpdateEdgeTol(TopoDS::Edge(edge->shape), tol, tol * 100.0); } catch (...) { return false; }
+}
+
+// MARK: - MakeFace Extras (v0.107.0)
+
+OCCTShapeRef OCCTMakeFaceFromSphere(double cx, double cy, double cz, double radius, double umin, double umax, double vmin, double vmax) {
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(0, 0, 1)), radius);
+        BRepBuilderAPI_MakeFace mf(sphere, umin, umax, vmin, vmax);
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceFromTorus(double cx, double cy, double cz, double nx, double ny, double nz, double major, double minor, double umin, double umax, double vmin, double vmax) {
+    try {
+        gp_Torus torus(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), major, minor);
+        BRepBuilderAPI_MakeFace mf(torus, umin, umax, vmin, vmax);
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceFromCone(double cx, double cy, double cz, double nx, double ny, double nz, double angle, double radius, double umin, double umax, double vmin, double vmax) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), angle, radius);
+        BRepBuilderAPI_MakeFace mf(cone, umin, umax, vmin, vmax);
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceFromSurfaceWire(OCCTSurfaceRef surface, OCCTShapeRef wire, bool inside) {
+    if (!surface || surface->surface.IsNull() || !wire) return nullptr;
+    try {
+        BRepBuilderAPI_MakeFace mf(surface->surface, TopoDS::Wire(wire->shape), inside);
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceAddHole(OCCTShapeRef face, OCCTShapeRef wire) {
+    if (!face || !wire) return nullptr;
+    try {
+        BRepBuilderAPI_MakeFace mf(TopoDS::Face(face->shape));
+        mf.Add(TopoDS::Wire(wire->shape));
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceCopy(OCCTShapeRef face) {
+    if (!face) return nullptr;
+    try {
+        BRepBuilderAPI_MakeFace mf(TopoDS::Face(face->shape));
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Sewing (v0.107.0)
+
+struct OCCTSewing {
+    BRepBuilderAPI_Sewing sewing;
+    OCCTSewing(double tol) : sewing(tol) {}
+};
+
+OCCTSewingRef OCCTSewingCreate(double tolerance) {
+    try { return new OCCTSewing(tolerance); } catch (...) { return nullptr; }
+}
+
+void OCCTSewingRelease(OCCTSewingRef sewing) {
+    delete sewing;
+}
+
+void OCCTSewingAdd(OCCTSewingRef sewing, OCCTShapeRef shape) {
+    if (!sewing || !shape) return;
+    try { sewing->sewing.Add(shape->shape); } catch (...) {}
+}
+
+void OCCTSewingPerform(OCCTSewingRef sewing) {
+    if (!sewing) return;
+    try { sewing->sewing.Perform(); } catch (...) {}
+}
+
+OCCTShapeRef OCCTSewingResult(OCCTSewingRef sewing) {
+    if (!sewing) return nullptr;
+    try {
+        TopoDS_Shape result = sewing->sewing.SewedShape();
+        if (result.IsNull()) return nullptr;
+        auto r = new OCCTShape();
+        r->shape = result;
+        return r;
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTSewingNbFreeEdges(OCCTSewingRef sewing) {
+    if (!sewing) return 0;
+    try { return sewing->sewing.NbFreeEdges(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSewingNbContigousEdges(OCCTSewingRef sewing) {
+    if (!sewing) return 0;
+    try { return sewing->sewing.NbContigousEdges(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSewingNbDegeneratedShapes(OCCTSewingRef sewing) {
+    if (!sewing) return 0;
+    try { return sewing->sewing.NbDegeneratedShapes(); } catch (...) { return 0; }
+}
+
+// MARK: - Hatch_Hatcher (v0.107.0)
+
+struct OCCTHatcher {
+    Hatch_Hatcher hatcher;
+    OCCTHatcher(double tol) : hatcher(tol, false) {}
+};
+
+OCCTHatcherRef OCCTHatcherCreate(double tolerance) {
+    try { return new OCCTHatcher(tolerance); } catch (...) { return nullptr; }
+}
+
+void OCCTHatcherRelease(OCCTHatcherRef hatcher) {
+    delete hatcher;
+}
+
+void OCCTHatcherAddXLine(OCCTHatcherRef hatcher, double x) {
+    if (!hatcher) return;
+    try { hatcher->hatcher.AddXLine(x); } catch (...) {}
+}
+
+void OCCTHatcherAddYLine(OCCTHatcherRef hatcher, double y) {
+    if (!hatcher) return;
+    try { hatcher->hatcher.AddYLine(y); } catch (...) {}
+}
+
+void OCCTHatcherTrim(OCCTHatcherRef hatcher, double x1, double y1, double x2, double y2) {
+    if (!hatcher) return;
+    try { hatcher->hatcher.Trim(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2)); } catch (...) {}
+}
+
+int32_t OCCTHatcherNbLines(OCCTHatcherRef hatcher) {
+    if (!hatcher) return 0;
+    try { return hatcher->hatcher.NbLines(); } catch (...) { return 0; }
+}
+
+int32_t OCCTHatcherNbIntervals(OCCTHatcherRef hatcher, int32_t lineIndex) {
+    if (!hatcher) return 0;
+    try { return hatcher->hatcher.NbIntervals(lineIndex); } catch (...) { return 0; }
+}
+
+// MARK: - Edge/Face Extraction (v0.107.0)
+
+OCCTCurve3DRef OCCTEdgeExtractCurve3D(OCCTShapeRef edge, double* first, double* last) {
+    *first = 0; *last = 0;
+    if (!edge) return nullptr;
+    try {
+        double f, l;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(TopoDS::Edge(edge->shape), f, l);
+        if (curve.IsNull()) return nullptr;
+        *first = f; *last = l;
+        auto result = new OCCTCurve3D(curve);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTEdgeExtractPCurve(OCCTShapeRef edge, OCCTShapeRef face, double* first, double* last) {
+    *first = 0; *last = 0;
+    if (!edge || !face) return nullptr;
+    try {
+        double f, l;
+        Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(
+            TopoDS::Edge(edge->shape), TopoDS::Face(face->shape), f, l);
+        if (pcurve.IsNull()) return nullptr;
+        *first = f; *last = l;
+        auto result = new OCCTCurve2D(pcurve);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTEdgeGetTolerance(OCCTShapeRef edge) {
+    if (!edge) return 0;
+    try { return BRep_Tool::Tolerance(TopoDS::Edge(edge->shape)); } catch (...) { return 0; }
+}
+
+bool OCCTEdgeIsDegenerated(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try { return BRep_Tool::Degenerated(TopoDS::Edge(edge->shape)); } catch (...) { return false; }
+}
+
+OCCTSurfaceRef OCCTFaceExtractSurface(OCCTShapeRef face) {
+    if (!face) return nullptr;
+    try {
+        Handle(Geom_Surface) surf = BRep_Tool::Surface(TopoDS::Face(face->shape));
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) { return nullptr; }
+}
+
+double OCCTFaceGetTolerance(OCCTShapeRef face) {
+    if (!face) return 0;
+    try { return BRep_Tool::Tolerance(TopoDS::Face(face->shape)); } catch (...) { return 0; }
+}
+
+int32_t OCCTFaceWireCount(OCCTShapeRef face) {
+    if (!face) return 0;
+    try {
+        int count = 0;
+        for (TopExp_Explorer ex(face->shape, TopAbs_WIRE); ex.More(); ex.Next()) count++;
+        return count;
+    } catch (...) { return 0; }
+}
+
+double OCCTVertexGetTolerance(OCCTShapeRef vertex) {
+    if (!vertex) return 0;
+    try { return BRep_Tool::Tolerance(TopoDS::Vertex(vertex->shape)); } catch (...) { return 0; }
+}
+
+void OCCTVertexGetPoint(OCCTShapeRef vertex, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!vertex) return;
+    try {
+        gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(vertex->shape));
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}

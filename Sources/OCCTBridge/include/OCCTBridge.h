@@ -14158,6 +14158,312 @@ int32_t OCCTSurfaceGetContinuity(OCCTSurfaceRef _Nonnull surface);
 /// Get number of UV bounds for a surface.
 void OCCTSurfaceGetNBounds(OCCTSurfaceRef _Nonnull surface, int32_t* _Nonnull uSpans, int32_t* _Nonnull vSpans);
 
+// MARK: - Geom_BSplineCurve Methods (v0.107.0)
+
+/// Get the number of knots of a BSpline curve. Returns 0 if not a BSpline.
+int32_t OCCTCurve3DBSplineKnotCount(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the number of poles (control points) of a BSpline curve.
+int32_t OCCTCurve3DBSplinePoleCount(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the degree of a BSpline curve.
+int32_t OCCTCurve3DBSplineDegree(OCCTCurve3DRef _Nonnull curve);
+
+/// Check if a BSpline curve is rational.
+bool OCCTCurve3DBSplineIsRational(OCCTCurve3DRef _Nonnull curve);
+
+/// Get all knot values (pre-allocated array of size NbKnots).
+void OCCTCurve3DBSplineGetKnots(OCCTCurve3DRef _Nonnull curve, double* _Nonnull knots);
+
+/// Get all knot multiplicities (pre-allocated array of size NbKnots).
+void OCCTCurve3DBSplineGetMults(OCCTCurve3DRef _Nonnull curve, int32_t* _Nonnull mults);
+
+/// Get a pole (1-based index).
+void OCCTCurve3DBSplineGetPole(OCCTCurve3DRef _Nonnull curve, int32_t index, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Set a pole (1-based index).
+bool OCCTCurve3DBSplineSetPole(OCCTCurve3DRef _Nonnull curve, int32_t index, double x, double y, double z);
+
+/// Set a weight for a pole (1-based index).
+bool OCCTCurve3DBSplineSetWeight(OCCTCurve3DRef _Nonnull curve, int32_t index, double weight);
+
+/// Get the weight of a pole (1-based index).
+double OCCTCurve3DBSplineGetWeight(OCCTCurve3DRef _Nonnull curve, int32_t index);
+
+/// Insert a knot at parameter u with given multiplicity.
+bool OCCTCurve3DBSplineInsertKnot(OCCTCurve3DRef _Nonnull curve, double u, int32_t mult, double tol);
+
+/// Remove a knot at index down to given multiplicity.
+bool OCCTCurve3DBSplineRemoveKnot(OCCTCurve3DRef _Nonnull curve, int32_t index, int32_t mult, double tol);
+
+/// Segment the BSpline to [u1, u2].
+bool OCCTCurve3DBSplineSegment(OCCTCurve3DRef _Nonnull curve, double u1, double u2);
+
+/// Increase the degree to the given value.
+bool OCCTCurve3DBSplineIncreaseDegree(OCCTCurve3DRef _Nonnull curve, int32_t degree);
+
+/// Compute the parametric resolution for a given 3D tolerance.
+double OCCTCurve3DBSplineResolution(OCCTCurve3DRef _Nonnull curve, double tolerance3d);
+
+/// Set periodic/non-periodic.
+bool OCCTCurve3DBSplineSetPeriodic(OCCTCurve3DRef _Nonnull curve, bool periodic);
+
+// MARK: - Geom_BSplineSurface Methods (v0.107.0)
+
+/// Get the number of U knots.
+int32_t OCCTSurfaceBSplineNbUKnots(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the number of V knots.
+int32_t OCCTSurfaceBSplineNbVKnots(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the number of U poles.
+int32_t OCCTSurfaceBSplineNbUPoles(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the number of V poles.
+int32_t OCCTSurfaceBSplineNbVPoles(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the U degree.
+int32_t OCCTSurfaceBSplineUDegree(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the V degree.
+int32_t OCCTSurfaceBSplineVDegree(OCCTSurfaceRef _Nonnull surface);
+
+/// Check if the surface is U-rational.
+bool OCCTSurfaceBSplineIsURational(OCCTSurfaceRef _Nonnull surface);
+
+/// Check if the surface is V-rational.
+bool OCCTSurfaceBSplineIsVRational(OCCTSurfaceRef _Nonnull surface);
+
+/// Get a pole at (uIndex, vIndex) — both 1-based.
+void OCCTSurfaceBSplineGetPole(OCCTSurfaceRef _Nonnull surface, int32_t uIndex, int32_t vIndex, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Set a pole at (uIndex, vIndex) — both 1-based.
+bool OCCTSurfaceBSplineSetPole(OCCTSurfaceRef _Nonnull surface, int32_t uIndex, int32_t vIndex, double x, double y, double z);
+
+/// Set the weight at (uIndex, vIndex).
+bool OCCTSurfaceBSplineSetWeight(OCCTSurfaceRef _Nonnull surface, int32_t uIndex, int32_t vIndex, double weight);
+
+/// Insert a U knot.
+bool OCCTSurfaceBSplineInsertUKnot(OCCTSurfaceRef _Nonnull surface, double u, int32_t mult, double tol);
+
+/// Insert a V knot.
+bool OCCTSurfaceBSplineInsertVKnot(OCCTSurfaceRef _Nonnull surface, double v, int32_t mult, double tol);
+
+/// Segment the BSpline surface to [u1,u2] x [v1,v2].
+bool OCCTSurfaceBSplineSegment(OCCTSurfaceRef _Nonnull surface, double u1, double u2, double v1, double v2);
+
+/// Increase the degree to (uDeg, vDeg).
+bool OCCTSurfaceBSplineIncreaseDegree(OCCTSurfaceRef _Nonnull surface, int32_t uDeg, int32_t vDeg);
+
+/// Exchange U and V directions.
+bool OCCTSurfaceBSplineExchangeUV(OCCTSurfaceRef _Nonnull surface);
+
+// MARK: - Geom2d_BSplineCurve Methods (v0.107.0)
+
+/// Get the number of knots of a 2D BSpline curve.
+int32_t OCCTCurve2DBSplineKnotCount(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the number of poles of a 2D BSpline curve.
+int32_t OCCTCurve2DBSplinePoleCount(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the degree of a 2D BSpline curve.
+int32_t OCCTCurve2DBSplineDegree(OCCTCurve2DRef _Nonnull curve);
+
+/// Check if a 2D BSpline curve is rational.
+bool OCCTCurve2DBSplineIsRational(OCCTCurve2DRef _Nonnull curve);
+
+/// Get a 2D pole (1-based index).
+void OCCTCurve2DBSplineGetPole(OCCTCurve2DRef _Nonnull curve, int32_t index, double* _Nonnull x, double* _Nonnull y);
+
+/// Set a 2D pole (1-based index).
+bool OCCTCurve2DBSplineSetPole(OCCTCurve2DRef _Nonnull curve, int32_t index, double x, double y);
+
+/// Set a weight for a 2D pole (1-based index).
+bool OCCTCurve2DBSplineSetWeight(OCCTCurve2DRef _Nonnull curve, int32_t index, double weight);
+
+/// Insert a knot into a 2D BSpline curve.
+bool OCCTCurve2DBSplineInsertKnot(OCCTCurve2DRef _Nonnull curve, double u, int32_t mult, double tol);
+
+/// Remove a knot from a 2D BSpline curve.
+bool OCCTCurve2DBSplineRemoveKnot(OCCTCurve2DRef _Nonnull curve, int32_t index, int32_t mult, double tol);
+
+/// Segment a 2D BSpline curve to [u1, u2].
+bool OCCTCurve2DBSplineSegment(OCCTCurve2DRef _Nonnull curve, double u1, double u2);
+
+/// Increase the degree of a 2D BSpline curve.
+bool OCCTCurve2DBSplineIncreaseDegree(OCCTCurve2DRef _Nonnull curve, int32_t degree);
+
+/// Compute parametric resolution for a 2D BSpline curve.
+double OCCTCurve2DBSplineResolution(OCCTCurve2DRef _Nonnull curve, double tolerance);
+
+// MARK: - Bezier Curve Methods (v0.107.0)
+
+/// Get a Bezier pole (1-based index).
+void OCCTCurve3DBezierGetPole(OCCTCurve3DRef _Nonnull curve, int32_t index, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Set a Bezier pole (1-based index).
+bool OCCTCurve3DBezierSetPole(OCCTCurve3DRef _Nonnull curve, int32_t index, double x, double y, double z);
+
+/// Set a Bezier weight (1-based index).
+bool OCCTCurve3DBezierSetWeight(OCCTCurve3DRef _Nonnull curve, int32_t index, double weight);
+
+/// Insert a pole after given index.
+bool OCCTCurve3DBezierInsertPoleAfter(OCCTCurve3DRef _Nonnull curve, int32_t index, double x, double y, double z);
+
+/// Remove a pole at given index.
+bool OCCTCurve3DBezierRemovePole(OCCTCurve3DRef _Nonnull curve, int32_t index);
+
+/// Segment a Bezier curve to [u1, u2].
+bool OCCTCurve3DBezierSegment(OCCTCurve3DRef _Nonnull curve, double u1, double u2);
+
+/// Increase the degree of a Bezier curve.
+bool OCCTCurve3DBezierIncreaseDegree(OCCTCurve3DRef _Nonnull curve, int32_t degree);
+
+/// Check if a Bezier curve is rational.
+bool OCCTCurve3DBezierIsRational(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the degree of a Bezier curve.
+int32_t OCCTCurve3DBezierDegree(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the number of poles of a Bezier curve.
+int32_t OCCTCurve3DBezierPoleCount(OCCTCurve3DRef _Nonnull curve);
+
+// MARK: - BRepTools/BRepLib Utilities (v0.107.0)
+
+/// Clean all tessellation data from a shape.
+void OCCTShapeClean(OCCTShapeRef _Nonnull shape);
+
+/// Clean geometry (PCurves etc.) from a shape.
+void OCCTShapeCleanGeometry(OCCTShapeRef _Nonnull shape);
+
+/// Remove unused PCurves from edges of a shape.
+void OCCTShapeRemoveUnusedPCurves(OCCTShapeRef _Nonnull shape);
+
+/// Update BRep data structures.
+void OCCTShapeUpdate(OCCTShapeRef _Nonnull shape);
+
+/// Check if an edge has same-range parametrisation.
+bool OCCTBRepLibCheckSameRange(OCCTShapeRef _Nonnull edge);
+
+/// Ensure edge has same-range parametrisation.
+bool OCCTBRepLibSameRange(OCCTShapeRef _Nonnull edge, double tol);
+
+/// Build 3D curve for an edge from PCurves.
+bool OCCTBRepLibBuildCurve3d(OCCTShapeRef _Nonnull edge, double tol);
+
+/// Update tolerances of all sub-shapes.
+void OCCTBRepLibUpdateTolerances(OCCTShapeRef _Nonnull shape);
+
+/// Update inner tolerances of all sub-shapes.
+void OCCTBRepLibUpdateInnerTolerances(OCCTShapeRef _Nonnull shape);
+
+/// Update tolerance of a specific edge.
+bool OCCTBRepLibUpdateEdgeTolerance(OCCTShapeRef _Nonnull edge, double tol);
+
+// MARK: - MakeFace Extras (v0.107.0)
+
+/// Create a face from a sphere with UV bounds (no tolerance param).
+OCCTShapeRef _Nullable OCCTMakeFaceFromSphere(double cx, double cy, double cz, double radius, double umin, double umax, double vmin, double vmax);
+
+/// Create a face from a torus with UV bounds.
+OCCTShapeRef _Nullable OCCTMakeFaceFromTorus(double cx, double cy, double cz, double nx, double ny, double nz, double major, double minor, double umin, double umax, double vmin, double vmax);
+
+/// Create a face from a cone with UV bounds.
+OCCTShapeRef _Nullable OCCTMakeFaceFromCone(double cx, double cy, double cz, double nx, double ny, double nz, double angle, double radius, double umin, double umax, double vmin, double vmax);
+
+/// Create a face from a surface trimmed by a wire.
+OCCTShapeRef _Nullable OCCTMakeFaceFromSurfaceWire(OCCTSurfaceRef _Nonnull surface, OCCTShapeRef _Nonnull wire, bool inside);
+
+/// Add a hole (inner wire) to a face.
+OCCTShapeRef _Nullable OCCTMakeFaceAddHole(OCCTShapeRef _Nonnull face, OCCTShapeRef _Nonnull wire);
+
+/// Copy a face.
+OCCTShapeRef _Nullable OCCTMakeFaceCopy(OCCTShapeRef _Nonnull face);
+
+// MARK: - Sewing (v0.107.0)
+
+/// Opaque sewing builder handle.
+typedef struct OCCTSewing* OCCTSewingRef;
+
+/// Create a sewing builder with given tolerance.
+OCCTSewingRef _Nullable OCCTSewingCreate(double tolerance);
+
+/// Release a sewing builder.
+void OCCTSewingRelease(OCCTSewingRef _Nullable sewing);
+
+/// Add a shape to the sewing builder.
+void OCCTSewingAdd(OCCTSewingRef _Nonnull sewing, OCCTShapeRef _Nonnull shape);
+
+/// Perform sewing.
+void OCCTSewingPerform(OCCTSewingRef _Nonnull sewing);
+
+/// Get the result of sewing.
+OCCTShapeRef _Nullable OCCTSewingResult(OCCTSewingRef _Nonnull sewing);
+
+/// Get the number of free edges after sewing.
+int32_t OCCTSewingNbFreeEdges(OCCTSewingRef _Nonnull sewing);
+
+/// Get the number of contiguous edges after sewing.
+int32_t OCCTSewingNbContigousEdges(OCCTSewingRef _Nonnull sewing);
+
+/// Get the number of degenerated shapes after sewing.
+int32_t OCCTSewingNbDegeneratedShapes(OCCTSewingRef _Nonnull sewing);
+
+// MARK: - Hatch_Hatcher (v0.107.0)
+
+/// Opaque hatcher handle.
+typedef struct OCCTHatcher* OCCTHatcherRef;
+
+/// Create a Hatch_Hatcher with given tolerance.
+OCCTHatcherRef _Nullable OCCTHatcherCreate(double tolerance);
+
+/// Release a hatcher.
+void OCCTHatcherRelease(OCCTHatcherRef _Nullable hatcher);
+
+/// Add a vertical line at x.
+void OCCTHatcherAddXLine(OCCTHatcherRef _Nonnull hatcher, double x);
+
+/// Add a horizontal line at y.
+void OCCTHatcherAddYLine(OCCTHatcherRef _Nonnull hatcher, double y);
+
+/// Trim hatch lines with a segment from (x1,y1) to (x2,y2).
+void OCCTHatcherTrim(OCCTHatcherRef _Nonnull hatcher, double x1, double y1, double x2, double y2);
+
+/// Get the number of hatch lines.
+int32_t OCCTHatcherNbLines(OCCTHatcherRef _Nonnull hatcher);
+
+/// Get the number of intervals on a line (1-based index).
+int32_t OCCTHatcherNbIntervals(OCCTHatcherRef _Nonnull hatcher, int32_t lineIndex);
+
+// MARK: - Edge/Face Extraction (v0.107.0)
+
+/// Extract the 3D curve from an edge. Returns null if no curve. Writes first/last parameters.
+OCCTCurve3DRef _Nullable OCCTEdgeExtractCurve3D(OCCTShapeRef _Nonnull edge, double* _Nonnull first, double* _Nonnull last);
+
+/// Extract the PCurve of an edge on a face. Returns null if no PCurve.
+OCCTCurve2DRef _Nullable OCCTEdgeExtractPCurve(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face, double* _Nonnull first, double* _Nonnull last);
+
+/// Get the tolerance of an edge.
+double OCCTEdgeGetTolerance(OCCTShapeRef _Nonnull edge);
+
+/// Check if an edge is degenerated.
+bool OCCTEdgeIsDegenerated(OCCTShapeRef _Nonnull edge);
+
+/// Extract the surface from a face.
+OCCTSurfaceRef _Nullable OCCTFaceExtractSurface(OCCTShapeRef _Nonnull face);
+
+/// Get the tolerance of a face.
+double OCCTFaceGetTolerance(OCCTShapeRef _Nonnull face);
+
+/// Get the number of wires on a face.
+int32_t OCCTFaceWireCount(OCCTShapeRef _Nonnull face);
+
+/// Get the tolerance of a vertex.
+double OCCTVertexGetTolerance(OCCTShapeRef _Nonnull vertex);
+
+/// Get the point of a vertex.
+void OCCTVertexGetPoint(OCCTShapeRef _Nonnull vertex, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
 #ifdef __cplusplus
 }
 #endif

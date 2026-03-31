@@ -8758,3 +8758,564 @@ extension Surface {
         return (Int(u), Int(v))
     }
 }
+
+// MARK: - Geom_BSplineCurve Methods (v0.107.0)
+
+extension Curve3D {
+
+    /// BSpline-specific operations. Returns nil values if the curve is not a BSpline.
+    public struct BSpline {
+        let curve: Curve3D
+
+        /// Number of knots (0 if not a BSpline).
+        public var knotCount: Int { Int(OCCTCurve3DBSplineKnotCount(curve.handle)) }
+
+        /// Number of poles/control points (0 if not a BSpline).
+        public var poleCount: Int { Int(OCCTCurve3DBSplinePoleCount(curve.handle)) }
+
+        /// Degree (0 if not a BSpline).
+        public var degree: Int { Int(OCCTCurve3DBSplineDegree(curve.handle)) }
+
+        /// Whether the BSpline is rational.
+        public var isRational: Bool { OCCTCurve3DBSplineIsRational(curve.handle) }
+
+        /// Get all knot values.
+        public var knots: [Double] {
+            let n = knotCount
+            guard n > 0 else { return [] }
+            var arr = [Double](repeating: 0, count: n)
+            OCCTCurve3DBSplineGetKnots(curve.handle, &arr)
+            return arr
+        }
+
+        /// Get all knot multiplicities.
+        public var multiplicities: [Int] {
+            let n = knotCount
+            guard n > 0 else { return [] }
+            var arr = [Int32](repeating: 0, count: n)
+            OCCTCurve3DBSplineGetMults(curve.handle, &arr)
+            return arr.map { Int($0) }
+        }
+
+        /// Get a pole at 1-based index.
+        public func pole(at index: Int) -> SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTCurve3DBSplineGetPole(curve.handle, Int32(index), &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// Set a pole at 1-based index.
+        @discardableResult
+        public func setPole(at index: Int, to point: SIMD3<Double>) -> Bool {
+            OCCTCurve3DBSplineSetPole(curve.handle, Int32(index), point.x, point.y, point.z)
+        }
+
+        /// Get the weight at 1-based index.
+        public func weight(at index: Int) -> Double {
+            OCCTCurve3DBSplineGetWeight(curve.handle, Int32(index))
+        }
+
+        /// Set the weight at 1-based index.
+        @discardableResult
+        public func setWeight(at index: Int, to weight: Double) -> Bool {
+            OCCTCurve3DBSplineSetWeight(curve.handle, Int32(index), weight)
+        }
+
+        /// Insert a knot at parameter u with given multiplicity.
+        @discardableResult
+        public func insertKnot(u: Double, multiplicity: Int = 1, tolerance: Double = 1e-6) -> Bool {
+            OCCTCurve3DBSplineInsertKnot(curve.handle, u, Int32(multiplicity), tolerance)
+        }
+
+        /// Remove a knot at 1-based index down to given multiplicity.
+        @discardableResult
+        public func removeKnot(at index: Int, multiplicity: Int, tolerance: Double) -> Bool {
+            OCCTCurve3DBSplineRemoveKnot(curve.handle, Int32(index), Int32(multiplicity), tolerance)
+        }
+
+        /// Segment the BSpline to [u1, u2].
+        @discardableResult
+        public func segment(u1: Double, u2: Double) -> Bool {
+            OCCTCurve3DBSplineSegment(curve.handle, u1, u2)
+        }
+
+        /// Increase the degree to the given value.
+        @discardableResult
+        public func increaseDegree(to degree: Int) -> Bool {
+            OCCTCurve3DBSplineIncreaseDegree(curve.handle, Int32(degree))
+        }
+
+        /// Compute parametric resolution for a given 3D tolerance.
+        public func resolution(tolerance3d: Double) -> Double {
+            OCCTCurve3DBSplineResolution(curve.handle, tolerance3d)
+        }
+
+        /// Set periodic or non-periodic.
+        @discardableResult
+        public func setPeriodic(_ periodic: Bool) -> Bool {
+            OCCTCurve3DBSplineSetPeriodic(curve.handle, periodic)
+        }
+    }
+
+    /// Access BSpline-specific operations. Works only if the underlying curve is a Geom_BSplineCurve.
+    public var bspline: BSpline { BSpline(curve: self) }
+}
+
+// MARK: - Geom_BSplineSurface Methods (v0.107.0)
+
+extension Surface {
+
+    /// BSpline-specific surface operations.
+    public struct BSpline {
+        let surface: Surface
+
+        /// Number of U knots.
+        public var nbUKnots: Int { Int(OCCTSurfaceBSplineNbUKnots(surface.handle)) }
+
+        /// Number of V knots.
+        public var nbVKnots: Int { Int(OCCTSurfaceBSplineNbVKnots(surface.handle)) }
+
+        /// Number of U poles.
+        public var nbUPoles: Int { Int(OCCTSurfaceBSplineNbUPoles(surface.handle)) }
+
+        /// Number of V poles.
+        public var nbVPoles: Int { Int(OCCTSurfaceBSplineNbVPoles(surface.handle)) }
+
+        /// U degree.
+        public var uDegree: Int { Int(OCCTSurfaceBSplineUDegree(surface.handle)) }
+
+        /// V degree.
+        public var vDegree: Int { Int(OCCTSurfaceBSplineVDegree(surface.handle)) }
+
+        /// Whether the surface is U-rational.
+        public var isURational: Bool { OCCTSurfaceBSplineIsURational(surface.handle) }
+
+        /// Whether the surface is V-rational.
+        public var isVRational: Bool { OCCTSurfaceBSplineIsVRational(surface.handle) }
+
+        /// Get a pole at (uIndex, vIndex) — both 1-based.
+        public func pole(uIndex: Int, vIndex: Int) -> SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTSurfaceBSplineGetPole(surface.handle, Int32(uIndex), Int32(vIndex), &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// Set a pole at (uIndex, vIndex) — both 1-based.
+        @discardableResult
+        public func setPole(uIndex: Int, vIndex: Int, to point: SIMD3<Double>) -> Bool {
+            OCCTSurfaceBSplineSetPole(surface.handle, Int32(uIndex), Int32(vIndex), point.x, point.y, point.z)
+        }
+
+        /// Set the weight at (uIndex, vIndex).
+        @discardableResult
+        public func setWeight(uIndex: Int, vIndex: Int, to weight: Double) -> Bool {
+            OCCTSurfaceBSplineSetWeight(surface.handle, Int32(uIndex), Int32(vIndex), weight)
+        }
+
+        /// Insert a U knot.
+        @discardableResult
+        public func insertUKnot(u: Double, multiplicity: Int = 1, tolerance: Double = 1e-6) -> Bool {
+            OCCTSurfaceBSplineInsertUKnot(surface.handle, u, Int32(multiplicity), tolerance)
+        }
+
+        /// Insert a V knot.
+        @discardableResult
+        public func insertVKnot(v: Double, multiplicity: Int = 1, tolerance: Double = 1e-6) -> Bool {
+            OCCTSurfaceBSplineInsertVKnot(surface.handle, v, Int32(multiplicity), tolerance)
+        }
+
+        /// Segment the surface to [u1,u2] x [v1,v2].
+        @discardableResult
+        public func segment(u1: Double, u2: Double, v1: Double, v2: Double) -> Bool {
+            OCCTSurfaceBSplineSegment(surface.handle, u1, u2, v1, v2)
+        }
+
+        /// Increase the degree to (uDeg, vDeg).
+        @discardableResult
+        public func increaseDegree(uDeg: Int, vDeg: Int) -> Bool {
+            OCCTSurfaceBSplineIncreaseDegree(surface.handle, Int32(uDeg), Int32(vDeg))
+        }
+
+        /// Exchange U and V directions.
+        @discardableResult
+        public func exchangeUV() -> Bool {
+            OCCTSurfaceBSplineExchangeUV(surface.handle)
+        }
+    }
+
+    /// Access BSpline-specific surface operations. Works only if the underlying surface is a Geom_BSplineSurface.
+    public var bsplineSurface: BSpline { BSpline(surface: self) }
+}
+
+// MARK: - Geom2d_BSplineCurve Methods (v0.107.0)
+
+extension Curve2D {
+
+    /// BSpline-specific 2D curve operations.
+    public struct BSpline {
+        let curve: Curve2D
+
+        /// Number of knots.
+        public var knotCount: Int { Int(OCCTCurve2DBSplineKnotCount(curve.handle)) }
+
+        /// Number of poles.
+        public var poleCount: Int { Int(OCCTCurve2DBSplinePoleCount(curve.handle)) }
+
+        /// Degree.
+        public var degree: Int { Int(OCCTCurve2DBSplineDegree(curve.handle)) }
+
+        /// Whether rational.
+        public var isRational: Bool { OCCTCurve2DBSplineIsRational(curve.handle) }
+
+        /// Get a pole at 1-based index.
+        public func pole(at index: Int) -> SIMD2<Double> {
+            var x = 0.0, y = 0.0
+            OCCTCurve2DBSplineGetPole(curve.handle, Int32(index), &x, &y)
+            return SIMD2(x, y)
+        }
+
+        /// Set a pole at 1-based index.
+        @discardableResult
+        public func setPole(at index: Int, to point: SIMD2<Double>) -> Bool {
+            OCCTCurve2DBSplineSetPole(curve.handle, Int32(index), point.x, point.y)
+        }
+
+        /// Set the weight at 1-based index.
+        @discardableResult
+        public func setWeight(at index: Int, to weight: Double) -> Bool {
+            OCCTCurve2DBSplineSetWeight(curve.handle, Int32(index), weight)
+        }
+
+        /// Insert a knot.
+        @discardableResult
+        public func insertKnot(u: Double, multiplicity: Int = 1, tolerance: Double = 1e-6) -> Bool {
+            OCCTCurve2DBSplineInsertKnot(curve.handle, u, Int32(multiplicity), tolerance)
+        }
+
+        /// Remove a knot at 1-based index.
+        @discardableResult
+        public func removeKnot(at index: Int, multiplicity: Int, tolerance: Double) -> Bool {
+            OCCTCurve2DBSplineRemoveKnot(curve.handle, Int32(index), Int32(multiplicity), tolerance)
+        }
+
+        /// Segment to [u1, u2].
+        @discardableResult
+        public func segment(u1: Double, u2: Double) -> Bool {
+            OCCTCurve2DBSplineSegment(curve.handle, u1, u2)
+        }
+
+        /// Increase degree.
+        @discardableResult
+        public func increaseDegree(to degree: Int) -> Bool {
+            OCCTCurve2DBSplineIncreaseDegree(curve.handle, Int32(degree))
+        }
+
+        /// Compute parametric resolution for a given tolerance.
+        public func resolution(tolerance: Double) -> Double {
+            OCCTCurve2DBSplineResolution(curve.handle, tolerance)
+        }
+    }
+
+    /// Access BSpline-specific operations. Works only if the underlying curve is a Geom2d_BSplineCurve.
+    public var bspline: BSpline { BSpline(curve: self) }
+}
+
+// MARK: - Bezier Curve Methods (v0.107.0)
+
+extension Curve3D {
+
+    /// Bezier-specific operations.
+    public struct Bezier {
+        let curve: Curve3D
+
+        /// Get a pole at 1-based index.
+        public func pole(at index: Int) -> SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTCurve3DBezierGetPole(curve.handle, Int32(index), &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// Set a pole at 1-based index.
+        @discardableResult
+        public func setPole(at index: Int, to point: SIMD3<Double>) -> Bool {
+            OCCTCurve3DBezierSetPole(curve.handle, Int32(index), point.x, point.y, point.z)
+        }
+
+        /// Set the weight at 1-based index.
+        @discardableResult
+        public func setWeight(at index: Int, to weight: Double) -> Bool {
+            OCCTCurve3DBezierSetWeight(curve.handle, Int32(index), weight)
+        }
+
+        /// Insert a pole after given index.
+        @discardableResult
+        public func insertPoleAfter(index: Int, point: SIMD3<Double>) -> Bool {
+            OCCTCurve3DBezierInsertPoleAfter(curve.handle, Int32(index), point.x, point.y, point.z)
+        }
+
+        /// Remove a pole at given index.
+        @discardableResult
+        public func removePole(at index: Int) -> Bool {
+            OCCTCurve3DBezierRemovePole(curve.handle, Int32(index))
+        }
+
+        /// Segment to [u1, u2].
+        @discardableResult
+        public func segment(u1: Double, u2: Double) -> Bool {
+            OCCTCurve3DBezierSegment(curve.handle, u1, u2)
+        }
+
+        /// Increase degree.
+        @discardableResult
+        public func increaseDegree(to degree: Int) -> Bool {
+            OCCTCurve3DBezierIncreaseDegree(curve.handle, Int32(degree))
+        }
+
+        /// Whether the Bezier is rational.
+        public var isRational: Bool { OCCTCurve3DBezierIsRational(curve.handle) }
+
+        /// Degree.
+        public var degree: Int { Int(OCCTCurve3DBezierDegree(curve.handle)) }
+
+        /// Number of poles.
+        public var poleCount: Int { Int(OCCTCurve3DBezierPoleCount(curve.handle)) }
+    }
+
+    /// Access Bezier-specific operations. Works only if the underlying curve is a Geom_BezierCurve.
+    public var bezier: Bezier { Bezier(curve: self) }
+}
+
+// MARK: - BRepTools/BRepLib Utilities (v0.107.0)
+
+extension Shape {
+
+    /// Clean all tessellation data from the shape.
+    public func clean() {
+        OCCTShapeClean(handle)
+    }
+
+    /// Clean geometry (PCurves etc.) from the shape.
+    public func cleanGeometry() {
+        OCCTShapeCleanGeometry(handle)
+    }
+
+    /// Remove unused PCurves from edges.
+    public func removeUnusedPCurves() {
+        OCCTShapeRemoveUnusedPCurves(handle)
+    }
+
+    /// Update BRep data structures.
+    public func updateShape() {
+        OCCTShapeUpdate(handle)
+    }
+
+    /// Check if an edge has same-range parametrisation.
+    public static func checkSameRange(edge: Shape) -> Bool {
+        OCCTBRepLibCheckSameRange(edge.handle)
+    }
+
+    /// Ensure edge has same-range parametrisation.
+    @discardableResult
+    public static func sameRange(edge: Shape, tolerance: Double = 1e-6) -> Bool {
+        OCCTBRepLibSameRange(edge.handle, tolerance)
+    }
+
+    /// Build 3D curve for an edge from PCurves.
+    @discardableResult
+    public static func buildCurve3d(edge: Shape, tolerance: Double = 1e-6) -> Bool {
+        OCCTBRepLibBuildCurve3d(edge.handle, tolerance)
+    }
+
+    /// Update tolerances of all sub-shapes.
+    public func updateTolerances() {
+        OCCTBRepLibUpdateTolerances(handle)
+    }
+
+    /// Update inner tolerances of all sub-shapes.
+    public func updateInnerTolerances() {
+        OCCTBRepLibUpdateInnerTolerances(handle)
+    }
+
+    /// Update tolerance of a specific edge.
+    @discardableResult
+    public static func updateEdgeTolerance(edge: Shape, tolerance: Double) -> Bool {
+        OCCTBRepLibUpdateEdgeTolerance(edge.handle, tolerance)
+    }
+}
+
+// MARK: - MakeFace Extras (v0.107.0)
+
+extension Shape {
+
+    /// Create a face from a sphere with UV bounds.
+    public static func faceFromSphere(center: SIMD3<Double> = .zero, radius: Double,
+                                       uMin: Double, uMax: Double, vMin: Double, vMax: Double) -> Shape? {
+        guard let ref = OCCTMakeFaceFromSphere(center.x, center.y, center.z, radius, uMin, uMax, vMin, vMax) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a face from a torus with UV bounds.
+    public static func faceFromTorus(center: SIMD3<Double> = .zero, normal: SIMD3<Double> = SIMD3(0, 0, 1),
+                                      majorRadius: Double, minorRadius: Double,
+                                      uMin: Double, uMax: Double, vMin: Double, vMax: Double) -> Shape? {
+        guard let ref = OCCTMakeFaceFromTorus(center.x, center.y, center.z, normal.x, normal.y, normal.z,
+                                               majorRadius, minorRadius, uMin, uMax, vMin, vMax) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a face from a cone with UV bounds.
+    public static func faceFromCone(center: SIMD3<Double> = .zero, normal: SIMD3<Double> = SIMD3(0, 0, 1),
+                                     semiAngle: Double, radius: Double,
+                                     uMin: Double, uMax: Double, vMin: Double, vMax: Double) -> Shape? {
+        guard let ref = OCCTMakeFaceFromCone(center.x, center.y, center.z, normal.x, normal.y, normal.z,
+                                              semiAngle, radius, uMin, uMax, vMin, vMax) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a face from a surface trimmed by a wire.
+    public static func faceFromSurface(_ surface: Surface, wire: Shape, inside: Bool = true) -> Shape? {
+        guard let ref = OCCTMakeFaceFromSurfaceWire(surface.handle, wire.handle, inside) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Add a hole (inner wire) to a face.
+    public static func faceAddHole(face: Shape, wire: Shape) -> Shape? {
+        guard let ref = OCCTMakeFaceAddHole(face.handle, wire.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Copy a face.
+    public static func faceCopy(_ face: Shape) -> Shape? {
+        guard let ref = OCCTMakeFaceCopy(face.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// MARK: - Sewing (v0.107.0)
+
+/// A builder for sewing shapes together.
+public final class SewingBuilder: @unchecked Sendable {
+    private let ref: OCCTSewingRef
+
+    /// Create a sewing builder with the given tolerance.
+    public init?(tolerance: Double = 1e-6) {
+        guard let r = OCCTSewingCreate(tolerance) else { return nil }
+        self.ref = r
+    }
+
+    deinit {
+        OCCTSewingRelease(ref)
+    }
+
+    /// Add a shape to be sewn.
+    public func add(_ shape: Shape) {
+        OCCTSewingAdd(ref, shape.handle)
+    }
+
+    /// Perform the sewing operation.
+    public func perform() {
+        OCCTSewingPerform(ref)
+    }
+
+    /// Get the result shape.
+    public var result: Shape? {
+        guard let r = OCCTSewingResult(ref) else { return nil }
+        return Shape(handle: r)
+    }
+
+    /// Number of free edges.
+    public var nbFreeEdges: Int { Int(OCCTSewingNbFreeEdges(ref)) }
+
+    /// Number of contiguous edges.
+    public var nbContigousEdges: Int { Int(OCCTSewingNbContigousEdges(ref)) }
+
+    /// Number of degenerated shapes.
+    public var nbDegeneratedShapes: Int { Int(OCCTSewingNbDegeneratedShapes(ref)) }
+}
+
+// MARK: - Hatch_Hatcher (v0.107.0)
+
+/// A 2D hatching builder.
+public final class HatchBuilder: @unchecked Sendable {
+    private let ref: OCCTHatcherRef
+
+    /// Create a hatcher with the given tolerance.
+    public init?(tolerance: Double = 1e-6) {
+        guard let r = OCCTHatcherCreate(tolerance) else { return nil }
+        self.ref = r
+    }
+
+    deinit {
+        OCCTHatcherRelease(ref)
+    }
+
+    /// Add a vertical line at x.
+    public func addXLine(_ x: Double) {
+        OCCTHatcherAddXLine(ref, x)
+    }
+
+    /// Add a horizontal line at y.
+    public func addYLine(_ y: Double) {
+        OCCTHatcherAddYLine(ref, y)
+    }
+
+    /// Trim hatch lines with a segment from (x1,y1) to (x2,y2).
+    public func trim(x1: Double, y1: Double, x2: Double, y2: Double) {
+        OCCTHatcherTrim(ref, x1, y1, x2, y2)
+    }
+
+    /// Get the number of hatch lines.
+    public var nbLines: Int { Int(OCCTHatcherNbLines(ref)) }
+
+    /// Get the number of intervals on a line (1-based index).
+    public func nbIntervals(lineIndex: Int) -> Int {
+        Int(OCCTHatcherNbIntervals(ref, Int32(lineIndex)))
+    }
+}
+
+// MARK: - Edge/Face Extraction (v0.107.0)
+
+extension Shape {
+
+    /// Extract the 3D curve from an edge shape. Returns (curve, firstParam, lastParam) or nil.
+    public func extractEdgeCurve3D() -> (curve: Curve3D, first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard let ref = OCCTEdgeExtractCurve3D(handle, &first, &last) else { return nil }
+        return (Curve3D(handle: ref), first, last)
+    }
+
+    /// Extract the PCurve of an edge on a face. Returns (curve, firstParam, lastParam) or nil.
+    public func extractEdgePCurve(onFace face: Shape) -> (curve: Curve2D, first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard let ref = OCCTEdgeExtractPCurve(handle, face.handle, &first, &last) else { return nil }
+        return (Curve2D(handle: ref), first, last)
+    }
+
+    /// Get the tolerance of an edge shape.
+    public var edgeTolerance: Double { OCCTEdgeGetTolerance(handle) }
+
+    /// Check if an edge is degenerated.
+    public var isEdgeDegenerated: Bool { OCCTEdgeIsDegenerated(handle) }
+
+    /// Extract the surface from a face shape.
+    public func extractFaceSurface() -> Surface? {
+        guard let ref = OCCTFaceExtractSurface(handle) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Get the tolerance of a face shape.
+    public var faceTolerance: Double { OCCTFaceGetTolerance(handle) }
+
+    /// Get the number of wires on a face shape.
+    public var faceWireCount: Int { Int(OCCTFaceWireCount(handle)) }
+
+    /// Get the tolerance of a vertex shape.
+    public var vertexTolerance: Double { OCCTVertexGetTolerance(handle) }
+
+    /// Get the point of a vertex shape.
+    public var vertexPoint: SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTVertexGetPoint(handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+}

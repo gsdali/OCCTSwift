@@ -359,7 +359,16 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepFill_PipeShell Extensions** | 6 | maxDegree, maxSegments, forceC1, errorOnSurface, firstShape, lastShape |
 | **Shape Topology Extensions** | 16 | orientation, reversed, complemented, composed, isFree, isModified, isChecked, isOrientable, isInfinite, isConvex, isEmpty, isPartner, isEqual, nbChildren, hashCode |
 | **Curve/Surface Continuity** | 4 | Curve3D, Curve2D, Surface continuity, Surface nBounds |
-| **Total** | **2269** | |
+| **BSplineCurve 3D Manipulation** | 16 | knotCount, poleCount, degree, isRational, getKnots, getMults, getPole, setPole, setWeight, getWeight, insertKnot, removeKnot, segment, increaseDegree, resolution, setPeriodic |
+| **BSplineSurface Manipulation** | 16 | nbUKnots, nbVKnots, nbUPoles, nbVPoles, uDegree, vDegree, isURational, isVRational, getPole, setPole, setWeight, insertUKnot, insertVKnot, segment, increaseDegree, exchangeUV |
+| **BSplineCurve 2D Manipulation** | 12 | knotCount, poleCount, degree, isRational, getPole, setPole, setWeight, insertKnot, removeKnot, segment, increaseDegree, resolution |
+| **BezierCurve Manipulation** | 10 | getPole, setPole, setWeight, insertPoleAfter, removePole, segment, increaseDegree, isRational, degree, poleCount |
+| **BRepTools/BRepLib Utilities** | 10 | clean, cleanGeometry, removeUnusedPCurves, update, checkSameRange, sameRange, buildCurve3d, updateTolerances, updateInnerTolerances, updateEdgeTolerance |
+| **MakeFace Extras** | 6 | fromSphere, fromTorus, fromCone, fromSurfaceWire, addHole, copy |
+| **BRepBuilderAPI_Sewing Detailed** | 8 | create, release, add, perform, result, nbFreeEdges, nbContigousEdges, nbDegeneratedShapes |
+| **Hatch_Hatcher** | 7 | create, release, addXLine, addYLine, trim, nbLines, nbIntervals |
+| **Edge/Face Extraction** | 9 | extractCurve3D, extractPCurve, edgeTolerance, isDegenerated, extractSurface, faceTolerance, wireCount, vertexTolerance, vertexPoint |
+| **Total** | **2363** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1679,7 +1688,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **2269 OCCT operations** across 229 categories with 2394 tests across 755 suites.
+OCCTSwift now wraps **2363 OCCT operations** across 239 categories with 2473 tests across 764 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

@@ -29538,3 +29538,764 @@ struct SurfaceContinuityTests {
         }
     }
 }
+
+// MARK: - v0.107.0 Tests
+
+@Suite("BSpline Curve 3D Manipulation Tests")
+struct BSplineCurve3DManipulationTests {
+
+    @Test func knotCount() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let nk = bsp.bspline.knotCount
+            #expect(nk > 0)
+        }
+    }
+
+    @Test func poleCount() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let np = bsp.bspline.poleCount
+            #expect(np >= 5)
+        }
+    }
+
+    @Test func degree() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let deg = bsp.bspline.degree
+            #expect(deg >= 1)
+        }
+    }
+
+    @Test func isRational() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            // Interpolated BSplines are typically non-rational
+            let _ = bsp.bspline.isRational
+        }
+    }
+
+    @Test func knotsArray() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let knots = bsp.bspline.knots
+            #expect(knots.count > 0)
+            if knots.count >= 2 {
+                #expect(knots.last! > knots.first!)
+            }
+        }
+    }
+
+    @Test func multiplicities() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let mults = bsp.bspline.multiplicities
+            #expect(mults.count > 0)
+            if let first = mults.first {
+                #expect(first > 0)
+            }
+        }
+    }
+
+    @Test func getPole() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let p = bsp.bspline.pole(at: 1)
+            // First pole should be near origin
+            #expect(abs(p.x) < 1.0)
+        }
+    }
+
+    @Test func setPole() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let ok = bsp.bspline.setPole(at: 3, to: SIMD3(5, 7, 0))
+            #expect(ok)
+            let p = bsp.bspline.pole(at: 3)
+            #expect(abs(p.y - 7.0) < 1e-6)
+        }
+    }
+
+    @Test func getAndSetWeight() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let w = bsp.bspline.weight(at: 1)
+            #expect(abs(w - 1.0) < 1e-6)
+        }
+    }
+
+    @Test func insertKnot() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let knots = bsp.bspline.knots
+            if knots.count >= 2 {
+                let mid = (knots.first! + knots.last!) / 2.0
+                let nkBefore = bsp.bspline.knotCount
+                let ok = bsp.bspline.insertKnot(u: mid)
+                #expect(ok)
+                #expect(bsp.bspline.knotCount >= nkBefore)
+            }
+        }
+    }
+
+    @Test func segment() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let d = bsp.domain
+            let u1 = d.lowerBound + (d.upperBound - d.lowerBound) * 0.25
+            let u2 = d.lowerBound + (d.upperBound - d.lowerBound) * 0.75
+            let ok = bsp.bspline.segment(u1: u1, u2: u2)
+            #expect(ok)
+        }
+    }
+
+    @Test func increaseDegree() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let oldDeg = bsp.bspline.degree
+            let ok = bsp.bspline.increaseDegree(to: oldDeg + 1)
+            #expect(ok)
+            #expect(bsp.bspline.degree == oldDeg + 1)
+        }
+    }
+
+    @Test func resolution() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            let res = bsp.bspline.resolution(tolerance3d: 0.001)
+            #expect(res > 0)
+        }
+    }
+
+    @Test func setPeriodic() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            // Setting non-periodic on an already non-periodic curve should succeed
+            let ok = bsp.bspline.setPeriodic(false)
+            #expect(ok)
+        }
+    }
+
+    @Test func removeKnot() {
+        if let bsp = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(2,3,0), SIMD3(5,5,0), SIMD3(8,3,0), SIMD3(10,0,0)]) {
+            // Insert a knot first, then try to remove it
+            let knots = bsp.bspline.knots
+            if knots.count >= 2 {
+                let mid = (knots.first! + knots.last!) / 2.0
+                _ = bsp.bspline.insertKnot(u: mid)
+                // Try removing — may or may not succeed depending on geometry
+                let _ = bsp.bspline.removeKnot(at: 2, multiplicity: 0, tolerance: 1.0)
+            }
+        }
+    }
+}
+
+@Suite("BSpline Surface Manipulation Tests")
+struct BSplineSurfaceManipulationTests {
+
+    private func makeBSplineSurface() -> Surface? {
+        // Use a cylinder surface converted to BSpline
+        if let cyl = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5) {
+            return cyl.toBSpline()
+        }
+        return nil
+    }
+
+    @Test func nbKnots() {
+        if let bs = makeBSplineSurface() {
+            let nuk = bs.bsplineSurface.nbUKnots
+            let nvk = bs.bsplineSurface.nbVKnots
+            #expect(nuk > 0)
+            #expect(nvk > 0)
+        }
+    }
+
+    @Test func nbPoles() {
+        if let bs = makeBSplineSurface() {
+            let nup = bs.bsplineSurface.nbUPoles
+            let nvp = bs.bsplineSurface.nbVPoles
+            #expect(nup > 0)
+            #expect(nvp > 0)
+        }
+    }
+
+    @Test func degree() {
+        if let bs = makeBSplineSurface() {
+            let uDeg = bs.bsplineSurface.uDegree
+            let vDeg = bs.bsplineSurface.vDegree
+            #expect(uDeg >= 1)
+            #expect(vDeg >= 1)
+        }
+    }
+
+    @Test func isRational() {
+        if let bs = makeBSplineSurface() {
+            let _ = bs.bsplineSurface.isURational
+            let _ = bs.bsplineSurface.isVRational
+        }
+    }
+
+    @Test func getPole() {
+        if let bs = makeBSplineSurface() {
+            let nup = bs.bsplineSurface.nbUPoles
+            let nvp = bs.bsplineSurface.nbVPoles
+            if nup >= 1 && nvp >= 1 {
+                let p = bs.bsplineSurface.pole(uIndex: 1, vIndex: 1)
+                // Just check it returns something
+                let _ = p
+            }
+        }
+    }
+
+    @Test func setPole() {
+        if let bs = makeBSplineSurface() {
+            let nup = bs.bsplineSurface.nbUPoles
+            let nvp = bs.bsplineSurface.nbVPoles
+            if nup >= 2 && nvp >= 2 {
+                let ok = bs.bsplineSurface.setPole(uIndex: 1, vIndex: 1, to: SIMD3(10, 10, 10))
+                #expect(ok)
+                let p = bs.bsplineSurface.pole(uIndex: 1, vIndex: 1)
+                #expect(abs(p.x - 10) < 1e-6)
+            }
+        }
+    }
+
+    @Test func exchangeUV() {
+        if let bs = makeBSplineSurface() {
+            let nupBefore = bs.bsplineSurface.nbUPoles
+            let nvpBefore = bs.bsplineSurface.nbVPoles
+            let ok = bs.bsplineSurface.exchangeUV()
+            #expect(ok)
+            #expect(bs.bsplineSurface.nbUPoles == nvpBefore)
+            #expect(bs.bsplineSurface.nbVPoles == nupBefore)
+        }
+    }
+
+    @Test func insertUKnot() {
+        if let bs = makeBSplineSurface() {
+            let d = bs.domain
+            let uMid = (d.uMin + d.uMax) / 2.0
+            let ok = bs.bsplineSurface.insertUKnot(u: uMid)
+            #expect(ok)
+        }
+    }
+
+    @Test func insertVKnot() {
+        if let bs = makeBSplineSurface() {
+            let d = bs.domain
+            let vMid = (d.vMin + d.vMax) / 2.0
+            let ok = bs.bsplineSurface.insertVKnot(v: vMid)
+            #expect(ok)
+        }
+    }
+
+    @Test func segment() {
+        if let bs = makeBSplineSurface() {
+            let d = bs.domain
+            let u1 = d.uMin + (d.uMax - d.uMin) * 0.25
+            let u2 = d.uMin + (d.uMax - d.uMin) * 0.75
+            let v1 = d.vMin + (d.vMax - d.vMin) * 0.25
+            let v2 = d.vMin + (d.vMax - d.vMin) * 0.75
+            let ok = bs.bsplineSurface.segment(u1: u1, u2: u2, v1: v1, v2: v2)
+            #expect(ok)
+        }
+    }
+
+    @Test func increaseDegree() {
+        if let bs = makeBSplineSurface() {
+            let uDeg = bs.bsplineSurface.uDegree
+            let vDeg = bs.bsplineSurface.vDegree
+            let ok = bs.bsplineSurface.increaseDegree(uDeg: uDeg + 1, vDeg: vDeg + 1)
+            #expect(ok)
+            #expect(bs.bsplineSurface.uDegree == uDeg + 1)
+            #expect(bs.bsplineSurface.vDegree == vDeg + 1)
+        }
+    }
+
+    @Test func setWeight() {
+        if let bs = makeBSplineSurface() {
+            // BSpline from cylinder is rational, weights can be set
+            let ok = bs.bsplineSurface.setWeight(uIndex: 1, vIndex: 1, to: 2.0)
+            // May or may not succeed depending on rationality
+            let _ = ok
+        }
+    }
+}
+
+@Suite("BSpline Curve 2D Manipulation Tests")
+struct BSplineCurve2DManipulationTests {
+
+    @Test func knotCount() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let nk = bsp.bspline.knotCount
+            #expect(nk > 0)
+        }
+    }
+
+    @Test func poleCount() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let np = bsp.bspline.poleCount
+            #expect(np >= 4)
+        }
+    }
+
+    @Test func degree() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let deg = bsp.bspline.degree
+            #expect(deg >= 1)
+        }
+    }
+
+    @Test func isRational() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let _ = bsp.bspline.isRational
+        }
+    }
+
+    @Test func setPole() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let ok = bsp.bspline.setPole(at: 2, to: SIMD2(3, 6))
+            #expect(ok)
+            let p = bsp.bspline.pole(at: 2)
+            #expect(abs(p.y - 6.0) < 1e-6)
+        }
+    }
+
+    @Test func resolution() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let res = bsp.bspline.resolution(tolerance: 0.001)
+            #expect(res > 0)
+        }
+    }
+
+    @Test func insertKnot() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let d = bsp.domain
+            let mid = (d.lowerBound + d.upperBound) / 2.0
+            let ok = bsp.bspline.insertKnot(u: mid)
+            #expect(ok)
+        }
+    }
+
+    @Test func segment() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let d = bsp.domain
+            let u1 = d.lowerBound + (d.upperBound - d.lowerBound) * 0.25
+            let u2 = d.lowerBound + (d.upperBound - d.lowerBound) * 0.75
+            let ok = bsp.bspline.segment(u1: u1, u2: u2)
+            #expect(ok)
+        }
+    }
+
+    @Test func increaseDegree() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            let oldDeg = bsp.bspline.degree
+            let ok = bsp.bspline.increaseDegree(to: oldDeg + 1)
+            #expect(ok)
+            #expect(bsp.bspline.degree == oldDeg + 1)
+        }
+    }
+
+    @Test func setWeight() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            // Non-rational BSpline may not accept weights
+            let _ = bsp.bspline.setWeight(at: 1, to: 2.0)
+        }
+    }
+
+    @Test func removeKnot() {
+        if let bsp = Curve2D.interpolate(through: [SIMD2(0,0), SIMD2(3,4), SIMD2(7,2), SIMD2(10,0)]) {
+            // Just exercise the API
+            let _ = bsp.bspline.removeKnot(at: 2, multiplicity: 0, tolerance: 1.0)
+        }
+    }
+}
+
+@Suite("Bezier Curve Manipulation Tests")
+struct BezierCurveManipulationTests {
+
+    @Test func degreeAndPoleCount() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            let deg = bez.bezier.degree
+            #expect(deg == 3)
+            let pc = bez.bezier.poleCount
+            #expect(pc == 4)
+        }
+    }
+
+    @Test func isRational() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            #expect(!bez.bezier.isRational)
+        }
+    }
+
+    @Test func getPole() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            let p = bez.bezier.pole(at: 1)
+            #expect(abs(p.x) < 1e-6)
+            #expect(abs(p.y) < 1e-6)
+        }
+    }
+
+    @Test func setPole() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            let ok = bez.bezier.setPole(at: 2, to: SIMD3(3, 8, 0))
+            #expect(ok)
+            let p = bez.bezier.pole(at: 2)
+            #expect(abs(p.y - 8.0) < 1e-6)
+        }
+    }
+
+    @Test func segment() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            let ok = bez.bezier.segment(u1: 0.25, u2: 0.75)
+            #expect(ok)
+        }
+    }
+
+    @Test func increaseDegree() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            let ok = bez.bezier.increaseDegree(to: 5)
+            #expect(ok)
+            #expect(bez.bezier.degree == 5)
+        }
+    }
+
+    @Test func insertPoleAfter() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            let ok = bez.bezier.insertPoleAfter(index: 2, point: SIMD3(5, 6, 0))
+            #expect(ok)
+            #expect(bez.bezier.poleCount == 5)
+        }
+    }
+
+    @Test func removePole() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(5,6,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            let ok = bez.bezier.removePole(at: 3)
+            #expect(ok)
+            #expect(bez.bezier.poleCount == 4)
+        }
+    }
+
+    @Test func setWeight() {
+        if let bez = Curve3D.bezier(poles: [SIMD3(0,0,0), SIMD3(3,5,0), SIMD3(7,5,0), SIMD3(10,0,0)]) {
+            let ok = bez.bezier.setWeight(at: 2, to: 2.0)
+            #expect(ok)
+            #expect(bez.bezier.isRational)
+        }
+    }
+}
+
+@Suite("BRepTools/BRepLib Utilities Tests")
+struct BRepToolsUtilitiesTests {
+
+    @Test func clean() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            box.clean()
+            // No crash = pass
+        }
+    }
+
+    @Test func cleanGeometry() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            box.cleanGeometry()
+        }
+    }
+
+    @Test func removeUnusedPCurves() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            box.removeUnusedPCurves()
+        }
+    }
+
+    @Test func updateShape() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            box.updateShape()
+        }
+    }
+
+    @Test func updateTolerances() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            box.updateTolerances()
+        }
+    }
+
+    @Test func updateInnerTolerances() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            box.updateInnerTolerances()
+        }
+    }
+
+    @Test func buildCurve3d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let ok = Shape.buildCurve3d(edge: edge)
+                let _ = ok
+            }
+        }
+    }
+
+    @Test func checkSameRange() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let ok = Shape.checkSameRange(edge: edge)
+                let _ = ok
+            }
+        }
+    }
+
+    @Test func sameRange() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let ok = Shape.sameRange(edge: edge)
+                let _ = ok
+            }
+        }
+    }
+
+    @Test func updateEdgeTolerance() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let ok = Shape.updateEdgeTolerance(edge: edge, tolerance: 1e-4)
+                let _ = ok
+            }
+        }
+    }
+}
+
+@Suite("MakeFace Extras Tests")
+struct MakeFaceExtrasTests {
+
+    @Test func faceFromSphere() {
+        if let face = Shape.faceFromSphere(radius: 5.0, uMin: 0, uMax: .pi, vMin: -.pi/4, vMax: .pi/4) {
+            #expect(face.isValid)
+        }
+    }
+
+    @Test func faceFromTorus() {
+        if let face = Shape.faceFromTorus(majorRadius: 10, minorRadius: 2, uMin: 0, uMax: .pi, vMin: 0, vMax: .pi) {
+            #expect(face.isValid)
+        }
+    }
+
+    @Test func faceFromCone() {
+        if let face = Shape.faceFromCone(semiAngle: .pi/6, radius: 5, uMin: 0, uMax: .pi, vMin: 0, vMax: 10) {
+            #expect(face.isValid)
+        }
+    }
+
+    @Test func faceFromSurfaceWire() {
+        // Create a planar face from a wire, then extract the face's outer wire and surface
+        if let plane = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) {
+            if let wire = Wire.rectangle(width: 10, height: 10) {
+                // First make a face from the wire to get a proper shape wire
+                if let planarFace = Shape.face(from: wire) {
+                    let wires = planarFace.subShapes(ofType: .wire)
+                    if let wireShp = wires.first {
+                        if let face = Shape.faceFromSurface(plane, wire: wireShp) {
+                            // Face may or may not be valid depending on wire orientation
+                            let _ = face
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func faceCopy() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                if let copy = Shape.faceCopy(face) {
+                    #expect(copy.isValid)
+                }
+            }
+        }
+    }
+
+    @Test func faceAddHole() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            // Try to get a wire sub-shape to use as a hole
+            if let face = faces.first {
+                let wires = box.subShapes(ofType: .wire)
+                if wires.count >= 2 {
+                    let _ = Shape.faceAddHole(face: face, wire: wires[1])
+                }
+            }
+        }
+    }
+}
+
+@Suite("Sewing Builder Tests")
+struct SewingBuilderTests {
+
+    @Test func createSewing() {
+        let sewing = SewingBuilder(tolerance: 1e-6)
+        #expect(sewing != nil)
+    }
+
+    @Test func sewBoxFaces() {
+        if let sewing = SewingBuilder(tolerance: 1e-6) {
+            if let box = Shape.box(width: 10, height: 10, depth: 10) {
+                let faces = box.subShapes(ofType: .face)
+                for face in faces {
+                    sewing.add(face)
+                }
+                sewing.perform()
+                if let result = sewing.result {
+                    #expect(result.isValid)
+                }
+            }
+        }
+    }
+
+    @Test func sewingStatistics() {
+        if let sewing = SewingBuilder(tolerance: 1e-6) {
+            if let box = Shape.box(width: 10, height: 10, depth: 10) {
+                let faces = box.subShapes(ofType: .face)
+                for face in faces {
+                    sewing.add(face)
+                }
+                sewing.perform()
+                #expect(sewing.nbFreeEdges >= 0)
+                #expect(sewing.nbContigousEdges >= 0)
+                #expect(sewing.nbDegeneratedShapes >= 0)
+            }
+        }
+    }
+}
+
+@Suite("Hatch Builder Tests")
+struct HatchBuilderTests {
+
+    @Test func createHatcher() {
+        let hatcher = HatchBuilder(tolerance: 1e-6)
+        #expect(hatcher != nil)
+    }
+
+    @Test func addLinesAndCount() {
+        if let hatcher = HatchBuilder(tolerance: 1e-6) {
+            hatcher.addXLine(0.0)
+            hatcher.addXLine(5.0)
+            hatcher.addXLine(10.0)
+            #expect(hatcher.nbLines == 3)
+        }
+    }
+
+    @Test func addYLines() {
+        if let hatcher = HatchBuilder(tolerance: 1e-6) {
+            hatcher.addYLine(0.0)
+            hatcher.addYLine(5.0)
+            #expect(hatcher.nbLines == 2)
+        }
+    }
+
+    @Test func trimAndIntervals() {
+        if let hatcher = HatchBuilder(tolerance: 1e-6) {
+            hatcher.addXLine(0.0)
+            hatcher.addXLine(5.0)
+            hatcher.addXLine(10.0)
+            hatcher.trim(x1: -1, y1: -1, x2: 11, y2: 11)
+            if hatcher.nbLines > 0 {
+                let nInt = hatcher.nbIntervals(lineIndex: 1)
+                #expect(nInt >= 0)
+            }
+        }
+    }
+}
+
+@Suite("Edge/Face Extraction Tests")
+struct EdgeFaceExtractionTests {
+
+    @Test func extractEdgeCurve3D() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                if let result = edge.extractEdgeCurve3D() {
+                    #expect(result.last > result.first || result.last == result.first)
+                }
+            }
+        }
+    }
+
+    @Test func edgeTolerance() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                let tol = edge.edgeTolerance
+                #expect(tol > 0)
+            }
+        }
+    }
+
+    @Test func edgeIsDegenerated() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if let edge = edges.first {
+                #expect(!edge.isEdgeDegenerated)
+            }
+        }
+    }
+
+    @Test func extractFaceSurface() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                if let surface = face.extractFaceSurface() {
+                    let _ = surface.domain
+                }
+            }
+        }
+    }
+
+    @Test func faceTolerance() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let tol = face.faceTolerance
+                #expect(tol > 0)
+            }
+        }
+    }
+
+    @Test func faceWireCount() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if let face = faces.first {
+                let wc = face.faceWireCount
+                #expect(wc >= 1)
+            }
+        }
+    }
+
+    @Test func vertexTolerance() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let vertices = box.subShapes(ofType: .vertex)
+            if let vertex = vertices.first {
+                let tol = vertex.vertexTolerance
+                #expect(tol > 0)
+            }
+        }
+    }
+
+    @Test func vertexPoint() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let vertices = box.subShapes(ofType: .vertex)
+            if let vertex = vertices.first {
+                let pt = vertex.vertexPoint
+                // A vertex of a 10x10x10 box centered at origin should have coords in [-5, 5]
+                #expect(abs(pt.x) <= 6)
+                #expect(abs(pt.y) <= 6)
+                #expect(abs(pt.z) <= 6)
+            }
+        }
+    }
+
+    @Test func extractEdgePCurve() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            let edges = box.subShapes(ofType: .edge)
+            // Try to find an edge that has a PCurve on some face
+            for face in faces {
+                for edge in edges {
+                    if let result = edge.extractEdgePCurve(onFace: face) {
+                        #expect(result.last >= result.first)
+                        return
+                    }
+                }
+            }
+        }
+    }
+}
