@@ -27,6 +27,11 @@ public final class Point2D: @unchecked Sendable {
         self.init(x: position.x, y: position.y)
     }
 
+    /// Create a 2D point from a SIMD2 vector (convenience alias).
+    public convenience init?(_ coords: SIMD2<Double>) {
+        self.init(x: coords.x, y: coords.y)
+    }
+
     // MARK: - Properties
 
     /// The X coordinate.
@@ -39,7 +44,12 @@ public final class Point2D: @unchecked Sendable {
         OCCTPoint2DGetY(handle)
     }
 
-    /// The position as a SIMD2 vector.
+    /// The coordinates as a SIMD2 vector.
+    public var coords: SIMD2<Double> {
+        SIMD2(x, y)
+    }
+
+    /// The position as a SIMD2 vector (alias for coords).
     public var position: SIMD2<Double> {
         SIMD2(x, y)
     }
@@ -99,6 +109,11 @@ public final class Point2D: @unchecked Sendable {
         guard let h = OCCTPoint2DMirroredAxis(handle, axisOrigin.x, axisOrigin.y,
                                                axisDirection.x, axisDirection.y) else { return nil }
         return Point2D(handle: h)
+    }
+
+    /// Translate by a vector, returns a new point.
+    public func translated(by delta: SIMD2<Double>) -> Point2D? {
+        translated(dx: delta.x, dy: delta.y)
     }
 
     /// Apply a 2D transformation, returns a new point.
