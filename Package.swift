@@ -2,6 +2,27 @@
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
+import Foundation
+
+// Use local xcframework when developing (repo checkout), remote URL when consumed as a dependency.
+// Set OCCTSWIFT_LOCAL=1 to force local path, or OCCTSWIFT_REMOTE=1 to force remote URL.
+let useLocalBinary: Bool = {
+    if ProcessInfo.processInfo.environment["OCCTSWIFT_REMOTE"] == "1" { return false }
+    if ProcessInfo.processInfo.environment["OCCTSWIFT_LOCAL"] == "1" { return true }
+    // Auto-detect: use local if Libraries/OCCT.xcframework exists
+    return FileManager.default.fileExists(atPath: "Libraries/OCCT.xcframework/Info.plist")
+}()
+
+let occtTarget: Target = useLocalBinary
+    ? .binaryTarget(
+        name: "OCCT",
+        path: "Libraries/OCCT.xcframework"
+    )
+    : .binaryTarget(
+        name: "OCCT",
+        url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.107.0/OCCT.xcframework.zip",
+        checksum: "de28eb1940314b72b2814a78deb0c7cdcc1b71f906dacc7da3a26efa86cc002f"
+    )
 
 let package = Package(
     name: "OCCTSwift",
@@ -46,17 +67,8 @@ let package = Package(
             ]
         ),
 
-        // OCCT binary framework (local for development)
-        // For SPM consumers, use remote URL:
-        // .binaryTarget(
-        //     name: "OCCT",
-        //     url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.5.0/OCCT.xcframework.zip",
-        //     checksum: "4f42d7854452946fb8e5141e654c84c2f3bdfcfebff703c143c7961ec340b7f7"
-        // ),
-        .binaryTarget(
-            name: "OCCT",
-            path: "Libraries/OCCT.xcframework"
-        ),
+        // OCCT binary framework - auto-selects local or remote
+        occtTarget,
 
         // Tests
         .testTarget(
