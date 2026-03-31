@@ -30299,3 +30299,668 @@ struct EdgeFaceExtractionTests {
         }
     }
 }
+
+// MARK: - v0.108.0: Geom_ and Geom2d_ Method Coverage
+
+@Suite("Geom_Circle Properties")
+struct GeomCircle3DTests {
+    @Test func circleRadius() {
+        if let c = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5) {
+            #expect(abs(c.circleProperties.radius - 5.0) < 1e-6)
+        }
+    }
+
+    @Test func circleSetRadius() {
+        if let c = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5) {
+            #expect(c.circleProperties.setRadius(10.0))
+            #expect(abs(c.circleProperties.radius - 10.0) < 1e-6)
+        }
+    }
+
+    @Test func circleEccentricity() {
+        if let c = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5) {
+            #expect(abs(c.circleProperties.eccentricity) < 1e-6)
+        }
+    }
+
+    @Test func circleCenter() {
+        if let c = Curve3D.circle(center: SIMD3(1, 2, 3), normal: SIMD3(0, 0, 1), radius: 5) {
+            let ctr = c.circleProperties.center
+            #expect(abs(ctr.x - 1) < 1e-6)
+            #expect(abs(ctr.y - 2) < 1e-6)
+            #expect(abs(ctr.z - 3) < 1e-6)
+        }
+    }
+
+    @Test func circleXAxis() {
+        if let c = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5) {
+            let ax = c.circleProperties.xAxis
+            #expect(abs(ax.direction.x - 1) < 1e-6)
+        }
+    }
+
+    @Test func circleYAxis() {
+        if let c = Curve3D.circle(center: .zero, normal: SIMD3(0, 0, 1), radius: 5) {
+            let ax = c.circleProperties.yAxis
+            #expect(abs(ax.direction.y - 1) < 1e-6)
+        }
+    }
+}
+
+@Suite("Geom_Ellipse Properties")
+struct GeomEllipse3DTests {
+    @Test func ellipseRadii() {
+        if let e = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 5) {
+            #expect(abs(e.ellipseProperties.majorRadius - 10) < 1e-6)
+            #expect(abs(e.ellipseProperties.minorRadius - 5) < 1e-6)
+        }
+    }
+
+    @Test func ellipseSetRadii() {
+        if let e = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 5) {
+            #expect(e.ellipseProperties.setMajorRadius(20))
+            #expect(abs(e.ellipseProperties.majorRadius - 20) < 1e-6)
+            #expect(e.ellipseProperties.setMinorRadius(8))
+            #expect(abs(e.ellipseProperties.minorRadius - 8) < 1e-6)
+        }
+    }
+
+    @Test func ellipseEccentricity() {
+        if let e = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 5) {
+            let ecc = e.ellipseProperties.eccentricity
+            #expect(ecc > 0 && ecc < 1)
+        }
+    }
+
+    @Test func ellipseFocal() {
+        if let e = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 5) {
+            #expect(e.ellipseProperties.focal > 0)
+        }
+    }
+
+    @Test func ellipseFoci() {
+        if let e = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 5) {
+            let f1 = e.ellipseProperties.focus1
+            let f2 = e.ellipseProperties.focus2
+            // Foci should be symmetric about center
+            #expect(abs(f1.x + f2.x) < 1e-6)
+        }
+    }
+
+    @Test func ellipseParameter() {
+        if let e = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 5) {
+            #expect(e.ellipseProperties.parameter > 0)
+        }
+    }
+
+    @Test func ellipseDirectrix1() {
+        if let e = Curve3D.ellipse(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 5) {
+            let d = e.ellipseProperties.directrix1
+            // Directrix position should be defined
+            let _ = d.position
+            let _ = d.direction
+        }
+    }
+}
+
+@Suite("Geom_Hyperbola Properties")
+struct GeomHyperbola3DTests {
+    @Test func hyperbolaRadii() {
+        if let h = Curve3D.hyperbola(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 5, minorRadius: 3) {
+            #expect(abs(h.hyperbolaProperties.majorRadius - 5) < 1e-6)
+            #expect(abs(h.hyperbolaProperties.minorRadius - 3) < 1e-6)
+        }
+    }
+
+    @Test func hyperbolaSetRadii() {
+        if let h = Curve3D.hyperbola(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 5, minorRadius: 3) {
+            #expect(h.hyperbolaProperties.setMajorRadius(8))
+            #expect(abs(h.hyperbolaProperties.majorRadius - 8) < 1e-6)
+            #expect(h.hyperbolaProperties.setMinorRadius(4))
+            #expect(abs(h.hyperbolaProperties.minorRadius - 4) < 1e-6)
+        }
+    }
+
+    @Test func hyperbolaEccentricity() {
+        if let h = Curve3D.hyperbola(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 5, minorRadius: 3) {
+            #expect(h.hyperbolaProperties.eccentricity > 1)
+        }
+    }
+
+    @Test func hyperbolaFocal() {
+        if let h = Curve3D.hyperbola(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 5, minorRadius: 3) {
+            #expect(h.hyperbolaProperties.focal > 0)
+        }
+    }
+
+    @Test func hyperbolaFocus1() {
+        if let h = Curve3D.hyperbola(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 5, minorRadius: 3) {
+            let f = h.hyperbolaProperties.focus1
+            #expect(f.x > 0)  // Focus is along positive X
+        }
+    }
+
+    @Test func hyperbolaAsymptote1() {
+        if let h = Curve3D.hyperbola(center: .zero, normal: SIMD3(0, 0, 1), majorRadius: 5, minorRadius: 3) {
+            let a = h.hyperbolaProperties.asymptote1
+            let _ = a.position
+            let _ = a.direction
+        }
+    }
+}
+
+@Suite("Geom_Parabola Properties")
+struct GeomParabola3DTests {
+    @Test func parabolaFocal() {
+        if let p = Curve3D.parabola(center: .zero, normal: SIMD3(0, 0, 1), focal: 3) {
+            #expect(abs(p.parabolaProperties.focal - 3) < 1e-6)
+        }
+    }
+
+    @Test func parabolaSetFocal() {
+        if let p = Curve3D.parabola(center: .zero, normal: SIMD3(0, 0, 1), focal: 3) {
+            #expect(p.parabolaProperties.setFocal(5))
+            #expect(abs(p.parabolaProperties.focal - 5) < 1e-6)
+        }
+    }
+
+    @Test func parabolaFocus() {
+        if let p = Curve3D.parabola(center: .zero, normal: SIMD3(0, 0, 1), focal: 3) {
+            let f = p.parabolaProperties.focus
+            #expect(abs(f.x - 3) < 1e-6)
+        }
+    }
+
+    @Test func parabolaEccentricity() {
+        if let p = Curve3D.parabola(center: .zero, normal: SIMD3(0, 0, 1), focal: 3) {
+            #expect(abs(p.parabolaProperties.eccentricity - 1.0) < 1e-6)
+        }
+    }
+
+    @Test func parabolaParameter() {
+        if let p = Curve3D.parabola(center: .zero, normal: SIMD3(0, 0, 1), focal: 3) {
+            #expect(abs(p.parabolaProperties.parameter - 6.0) < 1e-6)
+        }
+    }
+
+    @Test func parabolaDirectrix() {
+        if let p = Curve3D.parabola(center: .zero, normal: SIMD3(0, 0, 1), focal: 3) {
+            let d = p.parabolaProperties.directrix
+            #expect(abs(d.position.x - (-3)) < 1e-6)
+        }
+    }
+}
+
+@Suite("Geom_Line Properties")
+struct GeomLine3DTests {
+    @Test func lineDirection() {
+        if let l = Curve3D.line(through: SIMD3(1, 2, 3), direction: SIMD3(1, 0, 0)) {
+            let d = l.lineProperties.direction
+            #expect(abs(d.x - 1) < 1e-6)
+        }
+    }
+
+    @Test func lineLocation() {
+        if let l = Curve3D.line(through: SIMD3(1, 2, 3), direction: SIMD3(1, 0, 0)) {
+            let loc = l.lineProperties.location
+            #expect(abs(loc.x - 1) < 1e-6)
+            #expect(abs(loc.y - 2) < 1e-6)
+            #expect(abs(loc.z - 3) < 1e-6)
+        }
+    }
+
+    @Test func lineSetDirection() {
+        if let l = Curve3D.line(through: SIMD3(1, 2, 3), direction: SIMD3(1, 0, 0)) {
+            #expect(l.lineProperties.setDirection(SIMD3(0, 1, 0)))
+            #expect(abs(l.lineProperties.direction.y - 1) < 1e-6)
+        }
+    }
+
+    @Test func lineSetLocation() {
+        if let l = Curve3D.line(through: SIMD3(1, 2, 3), direction: SIMD3(1, 0, 0)) {
+            #expect(l.lineProperties.setLocation(SIMD3(5, 5, 5)))
+            #expect(abs(l.lineProperties.location.x - 5) < 1e-6)
+        }
+    }
+
+    @Test func linePosition() {
+        if let l = Curve3D.line(through: SIMD3(1, 2, 3), direction: SIMD3(1, 0, 0)) {
+            let pos = l.lineProperties.position
+            #expect(abs(pos.direction.x - 1) < 1e-6)
+        }
+    }
+
+    @Test func lineLin() {
+        if let l = Curve3D.line(through: SIMD3(1, 2, 3), direction: SIMD3(1, 0, 0)) {
+            let gl = l.lineProperties.lin
+            #expect(abs(gl.location.x - 1) < 1e-6)
+        }
+    }
+}
+
+@Suite("Geom_Plane Properties")
+struct GeomPlane3DTests {
+    @Test func planeCoefficients() {
+        if let p = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) {
+            let c = p.planeProperties.coefficients
+            #expect(abs(c.c - 1.0) < 1e-6)
+            #expect(abs(c.d) < 1e-6)
+        }
+    }
+
+    @Test func planeUIso() {
+        if let p = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) {
+            if let iso = p.planeProperties.uIso(0) {
+                let _ = iso.domain
+            }
+        }
+    }
+
+    @Test func planeVIso() {
+        if let p = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) {
+            if let iso = p.planeProperties.vIso(0) {
+                let _ = iso.domain
+            }
+        }
+    }
+
+    @Test func planePln() {
+        if let p = Surface.plane(origin: .zero, normal: SIMD3(0, 0, 1)) {
+            let pln = p.planeProperties.pln
+            #expect(abs(pln.normal.z - 1) < 1e-6)
+        }
+    }
+}
+
+@Suite("Geom_SphericalSurface Properties")
+struct GeomSphere3DTests {
+    @Test func sphereRadius() {
+        if let s = Surface.sphere(center: .zero, radius: 5) {
+            #expect(abs(s.sphereProperties.radius - 5) < 1e-6)
+        }
+    }
+
+    @Test func sphereSetRadius() {
+        if let s = Surface.sphere(center: .zero, radius: 5) {
+            #expect(s.sphereProperties.setRadius(10))
+            #expect(abs(s.sphereProperties.radius - 10) < 1e-6)
+        }
+    }
+
+    @Test func sphereArea() {
+        if let s = Surface.sphere(center: .zero, radius: 5) {
+            let area = s.sphereProperties.area
+            #expect(abs(area - 4 * Double.pi * 25) < 0.1)
+        }
+    }
+
+    @Test func sphereVolume() {
+        if let s = Surface.sphere(center: .zero, radius: 5) {
+            let vol = s.sphereProperties.volume
+            #expect(abs(vol - 4.0 / 3.0 * Double.pi * 125) < 1.0)
+        }
+    }
+
+    @Test func sphereCenter() {
+        if let s = Surface.sphere(center: SIMD3(1, 2, 3), radius: 5) {
+            let c = s.sphereProperties.center
+            #expect(abs(c.x - 1) < 1e-6)
+            #expect(abs(c.y - 2) < 1e-6)
+            #expect(abs(c.z - 3) < 1e-6)
+        }
+    }
+
+    @Test func sphereUIso() {
+        if let s = Surface.sphere(center: .zero, radius: 5) {
+            if let iso = s.sphereProperties.uIso(0) {
+                let _ = iso.domain
+            }
+        }
+    }
+
+    @Test func sphereVIso() {
+        if let s = Surface.sphere(center: .zero, radius: 5) {
+            if let iso = s.sphereProperties.vIso(0) {
+                let _ = iso.domain
+            }
+        }
+    }
+
+    @Test func sphereSphere() {
+        if let s = Surface.sphere(center: .zero, radius: 5) {
+            let sph = s.sphereProperties.sphere
+            #expect(abs(sph.radius - 5) < 1e-6)
+        }
+    }
+}
+
+@Suite("Geom_ToroidalSurface Properties")
+struct GeomTorus3DTests {
+    @Test func torusRadii() {
+        if let t = Surface.torus(origin: .zero, axis: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 2) {
+            #expect(abs(t.torusProperties.majorRadius - 10) < 1e-6)
+            #expect(abs(t.torusProperties.minorRadius - 2) < 1e-6)
+        }
+    }
+
+    @Test func torusSetRadii() {
+        if let t = Surface.torus(origin: .zero, axis: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 2) {
+            #expect(t.torusProperties.setMajorRadius(15))
+            #expect(abs(t.torusProperties.majorRadius - 15) < 1e-6)
+            #expect(t.torusProperties.setMinorRadius(3))
+            #expect(abs(t.torusProperties.minorRadius - 3) < 1e-6)
+        }
+    }
+
+    @Test func torusArea() {
+        if let t = Surface.torus(origin: .zero, axis: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 2) {
+            let area = t.torusProperties.area
+            #expect(abs(area - 4 * Double.pi * Double.pi * 10 * 2) < 1.0)
+        }
+    }
+
+    @Test func torusVolume() {
+        if let t = Surface.torus(origin: .zero, axis: SIMD3(0, 0, 1), majorRadius: 10, minorRadius: 2) {
+            let vol = t.torusProperties.volume
+            #expect(abs(vol - 2 * Double.pi * Double.pi * 10 * 4) < 1.0)
+        }
+    }
+}
+
+@Suite("Geom_CylindricalSurface Properties")
+struct GeomCylinder3DTests {
+    @Test func cylinderRadius() {
+        if let c = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5) {
+            #expect(abs(c.cylinderProperties.radius - 5) < 1e-6)
+        }
+    }
+
+    @Test func cylinderSetRadius() {
+        if let c = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5) {
+            #expect(c.cylinderProperties.setRadius(10))
+            #expect(abs(c.cylinderProperties.radius - 10) < 1e-6)
+        }
+    }
+
+    @Test func cylinderAxis() {
+        if let c = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5) {
+            let ax = c.cylinderProperties.axis
+            #expect(abs(ax.direction.z - 1) < 1e-6)
+        }
+    }
+
+    @Test func cylinderUIso() {
+        if let c = Surface.cylinder(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5) {
+            if let iso = c.cylinderProperties.uIso(0) {
+                let _ = iso.domain
+            }
+        }
+    }
+}
+
+@Suite("Geom_ConicalSurface Properties")
+struct GeomCone3DTests {
+    @Test func coneSemiAngle() {
+        if let c = Surface.cone(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5, semiAngle: 0.3) {
+            #expect(abs(c.coneProperties.semiAngle - 0.3) < 1e-6)
+        }
+    }
+
+    @Test func coneRefRadius() {
+        if let c = Surface.cone(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5, semiAngle: 0.3) {
+            #expect(abs(c.coneProperties.refRadius - 5) < 1e-6)
+        }
+    }
+
+    @Test func coneApex() {
+        if let c = Surface.cone(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5, semiAngle: 0.3) {
+            let a = c.coneProperties.apex
+            let _ = a  // Apex is defined by geometry
+        }
+    }
+
+    @Test func coneAxis() {
+        if let c = Surface.cone(origin: .zero, axis: SIMD3(0, 0, 1), radius: 5, semiAngle: 0.3) {
+            let ax = c.coneProperties.axis
+            #expect(abs(ax.direction.z - 1) < 1e-6)
+        }
+    }
+}
+
+@Suite("Geom_SweptSurface Properties")
+struct GeomSwept3DTests {
+    @Test func sweptDirection() {
+        if let line = Curve3D.line(through: .zero, direction: SIMD3(1, 0, 0)) {
+            if let ext = Surface.extrusion(profile: line, direction: SIMD3(0, 0, 1)) {
+                let d = ext.sweptProperties.direction
+                #expect(abs(d.z - 1) < 1e-6)
+            }
+        }
+    }
+
+    @Test func sweptBasisCurve() {
+        if let line = Curve3D.line(through: .zero, direction: SIMD3(1, 0, 0)) {
+            if let ext = Surface.extrusion(profile: line, direction: SIMD3(0, 0, 1)) {
+                if let basis = ext.sweptProperties.basisCurve {
+                    let _ = basis.domain
+                }
+            }
+        }
+    }
+}
+
+@Suite("Geom2d_Circle Properties")
+struct Geom2dCircleTests {
+    @Test func circle2DRadius() {
+        if let c = Curve2D.circle(center: .zero, radius: 5) {
+            #expect(abs(c.circleProperties.radius - 5) < 1e-6)
+        }
+    }
+
+    @Test func circle2DSetRadius() {
+        if let c = Curve2D.circle(center: .zero, radius: 5) {
+            #expect(c.circleProperties.setRadius(8))
+            #expect(abs(c.circleProperties.radius - 8) < 1e-6)
+        }
+    }
+
+    @Test func circle2DEccentricity() {
+        if let c = Curve2D.circle(center: .zero, radius: 5) {
+            #expect(abs(c.circleProperties.eccentricity) < 1e-6)
+        }
+    }
+
+    @Test func circle2DCenter() {
+        if let c = Curve2D.circle(center: SIMD2(3, 4), radius: 5) {
+            let ctr = c.circleProperties.center
+            #expect(abs(ctr.x - 3) < 1e-6)
+            #expect(abs(ctr.y - 4) < 1e-6)
+        }
+    }
+
+    @Test func circle2DXAxis() {
+        if let c = Curve2D.circle(center: .zero, radius: 5) {
+            let ax = c.circleProperties.xAxis
+            #expect(abs(ax.direction.x - 1) < 1e-6)
+        }
+    }
+}
+
+@Suite("Geom2d_Ellipse Properties")
+struct Geom2dEllipseTests {
+    @Test func ellipse2DRadii() {
+        if let e = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5) {
+            #expect(abs(e.ellipseProperties.majorRadius - 10) < 1e-6)
+            #expect(abs(e.ellipseProperties.minorRadius - 5) < 1e-6)
+        }
+    }
+
+    @Test func ellipse2DSetRadii() {
+        if let e = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5) {
+            #expect(e.ellipseProperties.setMajorRadius(20))
+            #expect(abs(e.ellipseProperties.majorRadius - 20) < 1e-6)
+            #expect(e.ellipseProperties.setMinorRadius(8))
+            #expect(abs(e.ellipseProperties.minorRadius - 8) < 1e-6)
+        }
+    }
+
+    @Test func ellipse2DEccentricity() {
+        if let e = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5) {
+            #expect(e.ellipseProperties.eccentricity > 0)
+        }
+    }
+
+    @Test func ellipse2DFocal() {
+        if let e = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5) {
+            #expect(e.ellipseProperties.focal > 0)
+        }
+    }
+
+    @Test func ellipse2DFocus1() {
+        if let e = Curve2D.ellipse(center: .zero, majorRadius: 10, minorRadius: 5) {
+            let f = e.ellipseProperties.focus1
+            // Focus should be along major axis
+            let _ = f
+        }
+    }
+}
+
+@Suite("Geom2d_Hyperbola Properties")
+struct Geom2dHyperbolaTests {
+    @Test func hyperbola2DRadii() {
+        if let h = Curve2D.hyperbola(center: .zero, majorRadius: 5, minorRadius: 3) {
+            #expect(abs(h.hyperbolaProperties.majorRadius - 5) < 1e-6)
+            #expect(abs(h.hyperbolaProperties.minorRadius - 3) < 1e-6)
+        }
+    }
+
+    @Test func hyperbola2DEccentricity() {
+        if let h = Curve2D.hyperbola(center: .zero, majorRadius: 5, minorRadius: 3) {
+            #expect(h.hyperbolaProperties.eccentricity > 1)
+        }
+    }
+
+    @Test func hyperbola2DFocal() {
+        if let h = Curve2D.hyperbola(center: .zero, majorRadius: 5, minorRadius: 3) {
+            #expect(h.hyperbolaProperties.focal > 0)
+        }
+    }
+
+    @Test func hyperbola2DFocus1() {
+        if let h = Curve2D.hyperbola(center: .zero, majorRadius: 5, minorRadius: 3) {
+            let f = h.hyperbolaProperties.focus1
+            #expect(f.x > 0)
+        }
+    }
+}
+
+@Suite("Geom2d_Parabola Properties")
+struct Geom2dParabolaTests {
+    @Test func parabola2DFocal() {
+        if let p = Curve2D.parabola(focus: .zero, direction: SIMD2(1, 0), focalLength: 3) {
+            #expect(p.parabolaProperties.focal > 0)
+        }
+    }
+
+    @Test func parabola2DSetFocal() {
+        if let p = Curve2D.parabola(focus: .zero, direction: SIMD2(1, 0), focalLength: 3) {
+            #expect(p.parabolaProperties.setFocal(5))
+            #expect(abs(p.parabolaProperties.focal - 5) < 1e-6)
+        }
+    }
+
+    @Test func parabola2DFocus() {
+        if let p = Curve2D.parabola(focus: .zero, direction: SIMD2(1, 0), focalLength: 3) {
+            let f = p.parabolaProperties.focus
+            let _ = f
+        }
+    }
+
+    @Test func parabola2DEccentricity() {
+        if let p = Curve2D.parabola(focus: .zero, direction: SIMD2(1, 0), focalLength: 3) {
+            #expect(abs(p.parabolaProperties.eccentricity - 1.0) < 1e-6)
+        }
+    }
+
+    @Test func parabola2DParameter() {
+        if let p = Curve2D.parabola(focus: .zero, direction: SIMD2(1, 0), focalLength: 3) {
+            #expect(p.parabolaProperties.parameter > 0)
+        }
+    }
+}
+
+@Suite("Geom2d_Line Properties")
+struct Geom2dLineTests {
+    @Test func line2DDirection() {
+        if let l = Curve2D.line(through: SIMD2(1, 2), direction: SIMD2(1, 0)) {
+            let d = l.lineProperties.direction
+            #expect(abs(d.x - 1) < 1e-6)
+        }
+    }
+
+    @Test func line2DLocation() {
+        if let l = Curve2D.line(through: SIMD2(1, 2), direction: SIMD2(1, 0)) {
+            let loc = l.lineProperties.location
+            #expect(abs(loc.x - 1) < 1e-6)
+            #expect(abs(loc.y - 2) < 1e-6)
+        }
+    }
+
+    @Test func line2DSetDirection() {
+        if let l = Curve2D.line(through: SIMD2(1, 2), direction: SIMD2(1, 0)) {
+            #expect(l.lineProperties.setDirection(SIMD2(0, 1)))
+            #expect(abs(l.lineProperties.direction.y - 1) < 1e-6)
+        }
+    }
+
+    @Test func line2DSetLocation() {
+        if let l = Curve2D.line(through: SIMD2(1, 2), direction: SIMD2(1, 0)) {
+            #expect(l.lineProperties.setLocation(SIMD2(5, 5)))
+            #expect(abs(l.lineProperties.location.x - 5) < 1e-6)
+        }
+    }
+
+    @Test func line2DDistance() {
+        if let l = Curve2D.line(through: SIMD2(0, 0), direction: SIMD2(1, 0)) {
+            let dist = l.lineProperties.distance(to: SIMD2(0, 5))
+            #expect(abs(dist - 5) < 1e-6)
+        }
+    }
+
+    @Test func line2DLin2d() {
+        if let l = Curve2D.line(through: SIMD2(1, 2), direction: SIMD2(1, 0)) {
+            let gl = l.lineProperties.lin2d
+            #expect(abs(gl.location.x - 1) < 1e-6)
+        }
+    }
+}
+
+@Suite("Geom2d_OffsetCurve Properties")
+struct Geom2dOffsetTests {
+    @Test func offset2DValue() {
+        if let base = Curve2D.line(through: .zero, direction: SIMD2(1, 0)) {
+            if let oc = base.offset(by: 3) {
+                #expect(abs(oc.offsetProperties.offset - 3) < 1e-6)
+            }
+        }
+    }
+
+    @Test func offset2DSetValue() {
+        if let base = Curve2D.line(through: .zero, direction: SIMD2(1, 0)) {
+            if let oc = base.offset(by: 3) {
+                #expect(oc.offsetProperties.setOffset(5))
+                #expect(abs(oc.offsetProperties.offset - 5) < 1e-6)
+            }
+        }
+    }
+
+    @Test func offset2DBasisCurve() {
+        if let base = Curve2D.line(through: .zero, direction: SIMD2(1, 0)) {
+            if let oc = base.offset(by: 3) {
+                if let basis = oc.offsetProperties.basisCurve {
+                    let _ = basis.domain
+                }
+            }
+        }
+    }
+}

@@ -1871,4 +1871,202 @@ extension Surface {
         free(arr)
         return surfaces.isEmpty ? nil : surfaces
     }
+
+    // MARK: - Geom_Plane Properties (v0.108.0)
+
+    /// Access plane-specific properties.
+    public struct PlaneProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTSurfaceRef
+
+        /// The plane equation coefficients (Ax + By + Cz + D = 0).
+        public var coefficients: (a: Double, b: Double, c: Double, d: Double) {
+            var a = 0.0, b = 0.0, c = 0.0, d = 0.0
+            OCCTSurfacePlaneCoefficients(handle, &a, &b, &c, &d)
+            return (a, b, c, d)
+        }
+
+        /// A U iso-curve on the plane.
+        public func uIso(_ u: Double) -> Curve3D? {
+            guard let h = OCCTSurfacePlaneUIso(handle, u) else { return nil }
+            return Curve3D(handle: h)
+        }
+
+        /// A V iso-curve on the plane.
+        public func vIso(_ v: Double) -> Curve3D? {
+            guard let h = OCCTSurfacePlaneVIso(handle, v) else { return nil }
+            return Curve3D(handle: h)
+        }
+
+        /// The plane data (origin + normal).
+        public var pln: (origin: SIMD3<Double>, normal: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, nx = 0.0, ny = 0.0, nz = 0.0
+            OCCTSurfacePlanePln(handle, &px, &py, &pz, &nx, &ny, &nz)
+            return (SIMD3(px, py, pz), SIMD3(nx, ny, nz))
+        }
+    }
+
+    /// Plane-specific properties (meaningful only when the underlying surface is a Geom_Plane).
+    public var planeProperties: PlaneProperties { PlaneProperties(handle: handle) }
+
+    // MARK: - Geom_SphericalSurface Properties (v0.108.0)
+
+    /// Access sphere-specific properties.
+    public struct SphereProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTSurfaceRef
+
+        /// The radius.
+        public var radius: Double { OCCTSurfaceSphereRadius(handle) }
+
+        /// Set the radius.
+        @discardableResult
+        public func setRadius(_ r: Double) -> Bool { OCCTSurfaceSphereSetRadius(handle, r) }
+
+        /// The surface area (4*pi*r^2).
+        public var area: Double { OCCTSurfaceSphereArea(handle) }
+
+        /// The volume (4/3*pi*r^3).
+        public var volume: Double { OCCTSurfaceSphereVolume(handle) }
+
+        /// The center point.
+        public var center: SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTSurfaceSphereCenter(handle, &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// A U iso-curve on the sphere.
+        public func uIso(_ u: Double) -> Curve3D? {
+            guard let h = OCCTSurfaceSphereUIso(handle, u) else { return nil }
+            return Curve3D(handle: h)
+        }
+
+        /// A V iso-curve on the sphere.
+        public func vIso(_ v: Double) -> Curve3D? {
+            guard let h = OCCTSurfaceSphereVIso(handle, v) else { return nil }
+            return Curve3D(handle: h)
+        }
+
+        /// The gp_Sphere data (center + radius).
+        public var sphere: (center: SIMD3<Double>, radius: Double) {
+            var cx = 0.0, cy = 0.0, cz = 0.0, r = 0.0
+            OCCTSurfaceSphereSphere(handle, &cx, &cy, &cz, &r)
+            return (SIMD3(cx, cy, cz), r)
+        }
+    }
+
+    /// Sphere-specific properties (meaningful only when the underlying surface is a Geom_SphericalSurface).
+    public var sphereProperties: SphereProperties { SphereProperties(handle: handle) }
+
+    // MARK: - Geom_ToroidalSurface Properties (v0.108.0)
+
+    /// Access torus-specific properties.
+    public struct TorusProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTSurfaceRef
+
+        /// The major radius.
+        public var majorRadius: Double { OCCTSurfaceTorusMajorRadius(handle) }
+
+        /// The minor radius.
+        public var minorRadius: Double { OCCTSurfaceTorusMinorRadius(handle) }
+
+        /// Set the major radius.
+        @discardableResult
+        public func setMajorRadius(_ r: Double) -> Bool { OCCTSurfaceTorusSetMajorRadius(handle, r) }
+
+        /// Set the minor radius.
+        @discardableResult
+        public func setMinorRadius(_ r: Double) -> Bool { OCCTSurfaceTorusSetMinorRadius(handle, r) }
+
+        /// The surface area (4*pi^2*R*r).
+        public var area: Double { OCCTSurfaceTorusArea(handle) }
+
+        /// The volume (2*pi^2*R*r^2).
+        public var volume: Double { OCCTSurfaceTorusVolume(handle) }
+    }
+
+    /// Torus-specific properties (meaningful only when the underlying surface is a Geom_ToroidalSurface).
+    public var torusProperties: TorusProperties { TorusProperties(handle: handle) }
+
+    // MARK: - Geom_CylindricalSurface Properties (v0.108.0)
+
+    /// Access cylinder-specific properties.
+    public struct CylinderProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTSurfaceRef
+
+        /// The radius.
+        public var radius: Double { OCCTSurfaceCylinderRadius(handle) }
+
+        /// Set the radius.
+        @discardableResult
+        public func setRadius(_ r: Double) -> Bool { OCCTSurfaceCylinderSetRadius(handle, r) }
+
+        /// The axis (position + direction).
+        public var axis: (position: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTSurfaceCylinderAxis(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+
+        /// A U iso-curve on the cylinder.
+        public func uIso(_ u: Double) -> Curve3D? {
+            guard let h = OCCTSurfaceCylinderUIso(handle, u) else { return nil }
+            return Curve3D(handle: h)
+        }
+    }
+
+    /// Cylinder-specific properties (meaningful only when the underlying surface is a Geom_CylindricalSurface).
+    public var cylinderProperties: CylinderProperties { CylinderProperties(handle: handle) }
+
+    // MARK: - Geom_ConicalSurface Properties (v0.108.0)
+
+    /// Access cone-specific properties.
+    public struct ConeProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTSurfaceRef
+
+        /// The semi-angle of the cone.
+        public var semiAngle: Double { OCCTSurfaceConeSemiAngle(handle) }
+
+        /// The reference radius at the cone origin.
+        public var refRadius: Double { OCCTSurfaceConeRefRadius(handle) }
+
+        /// The apex of the cone.
+        public var apex: SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTSurfaceConeApex(handle, &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// The axis of the cone (position + direction).
+        public var axis: (position: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTSurfaceConeAxis(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+    }
+
+    /// Cone-specific properties (meaningful only when the underlying surface is a Geom_ConicalSurface).
+    public var coneProperties: ConeProperties { ConeProperties(handle: handle) }
+
+    // MARK: - Geom_SweptSurface Properties (v0.108.0)
+
+    /// Access swept-surface-specific properties (extrusion or revolution).
+    public struct SweptProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTSurfaceRef
+
+        /// The sweep direction.
+        public var direction: SIMD3<Double> {
+            var dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTSurfaceSweptDirection(handle, &dx, &dy, &dz)
+            return SIMD3(dx, dy, dz)
+        }
+
+        /// The basis curve of the swept surface.
+        public var basisCurve: Curve3D? {
+            guard let h = OCCTSurfaceSweptBasisCurve(handle) else { return nil }
+            return Curve3D(handle: h)
+        }
+    }
+
+    /// Swept-surface-specific properties (meaningful for extrusion or revolution surfaces).
+    public var sweptProperties: SweptProperties { SweptProperties(handle: handle) }
 }

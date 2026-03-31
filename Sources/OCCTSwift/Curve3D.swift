@@ -1182,4 +1182,230 @@ extension Curve3D {
         free(arr)
         return curves.isEmpty ? nil : curves
     }
+
+    // MARK: - Geom_Circle Properties (v0.108.0)
+
+    /// Access circle-specific properties. Returns meaningful values only if the underlying curve is a Geom_Circle.
+    public struct CircleProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve3DRef
+
+        /// The radius of the circle.
+        public var radius: Double { OCCTCurve3DCircleRadius(handle) }
+
+        /// Set the radius of the circle.
+        @discardableResult
+        public func setRadius(_ r: Double) -> Bool { OCCTCurve3DCircleSetRadius(handle, r) }
+
+        /// The eccentricity (always 0 for a circle).
+        public var eccentricity: Double { OCCTCurve3DCircleEccentricity(handle) }
+
+        /// The center point of the circle.
+        public var center: SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTCurve3DCircleCenter(handle, &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// The X axis of the circle (position + direction).
+        public var xAxis: (position: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTCurve3DCircleXAxis(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+
+        /// The Y axis of the circle (position + direction).
+        public var yAxis: (position: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTCurve3DCircleYAxis(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+    }
+
+    /// Circle-specific properties (meaningful only when the underlying curve is a Geom_Circle).
+    public var circleProperties: CircleProperties { CircleProperties(handle: handle) }
+
+    // MARK: - Geom_Ellipse Properties (v0.108.0)
+
+    /// Access ellipse-specific properties. Returns meaningful values only if the underlying curve is a Geom_Ellipse.
+    public struct EllipseProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve3DRef
+
+        /// The major radius.
+        public var majorRadius: Double { OCCTCurve3DEllipseMajorRadius(handle) }
+
+        /// The minor radius.
+        public var minorRadius: Double { OCCTCurve3DEllipseMinorRadius(handle) }
+
+        /// Set the major radius.
+        @discardableResult
+        public func setMajorRadius(_ r: Double) -> Bool { OCCTCurve3DEllipseSetMajorRadius(handle, r) }
+
+        /// Set the minor radius.
+        @discardableResult
+        public func setMinorRadius(_ r: Double) -> Bool { OCCTCurve3DEllipseSetMinorRadius(handle, r) }
+
+        /// The eccentricity (0 < e < 1 for an ellipse).
+        public var eccentricity: Double { OCCTCurve3DEllipseEccentricity(handle) }
+
+        /// The focal distance (2c, distance between foci).
+        public var focal: Double { OCCTCurve3DEllipseFocal(handle) }
+
+        /// The first focus.
+        public var focus1: SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTCurve3DEllipseFocus1(handle, &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// The second focus.
+        public var focus2: SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTCurve3DEllipseFocus2(handle, &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// The semi-latus rectum (parameter).
+        public var parameter: Double { OCCTCurve3DEllipseParameter(handle) }
+
+        /// The first directrix (position + direction).
+        public var directrix1: (position: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTCurve3DEllipseDirectrix1(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+    }
+
+    /// Ellipse-specific properties (meaningful only when the underlying curve is a Geom_Ellipse).
+    public var ellipseProperties: EllipseProperties { EllipseProperties(handle: handle) }
+
+    // MARK: - Geom_Hyperbola Properties (v0.108.0)
+
+    /// Access hyperbola-specific properties. Returns meaningful values only if the underlying curve is a Geom_Hyperbola.
+    public struct HyperbolaProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve3DRef
+
+        /// The major radius (real semi-axis).
+        public var majorRadius: Double { OCCTCurve3DHyperbolaMajorRadius(handle) }
+
+        /// The minor radius (imaginary semi-axis).
+        public var minorRadius: Double { OCCTCurve3DHyperbolaMinorRadius(handle) }
+
+        /// Set the major radius.
+        @discardableResult
+        public func setMajorRadius(_ r: Double) -> Bool { OCCTCurve3DHyperbolaSetMajorRadius(handle, r) }
+
+        /// Set the minor radius.
+        @discardableResult
+        public func setMinorRadius(_ r: Double) -> Bool { OCCTCurve3DHyperbolaSetMinorRadius(handle, r) }
+
+        /// The eccentricity (e > 1 for a hyperbola).
+        public var eccentricity: Double { OCCTCurve3DHyperbolaEccentricity(handle) }
+
+        /// The focal distance.
+        public var focal: Double { OCCTCurve3DHyperbolaFocal(handle) }
+
+        /// The first focus.
+        public var focus1: SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTCurve3DHyperbolaFocus1(handle, &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// The first asymptote (position + direction).
+        public var asymptote1: (position: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTCurve3DHyperbolaAsymptote1(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+    }
+
+    /// Hyperbola-specific properties (meaningful only when the underlying curve is a Geom_Hyperbola).
+    public var hyperbolaProperties: HyperbolaProperties { HyperbolaProperties(handle: handle) }
+
+    // MARK: - Geom_Parabola Properties (v0.108.0)
+
+    /// Access parabola-specific properties. Returns meaningful values only if the underlying curve is a Geom_Parabola.
+    public struct ParabolaProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve3DRef
+
+        /// The focal distance.
+        public var focal: Double { OCCTCurve3DParabolaFocal(handle) }
+
+        /// Set the focal distance.
+        @discardableResult
+        public func setFocal(_ f: Double) -> Bool { OCCTCurve3DParabolaSetFocal(handle, f) }
+
+        /// The focus point.
+        public var focus: SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTCurve3DParabolaFocus(handle, &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// The eccentricity (always 1 for a parabola).
+        public var eccentricity: Double { OCCTCurve3DParabolaEccentricity(handle) }
+
+        /// The parameter (2 * focal).
+        public var parameter: Double { OCCTCurve3DParabolaParameter(handle) }
+
+        /// The directrix (position + direction).
+        public var directrix: (position: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTCurve3DParabolaDirectrix(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+    }
+
+    /// Parabola-specific properties (meaningful only when the underlying curve is a Geom_Parabola).
+    public var parabolaProperties: ParabolaProperties { ParabolaProperties(handle: handle) }
+
+    // MARK: - Geom_Line Properties (v0.108.0)
+
+    /// Access line-specific properties. Returns meaningful values only if the underlying curve is a Geom_Line.
+    public struct LineProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve3DRef
+
+        /// The direction of the line.
+        public var direction: SIMD3<Double> {
+            var dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTCurve3DLineDirection(handle, &dx, &dy, &dz)
+            return SIMD3(dx, dy, dz)
+        }
+
+        /// The location (origin point) of the line.
+        public var location: SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTCurve3DLineLocation(handle, &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// Set the direction of the line.
+        @discardableResult
+        public func setDirection(_ d: SIMD3<Double>) -> Bool {
+            OCCTCurve3DLineSetDirection(handle, d.x, d.y, d.z)
+        }
+
+        /// Set the location of the line.
+        @discardableResult
+        public func setLocation(_ p: SIMD3<Double>) -> Bool {
+            OCCTCurve3DLineSetLocation(handle, p.x, p.y, p.z)
+        }
+
+        /// The position axis (location + direction).
+        public var position: (location: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTCurve3DLinePosition(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+
+        /// The gp_Lin representation (location + direction).
+        public var lin: (location: SIMD3<Double>, direction: SIMD3<Double>) {
+            var px = 0.0, py = 0.0, pz = 0.0, dx = 0.0, dy = 0.0, dz = 0.0
+            OCCTCurve3DLineLin(handle, &px, &py, &pz, &dx, &dy, &dz)
+            return (SIMD3(px, py, pz), SIMD3(dx, dy, dz))
+        }
+    }
+
+    /// Line-specific properties (meaningful only when the underlying curve is a Geom_Line).
+    public var lineProperties: LineProperties { LineProperties(handle: handle) }
 }

@@ -368,7 +368,24 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepBuilderAPI_Sewing Detailed** | 8 | create, release, add, perform, result, nbFreeEdges, nbContigousEdges, nbDegeneratedShapes |
 | **Hatch_Hatcher** | 7 | create, release, addXLine, addYLine, trim, nbLines, nbIntervals |
 | **Edge/Face Extraction** | 9 | extractCurve3D, extractPCurve, edgeTolerance, isDegenerated, extractSurface, faceTolerance, wireCount, vertexTolerance, vertexPoint |
-| **Total** | **2363** | |
+| **Geom_Circle Properties** | 6 | radius, setRadius, eccentricity, xAxis, yAxis, center |
+| **Geom_Ellipse Properties** | 10 | majorRadius, minorRadius, setMajor/Minor, eccentricity, focal, focus1/2, parameter, directrix |
+| **Geom_Hyperbola Properties** | 8 | majorRadius, minorRadius, setMajor/Minor, eccentricity, focal, focus1, asymptote1 |
+| **Geom_Parabola Properties** | 6 | focal, setFocal, focus, eccentricity, parameter, directrix |
+| **Geom_Line Properties** | 6 | direction, location, setDirection, setLocation, position, lin |
+| **Geom_Plane Properties** | 4 | coefficients, uIso, vIso, pln |
+| **Geom_SphericalSurface Properties** | 8 | radius, setRadius, area, volume, center, uIso, vIso, sphere |
+| **Geom_ToroidalSurface Properties** | 6 | majorRadius, minorRadius, setMajor/Minor, area, volume |
+| **Geom_CylindricalSurface Properties** | 4 | radius, setRadius, axis, uIso |
+| **Geom_ConicalSurface Properties** | 4 | semiAngle, refRadius, apex, axis |
+| **Geom_SweptSurface Properties** | 2 | direction, basisCurve |
+| **Geom2d_Circle Properties** | 5 | radius, setRadius, eccentricity, center, xAxis |
+| **Geom2d_Ellipse Properties** | 7 | majorRadius, minorRadius, setMajor/Minor, eccentricity, focal, focus1 |
+| **Geom2d_Hyperbola Properties** | 5 | majorRadius, minorRadius, eccentricity, focal, focus1 |
+| **Geom2d_Parabola Properties** | 5 | focal, setFocal, focus, eccentricity, parameter |
+| **Geom2d_Line Properties** | 6 | direction, location, setDirection, setLocation, distance, lin2d |
+| **Geom2d_OffsetCurve Properties** | 3 | offset, setOffset, basisCurve |
+| **Total** | **2458** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1688,7 +1705,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.51.0
 
-OCCTSwift now wraps **2363 OCCT operations** across 239 categories with 2473 tests across 764 suites.
+OCCTSwift now wraps **2458 OCCT operations** across 256 categories with 2558 tests across 781 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

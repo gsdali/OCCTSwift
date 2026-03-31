@@ -1935,4 +1935,205 @@ extension Curve2D {
         free(arr)
         return curves.isEmpty ? nil : curves
     }
+
+    // MARK: - Geom2d_Circle Properties (v0.108.0)
+
+    /// Access 2D circle-specific properties.
+    public struct CircleProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve2DRef
+
+        /// The radius.
+        public var radius: Double { OCCTCurve2DCircleRadius(handle) }
+
+        /// Set the radius.
+        @discardableResult
+        public func setRadius(_ r: Double) -> Bool { OCCTCurve2DCircleSetRadius(handle, r) }
+
+        /// The eccentricity (always 0).
+        public var eccentricity: Double { OCCTCurve2DCircleEccentricity(handle) }
+
+        /// The center point.
+        public var center: SIMD2<Double> {
+            var x = 0.0, y = 0.0
+            OCCTCurve2DCircleCenter(handle, &x, &y)
+            return SIMD2(x, y)
+        }
+
+        /// The X axis (position + direction).
+        public var xAxis: (position: SIMD2<Double>, direction: SIMD2<Double>) {
+            var px = 0.0, py = 0.0, dx = 0.0, dy = 0.0
+            OCCTCurve2DCircleXAxis(handle, &px, &py, &dx, &dy)
+            return (SIMD2(px, py), SIMD2(dx, dy))
+        }
+    }
+
+    /// Circle-specific properties (meaningful only when the underlying curve is a Geom2d_Circle).
+    public var circleProperties: CircleProperties { CircleProperties(handle: handle) }
+
+    // MARK: - Geom2d_Ellipse Properties (v0.108.0)
+
+    /// Access 2D ellipse-specific properties.
+    public struct EllipseProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve2DRef
+
+        /// The major radius.
+        public var majorRadius: Double { OCCTCurve2DEllipseMajorRadius(handle) }
+
+        /// The minor radius.
+        public var minorRadius: Double { OCCTCurve2DEllipseMinorRadius(handle) }
+
+        /// Set the major radius.
+        @discardableResult
+        public func setMajorRadius(_ r: Double) -> Bool { OCCTCurve2DEllipseSetMajorRadius(handle, r) }
+
+        /// Set the minor radius.
+        @discardableResult
+        public func setMinorRadius(_ r: Double) -> Bool { OCCTCurve2DEllipseSetMinorRadius(handle, r) }
+
+        /// The eccentricity.
+        public var eccentricity: Double { OCCTCurve2DEllipseEccentricity(handle) }
+
+        /// The focal distance.
+        public var focal: Double { OCCTCurve2DEllipseFocal(handle) }
+
+        /// The first focus.
+        public var focus1: SIMD2<Double> {
+            var x = 0.0, y = 0.0
+            OCCTCurve2DEllipseFocus1(handle, &x, &y)
+            return SIMD2(x, y)
+        }
+    }
+
+    /// Ellipse-specific properties (meaningful only when the underlying curve is a Geom2d_Ellipse).
+    public var ellipseProperties: EllipseProperties { EllipseProperties(handle: handle) }
+
+    // MARK: - Geom2d_Hyperbola Properties (v0.108.0)
+
+    /// Access 2D hyperbola-specific properties.
+    public struct HyperbolaProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve2DRef
+
+        /// The major radius.
+        public var majorRadius: Double { OCCTCurve2DHyperbolaMajorRadius(handle) }
+
+        /// The minor radius.
+        public var minorRadius: Double { OCCTCurve2DHyperbolaMinorRadius(handle) }
+
+        /// The eccentricity.
+        public var eccentricity: Double { OCCTCurve2DHyperbolaEccentricity(handle) }
+
+        /// The focal distance.
+        public var focal: Double { OCCTCurve2DHyperbolaFocal(handle) }
+
+        /// The first focus.
+        public var focus1: SIMD2<Double> {
+            var x = 0.0, y = 0.0
+            OCCTCurve2DHyperbolaFocus1(handle, &x, &y)
+            return SIMD2(x, y)
+        }
+    }
+
+    /// Hyperbola-specific properties (meaningful only when the underlying curve is a Geom2d_Hyperbola).
+    public var hyperbolaProperties: HyperbolaProperties { HyperbolaProperties(handle: handle) }
+
+    // MARK: - Geom2d_Parabola Properties (v0.108.0)
+
+    /// Access 2D parabola-specific properties.
+    public struct ParabolaProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve2DRef
+
+        /// The focal distance.
+        public var focal: Double { OCCTCurve2DParabolaFocal(handle) }
+
+        /// Set the focal distance.
+        @discardableResult
+        public func setFocal(_ f: Double) -> Bool { OCCTCurve2DParabolaSetFocal(handle, f) }
+
+        /// The focus point.
+        public var focus: SIMD2<Double> {
+            var x = 0.0, y = 0.0
+            OCCTCurve2DParabolaFocus(handle, &x, &y)
+            return SIMD2(x, y)
+        }
+
+        /// The eccentricity (always 1).
+        public var eccentricity: Double { OCCTCurve2DParabolaEccentricity(handle) }
+
+        /// The parameter (2 * focal).
+        public var parameter: Double { OCCTCurve2DParabolaParameter(handle) }
+    }
+
+    /// Parabola-specific properties (meaningful only when the underlying curve is a Geom2d_Parabola).
+    public var parabolaProperties: ParabolaProperties { ParabolaProperties(handle: handle) }
+
+    // MARK: - Geom2d_Line Properties (v0.108.0)
+
+    /// Access 2D line-specific properties.
+    public struct LineProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve2DRef
+
+        /// The direction.
+        public var direction: SIMD2<Double> {
+            var dx = 0.0, dy = 0.0
+            OCCTCurve2DLineDirection(handle, &dx, &dy)
+            return SIMD2(dx, dy)
+        }
+
+        /// The location (origin).
+        public var location: SIMD2<Double> {
+            var x = 0.0, y = 0.0
+            OCCTCurve2DLineLocation(handle, &x, &y)
+            return SIMD2(x, y)
+        }
+
+        /// Set the direction.
+        @discardableResult
+        public func setDirection(_ d: SIMD2<Double>) -> Bool {
+            OCCTCurve2DLineSetDirection(handle, d.x, d.y)
+        }
+
+        /// Set the location.
+        @discardableResult
+        public func setLocation(_ p: SIMD2<Double>) -> Bool {
+            OCCTCurve2DLineSetLocation(handle, p.x, p.y)
+        }
+
+        /// Distance from the line to a point.
+        public func distance(to point: SIMD2<Double>) -> Double {
+            OCCTCurve2DLineDistance(handle, point.x, point.y)
+        }
+
+        /// The gp_Lin2d representation (location + direction).
+        public var lin2d: (location: SIMD2<Double>, direction: SIMD2<Double>) {
+            var px = 0.0, py = 0.0, dx = 0.0, dy = 0.0
+            OCCTCurve2DLineLin2d(handle, &px, &py, &dx, &dy)
+            return (SIMD2(px, py), SIMD2(dx, dy))
+        }
+    }
+
+    /// Line-specific properties (meaningful only when the underlying curve is a Geom2d_Line).
+    public var lineProperties: LineProperties { LineProperties(handle: handle) }
+
+    // MARK: - Geom2d_OffsetCurve Properties (v0.108.0)
+
+    /// Access 2D offset curve-specific properties.
+    public struct OffsetProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve2DRef
+
+        /// The offset value.
+        public var offset: Double { OCCTCurve2DOffsetValue(handle) }
+
+        /// Set the offset value.
+        @discardableResult
+        public func setOffset(_ v: Double) -> Bool { OCCTCurve2DOffsetSetValue(handle, v) }
+
+        /// The basis curve.
+        public var basisCurve: Curve2D? {
+            guard let h = OCCTCurve2DOffsetBasisCurve(handle) else { return nil }
+            return Curve2D(handle: h)
+        }
+    }
+
+    /// Offset curve properties (meaningful only when the underlying curve is a Geom2d_OffsetCurve).
+    public var offsetProperties: OffsetProperties { OffsetProperties(handle: handle) }
 }

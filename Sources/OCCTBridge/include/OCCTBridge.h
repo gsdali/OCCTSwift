@@ -14464,6 +14464,325 @@ double OCCTVertexGetTolerance(OCCTShapeRef _Nonnull vertex);
 /// Get the point of a vertex.
 void OCCTVertexGetPoint(OCCTShapeRef _Nonnull vertex, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
 
+// MARK: - Geom_Circle Methods (v0.108.0)
+
+/// Get the radius of a Geom_Circle.
+double OCCTCurve3DCircleRadius(OCCTCurve3DRef _Nonnull curve);
+
+/// Set the radius of a Geom_Circle. Returns false if not a circle.
+bool OCCTCurve3DCircleSetRadius(OCCTCurve3DRef _Nonnull curve, double radius);
+
+/// Get the eccentricity of a Geom_Circle (always 0).
+double OCCTCurve3DCircleEccentricity(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the XAxis of a Geom_Circle.
+void OCCTCurve3DCircleXAxis(OCCTCurve3DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get the YAxis of a Geom_Circle.
+void OCCTCurve3DCircleYAxis(OCCTCurve3DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get the center of a Geom_Circle.
+void OCCTCurve3DCircleCenter(OCCTCurve3DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+// MARK: - Geom_Ellipse Methods (v0.108.0)
+
+/// Get the major radius of a Geom_Ellipse.
+double OCCTCurve3DEllipseMajorRadius(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the minor radius of a Geom_Ellipse.
+double OCCTCurve3DEllipseMinorRadius(OCCTCurve3DRef _Nonnull curve);
+
+/// Set the major radius of a Geom_Ellipse.
+bool OCCTCurve3DEllipseSetMajorRadius(OCCTCurve3DRef _Nonnull curve, double r);
+
+/// Set the minor radius of a Geom_Ellipse.
+bool OCCTCurve3DEllipseSetMinorRadius(OCCTCurve3DRef _Nonnull curve, double r);
+
+/// Get the eccentricity of a Geom_Ellipse.
+double OCCTCurve3DEllipseEccentricity(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the focal distance of a Geom_Ellipse.
+double OCCTCurve3DEllipseFocal(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the first focus of a Geom_Ellipse.
+void OCCTCurve3DEllipseFocus1(OCCTCurve3DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the second focus of a Geom_Ellipse.
+void OCCTCurve3DEllipseFocus2(OCCTCurve3DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the parameter (semi-latus rectum) of a Geom_Ellipse.
+double OCCTCurve3DEllipseParameter(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the first directrix of a Geom_Ellipse.
+void OCCTCurve3DEllipseDirectrix1(OCCTCurve3DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+// MARK: - Geom_Hyperbola Methods (v0.108.0)
+
+/// Get the major radius of a Geom_Hyperbola.
+double OCCTCurve3DHyperbolaMajorRadius(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the minor radius of a Geom_Hyperbola.
+double OCCTCurve3DHyperbolaMinorRadius(OCCTCurve3DRef _Nonnull curve);
+
+/// Set the major radius of a Geom_Hyperbola.
+bool OCCTCurve3DHyperbolaSetMajorRadius(OCCTCurve3DRef _Nonnull curve, double r);
+
+/// Set the minor radius of a Geom_Hyperbola.
+bool OCCTCurve3DHyperbolaSetMinorRadius(OCCTCurve3DRef _Nonnull curve, double r);
+
+/// Get the eccentricity of a Geom_Hyperbola.
+double OCCTCurve3DHyperbolaEccentricity(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the focal distance of a Geom_Hyperbola.
+double OCCTCurve3DHyperbolaFocal(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the first focus of a Geom_Hyperbola.
+void OCCTCurve3DHyperbolaFocus1(OCCTCurve3DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the first asymptote of a Geom_Hyperbola.
+void OCCTCurve3DHyperbolaAsymptote1(OCCTCurve3DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+// MARK: - Geom_Parabola Methods (v0.108.0)
+
+/// Get the focal distance of a Geom_Parabola.
+double OCCTCurve3DParabolaFocal(OCCTCurve3DRef _Nonnull curve);
+
+/// Set the focal distance of a Geom_Parabola.
+bool OCCTCurve3DParabolaSetFocal(OCCTCurve3DRef _Nonnull curve, double focal);
+
+/// Get the focus point of a Geom_Parabola.
+void OCCTCurve3DParabolaFocus(OCCTCurve3DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the eccentricity of a Geom_Parabola (always 1).
+double OCCTCurve3DParabolaEccentricity(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the parameter (2*focal) of a Geom_Parabola.
+double OCCTCurve3DParabolaParameter(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the directrix of a Geom_Parabola.
+void OCCTCurve3DParabolaDirectrix(OCCTCurve3DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+// MARK: - Geom_Line Methods (v0.108.0)
+
+/// Get the direction of a Geom_Line.
+void OCCTCurve3DLineDirection(OCCTCurve3DRef _Nonnull curve, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get the location of a Geom_Line.
+void OCCTCurve3DLineLocation(OCCTCurve3DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Set the direction of a Geom_Line.
+bool OCCTCurve3DLineSetDirection(OCCTCurve3DRef _Nonnull curve, double dx, double dy, double dz);
+
+/// Set the location of a Geom_Line.
+bool OCCTCurve3DLineSetLocation(OCCTCurve3DRef _Nonnull curve, double x, double y, double z);
+
+/// Get the position (Ax1) of a Geom_Line.
+void OCCTCurve3DLinePosition(OCCTCurve3DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get the gp_Lin of a Geom_Line.
+void OCCTCurve3DLineLin(OCCTCurve3DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+// MARK: - Geom_Plane Methods (v0.108.0)
+
+/// Get the plane coefficients (A, B, C, D) of a Geom_Plane.
+void OCCTSurfacePlaneCoefficients(OCCTSurfaceRef _Nonnull surface, double* _Nonnull A, double* _Nonnull B, double* _Nonnull C, double* _Nonnull D);
+
+/// Get a U iso-curve from a Geom_Plane.
+OCCTCurve3DRef _Nullable OCCTSurfacePlaneUIso(OCCTSurfaceRef _Nonnull surface, double u);
+
+/// Get a V iso-curve from a Geom_Plane.
+OCCTCurve3DRef _Nullable OCCTSurfacePlaneVIso(OCCTSurfaceRef _Nonnull surface, double v);
+
+/// Get the gp_Pln data (origin + normal) from a Geom_Plane.
+void OCCTSurfacePlanePln(OCCTSurfaceRef _Nonnull surface, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz);
+
+// MARK: - Geom_SphericalSurface Methods (v0.108.0)
+
+/// Get the radius of a Geom_SphericalSurface.
+double OCCTSurfaceSphereRadius(OCCTSurfaceRef _Nonnull surface);
+
+/// Set the radius of a Geom_SphericalSurface.
+bool OCCTSurfaceSphereSetRadius(OCCTSurfaceRef _Nonnull surface, double radius);
+
+/// Get the area of a Geom_SphericalSurface.
+double OCCTSurfaceSphereArea(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the volume of a Geom_SphericalSurface.
+double OCCTSurfaceSphereVolume(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the center of a Geom_SphericalSurface.
+void OCCTSurfaceSphereCenter(OCCTSurfaceRef _Nonnull surface, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get a U iso-curve from a Geom_SphericalSurface.
+OCCTCurve3DRef _Nullable OCCTSurfaceSphereUIso(OCCTSurfaceRef _Nonnull surface, double u);
+
+/// Get a V iso-curve from a Geom_SphericalSurface.
+OCCTCurve3DRef _Nullable OCCTSurfaceSphereVIso(OCCTSurfaceRef _Nonnull surface, double v);
+
+/// Get the gp_Sphere data (center + radius) from a Geom_SphericalSurface.
+void OCCTSurfaceSphereSphere(OCCTSurfaceRef _Nonnull surface, double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz, double* _Nonnull radius);
+
+// MARK: - Geom_ToroidalSurface Methods (v0.108.0)
+
+/// Get the major radius of a Geom_ToroidalSurface.
+double OCCTSurfaceTorusMajorRadius(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the minor radius of a Geom_ToroidalSurface.
+double OCCTSurfaceTorusMinorRadius(OCCTSurfaceRef _Nonnull surface);
+
+/// Set the major radius of a Geom_ToroidalSurface.
+bool OCCTSurfaceTorusSetMajorRadius(OCCTSurfaceRef _Nonnull surface, double r);
+
+/// Set the minor radius of a Geom_ToroidalSurface.
+bool OCCTSurfaceTorusSetMinorRadius(OCCTSurfaceRef _Nonnull surface, double r);
+
+/// Get the area of a Geom_ToroidalSurface.
+double OCCTSurfaceTorusArea(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the volume of a Geom_ToroidalSurface.
+double OCCTSurfaceTorusVolume(OCCTSurfaceRef _Nonnull surface);
+
+// MARK: - Geom_CylindricalSurface Methods (v0.108.0)
+
+/// Get the radius of a Geom_CylindricalSurface.
+double OCCTSurfaceCylinderRadius(OCCTSurfaceRef _Nonnull surface);
+
+/// Set the radius of a Geom_CylindricalSurface.
+bool OCCTSurfaceCylinderSetRadius(OCCTSurfaceRef _Nonnull surface, double r);
+
+/// Get the axis of a Geom_CylindricalSurface.
+void OCCTSurfaceCylinderAxis(OCCTSurfaceRef _Nonnull surface, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get a U iso-curve from a Geom_CylindricalSurface.
+OCCTCurve3DRef _Nullable OCCTSurfaceCylinderUIso(OCCTSurfaceRef _Nonnull surface, double u);
+
+// MARK: - Geom_ConicalSurface Methods (v0.108.0)
+
+/// Get the semi-angle of a Geom_ConicalSurface.
+double OCCTSurfaceConeSemiAngle(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the reference radius of a Geom_ConicalSurface.
+double OCCTSurfaceConeRefRadius(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the apex of a Geom_ConicalSurface.
+void OCCTSurfaceConeApex(OCCTSurfaceRef _Nonnull surface, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the axis of a Geom_ConicalSurface.
+void OCCTSurfaceConeAxis(OCCTSurfaceRef _Nonnull surface, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+// MARK: - Geom_SweptSurface Methods (v0.108.0)
+
+/// Get the extrusion/revolution direction of a Geom_SweptSurface.
+void OCCTSurfaceSweptDirection(OCCTSurfaceRef _Nonnull surface, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get the basis curve of a Geom_SweptSurface.
+OCCTCurve3DRef _Nullable OCCTSurfaceSweptBasisCurve(OCCTSurfaceRef _Nonnull surface);
+
+// MARK: - Geom2d_Circle Methods (v0.108.0)
+
+/// Get the radius of a Geom2d_Circle.
+double OCCTCurve2DCircleRadius(OCCTCurve2DRef _Nonnull curve);
+
+/// Set the radius of a Geom2d_Circle.
+bool OCCTCurve2DCircleSetRadius(OCCTCurve2DRef _Nonnull curve, double r);
+
+/// Get the eccentricity of a Geom2d_Circle (always 0).
+double OCCTCurve2DCircleEccentricity(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the center of a Geom2d_Circle.
+void OCCTCurve2DCircleCenter(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+/// Get the XAxis of a Geom2d_Circle.
+void OCCTCurve2DCircleXAxis(OCCTCurve2DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull dx, double* _Nonnull dy);
+
+// MARK: - Geom2d_Ellipse Methods (v0.108.0)
+
+/// Get the major radius of a Geom2d_Ellipse.
+double OCCTCurve2DEllipseMajorRadius(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the minor radius of a Geom2d_Ellipse.
+double OCCTCurve2DEllipseMinorRadius(OCCTCurve2DRef _Nonnull curve);
+
+/// Set the major radius of a Geom2d_Ellipse.
+bool OCCTCurve2DEllipseSetMajorRadius(OCCTCurve2DRef _Nonnull curve, double r);
+
+/// Set the minor radius of a Geom2d_Ellipse.
+bool OCCTCurve2DEllipseSetMinorRadius(OCCTCurve2DRef _Nonnull curve, double r);
+
+/// Get the eccentricity of a Geom2d_Ellipse.
+double OCCTCurve2DEllipseEccentricity(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the focal distance of a Geom2d_Ellipse.
+double OCCTCurve2DEllipseFocal(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the first focus of a Geom2d_Ellipse.
+void OCCTCurve2DEllipseFocus1(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+// MARK: - Geom2d_Hyperbola Methods (v0.108.0)
+
+/// Get the major radius of a Geom2d_Hyperbola.
+double OCCTCurve2DHyperbolaMajorRadius(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the minor radius of a Geom2d_Hyperbola.
+double OCCTCurve2DHyperbolaMinorRadius(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the eccentricity of a Geom2d_Hyperbola.
+double OCCTCurve2DHyperbolaEccentricity(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the focal distance of a Geom2d_Hyperbola.
+double OCCTCurve2DHyperbolaFocal(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the first focus of a Geom2d_Hyperbola.
+void OCCTCurve2DHyperbolaFocus1(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+// MARK: - Geom2d_Parabola Methods (v0.108.0)
+
+/// Get the focal distance of a Geom2d_Parabola.
+double OCCTCurve2DParabolaFocal(OCCTCurve2DRef _Nonnull curve);
+
+/// Set the focal distance of a Geom2d_Parabola.
+bool OCCTCurve2DParabolaSetFocal(OCCTCurve2DRef _Nonnull curve, double focal);
+
+/// Get the focus of a Geom2d_Parabola.
+void OCCTCurve2DParabolaFocus(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+/// Get the eccentricity of a Geom2d_Parabola (always 1).
+double OCCTCurve2DParabolaEccentricity(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the parameter (2*focal) of a Geom2d_Parabola.
+double OCCTCurve2DParabolaParameter(OCCTCurve2DRef _Nonnull curve);
+
+// MARK: - Geom2d_Line Methods (v0.108.0)
+
+/// Get the direction of a Geom2d_Line.
+void OCCTCurve2DLineDirection(OCCTCurve2DRef _Nonnull curve, double* _Nonnull dx, double* _Nonnull dy);
+
+/// Get the location of a Geom2d_Line.
+void OCCTCurve2DLineLocation(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+/// Set the direction of a Geom2d_Line.
+bool OCCTCurve2DLineSetDirection(OCCTCurve2DRef _Nonnull curve, double dx, double dy);
+
+/// Set the location of a Geom2d_Line.
+bool OCCTCurve2DLineSetLocation(OCCTCurve2DRef _Nonnull curve, double x, double y);
+
+/// Get the distance from a Geom2d_Line to a point.
+double OCCTCurve2DLineDistance(OCCTCurve2DRef _Nonnull curve, double px, double py);
+
+/// Get the gp_Lin2d of a Geom2d_Line.
+void OCCTCurve2DLineLin2d(OCCTCurve2DRef _Nonnull curve, double* _Nonnull px, double* _Nonnull py, double* _Nonnull dx, double* _Nonnull dy);
+
+// MARK: - Geom2d_OffsetCurve Methods (v0.108.0)
+
+/// Get the offset value of a Geom2d_OffsetCurve.
+double OCCTCurve2DOffsetValue(OCCTCurve2DRef _Nonnull curve);
+
+/// Set the offset value of a Geom2d_OffsetCurve.
+bool OCCTCurve2DOffsetSetValue(OCCTCurve2DRef _Nonnull curve, double offset);
+
+/// Get the basis curve of a Geom2d_OffsetCurve.
+OCCTCurve2DRef _Nullable OCCTCurve2DOffsetBasisCurve(OCCTCurve2DRef _Nonnull curve);
+
 #ifdef __cplusplus
 }
 #endif
