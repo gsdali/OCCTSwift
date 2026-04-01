@@ -1717,6 +1717,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.114.0: TopoDS_Builder low-level topology, ShapeContentsExtended analysis, FreeBoundsProperties handle-based, WireBuilder incremental, Boolean tolerance/glue modes, Offset wire/face, ThickSolid options, BRepLib utilities, mass properties (inertia/principal axes/radius of gyration), Curve/Surface DN arbitrary derivatives, BRep_Tool queries, unique sub-shape counts, type names (2748 ops, 2811 tests)
 > - v0.113.0: MakeEdge completions (ellipse/hyperbola/parabola/curve), ProjectionOnCurve/Surface multi-result, DistShapeShape full results, WireFixer/FaceFixer individual fixes, MakeFace from surface/plane/cylinder, IntCS full results, BSplineCurve/Surface mutations (2682 ops, 2758 tests)
 > - v0.112.0: RWMesh face/vertex iterators, Intf_Tool line-box clipping, BRepAlgo_AsDes tracker, BiTgte_CurveOnEdge, shape location/orientation/type, wire/shell construction, BRepCheck extended tolerance analysis, curve/surface type queries, Extrema point-on-curve/surface (2599 ops, 2244 tests)
 > - v0.111.0: Advanced math solvers & local properties — PSO, GlobOptMin, FunctionRoots, GaussIntegration, NewtonFunctionSetRoot, GeomGridEval (3D/2D/Surface), BRepLProp (CLProps/SLProps), MathPoly_Laguerre polynomial solver
@@ -1760,9 +1761,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.113.0
+### Current Status: v0.114.0
 
-OCCTSwift now wraps **2682 OCCT operations** across 286 categories with 2758 tests across 852 suites.
+OCCTSwift now wraps **2748 OCCT operations** across 302 categories with 2811 tests across 868 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

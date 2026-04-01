@@ -11915,3 +11915,529 @@ extension Surface {
         OCCTSurfaceBSplineRemoveUKnot(handle, Int32(index), Int32(multiplicity), tolerance)
     }
 }
+
+// MARK: - v0.114.0: TopoDS_Builder, ShapeContents expanded, FreeBoundsProperties, WireBuilder,
+//                    Boolean tolerances, Offset wire/face, ThickSolid, BRepLib, Mass properties, isBounded
+
+// --- TopoDS_Builder ---
+
+extension Shape {
+
+    /// Create an empty wire via TopoDS_Builder.
+    public static func builderMakeWire() -> Shape? {
+        guard let ref = OCCTBuilderMakeWire() else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an empty shell via TopoDS_Builder.
+    public static func builderMakeShell() -> Shape? {
+        guard let ref = OCCTBuilderMakeShell() else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an empty solid via TopoDS_Builder.
+    public static func builderMakeSolid() -> Shape? {
+        guard let ref = OCCTBuilderMakeSolid() else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an empty compound via TopoDS_Builder.
+    public static func builderMakeCompound() -> Shape? {
+        guard let ref = OCCTBuilderMakeCompound() else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an empty comp-solid via TopoDS_Builder.
+    public static func builderMakeCompSolid() -> Shape? {
+        guard let ref = OCCTBuilderMakeCompSolid() else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Add child shape into this shape using TopoDS_Builder.
+    @discardableResult
+    public func builderAdd(_ child: Shape) -> Bool {
+        OCCTBuilderAdd(handle, child.handle)
+    }
+
+    /// Remove child shape from this shape using TopoDS_Builder.
+    @discardableResult
+    public func builderRemove(_ child: Shape) -> Bool {
+        OCCTBuilderRemove(handle, child.handle)
+    }
+}
+
+// --- ShapeAnalysis_ShapeContents expanded ---
+
+/// Extended shape contents analysis result.
+public struct ShapeContentsExtended: Sendable {
+    public let nbSolids: Int
+    public let nbShells: Int
+    public let nbFaces: Int
+    public let nbWires: Int
+    public let nbEdges: Int
+    public let nbVertices: Int
+    public let nbFreeEdges: Int
+    public let nbFreeWires: Int
+    public let nbFreeFaces: Int
+    public let nbSolidsWithVoids: Int
+    public let nbBigSplines: Int
+    public let nbC0Surfaces: Int
+    public let nbC0Curves: Int
+    public let nbOffsetSurf: Int
+    public let nbIndirectSurf: Int
+    public let nbOffsetCurves: Int
+    public let nbTrimmedCurve2d: Int
+    public let nbTrimmedCurve3d: Int
+    public let nbBSplineSurf: Int
+    public let nbBezierSurf: Int
+    public let nbTrimSurf: Int
+    public let nbWireWithSeam: Int
+    public let nbWireWithSevSeams: Int
+    public let nbFaceWithSevWires: Int
+    public let nbNoPCurve: Int
+    public let nbSharedSolids: Int
+    public let nbSharedShells: Int
+    public let nbSharedFaces: Int
+    public let nbSharedWires: Int
+    public let nbSharedEdges: Int
+    public let nbSharedVertices: Int
+}
+
+extension Shape {
+
+    /// Get extended shape contents analysis.
+    public func contentsExtended() -> ShapeContentsExtended {
+        let c = OCCTShapeGetContentsExtended(handle)
+        return ShapeContentsExtended(
+            nbSolids: Int(c.nbSolids), nbShells: Int(c.nbShells),
+            nbFaces: Int(c.nbFaces), nbWires: Int(c.nbWires),
+            nbEdges: Int(c.nbEdges), nbVertices: Int(c.nbVertices),
+            nbFreeEdges: Int(c.nbFreeEdges), nbFreeWires: Int(c.nbFreeWires),
+            nbFreeFaces: Int(c.nbFreeFaces), nbSolidsWithVoids: Int(c.nbSolidsWithVoids),
+            nbBigSplines: Int(c.nbBigSplines), nbC0Surfaces: Int(c.nbC0Surfaces),
+            nbC0Curves: Int(c.nbC0Curves), nbOffsetSurf: Int(c.nbOffsetSurf),
+            nbIndirectSurf: Int(c.nbIndirectSurf), nbOffsetCurves: Int(c.nbOffsetCurves),
+            nbTrimmedCurve2d: Int(c.nbTrimmedCurve2d), nbTrimmedCurve3d: Int(c.nbTrimmedCurve3d),
+            nbBSplineSurf: Int(c.nbBSplineSurf), nbBezierSurf: Int(c.nbBezierSurf),
+            nbTrimSurf: Int(c.nbTrimSurf), nbWireWithSeam: Int(c.nbWireWithSeam),
+            nbWireWithSevSeams: Int(c.nbWireWithSevSeams), nbFaceWithSevWires: Int(c.nbFaceWithSevWires),
+            nbNoPCurve: Int(c.nbNoPCurve), nbSharedSolids: Int(c.nbSharedSolids),
+            nbSharedShells: Int(c.nbSharedShells), nbSharedFaces: Int(c.nbSharedFaces),
+            nbSharedWires: Int(c.nbSharedWires), nbSharedEdges: Int(c.nbSharedEdges),
+            nbSharedVertices: Int(c.nbSharedVertices)
+        )
+    }
+}
+
+// --- ShapeAnalysis_FreeBoundsProperties (handle-based) ---
+
+/// Persistent free bounds properties analyzer.
+public final class FreeBoundsProperties: @unchecked Sendable {
+    private let ref: OCCTFreeBoundsPropsRef
+
+    /// Create a free bounds properties analyzer.
+    public init?(shape: Shape, tolerance: Double = 1e-7) {
+        guard let r = OCCTFreeBoundsPropsCreate(shape.handle, tolerance) else { return nil }
+        self.ref = r
+    }
+
+    deinit {
+        OCCTFreeBoundsPropsRelease(ref)
+    }
+
+    /// Perform analysis.
+    @discardableResult
+    public func perform() -> Bool {
+        OCCTFreeBoundsPropsPerform(ref)
+    }
+
+    /// Number of closed free bounds.
+    public var closedCount: Int { Int(OCCTFreeBoundsPropsNbClosedFreeBounds(ref)) }
+
+    /// Number of open free bounds.
+    public var openCount: Int { Int(OCCTFreeBoundsPropsNbOpenFreeBounds(ref)) }
+
+    /// Get area of a closed free bound (0-based index).
+    public func closedArea(at index: Int) -> Double {
+        OCCTFreeBoundsPropsClosedArea(ref, Int32(index + 1))
+    }
+
+    /// Get perimeter of a closed free bound (0-based index).
+    public func closedPerimeter(at index: Int) -> Double {
+        OCCTFreeBoundsPropsClosedPerimeter(ref, Int32(index + 1))
+    }
+
+    /// Get ratio (length/width) of a closed free bound (0-based index).
+    public func closedRatio(at index: Int) -> Double {
+        OCCTFreeBoundsPropsClosedRatio(ref, Int32(index + 1))
+    }
+
+    /// Get width of a closed free bound (0-based index).
+    public func closedWidth(at index: Int) -> Double {
+        OCCTFreeBoundsPropsClosedWidth(ref, Int32(index + 1))
+    }
+
+    /// Get wire of a closed free bound (0-based index).
+    public func closedWire(at index: Int) -> Shape? {
+        guard let ref = OCCTFreeBoundsPropsClosedWire(ref, Int32(index + 1)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get area of an open free bound (0-based index).
+    public func openArea(at index: Int) -> Double {
+        OCCTFreeBoundsPropsOpenArea(ref, Int32(index + 1))
+    }
+
+    /// Get perimeter of an open free bound (0-based index).
+    public func openPerimeter(at index: Int) -> Double {
+        OCCTFreeBoundsPropsOpenPerimeter(ref, Int32(index + 1))
+    }
+
+    /// Get wire of an open free bound (0-based index).
+    public func openWire(at index: Int) -> Shape? {
+        guard let ref = OCCTFreeBoundsPropsOpenWire(ref, Int32(index + 1)) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- BRepBuilderAPI_MakeWire (incremental) ---
+
+/// Incremental wire builder.
+public final class WireBuilder: @unchecked Sendable {
+    private let ref: OCCTWireBuilderRef
+
+    /// Create an empty wire builder.
+    public init() {
+        self.ref = OCCTWireBuilderCreate()
+    }
+
+    deinit {
+        OCCTWireBuilderRelease(ref)
+    }
+
+    /// Add an edge to the wire.
+    public func addEdge(_ edge: Shape) {
+        OCCTWireBuilderAddEdge(ref, edge.handle)
+    }
+
+    /// Add a wire to the builder.
+    public func addWire(_ wire: Shape) {
+        OCCTWireBuilderAddWire(ref, wire.handle)
+    }
+
+    /// Get the resulting wire.
+    public var wire: Shape? {
+        guard let h = OCCTWireBuilderWire(ref) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Check if the builder succeeded.
+    public var isDone: Bool { OCCTWireBuilderIsDone(ref) }
+
+    /// Wire builder error code.
+    public enum WireError: Int32, Sendable {
+        case wireDone = 0
+        case emptyWire = 1
+        case disconnectedWire = 2
+        case nonManifoldWire = 3
+    }
+
+    /// Get the error status.
+    public var error: WireError { WireError(rawValue: OCCTWireBuilderError(ref)) ?? .emptyWire }
+}
+
+// --- Boolean operations with tolerance ---
+
+extension Shape {
+
+    /// Fuse two shapes with fuzzy tolerance.
+    public func fused(with other: Shape, tolerance: Double) -> Shape? {
+        guard let ref = OCCTBooleanFuseWithTolerance(handle, other.handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Cut another shape from this shape with fuzzy tolerance.
+    public func subtracted(_ other: Shape, tolerance: Double) -> Shape? {
+        guard let ref = OCCTBooleanCutWithTolerance(handle, other.handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Common of two shapes with fuzzy tolerance.
+    public func intersected(with other: Shape, tolerance: Double) -> Shape? {
+        guard let ref = OCCTBooleanCommonWithTolerance(handle, other.handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Glue mode for boolean operations.
+    public enum GlueMode: Int32, Sendable {
+        case shift = 0
+        case full = 1
+        case off = 2
+    }
+
+    /// Fuse two shapes with glue mode.
+    public func fused(with other: Shape, glue: GlueMode) -> Shape? {
+        guard let ref = OCCTBooleanFuseGlue(handle, other.handle, glue.rawValue) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Cut another shape with glue mode.
+    public func subtracted(_ other: Shape, glue: GlueMode) -> Shape? {
+        guard let ref = OCCTBooleanCutGlue(handle, other.handle, glue.rawValue) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Common of two shapes with glue mode.
+    public func intersected(with other: Shape, glue: GlueMode) -> Shape? {
+        guard let ref = OCCTBooleanCommonGlue(handle, other.handle, glue.rawValue) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- BRepOffsetAPI_MakeOffset expansion ---
+
+extension Shape {
+
+    /// Join type for offset operations.
+    public enum OffsetJoinType: Int32, Sendable {
+        case arc = 0
+        case tangent = 1
+        case intersection = 2
+    }
+
+    /// Offset a wire on a plane.
+    public func offsetWireOnPlane(distance: Double, joinType: OffsetJoinType = .arc) -> Shape? {
+        guard let ref = OCCTOffsetWireOnPlane(handle, distance, joinType.rawValue) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Offset a face.
+    public func offsetFace(distance: Double, joinType: OffsetJoinType = .arc) -> Shape? {
+        guard let ref = OCCTOffsetFace(handle, distance, joinType.rawValue) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- BRepOffsetAPI_MakeThickSolid expansion ---
+
+extension Shape {
+
+    /// Create a thick solid by removing faces and offsetting.
+    public func thickSolid(facesToRemove: [Shape], offset: Double,
+                           tolerance: Double = 1e-3,
+                           joinType: OffsetJoinType = .arc) -> Shape? {
+        var faceRefs: [OCCTShapeRef] = facesToRemove.map { $0.handle }
+        guard let ref = OCCTThickSolidWithOptions(handle, &faceRefs, Int32(faceRefs.count),
+                                                    offset, tolerance, joinType.rawValue) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- BRepLib utilities ---
+
+extension Shape {
+
+    /// Orient a closed solid so that face normals point outward.
+    @discardableResult
+    public func orientClosedSolid() -> Bool {
+        OCCTBRepLibOrientClosedSolid(handle)
+    }
+
+    /// Build 3D curves for all edges in the shape.
+    @discardableResult
+    public func buildCurves3d(tolerance: Double = 1e-7) -> Bool {
+        OCCTBRepLibBuildCurves3dForShape(handle, tolerance)
+    }
+
+    /// Sort faces by decreasing area.
+    public func sortedFaces() -> Shape? {
+        guard let ref = OCCTBRepLibSortFaces(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Sort faces by increasing area.
+    public func reverseSortedFaces() -> Shape? {
+        guard let ref = OCCTBRepLibReverseSortFaces(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- Shape mass properties expansion ---
+
+extension Shape {
+
+    /// Linear properties result (length + center of mass).
+    public struct LinearProperties: Sendable {
+        public let length: Double
+        public let centerOfMass: SIMD3<Double>
+    }
+
+    /// Get linear properties (total length and center of mass) for edges/wires.
+    public func linearProperties() -> LinearProperties {
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        let length = OCCTShapeLinearProperties(handle, &cx, &cy, &cz)
+        return LinearProperties(length: length, centerOfMass: SIMD3(cx, cy, cz))
+    }
+
+    /// Inertia tensor result.
+    public struct InertiaTensor: Sendable {
+        public let ixx: Double, iyy: Double, izz: Double
+        public let ixy: Double, ixz: Double, iyz: Double
+    }
+
+    /// Get the inertia tensor (moment of inertia matrix) for a volumetric shape.
+    public func momentOfInertia() -> InertiaTensor {
+        var ixx = 0.0, iyy = 0.0, izz = 0.0
+        var ixy = 0.0, ixz = 0.0, iyz = 0.0
+        OCCTShapeMomentOfInertia(handle, &ixx, &iyy, &izz, &ixy, &ixz, &iyz)
+        return InertiaTensor(ixx: ixx, iyy: iyy, izz: izz, ixy: ixy, ixz: ixz, iyz: iyz)
+    }
+
+    /// Principal axes of inertia (3 direction vectors).
+    public struct PrincipalAxes: Sendable {
+        public let axis1: SIMD3<Double>
+        public let axis2: SIMD3<Double>
+        public let axis3: SIMD3<Double>
+    }
+
+    /// Get the principal axes of inertia.
+    public func principalAxes() -> PrincipalAxes {
+        var axes = [Double](repeating: 0, count: 9)
+        OCCTShapePrincipalAxes(handle, &axes)
+        return PrincipalAxes(
+            axis1: SIMD3(axes[0], axes[1], axes[2]),
+            axis2: SIMD3(axes[3], axes[4], axes[5]),
+            axis3: SIMD3(axes[6], axes[7], axes[8])
+        )
+    }
+
+    /// Get the radius of gyration about an axis defined by a point and direction.
+    public func radiusOfGyration(axisOrigin: SIMD3<Double>, direction: SIMD3<Double>) -> Double {
+        OCCTShapeRadiusOfGyration(handle,
+                                    axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                                    direction.x, direction.y, direction.z)
+    }
+}
+
+// --- Curve isBounded ---
+
+extension Curve3D {
+
+    /// Whether this curve is bounded (Geom_BoundedCurve subclass).
+    public var isBounded: Bool { OCCTCurve3DIsBounded(handle) }
+}
+
+extension Curve2D {
+
+    /// Whether this curve is bounded (Geom2d_BoundedCurve subclass).
+    public var isBounded: Bool { OCCTCurve2DIsBounded(handle) }
+}
+
+// --- Quantity_Color named color count ---
+
+extension Color {
+
+    /// The total number of named colors available in OCCT.
+    public static var namedColorCount: Int { Int(OCCTNamedColorCount()) }
+}
+
+// --- BRep_Tool queries on Shape ---
+
+extension Shape {
+
+    /// Get the 3D curve from an edge shape with parameter range.
+    public func edgeCurveWithParams() -> (curve: Curve3D, first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard let ref = OCCTShapeEdgeCurve(handle, &first, &last) else { return nil }
+        return (Curve3D(handle: ref), first, last)
+    }
+
+    /// Get the surface from a face shape.
+    public func faceSurfaceGeom() -> Surface? {
+        guard let ref = OCCTShapeFaceSurface(handle) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Whether this shape is closed (wire or shell).
+    public var isClosedShape: Bool { OCCTShapeIsClosed(handle) }
+}
+
+// --- Unique sub-shape counts ---
+
+extension Shape {
+
+    /// Number of unique edges in this shape.
+    public var uniqueEdgeCount: Int { Int(OCCTShapeUniqueEdgeCount(handle)) }
+
+    /// Number of unique faces in this shape.
+    public var uniqueFaceCount: Int { Int(OCCTShapeUniqueFaceCount(handle)) }
+
+    /// Number of unique vertices in this shape.
+    public var uniqueVertexCount: Int { Int(OCCTShapeUniqueVertexCount(handle)) }
+
+    /// Count unique sub-shapes of a specific type.
+    public func uniqueSubShapeCount(ofType type: ShapeType) -> Int {
+        Int(OCCTShapeUniqueSubShapeCount(handle, Int32(type.rawValue)))
+    }
+}
+
+// --- Shape empty copy ---
+
+extension Shape {
+
+    /// Create an empty copy of this shape (same TShape, no sub-shapes).
+    public func emptyCopied() -> Shape? {
+        guard let ref = OCCTShapeEmptyCopied(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- Curve/Surface DN (arbitrary derivative) ---
+
+extension Curve3D {
+
+    /// Evaluate the N-th derivative at parameter u.
+    public func dn(at u: Double, order n: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTCurve3DDN(handle, u, Int32(n), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// The type name of this curve (e.g. "Geom_Line", "Geom_Circle").
+    public var typeName: String? {
+        guard let ptr = OCCTCurve3DTypeName(handle) else { return nil }
+        return String(cString: ptr)
+    }
+}
+
+extension Curve2D {
+
+    /// Evaluate the N-th derivative at parameter u.
+    public func dn(at u: Double, order n: Int) -> SIMD2<Double> {
+        var x = 0.0, y = 0.0
+        OCCTCurve2DDN(handle, u, Int32(n), &x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// The type name of this curve (e.g. "Geom2d_Line", "Geom2d_Circle").
+    public var typeName: String? {
+        guard let ptr = OCCTCurve2DTypeName(handle) else { return nil }
+        return String(cString: ptr)
+    }
+}
+
+extension Surface {
+
+    /// Evaluate the (Nu, Nv) partial derivative at (u, v).
+    public func dn(u: Double, v: Double, nu: Int, nv: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTSurfaceDN(handle, u, v, Int32(nu), Int32(nv), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// The type name of this surface (e.g. "Geom_Plane", "Geom_BSplineSurface").
+    public var typeName: String? {
+        guard let ptr = OCCTSurfaceTypeName(handle) else { return nil }
+        return String(cString: ptr)
+    }
+}

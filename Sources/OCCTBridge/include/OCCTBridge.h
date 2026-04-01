@@ -16010,6 +16010,298 @@ void OCCTSurfaceBSplineGetWeights(OCCTSurfaceRef _Nonnull surface,
 bool OCCTSurfaceBSplineRemoveUKnot(OCCTSurfaceRef _Nonnull surface,
                                      int32_t index, int32_t mult, double tol);
 
+// MARK: - v0.114.0: TopoDS_Builder, ShapeContents expanded, FreeBoundsProperties, WireBuilder,
+//                    Boolean tolerances, Offset wire/face, ThickSolid tolerance, BRepLib utilities,
+//                    Mass properties expansion, Curve isBounded
+
+// --- TopoDS_Builder ---
+
+/// Create an empty wire via TopoDS_Builder.
+OCCTShapeRef _Nullable OCCTBuilderMakeWire(void);
+
+/// Create an empty shell via TopoDS_Builder.
+OCCTShapeRef _Nullable OCCTBuilderMakeShell(void);
+
+/// Create an empty solid via TopoDS_Builder.
+OCCTShapeRef _Nullable OCCTBuilderMakeSolid(void);
+
+/// Create an empty compound via TopoDS_Builder.
+OCCTShapeRef _Nullable OCCTBuilderMakeCompound(void);
+
+/// Create an empty comp-solid via TopoDS_Builder.
+OCCTShapeRef _Nullable OCCTBuilderMakeCompSolid(void);
+
+/// Add child shape into parent shape using TopoDS_Builder.
+bool OCCTBuilderAdd(OCCTShapeRef _Nonnull parent, OCCTShapeRef _Nonnull child);
+
+/// Remove child shape from parent shape using TopoDS_Builder.
+bool OCCTBuilderRemove(OCCTShapeRef _Nonnull parent, OCCTShapeRef _Nonnull child);
+
+// --- ShapeAnalysis_ShapeContents expanded ---
+
+/// Extended shape contents structure with additional detail counts.
+typedef struct {
+    int32_t nbSolids;
+    int32_t nbShells;
+    int32_t nbFaces;
+    int32_t nbWires;
+    int32_t nbEdges;
+    int32_t nbVertices;
+    int32_t nbFreeEdges;
+    int32_t nbFreeWires;
+    int32_t nbFreeFaces;
+    int32_t nbSolidsWithVoids;
+    int32_t nbBigSplines;
+    int32_t nbC0Surfaces;
+    int32_t nbC0Curves;
+    int32_t nbOffsetSurf;
+    int32_t nbIndirectSurf;
+    int32_t nbOffsetCurves;
+    int32_t nbTrimmedCurve2d;
+    int32_t nbTrimmedCurve3d;
+    int32_t nbBSplineSurf;
+    int32_t nbBezierSurf;
+    int32_t nbTrimSurf;
+    int32_t nbWireWithSeam;
+    int32_t nbWireWithSevSeams;
+    int32_t nbFaceWithSevWires;
+    int32_t nbNoPCurve;
+    int32_t nbSharedSolids;
+    int32_t nbSharedShells;
+    int32_t nbSharedFaces;
+    int32_t nbSharedWires;
+    int32_t nbSharedEdges;
+    int32_t nbSharedVertices;
+} OCCTShapeContentsExtended;
+
+/// Get extended shape contents analysis.
+OCCTShapeContentsExtended OCCTShapeGetContentsExtended(OCCTShapeRef _Nonnull shape);
+
+// --- ShapeAnalysis_FreeBoundsProperties (handle-based) ---
+
+typedef struct OCCTFreeBoundsProps* OCCTFreeBoundsPropsRef;
+
+/// Create a FreeBoundsProperties analyzer.
+OCCTFreeBoundsPropsRef _Nullable OCCTFreeBoundsPropsCreate(OCCTShapeRef _Nonnull shape, double tolerance);
+
+/// Release a FreeBoundsProperties analyzer.
+void OCCTFreeBoundsPropsRelease(OCCTFreeBoundsPropsRef _Nonnull props);
+
+/// Perform the analysis.
+bool OCCTFreeBoundsPropsPerform(OCCTFreeBoundsPropsRef _Nonnull props);
+
+/// Number of closed free bounds.
+int32_t OCCTFreeBoundsPropsNbClosedFreeBounds(OCCTFreeBoundsPropsRef _Nonnull props);
+
+/// Number of open free bounds.
+int32_t OCCTFreeBoundsPropsNbOpenFreeBounds(OCCTFreeBoundsPropsRef _Nonnull props);
+
+/// Get area of closed free bound by 1-based index.
+double OCCTFreeBoundsPropsClosedArea(OCCTFreeBoundsPropsRef _Nonnull props, int32_t index);
+
+/// Get perimeter of closed free bound by 1-based index.
+double OCCTFreeBoundsPropsClosedPerimeter(OCCTFreeBoundsPropsRef _Nonnull props, int32_t index);
+
+/// Get ratio (length/width) of closed free bound by 1-based index.
+double OCCTFreeBoundsPropsClosedRatio(OCCTFreeBoundsPropsRef _Nonnull props, int32_t index);
+
+/// Get width of closed free bound by 1-based index.
+double OCCTFreeBoundsPropsClosedWidth(OCCTFreeBoundsPropsRef _Nonnull props, int32_t index);
+
+/// Get wire of closed free bound by 1-based index.
+OCCTShapeRef _Nullable OCCTFreeBoundsPropsClosedWire(OCCTFreeBoundsPropsRef _Nonnull props, int32_t index);
+
+/// Get area of open free bound by 1-based index.
+double OCCTFreeBoundsPropsOpenArea(OCCTFreeBoundsPropsRef _Nonnull props, int32_t index);
+
+/// Get perimeter of open free bound by 1-based index.
+double OCCTFreeBoundsPropsOpenPerimeter(OCCTFreeBoundsPropsRef _Nonnull props, int32_t index);
+
+/// Get wire of open free bound by 1-based index.
+OCCTShapeRef _Nullable OCCTFreeBoundsPropsOpenWire(OCCTFreeBoundsPropsRef _Nonnull props, int32_t index);
+
+// --- BRepBuilderAPI_MakeWire (incremental) ---
+
+typedef struct OCCTWireBuilder* OCCTWireBuilderRef;
+
+/// Create an empty wire builder.
+OCCTWireBuilderRef _Nonnull OCCTWireBuilderCreate(void);
+
+/// Release a wire builder.
+void OCCTWireBuilderRelease(OCCTWireBuilderRef _Nonnull wb);
+
+/// Add an edge to the wire builder.
+void OCCTWireBuilderAddEdge(OCCTWireBuilderRef _Nonnull wb, OCCTShapeRef _Nonnull edge);
+
+/// Add a wire to the wire builder.
+void OCCTWireBuilderAddWire(OCCTWireBuilderRef _Nonnull wb, OCCTShapeRef _Nonnull wire);
+
+/// Get the resulting wire.
+OCCTShapeRef _Nullable OCCTWireBuilderWire(OCCTWireBuilderRef _Nonnull wb);
+
+/// Check if the wire builder succeeded.
+bool OCCTWireBuilderIsDone(OCCTWireBuilderRef _Nonnull wb);
+
+/// Get error status: 0=WireDone, 1=EmptyWire, 2=DisconnectedWire, 3=NonManifoldWire.
+int32_t OCCTWireBuilderError(OCCTWireBuilderRef _Nonnull wb);
+
+// --- Boolean operations with tolerance ---
+
+/// Fuse two shapes with fuzzy tolerance.
+OCCTShapeRef _Nullable OCCTBooleanFuseWithTolerance(OCCTShapeRef _Nonnull s1, OCCTShapeRef _Nonnull s2, double fuzzyTol);
+
+/// Cut s2 from s1 with fuzzy tolerance.
+OCCTShapeRef _Nullable OCCTBooleanCutWithTolerance(OCCTShapeRef _Nonnull s1, OCCTShapeRef _Nonnull s2, double fuzzyTol);
+
+/// Common of two shapes with fuzzy tolerance.
+OCCTShapeRef _Nullable OCCTBooleanCommonWithTolerance(OCCTShapeRef _Nonnull s1, OCCTShapeRef _Nonnull s2, double fuzzyTol);
+
+/// Fuse two shapes with glue mode (0=shift, 1=full, 2=none).
+OCCTShapeRef _Nullable OCCTBooleanFuseGlue(OCCTShapeRef _Nonnull s1, OCCTShapeRef _Nonnull s2, int32_t glueMode);
+
+/// Cut with glue mode.
+OCCTShapeRef _Nullable OCCTBooleanCutGlue(OCCTShapeRef _Nonnull s1, OCCTShapeRef _Nonnull s2, int32_t glueMode);
+
+/// Common with glue mode.
+OCCTShapeRef _Nullable OCCTBooleanCommonGlue(OCCTShapeRef _Nonnull s1, OCCTShapeRef _Nonnull s2, int32_t glueMode);
+
+// --- BRepOffsetAPI_MakeOffset expansion ---
+
+/// Offset a wire on a plane. joinType: 0=Arc, 1=Tangent, 2=Intersection.
+OCCTShapeRef _Nullable OCCTOffsetWireOnPlane(OCCTShapeRef _Nonnull wire, double distance, int32_t joinType);
+
+/// Offset a face. joinType: 0=Arc, 1=Tangent, 2=Intersection.
+OCCTShapeRef _Nullable OCCTOffsetFace(OCCTShapeRef _Nonnull face, double distance, int32_t joinType);
+
+// --- BRepOffsetAPI_MakeThickSolid expansion ---
+
+/// Create thick solid with tolerance and join type control.
+/// joinType: 0=Arc, 1=Tangent, 2=Intersection.
+OCCTShapeRef _Nullable OCCTThickSolidWithOptions(OCCTShapeRef _Nonnull shape,
+                                                   OCCTShapeRef _Nonnull const * _Nonnull facesToRemove,
+                                                   int32_t faceCount,
+                                                   double offset, double tolerance,
+                                                   int32_t joinType);
+
+// --- BRepLib utilities ---
+
+/// Orient a closed solid so that its faces' normals point outward.
+bool OCCTBRepLibOrientClosedSolid(OCCTShapeRef _Nonnull solid);
+
+/// Build 3D curves for all edges in a shape.
+bool OCCTBRepLibBuildCurves3dForShape(OCCTShapeRef _Nonnull shape, double tolerance);
+
+/// Sort faces of a shape by decreasing area (returns sorted face list as a compound).
+OCCTShapeRef _Nullable OCCTBRepLibSortFaces(OCCTShapeRef _Nonnull shape);
+
+/// Reverse sort faces (increasing area).
+OCCTShapeRef _Nullable OCCTBRepLibReverseSortFaces(OCCTShapeRef _Nonnull shape);
+
+// --- Shape mass properties expansion ---
+
+/// Get linear properties (length + center of mass) for wires/edges.
+double OCCTShapeLinearProperties(OCCTShapeRef _Nonnull shape,
+                                   double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz);
+
+/// Get the static moments (Ix, Iy, Iz) and products of inertia (Ixy, Ixz, Iyz) for a shape.
+void OCCTShapeMomentOfInertia(OCCTShapeRef _Nonnull shape,
+                                double* _Nonnull ixx, double* _Nonnull iyy, double* _Nonnull izz,
+                                double* _Nonnull ixy, double* _Nonnull ixz, double* _Nonnull iyz);
+
+/// Get the principal axes of inertia (3 direction vectors = 9 doubles).
+void OCCTShapePrincipalAxes(OCCTShapeRef _Nonnull shape, double* _Nonnull axes9);
+
+/// Get the radius of gyration about an arbitrary axis.
+double OCCTShapeRadiusOfGyration(OCCTShapeRef _Nonnull shape,
+                                    double ax, double ay, double az,
+                                    double dx, double dy, double dz);
+
+// --- Curve isBounded ---
+
+/// Check if a 3D curve is bounded (Geom_BoundedCurve subclass).
+bool OCCTCurve3DIsBounded(OCCTCurve3DRef _Nonnull curve);
+
+/// Check if a 2D curve is bounded (Geom2d_BoundedCurve subclass).
+bool OCCTCurve2DIsBounded(OCCTCurve2DRef _Nonnull curve);
+
+// --- Quantity_Color named color count ---
+
+/// Get the total number of named colors in OCCT.
+int32_t OCCTNamedColorCount(void);
+
+// --- BRep_Tool queries on Shape ---
+
+/// Get the tolerance of an edge shape.
+double OCCTShapeEdgeTolerance(OCCTShapeRef _Nonnull edge);
+
+/// Get the tolerance of a face shape.
+double OCCTShapeFaceTolerance(OCCTShapeRef _Nonnull face);
+
+/// Get the tolerance of a vertex shape.
+double OCCTShapeVertexTolerance(OCCTShapeRef _Nonnull vertex);
+
+/// Get the 3D point of a vertex shape.
+void OCCTShapeVertexPoint(OCCTShapeRef _Nonnull vertex,
+                           double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the curve from an edge shape. Returns NULL if edge has no 3D curve.
+OCCTCurve3DRef _Nullable OCCTShapeEdgeCurve(OCCTShapeRef _Nonnull edge,
+                                              double* _Nonnull first, double* _Nonnull last);
+
+/// Get the surface from a face shape. Returns NULL if face has no surface.
+OCCTSurfaceRef _Nullable OCCTShapeFaceSurface(OCCTShapeRef _Nonnull face);
+
+/// Check if a shape is closed (for wire or shell).
+bool OCCTShapeIsClosed(OCCTShapeRef _Nonnull shape);
+
+// --- Unique sub-shape counts (TopExp::MapShapes) ---
+
+/// Count unique sub-shapes of a given type.
+/// type: 0=compound, 1=compsolid, 2=solid, 3=shell, 4=face, 5=wire, 6=edge, 7=vertex
+int32_t OCCTShapeUniqueSubShapeCount(OCCTShapeRef _Nonnull shape, int32_t type);
+
+// --- Geom_Curve DN (arbitrary derivative) ---
+
+/// Evaluate the N-th derivative of a 3D curve at parameter u.
+void OCCTCurve3DDN(OCCTCurve3DRef _Nonnull curve, double u, int32_t n,
+                    double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Evaluate the N-th derivative of a 2D curve at parameter u.
+void OCCTCurve2DDN(OCCTCurve2DRef _Nonnull curve, double u, int32_t n,
+                    double* _Nonnull x, double* _Nonnull y);
+
+/// Evaluate the (Nu, Nv) partial derivative of a surface at (u,v).
+void OCCTSurfaceDN(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                    int32_t nu, int32_t nv,
+                    double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+// --- Curve/Surface type names ---
+
+/// Get the 3D curve type as a string (Geom_Line, Geom_Circle, etc.).
+const char* _Nullable OCCTCurve3DTypeName(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the 2D curve type as a string (Geom2d_Line, Geom2d_Circle, etc.).
+const char* _Nullable OCCTCurve2DTypeName(OCCTCurve2DRef _Nonnull curve);
+
+/// Get the surface type as a string (Geom_Plane, Geom_SphericalSurface, etc.).
+const char* _Nullable OCCTSurfaceTypeName(OCCTSurfaceRef _Nonnull surface);
+
+// --- Shape topology queries ---
+
+/// Get the number of unique edges in a shape.
+int32_t OCCTShapeUniqueEdgeCount(OCCTShapeRef _Nonnull shape);
+
+/// Get the number of unique faces in a shape.
+int32_t OCCTShapeUniqueFaceCount(OCCTShapeRef _Nonnull shape);
+
+/// Get the number of unique vertices in a shape.
+int32_t OCCTShapeUniqueVertexCount(OCCTShapeRef _Nonnull shape);
+
+// --- Shape empty copy ---
+
+/// Create an empty copy of a shape (same TShape, no sub-shapes).
+OCCTShapeRef _Nullable OCCTShapeEmptyCopied(OCCTShapeRef _Nonnull shape);
+
 #ifdef __cplusplus
 }
 #endif

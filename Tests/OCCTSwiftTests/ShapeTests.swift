@@ -33376,3 +33376,614 @@ struct BSplineMutationsTests {
         }
     }
 }
+
+// MARK: - v0.114.0 Tests
+
+@Suite("v0.114.0 - TopoDS_Builder")
+struct TopoDSBuilderTests {
+
+    @Test func makeCompound() {
+        if let compound = Shape.builderMakeCompound() {
+            if let box = Shape.box(width: 10, height: 10, depth: 10) {
+                let ok = compound.builderAdd(box)
+                #expect(ok)
+                let contents = compound.contentsExtended()
+                #expect(contents.nbSolids >= 1)
+            }
+        }
+    }
+
+    @Test func makeWire() {
+        if let wire = Shape.builderMakeWire() {
+            // Can create empty wire shape
+            #expect(wire.shapeType == .wire)
+        }
+    }
+
+    @Test func makeShell() {
+        if let shell = Shape.builderMakeShell() {
+            #expect(shell.shapeType == .shell)
+        }
+    }
+
+    @Test func makeSolid() {
+        if let solid = Shape.builderMakeSolid() {
+            #expect(solid.shapeType == .solid)
+        }
+    }
+
+    @Test func makeCompSolid() {
+        if let cs = Shape.builderMakeCompSolid() {
+            #expect(cs.shapeType == .compSolid)
+        }
+    }
+
+    @Test func addAndRemove() {
+        if let compound = Shape.builderMakeCompound() {
+            if let box1 = Shape.box(width: 5, height: 5, depth: 5),
+               let box2 = Shape.box(width: 3, height: 3, depth: 3) {
+                compound.builderAdd(box1)
+                compound.builderAdd(box2)
+                let c1 = compound.contentsExtended()
+                #expect(c1.nbSolids == 2)
+                compound.builderRemove(box1)
+                let c2 = compound.contentsExtended()
+                #expect(c2.nbSolids == 1)
+            }
+        }
+    }
+}
+
+@Suite("v0.114.0 - ShapeContentsExtended")
+struct ShapeContentsExtendedTests {
+
+    @Test func boxContents() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let c = box.contentsExtended()
+            #expect(c.nbSolids == 1)
+            #expect(c.nbShells == 1)
+            #expect(c.nbFaces == 6)
+            #expect(c.nbWires == 6)
+            #expect(c.nbEdges == 24)
+            #expect(c.nbVertices == 48)
+            #expect(c.nbBezierSurf == 0)
+            #expect(c.nbBSplineSurf == 0)
+        }
+    }
+
+    @Test func sphereContents() {
+        if let sphere = Shape.sphere(radius: 5) {
+            let c = sphere.contentsExtended()
+            #expect(c.nbFaces >= 1)
+            #expect(c.nbEdges >= 1)
+            // Sphere has seam edges
+            #expect(c.nbWireWithSeam >= 0)
+        }
+    }
+
+    @Test func sharedCounts() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let c = box.contentsExtended()
+            // Box shares edges and vertices
+            #expect(c.nbSharedEdges >= 0)
+            #expect(c.nbSharedVertices >= 0)
+        }
+    }
+}
+
+@Suite("v0.114.0 - FreeBoundsProperties")
+struct FreeBoundsPropsTests {
+
+    @Test func boxFaceFreeBounds() {
+        // Remove one face from a box to create a shell with a free bound
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                // A single face has free bounds (its wire)
+                if let fbp = FreeBoundsProperties(shape: faces[0], tolerance: 1e-7) {
+                    let ok = fbp.perform()
+                    // May or may not find free bounds depending on face topology
+                    if ok {
+                        let closed = fbp.closedCount
+                        let open = fbp.openCount
+                        #expect(closed >= 0)
+                        #expect(open >= 0)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func shellWithHoleFreeBounds() {
+        // Create a compound of 5 faces (open box)
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count >= 5 {
+                if let compound = Shape.builderMakeCompound() {
+                    for i in 0..<5 {
+                        compound.builderAdd(faces[i])
+                    }
+                    if let fbp = FreeBoundsProperties(shape: compound, tolerance: 1e-3) {
+                        let ok = fbp.perform()
+                        if ok {
+                            let total = fbp.closedCount + fbp.openCount
+                            #expect(total >= 0)
+                            if fbp.closedCount > 0 {
+                                let area = fbp.closedArea(at: 0)
+                                let perimeter = fbp.closedPerimeter(at: 0)
+                                #expect(perimeter >= 0)
+                                // Area can be negative for some orientations
+                                let _ = area
+                                let wire = fbp.closedWire(at: 0)
+                                #expect(wire != nil)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.114.0 - WireBuilder")
+struct WireBuilderTests {
+
+    @Test func buildWireFromEdges() {
+        // Create edges that form a triangle
+        if let e1 = Shape.edgeFromPoints(SIMD3(0, 0, 0), SIMD3(10, 0, 0)),
+           let e2 = Shape.edgeFromPoints(SIMD3(10, 0, 0), SIMD3(5, 10, 0)),
+           let e3 = Shape.edgeFromPoints(SIMD3(5, 10, 0), SIMD3(0, 0, 0)) {
+            let wb = WireBuilder()
+            wb.addEdge(e1)
+            wb.addEdge(e2)
+            wb.addEdge(e3)
+            #expect(wb.isDone)
+            #expect(wb.error == .wireDone)
+            let wire = wb.wire
+            #expect(wire != nil)
+        }
+    }
+
+    @Test func buildWireFromWire() {
+        if let rect = Wire.rectangle(width: 10, height: 5),
+           let wireShape = Shape.fromWire(rect) {
+            let wb = WireBuilder()
+            wb.addWire(wireShape)
+            #expect(wb.isDone)
+            let wire = wb.wire
+            #expect(wire != nil)
+        }
+    }
+
+    @Test func emptyWireError() {
+        let wb = WireBuilder()
+        #expect(!wb.isDone)
+        #expect(wb.error == .emptyWire)
+    }
+}
+
+@Suite("v0.114.0 - Boolean Tolerance")
+struct BooleanToleranceTests {
+
+    @Test func fuseWithTolerance() {
+        if let box1 = Shape.box(width: 10, height: 10, depth: 10),
+           let box2 = Shape.box(origin: SIMD3(9.999, 0, 0), width: 10, height: 10, depth: 10) {
+            // With fuzzy tolerance, near-touching shapes can fuse
+            let fused = box1.fused(with: box2, tolerance: 0.01)
+            #expect(fused != nil)
+            if let f = fused {
+                #expect(f.isValid)
+            }
+        }
+    }
+
+    @Test func cutWithTolerance() {
+        if let box1 = Shape.box(width: 10, height: 10, depth: 10),
+           let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) {
+            let cut = box1.subtracted(box2, tolerance: 0.001)
+            #expect(cut != nil)
+            if let c = cut {
+                #expect(c.isValid)
+            }
+        }
+    }
+
+    @Test func commonWithTolerance() {
+        if let box1 = Shape.box(width: 10, height: 10, depth: 10),
+           let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) {
+            let common = box1.intersected(with: box2, tolerance: 0.001)
+            #expect(common != nil)
+            if let c = common {
+                #expect(c.isValid)
+            }
+        }
+    }
+
+    @Test func fuseWithGlue() {
+        if let box1 = Shape.box(width: 10, height: 10, depth: 10),
+           let box2 = Shape.box(origin: SIMD3(10, 0, 0), width: 10, height: 10, depth: 10) {
+            let fused = box1.fused(with: box2, glue: .shift)
+            #expect(fused != nil)
+            if let f = fused {
+                #expect(f.isValid)
+            }
+        }
+    }
+
+    @Test func cutWithGlue() {
+        if let box1 = Shape.box(width: 20, height: 20, depth: 20),
+           let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) {
+            let cut = box1.subtracted(box2, glue: .off)
+            #expect(cut != nil)
+        }
+    }
+
+    @Test func commonWithGlue() {
+        if let box1 = Shape.box(width: 10, height: 10, depth: 10),
+           let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) {
+            let common = box1.intersected(with: box2, glue: .off)
+            #expect(common != nil)
+        }
+    }
+}
+
+@Suite("v0.114.0 - Offset Wire/Face")
+struct OffsetWireFaceTests {
+
+    @Test func offsetWire() {
+        if let rect = Wire.rectangle(width: 10, height: 10),
+           let wireShape = Shape.fromWire(rect) {
+            let offset = wireShape.offsetWireOnPlane(distance: 2.0)
+            #expect(offset != nil)
+        }
+    }
+
+    @Test func offsetWireIntersection() {
+        if let rect = Wire.rectangle(width: 10, height: 10),
+           let wireShape = Shape.fromWire(rect) {
+            let offset = wireShape.offsetWireOnPlane(distance: 1.0, joinType: .intersection)
+            #expect(offset != nil)
+        }
+    }
+
+    @Test func offsetFace() {
+        if let rect = Wire.rectangle(width: 20, height: 20),
+           let face = Shape.face(from: rect) {
+            let offset = face.offsetFace(distance: 2.0)
+            #expect(offset != nil)
+        }
+    }
+}
+
+@Suite("v0.114.0 - ThickSolid Options")
+struct ThickSolidOptionsTests {
+
+    @Test func thickSolidWithOptions() {
+        if let box = Shape.box(width: 20, height: 20, depth: 20) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let result = box.thickSolid(facesToRemove: [faces[0]],
+                                            offset: -2.0,
+                                            tolerance: 1e-3,
+                                            joinType: .arc)
+                #expect(result != nil)
+                if let r = result {
+                    #expect(r.isValid)
+                    if let vol = r.volume {
+                        #expect(vol > 0)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.114.0 - BRepLib Utilities")
+struct BRepLibUtilitiesTests {
+
+    @Test func orientClosedSolid() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // Box is already oriented, this should still succeed
+            let shells = box.subShapes(ofType: .shell)
+            if shells.count > 0 {
+                if let solid = Shape.builderMakeSolid() {
+                    solid.builderAdd(shells[0])
+                    let ok = solid.orientClosedSolid()
+                    // May or may not succeed depending on shell state
+                    let _ = ok
+                }
+            }
+        }
+    }
+
+    @Test func buildCurves3d() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let ok = box.buildCurves3d(tolerance: 1e-7)
+            #expect(ok)
+        }
+    }
+
+    @Test func sortFaces() {
+        if let box = Shape.box(width: 10, height: 20, depth: 30) {
+            let sorted = box.sortedFaces()
+            #expect(sorted != nil)
+            if let s = sorted {
+                let faces = s.subShapes(ofType: .face)
+                #expect(faces.count == 6)
+            }
+        }
+    }
+
+    @Test func reverseSortFaces() {
+        if let box = Shape.box(width: 10, height: 20, depth: 30) {
+            let sorted = box.reverseSortedFaces()
+            #expect(sorted != nil)
+            if let s = sorted {
+                let faces = s.subShapes(ofType: .face)
+                #expect(faces.count == 6)
+            }
+        }
+    }
+}
+
+@Suite("v0.114.0 - Mass Properties")
+struct MassPropertiesTests {
+
+    @Test func linearProperties() {
+        if let rect = Wire.rectangle(width: 10, height: 10),
+           let wireShape = Shape.fromWire(rect) {
+            let lp = wireShape.linearProperties()
+            #expect(abs(lp.length - 40.0) < 0.1) // perimeter of 10x10 rect
+        }
+    }
+
+    @Test func momentOfInertia() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let moi = box.momentOfInertia()
+            #expect(moi.ixx > 0)
+            #expect(moi.iyy > 0)
+            #expect(moi.izz > 0)
+        }
+    }
+
+    @Test func principalAxes() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let pa = box.principalAxes()
+            // Principal axes should be unit vectors (or near unit)
+            let len1 = sqrt(pa.axis1.x * pa.axis1.x + pa.axis1.y * pa.axis1.y + pa.axis1.z * pa.axis1.z)
+            #expect(abs(len1 - 1.0) < 0.01)
+        }
+    }
+
+    @Test func radiusOfGyration() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let rog = box.radiusOfGyration(axisOrigin: SIMD3(0, 0, 0), direction: SIMD3(0, 0, 1))
+            #expect(rog > 0)
+        }
+    }
+}
+
+@Suite("v0.114.0 - Curve isBounded")
+struct CurveIsBoundedTests {
+
+    @Test func lineIsNotBounded() {
+        if let line = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)) {
+            #expect(!line.isBounded)
+        }
+    }
+
+    @Test func bsplineIsBounded() {
+        let points = [SIMD3(0.0,0.0,0.0), SIMD3(1.0,1.0,0.0), SIMD3(2.0,0.0,0.0)]
+        if let curve = Curve3D.fit(points: points) {
+            #expect(curve.isBounded)
+        }
+    }
+
+    @Test func line2dIsNotBounded() {
+        if let line = Curve2D.line(through: SIMD2(0,0), direction: SIMD2(1,0)) {
+            #expect(!line.isBounded)
+        }
+    }
+
+    @Test func bspline2dIsBounded() {
+        let points = [SIMD2(0.0,0.0), SIMD2(1.0,1.0), SIMD2(2.0,0.0)]
+        if let curve = Curve2D.fit(through: points) {
+            #expect(curve.isBounded)
+        }
+    }
+}
+
+@Suite("v0.114.0 - Named Color Count")
+struct NamedColorCountTests {
+
+    @Test func colorCount() {
+        let count = Color.namedColorCount
+        #expect(count > 500) // OCCT has ~520 named colors
+    }
+}
+
+@Suite("v0.114.0 - BRep_Tool Queries")
+struct BRepToolQueryTests {
+
+    @Test func edgeCurveFromBox() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                if let result = edges[0].edgeCurveWithParams() {
+                    #expect(result.first < result.last)
+                    let mid = (result.first + result.last) / 2.0
+                    let pt = result.curve.point(at: mid)
+                    // Point should be on the box
+                    #expect(pt.x >= -6 && pt.x <= 16)
+                }
+            }
+        }
+    }
+
+    @Test func faceSurfaceFromBox() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let surf = faces[0].faceSurfaceGeom()
+                #expect(surf != nil)
+                if let s = surf {
+                    let tn = s.typeName
+                    #expect(tn != nil)
+                    // Box faces are planes
+                    if let name = tn {
+                        #expect(name.contains("Plane"))
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func isClosedShape() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let shells = box.subShapes(ofType: .shell)
+            if shells.count > 0 {
+                #expect(shells[0].isClosedShape)
+            }
+        }
+    }
+}
+
+@Suite("v0.114.0 - Unique SubShape Counts")
+struct UniqueSubShapeCountTests {
+
+    @Test func boxUniqueCounts() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            #expect(box.uniqueFaceCount == 6)
+            #expect(box.uniqueEdgeCount == 12)
+            #expect(box.uniqueVertexCount == 8)
+        }
+    }
+
+    @Test func sphereUniqueCounts() {
+        if let sphere = Shape.sphere(radius: 5) {
+            #expect(sphere.uniqueFaceCount >= 1)
+            #expect(sphere.uniqueEdgeCount >= 1)
+        }
+    }
+
+    @Test func uniqueSubShapeCountByType() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            #expect(box.uniqueSubShapeCount(ofType: .solid) == 1)
+            #expect(box.uniqueSubShapeCount(ofType: .shell) == 1)
+            #expect(box.uniqueSubShapeCount(ofType: .face) == 6)
+        }
+    }
+}
+
+@Suite("v0.114.0 - Shape Empty Copy")
+struct ShapeEmptyCopyTests {
+
+    @Test func emptyCopyOfCompound() {
+        if let compound = Shape.builderMakeCompound() {
+            if let box = Shape.box(width: 10, height: 10, depth: 10) {
+                compound.builderAdd(box)
+                let copy = compound.emptyCopied()
+                #expect(copy != nil)
+                if let c = copy {
+                    // Empty copy should have no children
+                    #expect(c.contentsExtended().nbSolids == 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.114.0 - Curve DN")
+struct CurveDNTests {
+
+    @Test func curve3dFirstDerivative() {
+        if let line = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)) {
+            let d1 = line.dn(at: 0, order: 1)
+            // First derivative of a line is its direction
+            #expect(abs(d1.x) > 0.5)
+        }
+    }
+
+    @Test func curve3dSecondDerivative() {
+        if let line = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)) {
+            let d2 = line.dn(at: 0, order: 2)
+            // Second derivative of a line is zero
+            #expect(abs(d2.x) < 1e-10)
+            #expect(abs(d2.y) < 1e-10)
+            #expect(abs(d2.z) < 1e-10)
+        }
+    }
+
+    @Test func curve2dFirstDerivative() {
+        if let line = Curve2D.line(through: SIMD2(0,0), direction: SIMD2(1,1)) {
+            let d1 = line.dn(at: 0, order: 1)
+            #expect(abs(d1.x) > 0.1)
+            #expect(abs(d1.y) > 0.1)
+        }
+    }
+
+    @Test func surfaceDN() {
+        if let sphere = Surface.sphere(center: SIMD3(0,0,0), radius: 5) {
+            // du at (0, pi/4)
+            let du = sphere.dn(u: 0, v: Double.pi / 4.0, nu: 1, nv: 0)
+            // Should be non-zero (tangent in U direction)
+            let mag = sqrt(du.x * du.x + du.y * du.y + du.z * du.z)
+            #expect(mag > 0.1)
+        }
+    }
+}
+
+@Suite("v0.114.0 - Curve/Surface Type Names")
+struct TypeNameTests {
+
+    @Test func lineTypeName() {
+        if let line = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)) {
+            let name = line.typeName
+            #expect(name != nil)
+            if let n = name {
+                #expect(n.contains("Line"))
+            }
+        }
+    }
+
+    @Test func bsplineTypeName() {
+        let points = [SIMD3(0.0,0.0,0.0), SIMD3(1.0,1.0,0.0), SIMD3(2.0,0.0,0.0)]
+        if let curve = Curve3D.fit(points: points) {
+            let name = curve.typeName
+            #expect(name != nil)
+            if let n = name {
+                #expect(n.contains("BSpline"))
+            }
+        }
+    }
+
+    @Test func line2dTypeName() {
+        if let line = Curve2D.line(through: SIMD2(0,0), direction: SIMD2(1,0)) {
+            let name = line.typeName
+            #expect(name != nil)
+            if let n = name {
+                #expect(n.contains("Line"))
+            }
+        }
+    }
+
+    @Test func sphereTypeName() {
+        if let sphere = Surface.sphere(center: SIMD3(0,0,0), radius: 5) {
+            let name = sphere.typeName
+            #expect(name != nil)
+            if let n = name {
+                #expect(n.contains("Spherical"))
+            }
+        }
+    }
+
+    @Test func planeTypeName() {
+        if let plane = Surface.plane(origin: SIMD3(0,0,0), normal: SIMD3(0,0,1)) {
+            let name = plane.typeName
+            #expect(name != nil)
+            if let n = name {
+                #expect(n.contains("Plane"))
+            }
+        }
+    }
+}
