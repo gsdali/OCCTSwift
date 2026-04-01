@@ -415,7 +415,17 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **BRepCheck Extended** | 8 | checkFaceStatus, checkEdgeStatus, checkVertexStatus, maxTolerance, minTolerance, avgTolerance, fixTolerance, limitMaxTolerance |
 | **Curve3D/2D Type & Projection** | 5 | curveType (3D), parameterAtPoint (3D), curveType (2D), parameterAtPoint (2D), surfaceGetType |
 | **Extrema Extras** | 4 | locateOnCurve, locateOnSurface, pointCurve, pointSurface |
-| **Total** | **2599** | |
+| **MakeEdge Completions** | 12 | edgeFromEllipse, edgeFromEllipseArc, edgeFromHyperbolaArc, edgeFromParabolaArc, edgeFromCurve, edgeFromCurveParams, edgeFromCurvePoints, edgeOnSurface, edgeOnSurfaceParams, edgeVertex1, edgeVertex2, edgeError |
+| **ProjectionOnCurve** | 8 | create, release, nbPoints, point, parameter, distance, lowerDistance, lowerParam |
+| **ProjectionOnSurface** | 8 | create, release, nbPoints, point, parameters, distance, lowerDistance, lowerParams |
+| **ShapeDistance (DistShapeShape)** | 12 | create, release, isDone, value, nbSolution, pointOnShape1, pointOnShape2, supportType1, supportType2, supportShape1, supportShape2 |
+| **WireFixer** | 12 | create, release, fixReorder, fixConnected, fixSmall, fixDegenerated, fixSelfIntersection, fixLacking, fixClosed, fixGaps3d, fixEdgeCurves, wire |
+| **FaceFixer** | 8 | create, release, perform, fixOrientation, fixAddNaturalBound, fixMissingSeam, fixSmallAreaWire, face |
+| **MakeFace Completions** | 3 | fromSurfaceUV, fromGpPlane, fromGpCylinder |
+| **IntCS Full Results** | 6 | create, release, nbPoints, point (with params), nbSegments |
+| **BSplineCurve Mutations** | 8 | setKnot, getKnotSequence, getWeights, insertKnots, movePoint, localValue, maxDegree, locateU |
+| **BSplineSurface Mutations** | 6 | setUKnot, setVKnot, getUKnots, getVKnots, getWeights, removeUKnot |
+| **Total** | **2682** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1707,6 +1717,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.113.0: MakeEdge completions (ellipse/hyperbola/parabola/curve), ProjectionOnCurve/Surface multi-result, DistShapeShape full results, WireFixer/FaceFixer individual fixes, MakeFace from surface/plane/cylinder, IntCS full results, BSplineCurve/Surface mutations (2682 ops, 2758 tests)
 > - v0.112.0: RWMesh face/vertex iterators, Intf_Tool line-box clipping, BRepAlgo_AsDes tracker, BiTgte_CurveOnEdge, shape location/orientation/type, wire/shell construction, BRepCheck extended tolerance analysis, curve/surface type queries, Extrema point-on-curve/surface (2599 ops, 2244 tests)
 > - v0.111.0: Advanced math solvers & local properties — PSO, GlobOptMin, FunctionRoots, GaussIntegration, NewtonFunctionSetRoot, GeomGridEval (3D/2D/Surface), BRepLProp (CLProps/SLProps), MathPoly_Laguerre polynomial solver
 > - v0.110.0: Constraint solver infrastructure — C callback adapters for math solvers, EvalD0/D1/D2/D3 curve evaluation, batch evaluation, surface differential evaluation
@@ -1749,9 +1760,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.112.0
+### Current Status: v0.113.0
 
-OCCTSwift now wraps **2564 OCCT operations** across 275 categories with 2677 tests across 800 suites.
+OCCTSwift now wraps **2682 OCCT operations** across 286 categories with 2758 tests across 852 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

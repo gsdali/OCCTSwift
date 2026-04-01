@@ -15683,6 +15683,333 @@ int32_t OCCTExtremaPointSurface(OCCTSurfaceRef _Nonnull surface,
                                 double* _Nonnull us, double* _Nonnull vs, double* _Nonnull distances,
                                 int32_t maxResults);
 
+// MARK: - v0.113.0: MakeEdge completions, ProjOnCurve/Surf, DistShapeShape, ShapeFix_Wire/Face,
+//                    MakeFace extras, IntCS, BSplineCurve/Surface mutations
+
+// --- BRepBuilderAPI_MakeEdge completions ---
+
+/// Create a full ellipse edge.
+OCCTShapeRef _Nullable OCCTMakeEdgeFromEllipse(double cx, double cy, double cz,
+                                                double nx, double ny, double nz,
+                                                double major, double minor);
+
+/// Create an ellipse arc edge between parameters u1 and u2.
+OCCTShapeRef _Nullable OCCTMakeEdgeFromEllipseArc(double cx, double cy, double cz,
+                                                    double nx, double ny, double nz,
+                                                    double major, double minor,
+                                                    double u1, double u2);
+
+/// Create a hyperbola arc edge between parameters u1 and u2.
+OCCTShapeRef _Nullable OCCTMakeEdgeFromHyperbolaArc(double cx, double cy, double cz,
+                                                      double nx, double ny, double nz,
+                                                      double major, double minor,
+                                                      double u1, double u2);
+
+/// Create a parabola arc edge between parameters u1 and u2.
+OCCTShapeRef _Nullable OCCTMakeEdgeFromParabolaArc(double cx, double cy, double cz,
+                                                     double nx, double ny, double nz,
+                                                     double focal, double u1, double u2);
+
+/// Create an edge from a Geom_Curve (full domain).
+OCCTShapeRef _Nullable OCCTMakeEdgeFromCurve(OCCTCurve3DRef _Nonnull curve);
+
+/// Create an edge from a Geom_Curve with parameter bounds.
+OCCTShapeRef _Nullable OCCTMakeEdgeFromCurveParams(OCCTCurve3DRef _Nonnull curve, double u1, double u2);
+
+/// Create an edge from a Geom_Curve with point bounds.
+OCCTShapeRef _Nullable OCCTMakeEdgeFromCurvePoints(OCCTCurve3DRef _Nonnull curve,
+                                                     double x1, double y1, double z1,
+                                                     double x2, double y2, double z2);
+
+/// Create an edge from a 2D pcurve on a surface (full domain).
+OCCTShapeRef _Nullable OCCTMakeEdgeOnSurface(OCCTCurve2DRef _Nonnull pcurve,
+                                               OCCTSurfaceRef _Nonnull surface);
+
+/// Create an edge from a 2D pcurve on a surface with parameter bounds.
+OCCTShapeRef _Nullable OCCTMakeEdgeOnSurfaceParams(OCCTCurve2DRef _Nonnull pcurve,
+                                                     OCCTSurfaceRef _Nonnull surface,
+                                                     double u1, double u2);
+
+/// Get the first vertex point of an edge.
+void OCCTEdgeVertex1(OCCTShapeRef _Nonnull edge, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the last vertex point of an edge.
+void OCCTEdgeVertex2(OCCTShapeRef _Nonnull edge, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the BRepBuilderAPI_EdgeError for the last MakeEdge (0=done, 1=PointProjectionFailed, etc).
+int32_t OCCTMakeEdgeError(OCCTShapeRef _Nonnull edge);
+
+// --- GeomAPI_ProjectPointOnCurve (multi-result) ---
+
+typedef struct OCCTProjOnCurve* OCCTProjOnCurveRef;
+
+/// Create a multi-result projection of a point onto a curve.
+OCCTProjOnCurveRef _Nullable OCCTProjOnCurveCreate(OCCTCurve3DRef _Nonnull curve,
+                                                     double px, double py, double pz);
+
+/// Release a projection on curve object.
+void OCCTProjOnCurveRelease(OCCTProjOnCurveRef _Nonnull proj);
+
+/// Number of projection results.
+int32_t OCCTProjOnCurveNbPoints(OCCTProjOnCurveRef _Nonnull proj);
+
+/// Get the i-th projection point (1-based index).
+void OCCTProjOnCurvePoint(OCCTProjOnCurveRef _Nonnull proj, int32_t index,
+                           double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the parameter of the i-th projection (1-based).
+double OCCTProjOnCurveParameter(OCCTProjOnCurveRef _Nonnull proj, int32_t index);
+
+/// Get the distance of the i-th projection (1-based).
+double OCCTProjOnCurveDistance(OCCTProjOnCurveRef _Nonnull proj, int32_t index);
+
+/// Get the minimum distance across all projections.
+double OCCTProjOnCurveLowerDistance(OCCTProjOnCurveRef _Nonnull proj);
+
+/// Get the parameter of the nearest projection.
+double OCCTProjOnCurveLowerParam(OCCTProjOnCurveRef _Nonnull proj);
+
+// --- GeomAPI_ProjectPointOnSurf (multi-result) ---
+
+typedef struct OCCTProjOnSurf* OCCTProjOnSurfRef;
+
+/// Create a multi-result projection of a point onto a surface.
+OCCTProjOnSurfRef _Nullable OCCTProjOnSurfCreate(OCCTSurfaceRef _Nonnull surface,
+                                                   double px, double py, double pz);
+
+/// Release a projection on surface object.
+void OCCTProjOnSurfRelease(OCCTProjOnSurfRef _Nonnull proj);
+
+/// Number of projection results.
+int32_t OCCTProjOnSurfNbPoints(OCCTProjOnSurfRef _Nonnull proj);
+
+/// Get the i-th projection point (1-based index).
+void OCCTProjOnSurfPoint(OCCTProjOnSurfRef _Nonnull proj, int32_t index,
+                          double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the (u,v) parameters of the i-th projection (1-based).
+void OCCTProjOnSurfParameters(OCCTProjOnSurfRef _Nonnull proj, int32_t index,
+                               double* _Nonnull u, double* _Nonnull v);
+
+/// Get the distance of the i-th projection (1-based).
+double OCCTProjOnSurfDistance(OCCTProjOnSurfRef _Nonnull proj, int32_t index);
+
+/// Get the minimum distance across all projections.
+double OCCTProjOnSurfLowerDistance(OCCTProjOnSurfRef _Nonnull proj);
+
+/// Get the (u,v) parameters of the nearest projection.
+void OCCTProjOnSurfLowerParams(OCCTProjOnSurfRef _Nonnull proj,
+                                double* _Nonnull u, double* _Nonnull v);
+
+// --- BRepExtrema_DistShapeShape (full results) ---
+
+typedef struct OCCTDistSS* OCCTDistSSRef;
+
+/// Create a distance computation between two shapes.
+OCCTDistSSRef _Nullable OCCTDistSSCreate(OCCTShapeRef _Nonnull s1, OCCTShapeRef _Nonnull s2);
+
+/// Release a DistShapeShape object.
+void OCCTDistSSRelease(OCCTDistSSRef _Nonnull dist);
+
+/// Check if distance computation succeeded.
+bool OCCTDistSSIsDone(OCCTDistSSRef _Nonnull dist);
+
+/// Get the minimum distance value.
+double OCCTDistSSValue(OCCTDistSSRef _Nonnull dist);
+
+/// Get the number of solutions.
+int32_t OCCTDistSSNbSolution(OCCTDistSSRef _Nonnull dist);
+
+/// Get the i-th point on shape 1 (1-based).
+void OCCTDistSSPointOnShape1(OCCTDistSSRef _Nonnull dist, int32_t index,
+                              double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the i-th point on shape 2 (1-based).
+void OCCTDistSSPointOnShape2(OCCTDistSSRef _Nonnull dist, int32_t index,
+                              double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the support type on shape 1 (0=vertex, 1=edge, 2=face).
+int32_t OCCTDistSSSupportType1(OCCTDistSSRef _Nonnull dist, int32_t index);
+
+/// Get the support type on shape 2 (0=vertex, 1=edge, 2=face).
+int32_t OCCTDistSSSupportType2(OCCTDistSSRef _Nonnull dist, int32_t index);
+
+/// Get the support sub-shape on shape 1 (1-based).
+OCCTShapeRef _Nullable OCCTDistSSSupportShape1(OCCTDistSSRef _Nonnull dist, int32_t index);
+
+/// Get the support sub-shape on shape 2 (1-based).
+OCCTShapeRef _Nullable OCCTDistSSSupportShape2(OCCTDistSSRef _Nonnull dist, int32_t index);
+
+// --- ShapeFix_Wire individual fixes ---
+
+typedef struct OCCTWireFixer* OCCTWireFixerRef;
+
+/// Create a wire fixer from a wire shape on a face with given precision.
+OCCTWireFixerRef _Nullable OCCTWireFixerCreate(OCCTShapeRef _Nonnull wire,
+                                                 OCCTShapeRef _Nonnull face,
+                                                 double precision);
+
+/// Release a wire fixer.
+void OCCTWireFixerRelease(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix the order of edges in the wire.
+bool OCCTWireFixerFixReorder(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix connectivity of edges.
+bool OCCTWireFixerFixConnected(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix small edges.
+bool OCCTWireFixerFixSmall(OCCTWireFixerRef _Nonnull fixer, double precSmall);
+
+/// Fix degenerated edges.
+bool OCCTWireFixerFixDegenerated(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix self-intersection.
+bool OCCTWireFixerFixSelfIntersection(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix lacking edges.
+bool OCCTWireFixerFixLacking(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix closed wire.
+bool OCCTWireFixerFixClosed(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix 3D gaps between edges.
+bool OCCTWireFixerFixGaps3d(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix edge curves.
+bool OCCTWireFixerFixEdgeCurves(OCCTWireFixerRef _Nonnull fixer);
+
+/// Get the resulting fixed wire.
+OCCTShapeRef _Nullable OCCTWireFixerWire(OCCTWireFixerRef _Nonnull fixer);
+
+// --- ShapeFix_Face individual fixes ---
+
+typedef struct OCCTFaceFixer* OCCTFaceFixerRef;
+
+/// Create a face fixer from a face shape with given precision.
+OCCTFaceFixerRef _Nullable OCCTFaceFixerCreate(OCCTShapeRef _Nonnull face, double precision);
+
+/// Release a face fixer.
+void OCCTFaceFixerRelease(OCCTFaceFixerRef _Nonnull fixer);
+
+/// Perform all fixes on the face.
+bool OCCTFaceFixerPerform(OCCTFaceFixerRef _Nonnull fixer);
+
+/// Fix orientation of wires.
+bool OCCTFaceFixerFixOrientation(OCCTFaceFixerRef _Nonnull fixer);
+
+/// Add natural bound (outer wire) if missing.
+bool OCCTFaceFixerFixAddNaturalBound(OCCTFaceFixerRef _Nonnull fixer);
+
+/// Fix missing seam edge.
+bool OCCTFaceFixerFixMissingSeam(OCCTFaceFixerRef _Nonnull fixer);
+
+/// Fix small area wires.
+bool OCCTFaceFixerFixSmallAreaWire(OCCTFaceFixerRef _Nonnull fixer);
+
+/// Get the resulting fixed face.
+OCCTShapeRef _Nullable OCCTFaceFixerFace(OCCTFaceFixerRef _Nonnull fixer);
+
+// --- BRepBuilderAPI_MakeFace completions ---
+
+/// Create a face from a Geom_Surface with UV bounds and tolerance.
+OCCTShapeRef _Nullable OCCTMakeFaceFromSurfaceUV(OCCTSurfaceRef _Nonnull surface,
+                                                   double umin, double umax,
+                                                   double vmin, double vmax, double tol);
+
+/// Create a face from a gp_Plane with UV bounds.
+OCCTShapeRef _Nullable OCCTMakeFaceFromGpPlane(double px, double py, double pz,
+                                                 double nx, double ny, double nz,
+                                                 double umin, double umax,
+                                                 double vmin, double vmax);
+
+/// Create a face from a gp_Cylinder with UV bounds.
+OCCTShapeRef _Nullable OCCTMakeFaceFromGpCylinder(double cx, double cy, double cz,
+                                                    double nx, double ny, double nz,
+                                                    double radius,
+                                                    double umin, double umax,
+                                                    double vmin, double vmax);
+
+// --- GeomAPI_IntCS full results ---
+
+typedef struct OCCTIntCS* OCCTIntCSRef;
+
+/// Create a curve-surface intersection computation.
+OCCTIntCSRef _Nullable OCCTIntCSCreate(OCCTCurve3DRef _Nonnull curve,
+                                        OCCTSurfaceRef _Nonnull surface);
+
+/// Release an IntCS object.
+void OCCTIntCSRelease(OCCTIntCSRef _Nonnull intcs);
+
+/// Number of intersection points.
+int32_t OCCTIntCSNbPoints(OCCTIntCSRef _Nonnull intcs);
+
+/// Get the i-th intersection point (1-based) with curve param (w) and surface params (u,v).
+void OCCTIntCSPoint(OCCTIntCSRef _Nonnull intcs, int32_t index,
+                     double* _Nonnull x, double* _Nonnull y, double* _Nonnull z,
+                     double* _Nonnull w, double* _Nonnull u, double* _Nonnull v);
+
+/// Number of intersection segments.
+int32_t OCCTIntCSNbSegments(OCCTIntCSRef _Nonnull intcs);
+
+// --- BSplineCurve remaining mutations ---
+
+/// Set the knot value at a given index (1-based).
+bool OCCTCurve3DBSplineSetKnot(OCCTCurve3DRef _Nonnull curve, int32_t index, double knot);
+
+/// Get the full knot sequence (with multiplicities expanded). Caller must pre-allocate knotSeq.
+/// Returns the count in *count.
+void OCCTCurve3DBSplineGetKnotSequence(OCCTCurve3DRef _Nonnull curve,
+                                        double* _Nonnull knotSeq, int32_t* _Nonnull count);
+
+/// Get all weights (one per pole). Caller must pre-allocate weights array.
+void OCCTCurve3DBSplineGetWeights(OCCTCurve3DRef _Nonnull curve, double* _Nonnull weights);
+
+/// Insert multiple knots at once with specified multiplicities.
+bool OCCTCurve3DBSplineInsertKnots(OCCTCurve3DRef _Nonnull curve,
+                                     const double* _Nonnull knots,
+                                     const int32_t* _Nonnull mults,
+                                     int32_t count, double tol);
+
+/// Move a point on the curve to a new position. index1/index2 define the pole range to modify.
+bool OCCTCurve3DBSplineMovePoint(OCCTCurve3DRef _Nonnull curve, double u,
+                                   double x, double y, double z,
+                                   int32_t index1, int32_t index2);
+
+/// Evaluate the curve locally within a knot span (fromK1..toK2 are 1-based knot indices).
+void OCCTCurve3DBSplineLocalValue(OCCTCurve3DRef _Nonnull curve, double u,
+                                    int32_t fromK1, int32_t toK2,
+                                    double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the maximum BSpline degree supported (static).
+int32_t OCCTCurve3DBSplineMaxDegree(void);
+
+/// Locate the knot span containing parameter u.
+int32_t OCCTCurve3DBSplineLocateU(OCCTCurve3DRef _Nonnull curve, double u, double tol);
+
+// --- BSplineSurface remaining mutations ---
+
+/// Set U knot at given index (1-based).
+bool OCCTSurfaceBSplineSetUKnot(OCCTSurfaceRef _Nonnull surface, int32_t index, double knot);
+
+/// Set V knot at given index (1-based).
+bool OCCTSurfaceBSplineSetVKnot(OCCTSurfaceRef _Nonnull surface, int32_t index, double knot);
+
+/// Get all U knots. Caller must pre-allocate array of size NbUKnots.
+void OCCTSurfaceBSplineGetUKnots(OCCTSurfaceRef _Nonnull surface, double* _Nonnull knots);
+
+/// Get all V knots. Caller must pre-allocate array of size NbVKnots.
+void OCCTSurfaceBSplineGetVKnots(OCCTSurfaceRef _Nonnull surface, double* _Nonnull knots);
+
+/// Get all weights. Caller must pre-allocate array of size NbUPoles * NbVPoles (row-major).
+void OCCTSurfaceBSplineGetWeights(OCCTSurfaceRef _Nonnull surface,
+                                    double* _Nonnull weights,
+                                    int32_t* _Nonnull rows, int32_t* _Nonnull cols);
+
+/// Remove a U knot. Returns true if successful.
+bool OCCTSurfaceBSplineRemoveUKnot(OCCTSurfaceRef _Nonnull surface,
+                                     int32_t index, int32_t mult, double tol);
+
 #ifdef __cplusplus
 }
 #endif

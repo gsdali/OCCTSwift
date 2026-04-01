@@ -11415,3 +11415,503 @@ extension Surface {
         return (0..<n).map { (us[$0], vs[$0], distances[$0]) }
     }
 }
+
+// MARK: - v0.113.0: MakeEdge completions, ProjOnCurve/Surf, DistShapeShape, ShapeFix_Wire/Face,
+//                    MakeFace extras, IntCS, BSplineCurve/Surface mutations
+
+// --- BRepBuilderAPI_MakeEdge completions ---
+
+extension Shape {
+
+    /// Create a full ellipse edge.
+    public static func edgeFromEllipse(center: SIMD3<Double> = .zero, normal: SIMD3<Double> = SIMD3(0,0,1),
+                                        majorRadius: Double, minorRadius: Double) -> Shape? {
+        guard let ref = OCCTMakeEdgeFromEllipse(center.x, center.y, center.z,
+                                                  normal.x, normal.y, normal.z,
+                                                  majorRadius, minorRadius) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an ellipse arc edge.
+    public static func edgeFromEllipseArc(center: SIMD3<Double> = .zero, normal: SIMD3<Double> = SIMD3(0,0,1),
+                                           majorRadius: Double, minorRadius: Double,
+                                           u1: Double, u2: Double) -> Shape? {
+        guard let ref = OCCTMakeEdgeFromEllipseArc(center.x, center.y, center.z,
+                                                      normal.x, normal.y, normal.z,
+                                                      majorRadius, minorRadius, u1, u2) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a hyperbola arc edge.
+    public static func edgeFromHyperbolaArc(center: SIMD3<Double> = .zero, normal: SIMD3<Double> = SIMD3(0,0,1),
+                                             majorRadius: Double, minorRadius: Double,
+                                             u1: Double, u2: Double) -> Shape? {
+        guard let ref = OCCTMakeEdgeFromHyperbolaArc(center.x, center.y, center.z,
+                                                        normal.x, normal.y, normal.z,
+                                                        majorRadius, minorRadius, u1, u2) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a parabola arc edge.
+    public static func edgeFromParabolaArc(center: SIMD3<Double> = .zero, normal: SIMD3<Double> = SIMD3(0,0,1),
+                                            focalLength: Double, u1: Double, u2: Double) -> Shape? {
+        guard let ref = OCCTMakeEdgeFromParabolaArc(center.x, center.y, center.z,
+                                                       normal.x, normal.y, normal.z,
+                                                       focalLength, u1, u2) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an edge from a 3D curve (full domain).
+    public static func edgeFromCurve(_ curve: Curve3D) -> Shape? {
+        guard let ref = OCCTMakeEdgeFromCurve(curve.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an edge from a 3D curve with parameter bounds.
+    public static func edgeFromCurve(_ curve: Curve3D, u1: Double, u2: Double) -> Shape? {
+        guard let ref = OCCTMakeEdgeFromCurveParams(curve.handle, u1, u2) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an edge from a 3D curve with point bounds.
+    public static func edgeFromCurve(_ curve: Curve3D, from p1: SIMD3<Double>, to p2: SIMD3<Double>) -> Shape? {
+        guard let ref = OCCTMakeEdgeFromCurvePoints(curve.handle, p1.x, p1.y, p1.z,
+                                                       p2.x, p2.y, p2.z) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an edge from a 2D pcurve on a surface (full domain).
+    public static func edgeOnSurface(pcurve: Curve2D, surface: Surface) -> Shape? {
+        guard let ref = OCCTMakeEdgeOnSurface(pcurve.handle, surface.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an edge from a 2D pcurve on a surface with parameter bounds.
+    public static func edgeOnSurface(pcurve: Curve2D, surface: Surface, u1: Double, u2: Double) -> Shape? {
+        guard let ref = OCCTMakeEdgeOnSurfaceParams(pcurve.handle, surface.handle, u1, u2) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get the first vertex point of an edge.
+    public func edgeVertex1() -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTEdgeVertex1(handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get the last vertex point of an edge.
+    public func edgeVertex2() -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTEdgeVertex2(handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Create a face from a surface with UV bounds and tolerance.
+    public static func face(from surface: Surface, uBounds: ClosedRange<Double>, vBounds: ClosedRange<Double>,
+                             tolerance: Double = 1e-6) -> Shape? {
+        guard let ref = OCCTMakeFaceFromSurfaceUV(surface.handle,
+                                                     uBounds.lowerBound, uBounds.upperBound,
+                                                     vBounds.lowerBound, vBounds.upperBound, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a face from a gp_Plane with UV bounds.
+    public static func faceFromPlane(origin: SIMD3<Double> = .zero, normal: SIMD3<Double> = SIMD3(0,0,1),
+                                      uBounds: ClosedRange<Double>, vBounds: ClosedRange<Double>) -> Shape? {
+        guard let ref = OCCTMakeFaceFromGpPlane(origin.x, origin.y, origin.z,
+                                                   normal.x, normal.y, normal.z,
+                                                   uBounds.lowerBound, uBounds.upperBound,
+                                                   vBounds.lowerBound, vBounds.upperBound) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a face from a gp_Cylinder with UV bounds.
+    public static func faceFromCylinder(origin: SIMD3<Double> = .zero, axis: SIMD3<Double> = SIMD3(0,0,1),
+                                         radius: Double,
+                                         uBounds: ClosedRange<Double>, vBounds: ClosedRange<Double>) -> Shape? {
+        guard let ref = OCCTMakeFaceFromGpCylinder(origin.x, origin.y, origin.z,
+                                                      axis.x, axis.y, axis.z, radius,
+                                                      uBounds.lowerBound, uBounds.upperBound,
+                                                      vBounds.lowerBound, vBounds.upperBound) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- ProjectionOnCurve class ---
+
+/// Multi-result projection of a point onto a 3D curve.
+public final class ProjectionOnCurve: @unchecked Sendable {
+    private let ref: OCCTProjOnCurveRef
+
+    /// Create a projection of a point onto a curve.
+    public init?(curve: Curve3D, point: SIMD3<Double>) {
+        guard let r = OCCTProjOnCurveCreate(curve.handle, point.x, point.y, point.z) else { return nil }
+        self.ref = r
+    }
+
+    deinit { OCCTProjOnCurveRelease(ref) }
+
+    /// Number of projection results.
+    public var count: Int { Int(OCCTProjOnCurveNbPoints(ref)) }
+
+    /// Get the i-th projection point (0-based index).
+    public func point(at index: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTProjOnCurvePoint(ref, Int32(index + 1), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get the parameter of the i-th projection (0-based).
+    public func parameter(at index: Int) -> Double {
+        OCCTProjOnCurveParameter(ref, Int32(index + 1))
+    }
+
+    /// Get the distance of the i-th projection (0-based).
+    public func distance(at index: Int) -> Double {
+        OCCTProjOnCurveDistance(ref, Int32(index + 1))
+    }
+
+    /// Minimum distance across all projections.
+    public var lowerDistance: Double { OCCTProjOnCurveLowerDistance(ref) }
+
+    /// Parameter of the nearest projection.
+    public var lowerParameter: Double { OCCTProjOnCurveLowerParam(ref) }
+}
+
+// --- ProjectionOnSurface class ---
+
+/// Multi-result projection of a point onto a surface.
+public final class ProjectionOnSurface: @unchecked Sendable {
+    private let ref: OCCTProjOnSurfRef
+
+    /// Create a projection of a point onto a surface.
+    public init?(surface: Surface, point: SIMD3<Double>) {
+        guard let r = OCCTProjOnSurfCreate(surface.handle, point.x, point.y, point.z) else { return nil }
+        self.ref = r
+    }
+
+    deinit { OCCTProjOnSurfRelease(ref) }
+
+    /// Number of projection results.
+    public var count: Int { Int(OCCTProjOnSurfNbPoints(ref)) }
+
+    /// Get the i-th projection point (0-based index).
+    public func point(at index: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTProjOnSurfPoint(ref, Int32(index + 1), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get the (u,v) parameters of the i-th projection (0-based).
+    public func parameters(at index: Int) -> (u: Double, v: Double) {
+        var u = 0.0, v = 0.0
+        OCCTProjOnSurfParameters(ref, Int32(index + 1), &u, &v)
+        return (u, v)
+    }
+
+    /// Get the distance of the i-th projection (0-based).
+    public func distance(at index: Int) -> Double {
+        OCCTProjOnSurfDistance(ref, Int32(index + 1))
+    }
+
+    /// Minimum distance across all projections.
+    public var lowerDistance: Double { OCCTProjOnSurfLowerDistance(ref) }
+
+    /// (u,v) parameters of the nearest projection.
+    public var lowerParameters: (u: Double, v: Double) {
+        var u = 0.0, v = 0.0
+        OCCTProjOnSurfLowerParams(ref, &u, &v)
+        return (u, v)
+    }
+}
+
+// --- ShapeDistance class ---
+
+/// Support type for distance solution points.
+public enum DistanceSupportType: Int32, Sendable {
+    case vertex = 0
+    case edge = 1
+    case face = 2
+}
+
+/// Full multi-result distance computation between two shapes.
+public final class ShapeDistance: @unchecked Sendable {
+    private let ref: OCCTDistSSRef
+
+    /// Compute distance between two shapes.
+    public init?(shape1: Shape, shape2: Shape) {
+        guard let r = OCCTDistSSCreate(shape1.handle, shape2.handle) else { return nil }
+        self.ref = r
+    }
+
+    deinit { OCCTDistSSRelease(ref) }
+
+    /// Whether the computation succeeded.
+    public var isDone: Bool { OCCTDistSSIsDone(ref) }
+
+    /// The minimum distance value.
+    public var value: Double { OCCTDistSSValue(ref) }
+
+    /// Number of distance solutions.
+    public var solutionCount: Int { Int(OCCTDistSSNbSolution(ref)) }
+
+    /// Get the i-th point on shape 1 (0-based).
+    public func pointOnShape1(at index: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTDistSSPointOnShape1(ref, Int32(index + 1), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get the i-th point on shape 2 (0-based).
+    public func pointOnShape2(at index: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTDistSSPointOnShape2(ref, Int32(index + 1), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get the support type on shape 1 (0-based).
+    public func supportType1(at index: Int) -> DistanceSupportType? {
+        DistanceSupportType(rawValue: OCCTDistSSSupportType1(ref, Int32(index + 1)))
+    }
+
+    /// Get the support type on shape 2 (0-based).
+    public func supportType2(at index: Int) -> DistanceSupportType? {
+        DistanceSupportType(rawValue: OCCTDistSSSupportType2(ref, Int32(index + 1)))
+    }
+
+    /// Get the support sub-shape on shape 1 (0-based).
+    public func supportShape1(at index: Int) -> Shape? {
+        guard let r = OCCTDistSSSupportShape1(ref, Int32(index + 1)) else { return nil }
+        return Shape(handle: r)
+    }
+
+    /// Get the support sub-shape on shape 2 (0-based).
+    public func supportShape2(at index: Int) -> Shape? {
+        guard let r = OCCTDistSSSupportShape2(ref, Int32(index + 1)) else { return nil }
+        return Shape(handle: r)
+    }
+}
+
+// --- WireFixer class ---
+
+/// Individual fix operations on a wire using ShapeFix_Wire.
+public final class WireFixer: @unchecked Sendable {
+    private let ref: OCCTWireFixerRef
+
+    /// Create a wire fixer for a wire on a face with given precision.
+    public init?(wire: Shape, face: Shape, precision: Double = 1e-6) {
+        guard let r = OCCTWireFixerCreate(wire.handle, face.handle, precision) else { return nil }
+        self.ref = r
+    }
+
+    deinit { OCCTWireFixerRelease(ref) }
+
+    /// Fix the order of edges.
+    @discardableResult public func fixReorder() -> Bool { OCCTWireFixerFixReorder(ref) }
+
+    /// Fix connectivity of edges.
+    @discardableResult public func fixConnected() -> Bool { OCCTWireFixerFixConnected(ref) }
+
+    /// Fix small edges.
+    @discardableResult public func fixSmall(precision: Double = 1e-6) -> Bool { OCCTWireFixerFixSmall(ref, precision) }
+
+    /// Fix degenerated edges.
+    @discardableResult public func fixDegenerated() -> Bool { OCCTWireFixerFixDegenerated(ref) }
+
+    /// Fix self-intersection.
+    @discardableResult public func fixSelfIntersection() -> Bool { OCCTWireFixerFixSelfIntersection(ref) }
+
+    /// Fix lacking edges.
+    @discardableResult public func fixLacking() -> Bool { OCCTWireFixerFixLacking(ref) }
+
+    /// Fix closed wire.
+    @discardableResult public func fixClosed() -> Bool { OCCTWireFixerFixClosed(ref) }
+
+    /// Fix 3D gaps between edges.
+    @discardableResult public func fixGaps3d() -> Bool { OCCTWireFixerFixGaps3d(ref) }
+
+    /// Fix edge curves.
+    @discardableResult public func fixEdgeCurves() -> Bool { OCCTWireFixerFixEdgeCurves(ref) }
+
+    /// Get the resulting fixed wire.
+    public var wire: Shape? {
+        guard let r = OCCTWireFixerWire(ref) else { return nil }
+        return Shape(handle: r)
+    }
+}
+
+// --- FaceFixer class ---
+
+/// Individual fix operations on a face using ShapeFix_Face.
+public final class FaceFixer: @unchecked Sendable {
+    private let ref: OCCTFaceFixerRef
+
+    /// Create a face fixer with given precision.
+    public init?(face: Shape, precision: Double = 1e-6) {
+        guard let r = OCCTFaceFixerCreate(face.handle, precision) else { return nil }
+        self.ref = r
+    }
+
+    deinit { OCCTFaceFixerRelease(ref) }
+
+    /// Perform all fixes.
+    @discardableResult public func perform() -> Bool { OCCTFaceFixerPerform(ref) }
+
+    /// Fix orientation of wires.
+    @discardableResult public func fixOrientation() -> Bool { OCCTFaceFixerFixOrientation(ref) }
+
+    /// Add natural bound if missing.
+    @discardableResult public func fixAddNaturalBound() -> Bool { OCCTFaceFixerFixAddNaturalBound(ref) }
+
+    /// Fix missing seam edge.
+    @discardableResult public func fixMissingSeam() -> Bool { OCCTFaceFixerFixMissingSeam(ref) }
+
+    /// Fix small area wires.
+    @discardableResult public func fixSmallAreaWire() -> Bool { OCCTFaceFixerFixSmallAreaWire(ref) }
+
+    /// Get the resulting fixed face.
+    public var face: Shape? {
+        guard let r = OCCTFaceFixerFace(ref) else { return nil }
+        return Shape(handle: r)
+    }
+}
+
+// --- IntCSResult class ---
+
+/// Full multi-result curve-surface intersection using GeomAPI_IntCS.
+public final class IntCSResult: @unchecked Sendable {
+    private let ref: OCCTIntCSRef
+
+    /// Compute intersections between a curve and a surface.
+    public init?(curve: Curve3D, surface: Surface) {
+        guard let r = OCCTIntCSCreate(curve.handle, surface.handle) else { return nil }
+        self.ref = r
+    }
+
+    deinit { OCCTIntCSRelease(ref) }
+
+    /// Number of intersection points.
+    public var pointCount: Int { Int(OCCTIntCSNbPoints(ref)) }
+
+    /// Number of intersection segments.
+    public var segmentCount: Int { Int(OCCTIntCSNbSegments(ref)) }
+
+    /// Intersection point result.
+    public struct IntersectionPoint: Sendable {
+        public let point: SIMD3<Double>
+        public let curveParam: Double
+        public let surfaceU: Double
+        public let surfaceV: Double
+    }
+
+    /// Get the i-th intersection point (0-based).
+    public func point(at index: Int) -> IntersectionPoint {
+        var x = 0.0, y = 0.0, z = 0.0, w = 0.0, u = 0.0, v = 0.0
+        OCCTIntCSPoint(ref, Int32(index + 1), &x, &y, &z, &w, &u, &v)
+        return IntersectionPoint(point: SIMD3(x, y, z), curveParam: w, surfaceU: u, surfaceV: v)
+    }
+}
+
+// --- BSplineCurve remaining mutations ---
+
+extension Curve3D {
+
+    /// Set the knot value at a given index (1-based).
+    public func bsplineSetKnot(index: Int, value: Double) -> Bool {
+        OCCTCurve3DBSplineSetKnot(handle, Int32(index), value)
+    }
+
+    /// Get the full knot sequence (with multiplicities expanded).
+    public func bsplineKnotSequence() -> [Double] {
+        let maxSize = 1024
+        var seq = [Double](repeating: 0, count: maxSize)
+        var count: Int32 = 0
+        OCCTCurve3DBSplineGetKnotSequence(handle, &seq, &count)
+        return Array(seq.prefix(Int(count)))
+    }
+
+    /// Get all weights (one per pole).
+    public func bsplineWeights() -> [Double] {
+        let nPoles = Int(OCCTCurve3DBSplinePoleCount(handle))
+        guard nPoles > 0 else { return [] }
+        var weights = [Double](repeating: 0, count: nPoles)
+        OCCTCurve3DBSplineGetWeights(handle, &weights)
+        return weights
+    }
+
+    /// Insert multiple knots at once.
+    public func bsplineInsertKnots(_ knots: [Double], multiplicities: [Int], tolerance: Double = 1e-10) -> Bool {
+        let count = min(knots.count, multiplicities.count)
+        guard count > 0 else { return false }
+        let mults = multiplicities.map { Int32($0) }
+        return OCCTCurve3DBSplineInsertKnots(handle, knots, mults, Int32(count), tolerance)
+    }
+
+    /// Move a point on the BSpline curve to a new position.
+    public func bsplineMovePoint(u: Double, to point: SIMD3<Double>, poleRange: ClosedRange<Int>) -> Bool {
+        OCCTCurve3DBSplineMovePoint(handle, u, point.x, point.y, point.z,
+                                     Int32(poleRange.lowerBound), Int32(poleRange.upperBound))
+    }
+
+    /// Evaluate the curve locally within a knot span.
+    public func bsplineLocalValue(u: Double, fromKnot: Int, toKnot: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTCurve3DBSplineLocalValue(handle, u, Int32(fromKnot), Int32(toKnot), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Maximum BSpline degree supported (static).
+    public static var bsplineMaxDegree: Int { Int(OCCTCurve3DBSplineMaxDegree()) }
+
+    /// Locate the knot span containing parameter u.
+    public func bsplineLocateU(_ u: Double, tolerance: Double = 1e-10) -> Int {
+        Int(OCCTCurve3DBSplineLocateU(handle, u, tolerance))
+    }
+}
+
+// --- BSplineSurface remaining mutations ---
+
+extension Surface {
+
+    /// Set U knot at given index (1-based).
+    public func bsplineSetUKnot(index: Int, value: Double) -> Bool {
+        OCCTSurfaceBSplineSetUKnot(handle, Int32(index), value)
+    }
+
+    /// Set V knot at given index (1-based).
+    public func bsplineSetVKnot(index: Int, value: Double) -> Bool {
+        OCCTSurfaceBSplineSetVKnot(handle, Int32(index), value)
+    }
+
+    /// Get all U knots.
+    public func bsplineUKnots() -> [Double] {
+        let n = Int(OCCTSurfaceBSplineNbUKnots(handle))
+        guard n > 0 else { return [] }
+        var knots = [Double](repeating: 0, count: n)
+        OCCTSurfaceBSplineGetUKnots(handle, &knots)
+        return knots
+    }
+
+    /// Get all V knots.
+    public func bsplineVKnots() -> [Double] {
+        let n = Int(OCCTSurfaceBSplineNbVKnots(handle))
+        guard n > 0 else { return [] }
+        var knots = [Double](repeating: 0, count: n)
+        OCCTSurfaceBSplineGetVKnots(handle, &knots)
+        return knots
+    }
+
+    /// Get all weights (row-major, NbUPoles x NbVPoles).
+    public func bsplineWeights() -> (weights: [Double], rows: Int, cols: Int) {
+        let maxSize = 10000
+        var weights = [Double](repeating: 0, count: maxSize)
+        var rows: Int32 = 0, cols: Int32 = 0
+        OCCTSurfaceBSplineGetWeights(handle, &weights, &rows, &cols)
+        return (Array(weights.prefix(Int(rows) * Int(cols))), Int(rows), Int(cols))
+    }
+
+    /// Remove a U knot. Returns true if successful.
+    public func bsplineRemoveUKnot(index: Int, multiplicity: Int, tolerance: Double) -> Bool {
+        OCCTSurfaceBSplineRemoveUKnot(handle, Int32(index), Int32(multiplicity), tolerance)
+    }
+}

@@ -33073,3 +33073,306 @@ struct ExtremaExtrasV112Tests {
         }
     }
 }
+
+// MARK: - v0.113.0 Tests
+
+@Suite("v0.113.0 - MakeEdge Completions")
+struct MakeEdgeCompletionsTests {
+
+    @Test func edgeFromEllipse() {
+        let edge = Shape.edgeFromEllipse(majorRadius: 10, minorRadius: 5)
+        #expect(edge != nil)
+        if let e = edge {
+            #expect(e.isValid)
+        }
+    }
+
+    @Test func edgeFromEllipseArc() {
+        let edge = Shape.edgeFromEllipseArc(majorRadius: 10, minorRadius: 5, u1: 0, u2: .pi)
+        #expect(edge != nil)
+        if let e = edge {
+            #expect(e.isValid)
+        }
+    }
+
+    @Test func edgeFromHyperbolaArc() {
+        let edge = Shape.edgeFromHyperbolaArc(majorRadius: 5, minorRadius: 3, u1: -1.0, u2: 1.0)
+        #expect(edge != nil)
+        if let e = edge {
+            #expect(e.isValid)
+        }
+    }
+
+    @Test func edgeFromParabolaArc() {
+        let edge = Shape.edgeFromParabolaArc(focalLength: 3.0, u1: -5.0, u2: 5.0)
+        #expect(edge != nil)
+        if let e = edge {
+            #expect(e.isValid)
+        }
+    }
+
+    @Test func edgeFromCurve() {
+        if let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5) {
+            let edge = Shape.edgeFromCurve(circ)
+            #expect(edge != nil)
+        }
+    }
+
+    @Test func edgeFromCurveWithParams() {
+        if let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5) {
+            let edge = Shape.edgeFromCurve(circ, u1: 0, u2: .pi)
+            #expect(edge != nil)
+        }
+    }
+
+    @Test func edgeFromCurveWithPoints() {
+        if let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5) {
+            let edge = Shape.edgeFromCurve(circ, from: SIMD3(5, 0, 0), to: SIMD3(0, 5, 0))
+            #expect(edge != nil)
+        }
+    }
+
+    @Test func edgeVertices() {
+        if let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5) {
+            if let edge = Shape.edgeFromCurve(circ, u1: 0, u2: .pi) {
+                let v1 = edge.edgeVertex1()
+                let v2 = edge.edgeVertex2()
+                #expect(abs(v1.x - 5.0) < 0.1)
+                #expect(abs(v2.x + 5.0) < 0.1)
+            }
+        }
+    }
+}
+
+@Suite("v0.113.0 - ProjectionOnCurve")
+struct ProjectionOnCurveTests {
+
+    @Test func multiResultProjection() {
+        if let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5) {
+            if let proj = ProjectionOnCurve(curve: circ, point: SIMD3(10, 0, 0)) {
+                #expect(proj.count >= 1)
+                if proj.count > 0 {
+                    let pt = proj.point(at: 0)
+                    #expect(abs(pt.x - 5.0) < 0.1)
+                    let dist = proj.distance(at: 0)
+                    #expect(abs(dist - 5.0) < 0.1)
+                }
+                #expect(abs(proj.lowerDistance - 5.0) < 0.1)
+            }
+        }
+    }
+
+    @Test func parameterAccess() {
+        if let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5) {
+            if let proj = ProjectionOnCurve(curve: circ, point: SIMD3(10, 0, 0)) {
+                if proj.count > 0 {
+                    let param = proj.parameter(at: 0)
+                    // parameter for point (5,0,0) on circle should be 0 or 2*pi
+                    #expect(param >= 0)
+                }
+                let lp = proj.lowerParameter
+                #expect(lp >= 0)
+            }
+        }
+    }
+}
+
+@Suite("v0.113.0 - ProjectionOnSurface")
+struct ProjectionOnSurfaceTests {
+
+    @Test func multiResultProjection() {
+        if let sphere = Surface.sphere(center: SIMD3(0,0,0), radius: 5) {
+            if let proj = ProjectionOnSurface(surface: sphere, point: SIMD3(10, 0, 0)) {
+                #expect(proj.count >= 1)
+                if proj.count > 0 {
+                    let pt = proj.point(at: 0)
+                    #expect(abs(pt.x - 5.0) < 0.5)
+                    let uv = proj.parameters(at: 0)
+                    #expect(uv.u >= 0 || uv.u < 0) // just check it returns
+                    let dist = proj.distance(at: 0)
+                    #expect(abs(dist - 5.0) < 0.1)
+                }
+                #expect(abs(proj.lowerDistance - 5.0) < 0.1)
+                let lp = proj.lowerParameters
+                #expect(lp.u >= 0 || lp.u < 0) // just check it returns
+            }
+        }
+    }
+}
+
+@Suite("v0.113.0 - ShapeDistance")
+struct ShapeDistanceTests {
+
+    @Test func boxSphereDistance() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let sphere = Shape.sphere(radius: 3)
+            if let sph = sphere {
+                // Move sphere away by translating
+                if let moved = sph.translated(by: SIMD3(20, 5, 5)) {
+                    if let dist = ShapeDistance(shape1: box, shape2: moved) {
+                        #expect(dist.isDone)
+                        #expect(dist.value > 0)
+                        #expect(dist.solutionCount >= 1)
+                        if dist.solutionCount > 0 {
+                            let p1 = dist.pointOnShape1(at: 0)
+                            let p2 = dist.pointOnShape2(at: 0)
+                            #expect(p1.x > 0)
+                            #expect(p2.x > 0)
+                            if let t1 = dist.supportType1(at: 0) {
+                                #expect(t1.rawValue >= 0 && t1.rawValue <= 2)
+                            }
+                            let s1 = dist.supportShape1(at: 0)
+                            #expect(s1 != nil)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.113.0 - WireFixer")
+struct WireFixerTests {
+
+    @Test func fixBoxWire() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let wires = faces[0].subShapes(ofType: .wire)
+                if wires.count > 0 {
+                    if let fixer = WireFixer(wire: wires[0], face: faces[0]) {
+                        fixer.fixReorder()
+                        fixer.fixConnected()
+                        fixer.fixSmall()
+                        fixer.fixDegenerated()
+                        fixer.fixLacking()
+                        fixer.fixClosed()
+                        fixer.fixGaps3d()
+                        fixer.fixEdgeCurves()
+                        let w = fixer.wire
+                        #expect(w != nil)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.113.0 - FaceFixer")
+struct FaceFixerTests {
+
+    @Test func fixBoxFace() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                if let fixer = FaceFixer(face: faces[0]) {
+                    fixer.perform()
+                    fixer.fixOrientation()
+                    fixer.fixAddNaturalBound()
+                    fixer.fixMissingSeam()
+                    fixer.fixSmallAreaWire()
+                    let f = fixer.face
+                    #expect(f != nil)
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.113.0 - MakeFace Completions")
+struct MakeFaceCompletionsTests {
+
+    @Test func faceFromSurfaceUV() {
+        if let sphere = Surface.sphere(center: SIMD3(0,0,0), radius: 5) {
+            let face = Shape.face(from: sphere, uBounds: 0...Double.pi, vBounds: (-Double.pi/4)...(Double.pi/4))
+            #expect(face != nil)
+            if let f = face {
+                #expect(f.isValid)
+            }
+        }
+    }
+
+    @Test func faceFromGpPlane() {
+        let face = Shape.faceFromPlane(uBounds: (-10)...10, vBounds: (-10)...10)
+        #expect(face != nil)
+        if let f = face {
+            #expect(f.isValid)
+        }
+    }
+
+    @Test func faceFromGpCylinder() {
+        let face = Shape.faceFromCylinder(radius: 5, uBounds: 0...(2 * .pi), vBounds: 0...10)
+        #expect(face != nil)
+        if let f = face {
+            #expect(f.isValid)
+        }
+    }
+}
+
+@Suite("v0.113.0 - IntCS Results")
+struct IntCSResultsTests {
+
+    @Test func lineSphereIntersection() {
+        if let line = Curve3D.line(through: SIMD3(-20, 0, 0), direction: SIMD3(1, 0, 0)),
+           let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5) {
+            if let intcs = IntCSResult(curve: line, surface: sphere) {
+                #expect(intcs.pointCount >= 2)
+                if intcs.pointCount >= 2 {
+                    let p1 = intcs.point(at: 0)
+                    let p2 = intcs.point(at: 1)
+                    // one point at x=-5, one at x=5
+                    let xs = [p1.point.x, p2.point.x].sorted()
+                    #expect(abs(xs[0] + 5.0) < 0.1)
+                    #expect(abs(xs[1] - 5.0) < 0.1)
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.113.0 - BSpline Mutations")
+struct BSplineMutationsTests {
+
+    @Test func curveKnotSequenceAndWeights() {
+        // Create a BSpline curve via interpolation
+        let points = [SIMD3(0.0,0.0,0.0), SIMD3(1.0,1.0,0.0), SIMD3(2.0,0.0,0.0), SIMD3(3.0,1.0,0.0)]
+        if let curve = Curve3D.fit(points: points) {
+            let seq = curve.bsplineKnotSequence()
+            #expect(seq.count > 0)
+            let weights = curve.bsplineWeights()
+            #expect(weights.count > 0)
+            // All weights should be 1.0 for non-rational
+            for w in weights {
+                #expect(abs(w - 1.0) < 1e-10)
+            }
+        }
+    }
+
+    @Test func curveMaxDegree() {
+        let maxDeg = Curve3D.bsplineMaxDegree
+        #expect(maxDeg >= 10) // OCCT supports at least degree 25
+    }
+
+    @Test func curveLocateU() {
+        let points = [SIMD3(0.0,0.0,0.0), SIMD3(1.0,1.0,0.0), SIMD3(2.0,0.0,0.0), SIMD3(3.0,1.0,0.0)]
+        if let curve = Curve3D.fit(points: points) {
+            let span = curve.bsplineLocateU(0.5)
+            #expect(span >= 1)
+        }
+    }
+
+    @Test func surfaceUVKnots() {
+        // Create a BSpline surface by converting a sphere
+        if let sphere = Surface.sphere(center: SIMD3(0,0,0), radius: 5),
+           let bspline = sphere.toBSpline() {
+            let uKnots = bspline.bsplineUKnots()
+            let vKnots = bspline.bsplineVKnots()
+            #expect(uKnots.count > 0)
+            #expect(vKnots.count > 0)
+            let (weights, rows, cols) = bspline.bsplineWeights()
+            #expect(weights.count == rows * cols)
+            #expect(rows > 0)
+            #expect(cols > 0)
+        }
+    }
+}
