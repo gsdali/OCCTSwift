@@ -44069,3 +44069,439 @@ void OCCTCurve2DEvalBatchD1(OCCTCurve2DRef curve, const double* params, int32_t 
         }
     } catch (...) {}
 }
+
+// MARK: - math_PSO (v0.111.0)
+
+#include <math_PSO.hxx>
+#include <math_GlobOptMin.hxx>
+#include <math_FunctionRoots.hxx>
+#include <math_GaussSingleIntegration.hxx>
+#include <math_NewtonFunctionSetRoot.hxx>
+#include <GeomGridEval_Curve.hxx>
+#include <Geom2dGridEval_Curve.hxx>
+#include <GeomGridEval_Surface.hxx>
+#include <BRepLProp_CLProps.hxx>
+#include <BRepLProp_SLProps.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <MathPoly_Laguerre.hxx>
+
+// Simple math_Function adapter for GaussSingleIntegration
+class OCCTMathSimpleFuncAdapter : public math_Function {
+    OCCTMathSimpleFuncCallback cb;
+    void* ctx;
+public:
+    OCCTMathSimpleFuncAdapter(OCCTMathSimpleFuncCallback c, void* x) : cb(c), ctx(x) {}
+    bool Value(const double X, double& F) override { return cb(X, &F, ctx); }
+};
+
+bool OCCTMathPSO(int32_t nVars, OCCTMathMultiVarCallback callback, void* context,
+                  const double* lower, const double* upper, const double* steps,
+                  int32_t nbParticles, int32_t nbIter, double* result, double* minimum) {
+    try {
+        OCCTMathMultiVarAdapter func(nVars, callback, context);
+        math_Vector lo(1, nVars), hi(1, nVars), st(1, nVars);
+        for (int i = 0; i < nVars; i++) {
+            lo(i+1) = lower[i]; hi(i+1) = upper[i]; st(i+1) = steps[i];
+        }
+        math_PSO pso(&func, lo, hi, st, nbParticles, nbIter);
+        math_Vector res(1, nVars);
+        double val;
+        pso.Perform(st, val, res);
+        for (int i = 0; i < nVars; i++) result[i] = res(i+1);
+        *minimum = val;
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_GlobOptMin (v0.111.0)
+
+bool OCCTMathGlobOptMin(int32_t nVars, OCCTMathMultiVarCallback callback, void* context,
+                          const double* lower, const double* upper, double* result, double* minimum) {
+    try {
+        OCCTMathMultiVarAdapter func(nVars, callback, context);
+        math_Vector lo(1, nVars), hi(1, nVars);
+        for (int i = 0; i < nVars; i++) { lo(i+1) = lower[i]; hi(i+1) = upper[i]; }
+        math_GlobOptMin gom(&func, lo, hi);
+        gom.Perform();
+        if (!gom.isDone() || gom.NbExtrema() == 0) return false;
+        math_Vector sol(1, nVars);
+        gom.Points(1, sol);
+        for (int i = 0; i < nVars; i++) result[i] = sol(i+1);
+        *minimum = gom.GetF();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_FunctionRoots (v0.111.0)
+
+int32_t OCCTMathFunctionRoots(OCCTMathFuncDerivCallback callback, void* context,
+                                double a, double b, int32_t nbSample,
+                                double* roots, int32_t maxRoots) {
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_FunctionRoots fr(func, a, b, nbSample);
+        if (!fr.IsDone()) return 0;
+        int32_t n = std::min((int32_t)fr.NbSolutions(), maxRoots);
+        for (int32_t i = 0; i < n; i++) roots[i] = fr.Value(i+1);
+        return n;
+    } catch (...) { return 0; }
+}
+
+// MARK: - math_GaussSingleIntegration (v0.111.0)
+
+double OCCTMathGaussIntegrate(OCCTMathSimpleFuncCallback callback, void* context,
+                                double lower, double upper, int32_t order) {
+    try {
+        OCCTMathSimpleFuncAdapter func(callback, context);
+        math_GaussSingleIntegration gauss(func, lower, upper, order);
+        if (!gauss.IsDone()) return 0.0;
+        return gauss.Value();
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - math_NewtonFunctionSetRoot (v0.111.0)
+
+bool OCCTMathNewtonFuncSetRoot(int32_t nVars, int32_t nEqs,
+                                 OCCTMathFuncSetCallback valCb, OCCTMathFuncSetDerivCallback derivCb,
+                                 void* context, const double* start, double tol, int32_t maxIter,
+                                 double* result) {
+    try {
+        OCCTMathFuncSetAdapter sys(nVars, nEqs, valCb, derivCb, context);
+        math_Vector tolVec(1, nVars, tol);
+        math_NewtonFunctionSetRoot solver(sys, tolVec, tol, maxIter);
+        math_Vector startVec(1, nVars);
+        for (int i = 0; i < nVars; i++) startVec(i+1) = start[i];
+        solver.Perform(sys, startVec);
+        if (!solver.IsDone()) return false;
+        const math_Vector& sol = solver.Root();
+        for (int i = 0; i < nVars; i++) result[i] = sol(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - GeomGridEval_Curve 3D (v0.111.0)
+
+void OCCTGridEvalCurveD0(OCCTCurve3DRef curve, const double* params, int32_t count,
+                           double* xs, double* ys, double* zs) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        GeomGridEval_Curve eval;
+        eval.Initialize(curve->curve);
+        if (!eval.IsInitialized()) return;
+        NCollection_Array1<double> pArr(1, count);
+        for (int i = 0; i < count; i++) pArr(i+1) = params[i];
+        NCollection_Array1<gp_Pnt> results = eval.EvaluateGrid(pArr);
+        for (int i = 0; i < count; i++) {
+            xs[i] = results(i+1).X(); ys[i] = results(i+1).Y(); zs[i] = results(i+1).Z();
+        }
+    } catch (...) {}
+}
+
+void OCCTGridEvalCurveD1(OCCTCurve3DRef curve, const double* params, int32_t count,
+                           double* xs, double* ys, double* zs,
+                           double* d1xs, double* d1ys, double* d1zs) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        GeomGridEval_Curve eval;
+        eval.Initialize(curve->curve);
+        if (!eval.IsInitialized()) return;
+        NCollection_Array1<double> pArr(1, count);
+        for (int i = 0; i < count; i++) pArr(i+1) = params[i];
+        NCollection_Array1<GeomGridEval::CurveD1> results = eval.EvaluateGridD1(pArr);
+        for (int i = 0; i < count; i++) {
+            xs[i] = results(i+1).Point.X(); ys[i] = results(i+1).Point.Y(); zs[i] = results(i+1).Point.Z();
+            d1xs[i] = results(i+1).D1.X(); d1ys[i] = results(i+1).D1.Y(); d1zs[i] = results(i+1).D1.Z();
+        }
+    } catch (...) {}
+}
+
+// MARK: - Geom2dGridEval_Curve (v0.111.0)
+
+void OCCTGridEvalCurve2dD0(OCCTCurve2DRef curve, const double* params, int32_t count,
+                              double* xs, double* ys) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        Geom2dGridEval_Curve eval;
+        eval.Initialize(curve->curve);
+        if (!eval.IsInitialized()) return;
+        NCollection_Array1<double> pArr(1, count);
+        for (int i = 0; i < count; i++) pArr(i+1) = params[i];
+        NCollection_Array1<gp_Pnt2d> results = eval.EvaluateGrid(pArr);
+        for (int i = 0; i < count; i++) {
+            xs[i] = results(i+1).X(); ys[i] = results(i+1).Y();
+        }
+    } catch (...) {}
+}
+
+void OCCTGridEvalCurve2dD1(OCCTCurve2DRef curve, const double* params, int32_t count,
+                              double* xs, double* ys, double* d1xs, double* d1ys) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        Geom2dGridEval_Curve eval;
+        eval.Initialize(curve->curve);
+        if (!eval.IsInitialized()) return;
+        NCollection_Array1<double> pArr(1, count);
+        for (int i = 0; i < count; i++) pArr(i+1) = params[i];
+        NCollection_Array1<Geom2dGridEval::CurveD1> results = eval.EvaluateGridD1(pArr);
+        for (int i = 0; i < count; i++) {
+            xs[i] = results(i+1).Point.X(); ys[i] = results(i+1).Point.Y();
+            d1xs[i] = results(i+1).D1.X(); d1ys[i] = results(i+1).D1.Y();
+        }
+    } catch (...) {}
+}
+
+// MARK: - GeomGridEval_Surface (v0.111.0)
+
+void OCCTGridEvalSurfaceD0(OCCTSurfaceRef surface, const double* uParams, int32_t uCount,
+                              const double* vParams, int32_t vCount,
+                              double* xs, double* ys, double* zs) {
+    if (!surface || surface->surface.IsNull() || uCount <= 0 || vCount <= 0) return;
+    try {
+        GeomGridEval_Surface eval;
+        eval.Initialize(surface->surface);
+        if (!eval.IsInitialized()) return;
+        NCollection_Array1<double> uArr(1, uCount), vArr(1, vCount);
+        for (int i = 0; i < uCount; i++) uArr(i+1) = uParams[i];
+        for (int i = 0; i < vCount; i++) vArr(i+1) = vParams[i];
+        NCollection_Array2<gp_Pnt> results = eval.EvaluateGrid(uArr, vArr);
+        for (int iu = 0; iu < uCount; iu++) {
+            for (int iv = 0; iv < vCount; iv++) {
+                int idx = iu * vCount + iv;
+                const gp_Pnt& p = results(iu+1, iv+1);
+                xs[idx] = p.X(); ys[idx] = p.Y(); zs[idx] = p.Z();
+            }
+        }
+    } catch (...) {}
+}
+
+void OCCTGridEvalSurfaceD1(OCCTSurfaceRef surface, const double* uParams, int32_t uCount,
+                              const double* vParams, int32_t vCount,
+                              double* xs, double* ys, double* zs,
+                              double* d1uxs, double* d1uys, double* d1uzs,
+                              double* d1vxs, double* d1vys, double* d1vzs) {
+    if (!surface || surface->surface.IsNull() || uCount <= 0 || vCount <= 0) return;
+    try {
+        GeomGridEval_Surface eval;
+        eval.Initialize(surface->surface);
+        if (!eval.IsInitialized()) return;
+        NCollection_Array1<double> uArr(1, uCount), vArr(1, vCount);
+        for (int i = 0; i < uCount; i++) uArr(i+1) = uParams[i];
+        for (int i = 0; i < vCount; i++) vArr(i+1) = vParams[i];
+        NCollection_Array2<GeomGridEval::SurfD1> results = eval.EvaluateGridD1(uArr, vArr);
+        for (int iu = 0; iu < uCount; iu++) {
+            for (int iv = 0; iv < vCount; iv++) {
+                int idx = iu * vCount + iv;
+                const auto& r = results(iu+1, iv+1);
+                xs[idx] = r.Point.X(); ys[idx] = r.Point.Y(); zs[idx] = r.Point.Z();
+                d1uxs[idx] = r.D1U.X(); d1uys[idx] = r.D1U.Y(); d1uzs[idx] = r.D1U.Z();
+                d1vxs[idx] = r.D1V.X(); d1vys[idx] = r.D1V.Y(); d1vzs[idx] = r.D1V.Z();
+            }
+        }
+    } catch (...) {}
+}
+
+// MARK: - BRepLProp_CLProps (v0.111.0)
+
+void OCCTEdgeLPropValue(OCCTShapeRef edge, double param, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        gp_Pnt p = props.Value();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+bool OCCTEdgeLPropTangent(OCCTShapeRef edge, double param, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!edge) return false;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        if (!props.IsTangentDefined()) return false;
+        gp_Dir tan;
+        props.Tangent(tan);
+        *dx = tan.X(); *dy = tan.Y(); *dz = tan.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTEdgeLPropCurvature(OCCTShapeRef edge, double param) {
+    if (!edge) return 0.0;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        return props.Curvature();
+    } catch (...) { return 0.0; }
+}
+
+void OCCTEdgeLPropNormal(OCCTShapeRef edge, double param, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        gp_Dir n;
+        props.Normal(n);
+        *dx = n.X(); *dy = n.Y(); *dz = n.Z();
+    } catch (...) {}
+}
+
+void OCCTEdgeLPropCentreOfCurvature(OCCTShapeRef edge, double param, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        gp_Pnt p;
+        props.CentreOfCurvature(p);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+void OCCTEdgeLPropD1(OCCTShapeRef edge, double param, double* d1x, double* d1y, double* d1z) {
+    *d1x = 0; *d1y = 0; *d1z = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 1, 1e-6);
+        props.SetParameter(param);
+        const gp_Vec& d1 = props.D1();
+        *d1x = d1.X(); *d1y = d1.Y(); *d1z = d1.Z();
+    } catch (...) {}
+}
+
+// MARK: - BRepLProp_SLProps (v0.111.0)
+
+void OCCTFaceLPropValue(OCCTShapeRef face, double u, double v, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!face) return;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        gp_Pnt p = props.Value();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+bool OCCTFaceLPropNormal(OCCTShapeRef face, double u, double v, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!face) return false;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsNormalDefined()) return false;
+        gp_Dir n = props.Normal();
+        *dx = n.X(); *dy = n.Y(); *dz = n.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTFaceLPropMaxCurvature(OCCTShapeRef face, double u, double v) {
+    if (!face) return 0.0;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return 0.0;
+        return props.MaxCurvature();
+    } catch (...) { return 0.0; }
+}
+
+double OCCTFaceLPropMinCurvature(OCCTShapeRef face, double u, double v) {
+    if (!face) return 0.0;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return 0.0;
+        return props.MinCurvature();
+    } catch (...) { return 0.0; }
+}
+
+double OCCTFaceLPropMeanCurvature(OCCTShapeRef face, double u, double v) {
+    if (!face) return 0.0;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return 0.0;
+        return props.MeanCurvature();
+    } catch (...) { return 0.0; }
+}
+
+double OCCTFaceLPropGaussianCurvature(OCCTShapeRef face, double u, double v) {
+    if (!face) return 0.0;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return 0.0;
+        return props.GaussianCurvature();
+    } catch (...) { return 0.0; }
+}
+
+bool OCCTFaceLPropIsUmbilic(OCCTShapeRef face, double u, double v) {
+    if (!face) return false;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return false;
+        return props.IsUmbilic();
+    } catch (...) { return false; }
+}
+
+bool OCCTFaceLPropTangentU(OCCTShapeRef face, double u, double v, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!face) return false;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsTangentUDefined()) return false;
+        gp_Dir tan;
+        props.TangentU(tan);
+        *dx = tan.X(); *dy = tan.Y(); *dz = tan.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - MathPoly_Laguerre (v0.111.0)
+
+int32_t OCCTPolyLaguerreRoots(const double* coefficients, int32_t degree,
+                                double* roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Laguerre(coefficients, degree);
+        if (!result.IsDone()) return 0;
+        int32_t n = std::min((int32_t)result.NbRoots, maxRoots);
+        for (int32_t i = 0; i < n; i++) roots[i] = result.Roots[i];
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTPolyLaguerreComplexRoots(const double* coefficients, int32_t degree,
+                                        double* realParts, double* imagParts, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Laguerre(coefficients, degree);
+        if (!result.IsDone()) return 0;
+        int32_t n = std::min((int32_t)result.NbComplexRoots, maxRoots);
+        for (int32_t i = 0; i < n; i++) {
+            realParts[i] = result.ComplexRoots[i].real();
+            imagParts[i] = result.ComplexRoots[i].imag();
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTPolyQuinticRoots(double a, double b, double c, double d, double e, double f,
+                                double* roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Quintic(a, b, c, d, e, f);
+        if (!result.IsDone()) return 0;
+        int32_t n = std::min((int32_t)result.NbRoots, maxRoots);
+        for (int32_t i = 0; i < n; i++) roots[i] = result.Roots[i];
+        return n;
+    } catch (...) { return 0; }
+}

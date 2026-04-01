@@ -15255,6 +15255,162 @@ void OCCTCurve2DEvalBatchD1(OCCTCurve2DRef _Nonnull curve, const double* _Nonnul
                               double* _Nonnull xs, double* _Nonnull ys,
                               double* _Nonnull d1xs, double* _Nonnull d1ys);
 
+// MARK: - math_PSO (v0.111.0)
+
+/// Minimize a multivariate function using Particle Swarm Optimization.
+/// lower[nVars], upper[nVars], steps[nVars], result[nVars]. Returns true on success.
+bool OCCTMathPSO(int32_t nVars, OCCTMathMultiVarCallback _Nonnull callback, void* _Nullable context,
+                  const double* _Nonnull lower, const double* _Nonnull upper, const double* _Nonnull steps,
+                  int32_t nbParticles, int32_t nbIter, double* _Nonnull result, double* _Nonnull minimum);
+
+// MARK: - math_GlobOptMin (v0.111.0)
+
+/// Find global minimum of a multivariate function using Lipschitz optimization.
+/// lower[nVars], upper[nVars], result[nVars]. Returns true on success.
+bool OCCTMathGlobOptMin(int32_t nVars, OCCTMathMultiVarCallback _Nonnull callback, void* _Nullable context,
+                          const double* _Nonnull lower, const double* _Nonnull upper,
+                          double* _Nonnull result, double* _Nonnull minimum);
+
+// MARK: - math_FunctionRoots (v0.111.0)
+
+/// Find all roots of f(x)=0 in [a, b] using derivative-based method.
+/// Returns number of roots found; roots[maxRoots] is filled with values.
+int32_t OCCTMathFunctionRoots(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                                double a, double b, int32_t nbSample,
+                                double* _Nonnull roots, int32_t maxRoots);
+
+// MARK: - math_GaussSingleIntegration (v0.111.0)
+
+/// Callback for simple 1D function (no derivative): f(x) -> value. Returns true on success.
+typedef bool (*OCCTMathSimpleFuncCallback)(double x, double* _Nonnull value, void* _Nullable context);
+
+/// Integrate a function from lower to upper using Gauss quadrature of given order.
+/// Returns the integral value.
+double OCCTMathGaussIntegrate(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                double lower, double upper, int32_t order);
+
+// MARK: - math_NewtonFunctionSetRoot (v0.111.0)
+
+/// Solve a system of equations using Newton's method (NewtonFunctionSetRoot variant).
+/// start[nVars], result[nVars]. Returns true on convergence.
+bool OCCTMathNewtonFuncSetRoot(int32_t nVars, int32_t nEqs,
+                                 OCCTMathFuncSetCallback _Nonnull valCb,
+                                 OCCTMathFuncSetDerivCallback _Nonnull derivCb,
+                                 void* _Nullable context,
+                                 const double* _Nonnull start, double tol, int32_t maxIter,
+                                 double* _Nonnull result);
+
+// MARK: - GeomGridEval_Curve 3D (v0.111.0)
+
+/// Evaluate 3D curve at multiple parameters using GeomGridEval_Curve (batch D0).
+void OCCTGridEvalCurveD0(OCCTCurve3DRef _Nonnull curve, const double* _Nonnull params, int32_t count,
+                           double* _Nonnull xs, double* _Nonnull ys, double* _Nonnull zs);
+
+/// Evaluate 3D curve at multiple parameters using GeomGridEval_Curve (batch D1).
+void OCCTGridEvalCurveD1(OCCTCurve3DRef _Nonnull curve, const double* _Nonnull params, int32_t count,
+                           double* _Nonnull xs, double* _Nonnull ys, double* _Nonnull zs,
+                           double* _Nonnull d1xs, double* _Nonnull d1ys, double* _Nonnull d1zs);
+
+// MARK: - Geom2dGridEval_Curve (v0.111.0)
+
+/// Evaluate 2D curve at multiple parameters using Geom2dGridEval_Curve (batch D0).
+void OCCTGridEvalCurve2dD0(OCCTCurve2DRef _Nonnull curve, const double* _Nonnull params, int32_t count,
+                              double* _Nonnull xs, double* _Nonnull ys);
+
+/// Evaluate 2D curve at multiple parameters using Geom2dGridEval_Curve (batch D1).
+void OCCTGridEvalCurve2dD1(OCCTCurve2DRef _Nonnull curve, const double* _Nonnull params, int32_t count,
+                              double* _Nonnull xs, double* _Nonnull ys,
+                              double* _Nonnull d1xs, double* _Nonnull d1ys);
+
+// MARK: - GeomGridEval_Surface (v0.111.0)
+
+/// Evaluate surface at grid of (u, v) parameters using GeomGridEval_Surface (batch D0).
+/// Output arrays are row-major: xs[uCount * vCount], etc.
+void OCCTGridEvalSurfaceD0(OCCTSurfaceRef _Nonnull surface,
+                              const double* _Nonnull uParams, int32_t uCount,
+                              const double* _Nonnull vParams, int32_t vCount,
+                              double* _Nonnull xs, double* _Nonnull ys, double* _Nonnull zs);
+
+/// Evaluate surface at grid of (u, v) parameters using GeomGridEval_Surface (batch D1).
+/// Output arrays are row-major: xs[uCount * vCount], etc.
+void OCCTGridEvalSurfaceD1(OCCTSurfaceRef _Nonnull surface,
+                              const double* _Nonnull uParams, int32_t uCount,
+                              const double* _Nonnull vParams, int32_t vCount,
+                              double* _Nonnull xs, double* _Nonnull ys, double* _Nonnull zs,
+                              double* _Nonnull d1uxs, double* _Nonnull d1uys, double* _Nonnull d1uzs,
+                              double* _Nonnull d1vxs, double* _Nonnull d1vys, double* _Nonnull d1vzs);
+
+// MARK: - BRepLProp_CLProps (v0.111.0)
+
+/// Get point on edge at parameter using local properties.
+void OCCTEdgeLPropValue(OCCTShapeRef _Nonnull edge, double param,
+                          double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get tangent direction on edge at parameter. Returns true if tangent is defined.
+bool OCCTEdgeLPropTangent(OCCTShapeRef _Nonnull edge, double param,
+                            double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get curvature on edge at parameter.
+double OCCTEdgeLPropCurvature(OCCTShapeRef _Nonnull edge, double param);
+
+/// Get normal direction on edge at parameter.
+void OCCTEdgeLPropNormal(OCCTShapeRef _Nonnull edge, double param,
+                           double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get centre of curvature on edge at parameter.
+void OCCTEdgeLPropCentreOfCurvature(OCCTShapeRef _Nonnull edge, double param,
+                                       double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get first derivative on edge at parameter.
+void OCCTEdgeLPropD1(OCCTShapeRef _Nonnull edge, double param,
+                       double* _Nonnull d1x, double* _Nonnull d1y, double* _Nonnull d1z);
+
+// MARK: - BRepLProp_SLProps (v0.111.0)
+
+/// Get point on face at (u, v) using local surface properties.
+void OCCTFaceLPropValue(OCCTShapeRef _Nonnull face, double u, double v,
+                          double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get normal on face at (u, v). Returns true if normal is defined.
+bool OCCTFaceLPropNormal(OCCTShapeRef _Nonnull face, double u, double v,
+                           double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get maximum curvature on face at (u, v).
+double OCCTFaceLPropMaxCurvature(OCCTShapeRef _Nonnull face, double u, double v);
+
+/// Get minimum curvature on face at (u, v).
+double OCCTFaceLPropMinCurvature(OCCTShapeRef _Nonnull face, double u, double v);
+
+/// Get mean curvature on face at (u, v).
+double OCCTFaceLPropMeanCurvature(OCCTShapeRef _Nonnull face, double u, double v);
+
+/// Get Gaussian curvature on face at (u, v).
+double OCCTFaceLPropGaussianCurvature(OCCTShapeRef _Nonnull face, double u, double v);
+
+/// Check if face at (u, v) is umbilic (all curvatures equal).
+bool OCCTFaceLPropIsUmbilic(OCCTShapeRef _Nonnull face, double u, double v);
+
+/// Get tangent in U direction on face at (u, v). Returns true if tangent is defined.
+bool OCCTFaceLPropTangentU(OCCTShapeRef _Nonnull face, double u, double v,
+                              double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+// MARK: - MathPoly_Laguerre (v0.111.0)
+
+/// Find real roots of a polynomial using Laguerre's method.
+/// coefficients[degree+1] in ascending order (constant first). Returns number of real roots found.
+int32_t OCCTPolyLaguerreRoots(const double* _Nonnull coefficients, int32_t degree,
+                                double* _Nonnull roots, int32_t maxRoots);
+
+/// Find complex roots of a polynomial using Laguerre's method.
+/// Returns number of complex roots found; realParts[maxRoots], imagParts[maxRoots].
+int32_t OCCTPolyLaguerreComplexRoots(const double* _Nonnull coefficients, int32_t degree,
+                                        double* _Nonnull realParts, double* _Nonnull imagParts, int32_t maxRoots);
+
+/// Find real roots of quintic: a*x^5 + b*x^4 + c*x^3 + d*x^2 + e*x + f = 0.
+/// Returns number of real roots found.
+int32_t OCCTPolyQuinticRoots(double a, double b, double c, double d, double e, double f,
+                                double* _Nonnull roots, int32_t maxRoots);
+
 #ifdef __cplusplus
 }
 #endif

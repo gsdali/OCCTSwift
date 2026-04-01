@@ -1697,6 +1697,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.111.0: Advanced math solvers & local properties — PSO, GlobOptMin, FunctionRoots, GaussIntegration, NewtonFunctionSetRoot, GeomGridEval (3D/2D/Surface), BRepLProp (CLProps/SLProps), MathPoly_Laguerre polynomial solver
 > - v0.110.0: Constraint solver infrastructure — C callback adapters for math solvers, EvalD0/D1/D2/D3 curve evaluation, batch evaluation, surface differential evaluation
 > - v0.24.0: Medial axis transform — Voronoi skeleton, arc/node graph, bisector curves, wall thickness
 > - v0.23.0: NLPlate — advanced plate surfaces, non-linear G0/G1 surface deformation
@@ -1737,9 +1738,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.110.0
+### Current Status: v0.111.0
 
-OCCTSwift now wraps **2479 OCCT operations** across 264 categories with 2585 tests across 789 suites.
+OCCTSwift now wraps **2564 OCCT operations** across 275 categories with 2677 tests across 800 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

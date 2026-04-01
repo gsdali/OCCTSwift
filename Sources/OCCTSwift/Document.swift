@@ -10392,6 +10392,451 @@ public enum MathSolver {
         let ok = OCCTMathBrentMinimum(callback, ptr, ax, bx, cx, tolerance, Int32(maxIterations), &location, &minimum)
         return ok ? (location, minimum) : nil
     }
+
+    // MARK: - Particle Swarm Optimization (v0.111.0)
+
+    /// Minimize a multivariate function using Particle Swarm Optimization.
+    ///
+    /// - Parameters:
+    ///   - variables: Number of variables
+    ///   - lower: Lower bounds for each variable
+    ///   - upper: Upper bounds for each variable
+    ///   - steps: Step sizes for each variable
+    ///   - particles: Number of particles (default 64)
+    ///   - iterations: Number of iterations (default 100)
+    ///   - function: Closure taking [Double], returning scalar value
+    /// - Returns: (point, minimum) tuple, or nil on failure
+    public static func particleSwarm(
+        variables: Int,
+        lower: [Double],
+        upper: [Double],
+        steps: [Double],
+        particles: Int = 64,
+        iterations: Int = 100,
+        function: @escaping ([Double]) -> Double
+    ) -> (point: [Double], minimum: Double)? {
+        typealias Fn = ([Double]) -> Double
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<Fn>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathMultiVarCallback = { x, n, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<Fn>>.fromOpaque(ctx).takeUnretainedValue()
+            let nv = Int(n)
+            var input = [Double](repeating: 0, count: nv)
+            for i in 0..<nv { input[i] = x[i] }
+            value.pointee = box.closure(input)
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: variables)
+        var minimum = 0.0
+        let ok = OCCTMathPSO(Int32(variables), callback, ptr,
+                               lower, upper, steps,
+                               Int32(particles), Int32(iterations), &result, &minimum)
+        return ok ? (result, minimum) : nil
+    }
+
+    // MARK: - Global Minimization (v0.111.0)
+
+    /// Find the global minimum of a multivariate function using Lipschitz optimization.
+    ///
+    /// - Parameters:
+    ///   - variables: Number of variables
+    ///   - lower: Lower bounds for each variable
+    ///   - upper: Upper bounds for each variable
+    ///   - function: Closure taking [Double], returning scalar value
+    /// - Returns: (point, minimum) tuple, or nil on failure
+    public static func globalMinimize(
+        variables: Int,
+        lower: [Double],
+        upper: [Double],
+        function: @escaping ([Double]) -> Double
+    ) -> (point: [Double], minimum: Double)? {
+        typealias Fn = ([Double]) -> Double
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<Fn>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathMultiVarCallback = { x, n, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<Fn>>.fromOpaque(ctx).takeUnretainedValue()
+            let nv = Int(n)
+            var input = [Double](repeating: 0, count: nv)
+            for i in 0..<nv { input[i] = x[i] }
+            value.pointee = box.closure(input)
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: variables)
+        var minimum = 0.0
+        let ok = OCCTMathGlobOptMin(Int32(variables), callback, ptr, lower, upper, &result, &minimum)
+        return ok ? (result, minimum) : nil
+    }
+
+    // MARK: - Find All Roots (v0.111.0)
+
+    /// Find all roots of f(x)=0 in a given range using derivative-based search.
+    ///
+    /// - Parameters:
+    ///   - range: The search interval
+    ///   - samples: Number of sample subdivisions (default 20)
+    ///   - function: Closure returning (value, derivative) at x
+    /// - Returns: Array of root values found
+    public static func findAllRoots(
+        in range: ClosedRange<Double>,
+        samples: Int = 20,
+        function: @escaping (Double) -> (value: Double, derivative: Double)
+    ) -> [Double] {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncDerivCallback = { x, value, derivative, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ctx).takeUnretainedValue()
+            let result = box.closure(x)
+            value.pointee = result.value
+            derivative.pointee = result.derivative
+            return true
+        }
+
+        var roots = [Double](repeating: 0, count: 100)
+        let n = OCCTMathFunctionRoots(callback, ptr, range.lowerBound, range.upperBound,
+                                        Int32(samples), &roots, 100)
+        return Array(roots.prefix(Int(n)))
+    }
+
+    // MARK: - Gauss Integration (v0.111.0)
+
+    /// Integrate a function from lower to upper using Gauss quadrature.
+    ///
+    /// - Parameters:
+    ///   - from: Lower bound of integration
+    ///   - to: Upper bound of integration
+    ///   - order: Order of Gauss quadrature (default 10)
+    ///   - function: Closure returning f(x) at x
+    /// - Returns: The integral value
+    public static func integrate(
+        from lower: Double,
+        to upper: Double,
+        order: Int = 10,
+        function: @escaping (Double) -> Double
+    ) -> Double {
+        typealias Fn = (Double) -> Double
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<Fn>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<Fn>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        return OCCTMathGaussIntegrate(callback, ptr, lower, upper, Int32(order))
+    }
+
+    // MARK: - Newton System Solver (v0.111.0)
+
+    /// Solve a system of equations using Newton's method (NewtonFunctionSetRoot variant).
+    ///
+    /// - Parameters:
+    ///   - variables: Number of variables
+    ///   - equations: Number of equations
+    ///   - startPoint: Initial guess
+    ///   - tolerance: Convergence tolerance (default 1e-8)
+    ///   - maxIterations: Maximum iterations (default 100)
+    ///   - values: Closure returning equation values
+    ///   - jacobian: Closure returning row-major Jacobian
+    /// - Returns: Solution point, or nil if not converged
+    public static func solveSystemNewton(
+        variables: Int,
+        equations: Int,
+        startPoint: [Double],
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 100,
+        values: @escaping ([Double]) -> [Double],
+        jacobian: @escaping ([Double]) -> [Double]
+    ) -> [Double]? {
+        typealias ValuesClosure = ([Double]) -> [Double]
+        typealias JacobianClosure = ([Double]) -> [Double]
+        let valBox = ClosureBox(values)
+        let jacBox = ClosureBox(jacobian)
+        let pair = ClosureBox((valBox, jacBox))
+        let ptr = Unmanaged.passRetained(pair).toOpaque()
+        defer { Unmanaged<ClosureBox<(ClosureBox<ValuesClosure>, ClosureBox<JacobianClosure>)>>.fromOpaque(ptr).release() }
+
+        let valCallback: OCCTMathFuncSetCallback = { x, nVars, vals, nEqs, context in
+            guard let ctx = context else { return false }
+            let pair = Unmanaged<ClosureBox<(ClosureBox<ValuesClosure>, ClosureBox<JacobianClosure>)>>.fromOpaque(ctx).takeUnretainedValue()
+            let n = Int(nVars)
+            var input = [Double](repeating: 0, count: n)
+            for i in 0..<n { input[i] = x[i] }
+            let result = pair.closure.0.closure(input)
+            let m = Int(nEqs)
+            for i in 0..<m { vals[i] = result[i] }
+            return true
+        }
+
+        let derivCallback: OCCTMathFuncSetDerivCallback = { x, nVars, jac, nEqs, context in
+            guard let ctx = context else { return false }
+            let pair = Unmanaged<ClosureBox<(ClosureBox<ValuesClosure>, ClosureBox<JacobianClosure>)>>.fromOpaque(ctx).takeUnretainedValue()
+            let n = Int(nVars)
+            var input = [Double](repeating: 0, count: n)
+            for i in 0..<n { input[i] = x[i] }
+            let result = pair.closure.1.closure(input)
+            let total = Int(nEqs) * n
+            for i in 0..<total { jac[i] = result[i] }
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: variables)
+        let ok = OCCTMathNewtonFuncSetRoot(Int32(variables), Int32(equations),
+                                             valCallback, derivCallback, ptr,
+                                             startPoint, tolerance, Int32(maxIterations), &result)
+        return ok ? result : nil
+    }
+}
+
+// MARK: - PolynomialSolver Laguerre Extensions (v0.111.0)
+
+extension PolynomialSolver {
+
+    /// Find real roots of a polynomial of any degree using Laguerre's method.
+    ///
+    /// Coefficients are in ascending order (constant first):
+    /// for polynomial a0 + a1*x + a2*x^2 + ... + an*x^n, pass [a0, a1, ..., an].
+    /// - Parameter coefficients: Polynomial coefficients in ascending order
+    /// - Returns: Array of real roots (sorted)
+    public static func laguerreRoots(coefficients: [Double]) -> [Double] {
+        let degree = coefficients.count - 1
+        guard degree >= 1 else { return [] }
+        var roots = [Double](repeating: 0, count: 20)
+        let n = OCCTPolyLaguerreRoots(coefficients, Int32(degree), &roots, 20)
+        return Array(roots.prefix(Int(n)))
+    }
+
+    /// Find complex roots of a polynomial using Laguerre's method.
+    ///
+    /// - Parameter coefficients: Polynomial coefficients in ascending order (constant first)
+    /// - Returns: Array of (real, imaginary) pairs for complex roots
+    public static func laguerreComplexRoots(coefficients: [Double]) -> [(real: Double, imaginary: Double)] {
+        let degree = coefficients.count - 1
+        guard degree >= 1 else { return [] }
+        var realParts = [Double](repeating: 0, count: 20)
+        var imagParts = [Double](repeating: 0, count: 20)
+        let n = OCCTPolyLaguerreComplexRoots(coefficients, Int32(degree), &realParts, &imagParts, 20)
+        return (0..<Int(n)).map { (realParts[$0], imagParts[$0]) }
+    }
+
+    /// Find real roots of a quintic polynomial: a*x^5 + b*x^4 + c*x^3 + d*x^2 + e*x + f = 0.
+    ///
+    /// - Returns: Array of real roots (sorted)
+    public static func quinticRoots(a: Double, b: Double, c: Double, d: Double, e: Double, f: Double) -> [Double] {
+        var roots = [Double](repeating: 0, count: 5)
+        let n = OCCTPolyQuinticRoots(a, b, c, d, e, f, &roots, 5)
+        return Array(roots.prefix(Int(n)))
+    }
+}
+
+// MARK: - BRepLProp Edge Extensions (v0.111.0)
+
+extension Shape {
+
+    /// Get point on an edge at parameter using local properties (BRepLProp_CLProps).
+    public func edgeLPropValue(at param: Double) -> SIMD3<Double>? {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTEdgeLPropValue(handle, param, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get tangent direction on an edge at parameter. Returns nil if tangent is undefined.
+    public func edgeTangent(at param: Double) -> SIMD3<Double>? {
+        var dx = 0.0, dy = 0.0, dz = 0.0
+        let ok = OCCTEdgeLPropTangent(handle, param, &dx, &dy, &dz)
+        return ok ? SIMD3(dx, dy, dz) : nil
+    }
+
+    /// Get curvature on an edge at parameter using local properties.
+    public func edgeCurvatureLP(at param: Double) -> Double {
+        return OCCTEdgeLPropCurvature(handle, param)
+    }
+
+    /// Get normal direction on an edge at parameter.
+    public func edgeNormalLP(at param: Double) -> SIMD3<Double> {
+        var dx = 0.0, dy = 0.0, dz = 0.0
+        OCCTEdgeLPropNormal(handle, param, &dx, &dy, &dz)
+        return SIMD3(dx, dy, dz)
+    }
+
+    /// Get centre of curvature on an edge at parameter.
+    public func edgeCentreOfCurvature(at param: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTEdgeLPropCentreOfCurvature(handle, param, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get first derivative on an edge at parameter.
+    public func edgeLPropD1(at param: Double) -> SIMD3<Double> {
+        var d1x = 0.0, d1y = 0.0, d1z = 0.0
+        OCCTEdgeLPropD1(handle, param, &d1x, &d1y, &d1z)
+        return SIMD3(d1x, d1y, d1z)
+    }
+}
+
+// MARK: - BRepLProp Face Extensions (v0.111.0)
+
+extension Shape {
+
+    /// Get point on a face at (u, v) using local surface properties (BRepLProp_SLProps).
+    public func faceLPropValue(u: Double, v: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTFaceLPropValue(handle, u, v, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get normal on a face at (u, v). Returns nil if normal is undefined.
+    public func faceLPropNormal(u: Double, v: Double) -> SIMD3<Double>? {
+        var dx = 0.0, dy = 0.0, dz = 0.0
+        let ok = OCCTFaceLPropNormal(handle, u, v, &dx, &dy, &dz)
+        return ok ? SIMD3(dx, dy, dz) : nil
+    }
+
+    /// Get maximum principal curvature on a face at (u, v).
+    public func faceLPropMaxCurvature(u: Double, v: Double) -> Double {
+        return OCCTFaceLPropMaxCurvature(handle, u, v)
+    }
+
+    /// Get minimum principal curvature on a face at (u, v).
+    public func faceLPropMinCurvature(u: Double, v: Double) -> Double {
+        return OCCTFaceLPropMinCurvature(handle, u, v)
+    }
+
+    /// Get mean curvature on a face at (u, v).
+    public func faceLPropMeanCurvature(u: Double, v: Double) -> Double {
+        return OCCTFaceLPropMeanCurvature(handle, u, v)
+    }
+
+    /// Get Gaussian curvature on a face at (u, v).
+    public func faceLPropGaussianCurvature(u: Double, v: Double) -> Double {
+        return OCCTFaceLPropGaussianCurvature(handle, u, v)
+    }
+
+    /// Check if a face is umbilic at (u, v) (all principal curvatures equal).
+    public func faceLPropIsUmbilic(u: Double, v: Double) -> Bool {
+        return OCCTFaceLPropIsUmbilic(handle, u, v)
+    }
+
+    /// Get tangent in U direction on a face at (u, v). Returns nil if tangent is undefined.
+    public func faceLPropTangentU(u: Double, v: Double) -> SIMD3<Double>? {
+        var dx = 0.0, dy = 0.0, dz = 0.0
+        let ok = OCCTFaceLPropTangentU(handle, u, v, &dx, &dy, &dz)
+        return ok ? SIMD3(dx, dy, dz) : nil
+    }
+}
+
+// MARK: - GridEval Curve3D Extensions (v0.111.0)
+
+extension Curve3D {
+
+    /// Evaluate curve at multiple parameters using GeomGridEval_Curve (optimized batch D0).
+    public func gridEvalD0(params: [Double]) -> [SIMD3<Double>] {
+        let count = params.count
+        guard count > 0 else { return [] }
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        var zs = [Double](repeating: 0, count: count)
+        OCCTGridEvalCurveD0(handle, params, Int32(count), &xs, &ys, &zs)
+        return (0..<count).map { SIMD3(xs[$0], ys[$0], zs[$0]) }
+    }
+
+    /// Evaluate curve at multiple parameters using GeomGridEval_Curve (optimized batch D1).
+    public func gridEvalD1(params: [Double]) -> [(point: SIMD3<Double>, d1: SIMD3<Double>)] {
+        let count = params.count
+        guard count > 0 else { return [] }
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        var zs = [Double](repeating: 0, count: count)
+        var d1xs = [Double](repeating: 0, count: count)
+        var d1ys = [Double](repeating: 0, count: count)
+        var d1zs = [Double](repeating: 0, count: count)
+        OCCTGridEvalCurveD1(handle, params, Int32(count), &xs, &ys, &zs, &d1xs, &d1ys, &d1zs)
+        return (0..<count).map { (SIMD3(xs[$0], ys[$0], zs[$0]), SIMD3(d1xs[$0], d1ys[$0], d1zs[$0])) }
+    }
+}
+
+// MARK: - GridEval Curve2D Extensions (v0.111.0)
+
+extension Curve2D {
+
+    /// Evaluate 2D curve at multiple parameters using Geom2dGridEval_Curve (optimized batch D0).
+    public func gridEvalD0(params: [Double]) -> [SIMD2<Double>] {
+        let count = params.count
+        guard count > 0 else { return [] }
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        OCCTGridEvalCurve2dD0(handle, params, Int32(count), &xs, &ys)
+        return (0..<count).map { SIMD2(xs[$0], ys[$0]) }
+    }
+
+    /// Evaluate 2D curve at multiple parameters using Geom2dGridEval_Curve (optimized batch D1).
+    public func gridEvalD1(params: [Double]) -> [(point: SIMD2<Double>, d1: SIMD2<Double>)] {
+        let count = params.count
+        guard count > 0 else { return [] }
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        var d1xs = [Double](repeating: 0, count: count)
+        var d1ys = [Double](repeating: 0, count: count)
+        OCCTGridEvalCurve2dD1(handle, params, Int32(count), &xs, &ys, &d1xs, &d1ys)
+        return (0..<count).map { (SIMD2(xs[$0], ys[$0]), SIMD2(d1xs[$0], d1ys[$0])) }
+    }
+}
+
+// MARK: - GridEval Surface Extensions (v0.111.0)
+
+extension Surface {
+
+    /// Evaluate surface at grid of (u, v) parameters using GeomGridEval_Surface (optimized batch D0).
+    /// Returns row-major array of points with dimensions [uParams.count x vParams.count].
+    public func gridEvalD0(uParams: [Double], vParams: [Double]) -> [SIMD3<Double>] {
+        let uCount = uParams.count
+        let vCount = vParams.count
+        guard uCount > 0 && vCount > 0 else { return [] }
+        let total = uCount * vCount
+        var xs = [Double](repeating: 0, count: total)
+        var ys = [Double](repeating: 0, count: total)
+        var zs = [Double](repeating: 0, count: total)
+        OCCTGridEvalSurfaceD0(handle, uParams, Int32(uCount), vParams, Int32(vCount), &xs, &ys, &zs)
+        return (0..<total).map { SIMD3(xs[$0], ys[$0], zs[$0]) }
+    }
+
+    /// Evaluate surface at grid of (u, v) parameters using GeomGridEval_Surface (optimized batch D1).
+    /// Returns row-major array of (point, d1u, d1v) tuples with dimensions [uParams.count x vParams.count].
+    public func gridEvalD1(uParams: [Double], vParams: [Double]) -> [(point: SIMD3<Double>, d1u: SIMD3<Double>, d1v: SIMD3<Double>)] {
+        let uCount = uParams.count
+        let vCount = vParams.count
+        guard uCount > 0 && vCount > 0 else { return [] }
+        let total = uCount * vCount
+        var xs = [Double](repeating: 0, count: total)
+        var ys = [Double](repeating: 0, count: total)
+        var zs = [Double](repeating: 0, count: total)
+        var d1uxs = [Double](repeating: 0, count: total)
+        var d1uys = [Double](repeating: 0, count: total)
+        var d1uzs = [Double](repeating: 0, count: total)
+        var d1vxs = [Double](repeating: 0, count: total)
+        var d1vys = [Double](repeating: 0, count: total)
+        var d1vzs = [Double](repeating: 0, count: total)
+        OCCTGridEvalSurfaceD1(handle, uParams, Int32(uCount), vParams, Int32(vCount),
+                                &xs, &ys, &zs, &d1uxs, &d1uys, &d1uzs, &d1vxs, &d1vys, &d1vzs)
+        return (0..<total).map {
+            (SIMD3(xs[$0], ys[$0], zs[$0]),
+             SIMD3(d1uxs[$0], d1uys[$0], d1uzs[$0]),
+             SIMD3(d1vxs[$0], d1vys[$0], d1vzs[$0]))
+        }
+    }
 }
 
 // MARK: - Curve3D Evaluation (v0.110.0)
