@@ -11024,3 +11024,394 @@ extension MathSolver {
         return ok ? (result, minimum) : nil
     }
 }
+
+// MARK: - v0.112.0: RWMesh iterators, Intf_Tool, BRepAlgo_AsDes, BiTgte, Shape extras, Extrema
+
+// --- RWMesh_FaceIterator ---
+
+/// Iterator over triangulated faces of a meshed shape.
+public final class MeshFaceIterator: @unchecked Sendable {
+    internal let handle: OCCTMeshFaceIterRef
+
+    /// Create a face iterator. The shape should already be meshed (BRepMesh_IncrementalMesh).
+    public init?(shape: Shape) {
+        guard let h = OCCTMeshFaceIterCreate(shape.handle) else { return nil }
+        self.handle = h
+    }
+
+    deinit { OCCTMeshFaceIterRelease(handle) }
+
+    /// Whether the iterator has more faces.
+    public var hasMore: Bool { OCCTMeshFaceIterMore(handle) }
+
+    /// Advance to the next face.
+    public func next() { OCCTMeshFaceIterNext(handle) }
+
+    /// Number of nodes in the current face triangulation.
+    public var nodeCount: Int { Int(OCCTMeshFaceIterNbNodes(handle)) }
+
+    /// Number of triangles in the current face triangulation.
+    public var triangleCount: Int { Int(OCCTMeshFaceIterNbTriangles(handle)) }
+
+    /// Get node position at 1-based index.
+    public func node(at index: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTMeshFaceIterNode(handle, Int32(index), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Whether current face has normals.
+    public var hasNormals: Bool { OCCTMeshFaceIterHasNormals(handle) }
+
+    /// Get normal at 1-based node index.
+    public func normal(at index: Int) -> SIMD3<Double> {
+        var nx = 0.0, ny = 0.0, nz = 0.0
+        OCCTMeshFaceIterNormal(handle, Int32(index), &nx, &ny, &nz)
+        return SIMD3(nx, ny, nz)
+    }
+
+    /// Get triangle node indices (1-based) at 1-based triangle index.
+    public func triangle(at index: Int) -> (n1: Int, n2: Int, n3: Int) {
+        var n1: Int32 = 0, n2: Int32 = 0, n3: Int32 = 0
+        OCCTMeshFaceIterTriangle(handle, Int32(index), &n1, &n2, &n3)
+        return (Int(n1), Int(n2), Int(n3))
+    }
+}
+
+// --- RWMesh_VertexIterator ---
+
+/// Iterator over vertices of a shape.
+public final class MeshVertexIterator: @unchecked Sendable {
+    internal let handle: OCCTMeshVertexIterRef
+
+    /// Create a vertex iterator over a shape.
+    public init?(shape: Shape) {
+        guard let h = OCCTMeshVertexIterCreate(shape.handle) else { return nil }
+        self.handle = h
+    }
+
+    deinit { OCCTMeshVertexIterRelease(handle) }
+
+    /// Whether the iterator has more vertices.
+    public var hasMore: Bool { OCCTMeshVertexIterMore(handle) }
+
+    /// Advance to the next vertex.
+    public func next() { OCCTMeshVertexIterNext(handle) }
+
+    /// Get the current vertex point.
+    public var point: SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTMeshVertexIterPoint(handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+}
+
+// --- Intf_Tool ---
+
+/// Line-box clipping using Intf_Tool.
+public final class IntfTool: @unchecked Sendable {
+    internal let handle: OCCTIntfToolRef
+
+    public init() {
+        self.handle = OCCTIntfToolCreate()
+    }
+
+    deinit { OCCTIntfToolRelease(handle) }
+
+    /// Clip a line to a bounding box. Returns number of segments.
+    @discardableResult
+    public func clipLineToBox(
+        lineOrigin: SIMD3<Double>, lineDirection: SIMD3<Double>,
+        boxMin: SIMD3<Double>, boxMax: SIMD3<Double>
+    ) -> Int {
+        Int(OCCTIntfToolLinBox(handle,
+                               lineOrigin.x, lineOrigin.y, lineOrigin.z,
+                               lineDirection.x, lineDirection.y, lineDirection.z,
+                               boxMin.x, boxMin.y, boxMin.z,
+                               boxMax.x, boxMax.y, boxMax.z))
+    }
+
+    /// Get the begin parameter of a segment (1-based index).
+    public func beginParam(segment: Int) -> Double {
+        OCCTIntfToolBeginParam(handle, Int32(segment))
+    }
+
+    /// Get the end parameter of a segment (1-based index).
+    public func endParam(segment: Int) -> Double {
+        OCCTIntfToolEndParam(handle, Int32(segment))
+    }
+}
+
+// --- BRepAlgo_AsDes ---
+
+/// Ascendant-descendant relationship tracker for shapes.
+public final class AsDesTracker: @unchecked Sendable {
+    internal let handle: OCCTAsDesRef
+
+    public init() {
+        self.handle = OCCTAsDesCreate()
+    }
+
+    deinit { OCCTAsDesRelease(handle) }
+
+    /// Add a parent-child relationship.
+    public func add(parent: Shape, child: Shape) {
+        OCCTAsDesAdd(handle, parent.handle, child.handle)
+    }
+
+    /// Check if a shape has descendants.
+    public func hasDescendant(_ shape: Shape) -> Bool {
+        OCCTAsDesHasDescendant(handle, shape.handle)
+    }
+
+    /// Get number of descendants for a shape.
+    public func descendantCount(_ shape: Shape) -> Int {
+        Int(OCCTAsDesDescendantCount(handle, shape.handle))
+    }
+}
+
+// --- BiTgte_CurveOnEdge ---
+
+/// Curve defined by an edge lying on another edge (from blend operations).
+public final class BiTgteCurveOnEdge: @unchecked Sendable {
+    internal let handle: OCCTBiTgteCurveOnEdgeRef
+
+    /// Create a curve-on-edge from two edges.
+    public init?(edgeOnFace: Shape, edge: Shape) {
+        guard let h = OCCTBiTgteCurveOnEdgeCreate(edgeOnFace.handle, edge.handle) else { return nil }
+        self.handle = h
+    }
+
+    deinit { OCCTBiTgteCurveOnEdgeRelease(handle) }
+
+    /// Parameter domain of the curve.
+    public var domain: ClosedRange<Double> {
+        var first = 0.0, last = 0.0
+        OCCTBiTgteCurveOnEdgeDomain(handle, &first, &last)
+        return first...last
+    }
+
+    /// Evaluate point at parameter u.
+    public func point(at u: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTBiTgteCurveOnEdgeValue(handle, u, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+}
+
+// --- Additional Shape operations (v0.112.0) ---
+
+extension Shape {
+
+    /// Get child shape at 0-based index.
+    public func child(at index: Int) -> Shape? {
+        guard let ref = OCCTShapeChild(handle, Int32(index)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Whether the shape is locked.
+    public var isLocked: Bool {
+        get { OCCTShapeIsLocked(handle) }
+    }
+
+    /// Set locked state on the shape.
+    public func setLocked(_ locked: Bool) {
+        OCCTShapeSetLocked(handle, locked)
+    }
+
+    /// Create a copy with an applied location transform (4x3 row-major matrix).
+    public func located(matrix: [Double]) -> Shape? {
+        guard matrix.count >= 12 else { return nil }
+        guard let ref = matrix.withUnsafeBufferPointer({ buf in
+            OCCTShapeLocated(handle, buf.baseAddress!)
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get the current location as a 4x3 row-major matrix.
+    public var locationMatrix: [Double] {
+        var m = [Double](repeating: 0, count: 12)
+        OCCTShapeGetLocation(handle, &m)
+        return m
+    }
+
+    /// Set location transform in-place (4x3 row-major matrix).
+    public func setLocation(matrix: [Double]) {
+        guard matrix.count >= 12 else { return }
+        matrix.withUnsafeBufferPointer { buf in
+            OCCTShapeSetLocation(handle, buf.baseAddress!)
+        }
+    }
+
+    /// Create a shape with specific orientation (0=FWD, 1=REV, 2=INT, 3=EXT).
+    public func oriented(_ orientation: Int) -> Shape? {
+        guard let ref = OCCTShapeOriented(handle, Int32(orientation)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create an empty shape of given type (0=COMPOUND, 2=SOLID, 3=SHELL, 5=WIRE).
+    public static func empty(type: Int) -> Shape? {
+        guard let ref = OCCTShapeEmpty(Int32(type)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Whether the shape is a compound.
+    public var isCompound: Bool { OCCTShapeIsCompound(handle) }
+
+    /// Whether the shape is a solid.
+    public var isSolid: Bool { OCCTShapeIsSolid(handle) }
+
+    /// Whether the shape is a shell.
+    public var isShell: Bool { OCCTShapeIsShell(handle) }
+
+    /// Whether the shape is a face.
+    public var isFace: Bool { OCCTShapeIsFace(handle) }
+
+    /// Whether the shape is an edge.
+    public var isEdge: Bool { OCCTShapeIsEdge(handle) }
+
+    /// Create a wire from an array of edge shapes.
+    public static func wireFromEdges(_ edges: [Shape]) -> Shape? {
+        let refs = edges.map { $0.handle as OCCTShapeRef }
+        guard let ref = refs.withUnsafeBufferPointer({ buf in
+            OCCTMakeWireFromEdges(buf.baseAddress!, Int32(edges.count))
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Create a shell from an array of face shapes.
+    public static func shellFromFaces(_ faces: [Shape]) -> Shape? {
+        let refs = faces.map { $0.handle as OCCTShapeRef }
+        guard let ref = refs.withUnsafeBufferPointer({ buf in
+            OCCTMakeShell(buf.baseAddress!, Int32(faces.count))
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // --- BRepCheck extended (v0.112.0) ---
+
+    /// Check status of a face within this shape. Returns BRepCheck_Status (0=NoError).
+    public func checkFaceStatus(face: Shape) -> Int {
+        Int(OCCTCheckFaceStatus(handle, face.handle))
+    }
+
+    /// Check status of an edge within this shape.
+    public func checkEdgeStatus(edge: Shape) -> Int {
+        Int(OCCTCheckEdgeStatus(handle, edge.handle))
+    }
+
+    /// Check status of a vertex within this shape.
+    public func checkVertexStatus(vertex: Shape) -> Int {
+        Int(OCCTCheckVertexStatus(handle, vertex.handle))
+    }
+
+    /// Max tolerance of sub-shapes of given type (0=vertex, 1=edge, 2=face).
+    public func maxTolerance(type: Int) -> Double {
+        OCCTShapeMaxTolerance(handle, Int32(type))
+    }
+
+    /// Min tolerance of sub-shapes of given type.
+    public func minTolerance(type: Int) -> Double {
+        OCCTShapeMinTolerance(handle, Int32(type))
+    }
+
+    /// Average tolerance of sub-shapes of given type.
+    public func avgTolerance(type: Int) -> Double {
+        OCCTShapeAvgTolerance(handle, Int32(type))
+    }
+
+    /// Fix tolerance on the shape to specified value.
+    @discardableResult
+    public func fixTolerance(_ tolerance: Double) -> Bool {
+        OCCTShapeFixTolerance(handle, tolerance)
+    }
+
+    /// Limit max tolerance on the shape.
+    @discardableResult
+    public func limitMaxTolerance(_ maxTol: Double) -> Bool {
+        OCCTShapeLimitMaxTolerance(handle, maxTol)
+    }
+}
+
+// --- Curve3D extras (v0.112.0) ---
+
+extension Curve3D {
+
+    /// The geometric curve type (0=Line, 1=Circle, 2=Ellipse, 3=Hyperbola, 4=Parabola, 5=BezierCurve, 6=BSplineCurve, 7=OtherCurve).
+    public var curveType: Int {
+        Int(OCCTCurve3DCurveType(handle))
+    }
+
+    /// Find parameter on curve nearest to a 3D point.
+    public func parameterAtPoint(_ point: SIMD3<Double>) -> Double {
+        OCCTCurve3DParameterAtPoint(handle, point.x, point.y, point.z)
+    }
+}
+
+// --- Curve2D extras (v0.112.0) ---
+
+extension Curve2D {
+
+    /// The geometric curve type.
+    public var curveType: Int {
+        Int(OCCTCurve2DCurveType(handle))
+    }
+
+    /// Find parameter on 2D curve nearest to a 2D point.
+    public func parameterAtPoint(_ point: SIMD2<Double>) -> Double {
+        OCCTCurve2DParameterAtPoint(handle, point.x, point.y)
+    }
+}
+
+// --- Surface extras (v0.112.0) ---
+
+extension Surface {
+
+    /// The geometric surface type (0=Plane, 1=Cylinder, 2=Cone, 3=Sphere, 4=Torus, ..., 10=OtherSurface).
+    public var surfaceType: Int {
+        Int(OCCTSurfaceGetType(handle))
+    }
+}
+
+// --- Extrema extras (v0.112.0) ---
+
+extension Curve3D {
+
+    /// Local point-on-curve search from initial parameter guess. Returns (parameter, distance).
+    public func locateNearestPoint(_ point: SIMD3<Double>, initParam: Double, tolerance: Double = 1e-6) -> (parameter: Double, distance: Double)? {
+        var param = 0.0, dist = 0.0
+        let ok = OCCTExtremaLocateOnCurve(handle, point.x, point.y, point.z,
+                                          initParam, tolerance, &param, &dist)
+        return ok ? (param, dist) : nil
+    }
+
+    /// Global point-to-curve projection returning all extrema. Returns array of (parameter, distance).
+    public func projectPointAll(_ point: SIMD3<Double>, maxResults: Int = 10) -> [(parameter: Double, distance: Double)] {
+        var params = [Double](repeating: 0, count: maxResults)
+        var distances = [Double](repeating: 0, count: maxResults)
+        let n = Int(OCCTExtremaPointCurve(handle, point.x, point.y, point.z,
+                                          &params, &distances, Int32(maxResults)))
+        return (0..<n).map { (params[$0], distances[$0]) }
+    }
+}
+
+extension Surface {
+
+    /// Local point-on-surface search from initial (u,v) guess. Returns (u, v, distance).
+    public func locateNearestPoint(_ point: SIMD3<Double>, initU: Double, initV: Double, tolerance: Double = 1e-6) -> (u: Double, v: Double, distance: Double)? {
+        var u = 0.0, v = 0.0, dist = 0.0
+        let ok = OCCTExtremaLocateOnSurface(handle, point.x, point.y, point.z,
+                                            initU, initV, tolerance, &u, &v, &dist)
+        return ok ? (u, v, dist) : nil
+    }
+
+    /// Global point-to-surface projection returning all extrema. Returns array of (u, v, distance).
+    public func projectPointAll(_ point: SIMD3<Double>, maxResults: Int = 10) -> [(u: Double, v: Double, distance: Double)] {
+        var us = [Double](repeating: 0, count: maxResults)
+        var vs = [Double](repeating: 0, count: maxResults)
+        var distances = [Double](repeating: 0, count: maxResults)
+        let n = Int(OCCTExtremaPointSurface(handle, point.x, point.y, point.z,
+                                            &us, &vs, &distances, Int32(maxResults)))
+        return (0..<n).map { (us[$0], vs[$0], distances[$0]) }
+    }
+}

@@ -405,7 +405,17 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Curve3D Evaluation** | 6 | evalD0, evalD1, evalD2, evalD3, evalBatchD0, evalBatchD1 |
 | **Curve2D Evaluation** | 5 | evalD0, evalD1, evalD2, evalBatchD0, evalBatchD1 |
 | **Surface Evaluation** | 3 | evalD0, evalD1, evalD2 |
-| **Total** | **2536** | |
+| **RWMesh_FaceIterator** | 10 | create, release, more, next, nbNodes, nbTriangles, node, hasNormals, normal, triangle |
+| **RWMesh_VertexIterator** | 5 | create, release, more, next, point |
+| **Intf_Tool** | 5 | create, release, linBox, beginParam, endParam |
+| **BRepAlgo_AsDes** | 5 | create, release, add, hasDescendant, descendantCount |
+| **BiTgte_CurveOnEdge** | 4 | create, release, domain, value |
+| **Shape Location/Orientation** | 9 | child, isLocked, setLocked, located, getLocation, setLocation, oriented, compounded, empty |
+| **Wire/Face Construction** | 8 | wireFromEdges, makeCompound, makeShell, isCompound, isSolid, isShell, isFace, isEdge |
+| **BRepCheck Extended** | 8 | checkFaceStatus, checkEdgeStatus, checkVertexStatus, maxTolerance, minTolerance, avgTolerance, fixTolerance, limitMaxTolerance |
+| **Curve3D/2D Type & Projection** | 5 | curveType (3D), parameterAtPoint (3D), curveType (2D), parameterAtPoint (2D), surfaceGetType |
+| **Extrema Extras** | 4 | locateOnCurve, locateOnSurface, pointCurve, pointSurface |
+| **Total** | **2599** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1697,6 +1707,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.112.0: RWMesh face/vertex iterators, Intf_Tool line-box clipping, BRepAlgo_AsDes tracker, BiTgte_CurveOnEdge, shape location/orientation/type, wire/shell construction, BRepCheck extended tolerance analysis, curve/surface type queries, Extrema point-on-curve/surface (2599 ops, 2244 tests)
 > - v0.111.0: Advanced math solvers & local properties — PSO, GlobOptMin, FunctionRoots, GaussIntegration, NewtonFunctionSetRoot, GeomGridEval (3D/2D/Surface), BRepLProp (CLProps/SLProps), MathPoly_Laguerre polynomial solver
 > - v0.110.0: Constraint solver infrastructure — C callback adapters for math solvers, EvalD0/D1/D2/D3 curve evaluation, batch evaluation, surface differential evaluation
 > - v0.24.0: Medial axis transform — Voronoi skeleton, arc/node graph, bisector curves, wall thickness
@@ -1738,7 +1749,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.111.0
+### Current Status: v0.112.0
 
 OCCTSwift now wraps **2564 OCCT operations** across 275 categories with 2677 tests across 800 suites.
 

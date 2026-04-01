@@ -44569,3 +44569,663 @@ bool OCCTMathNewtonMinimum(int32_t nVars,
         return true;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.112.0: RWMesh iterators, Intf_Tool, BRepAlgo_AsDes, BiTgte_CurveOnEdge, Shape extras, Extrema
+
+#include <RWMesh_FaceIterator.hxx>
+#include <RWMesh_VertexIterator.hxx>
+#include <Intf_Tool.hxx>
+#include <BiTgte_CurveOnEdge.hxx>
+#include <BRepAlgo_AsDes.hxx>
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepCheck_Result.hxx>
+#include <ShapeAnalysis_ShapeTolerance.hxx>
+#include <ShapeFix_ShapeTolerance.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <GeomAdaptor_Curve.hxx>
+#include <Geom2dAdaptor_Curve.hxx>
+#include <GeomAdaptor_Surface.hxx>
+#include <Extrema_GenLocateExtPS.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
+#include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_MakeShell.hxx>
+#include <TopoDS_Iterator.hxx>
+#include <TopAbs.hxx>
+#include <gp_Lin.hxx>
+#include <Bnd_Box.hxx>
+
+// --- RWMesh_FaceIterator ---
+
+struct OCCTMeshFaceIter {
+    RWMesh_FaceIterator iter;
+    OCCTMeshFaceIter(const TopoDS_Shape& shape) : iter(shape) {}
+};
+
+OCCTMeshFaceIterRef OCCTMeshFaceIterCreate(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        return new OCCTMeshFaceIter(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTMeshFaceIterRelease(OCCTMeshFaceIterRef iter) { delete iter; }
+
+bool OCCTMeshFaceIterMore(OCCTMeshFaceIterRef iter) {
+    if (!iter) return false;
+    return iter->iter.More();
+}
+
+void OCCTMeshFaceIterNext(OCCTMeshFaceIterRef iter) {
+    if (!iter) return;
+    try { iter->iter.Next(); } catch (...) {}
+}
+
+int32_t OCCTMeshFaceIterNbNodes(OCCTMeshFaceIterRef iter) {
+    if (!iter || !iter->iter.More()) return 0;
+    return iter->iter.NbNodes();
+}
+
+int32_t OCCTMeshFaceIterNbTriangles(OCCTMeshFaceIterRef iter) {
+    if (!iter || !iter->iter.More()) return 0;
+    return iter->iter.NbTriangles();
+}
+
+void OCCTMeshFaceIterNode(OCCTMeshFaceIterRef iter, int32_t index,
+                          double* x, double* y, double* z) {
+    if (!iter || !iter->iter.More()) return;
+    try {
+        gp_Pnt p = iter->iter.NodeTransformed(index);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+bool OCCTMeshFaceIterHasNormals(OCCTMeshFaceIterRef iter) {
+    if (!iter || !iter->iter.More()) return false;
+    return iter->iter.HasNormals();
+}
+
+void OCCTMeshFaceIterNormal(OCCTMeshFaceIterRef iter, int32_t index,
+                            double* nx, double* ny, double* nz) {
+    if (!iter || !iter->iter.More()) return;
+    try {
+        gp_Dir n = iter->iter.NormalTransformed(index);
+        *nx = n.X(); *ny = n.Y(); *nz = n.Z();
+    } catch (...) {}
+}
+
+void OCCTMeshFaceIterTriangle(OCCTMeshFaceIterRef iter, int32_t index,
+                              int32_t* n1, int32_t* n2, int32_t* n3) {
+    if (!iter || !iter->iter.More()) return;
+    try {
+        Poly_Triangle tri = iter->iter.TriangleOriented(index);
+        *n1 = tri.Value(1); *n2 = tri.Value(2); *n3 = tri.Value(3);
+    } catch (...) {}
+}
+
+// --- RWMesh_VertexIterator ---
+
+struct OCCTMeshVertexIter {
+    RWMesh_VertexIterator iter;
+    OCCTMeshVertexIter(const TopoDS_Shape& shape) : iter(shape) {}
+};
+
+OCCTMeshVertexIterRef OCCTMeshVertexIterCreate(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        return new OCCTMeshVertexIter(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTMeshVertexIterRelease(OCCTMeshVertexIterRef iter) { delete iter; }
+
+bool OCCTMeshVertexIterMore(OCCTMeshVertexIterRef iter) {
+    if (!iter) return false;
+    return iter->iter.More();
+}
+
+void OCCTMeshVertexIterNext(OCCTMeshVertexIterRef iter) {
+    if (!iter) return;
+    try { iter->iter.Next(); } catch (...) {}
+}
+
+void OCCTMeshVertexIterPoint(OCCTMeshVertexIterRef iter,
+                             double* x, double* y, double* z) {
+    if (!iter || !iter->iter.More()) return;
+    try {
+        gp_Pnt p = iter->iter.Point();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+// --- Intf_Tool ---
+
+struct OCCTIntfTool {
+    Intf_Tool tool;
+    int nbSeg;
+    OCCTIntfTool() : nbSeg(0) {}
+};
+
+OCCTIntfToolRef OCCTIntfToolCreate(void) {
+    return new OCCTIntfTool();
+}
+
+void OCCTIntfToolRelease(OCCTIntfToolRef tool) { delete tool; }
+
+int32_t OCCTIntfToolLinBox(OCCTIntfToolRef tool,
+                           double px, double py, double pz,
+                           double dx, double dy, double dz,
+                           double xmin, double ymin, double zmin,
+                           double xmax, double ymax, double zmax) {
+    if (!tool) return 0;
+    try {
+        gp_Lin line(gp_Pnt(px, py, pz), gp_Dir(dx, dy, dz));
+        Bnd_Box box;
+        box.Update(xmin, ymin, zmin, xmax, ymax, zmax);
+        Bnd_Box lineBox;
+        tool->tool.LinBox(line, box, lineBox);
+        tool->nbSeg = tool->tool.NbSegments();
+        return tool->nbSeg;
+    } catch (...) { return 0; }
+}
+
+double OCCTIntfToolBeginParam(OCCTIntfToolRef tool, int32_t segIndex) {
+    if (!tool) return 0;
+    try { return tool->tool.BeginParam(segIndex); } catch (...) { return 0; }
+}
+
+double OCCTIntfToolEndParam(OCCTIntfToolRef tool, int32_t segIndex) {
+    if (!tool) return 0;
+    try { return tool->tool.EndParam(segIndex); } catch (...) { return 0; }
+}
+
+// --- BRepAlgo_AsDes ---
+
+struct OCCTAsDes {
+    Handle(BRepAlgo_AsDes) ad;
+    OCCTAsDes() : ad(new BRepAlgo_AsDes()) {}
+};
+
+OCCTAsDesRef OCCTAsDesCreate(void) {
+    return new OCCTAsDes();
+}
+
+void OCCTAsDesRelease(OCCTAsDesRef ad) { delete ad; }
+
+void OCCTAsDesAdd(OCCTAsDesRef ad, OCCTShapeRef parent, OCCTShapeRef child) {
+    if (!ad || !parent || !child) return;
+    try { ad->ad->Add(parent->shape, child->shape); } catch (...) {}
+}
+
+bool OCCTAsDesHasDescendant(OCCTAsDesRef ad, OCCTShapeRef shape) {
+    if (!ad || !shape) return false;
+    try { return ad->ad->HasDescendant(shape->shape); } catch (...) { return false; }
+}
+
+int32_t OCCTAsDesDescendantCount(OCCTAsDesRef ad, OCCTShapeRef shape) {
+    if (!ad || !shape) return 0;
+    try {
+        if (!ad->ad->HasDescendant(shape->shape)) return 0;
+        const TopTools_ListOfShape& desc = ad->ad->Descendant(shape->shape);
+        return (int32_t)desc.Extent();
+    } catch (...) { return 0; }
+}
+
+// --- BiTgte_CurveOnEdge ---
+
+struct OCCTBiTgteCurveOnEdge {
+    BiTgte_CurveOnEdge curve;
+    OCCTBiTgteCurveOnEdge(const TopoDS_Edge& e1, const TopoDS_Edge& e2)
+        : curve(e1, e2) {}
+};
+
+OCCTBiTgteCurveOnEdgeRef OCCTBiTgteCurveOnEdgeCreate(OCCTShapeRef edgeOnFace, OCCTShapeRef edge) {
+    if (!edgeOnFace || !edge) return nullptr;
+    try {
+        TopoDS_Edge e1 = TopoDS::Edge(edgeOnFace->shape);
+        TopoDS_Edge e2 = TopoDS::Edge(edge->shape);
+        return new OCCTBiTgteCurveOnEdge(e1, e2);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTBiTgteCurveOnEdgeRelease(OCCTBiTgteCurveOnEdgeRef curve) { delete curve; }
+
+void OCCTBiTgteCurveOnEdgeDomain(OCCTBiTgteCurveOnEdgeRef curve,
+                                 double* first, double* last) {
+    if (!curve) return;
+    try {
+        *first = curve->curve.FirstParameter();
+        *last = curve->curve.LastParameter();
+    } catch (...) {}
+}
+
+void OCCTBiTgteCurveOnEdgeValue(OCCTBiTgteCurveOnEdgeRef curve, double u,
+                                double* x, double* y, double* z) {
+    if (!curve) return;
+    try {
+        gp_Pnt p;
+        curve->curve.D0(u, p);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+// --- Additional Shape operations ---
+
+OCCTShapeRef OCCTShapeChild(OCCTShapeRef shape, int32_t index) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Iterator it(shape->shape);
+        for (int32_t i = 0; i < index && it.More(); i++, it.Next()) {}
+        if (!it.More()) return nullptr;
+        OCCTShape* result = new OCCTShape();
+        result->shape = it.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeIsLocked(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Locked();
+}
+
+void OCCTShapeSetLocked(OCCTShapeRef shape, bool locked) {
+    if (!shape) return;
+    shape->shape.Locked(locked);
+}
+
+static gp_Trsf trsfFromMatrix12(const double* m) {
+    gp_Trsf t;
+    t.SetValues(m[0], m[1], m[2], m[3],
+                m[4], m[5], m[6], m[7],
+                m[8], m[9], m[10], m[11]);
+    return t;
+}
+
+static void matrix12FromTrsf(const gp_Trsf& t, double* m) {
+    m[0] = t.Value(1,1); m[1] = t.Value(1,2); m[2] = t.Value(1,3); m[3] = t.Value(1,4);
+    m[4] = t.Value(2,1); m[5] = t.Value(2,2); m[6] = t.Value(2,3); m[7] = t.Value(2,4);
+    m[8] = t.Value(3,1); m[9] = t.Value(3,2); m[10] = t.Value(3,3); m[11] = t.Value(3,4);
+}
+
+OCCTShapeRef OCCTShapeLocated(OCCTShapeRef shape, const double* matrix12) {
+    if (!shape) return nullptr;
+    try {
+        gp_Trsf t = trsfFromMatrix12(matrix12);
+        TopLoc_Location loc(t);
+        OCCTShape* result = new OCCTShape();
+        result->shape = shape->shape.Located(loc);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTShapeGetLocation(OCCTShapeRef shape, double* matrix12) {
+    if (!shape) return;
+    try {
+        gp_Trsf t = shape->shape.Location().IsIdentity() ? gp_Trsf() : shape->shape.Location().Transformation();
+        matrix12FromTrsf(t, matrix12);
+    } catch (...) {}
+}
+
+void OCCTShapeSetLocation(OCCTShapeRef shape, const double* matrix12) {
+    if (!shape) return;
+    try {
+        gp_Trsf t = trsfFromMatrix12(matrix12);
+        TopLoc_Location loc(t);
+        shape->shape.Location(loc);
+    } catch (...) {}
+}
+
+OCCTShapeRef OCCTShapeOriented(OCCTShapeRef shape, int32_t orientation) {
+    if (!shape) return nullptr;
+    try {
+        OCCTShape* result = new OCCTShape();
+        result->shape = shape->shape.Oriented(static_cast<TopAbs_Orientation>(orientation));
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeCompounded(const OCCTShapeRef* shapes, int32_t count) {
+    try {
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+        for (int32_t i = 0; i < count; i++) {
+            if (shapes[i]) builder.Add(compound, shapes[i]->shape);
+        }
+        OCCTShape* result = new OCCTShape();
+        result->shape = compound;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeEmpty(int32_t type) {
+    try {
+        BRep_Builder builder;
+        OCCTShape* result = new OCCTShape();
+        switch (type) {
+            case 0: { // COMPOUND
+                TopoDS_Compound c;
+                builder.MakeCompound(c);
+                result->shape = c;
+                break;
+            }
+            case 1: { // COMPSOLID
+                TopoDS_CompSolid cs;
+                builder.MakeCompSolid(cs);
+                result->shape = cs;
+                break;
+            }
+            case 2: { // SOLID
+                TopoDS_Solid s;
+                builder.MakeSolid(s);
+                result->shape = s;
+                break;
+            }
+            case 3: { // SHELL
+                TopoDS_Shell sh;
+                builder.MakeShell(sh);
+                result->shape = sh;
+                break;
+            }
+            case 5: { // WIRE
+                TopoDS_Wire w;
+                builder.MakeWire(w);
+                result->shape = w;
+                break;
+            }
+            default:
+                delete result;
+                return nullptr;
+        }
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// --- Wire/Face construction ---
+
+OCCTShapeRef OCCTMakeWireFromEdges(const OCCTShapeRef* edges, int32_t count) {
+    try {
+        BRepBuilderAPI_MakeWire mw;
+        for (int32_t i = 0; i < count; i++) {
+            if (edges[i]) mw.Add(TopoDS::Edge(edges[i]->shape));
+        }
+        if (!mw.IsDone()) return nullptr;
+        OCCTShape* result = new OCCTShape();
+        result->shape = mw.Wire();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeCompound(const OCCTShapeRef* shapes, int32_t count) {
+    return OCCTShapeCompounded(shapes, count);
+}
+
+OCCTShapeRef OCCTMakeShell(const OCCTShapeRef* faces, int32_t count) {
+    try {
+        BRep_Builder builder;
+        TopoDS_Shell shell;
+        builder.MakeShell(shell);
+        for (int32_t i = 0; i < count; i++) {
+            if (faces[i]) builder.Add(shell, TopoDS::Face(faces[i]->shape));
+        }
+        OCCTShape* result = new OCCTShape();
+        result->shape = shell;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeIsCompound(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_COMPOUND;
+}
+
+bool OCCTShapeIsSolid(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_SOLID;
+}
+
+bool OCCTShapeIsShell(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_SHELL;
+}
+
+bool OCCTShapeIsFace(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_FACE;
+}
+
+bool OCCTShapeIsEdge(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_EDGE;
+}
+
+// --- BRepCheck extended ---
+
+int32_t OCCTCheckFaceStatus(OCCTShapeRef shape, OCCTShapeRef face) {
+    if (!shape || !face) return -1;
+    try {
+        BRepCheck_Analyzer ana(shape->shape, Standard_True);
+        Handle(BRepCheck_Result) res = ana.Result(face->shape);
+        if (res.IsNull()) return -1;
+        const BRepCheck_ListOfStatus& st = res->Status();
+        if (st.IsEmpty()) return 0; // NoError
+        return (int32_t)st.First();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTCheckEdgeStatus(OCCTShapeRef shape, OCCTShapeRef edge) {
+    if (!shape || !edge) return -1;
+    try {
+        BRepCheck_Analyzer ana(shape->shape, Standard_True);
+        Handle(BRepCheck_Result) res = ana.Result(edge->shape);
+        if (res.IsNull()) return -1;
+        const BRepCheck_ListOfStatus& st = res->Status();
+        if (st.IsEmpty()) return 0;
+        return (int32_t)st.First();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTCheckVertexStatus(OCCTShapeRef shape, OCCTShapeRef vertex) {
+    if (!shape || !vertex) return -1;
+    try {
+        BRepCheck_Analyzer ana(shape->shape, Standard_True);
+        Handle(BRepCheck_Result) res = ana.Result(vertex->shape);
+        if (res.IsNull()) return -1;
+        const BRepCheck_ListOfStatus& st = res->Status();
+        if (st.IsEmpty()) return 0;
+        return (int32_t)st.First();
+    } catch (...) { return -1; }
+}
+
+double OCCTShapeMaxTolerance(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        TopAbs_ShapeEnum se;
+        switch (type) {
+            case 0: se = TopAbs_VERTEX; break;
+            case 1: se = TopAbs_EDGE; break;
+            case 2: se = TopAbs_FACE; break;
+            default: se = TopAbs_SHAPE; break;
+        }
+        return sat.Tolerance(shape->shape, 1, se); // 1 = max
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeMinTolerance(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        TopAbs_ShapeEnum se;
+        switch (type) {
+            case 0: se = TopAbs_VERTEX; break;
+            case 1: se = TopAbs_EDGE; break;
+            case 2: se = TopAbs_FACE; break;
+            default: se = TopAbs_SHAPE; break;
+        }
+        return sat.Tolerance(shape->shape, -1, se); // -1 = min
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeAvgTolerance(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        TopAbs_ShapeEnum se;
+        switch (type) {
+            case 0: se = TopAbs_VERTEX; break;
+            case 1: se = TopAbs_EDGE; break;
+            case 2: se = TopAbs_FACE; break;
+            default: se = TopAbs_SHAPE; break;
+        }
+        return sat.Tolerance(shape->shape, 0, se); // 0 = avg
+    } catch (...) { return 0; }
+}
+
+bool OCCTShapeFixTolerance(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return false;
+    try {
+        ShapeFix_ShapeTolerance sft;
+        sft.SetTolerance(shape->shape, tolerance);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeLimitMaxTolerance(OCCTShapeRef shape, double maxTol) {
+    if (!shape) return false;
+    try {
+        ShapeFix_ShapeTolerance sft;
+        bool limited = sft.LimitTolerance(shape->shape, 0.0, maxTol);
+        return limited;
+    } catch (...) { return false; }
+}
+
+// --- Curve3D extras ---
+
+int32_t OCCTCurve3DCurveType(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 7; // OtherCurve
+    try {
+        GeomAdaptor_Curve ac(curve->curve);
+        return (int32_t)ac.GetType();
+    } catch (...) { return 7; }
+}
+
+double OCCTCurve3DParameterAtPoint(OCCTCurve3DRef curve,
+                                   double x, double y, double z) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        GeomAPI_ProjectPointOnCurve proj(gp_Pnt(x, y, z), curve->curve);
+        if (proj.NbPoints() < 1) return curve->curve->FirstParameter();
+        return proj.LowerDistanceParameter();
+    } catch (...) { return 0; }
+}
+
+// --- Curve2D extras ---
+
+int32_t OCCTCurve2DCurveType(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 7;
+    try {
+        Geom2dAdaptor_Curve ac(curve->curve);
+        return (int32_t)ac.GetType();
+    } catch (...) { return 7; }
+}
+
+double OCCTCurve2DParameterAtPoint(OCCTCurve2DRef curve,
+                                   double x, double y) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        Geom2dAPI_ProjectPointOnCurve proj(gp_Pnt2d(x, y), curve->curve);
+        if (proj.NbPoints() < 1) return curve->curve->FirstParameter();
+        return proj.LowerDistanceParameter();
+    } catch (...) { return 0; }
+}
+
+// --- Surface extras ---
+
+int32_t OCCTSurfaceGetType(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 10; // OtherSurface
+    try {
+        GeomAdaptor_Surface as(surface->surface);
+        return (int32_t)as.GetType();
+    } catch (...) { return 10; }
+}
+
+// --- Extrema extras ---
+
+bool OCCTExtremaLocateOnCurve(OCCTCurve3DRef curve,
+                              double px, double py, double pz,
+                              double initParam, double tol,
+                              double* param, double* distance) {
+    if (!curve || curve->curve.IsNull()) return false;
+    try {
+        // Use ProjectPointOnCurve in a narrow window around initParam for local search
+        double f = curve->curve->FirstParameter();
+        double l = curve->curve->LastParameter();
+        double range = (l - f) * 0.1;
+        double lo = std::max(f, initParam - range);
+        double hi = std::min(l, initParam + range);
+        GeomAPI_ProjectPointOnCurve proj(gp_Pnt(px, py, pz), curve->curve, lo, hi);
+        if (proj.NbPoints() < 1) {
+            // Fallback to full range
+            GeomAPI_ProjectPointOnCurve projFull(gp_Pnt(px, py, pz), curve->curve);
+            if (projFull.NbPoints() < 1) return false;
+            *param = projFull.LowerDistanceParameter();
+            *distance = projFull.LowerDistance();
+            return true;
+        }
+        *param = proj.LowerDistanceParameter();
+        *distance = proj.LowerDistance();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTExtremaLocateOnSurface(OCCTSurfaceRef surface,
+                                double px, double py, double pz,
+                                double initU, double initV, double tol,
+                                double* u, double* v, double* distance) {
+    if (!surface || surface->surface.IsNull()) return false;
+    try {
+        GeomAdaptor_Surface as(surface->surface);
+        Extrema_GenLocateExtPS ext(as, tol, tol);
+        ext.Perform(gp_Pnt(px, py, pz), initU, initV);
+        if (!ext.IsDone()) return false;
+        ext.Point().Parameter(*u, *v);
+        *distance = sqrt(ext.SquareDistance());
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTExtremaPointCurve(OCCTCurve3DRef curve,
+                              double px, double py, double pz,
+                              double* params, double* distances, int32_t maxResults) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        GeomAPI_ProjectPointOnCurve proj(gp_Pnt(px, py, pz), curve->curve);
+        int32_t n = std::min((int32_t)proj.NbPoints(), maxResults);
+        for (int32_t i = 0; i < n; i++) {
+            params[i] = proj.Parameter(i + 1);
+            distances[i] = proj.Distance(i + 1);
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTExtremaPointSurface(OCCTSurfaceRef surface,
+                                double px, double py, double pz,
+                                double* us, double* vs, double* distances,
+                                int32_t maxResults) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    try {
+        GeomAPI_ProjectPointOnSurf proj(gp_Pnt(px, py, pz), surface->surface);
+        if (!proj.IsDone()) return 0;
+        int32_t n = std::min((int32_t)proj.NbPoints(), maxResults);
+        for (int32_t i = 0; i < n; i++) {
+            double pu, pv;
+            proj.Parameters(i + 1, pu, pv);
+            us[i] = pu;
+            vs[i] = pv;
+            distances[i] = proj.Distance(i + 1);
+        }
+        return n;
+    } catch (...) { return 0; }
+}

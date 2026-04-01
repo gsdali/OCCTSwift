@@ -15429,6 +15429,260 @@ bool OCCTMathNewtonMinimum(int32_t nVars,
                              double tolerance, int32_t maxIter,
                              double* _Nonnull result, double* _Nonnull minimum);
 
+// MARK: - v0.112.0: RWMesh iterators, Intf_Tool, BRepAlgo_AsDes, BiTgte_CurveOnEdge, Shape extras, Extrema
+
+// --- RWMesh_FaceIterator ---
+
+/// Opaque handle for face mesh iterator.
+typedef struct OCCTMeshFaceIter* OCCTMeshFaceIterRef;
+
+/// Create a face iterator over a meshed shape.
+OCCTMeshFaceIterRef _Nullable OCCTMeshFaceIterCreate(OCCTShapeRef _Nonnull shape);
+
+/// Release a face iterator.
+void OCCTMeshFaceIterRelease(OCCTMeshFaceIterRef _Nonnull iter);
+
+/// Check if the iterator has more faces.
+bool OCCTMeshFaceIterMore(OCCTMeshFaceIterRef _Nonnull iter);
+
+/// Advance to the next face.
+void OCCTMeshFaceIterNext(OCCTMeshFaceIterRef _Nonnull iter);
+
+/// Number of nodes in the current face triangulation.
+int32_t OCCTMeshFaceIterNbNodes(OCCTMeshFaceIterRef _Nonnull iter);
+
+/// Number of triangles in the current face triangulation.
+int32_t OCCTMeshFaceIterNbTriangles(OCCTMeshFaceIterRef _Nonnull iter);
+
+/// Get node position at 1-based index (transformed).
+void OCCTMeshFaceIterNode(OCCTMeshFaceIterRef _Nonnull iter, int32_t index,
+                          double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Check if current face has normals.
+bool OCCTMeshFaceIterHasNormals(OCCTMeshFaceIterRef _Nonnull iter);
+
+/// Get normal at 1-based node index (transformed).
+void OCCTMeshFaceIterNormal(OCCTMeshFaceIterRef _Nonnull iter, int32_t index,
+                            double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz);
+
+/// Get triangle node indices at 1-based triangle index (oriented).
+void OCCTMeshFaceIterTriangle(OCCTMeshFaceIterRef _Nonnull iter, int32_t index,
+                              int32_t* _Nonnull n1, int32_t* _Nonnull n2, int32_t* _Nonnull n3);
+
+// --- RWMesh_VertexIterator ---
+
+/// Opaque handle for vertex mesh iterator.
+typedef struct OCCTMeshVertexIter* OCCTMeshVertexIterRef;
+
+/// Create a vertex iterator over a shape.
+OCCTMeshVertexIterRef _Nullable OCCTMeshVertexIterCreate(OCCTShapeRef _Nonnull shape);
+
+/// Release a vertex iterator.
+void OCCTMeshVertexIterRelease(OCCTMeshVertexIterRef _Nonnull iter);
+
+/// Check if the iterator has more vertices.
+bool OCCTMeshVertexIterMore(OCCTMeshVertexIterRef _Nonnull iter);
+
+/// Advance to the next vertex.
+void OCCTMeshVertexIterNext(OCCTMeshVertexIterRef _Nonnull iter);
+
+/// Get the current vertex point.
+void OCCTMeshVertexIterPoint(OCCTMeshVertexIterRef _Nonnull iter,
+                             double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+// --- Intf_Tool ---
+
+/// Opaque handle for Intf_Tool line-box clipping.
+typedef struct OCCTIntfTool* OCCTIntfToolRef;
+
+/// Create an Intf_Tool instance.
+OCCTIntfToolRef _Nonnull OCCTIntfToolCreate(void);
+
+/// Release an Intf_Tool instance.
+void OCCTIntfToolRelease(OCCTIntfToolRef _Nonnull tool);
+
+/// Clip a line to a bounding box. Returns number of segments.
+int32_t OCCTIntfToolLinBox(OCCTIntfToolRef _Nonnull tool,
+                           double px, double py, double pz,
+                           double dx, double dy, double dz,
+                           double xmin, double ymin, double zmin,
+                           double xmax, double ymax, double zmax);
+
+/// Get the begin parameter of a segment (1-based index).
+double OCCTIntfToolBeginParam(OCCTIntfToolRef _Nonnull tool, int32_t segIndex);
+
+/// Get the end parameter of a segment (1-based index).
+double OCCTIntfToolEndParam(OCCTIntfToolRef _Nonnull tool, int32_t segIndex);
+
+// --- BRepAlgo_AsDes ---
+
+/// Opaque handle for BRepAlgo_AsDes ascendant-descendant tracker.
+typedef struct OCCTAsDes* OCCTAsDesRef;
+
+/// Create an AsDes tracker.
+OCCTAsDesRef _Nonnull OCCTAsDesCreate(void);
+
+/// Release an AsDes tracker.
+void OCCTAsDesRelease(OCCTAsDesRef _Nonnull ad);
+
+/// Add a parent-child relationship.
+void OCCTAsDesAdd(OCCTAsDesRef _Nonnull ad, OCCTShapeRef _Nonnull parent, OCCTShapeRef _Nonnull child);
+
+/// Check if a shape has descendants.
+bool OCCTAsDesHasDescendant(OCCTAsDesRef _Nonnull ad, OCCTShapeRef _Nonnull shape);
+
+/// Get number of descendants for a shape.
+int32_t OCCTAsDesDescendantCount(OCCTAsDesRef _Nonnull ad, OCCTShapeRef _Nonnull shape);
+
+// --- BiTgte_CurveOnEdge ---
+
+/// Opaque handle for BiTgte_CurveOnEdge.
+typedef struct OCCTBiTgteCurveOnEdge* OCCTBiTgteCurveOnEdgeRef;
+
+/// Create a curve-on-edge adaptor.
+OCCTBiTgteCurveOnEdgeRef _Nullable OCCTBiTgteCurveOnEdgeCreate(
+    OCCTShapeRef _Nonnull edgeOnFace, OCCTShapeRef _Nonnull edge);
+
+/// Release a curve-on-edge.
+void OCCTBiTgteCurveOnEdgeRelease(OCCTBiTgteCurveOnEdgeRef _Nonnull curve);
+
+/// Get the parameter domain.
+void OCCTBiTgteCurveOnEdgeDomain(OCCTBiTgteCurveOnEdgeRef _Nonnull curve,
+                                 double* _Nonnull first, double* _Nonnull last);
+
+/// Evaluate point at parameter u.
+void OCCTBiTgteCurveOnEdgeValue(OCCTBiTgteCurveOnEdgeRef _Nonnull curve, double u,
+                                double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+// --- Additional Shape operations ---
+
+/// Get child shape at 0-based index.
+OCCTShapeRef _Nullable OCCTShapeChild(OCCTShapeRef _Nonnull shape, int32_t index);
+
+/// Check if shape is locked.
+bool OCCTShapeIsLocked(OCCTShapeRef _Nonnull shape);
+
+/// Set locked state on a shape.
+void OCCTShapeSetLocked(OCCTShapeRef _Nonnull shape, bool locked);
+
+/// Create a shape with an applied location transform (4x3 row-major matrix).
+OCCTShapeRef _Nullable OCCTShapeLocated(OCCTShapeRef _Nonnull shape, const double* _Nonnull matrix12);
+
+/// Get the current location transform as a 4x3 row-major matrix.
+void OCCTShapeGetLocation(OCCTShapeRef _Nonnull shape, double* _Nonnull matrix12);
+
+/// Set location transform in-place (4x3 row-major matrix).
+void OCCTShapeSetLocation(OCCTShapeRef _Nonnull shape, const double* _Nonnull matrix12);
+
+/// Create a shape with a specific orientation (0=FWD, 1=REV, 2=INT, 3=EXT).
+OCCTShapeRef _Nullable OCCTShapeOriented(OCCTShapeRef _Nonnull shape, int32_t orientation);
+
+/// Create a compound from an array of shapes.
+OCCTShapeRef _Nullable OCCTShapeCompounded(const OCCTShapeRef _Nonnull * _Nonnull shapes, int32_t count);
+
+/// Create an empty shape of a given type (0=COMPOUND..7=VERTEX).
+OCCTShapeRef _Nullable OCCTShapeEmpty(int32_t type);
+
+// --- Wire/Face construction ---
+
+/// Create a wire from an array of edge shapes.
+OCCTShapeRef _Nullable OCCTMakeWireFromEdges(const OCCTShapeRef _Nonnull * _Nonnull edges, int32_t count);
+
+/// Create a compound from an array of shapes.
+OCCTShapeRef _Nullable OCCTMakeCompound(const OCCTShapeRef _Nonnull * _Nonnull shapes, int32_t count);
+
+/// Create a shell from an array of face shapes.
+OCCTShapeRef _Nullable OCCTMakeShell(const OCCTShapeRef _Nonnull * _Nonnull faces, int32_t count);
+
+/// Check if shape is a compound.
+bool OCCTShapeIsCompound(OCCTShapeRef _Nonnull shape);
+
+/// Check if shape is a solid.
+bool OCCTShapeIsSolid(OCCTShapeRef _Nonnull shape);
+
+/// Check if shape is a shell.
+bool OCCTShapeIsShell(OCCTShapeRef _Nonnull shape);
+
+/// Check if shape is a face.
+bool OCCTShapeIsFace(OCCTShapeRef _Nonnull shape);
+
+/// Check if shape is an edge.
+bool OCCTShapeIsEdge(OCCTShapeRef _Nonnull shape);
+
+// --- BRepCheck extended ---
+
+/// Check status of a specific face within a shape. Returns BRepCheck_Status enum.
+int32_t OCCTCheckFaceStatus(OCCTShapeRef _Nonnull shape, OCCTShapeRef _Nonnull face);
+
+/// Check status of a specific edge within a shape.
+int32_t OCCTCheckEdgeStatus(OCCTShapeRef _Nonnull shape, OCCTShapeRef _Nonnull edge);
+
+/// Check status of a specific vertex within a shape.
+int32_t OCCTCheckVertexStatus(OCCTShapeRef _Nonnull shape, OCCTShapeRef _Nonnull vertex);
+
+/// Get max tolerance of sub-shapes of given type (0=vertex, 1=edge, 2=face).
+double OCCTShapeMaxTolerance(OCCTShapeRef _Nonnull shape, int32_t type);
+
+/// Get min tolerance of sub-shapes of given type.
+double OCCTShapeMinTolerance(OCCTShapeRef _Nonnull shape, int32_t type);
+
+/// Get average tolerance of sub-shapes of given type.
+double OCCTShapeAvgTolerance(OCCTShapeRef _Nonnull shape, int32_t type);
+
+/// Fix tolerance on a shape to specified value. Returns true on success.
+bool OCCTShapeFixTolerance(OCCTShapeRef _Nonnull shape, double tolerance);
+
+/// Limit max tolerance on a shape. Returns true on success.
+bool OCCTShapeLimitMaxTolerance(OCCTShapeRef _Nonnull shape, double maxTol);
+
+// --- Curve3D extras ---
+
+/// Get the curve type enum (GeomAbs_CurveType: 0=Line..7=OtherCurve).
+int32_t OCCTCurve3DCurveType(OCCTCurve3DRef _Nonnull curve);
+
+/// Find parameter on curve nearest to a 3D point.
+double OCCTCurve3DParameterAtPoint(OCCTCurve3DRef _Nonnull curve,
+                                   double x, double y, double z);
+
+// --- Curve2D extras ---
+
+/// Get the 2D curve type enum.
+int32_t OCCTCurve2DCurveType(OCCTCurve2DRef _Nonnull curve);
+
+/// Find parameter on 2D curve nearest to a 2D point.
+double OCCTCurve2DParameterAtPoint(OCCTCurve2DRef _Nonnull curve,
+                                   double x, double y);
+
+// --- Surface extras ---
+
+/// Get the surface type enum (GeomAbs_SurfaceType: 0=Plane..10=OtherSurface).
+int32_t OCCTSurfaceGetType(OCCTSurfaceRef _Nonnull surface);
+
+// --- Extrema extras ---
+
+/// Local point-on-curve search from initial parameter guess.
+bool OCCTExtremaLocateOnCurve(OCCTCurve3DRef _Nonnull curve,
+                              double px, double py, double pz,
+                              double initParam, double tol,
+                              double* _Nonnull param, double* _Nonnull distance);
+
+/// Local point-on-surface search from initial (u,v) guess.
+bool OCCTExtremaLocateOnSurface(OCCTSurfaceRef _Nonnull surface,
+                                double px, double py, double pz,
+                                double initU, double initV, double tol,
+                                double* _Nonnull u, double* _Nonnull v, double* _Nonnull distance);
+
+/// Global point-to-curve extrema. Returns number of solutions found.
+int32_t OCCTExtremaPointCurve(OCCTCurve3DRef _Nonnull curve,
+                              double px, double py, double pz,
+                              double* _Nonnull params, double* _Nonnull distances, int32_t maxResults);
+
+/// Global point-to-surface extrema. Returns number of solutions found.
+int32_t OCCTExtremaPointSurface(OCCTSurfaceRef _Nonnull surface,
+                                double px, double py, double pz,
+                                double* _Nonnull us, double* _Nonnull vs, double* _Nonnull distances,
+                                int32_t maxResults);
+
 #ifdef __cplusplus
 }
 #endif
