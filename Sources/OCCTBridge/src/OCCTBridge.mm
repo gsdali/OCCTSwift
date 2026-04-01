@@ -43651,3 +43651,421 @@ OCCTSurfaceRef OCCTSurfaceCopy(OCCTSurfaceRef surface) {
         return new OCCTSurface(copy);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - Math Solver Callback Adapters (v0.110.0)
+
+#include <math_FunctionWithDerivative.hxx>
+#include <math_FunctionSetWithDerivatives.hxx>
+#include <math_MultipleVarFunction.hxx>
+#include <math_MultipleVarFunctionWithGradient.hxx>
+#include <math_FunctionRoot.hxx>
+#include <math_BissecNewton.hxx>
+#include <math_FunctionSetRoot.hxx>
+#include <math_BFGS.hxx>
+#include <math_Powell.hxx>
+#include <math_BrentMinimum.hxx>
+
+// C++ adapter: wraps a C callback into math_FunctionWithDerivative
+class OCCTMathFuncAdapter : public math_FunctionWithDerivative {
+    OCCTMathFuncDerivCallback callback;
+    void* ctx;
+public:
+    OCCTMathFuncAdapter(OCCTMathFuncDerivCallback cb, void* c) : callback(cb), ctx(c) {}
+    bool Value(const double X, double& F) override {
+        double d;
+        return callback(X, &F, &d, ctx);
+    }
+    bool Derivative(const double X, double& D) override {
+        double f;
+        return callback(X, &f, &D, ctx);
+    }
+    bool Values(const double X, double& F, double& D) override {
+        return callback(X, &F, &D, ctx);
+    }
+};
+
+// C++ adapter: wraps C callbacks into math_FunctionSetWithDerivatives
+class OCCTMathFuncSetAdapter : public math_FunctionSetWithDerivatives {
+    OCCTMathFuncSetCallback valueCallback;
+    OCCTMathFuncSetDerivCallback derivCallback;
+    void* ctx;
+    int nVars, nEqs;
+public:
+    OCCTMathFuncSetAdapter(int nv, int ne, OCCTMathFuncSetCallback vcb, OCCTMathFuncSetDerivCallback dcb, void* c)
+        : nVars(nv), nEqs(ne), valueCallback(vcb), derivCallback(dcb), ctx(c) {}
+    int NbVariables() const override { return nVars; }
+    int NbEquations() const override { return nEqs; }
+    bool Value(const math_Vector& X, math_Vector& F) override {
+        std::vector<double> x(nVars), f(nEqs);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = valueCallback(x.data(), nVars, f.data(), nEqs, ctx);
+        for (int i = 0; i < nEqs; i++) F(i+1) = f[i];
+        return ok;
+    }
+    bool Derivatives(const math_Vector& X, math_Matrix& D) override {
+        std::vector<double> x(nVars), jac(nVars*nEqs);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = derivCallback(x.data(), nVars, jac.data(), nEqs, ctx);
+        for (int i = 0; i < nEqs; i++)
+            for (int j = 0; j < nVars; j++)
+                D(i+1, j+1) = jac[i*nVars + j];
+        return ok;
+    }
+    bool Values(const math_Vector& X, math_Vector& F, math_Matrix& D) override {
+        return Value(X, F) && Derivatives(X, D);
+    }
+};
+
+// C++ adapter: wraps a C callback into math_MultipleVarFunction
+class OCCTMathMultiVarAdapter : public math_MultipleVarFunction {
+    OCCTMathMultiVarCallback callback;
+    void* ctx;
+    int nVars;
+public:
+    OCCTMathMultiVarAdapter(int nv, OCCTMathMultiVarCallback cb, void* c) : nVars(nv), callback(cb), ctx(c) {}
+    int NbVariables() const override { return nVars; }
+    bool Value(const math_Vector& X, double& F) override {
+        std::vector<double> x(nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        return callback(x.data(), nVars, &F, ctx);
+    }
+};
+
+// C++ adapter: wraps a C callback into math_MultipleVarFunctionWithGradient
+class OCCTMathMultiVarGradAdapter : public math_MultipleVarFunctionWithGradient {
+    OCCTMathMultiVarGradCallback callback;
+    void* ctx;
+    int nVars;
+public:
+    OCCTMathMultiVarGradAdapter(int nv, OCCTMathMultiVarGradCallback cb, void* c) : nVars(nv), callback(cb), ctx(c) {}
+    int NbVariables() const override { return nVars; }
+    bool Value(const math_Vector& X, double& F) override {
+        std::vector<double> x(nVars), g(nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        return callback(x.data(), nVars, &F, g.data(), ctx);
+    }
+    bool Gradient(const math_Vector& X, math_Vector& G) override {
+        std::vector<double> x(nVars), g(nVars);
+        double f;
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &f, g.data(), ctx);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        return ok;
+    }
+    bool Values(const math_Vector& X, double& F, math_Vector& G) override {
+        std::vector<double> x(nVars), g(nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &F, g.data(), ctx);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        return ok;
+    }
+};
+
+// MARK: - math_FunctionRoot (v0.110.0)
+
+double OCCTMathFunctionRoot(OCCTMathFuncDerivCallback callback, void* context,
+                             double guess, double tolerance, int32_t maxIter, bool* isDone) {
+    *isDone = false;
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_FunctionRoot root(func, guess, tolerance, maxIter);
+        *isDone = root.IsDone();
+        return root.IsDone() ? root.Root() : 0.0;
+    } catch (...) { return 0.0; }
+}
+
+double OCCTMathFunctionRootBounded(OCCTMathFuncDerivCallback callback, void* context,
+                                     double guess, double tolerance, double a, double b, int32_t maxIter, bool* isDone) {
+    *isDone = false;
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_FunctionRoot root(func, guess, tolerance, a, b, maxIter);
+        *isDone = root.IsDone();
+        return root.IsDone() ? root.Root() : 0.0;
+    } catch (...) { return 0.0; }
+}
+
+double OCCTMathBissecNewton(OCCTMathFuncDerivCallback callback, void* context,
+                              double a, double b, double tolerance, int32_t maxIter, bool* isDone) {
+    *isDone = false;
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_BissecNewton bn(tolerance);
+        bn.Perform(func, a, b, maxIter);
+        *isDone = bn.IsDone();
+        return bn.IsDone() ? bn.Root() : 0.0;
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - math_FunctionSetRoot (v0.110.0)
+
+bool OCCTMathFunctionSetRoot(int32_t nVars, int32_t nEqs,
+                              OCCTMathFuncSetCallback valueCallback,
+                              OCCTMathFuncSetDerivCallback derivCallback,
+                              void* context,
+                              const double* startPoint, double tolerance,
+                              int32_t maxIter, double* result) {
+    try {
+        OCCTMathFuncSetAdapter sys(nVars, nEqs, valueCallback, derivCallback, context);
+        math_Vector start(1, nVars);
+        math_Vector tol(1, nVars, tolerance);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        math_FunctionSetRoot solver(sys, tol, maxIter);
+        solver.Perform(sys, start);
+        if (!solver.IsDone()) return false;
+        const math_Vector& sol = solver.Root();
+        for (int i = 0; i < nVars; i++) result[i] = sol(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_BFGS (v0.110.0)
+
+bool OCCTMathBFGS(int32_t nVars,
+                    OCCTMathMultiVarGradCallback callback, void* context,
+                    const double* startPoint, double tolerance, int32_t maxIter,
+                    double* result, double* minimum) {
+    try {
+        OCCTMathMultiVarGradAdapter func(nVars, callback, context);
+        math_Vector start(1, nVars);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        math_BFGS bfgs(nVars, tolerance, maxIter, tolerance);
+        bfgs.Perform(func, start);
+        if (!bfgs.IsDone()) return false;
+        const math_Vector& loc = bfgs.Location();
+        for (int i = 0; i < nVars; i++) result[i] = loc(i+1);
+        *minimum = bfgs.Minimum();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_Powell (v0.110.0)
+
+bool OCCTMathPowell(int32_t nVars,
+                     OCCTMathMultiVarCallback callback, void* context,
+                     const double* startPoint, double tolerance, int32_t maxIter,
+                     double* result, double* minimum) {
+    try {
+        OCCTMathMultiVarAdapter func(nVars, callback, context);
+        math_Vector start(1, nVars);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        math_Matrix dirs(1, nVars, 1, nVars, 0.0);
+        for (int i = 1; i <= nVars; i++) dirs(i, i) = 1.0;
+        math_Powell powell(func, tolerance, maxIter);
+        powell.Perform(func, start, dirs);
+        if (!powell.IsDone()) return false;
+        const math_Vector& loc = powell.Location();
+        for (int i = 0; i < nVars; i++) result[i] = loc(i+1);
+        *minimum = powell.Minimum();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_BrentMinimum (v0.110.0)
+
+bool OCCTMathBrentMinimum(OCCTMathFuncDerivCallback callback, void* context,
+                            double ax, double bx, double cx, double tolerance, int32_t maxIter,
+                            double* location, double* minimum) {
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_BrentMinimum brent(tolerance, maxIter, tolerance);
+        brent.Perform(func, ax, bx, cx);
+        if (!brent.IsDone()) return false;
+        *location = brent.Location();
+        *minimum = brent.Minimum();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - Curve3D Evaluation (v0.110.0)
+
+void OCCTCurve3DEvalD0(OCCTCurve3DRef curve, double u, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        gp_Pnt p = curve->curve->EvalD0(u);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+void OCCTCurve3DEvalD1(OCCTCurve3DRef curve, double u,
+                         double* px, double* py, double* pz,
+                         double* d1x, double* d1y, double* d1z) {
+    *px = 0; *py = 0; *pz = 0; *d1x = 0; *d1y = 0; *d1z = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        Geom_Curve::ResD1 r = curve->curve->EvalD1(u);
+        *px = r.Point.X(); *py = r.Point.Y(); *pz = r.Point.Z();
+        *d1x = r.D1.X(); *d1y = r.D1.Y(); *d1z = r.D1.Z();
+    } catch (...) {}
+}
+
+void OCCTCurve3DEvalD2(OCCTCurve3DRef curve, double u,
+                         double* px, double* py, double* pz,
+                         double* d1x, double* d1y, double* d1z,
+                         double* d2x, double* d2y, double* d2z) {
+    *px = 0; *py = 0; *pz = 0; *d1x = 0; *d1y = 0; *d1z = 0; *d2x = 0; *d2y = 0; *d2z = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        Geom_Curve::ResD2 r = curve->curve->EvalD2(u);
+        *px = r.Point.X(); *py = r.Point.Y(); *pz = r.Point.Z();
+        *d1x = r.D1.X(); *d1y = r.D1.Y(); *d1z = r.D1.Z();
+        *d2x = r.D2.X(); *d2y = r.D2.Y(); *d2z = r.D2.Z();
+    } catch (...) {}
+}
+
+void OCCTCurve3DEvalD3(OCCTCurve3DRef curve, double u,
+                         double* px, double* py, double* pz,
+                         double* d1x, double* d1y, double* d1z,
+                         double* d2x, double* d2y, double* d2z,
+                         double* d3x, double* d3y, double* d3z) {
+    *px = 0; *py = 0; *pz = 0; *d1x = 0; *d1y = 0; *d1z = 0;
+    *d2x = 0; *d2y = 0; *d2z = 0; *d3x = 0; *d3y = 0; *d3z = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        Geom_Curve::ResD3 r = curve->curve->EvalD3(u);
+        *px = r.Point.X(); *py = r.Point.Y(); *pz = r.Point.Z();
+        *d1x = r.D1.X(); *d1y = r.D1.Y(); *d1z = r.D1.Z();
+        *d2x = r.D2.X(); *d2y = r.D2.Y(); *d2z = r.D2.Z();
+        *d3x = r.D3.X(); *d3y = r.D3.Y(); *d3z = r.D3.Z();
+    } catch (...) {}
+}
+
+// MARK: - Curve2D Evaluation (v0.110.0)
+
+void OCCTCurve2DEvalD0(OCCTCurve2DRef curve, double u, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        gp_Pnt2d p = curve->curve->EvalD0(u);
+        *x = p.X(); *y = p.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DEvalD1(OCCTCurve2DRef curve, double u,
+                         double* px, double* py, double* d1x, double* d1y) {
+    *px = 0; *py = 0; *d1x = 0; *d1y = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        Geom2d_Curve::ResD1 r = curve->curve->EvalD1(u);
+        *px = r.Point.X(); *py = r.Point.Y();
+        *d1x = r.D1.X(); *d1y = r.D1.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DEvalD2(OCCTCurve2DRef curve, double u,
+                         double* px, double* py,
+                         double* d1x, double* d1y,
+                         double* d2x, double* d2y) {
+    *px = 0; *py = 0; *d1x = 0; *d1y = 0; *d2x = 0; *d2y = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        Geom2d_Curve::ResD2 r = curve->curve->EvalD2(u);
+        *px = r.Point.X(); *py = r.Point.Y();
+        *d1x = r.D1.X(); *d1y = r.D1.Y();
+        *d2x = r.D2.X(); *d2y = r.D2.Y();
+    } catch (...) {}
+}
+
+// MARK: - Surface Evaluation (v0.110.0)
+
+void OCCTSurfaceEvalD0(OCCTSurfaceRef surface, double u, double v,
+                         double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        gp_Pnt p = surface->surface->EvalD0(u, v);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceEvalD1(OCCTSurfaceRef surface, double u, double v,
+                         double* px, double* py, double* pz,
+                         double* d1ux, double* d1uy, double* d1uz,
+                         double* d1vx, double* d1vy, double* d1vz) {
+    *px = 0; *py = 0; *pz = 0;
+    *d1ux = 0; *d1uy = 0; *d1uz = 0;
+    *d1vx = 0; *d1vy = 0; *d1vz = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        Geom_Surface::ResD1 r = surface->surface->EvalD1(u, v);
+        *px = r.Point.X(); *py = r.Point.Y(); *pz = r.Point.Z();
+        *d1ux = r.D1U.X(); *d1uy = r.D1U.Y(); *d1uz = r.D1U.Z();
+        *d1vx = r.D1V.X(); *d1vy = r.D1V.Y(); *d1vz = r.D1V.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceEvalD2(OCCTSurfaceRef surface, double u, double v,
+                         double* px, double* py, double* pz,
+                         double* d1ux, double* d1uy, double* d1uz,
+                         double* d1vx, double* d1vy, double* d1vz,
+                         double* d2ux, double* d2uy, double* d2uz,
+                         double* d2vx, double* d2vy, double* d2vz,
+                         double* d2uvx, double* d2uvy, double* d2uvz) {
+    *px = 0; *py = 0; *pz = 0;
+    *d1ux = 0; *d1uy = 0; *d1uz = 0;
+    *d1vx = 0; *d1vy = 0; *d1vz = 0;
+    *d2ux = 0; *d2uy = 0; *d2uz = 0;
+    *d2vx = 0; *d2vy = 0; *d2vz = 0;
+    *d2uvx = 0; *d2uvy = 0; *d2uvz = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        Geom_Surface::ResD2 r = surface->surface->EvalD2(u, v);
+        *px = r.Point.X(); *py = r.Point.Y(); *pz = r.Point.Z();
+        *d1ux = r.D1U.X(); *d1uy = r.D1U.Y(); *d1uz = r.D1U.Z();
+        *d1vx = r.D1V.X(); *d1vy = r.D1V.Y(); *d1vz = r.D1V.Z();
+        *d2ux = r.D2U.X(); *d2uy = r.D2U.Y(); *d2uz = r.D2U.Z();
+        *d2vx = r.D2V.X(); *d2vy = r.D2V.Y(); *d2vz = r.D2V.Z();
+        *d2uvx = r.D2UV.X(); *d2uvy = r.D2UV.Y(); *d2uvz = r.D2UV.Z();
+    } catch (...) {}
+}
+
+// MARK: - Batch Curve Evaluation (v0.110.0)
+
+void OCCTCurve3DEvalBatchD0(OCCTCurve3DRef curve, const double* params, int32_t count,
+                              double* xs, double* ys, double* zs) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        for (int i = 0; i < count; i++) {
+            gp_Pnt p = curve->curve->EvalD0(params[i]);
+            xs[i] = p.X(); ys[i] = p.Y(); zs[i] = p.Z();
+        }
+    } catch (...) {}
+}
+
+void OCCTCurve3DEvalBatchD1(OCCTCurve3DRef curve, const double* params, int32_t count,
+                              double* xs, double* ys, double* zs,
+                              double* d1xs, double* d1ys, double* d1zs) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        for (int i = 0; i < count; i++) {
+            Geom_Curve::ResD1 r = curve->curve->EvalD1(params[i]);
+            xs[i] = r.Point.X(); ys[i] = r.Point.Y(); zs[i] = r.Point.Z();
+            d1xs[i] = r.D1.X(); d1ys[i] = r.D1.Y(); d1zs[i] = r.D1.Z();
+        }
+    } catch (...) {}
+}
+
+void OCCTCurve2DEvalBatchD0(OCCTCurve2DRef curve, const double* params, int32_t count,
+                              double* xs, double* ys) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        for (int i = 0; i < count; i++) {
+            gp_Pnt2d p = curve->curve->EvalD0(params[i]);
+            xs[i] = p.X(); ys[i] = p.Y();
+        }
+    } catch (...) {}
+}
+
+void OCCTCurve2DEvalBatchD1(OCCTCurve2DRef curve, const double* params, int32_t count,
+                              double* xs, double* ys,
+                              double* d1xs, double* d1ys) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        for (int i = 0; i < count; i++) {
+            Geom2d_Curve::ResD1 r = curve->curve->EvalD1(params[i]);
+            xs[i] = r.Point.X(); ys[i] = r.Point.Y();
+            d1xs[i] = r.D1.X(); d1ys[i] = r.D1.Y();
+        }
+    } catch (...) {}
+}

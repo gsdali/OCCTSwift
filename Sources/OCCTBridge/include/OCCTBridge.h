@@ -15107,6 +15107,154 @@ int32_t OCCTSurfaceContinuity(OCCTSurfaceRef _Nonnull surface);
 /// Deep copy a surface.
 OCCTSurfaceRef _Nullable OCCTSurfaceCopy(OCCTSurfaceRef _Nonnull surface);
 
+// MARK: - Math Solver Callbacks (v0.110.0)
+
+/// Callback for 1D function with derivative: f(x) -> (value, derivative). Returns true on success.
+typedef bool (*OCCTMathFuncDerivCallback)(double x, double* _Nonnull value, double* _Nonnull derivative, void* _Nullable context);
+
+/// Callback for N-dim function: f(X[n]) -> value. Returns true on success.
+typedef bool (*OCCTMathMultiVarCallback)(const double* _Nonnull x, int32_t n, double* _Nonnull value, void* _Nullable context);
+
+/// Callback for N-dim function with gradient: f(X[n]) -> (value, grad[n]). Returns true on success.
+typedef bool (*OCCTMathMultiVarGradCallback)(const double* _Nonnull x, int32_t n, double* _Nonnull value, double* _Nonnull gradient, void* _Nullable context);
+
+/// Callback for equation system values: F(X[nVars]) -> values[nEqs]. Returns true on success.
+typedef bool (*OCCTMathFuncSetCallback)(const double* _Nonnull x, int32_t nVars, double* _Nonnull values, int32_t nEqs, void* _Nullable context);
+
+/// Callback for equation system Jacobian: J(X[nVars]) -> jacobian[nEqs*nVars] (row-major). Returns true on success.
+typedef bool (*OCCTMathFuncSetDerivCallback)(const double* _Nonnull x, int32_t nVars, double* _Nonnull jacobian, int32_t nEqs, void* _Nullable context);
+
+// MARK: - math_FunctionRoot (v0.110.0)
+
+/// Find root of f(x)=0 near guess using Newton-Raphson. Returns root value; isDone indicates convergence.
+double OCCTMathFunctionRoot(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                             double guess, double tolerance, int32_t maxIter, bool* _Nonnull isDone);
+
+/// Find root of f(x)=0 near guess in [a,b] using Newton-Raphson. Returns root value; isDone indicates convergence.
+double OCCTMathFunctionRootBounded(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                                     double guess, double tolerance, double a, double b, int32_t maxIter, bool* _Nonnull isDone);
+
+/// Find root of f(x)=0 in [a,b] using bisection+Newton hybrid. Returns root value; isDone indicates convergence.
+double OCCTMathBissecNewton(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                              double a, double b, double tolerance, int32_t maxIter, bool* _Nonnull isDone);
+
+// MARK: - math_FunctionSetRoot (v0.110.0)
+
+/// Solve a system of nEqs equations in nVars variables using Newton's method.
+/// startPoint[nVars], tolerance: scalar tolerance, result[nVars]. Returns true on convergence.
+bool OCCTMathFunctionSetRoot(int32_t nVars, int32_t nEqs,
+                              OCCTMathFuncSetCallback _Nonnull valueCallback,
+                              OCCTMathFuncSetDerivCallback _Nonnull derivCallback,
+                              void* _Nullable context,
+                              const double* _Nonnull startPoint, double tolerance,
+                              int32_t maxIter, double* _Nonnull result);
+
+// MARK: - math_BFGS (v0.110.0)
+
+/// Minimize a multivariate function using BFGS quasi-Newton method.
+/// startPoint[nVars], result[nVars]. Returns true on convergence.
+bool OCCTMathBFGS(int32_t nVars,
+                    OCCTMathMultiVarGradCallback _Nonnull callback, void* _Nullable context,
+                    const double* _Nonnull startPoint, double tolerance, int32_t maxIter,
+                    double* _Nonnull result, double* _Nonnull minimum);
+
+// MARK: - math_Powell (v0.110.0)
+
+/// Minimize a multivariate function using Powell's method (derivative-free).
+/// startPoint[nVars], result[nVars]. Returns true on convergence.
+bool OCCTMathPowell(int32_t nVars,
+                     OCCTMathMultiVarCallback _Nonnull callback, void* _Nullable context,
+                     const double* _Nonnull startPoint, double tolerance, int32_t maxIter,
+                     double* _Nonnull result, double* _Nonnull minimum);
+
+// MARK: - math_BrentMinimum (v0.110.0)
+
+/// Minimize a 1D function using Brent's method on [ax, cx] with initial bracket at bx.
+/// Returns true on convergence; location and minimum are output.
+bool OCCTMathBrentMinimum(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                            double ax, double bx, double cx, double tolerance, int32_t maxIter,
+                            double* _Nonnull location, double* _Nonnull minimum);
+
+// MARK: - Curve3D Evaluation (v0.110.0)
+
+/// Evaluate curve at parameter u, returning point (x, y, z).
+void OCCTCurve3DEvalD0(OCCTCurve3DRef _Nonnull curve, double u, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Evaluate curve at parameter u, returning point and first derivative.
+void OCCTCurve3DEvalD1(OCCTCurve3DRef _Nonnull curve, double u,
+                         double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                         double* _Nonnull d1x, double* _Nonnull d1y, double* _Nonnull d1z);
+
+/// Evaluate curve at parameter u, returning point, first and second derivatives.
+void OCCTCurve3DEvalD2(OCCTCurve3DRef _Nonnull curve, double u,
+                         double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                         double* _Nonnull d1x, double* _Nonnull d1y, double* _Nonnull d1z,
+                         double* _Nonnull d2x, double* _Nonnull d2y, double* _Nonnull d2z);
+
+/// Evaluate curve at parameter u, returning point, first, second and third derivatives.
+void OCCTCurve3DEvalD3(OCCTCurve3DRef _Nonnull curve, double u,
+                         double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                         double* _Nonnull d1x, double* _Nonnull d1y, double* _Nonnull d1z,
+                         double* _Nonnull d2x, double* _Nonnull d2y, double* _Nonnull d2z,
+                         double* _Nonnull d3x, double* _Nonnull d3y, double* _Nonnull d3z);
+
+// MARK: - Curve2D Evaluation (v0.110.0)
+
+/// Evaluate 2D curve at parameter u, returning point (x, y).
+void OCCTCurve2DEvalD0(OCCTCurve2DRef _Nonnull curve, double u, double* _Nonnull x, double* _Nonnull y);
+
+/// Evaluate 2D curve at parameter u, returning point and first derivative.
+void OCCTCurve2DEvalD1(OCCTCurve2DRef _Nonnull curve, double u,
+                         double* _Nonnull px, double* _Nonnull py,
+                         double* _Nonnull d1x, double* _Nonnull d1y);
+
+/// Evaluate 2D curve at parameter u, returning point, first and second derivatives.
+void OCCTCurve2DEvalD2(OCCTCurve2DRef _Nonnull curve, double u,
+                         double* _Nonnull px, double* _Nonnull py,
+                         double* _Nonnull d1x, double* _Nonnull d1y,
+                         double* _Nonnull d2x, double* _Nonnull d2y);
+
+// MARK: - Surface Evaluation (v0.110.0)
+
+/// Evaluate surface at (u, v), returning point (x, y, z).
+void OCCTSurfaceEvalD0(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                         double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Evaluate surface at (u, v), returning point and first partial derivatives D1U, D1V.
+void OCCTSurfaceEvalD1(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                         double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                         double* _Nonnull d1ux, double* _Nonnull d1uy, double* _Nonnull d1uz,
+                         double* _Nonnull d1vx, double* _Nonnull d1vy, double* _Nonnull d1vz);
+
+/// Evaluate surface at (u, v), returning point, D1U, D1V, D2U, D2V, D2UV.
+void OCCTSurfaceEvalD2(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                         double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                         double* _Nonnull d1ux, double* _Nonnull d1uy, double* _Nonnull d1uz,
+                         double* _Nonnull d1vx, double* _Nonnull d1vy, double* _Nonnull d1vz,
+                         double* _Nonnull d2ux, double* _Nonnull d2uy, double* _Nonnull d2uz,
+                         double* _Nonnull d2vx, double* _Nonnull d2vy, double* _Nonnull d2vz,
+                         double* _Nonnull d2uvx, double* _Nonnull d2uvy, double* _Nonnull d2uvz);
+
+// MARK: - Batch Curve Evaluation (v0.110.0)
+
+/// Evaluate 3D curve at multiple parameters, returning points.
+void OCCTCurve3DEvalBatchD0(OCCTCurve3DRef _Nonnull curve, const double* _Nonnull params, int32_t count,
+                              double* _Nonnull xs, double* _Nonnull ys, double* _Nonnull zs);
+
+/// Evaluate 3D curve at multiple parameters, returning points and first derivatives.
+void OCCTCurve3DEvalBatchD1(OCCTCurve3DRef _Nonnull curve, const double* _Nonnull params, int32_t count,
+                              double* _Nonnull xs, double* _Nonnull ys, double* _Nonnull zs,
+                              double* _Nonnull d1xs, double* _Nonnull d1ys, double* _Nonnull d1zs);
+
+/// Evaluate 2D curve at multiple parameters, returning points.
+void OCCTCurve2DEvalBatchD0(OCCTCurve2DRef _Nonnull curve, const double* _Nonnull params, int32_t count,
+                              double* _Nonnull xs, double* _Nonnull ys);
+
+/// Evaluate 2D curve at multiple parameters, returning points and first derivatives.
+void OCCTCurve2DEvalBatchD1(OCCTCurve2DRef _Nonnull curve, const double* _Nonnull params, int32_t count,
+                              double* _Nonnull xs, double* _Nonnull ys,
+                              double* _Nonnull d1xs, double* _Nonnull d1ys);
+
 #ifdef __cplusplus
 }
 #endif

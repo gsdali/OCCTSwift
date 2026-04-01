@@ -10109,3 +10109,432 @@ extension Surface {
         return Surface(handle: ref)
     }
 }
+
+// MARK: - Math Solvers (v0.110.0)
+
+/// Numerical solver infrastructure using OCCT's math library.
+/// Bridges Swift closures to OCCT's abstract C++ function classes via C callback adapters.
+public enum MathSolver {
+
+    // MARK: - Context helper
+
+    /// Wraps a Swift closure in a reference type for passing through C void* context pointers.
+    private final class ClosureBox<T> {
+        let closure: T
+        init(_ c: T) { closure = c }
+    }
+
+    // MARK: - 1D Root Finding
+
+    /// Find a root of f(x)=0 near `guess` using Newton-Raphson with derivatives.
+    ///
+    /// The closure takes x and returns (value, derivative).
+    /// - Parameters:
+    ///   - guess: Initial guess for the root
+    ///   - tolerance: Convergence tolerance (default 1e-8)
+    ///   - maxIterations: Maximum Newton iterations (default 100)
+    ///   - function: Closure returning (f(x), f'(x))
+    /// - Returns: The root value, or nil if the solver did not converge
+    public static func findRoot(
+        near guess: Double,
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> (value: Double, derivative: Double)
+    ) -> Double? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncDerivCallback = { x, value, derivative, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ctx).takeUnretainedValue()
+            let result = box.closure(x)
+            value.pointee = result.value
+            derivative.pointee = result.derivative
+            return true
+        }
+
+        var isDone = false
+        let result = OCCTMathFunctionRoot(callback, ptr, guess, tolerance, Int32(maxIterations), &isDone)
+        return isDone ? result : nil
+    }
+
+    /// Find a root of f(x)=0 near `guess` within bounds [a, b].
+    public static func findRoot(
+        near guess: Double,
+        in range: ClosedRange<Double>,
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> (value: Double, derivative: Double)
+    ) -> Double? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncDerivCallback = { x, value, derivative, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ctx).takeUnretainedValue()
+            let result = box.closure(x)
+            value.pointee = result.value
+            derivative.pointee = result.derivative
+            return true
+        }
+
+        var isDone = false
+        let result = OCCTMathFunctionRootBounded(callback, ptr, guess, tolerance,
+                                                   range.lowerBound, range.upperBound, Int32(maxIterations), &isDone)
+        return isDone ? result : nil
+    }
+
+    /// Find a root of f(x)=0 in [a, b] using bisection+Newton hybrid method.
+    public static func findRootBisection(
+        in range: ClosedRange<Double>,
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> (value: Double, derivative: Double)
+    ) -> Double? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncDerivCallback = { x, value, derivative, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ctx).takeUnretainedValue()
+            let result = box.closure(x)
+            value.pointee = result.value
+            derivative.pointee = result.derivative
+            return true
+        }
+
+        var isDone = false
+        let result = OCCTMathBissecNewton(callback, ptr,
+                                            range.lowerBound, range.upperBound, tolerance, Int32(maxIterations), &isDone)
+        return isDone ? result : nil
+    }
+
+    // MARK: - System of Equations
+
+    /// Solve a system of equations using Newton's method.
+    ///
+    /// - Parameters:
+    ///   - variables: Number of variables
+    ///   - equations: Number of equations
+    ///   - startPoint: Initial guess (array of `variables` values)
+    ///   - tolerance: Convergence tolerance (default 1e-8)
+    ///   - maxIterations: Maximum iterations (default 100)
+    ///   - values: Closure taking [Double] of length `variables`, returning [Double] of length `equations`
+    ///   - jacobian: Closure taking [Double] of length `variables`, returning row-major Jacobian [Double] of length `equations * variables`
+    /// - Returns: Solution point, or nil if the solver did not converge
+    public static func solveSystem(
+        variables: Int,
+        equations: Int,
+        startPoint: [Double],
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 100,
+        values: @escaping ([Double]) -> [Double],
+        jacobian: @escaping ([Double]) -> [Double]
+    ) -> [Double]? {
+        typealias ValuesClosure = ([Double]) -> [Double]
+        typealias JacobianClosure = ([Double]) -> [Double]
+        let valBox = ClosureBox(values)
+        let jacBox = ClosureBox(jacobian)
+        // Pack both closures into one context
+        let pair = ClosureBox((valBox, jacBox))
+        let ptr = Unmanaged.passRetained(pair).toOpaque()
+        defer { Unmanaged<ClosureBox<(ClosureBox<ValuesClosure>, ClosureBox<JacobianClosure>)>>.fromOpaque(ptr).release() }
+
+        let valCallback: OCCTMathFuncSetCallback = { x, nVars, vals, nEqs, context in
+            guard let ctx = context else { return false }
+            let pair = Unmanaged<ClosureBox<(ClosureBox<ValuesClosure>, ClosureBox<JacobianClosure>)>>.fromOpaque(ctx).takeUnretainedValue()
+            let n = Int(nVars)
+            var input = [Double](repeating: 0, count: n)
+            for i in 0..<n { input[i] = x[i] }
+            let result = pair.closure.0.closure(input)
+            let m = Int(nEqs)
+            for i in 0..<m { vals[i] = result[i] }
+            return true
+        }
+
+        let derivCallback: OCCTMathFuncSetDerivCallback = { x, nVars, jac, nEqs, context in
+            guard let ctx = context else { return false }
+            let pair = Unmanaged<ClosureBox<(ClosureBox<ValuesClosure>, ClosureBox<JacobianClosure>)>>.fromOpaque(ctx).takeUnretainedValue()
+            let n = Int(nVars)
+            var input = [Double](repeating: 0, count: n)
+            for i in 0..<n { input[i] = x[i] }
+            let result = pair.closure.1.closure(input)
+            let total = Int(nEqs) * n
+            for i in 0..<total { jac[i] = result[i] }
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: variables)
+        let ok = OCCTMathFunctionSetRoot(Int32(variables), Int32(equations),
+                                          valCallback, derivCallback, ptr,
+                                          startPoint, tolerance, Int32(maxIterations), &result)
+        return ok ? result : nil
+    }
+
+    // MARK: - BFGS Minimization
+
+    /// Minimize a multivariate function using BFGS quasi-Newton method.
+    ///
+    /// - Parameters:
+    ///   - variables: Number of variables
+    ///   - startPoint: Initial guess (array of `variables` values)
+    ///   - tolerance: Convergence tolerance (default 1e-8)
+    ///   - maxIterations: Maximum iterations (default 200)
+    ///   - function: Closure taking [Double], returning (value, gradient)
+    /// - Returns: (point, minimum) tuple, or nil if the solver did not converge
+    public static func minimize(
+        variables: Int,
+        startPoint: [Double],
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 200,
+        function: @escaping ([Double]) -> (value: Double, gradient: [Double])
+    ) -> (point: [Double], minimum: Double)? {
+        typealias Fn = ([Double]) -> (value: Double, gradient: [Double])
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<Fn>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathMultiVarGradCallback = { x, n, value, gradient, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<Fn>>.fromOpaque(ctx).takeUnretainedValue()
+            let nv = Int(n)
+            var input = [Double](repeating: 0, count: nv)
+            for i in 0..<nv { input[i] = x[i] }
+            let result = box.closure(input)
+            value.pointee = result.value
+            for i in 0..<nv { gradient[i] = result.gradient[i] }
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: variables)
+        var minimum = 0.0
+        let ok = OCCTMathBFGS(Int32(variables), callback, ptr,
+                                startPoint, tolerance, Int32(maxIterations), &result, &minimum)
+        return ok ? (result, minimum) : nil
+    }
+
+    // MARK: - Powell Minimization
+
+    /// Minimize a multivariate function using Powell's method (derivative-free).
+    ///
+    /// - Parameters:
+    ///   - variables: Number of variables
+    ///   - startPoint: Initial guess
+    ///   - tolerance: Convergence tolerance (default 1e-8)
+    ///   - maxIterations: Maximum iterations (default 200)
+    ///   - function: Closure taking [Double], returning scalar value
+    /// - Returns: (point, minimum) tuple, or nil if the solver did not converge
+    public static func minimizePowell(
+        variables: Int,
+        startPoint: [Double],
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 200,
+        function: @escaping ([Double]) -> Double
+    ) -> (point: [Double], minimum: Double)? {
+        typealias Fn = ([Double]) -> Double
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<Fn>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathMultiVarCallback = { x, n, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<Fn>>.fromOpaque(ctx).takeUnretainedValue()
+            let nv = Int(n)
+            var input = [Double](repeating: 0, count: nv)
+            for i in 0..<nv { input[i] = x[i] }
+            value.pointee = box.closure(input)
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: variables)
+        var minimum = 0.0
+        let ok = OCCTMathPowell(Int32(variables), callback, ptr,
+                                  startPoint, tolerance, Int32(maxIterations), &result, &minimum)
+        return ok ? (result, minimum) : nil
+    }
+
+    // MARK: - Brent Minimization
+
+    /// Minimize a 1D function using Brent's method.
+    ///
+    /// The bracket [ax, cx] must contain a minimum, with bx as the initial interior point.
+    /// - Parameters:
+    ///   - ax: Left bracket bound
+    ///   - bx: Interior point (initial guess for minimum)
+    ///   - cx: Right bracket bound
+    ///   - tolerance: Convergence tolerance (default 1e-8)
+    ///   - maxIterations: Maximum iterations (default 100)
+    ///   - function: Closure returning (value, derivative) at x
+    /// - Returns: (location, minimum) tuple, or nil if the solver did not converge
+    public static func minimizeBrent(
+        ax: Double, bx: Double, cx: Double,
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> (value: Double, derivative: Double)
+    ) -> (location: Double, minimum: Double)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncDerivCallback = { x, value, derivative, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ctx).takeUnretainedValue()
+            let result = box.closure(x)
+            value.pointee = result.value
+            derivative.pointee = result.derivative
+            return true
+        }
+
+        var location = 0.0, minimum = 0.0
+        let ok = OCCTMathBrentMinimum(callback, ptr, ax, bx, cx, tolerance, Int32(maxIterations), &location, &minimum)
+        return ok ? (location, minimum) : nil
+    }
+}
+
+// MARK: - Curve3D Evaluation (v0.110.0)
+
+extension Curve3D {
+
+    /// Evaluate the curve point at parameter u.
+    public func evalD0(at u: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTCurve3DEvalD0(handle, u, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate the curve point and first derivative at parameter u.
+    public func evalD1(at u: Double) -> (point: SIMD3<Double>, d1: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1x = 0.0, d1y = 0.0, d1z = 0.0
+        OCCTCurve3DEvalD1(handle, u, &px, &py, &pz, &d1x, &d1y, &d1z)
+        return (SIMD3(px, py, pz), SIMD3(d1x, d1y, d1z))
+    }
+
+    /// Evaluate the curve point, first and second derivatives at parameter u.
+    public func evalD2(at u: Double) -> (point: SIMD3<Double>, d1: SIMD3<Double>, d2: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1x = 0.0, d1y = 0.0, d1z = 0.0
+        var d2x = 0.0, d2y = 0.0, d2z = 0.0
+        OCCTCurve3DEvalD2(handle, u, &px, &py, &pz, &d1x, &d1y, &d1z, &d2x, &d2y, &d2z)
+        return (SIMD3(px, py, pz), SIMD3(d1x, d1y, d1z), SIMD3(d2x, d2y, d2z))
+    }
+
+    /// Evaluate the curve point, first, second, and third derivatives at parameter u.
+    public func evalD3(at u: Double) -> (point: SIMD3<Double>, d1: SIMD3<Double>, d2: SIMD3<Double>, d3: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1x = 0.0, d1y = 0.0, d1z = 0.0
+        var d2x = 0.0, d2y = 0.0, d2z = 0.0
+        var d3x = 0.0, d3y = 0.0, d3z = 0.0
+        OCCTCurve3DEvalD3(handle, u, &px, &py, &pz, &d1x, &d1y, &d1z, &d2x, &d2y, &d2z, &d3x, &d3y, &d3z)
+        return (SIMD3(px, py, pz), SIMD3(d1x, d1y, d1z), SIMD3(d2x, d2y, d2z), SIMD3(d3x, d3y, d3z))
+    }
+
+    /// Evaluate curve points at multiple parameters (batch D0).
+    public func evalBatchD0(params: [Double]) -> [SIMD3<Double>] {
+        let count = params.count
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        var zs = [Double](repeating: 0, count: count)
+        OCCTCurve3DEvalBatchD0(handle, params, Int32(count), &xs, &ys, &zs)
+        return (0..<count).map { SIMD3(xs[$0], ys[$0], zs[$0]) }
+    }
+
+    /// Evaluate curve points and first derivatives at multiple parameters (batch D1).
+    public func evalBatchD1(params: [Double]) -> [(point: SIMD3<Double>, d1: SIMD3<Double>)] {
+        let count = params.count
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        var zs = [Double](repeating: 0, count: count)
+        var d1xs = [Double](repeating: 0, count: count)
+        var d1ys = [Double](repeating: 0, count: count)
+        var d1zs = [Double](repeating: 0, count: count)
+        OCCTCurve3DEvalBatchD1(handle, params, Int32(count), &xs, &ys, &zs, &d1xs, &d1ys, &d1zs)
+        return (0..<count).map { (SIMD3(xs[$0], ys[$0], zs[$0]), SIMD3(d1xs[$0], d1ys[$0], d1zs[$0])) }
+    }
+}
+
+// MARK: - Curve2D Evaluation (v0.110.0)
+
+extension Curve2D {
+
+    /// Evaluate the 2D curve point at parameter u.
+    public func evalD0(at u: Double) -> SIMD2<Double> {
+        var x = 0.0, y = 0.0
+        OCCTCurve2DEvalD0(handle, u, &x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// Evaluate the 2D curve point and first derivative at parameter u.
+    public func evalD1(at u: Double) -> (point: SIMD2<Double>, d1: SIMD2<Double>) {
+        var px = 0.0, py = 0.0, d1x = 0.0, d1y = 0.0
+        OCCTCurve2DEvalD1(handle, u, &px, &py, &d1x, &d1y)
+        return (SIMD2(px, py), SIMD2(d1x, d1y))
+    }
+
+    /// Evaluate the 2D curve point, first and second derivatives at parameter u.
+    public func evalD2(at u: Double) -> (point: SIMD2<Double>, d1: SIMD2<Double>, d2: SIMD2<Double>) {
+        var px = 0.0, py = 0.0, d1x = 0.0, d1y = 0.0, d2x = 0.0, d2y = 0.0
+        OCCTCurve2DEvalD2(handle, u, &px, &py, &d1x, &d1y, &d2x, &d2y)
+        return (SIMD2(px, py), SIMD2(d1x, d1y), SIMD2(d2x, d2y))
+    }
+
+    /// Evaluate 2D curve points at multiple parameters (batch D0).
+    public func evalBatchD0(params: [Double]) -> [SIMD2<Double>] {
+        let count = params.count
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        OCCTCurve2DEvalBatchD0(handle, params, Int32(count), &xs, &ys)
+        return (0..<count).map { SIMD2(xs[$0], ys[$0]) }
+    }
+
+    /// Evaluate 2D curve points and first derivatives at multiple parameters (batch D1).
+    public func evalBatchD1(params: [Double]) -> [(point: SIMD2<Double>, d1: SIMD2<Double>)] {
+        let count = params.count
+        var xs = [Double](repeating: 0, count: count)
+        var ys = [Double](repeating: 0, count: count)
+        var d1xs = [Double](repeating: 0, count: count)
+        var d1ys = [Double](repeating: 0, count: count)
+        OCCTCurve2DEvalBatchD1(handle, params, Int32(count), &xs, &ys, &d1xs, &d1ys)
+        return (0..<count).map { (SIMD2(xs[$0], ys[$0]), SIMD2(d1xs[$0], d1ys[$0])) }
+    }
+}
+
+// MARK: - Surface Evaluation (v0.110.0)
+
+extension Surface {
+
+    /// Evaluate the surface point at (u, v).
+    public func evalD0(u: Double, v: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTSurfaceEvalD0(handle, u, v, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Evaluate the surface point and first partial derivatives at (u, v).
+    public func evalD1(u: Double, v: Double) -> (point: SIMD3<Double>, d1u: SIMD3<Double>, d1v: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1ux = 0.0, d1uy = 0.0, d1uz = 0.0
+        var d1vx = 0.0, d1vy = 0.0, d1vz = 0.0
+        OCCTSurfaceEvalD1(handle, u, v, &px, &py, &pz, &d1ux, &d1uy, &d1uz, &d1vx, &d1vy, &d1vz)
+        return (SIMD3(px, py, pz), SIMD3(d1ux, d1uy, d1uz), SIMD3(d1vx, d1vy, d1vz))
+    }
+
+    /// Evaluate the surface point, first and second partial derivatives at (u, v).
+    public func evalD2(u: Double, v: Double) -> (point: SIMD3<Double>, d1u: SIMD3<Double>, d1v: SIMD3<Double>, d2u: SIMD3<Double>, d2v: SIMD3<Double>, d2uv: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1ux = 0.0, d1uy = 0.0, d1uz = 0.0
+        var d1vx = 0.0, d1vy = 0.0, d1vz = 0.0
+        var d2ux = 0.0, d2uy = 0.0, d2uz = 0.0
+        var d2vx = 0.0, d2vy = 0.0, d2vz = 0.0
+        var d2uvx = 0.0, d2uvy = 0.0, d2uvz = 0.0
+        OCCTSurfaceEvalD2(handle, u, v, &px, &py, &pz,
+                            &d1ux, &d1uy, &d1uz, &d1vx, &d1vy, &d1vz,
+                            &d2ux, &d2uy, &d2uz, &d2vx, &d2vy, &d2vz,
+                            &d2uvx, &d2uvy, &d2uvz)
+        return (SIMD3(px, py, pz), SIMD3(d1ux, d1uy, d1uz), SIMD3(d1vx, d1vy, d1vz),
+                SIMD3(d2ux, d2uy, d2uz), SIMD3(d2vx, d2vy, d2vz), SIMD3(d2uvx, d2uvy, d2uvz))
+    }
+}

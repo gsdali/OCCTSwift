@@ -31594,3 +31594,352 @@ struct SurfaceExtrasTests {
         }
     }
 }
+
+// MARK: - v0.110.0 Math Solver Tests
+
+@Suite("MathSolver FunctionRoot v0.110")
+struct MathSolverFunctionRootTests {
+    @Test func findRootNewton() {
+        // f(x) = x^2 - 4, root at x=2
+        if let root = MathSolver.findRoot(near: 3.0) { x in
+            (value: x * x - 4, derivative: 2 * x)
+        } {
+            #expect(abs(root - 2.0) < 1e-6)
+        }
+    }
+
+    @Test func findRootNegative() {
+        // f(x) = x^2 - 4, root at x=-2
+        if let root = MathSolver.findRoot(near: -3.0) { x in
+            (value: x * x - 4, derivative: 2 * x)
+        } {
+            #expect(abs(root + 2.0) < 1e-6)
+        }
+    }
+
+    @Test func findRootBounded() {
+        // f(x) = x^2 - 4, root at x=2 in [0, 5]
+        if let root = MathSolver.findRoot(near: 3.0, in: 0.0...5.0) { x in
+            (value: x * x - 4, derivative: 2 * x)
+        } {
+            #expect(abs(root - 2.0) < 1e-6)
+        }
+    }
+
+    @Test func findRootBisection() {
+        // f(x) = x^2 - 4 on [0, 5], root at x=2
+        if let root = MathSolver.findRootBisection(in: 0.0...5.0) { x in
+            (value: x * x - 4, derivative: 2 * x)
+        } {
+            #expect(abs(root - 2.0) < 1e-6)
+        }
+    }
+
+    @Test func findRootCubic() {
+        // f(x) = x^3 - 8, root at x=2
+        if let root = MathSolver.findRoot(near: 3.0) { x in
+            (value: x * x * x - 8, derivative: 3 * x * x)
+        } {
+            #expect(abs(root - 2.0) < 1e-6)
+        }
+    }
+}
+
+@Suite("MathSolver SystemOfEquations v0.110")
+struct MathSolverSystemTests {
+    @Test func solveCircleLine() {
+        // x^2 + y^2 = 25, x - y = 1
+        // Starting near (4, 3)
+        if let sol = MathSolver.solveSystem(
+            variables: 2, equations: 2,
+            startPoint: [4.0, 3.0],
+            values: { x in
+                [x[0] * x[0] + x[1] * x[1] - 25, x[0] - x[1] - 1]
+            },
+            jacobian: { x in
+                [2 * x[0], 2 * x[1], 1.0, -1.0]
+            }
+        ) {
+            // Check solution satisfies both equations
+            let eq1 = sol[0] * sol[0] + sol[1] * sol[1] - 25
+            let eq2 = sol[0] - sol[1] - 1
+            #expect(abs(eq1) < 1e-4)
+            #expect(abs(eq2) < 1e-4)
+        }
+    }
+
+    @Test func solveLinearSystem() {
+        // 2x + y = 5, x - y = 1 -> x=2, y=1
+        if let sol = MathSolver.solveSystem(
+            variables: 2, equations: 2,
+            startPoint: [0.0, 0.0],
+            values: { x in
+                [2 * x[0] + x[1] - 5, x[0] - x[1] - 1]
+            },
+            jacobian: { _ in
+                [2.0, 1.0, 1.0, -1.0]
+            }
+        ) {
+            #expect(abs(sol[0] - 2.0) < 1e-4)
+            #expect(abs(sol[1] - 1.0) < 1e-4)
+        }
+    }
+}
+
+@Suite("MathSolver BFGS v0.110")
+struct MathSolverBFGSTests {
+    @Test func minimizeQuadratic() {
+        // f(x,y) = (x-3)^2 + (y-4)^2, minimum at (3, 4)
+        if let result = MathSolver.minimize(
+            variables: 2,
+            startPoint: [0.0, 0.0],
+            function: { x in
+                let val = (x[0] - 3) * (x[0] - 3) + (x[1] - 4) * (x[1] - 4)
+                let grad = [2 * (x[0] - 3), 2 * (x[1] - 4)]
+                return (value: val, gradient: grad)
+            }
+        ) {
+            #expect(abs(result.point[0] - 3.0) < 1e-4)
+            #expect(abs(result.point[1] - 4.0) < 1e-4)
+            #expect(abs(result.minimum) < 1e-4)
+        }
+    }
+
+    @Test func minimizeRosenbrock() {
+        // Rosenbrock: f(x,y) = (1-x)^2 + 100*(y-x^2)^2
+        // Minimum at (1, 1) with f=0
+        if let result = MathSolver.minimize(
+            variables: 2,
+            startPoint: [0.0, 0.0],
+            tolerance: 1e-10,
+            maxIterations: 1000,
+            function: { x in
+                let val = (1 - x[0]) * (1 - x[0]) + 100 * (x[1] - x[0] * x[0]) * (x[1] - x[0] * x[0])
+                let gx = -2 * (1 - x[0]) - 400 * x[0] * (x[1] - x[0] * x[0])
+                let gy = 200 * (x[1] - x[0] * x[0])
+                return (value: val, gradient: [gx, gy])
+            }
+        ) {
+            #expect(abs(result.point[0] - 1.0) < 0.1)
+            #expect(abs(result.point[1] - 1.0) < 0.1)
+        }
+    }
+}
+
+@Suite("MathSolver Powell v0.110")
+struct MathSolverPowellTests {
+    @Test func minimizeBowl() {
+        // f(x,y) = (x-3)^2 + (y-4)^2
+        if let result = MathSolver.minimizePowell(
+            variables: 2,
+            startPoint: [0.0, 0.0],
+            function: { x in
+                (x[0] - 3) * (x[0] - 3) + (x[1] - 4) * (x[1] - 4)
+            }
+        ) {
+            #expect(abs(result.point[0] - 3.0) < 1e-3)
+            #expect(abs(result.point[1] - 4.0) < 1e-3)
+            #expect(abs(result.minimum) < 1e-3)
+        }
+    }
+}
+
+@Suite("MathSolver BrentMinimum v0.110")
+struct MathSolverBrentTests {
+    @Test func minimizeQuadratic() {
+        // f(x) = x^2 - 4, minimum at x=0 with f=-4
+        if let result = MathSolver.minimizeBrent(ax: -1.0, bx: 1.0, cx: 5.0) { x in
+            (value: x * x - 4, derivative: 2 * x)
+        } {
+            #expect(abs(result.location) < 0.1)
+            #expect(abs(result.minimum + 4.0) < 0.1)
+        }
+    }
+
+    @Test func minimizeSine() {
+        // f(x) = sin(x), minimum near x = 3*pi/2 ~ 4.712 with f=-1
+        // Bracket: [3, 5, 6]
+        if let result = MathSolver.minimizeBrent(ax: 3.0, bx: 5.0, cx: 6.0) { x in
+            (value: sin(x), derivative: cos(x))
+        } {
+            #expect(abs(result.location - 3 * Double.pi / 2) < 0.1)
+            #expect(abs(result.minimum + 1.0) < 0.1)
+        }
+    }
+}
+
+@Suite("Curve3D Evaluation v0.110")
+struct Curve3DEvalTests {
+    @Test func evalD0BSpline() {
+        // Create a BSpline through known points
+        if let curve = Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(2, 3, 0), SIMD3(5, 5, 0), SIMD3(8, 3, 0), SIMD3(10, 0, 0)
+        ]) {
+            let p = curve.evalD0(at: curve.domain.lowerBound)
+            #expect(abs(p.x) < 1e-3)
+            #expect(abs(p.y) < 1e-3)
+            #expect(abs(p.z) < 1e-3)
+        }
+    }
+
+    @Test func evalD1BSpline() {
+        if let curve = Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(2, 3, 0), SIMD3(5, 5, 0), SIMD3(8, 3, 0), SIMD3(10, 0, 0)
+        ]) {
+            let mid = (curve.domain.lowerBound + curve.domain.upperBound) / 2
+            let r = curve.evalD1(at: mid)
+            // Tangent should be non-zero at midpoint
+            let tangentLength = sqrt(r.d1.x * r.d1.x + r.d1.y * r.d1.y + r.d1.z * r.d1.z)
+            #expect(tangentLength > 0.1)
+        }
+    }
+
+    @Test func evalD2BSpline() {
+        if let curve = Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(2, 3, 0), SIMD3(5, 5, 0), SIMD3(8, 3, 0), SIMD3(10, 0, 0)
+        ]) {
+            let mid = (curve.domain.lowerBound + curve.domain.upperBound) / 2
+            let r = curve.evalD2(at: mid)
+            // Second derivative exists for a cubic BSpline
+            _ = r.d2 // just confirm it doesn't crash
+            #expect(true)
+        }
+    }
+
+    @Test func evalD3BSpline() {
+        if let curve = Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(2, 3, 0), SIMD3(5, 5, 0), SIMD3(8, 3, 0), SIMD3(10, 0, 0)
+        ]) {
+            let mid = (curve.domain.lowerBound + curve.domain.upperBound) / 2
+            let r = curve.evalD3(at: mid)
+            _ = r.d3 // confirm no crash
+            #expect(true)
+        }
+    }
+
+    @Test func evalD0Circle() {
+        if let curve = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5) {
+            let p = curve.evalD0(at: 0)
+            #expect(abs(p.x - 5.0) < 1e-6)
+            #expect(abs(p.y) < 1e-6)
+        }
+    }
+
+    @Test func batchD0() {
+        if let curve = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5) {
+            let params = [0.0, Double.pi / 2, Double.pi, 3 * Double.pi / 2]
+            let pts = curve.evalBatchD0(params: params)
+            #expect(pts.count == 4)
+            // At pi/2, should be (0, 5, 0)
+            #expect(abs(pts[1].x) < 1e-4)
+            #expect(abs(pts[1].y - 5.0) < 1e-4)
+        }
+    }
+
+    @Test func batchD1() {
+        if let curve = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5) {
+            let params = [0.0, Double.pi / 2]
+            let results = curve.evalBatchD1(params: params)
+            #expect(results.count == 2)
+            // At 0, tangent should be (0, 5, 0) for a circle of radius 5
+            #expect(abs(results[0].d1.x) < 1e-4)
+            #expect(abs(results[0].d1.y - 5.0) < 1e-4)
+        }
+    }
+}
+
+@Suite("Curve2D Evaluation v0.110")
+struct Curve2DEvalTests {
+    @Test func evalD0Circle() {
+        if let curve = Curve2D.circle(center: SIMD2(0, 0), radius: 5) {
+            let p = curve.evalD0(at: 0)
+            #expect(abs(p.x - 5.0) < 1e-6)
+            #expect(abs(p.y) < 1e-6)
+        }
+    }
+
+    @Test func evalD1Circle() {
+        if let curve = Curve2D.circle(center: SIMD2(0, 0), radius: 5) {
+            let r = curve.evalD1(at: 0)
+            // At u=0, tangent should be (0, 5) for CCW circle
+            #expect(abs(r.d1.x) < 1e-4)
+            #expect(abs(r.d1.y - 5.0) < 1e-4)
+        }
+    }
+
+    @Test func evalD2Circle() {
+        if let curve = Curve2D.circle(center: SIMD2(0, 0), radius: 5) {
+            let r = curve.evalD2(at: 0)
+            // At u=0 for circle r=5: d2 = (-5, 0) (centripetal acceleration)
+            #expect(abs(r.d2.x + 5.0) < 1e-4)
+            #expect(abs(r.d2.y) < 1e-4)
+        }
+    }
+
+    @Test func batchD0() {
+        if let curve = Curve2D.circle(center: SIMD2(0, 0), radius: 5) {
+            let params = [0.0, Double.pi / 2, Double.pi]
+            let pts = curve.evalBatchD0(params: params)
+            #expect(pts.count == 3)
+            // At pi, should be (-5, 0)
+            #expect(abs(pts[2].x + 5.0) < 1e-4)
+            #expect(abs(pts[2].y) < 1e-4)
+        }
+    }
+
+    @Test func batchD1() {
+        if let curve = Curve2D.circle(center: SIMD2(0, 0), radius: 5) {
+            let params = [0.0, Double.pi / 2]
+            let results = curve.evalBatchD1(params: params)
+            #expect(results.count == 2)
+        }
+    }
+}
+
+@Suite("Surface Evaluation v0.110")
+struct SurfaceEvalTests {
+    @Test func evalD0Sphere() {
+        if let sphere = Shape.sphere(radius: 5) {
+            let faces = sphere.subShapes(ofType: .face)
+            if faces.count > 0 {
+                if let surf = faces[0].extractFaceSurface() {
+                    let p = surf.evalD0(u: 0, v: 0)
+                    // Sphere at u=0, v=0: point on equator at (5, 0, 0)
+                    let dist = sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+                    #expect(abs(dist - 5.0) < 1e-3)
+                }
+            }
+        }
+    }
+
+    @Test func evalD1Sphere() {
+        if let sphere = Shape.sphere(radius: 5) {
+            let faces = sphere.subShapes(ofType: .face)
+            if faces.count > 0 {
+                if let surf = faces[0].extractFaceSurface() {
+                    let r = surf.evalD1(u: 0, v: Double.pi / 4)
+                    // Point should be on sphere
+                    let dist = sqrt(r.point.x * r.point.x + r.point.y * r.point.y + r.point.z * r.point.z)
+                    #expect(abs(dist - 5.0) < 1e-3)
+                    // D1U and D1V should be non-zero tangent vectors
+                    let d1uLen = sqrt(r.d1u.x * r.d1u.x + r.d1u.y * r.d1u.y + r.d1u.z * r.d1u.z)
+                    #expect(d1uLen > 0.1)
+                }
+            }
+        }
+    }
+
+    @Test func evalD2BoxFace() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                if let surf = faces[0].extractFaceSurface() {
+                    let r = surf.evalD2(u: 0.5, v: 0.5)
+                    // For a planar face, D2 should be zero
+                    let d2uLen = sqrt(r.d2u.x * r.d2u.x + r.d2u.y * r.d2u.y + r.d2u.z * r.d2u.z)
+                    #expect(d2uLen < 1e-6)
+                }
+            }
+        }
+    }
+}

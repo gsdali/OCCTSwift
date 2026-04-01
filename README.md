@@ -401,7 +401,11 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **Curve3D Extras** | 3 | reverse, copy, continuity |
 | **Curve2D Extras** | 3 | reverse, copy, continuity |
 | **Surface Extras** | 3 | parameterBounds, surfaceContinuityOrder, copy |
-| **Total** | **2515** | |
+| **Math Solvers** | 7 | findRoot, findRootBounded, findRootBisection, solveSystem, minimize (BFGS), minimizePowell, minimizeBrent |
+| **Curve3D Evaluation** | 6 | evalD0, evalD1, evalD2, evalD3, evalBatchD0, evalBatchD1 |
+| **Curve2D Evaluation** | 5 | evalD0, evalD1, evalD2, evalBatchD0, evalBatchD1 |
+| **Surface Evaluation** | 3 | evalD0, evalD1, evalD2 |
+| **Total** | **2536** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -765,6 +769,9 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 - **Plate Global/Linear Constraints**: Plate_GlobalTranslationConstraint + Plate_LinearXYZConstraint -- advanced plate solver constraint modes
 - **Shape Topology Counting**: Fast face/edge counting via TopExp_Explorer plus shape type string identification
 - **Curve/Surface Extras**: In-place reverse, deep copy, parameter bounds, and continuity queries for 3D/2D curves and surfaces
+- **Constraint Solver Infrastructure**: C callback adapters bridging Swift closures to OCCT abstract math classes -- math_FunctionRoot (Newton-Raphson), math_BissecNewton (bisection+Newton hybrid), math_FunctionSetRoot (multivariate Newton), math_BFGS (quasi-Newton optimization), math_Powell (derivative-free optimization), math_BrentMinimum (1D bracketed minimization)
+- **Curve/Surface Differential Evaluation**: EvalD0/D1/D2/D3 for 3D curves, EvalD0/D1/D2 for 2D curves and surfaces -- direct access to points, tangents, curvature vectors, and higher-order derivatives
+- **Batch Curve Evaluation**: Evaluate 3D and 2D curves at multiple parameters in a single call for efficient rendering and analysis pipelines
 - **SceneKit Integration**: Generate meshes for visualization
 
 ## Requirements
@@ -1690,6 +1697,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.110.0: Constraint solver infrastructure — C callback adapters for math solvers, EvalD0/D1/D2/D3 curve evaluation, batch evaluation, surface differential evaluation
 > - v0.24.0: Medial axis transform — Voronoi skeleton, arc/node graph, bisector curves, wall thickness
 > - v0.23.0: NLPlate — advanced plate surfaces, non-linear G0/G1 surface deformation
 > - v0.22.0: Curve projection onto surfaces — 2D UV projection, composite segments, 3D-on-surface, plane projection
@@ -1729,9 +1737,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ## Roadmap
 
-### Current Status: v0.51.0
+### Current Status: v0.110.0
 
-OCCTSwift now wraps **2458 OCCT operations** across 256 categories with 2558 tests across 781 suites.
+OCCTSwift now wraps **2479 OCCT operations** across 264 categories with 2585 tests across 789 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 
