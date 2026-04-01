@@ -2069,4 +2069,35 @@ extension Surface {
 
     /// Swept-surface-specific properties (meaningful for extrusion or revolution surfaces).
     public var sweptProperties: SweptProperties { SweptProperties(handle: handle) }
+
+    // MARK: - v0.115.0: Surface from point grid, normal, curvatures
+
+    /// Approximate a BSpline surface through a grid of 3D points.
+    /// Points are in row-major order: point[v*uCount+u].
+    public static func fromPointGrid(points: [SIMD3<Double>], uCount: Int, vCount: Int,
+                                     degMin: Int = 3, degMax: Int = 8,
+                                     continuity: Int = 2, tolerance: Double = 1e-3) -> Surface? {
+        guard points.count == uCount * vCount else { return nil }
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTPointsToSurfaceBSpline(buf.baseAddress!, Int32(uCount), Int32(vCount),
+                                        Int32(degMin), Int32(degMax), Int32(continuity), tolerance)
+        }) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Compute the surface normal at (u, v).
+    public func normal(u: Double, v: Double) -> SIMD3<Double> {
+        var nx = 0.0, ny = 0.0, nz = 0.0
+        OCCTSurfaceNormal(handle, u, v, &nx, &ny, &nz)
+        return SIMD3(nx, ny, nz)
+    }
+
+    /// Compute Gaussian and mean curvature at (u, v).
+    public func curvatures(u: Double, v: Double) -> (gaussian: Double, mean: Double) {
+        var g = 0.0, m = 0.0
+        OCCTSurfaceCurvatures(handle, u, v, &g, &m)
+        return (g, m)
+    }
 }

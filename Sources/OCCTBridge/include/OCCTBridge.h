@@ -16302,6 +16302,298 @@ int32_t OCCTShapeUniqueVertexCount(OCCTShapeRef _Nonnull shape);
 /// Create an empty copy of a shape (same TShape, no sub-shapes).
 OCCTShapeRef _Nullable OCCTShapeEmptyCopied(OCCTShapeRef _Nonnull shape);
 
+// MARK: - v0.115.0: Interpolation expansion, ThruSections builder, Triangulation queries, Adaptor exposure, Shape queries
+
+// --- GeomAPI_Interpolate expansion ---
+
+/// Interpolate 3D BSpline with endpoint tangents.
+OCCTCurve3DRef _Nullable OCCTInterpolateWithTangents(const double* _Nonnull points, int32_t count,
+                                                       double t1x, double t1y, double t1z,
+                                                       double t2x, double t2y, double t2z);
+
+/// Interpolate 3D BSpline with per-point tangents. tangentFlags[i] indicates if tangent[i] is set.
+OCCTCurve3DRef _Nullable OCCTInterpolateWithAllTangents(const double* _Nonnull points, int32_t count,
+                                                          const double* _Nonnull tangents,
+                                                          const bool* _Nonnull tangentFlags);
+
+/// Interpolate 3D BSpline with explicit parameters.
+OCCTCurve3DRef _Nullable OCCTInterpolateWithParameters(const double* _Nonnull points, int32_t count,
+                                                         const double* _Nonnull parameters);
+
+/// Interpolate 3D BSpline as periodic (closed) curve.
+OCCTCurve3DRef _Nullable OCCTInterpolatePeriodic(const double* _Nonnull points, int32_t count);
+
+/// Interpolate 2D BSpline with endpoint tangents.
+OCCTCurve2DRef _Nullable OCCTInterpolate2DWithTangents(const double* _Nonnull points, int32_t count,
+                                                         double t1x, double t1y,
+                                                         double t2x, double t2y);
+
+/// Interpolate 2D BSpline as periodic (closed) curve.
+OCCTCurve2DRef _Nullable OCCTInterpolate2DPeriodic(const double* _Nonnull points, int32_t count);
+
+// --- GeomAPI_PointsToBSpline expansion ---
+
+/// Approximate 3D BSpline through points with degree and continuity control.
+/// continuity: 0=C0, 1=C1, 2=C2, 3=C3
+OCCTCurve3DRef _Nullable OCCTPointsToBSplineWithParams(const double* _Nonnull points, int32_t count,
+                                                         int32_t degMin, int32_t degMax,
+                                                         int32_t continuity, double tol);
+
+/// Approximate 3D BSpline with explicit parameter values.
+OCCTCurve3DRef _Nullable OCCTPointsToBSplineWithParameters(const double* _Nonnull points,
+                                                             const double* _Nonnull params,
+                                                             int32_t count, int32_t degMin, int32_t degMax,
+                                                             int32_t continuity, double tol);
+
+/// Approximate 2D BSpline through points with degree and continuity control.
+OCCTCurve2DRef _Nullable OCCTPoints2DToBSplineWithParams(const double* _Nonnull points, int32_t count,
+                                                            int32_t degMin, int32_t degMax,
+                                                            int32_t continuity, double tol);
+
+/// Approximate a BSpline surface through a grid of 3D points.
+/// points is row-major (u varies fastest): point[v*uCount+u] = (x,y,z).
+OCCTSurfaceRef _Nullable OCCTPointsToSurfaceBSpline(const double* _Nonnull points,
+                                                       int32_t uCount, int32_t vCount,
+                                                       int32_t degMin, int32_t degMax,
+                                                       int32_t continuity, double tol);
+
+// --- BRepBuilderAPI_Transform expansion ---
+
+/// Apply a general gp_Trsf (12 doubles: 3x3 rotation matrix + 3 translation).
+/// matrix12 = [r00,r01,r02, r10,r11,r12, r20,r21,r22, tx,ty,tz]
+OCCTShapeRef _Nullable OCCTShapeTransformed(OCCTShapeRef _Nonnull shape,
+                                              const double* _Nonnull matrix12);
+
+/// Apply a gp_GTrsf (non-uniform scaling). matrix12 = 3x4 affine matrix row-major.
+OCCTShapeRef _Nullable OCCTShapeGTransformed(OCCTShapeRef _Nonnull shape,
+                                               const double* _Nonnull matrix12);
+
+// --- BRepAlgoAPI expansion ---
+
+/// Boolean section (intersection curves) with fuzzy tolerance.
+OCCTShapeRef _Nullable OCCTBooleanSectionWithTolerance(OCCTShapeRef _Nonnull s1,
+                                                         OCCTShapeRef _Nonnull s2,
+                                                         double fuzzyTol);
+
+/// Split shape by multiple tool shapes with fuzzy tolerance.
+OCCTShapeRef _Nullable OCCTBooleanSplitMulti(OCCTShapeRef _Nonnull shape,
+                                               const OCCTShapeRef _Nonnull * _Nonnull tools,
+                                               int32_t toolCount, double fuzzyTol);
+
+/// Boolean cut with history tracking. Returns result and sets hasDeleted/hasModified/hasGenerated.
+OCCTShapeRef _Nullable OCCTBooleanCutWithHistory(OCCTShapeRef _Nonnull s1, OCCTShapeRef _Nonnull s2,
+                                                    double fuzzyTol,
+                                                    bool* _Nonnull hasDeleted,
+                                                    bool* _Nonnull hasModified,
+                                                    bool* _Nonnull hasGenerated);
+
+/// Defeature (remove faces) with fuzzy tolerance.
+OCCTShapeRef _Nullable OCCTDefeatureWithTolerance(OCCTShapeRef _Nonnull shape,
+                                                    const OCCTShapeRef _Nonnull * _Nonnull facesToRemove,
+                                                    int32_t count, double fuzzyTol);
+
+// --- BRepOffsetAPI_ThruSections builder ---
+
+typedef void* OCCTThruSectionsRef;
+
+/// Create a ThruSections builder.
+OCCTThruSectionsRef _Nonnull OCCTThruSectionsCreate(bool isSolid, bool isRuled, double pres3d);
+
+/// Release a ThruSections builder.
+void OCCTThruSectionsRelease(OCCTThruSectionsRef _Nonnull ts);
+
+/// Add a wire profile to the ThruSections builder.
+void OCCTThruSectionsAddWire(OCCTThruSectionsRef _Nonnull ts, OCCTShapeRef _Nonnull wire);
+
+/// Add a vertex (point) as a degenerate section.
+void OCCTThruSectionsAddVertex(OCCTThruSectionsRef _Nonnull ts, OCCTShapeRef _Nonnull vertex);
+
+/// Enable/disable smoothing (default: true for non-ruled).
+void OCCTThruSectionsSetSmoothing(OCCTThruSectionsRef _Nonnull ts, bool smoothing);
+
+/// Set maximum BSpline degree.
+void OCCTThruSectionsSetMaxDegree(OCCTThruSectionsRef _Nonnull ts, int32_t maxDeg);
+
+/// Set continuity (0=C0, 1=C1, 2=C2).
+void OCCTThruSectionsSetContinuity(OCCTThruSectionsRef _Nonnull ts, int32_t continuity);
+
+/// Build the ThruSections shape. Returns true if successful.
+bool OCCTThruSectionsBuild(OCCTThruSectionsRef _Nonnull ts);
+
+/// Get the result shape from the ThruSections builder.
+OCCTShapeRef _Nullable OCCTThruSectionsShape(OCCTThruSectionsRef _Nonnull ts);
+
+// --- GeomConvert utilities ---
+
+/// Split a 3D curve at discontinuities of given continuity.
+/// Returns number of segments written to outSegments (up to maxSegments).
+int32_t OCCTCurve3DSplitAtContinuity(OCCTCurve3DRef _Nonnull curve, int32_t continuity, double tol,
+                                        OCCTCurve3DRef _Nullable * _Nonnull outSegments, int32_t maxSegments);
+
+/// Split a 2D curve at discontinuities of given continuity.
+int32_t OCCTCurve2DSplitAtContinuity(OCCTCurve2DRef _Nonnull curve, int32_t continuity, double tol,
+                                        OCCTCurve2DRef _Nullable * _Nonnull outSegments, int32_t maxSegments);
+
+/// Concatenate an array of 3D curves with G1 continuity.
+OCCTCurve3DRef _Nullable OCCTCurve3DConcatenateG1(const OCCTCurve3DRef _Nonnull * _Nonnull curves,
+                                                     int32_t count, double tol);
+
+// --- ShapeFix_Shape builder ---
+
+typedef void* OCCTShapeFixerRef;
+
+/// Create a ShapeFix_Shape fixer for the given shape.
+OCCTShapeFixerRef _Nonnull OCCTShapeFixerCreate(OCCTShapeRef _Nonnull shape);
+
+/// Release a ShapeFix_Shape fixer.
+void OCCTShapeFixerRelease(OCCTShapeFixerRef _Nonnull fixer);
+
+/// Set the precision for the shape fixer.
+void OCCTShapeFixerSetPrecision(OCCTShapeFixerRef _Nonnull fixer, double precision);
+
+/// Set the maximum tolerance for the shape fixer.
+void OCCTShapeFixerSetMaxTolerance(OCCTShapeFixerRef _Nonnull fixer, double maxTol);
+
+/// Set the minimum tolerance for the shape fixer.
+void OCCTShapeFixerSetMinTolerance(OCCTShapeFixerRef _Nonnull fixer, double minTol);
+
+/// Perform the shape fix. Returns true if something was fixed.
+bool OCCTShapeFixerPerform(OCCTShapeFixerRef _Nonnull fixer);
+
+/// Get the result shape after fixing.
+OCCTShapeRef _Nullable OCCTShapeFixerShape(OCCTShapeFixerRef _Nonnull fixer);
+
+/// Query status. statusType: 1=ShapeFixOk, 2=ShapeFixDone, 3=ShapeFixFail.
+bool OCCTShapeFixerStatus(OCCTShapeFixerRef _Nonnull fixer, int32_t statusType);
+
+// --- Poly_Triangulation queries on faces ---
+
+/// Get the number of nodes in the triangulation of a face.
+int32_t OCCTFaceTriangulationNodeCount(OCCTShapeRef _Nonnull face);
+
+/// Get the number of triangles in the triangulation of a face.
+int32_t OCCTFaceTriangulationTriangleCount(OCCTShapeRef _Nonnull face);
+
+/// Get the deflection of the triangulation.
+double OCCTFaceTriangulationDeflection(OCCTShapeRef _Nonnull face);
+
+/// Get the coordinates of a node (1-based index).
+void OCCTFaceTriangulationNode(OCCTShapeRef _Nonnull face, int32_t index,
+                                 double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the node indices of a triangle (1-based index). Returns 1-based node indices.
+void OCCTFaceTriangulationTriangle(OCCTShapeRef _Nonnull face, int32_t index,
+                                     int32_t* _Nonnull n1, int32_t* _Nonnull n2, int32_t* _Nonnull n3);
+
+/// Check if the face triangulation has normals.
+bool OCCTFaceTriangulationHasNormals(OCCTShapeRef _Nonnull face);
+
+/// Get the normal at a node (1-based index).
+void OCCTFaceTriangulationNormal(OCCTShapeRef _Nonnull face, int32_t index,
+                                   double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz);
+
+/// Check if the face triangulation has UV nodes.
+bool OCCTFaceTriangulationHasUVNodes(OCCTShapeRef _Nonnull face);
+
+/// Get the UV coordinates of a node (1-based index).
+void OCCTFaceTriangulationUVNode(OCCTShapeRef _Nonnull face, int32_t index,
+                                   double* _Nonnull u, double* _Nonnull v);
+
+// --- GCPnts_AbscissaPoint expansion ---
+
+/// Find parameter on an edge at a given arc length from startParam.
+double OCCTEdgeParameterAtArcLength(OCCTShapeRef _Nonnull edge, double arcLength, double startParam);
+
+/// Compute total arc length of an edge.
+double OCCTEdgeArcLength(OCCTShapeRef _Nonnull edge);
+
+/// Compute arc length between two parameters on an edge.
+double OCCTEdgeArcLengthBetween(OCCTShapeRef _Nonnull edge, double u1, double u2);
+
+/// Find parameter at a fraction (0..1) of total edge length.
+double OCCTEdgeParameterAtFraction(OCCTShapeRef _Nonnull edge, double fraction);
+
+// --- BRepAdaptor exposure ---
+
+/// Get the parameter domain of an edge curve.
+void OCCTEdgeAdaptorDomain(OCCTShapeRef _Nonnull edge, double* _Nonnull first, double* _Nonnull last);
+
+/// Evaluate the edge curve at a parameter.
+void OCCTEdgeAdaptorValue(OCCTShapeRef _Nonnull edge, double param,
+                            double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the curve type of an edge (GeomAbs_CurveType: 0=Line, 1=Circle, etc.).
+int32_t OCCTEdgeAdaptorCurveType(OCCTShapeRef _Nonnull edge);
+
+/// Get the UV bounds of a face surface.
+void OCCTFaceAdaptorBounds(OCCTShapeRef _Nonnull face,
+                             double* _Nonnull uMin, double* _Nonnull uMax,
+                             double* _Nonnull vMin, double* _Nonnull vMax);
+
+/// Evaluate the face surface at (u,v).
+void OCCTFaceAdaptorValue(OCCTShapeRef _Nonnull face, double u, double v,
+                            double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get the surface type of a face (GeomAbs_SurfaceType: 0=Plane, 1=Cylinder, etc.).
+int32_t OCCTFaceAdaptorSurfaceType(OCCTShapeRef _Nonnull face);
+
+// --- Additional shape queries ---
+
+/// Compute the volume of the oriented bounding box (OBB) of a shape.
+double OCCTShapeOBBVolume(OCCTShapeRef _Nonnull shape);
+
+/// Get the maximum edge tolerance in a shape.
+double OCCTShapeMaxEdgeTolerance(OCCTShapeRef _Nonnull shape);
+
+/// Get the maximum face tolerance in a shape.
+double OCCTShapeMaxFaceTolerance(OCCTShapeRef _Nonnull shape);
+
+/// Get the maximum vertex tolerance in a shape.
+double OCCTShapeMaxVertexTolerance(OCCTShapeRef _Nonnull shape);
+
+/// Check if a shape has any free (non-shared) edges.
+bool OCCTShapeHasFreeEdges(OCCTShapeRef _Nonnull shape);
+
+/// Check if a shape has any free (non-shared) wires.
+bool OCCTShapeHasFreeWires(OCCTShapeRef _Nonnull shape);
+
+/// Check if a shape has any free (non-shared) faces.
+bool OCCTShapeHasFreeFaces(OCCTShapeRef _Nonnull shape);
+
+/// Compute the bounding box diagonal length.
+double OCCTShapeBoundingDiagonal(OCCTShapeRef _Nonnull shape);
+
+/// Compute the volumetric centroid of a shape.
+void OCCTShapeCentroid(OCCTShapeRef _Nonnull shape,
+                         double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Compute the total edge length of all edges in a shape.
+double OCCTShapeTotalEdgeLength(OCCTShapeRef _Nonnull shape);
+
+// --- Curve3D/2D additional (v0.115.0) ---
+
+/// Compute the length of a 3D curve between parameters u1 and u2.
+double OCCTCurve3DLength(OCCTCurve3DRef _Nonnull curve, double u1, double u2);
+
+/// Find the closest point on a 3D curve to a given point. Returns parameter.
+double OCCTCurve3DClosestParameter(OCCTCurve3DRef _Nonnull curve, double px, double py, double pz);
+
+/// Create a trimmed copy of a 2D curve between parameters u1 and u2.
+OCCTCurve2DRef _Nullable OCCTCurve2DTrimmed(OCCTCurve2DRef _Nonnull curve, double u1, double u2);
+
+/// Compute the length of a 2D curve between parameters u1 and u2.
+double OCCTCurve2DLength(OCCTCurve2DRef _Nonnull curve, double u1, double u2);
+
+// --- Surface additional (v0.115.0) ---
+
+/// Compute the surface normal at (u,v).
+void OCCTSurfaceNormal(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                         double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz);
+
+/// Compute Gaussian and mean curvature at (u,v).
+void OCCTSurfaceCurvatures(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                             double* _Nonnull gaussian, double* _Nonnull mean);
+
 #ifdef __cplusplus
 }
 #endif

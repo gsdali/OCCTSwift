@@ -46745,3 +46745,954 @@ OCCTShapeRef OCCTShapeEmptyCopied(OCCTShapeRef shape) {
     } catch (...) { return nullptr; }
 }
 
+// MARK: - v0.115.0 implementations
+
+#include <GeomAPI_Interpolate.hxx>
+#include <Geom2dAPI_Interpolate.hxx>
+#include <GeomAPI_PointsToBSpline.hxx>
+#include <Geom2dAPI_PointsToBSpline.hxx>
+#include <GeomAPI_PointsToBSplineSurface.hxx>
+#include <GeomConvert.hxx>
+#include <Geom2dConvert.hxx>
+#include <GeomConvert_CompCurveToBSplineCurve.hxx>
+#include <BRepBuilderAPI_GTransform.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
+#include <BRepAlgoAPI_Defeaturing.hxx>
+#include <ShapeFix_Shape.hxx>
+#include <Poly_Triangulation.hxx>
+#include <BRep_Tool.hxx>
+#include <TopLoc_Location.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
+#include <Bnd_OBB.hxx>
+#include <BRepBndLib.hxx>
+#include <GProp_GProps.hxx>
+#include <BRepGProp.hxx>
+#include <ShapeAnalysis_ShapeTolerance.hxx>
+#include <ShapeAnalysis_FreeBounds.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
+#include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <GeomLProp_CLProps.hxx>
+#include <BRepLProp_SLProps.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom2d_TrimmedCurve.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <TColgp_HArray1OfPnt.hxx>
+#include <TColgp_HArray1OfPnt2d.hxx>
+#include <TColgp_HArray1OfVec.hxx>
+#include <TColgp_HArray1OfVec2d.hxx>
+#include <TColStd_HArray1OfBoolean.hxx>
+#include <TColStd_HArray1OfReal.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
+#include <TColgp_Array2OfPnt.hxx>
+#include <gp_GTrsf.hxx>
+#include <Geom2dAdaptor_Curve.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
+#include <TopTools_ListOfShape.hxx>
+
+// --- GeomAPI_Interpolate expansion ---
+
+OCCTCurve3DRef OCCTInterpolateWithTangents(const double* points, int32_t count,
+                                             double t1x, double t1y, double t1z,
+                                             double t2x, double t2y, double t2z) {
+    if (!points || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        GeomAPI_Interpolate interp(pts, Standard_False, 1e-6);
+        gp_Vec v1(t1x, t1y, t1z), v2(t2x, t2y, t2z);
+        interp.Load(v1, v2);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTInterpolateWithAllTangents(const double* points, int32_t count,
+                                                const double* tangents,
+                                                const bool* tangentFlags) {
+    if (!points || !tangents || !tangentFlags || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        GeomAPI_Interpolate interp(pts, Standard_False, 1e-6);
+        NCollection_Array1<gp_Vec> tans(1, count);
+        Handle(NCollection_HArray1<bool>) flags = new NCollection_HArray1<bool>(1, count);
+        for (int i = 0; i < count; i++) {
+            tans.SetValue(i + 1, gp_Vec(tangents[i*3], tangents[i*3+1], tangents[i*3+2]));
+            flags->SetValue(i + 1, tangentFlags[i]);
+        }
+        interp.Load(tans, flags);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTInterpolateWithParameters(const double* points, int32_t count,
+                                               const double* parameters) {
+    if (!points || !parameters || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        Handle(TColStd_HArray1OfReal) params = new TColStd_HArray1OfReal(1, count);
+        for (int i = 0; i < count; i++) {
+            params->SetValue(i + 1, parameters[i]);
+        }
+        GeomAPI_Interpolate interp(pts, params, Standard_False, 1e-6);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTInterpolatePeriodic(const double* points, int32_t count) {
+    if (!points || count < 3) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        GeomAPI_Interpolate interp(pts, Standard_True, 1e-6);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTInterpolate2DWithTangents(const double* points, int32_t count,
+                                               double t1x, double t1y,
+                                               double t2x, double t2y) {
+    if (!points || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt2d) pts = new TColgp_HArray1OfPnt2d(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(points[i*2], points[i*2+1]));
+        }
+        Geom2dAPI_Interpolate interp(pts, Standard_False, 1e-6);
+        gp_Vec2d v1(t1x, t1y), v2(t2x, t2y);
+        interp.Load(v1, v2);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve2DRef)new OCCTCurve2D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTInterpolate2DPeriodic(const double* points, int32_t count) {
+    if (!points || count < 3) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt2d) pts = new TColgp_HArray1OfPnt2d(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(points[i*2], points[i*2+1]));
+        }
+        Geom2dAPI_Interpolate interp(pts, Standard_True, 1e-6);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve2DRef)new OCCTCurve2D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomAPI_PointsToBSpline expansion ---
+
+static GeomAbs_Shape mapContinuityV115(int32_t c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C2;
+    }
+}
+
+OCCTCurve3DRef OCCTPointsToBSplineWithParams(const double* points, int32_t count,
+                                               int32_t degMin, int32_t degMax,
+                                               int32_t continuity, double tol) {
+    if (!points || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        GeomAPI_PointsToBSpline approx(pts, degMin, degMax, mapContinuityV115(continuity), tol);
+        if (approx.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{approx.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTPointsToBSplineWithParameters(const double* points, const double* params,
+                                                   int32_t count, int32_t degMin, int32_t degMax,
+                                                   int32_t continuity, double tol) {
+    if (!points || !params || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt pts(1, count);
+        TColStd_Array1OfReal prms(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+            prms.SetValue(i + 1, params[i]);
+        }
+        GeomAPI_PointsToBSpline approx(pts, prms, degMin, degMax, mapContinuityV115(continuity), tol);
+        if (approx.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{approx.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTPoints2DToBSplineWithParams(const double* points, int32_t count,
+                                                  int32_t degMin, int32_t degMax,
+                                                  int32_t continuity, double tol) {
+    if (!points || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt2d pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt2d(points[i*2], points[i*2+1]));
+        }
+        Geom2dAPI_PointsToBSpline approx(pts, degMin, degMax, mapContinuityV115(continuity), tol);
+        if (approx.IsDone()) {
+            return (OCCTCurve2DRef)new OCCTCurve2D{approx.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTPointsToSurfaceBSpline(const double* points, int32_t uCount, int32_t vCount,
+                                            int32_t degMin, int32_t degMax,
+                                            int32_t continuity, double tol) {
+    if (!points || uCount < 2 || vCount < 2) return nullptr;
+    try {
+        TColgp_Array2OfPnt pts(1, uCount, 1, vCount);
+        for (int v = 0; v < vCount; v++) {
+            for (int u = 0; u < uCount; u++) {
+                int idx = (v * uCount + u) * 3;
+                pts.SetValue(u + 1, v + 1, gp_Pnt(points[idx], points[idx+1], points[idx+2]));
+            }
+        }
+        GeomAPI_PointsToBSplineSurface approx(pts, degMin, degMax, mapContinuityV115(continuity), tol);
+        if (approx.IsDone()) {
+            return (OCCTSurfaceRef)new OCCTSurface{approx.Surface()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepBuilderAPI_Transform expansion ---
+
+OCCTShapeRef OCCTShapeTransformed(OCCTShapeRef shape, const double* matrix12) {
+    if (!shape || !matrix12) return nullptr;
+    try {
+        gp_Trsf trsf;
+        trsf.SetValues(matrix12[0], matrix12[1], matrix12[2], matrix12[9],
+                        matrix12[3], matrix12[4], matrix12[5], matrix12[10],
+                        matrix12[6], matrix12[7], matrix12[8], matrix12[11]);
+        BRepBuilderAPI_Transform xform(shape->shape, trsf, Standard_True);
+        if (xform.IsDone()) {
+            return new OCCTShape{xform.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeGTransformed(OCCTShapeRef shape, const double* matrix12) {
+    if (!shape || !matrix12) return nullptr;
+    try {
+        gp_GTrsf gtrsf;
+        gtrsf.SetValue(1, 1, matrix12[0]); gtrsf.SetValue(1, 2, matrix12[1]); gtrsf.SetValue(1, 3, matrix12[2]); gtrsf.SetValue(1, 4, matrix12[3]);
+        gtrsf.SetValue(2, 1, matrix12[4]); gtrsf.SetValue(2, 2, matrix12[5]); gtrsf.SetValue(2, 3, matrix12[6]); gtrsf.SetValue(2, 4, matrix12[7]);
+        gtrsf.SetValue(3, 1, matrix12[8]); gtrsf.SetValue(3, 2, matrix12[9]); gtrsf.SetValue(3, 3, matrix12[10]); gtrsf.SetValue(3, 4, matrix12[11]);
+        BRepBuilderAPI_GTransform xform(shape->shape, gtrsf, Standard_True);
+        if (xform.IsDone()) {
+            return new OCCTShape{xform.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepAlgoAPI expansion ---
+
+OCCTShapeRef OCCTBooleanSectionWithTolerance(OCCTShapeRef s1, OCCTShapeRef s2, double fuzzyTol) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        BRepAlgoAPI_Section sec(s1->shape, s2->shape, Standard_False);
+        sec.SetFuzzyValue(fuzzyTol);
+        sec.Build();
+        if (sec.IsDone()) {
+            return new OCCTShape{sec.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBooleanSplitMulti(OCCTShapeRef shape, const OCCTShapeRef* tools,
+                                     int32_t toolCount, double fuzzyTol) {
+    if (!shape || !tools || toolCount < 1) return nullptr;
+    try {
+        BRepAlgoAPI_Splitter splitter;
+        TopTools_ListOfShape args, toolShapes;
+        args.Append(shape->shape);
+        for (int i = 0; i < toolCount; i++) {
+            if (tools[i]) toolShapes.Append(tools[i]->shape);
+        }
+        splitter.SetArguments(args);
+        splitter.SetTools(toolShapes);
+        if (fuzzyTol > 0) splitter.SetFuzzyValue(fuzzyTol);
+        splitter.Build();
+        if (splitter.IsDone()) {
+            return new OCCTShape{splitter.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBooleanCutWithHistory(OCCTShapeRef s1, OCCTShapeRef s2, double fuzzyTol,
+                                         bool* hasDeleted, bool* hasModified, bool* hasGenerated) {
+    if (!s1 || !s2) return nullptr;
+    *hasDeleted = false; *hasModified = false; *hasGenerated = false;
+    try {
+        BRepAlgoAPI_Cut cut;
+        TopTools_ListOfShape args, tools;
+        args.Append(s1->shape);
+        tools.Append(s2->shape);
+        cut.SetArguments(args);
+        cut.SetTools(tools);
+        if (fuzzyTol > 0) cut.SetFuzzyValue(fuzzyTol);
+        cut.Build();
+        if (cut.IsDone()) {
+            *hasDeleted = cut.HasDeleted();
+            *hasModified = cut.HasModified();
+            *hasGenerated = cut.HasGenerated();
+            return new OCCTShape{cut.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTDefeatureWithTolerance(OCCTShapeRef shape, const OCCTShapeRef* facesToRemove,
+                                          int32_t count, double fuzzyTol) {
+    if (!shape || !facesToRemove || count < 1) return nullptr;
+    try {
+        BRepAlgoAPI_Defeaturing def;
+        def.SetShape(shape->shape);
+        for (int i = 0; i < count; i++) {
+            if (facesToRemove[i]) def.AddFaceToRemove(facesToRemove[i]->shape);
+        }
+        if (fuzzyTol > 0) def.SetFuzzyValue(fuzzyTol);
+        def.Build();
+        if (def.IsDone()) {
+            return new OCCTShape{def.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- ThruSections builder ---
+
+struct OCCTThruSections {
+    BRepOffsetAPI_ThruSections* builder;
+};
+
+OCCTThruSectionsRef OCCTThruSectionsCreate(bool isSolid, bool isRuled, double pres3d) {
+    auto ts = new OCCTThruSections();
+    ts->builder = new BRepOffsetAPI_ThruSections(isSolid, isRuled, pres3d);
+    return (OCCTThruSectionsRef)ts;
+}
+
+void OCCTThruSectionsRelease(OCCTThruSectionsRef ref) {
+    auto ts = (OCCTThruSections*)ref;
+    if (ts) {
+        delete ts->builder;
+        delete ts;
+    }
+}
+
+void OCCTThruSectionsAddWire(OCCTThruSectionsRef ref, OCCTShapeRef wire) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts || !wire) return;
+    try {
+        ts->builder->AddWire(TopoDS::Wire(wire->shape));
+    } catch (...) {}
+}
+
+void OCCTThruSectionsAddVertex(OCCTThruSectionsRef ref, OCCTShapeRef vertex) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts || !vertex) return;
+    try {
+        ts->builder->AddVertex(TopoDS::Vertex(vertex->shape));
+    } catch (...) {}
+}
+
+void OCCTThruSectionsSetSmoothing(OCCTThruSectionsRef ref, bool smoothing) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    ts->builder->SetSmoothing(smoothing);
+}
+
+void OCCTThruSectionsSetMaxDegree(OCCTThruSectionsRef ref, int32_t maxDeg) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    ts->builder->SetMaxDegree(maxDeg);
+}
+
+void OCCTThruSectionsSetContinuity(OCCTThruSectionsRef ref, int32_t continuity) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    ts->builder->SetCriteriumWeight(1.0, 1.0, 1.0); // ensure defaults
+    // Map 0=C0, 1=C1, 2=C2
+    GeomAbs_Shape cont = GeomAbs_C2;
+    if (continuity == 0) cont = GeomAbs_C0;
+    else if (continuity == 1) cont = GeomAbs_C1;
+    ts->builder->SetContinuity(cont);
+}
+
+bool OCCTThruSectionsBuild(OCCTThruSectionsRef ref) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return false;
+    try {
+        ts->builder->Build();
+        return ts->builder->IsDone();
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTThruSectionsShape(OCCTThruSectionsRef ref) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return nullptr;
+    try {
+        if (!ts->builder->IsDone()) return nullptr;
+        return new OCCTShape{ts->builder->Shape()};
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomConvert utilities ---
+
+int32_t OCCTCurve3DSplitAtContinuity(OCCTCurve3DRef curve, int32_t continuity, double tol,
+                                       OCCTCurve3DRef* outSegments, int32_t maxSegments) {
+    if (!curve || curve->curve.IsNull() || !outSegments || maxSegments < 1) return 0;
+    try {
+        Handle(Geom_BSplineCurve) bsp = GeomConvert::CurveToBSplineCurve(curve->curve);
+        if (bsp.IsNull()) return 0;
+
+        if (continuity <= 1) {
+            // Split at C1 discontinuities
+            Handle(NCollection_HArray1<Handle(Geom_BSplineCurve)>) arr;
+            GeomConvert::C0BSplineToArrayOfC1BSplineCurve(bsp, arr, tol);
+            if (arr.IsNull()) return 0;
+            int n = std::min((int)arr->Length(), (int)maxSegments);
+            for (int i = 0; i < n; i++) {
+                outSegments[i] = (OCCTCurve3DRef)new OCCTCurve3D{arr->Value(arr->Lower() + i)};
+            }
+            return n;
+        } else {
+            // For higher continuity, just return the single BSpline
+            outSegments[0] = (OCCTCurve3DRef)new OCCTCurve3D{bsp};
+            return 1;
+        }
+    } catch (...) { return 0; }
+}
+
+// TColGeom/TColGeom2d deprecated — use NCollection_HArray1 directly
+
+int32_t OCCTCurve2DSplitAtContinuity(OCCTCurve2DRef curve, int32_t continuity, double tol,
+                                       OCCTCurve2DRef* outSegments, int32_t maxSegments) {
+    if (!curve || curve->curve.IsNull() || !outSegments || maxSegments < 1) return 0;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Geom2dConvert::CurveToBSplineCurve(curve->curve);
+        if (bsp.IsNull()) return 0;
+
+        if (continuity <= 1) {
+            Handle(NCollection_HArray1<Handle(Geom2d_BSplineCurve)>) arr;
+            Geom2dConvert::C0BSplineToArrayOfC1BSplineCurve(bsp, arr, tol);
+            if (arr.IsNull()) return 0;
+            int n = std::min((int)arr->Length(), (int)maxSegments);
+            for (int i = 0; i < n; i++) {
+                outSegments[i] = (OCCTCurve2DRef)new OCCTCurve2D{arr->Value(arr->Lower() + i)};
+            }
+            return n;
+        } else {
+            outSegments[0] = (OCCTCurve2DRef)new OCCTCurve2D{bsp};
+            return 1;
+        }
+    } catch (...) { return 0; }
+}
+
+OCCTCurve3DRef OCCTCurve3DConcatenateG1(const OCCTCurve3DRef* curves, int32_t count, double tol) {
+    if (!curves || count < 1) return nullptr;
+    try {
+        Handle(Geom_BSplineCurve) first = GeomConvert::CurveToBSplineCurve(((OCCTCurve3D*)curves[0])->curve);
+        if (first.IsNull()) return nullptr;
+        GeomConvert_CompCurveToBSplineCurve concat(first);
+        for (int i = 1; i < count; i++) {
+            Handle(Geom_BSplineCurve) bsp = GeomConvert::CurveToBSplineCurve(((OCCTCurve3D*)curves[i])->curve);
+            if (!bsp.IsNull()) {
+                concat.Add(bsp, tol);
+            }
+        }
+        Handle(Geom_BSplineCurve) result = concat.BSplineCurve();
+        if (result.IsNull()) return nullptr;
+        return (OCCTCurve3DRef)new OCCTCurve3D{result};
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeFix_Shape builder ---
+
+struct OCCTShapeFixer {
+    Handle(ShapeFix_Shape) fixer;
+};
+
+OCCTShapeFixerRef OCCTShapeFixerCreate(OCCTShapeRef shape) {
+    auto f = new OCCTShapeFixer();
+    f->fixer = new ShapeFix_Shape(shape->shape);
+    return (OCCTShapeFixerRef)f;
+}
+
+void OCCTShapeFixerRelease(OCCTShapeFixerRef ref) {
+    auto f = (OCCTShapeFixer*)ref;
+    delete f;
+}
+
+void OCCTShapeFixerSetPrecision(OCCTShapeFixerRef ref, double precision) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (f) f->fixer->SetPrecision(precision);
+}
+
+void OCCTShapeFixerSetMaxTolerance(OCCTShapeFixerRef ref, double maxTol) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (f) f->fixer->SetMaxTolerance(maxTol);
+}
+
+void OCCTShapeFixerSetMinTolerance(OCCTShapeFixerRef ref, double minTol) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (f) f->fixer->SetMinTolerance(minTol);
+}
+
+bool OCCTShapeFixerPerform(OCCTShapeFixerRef ref) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (!f) return false;
+    try {
+        return f->fixer->Perform();
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTShapeFixerShape(OCCTShapeFixerRef ref) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (!f) return nullptr;
+    try {
+        TopoDS_Shape result = f->fixer->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape{result};
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeFixerStatus(OCCTShapeFixerRef ref, int32_t statusType) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (!f) return false;
+    try {
+        ShapeExtend_Status st;
+        switch (statusType) {
+            case 1: st = ShapeExtend_OK; break;
+            case 2: st = ShapeExtend_DONE; break;
+            case 3: st = ShapeExtend_FAIL; break;
+            default: return false;
+        }
+        return f->fixer->Status(st);
+    } catch (...) { return false; }
+}
+
+// --- Poly_Triangulation queries ---
+
+static Handle(Poly_Triangulation) getTriangulation(OCCTShapeRef face, TopLoc_Location& loc) {
+    if (!face) return nullptr;
+    try {
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        return BRep_Tool::Triangulation(f, loc);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTFaceTriangulationNodeCount(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return 0;
+    return tri->NbNodes();
+}
+
+int32_t OCCTFaceTriangulationTriangleCount(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return 0;
+    return tri->NbTriangles();
+}
+
+double OCCTFaceTriangulationDeflection(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return 0;
+    return tri->Deflection();
+}
+
+void OCCTFaceTriangulationNode(OCCTShapeRef face, int32_t index,
+                                 double* x, double* y, double* z) {
+    *x = *y = *z = 0;
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull() || index < 1 || index > tri->NbNodes()) return;
+    gp_Pnt p = tri->Node(index).Transformed(loc.Transformation());
+    *x = p.X(); *y = p.Y(); *z = p.Z();
+}
+
+void OCCTFaceTriangulationTriangle(OCCTShapeRef face, int32_t index,
+                                     int32_t* n1, int32_t* n2, int32_t* n3) {
+    *n1 = *n2 = *n3 = 0;
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull() || index < 1 || index > tri->NbTriangles()) return;
+    Poly_Triangle t = tri->Triangle(index);
+    int a, b, c;
+    t.Get(a, b, c);
+    *n1 = a; *n2 = b; *n3 = c;
+}
+
+bool OCCTFaceTriangulationHasNormals(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return false;
+    return tri->HasNormals();
+}
+
+void OCCTFaceTriangulationNormal(OCCTShapeRef face, int32_t index,
+                                   double* nx, double* ny, double* nz) {
+    *nx = *ny = *nz = 0;
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull() || !tri->HasNormals() || index < 1 || index > tri->NbNodes()) return;
+    gp_Dir n = tri->Normal(index);
+    // Transform normal by rotation part of location
+    n = n.Transformed(loc.Transformation());
+    *nx = n.X(); *ny = n.Y(); *nz = n.Z();
+}
+
+bool OCCTFaceTriangulationHasUVNodes(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return false;
+    return tri->HasUVNodes();
+}
+
+void OCCTFaceTriangulationUVNode(OCCTShapeRef face, int32_t index,
+                                   double* u, double* v) {
+    *u = *v = 0;
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull() || !tri->HasUVNodes() || index < 1 || index > tri->NbNodes()) return;
+    gp_Pnt2d uv = tri->UVNode(index);
+    *u = uv.X(); *v = uv.Y();
+}
+
+// --- GCPnts_AbscissaPoint expansion ---
+
+double OCCTEdgeParameterAtArcLength(OCCTShapeRef edge, double arcLength, double startParam) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        GCPnts_AbscissaPoint ap(adaptor, arcLength, startParam);
+        if (ap.IsDone()) return ap.Parameter();
+        return 0;
+    } catch (...) { return 0; }
+}
+
+double OCCTEdgeArcLength(OCCTShapeRef edge) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        return GCPnts_AbscissaPoint::Length(adaptor);
+    } catch (...) { return 0; }
+}
+
+double OCCTEdgeArcLengthBetween(OCCTShapeRef edge, double u1, double u2) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        return GCPnts_AbscissaPoint::Length(adaptor, u1, u2);
+    } catch (...) { return 0; }
+}
+
+double OCCTEdgeParameterAtFraction(OCCTShapeRef edge, double fraction) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        double totalLen = GCPnts_AbscissaPoint::Length(adaptor);
+        double targetLen = totalLen * fraction;
+        GCPnts_AbscissaPoint ap(adaptor, targetLen, adaptor.FirstParameter());
+        if (ap.IsDone()) return ap.Parameter();
+        return 0;
+    } catch (...) { return 0; }
+}
+
+// --- BRepAdaptor exposure ---
+
+void OCCTEdgeAdaptorDomain(OCCTShapeRef edge, double* first, double* last) {
+    *first = *last = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        *first = adaptor.FirstParameter();
+        *last = adaptor.LastParameter();
+    } catch (...) {}
+}
+
+void OCCTEdgeAdaptorValue(OCCTShapeRef edge, double param,
+                            double* x, double* y, double* z) {
+    *x = *y = *z = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        gp_Pnt p = adaptor.Value(param);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+int32_t OCCTEdgeAdaptorCurveType(OCCTShapeRef edge) {
+    if (!edge) return -1;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        return (int32_t)adaptor.GetType();
+    } catch (...) { return -1; }
+}
+
+void OCCTFaceAdaptorBounds(OCCTShapeRef face,
+                             double* uMin, double* uMax,
+                             double* vMin, double* vMax) {
+    *uMin = *uMax = *vMin = *vMax = 0;
+    if (!face) return;
+    try {
+        BRepAdaptor_Surface adaptor(TopoDS::Face(face->shape));
+        *uMin = adaptor.FirstUParameter();
+        *uMax = adaptor.LastUParameter();
+        *vMin = adaptor.FirstVParameter();
+        *vMax = adaptor.LastVParameter();
+    } catch (...) {}
+}
+
+void OCCTFaceAdaptorValue(OCCTShapeRef face, double u, double v,
+                            double* x, double* y, double* z) {
+    *x = *y = *z = 0;
+    if (!face) return;
+    try {
+        BRepAdaptor_Surface adaptor(TopoDS::Face(face->shape));
+        gp_Pnt p = adaptor.Value(u, v);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+int32_t OCCTFaceAdaptorSurfaceType(OCCTShapeRef face) {
+    if (!face) return -1;
+    try {
+        BRepAdaptor_Surface adaptor(TopoDS::Face(face->shape));
+        return (int32_t)adaptor.GetType();
+    } catch (...) { return -1; }
+}
+
+// --- Additional shape queries ---
+
+double OCCTShapeOBBVolume(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        Bnd_OBB obb;
+        BRepBndLib::AddOBB(shape->shape, obb);
+        if (obb.IsVoid()) return 0;
+        // Volume = 8 * halfX * halfY * halfZ
+        double hx = obb.XHSize(), hy = obb.YHSize(), hz = obb.ZHSize();
+        return 8.0 * hx * hy * hz;
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeMaxEdgeTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        return sat.Tolerance(shape->shape, 1, TopAbs_EDGE); // 1 = max
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeMaxFaceTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        return sat.Tolerance(shape->shape, 1, TopAbs_FACE); // 1 = max
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeMaxVertexTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        return sat.Tolerance(shape->shape, 1, TopAbs_VERTEX); // 1 = max
+    } catch (...) { return 0; }
+}
+
+bool OCCTShapeHasFreeEdges(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        // Count edges that appear in only one face
+        TopTools_IndexedDataMapOfShapeListOfShape edgeFaceMap;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_EDGE, TopAbs_FACE, edgeFaceMap);
+        for (int i = 1; i <= edgeFaceMap.Extent(); i++) {
+            if (edgeFaceMap(i).Extent() < 2) return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+
+bool OCCTShapeHasFreeWires(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        TopTools_IndexedDataMapOfShapeListOfShape wireFaceMap;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_WIRE, TopAbs_FACE, wireFaceMap);
+        for (int i = 1; i <= wireFaceMap.Extent(); i++) {
+            if (wireFaceMap(i).Extent() < 1) return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeHasFreeFaces(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        TopTools_IndexedDataMapOfShapeListOfShape faceShellMap;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_FACE, TopAbs_SHELL, faceShellMap);
+        for (int i = 1; i <= faceShellMap.Extent(); i++) {
+            if (faceShellMap(i).Extent() < 1) return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+double OCCTShapeBoundingDiagonal(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        Bnd_Box box;
+        BRepBndLib::Add(shape->shape, box);
+        if (box.IsVoid()) return 0;
+        double xMin, yMin, zMin, xMax, yMax, zMax;
+        box.Get(xMin, yMin, zMin, xMax, yMax, zMax);
+        double dx = xMax - xMin, dy = yMax - yMin, dz = zMax - zMin;
+        return sqrt(dx*dx + dy*dy + dz*dz);
+    } catch (...) { return 0; }
+}
+
+void OCCTShapeCentroid(OCCTShapeRef shape, double* x, double* y, double* z) {
+    *x = *y = *z = 0;
+    if (!shape) return;
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+        gp_Pnt cg = props.CentreOfMass();
+        *x = cg.X(); *y = cg.Y(); *z = cg.Z();
+    } catch (...) {}
+}
+
+double OCCTShapeTotalEdgeLength(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        GProp_GProps props;
+        BRepGProp::LinearProperties(shape->shape, props);
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+// --- Curve3D/2D additional (new in v0.115.0) ---
+
+#include <CPnts_AbscissaPoint.hxx>
+#include <GeomAdaptor_Curve.hxx>
+
+double OCCTCurve3DLength(OCCTCurve3DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        GeomAdaptor_Curve ac(curve->curve, u1, u2);
+        return GCPnts_AbscissaPoint::Length(ac);
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve3DClosestParameter(OCCTCurve3DRef curve, double px, double py, double pz) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        GeomAPI_ProjectPointOnCurve proj(gp_Pnt(px, py, pz), curve->curve);
+        if (proj.NbPoints() > 0) {
+            return proj.LowerDistanceParameter();
+        }
+        return 0;
+    } catch (...) { return 0; }
+}
+
+OCCTCurve2DRef OCCTCurve2DTrimmed(OCCTCurve2DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_TrimmedCurve) trimmed = new Geom2d_TrimmedCurve(curve->curve, u1, u2);
+        return (OCCTCurve2DRef)new OCCTCurve2D{trimmed};
+    } catch (...) { return nullptr; }
+}
+
+#include <Geom2dAdaptor_Curve.hxx>
+
+double OCCTCurve2DLength(OCCTCurve2DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        Geom2dAdaptor_Curve ac(curve->curve, u1, u2);
+        return GCPnts_AbscissaPoint::Length(ac);
+    } catch (...) { return 0; }
+}
+
+// --- Surface additional (new in v0.115.0) ---
+
+void OCCTSurfaceNormal(OCCTSurfaceRef surface, double u, double v,
+                         double* nx, double* ny, double* nz) {
+    *nx = *ny = *nz = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        gp_Pnt p;
+        gp_Vec d1u, d1v;
+        surface->surface->D1(u, v, p, d1u, d1v);
+        gp_Vec normal = d1u.Crossed(d1v);
+        if (normal.Magnitude() > 1e-15) {
+            normal.Normalize();
+            *nx = normal.X(); *ny = normal.Y(); *nz = normal.Z();
+        }
+    } catch (...) {}
+}
+
+#include <GeomLProp_SLProps.hxx>
+
+void OCCTSurfaceCurvatures(OCCTSurfaceRef surface, double u, double v,
+                             double* gaussian, double* mean) {
+    *gaussian = *mean = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        GeomLProp_SLProps props(surface->surface, u, v, 2, 1e-6);
+        if (props.IsCurvatureDefined()) {
+            *gaussian = props.GaussianCurvature();
+            *mean = props.MeanCurvature();
+        }
+    } catch (...) {}
+}
+
+// end of v0.115.0 implementations
+

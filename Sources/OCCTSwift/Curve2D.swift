@@ -2136,4 +2136,66 @@ extension Curve2D {
 
     /// Offset curve properties (meaningful only when the underlying curve is a Geom2d_OffsetCurve).
     public var offsetProperties: OffsetProperties { OffsetProperties(handle: handle) }
+
+    // MARK: - v0.115.0: Interpolation expansion, trim, length
+
+    /// Interpolate a 2D BSpline through points with endpoint tangents.
+    public static func interpolate(points: [SIMD2<Double>],
+                                   startTangent: SIMD2<Double>,
+                                   endTangent: SIMD2<Double>) -> Curve2D? {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y]) }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTInterpolate2DWithTangents(buf.baseAddress!, Int32(points.count),
+                                          startTangent.x, startTangent.y,
+                                          endTangent.x, endTangent.y)
+        }) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Interpolate a periodic (closed) 2D BSpline through points.
+    public static func interpolatePeriodic(points: [SIMD2<Double>]) -> Curve2D? {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y]) }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTInterpolate2DPeriodic(buf.baseAddress!, Int32(points.count))
+        }) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Approximate a 2D BSpline through points with degree and continuity control.
+    public static func approximate(points: [SIMD2<Double>],
+                                   degMin: Int = 3, degMax: Int = 8,
+                                   continuity: Int = 2, tolerance: Double = 1e-3) -> Curve2D? {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y]) }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTPoints2DToBSplineWithParams(buf.baseAddress!, Int32(points.count),
+                                             Int32(degMin), Int32(degMax),
+                                             Int32(continuity), tolerance)
+        }) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Compute the arc length of this curve between parameters u1 and u2 (non-optional).
+    public func arcLength(from u1: Double, to u2: Double) -> Double {
+        OCCTCurve2DLength(handle, u1, u2)
+    }
+
+    /// Split this curve at C1 discontinuities.
+    public func splitAtContinuity(continuity: Int = 1, tolerance: Double = 1e-6,
+                                  maxSegments: Int = 32) -> [Curve2D] {
+        var refs = [OCCTCurve2DRef?](repeating: nil, count: maxSegments)
+        let n = refs.withUnsafeMutableBufferPointer { buf in
+            OCCTCurve2DSplitAtContinuity(handle, Int32(continuity), tolerance,
+                                          buf.baseAddress!, Int32(maxSegments))
+        }
+        var result = [Curve2D]()
+        for i in 0..<Int(n) {
+            if let ref = refs[i] {
+                result.append(Curve2D(handle: ref))
+            }
+        }
+        return result
+    }
 }

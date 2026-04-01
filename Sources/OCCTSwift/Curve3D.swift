@@ -1408,4 +1408,134 @@ extension Curve3D {
 
     /// Line-specific properties (meaningful only when the underlying curve is a Geom_Line).
     public var lineProperties: LineProperties { LineProperties(handle: handle) }
+
+    // MARK: - v0.115.0: Interpolation expansion, length, closest point
+
+    /// Interpolate a 3D BSpline through points with endpoint tangents.
+    public static func interpolate(points: [SIMD3<Double>],
+                                   startTangent: SIMD3<Double>,
+                                   endTangent: SIMD3<Double>) -> Curve3D? {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTInterpolateWithTangents(buf.baseAddress!, Int32(points.count),
+                                        startTangent.x, startTangent.y, startTangent.z,
+                                        endTangent.x, endTangent.y, endTangent.z)
+        }) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Interpolate a 3D BSpline with per-point tangent constraints.
+    public static func interpolate(points: [SIMD3<Double>],
+                                   tangents: [SIMD3<Double>],
+                                   tangentFlags: [Bool]) -> Curve3D? {
+        guard points.count == tangents.count, points.count == tangentFlags.count else { return nil }
+        var flatPts = [Double]()
+        for p in points { flatPts.append(contentsOf: [p.x, p.y, p.z]) }
+        var flatTans = [Double]()
+        for t in tangents { flatTans.append(contentsOf: [t.x, t.y, t.z]) }
+        guard let ref = flatPts.withUnsafeBufferPointer({ pBuf in
+            flatTans.withUnsafeBufferPointer({ tBuf in
+                tangentFlags.withUnsafeBufferPointer({ fBuf in
+                    OCCTInterpolateWithAllTangents(pBuf.baseAddress!, Int32(points.count),
+                                                   tBuf.baseAddress!, fBuf.baseAddress!)
+                })
+            })
+        }) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Interpolate a 3D BSpline with explicit parameter values.
+    public static func interpolate(points: [SIMD3<Double>],
+                                   parameters: [Double]) -> Curve3D? {
+        guard points.count == parameters.count else { return nil }
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        guard let ref = flat.withUnsafeBufferPointer({ pBuf in
+            parameters.withUnsafeBufferPointer({ paramBuf in
+                OCCTInterpolateWithParameters(pBuf.baseAddress!, Int32(points.count), paramBuf.baseAddress!)
+            })
+        }) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Interpolate a periodic (closed) 3D BSpline through points.
+    public static func interpolatePeriodic(points: [SIMD3<Double>]) -> Curve3D? {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTInterpolatePeriodic(buf.baseAddress!, Int32(points.count))
+        }) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Approximate a 3D BSpline through points with degree and continuity control.
+    public static func approximate(points: [SIMD3<Double>],
+                                   degMin: Int = 3, degMax: Int = 8,
+                                   continuity: Int = 2, tolerance: Double = 1e-3) -> Curve3D? {
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        guard let ref = flat.withUnsafeBufferPointer({ buf in
+            OCCTPointsToBSplineWithParams(buf.baseAddress!, Int32(points.count),
+                                          Int32(degMin), Int32(degMax),
+                                          Int32(continuity), tolerance)
+        }) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Approximate a 3D BSpline with explicit parameter values.
+    public static func approximate(points: [SIMD3<Double>],
+                                   parameters: [Double],
+                                   degMin: Int = 3, degMax: Int = 8,
+                                   continuity: Int = 2, tolerance: Double = 1e-3) -> Curve3D? {
+        guard points.count == parameters.count else { return nil }
+        var flat = [Double]()
+        for p in points { flat.append(contentsOf: [p.x, p.y, p.z]) }
+        guard let ref = flat.withUnsafeBufferPointer({ pBuf in
+            parameters.withUnsafeBufferPointer({ paramBuf in
+                OCCTPointsToBSplineWithParameters(pBuf.baseAddress!, paramBuf.baseAddress!,
+                                                   Int32(points.count),
+                                                   Int32(degMin), Int32(degMax),
+                                                   Int32(continuity), tolerance)
+            })
+        }) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Compute the arc length of this curve between parameters u1 and u2 (non-optional).
+    public func arcLength(from u1: Double, to u2: Double) -> Double {
+        OCCTCurve3DLength(handle, u1, u2)
+    }
+
+    /// Find the parameter of the closest point on this curve to a given point.
+    public func closestParameter(to point: SIMD3<Double>) -> Double {
+        OCCTCurve3DClosestParameter(handle, point.x, point.y, point.z)
+    }
+
+    /// Split this curve at C1 discontinuities.
+    /// Returns array of BSpline segments. maxSegments limits output size.
+    public func splitAtContinuity(continuity: Int = 1, tolerance: Double = 1e-6,
+                                  maxSegments: Int = 32) -> [Curve3D] {
+        var refs = [OCCTCurve3DRef?](repeating: nil, count: maxSegments)
+        let n = refs.withUnsafeMutableBufferPointer { buf in
+            OCCTCurve3DSplitAtContinuity(handle, Int32(continuity), tolerance,
+                                          buf.baseAddress!, Int32(maxSegments))
+        }
+        var result = [Curve3D]()
+        for i in 0..<Int(n) {
+            if let ref = refs[i] {
+                result.append(Curve3D(handle: ref))
+            }
+        }
+        return result
+    }
+
+    /// Concatenate an array of curves into a single BSpline with G1 continuity.
+    public static func concatenateG1(curves: [Curve3D], tolerance: Double = 1e-6) -> Curve3D? {
+        let refs = curves.map { $0.handle as OCCTCurve3DRef }
+        guard let ref = refs.withUnsafeBufferPointer({ buf in
+            OCCTCurve3DConcatenateG1(buf.baseAddress!, Int32(curves.count), tolerance)
+        }) else { return nil }
+        return Curve3D(handle: ref)
+    }
 }

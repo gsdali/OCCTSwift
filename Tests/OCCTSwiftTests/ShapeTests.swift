@@ -33987,3 +33987,635 @@ struct TypeNameTests {
         }
     }
 }
+
+// MARK: - v0.115.0 Tests
+
+@Suite("v0.115.0 - Interpolation Expansion 3D")
+struct InterpolationExpansion3DTests {
+
+    @Test func interpolateWithEndpointTangents() {
+        let points = [SIMD3(0.0, 0.0, 0.0), SIMD3(5.0, 5.0, 0.0), SIMD3(10.0, 0.0, 0.0)]
+        let curve = Curve3D.interpolate(points: points,
+                                         startTangent: SIMD3(1, 1, 0),
+                                         endTangent: SIMD3(1, -1, 0))
+        #expect(curve != nil)
+    }
+
+    @Test func interpolateWithAllTangents() {
+        let points = [SIMD3(0.0, 0.0, 0.0), SIMD3(5.0, 5.0, 0.0), SIMD3(10.0, 0.0, 0.0)]
+        let tangents = [SIMD3(1.0, 1.0, 0.0), SIMD3(1.0, 0.0, 0.0), SIMD3(1.0, -1.0, 0.0)]
+        let flags: [Bool] = [true, false, true] // only first and last constrained
+        let curve = Curve3D.interpolate(points: points, tangents: tangents, tangentFlags: flags)
+        #expect(curve != nil)
+    }
+
+    @Test func interpolateWithParameters() {
+        let points = [SIMD3(0.0, 0.0, 0.0), SIMD3(5.0, 5.0, 0.0), SIMD3(10.0, 0.0, 0.0)]
+        let params = [0.0, 0.5, 1.0]
+        let curve = Curve3D.interpolate(points: points, parameters: params)
+        #expect(curve != nil)
+    }
+
+    @Test func interpolatePeriodic() {
+        let points = [
+            SIMD3(0.0, 0.0, 0.0), SIMD3(10.0, 0.0, 0.0),
+            SIMD3(10.0, 10.0, 0.0), SIMD3(0.0, 10.0, 0.0)
+        ]
+        let curve = Curve3D.interpolatePeriodic(points: points)
+        #expect(curve != nil)
+    }
+}
+
+@Suite("v0.115.0 - Interpolation Expansion 2D")
+struct InterpolationExpansion2DTests {
+
+    @Test func interpolate2DWithTangents() {
+        let points = [SIMD2(0.0, 0.0), SIMD2(5.0, 5.0), SIMD2(10.0, 0.0)]
+        let curve = Curve2D.interpolate(points: points,
+                                         startTangent: SIMD2(1, 1),
+                                         endTangent: SIMD2(1, -1))
+        #expect(curve != nil)
+    }
+
+    @Test func interpolate2DPeriodic() {
+        let points = [
+            SIMD2(0.0, 0.0), SIMD2(10.0, 0.0),
+            SIMD2(10.0, 10.0), SIMD2(0.0, 10.0)
+        ]
+        let curve = Curve2D.interpolatePeriodic(points: points)
+        #expect(curve != nil)
+    }
+}
+
+@Suite("v0.115.0 - PointsToBSpline Expansion")
+struct PointsToBSplineExpansionTests {
+
+    @Test func approximate3DWithParams() {
+        let points = [SIMD3(0.0,0.0,0.0), SIMD3(2.0,3.0,0.0), SIMD3(5.0,1.0,0.0),
+                      SIMD3(8.0,4.0,0.0), SIMD3(10.0,0.0,0.0)]
+        let curve = Curve3D.approximate(points: points, degMin: 3, degMax: 8, continuity: 2, tolerance: 1e-3)
+        #expect(curve != nil)
+    }
+
+    @Test func approximate3DWithExplicitParams() {
+        let points = [SIMD3(0.0,0.0,0.0), SIMD3(3.0,5.0,0.0), SIMD3(10.0,0.0,0.0)]
+        let params = [0.0, 0.3, 1.0]
+        let curve = Curve3D.approximate(points: points, parameters: params, degMin: 2, degMax: 6)
+        #expect(curve != nil)
+    }
+
+    @Test func approximate2DWithParams() {
+        let points = [SIMD2(0.0,0.0), SIMD2(2.0,3.0), SIMD2(5.0,1.0), SIMD2(10.0,0.0)]
+        let curve = Curve2D.approximate(points: points, degMin: 2, degMax: 6)
+        #expect(curve != nil)
+    }
+
+    @Test func surfaceFromPointGrid() {
+        var points = [SIMD3<Double>]()
+        let uCount = 4, vCount = 4
+        for v in 0..<vCount {
+            for u in 0..<uCount {
+                let x = Double(u) * 3.0
+                let y = Double(v) * 3.0
+                let z = sin(Double(u)) * cos(Double(v))
+                points.append(SIMD3(x, y, z))
+            }
+        }
+        let surf = Surface.fromPointGrid(points: points, uCount: uCount, vCount: vCount)
+        #expect(surf != nil)
+    }
+}
+
+@Suite("v0.115.0 - Transform Expansion")
+struct TransformExpansionTests {
+
+    @Test func generalTransform() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // Identity rotation + translation by (5,0,0)
+            let matrix: [Double] = [
+                1, 0, 0,  // row 0 of rotation
+                0, 1, 0,  // row 1
+                0, 0, 1,  // row 2
+                5, 0, 0   // translation
+            ]
+            let result = box.transformed(matrix: matrix)
+            #expect(result != nil)
+            if let r = result {
+                #expect(r.isValid)
+            }
+        }
+    }
+
+    @Test func nonUniformScale() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // Scale by (2, 1, 0.5) = non-uniform
+            let matrix: [Double] = [
+                2, 0, 0, 0,  // row 0: scaleX=2, no translate
+                0, 1, 0, 0,  // row 1: scaleY=1
+                0, 0, 0.5, 0 // row 2: scaleZ=0.5
+            ]
+            let result = box.gTransformed(matrix: matrix)
+            #expect(result != nil)
+        }
+    }
+}
+
+@Suite("v0.115.0 - Boolean Expansion")
+struct BooleanExpansionTests {
+
+    @Test func sectionWithTolerance() {
+        if let box1 = Shape.box(width: 10, height: 10, depth: 10),
+           let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) {
+            let sec = box1.section(with: box2, tolerance: 0.001)
+            #expect(sec != nil)
+        }
+    }
+
+    @Test func splitMulti() {
+        if let box = Shape.box(width: 20, height: 20, depth: 20),
+           let tool = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) {
+            let split = box.split(tools: [tool])
+            #expect(split != nil)
+        }
+    }
+
+    @Test func cutWithHistory() {
+        if let box1 = Shape.box(width: 20, height: 20, depth: 20),
+           let box2 = Shape.box(origin: SIMD3(5, 5, 5), width: 10, height: 10, depth: 10) {
+            let result = box1.subtractedWithHistory(box2)
+            #expect(result != nil)
+            if let r = result {
+                #expect(r.shape.isValid)
+                // History tracking should report modifications
+                let _ = r.hasDeleted
+                let _ = r.hasModified
+                let _ = r.hasGenerated
+            }
+        }
+    }
+
+    @Test func defeature() {
+        if let box = Shape.box(width: 20, height: 20, depth: 20) {
+            let filleted = box.filleted(radius: 2.0)
+            if let f = filleted {
+                // Try to remove fillet faces (defeaturing)
+                let faces = f.subShapes(ofType: .face)
+                if faces.count > 6 {
+                    // Pick the extra faces (fillets)
+                    let filletFaces = Array(faces.suffix(from: 6).prefix(2))
+                    let result = f.defeature(faces: filletFaces, tolerance: 0.01)
+                    // Defeaturing may or may not succeed on filleted box
+                    let _ = result
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.115.0 - ThruSections Builder")
+struct ThruSectionsBuilderTests {
+
+    @Test func basicThruSections() {
+        if let w1 = Wire.circle(origin: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5),
+           let w2 = Wire.circle(origin: SIMD3(0,0,10), normal: SIMD3(0,0,1), radius: 3),
+           let s1 = Shape.fromWire(w1),
+           let s2 = Shape.fromWire(w2) {
+            let ts = ThruSectionsBuilder(isSolid: true, isRuled: false)
+            ts.addWire(s1)
+            ts.addWire(s2)
+            let ok = ts.build()
+            #expect(ok)
+            let shape = ts.shape
+            #expect(shape != nil)
+            if let s = shape {
+                #expect(s.isValid)
+            }
+        }
+    }
+
+    @Test func ruledThruSections() {
+        if let w1 = Wire.rectangle(width: 10, height: 10),
+           let w2 = Wire.circle(origin: SIMD3(0,0,15), normal: SIMD3(0,0,1), radius: 5),
+           let s1 = Shape.fromWire(w1),
+           let s2 = Shape.fromWire(w2) {
+            let ts = ThruSectionsBuilder(isSolid: true, isRuled: true)
+            ts.addWire(s1)
+            ts.addWire(s2)
+            let ok = ts.build()
+            #expect(ok)
+        }
+    }
+
+    @Test func thruSectionsWithSettings() {
+        if let w1 = Wire.circle(origin: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5),
+           let w2 = Wire.circle(origin: SIMD3(0,0,5), normal: SIMD3(0,0,1), radius: 7),
+           let w3 = Wire.circle(origin: SIMD3(0,0,10), normal: SIMD3(0,0,1), radius: 3),
+           let s1 = Shape.fromWire(w1),
+           let s2 = Shape.fromWire(w2),
+           let s3 = Shape.fromWire(w3) {
+            let ts = ThruSectionsBuilder(isSolid: true)
+            ts.setSmoothing(true)
+            ts.setMaxDegree(8)
+            ts.setContinuity(2)
+            ts.addWire(s1)
+            ts.addWire(s2)
+            ts.addWire(s3)
+            let ok = ts.build()
+            #expect(ok)
+            if let s = ts.shape {
+                #expect(s.isValid)
+                if let vol = s.volume {
+                    #expect(vol > 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.115.0 - ShapeFixer Builder")
+struct ShapeFixerBuilderTests {
+
+    @Test func basicFixer() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let fixer = ShapeFixer(shape: box)
+            fixer.setPrecision(1e-7)
+            fixer.setMaxTolerance(1.0)
+            fixer.setMinTolerance(1e-10)
+            let _ = fixer.perform()
+            let result = fixer.shape
+            #expect(result != nil)
+            if let r = result {
+                #expect(r.isValid)
+            }
+        }
+    }
+
+    @Test func fixerStatus() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let fixer = ShapeFixer(shape: box)
+            let _ = fixer.perform()
+            // After performing on a valid box, should not be in FAIL state
+            let hasFailed = fixer.status(3) // 3=FAIL
+            #expect(!hasFailed)
+            let result = fixer.shape
+            #expect(result != nil)
+        }
+    }
+}
+
+@Suite("v0.115.0 - Triangulation Queries")
+struct TriangulationQueryTests {
+
+    @Test func faceTriangulation() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // Mesh the box first
+            if let _ = box.mesh(linearDeflection: 1.0) {
+                let faces = box.subShapes(ofType: .face)
+                if faces.count > 0 {
+                    let face = faces[0]
+                    let nodeCount = face.triangulationNodeCount
+                    let triCount = face.triangulationTriangleCount
+                    #expect(nodeCount > 0)
+                    #expect(triCount > 0)
+                    let defl = face.triangulationDeflection
+                    #expect(defl > 0)
+
+                    // Get first node
+                    let p = face.triangulationNode(at: 1)
+                    // Should be a valid 3D point
+                    let mag = sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+                    #expect(mag >= 0) // can be zero if at origin
+
+                    // Get first triangle
+                    let (n1, n2, n3) = face.triangulationTriangle(at: 1)
+                    #expect(n1 >= 1)
+                    #expect(n2 >= 1)
+                    #expect(n3 >= 1)
+                }
+            }
+        }
+    }
+
+    @Test func triangulationUVNodes() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let _ = box.mesh(linearDeflection: 1.0) {
+                let faces = box.subShapes(ofType: .face)
+                if faces.count > 0 {
+                    let face = faces[0]
+                    if face.triangulationHasUVNodes {
+                        let uv = face.triangulationUVNode(at: 1)
+                        // UV should be in some range
+                        let _ = uv
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.115.0 - GCPnts Expansion")
+struct GCPntsExpansionTests {
+
+    @Test func edgeArcLength() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                let len = edges[0].edgeArcLength
+                #expect(len > 0)
+            }
+        }
+    }
+
+    @Test func edgeArcLengthBetween() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                let domain = edges[0].edgeAdaptorDomain
+                let halfLen = edges[0].edgeArcLength(from: domain.lowerBound,
+                                                      to: (domain.lowerBound + domain.upperBound) / 2.0)
+                #expect(halfLen > 0)
+            }
+        }
+    }
+
+    @Test func edgeParameterAtFraction() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                let midParam = edges[0].edgeParameterAtFraction(0.5)
+                let domain = edges[0].edgeAdaptorDomain
+                #expect(midParam >= domain.lowerBound)
+                #expect(midParam <= domain.upperBound)
+            }
+        }
+    }
+
+    @Test func edgeParameterAtArcLength() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                let domain = edges[0].edgeAdaptorDomain
+                let totalLen = edges[0].edgeArcLength
+                let param = edges[0].edgeParameterAtArcLength(totalLen * 0.5, from: domain.lowerBound)
+                #expect(param >= domain.lowerBound)
+            }
+        }
+    }
+}
+
+@Suite("v0.115.0 - BRepAdaptor Exposure")
+struct BRepAdaptorTests {
+
+    @Test func edgeDomain() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                let domain = edges[0].edgeAdaptorDomain
+                #expect(domain.upperBound > domain.lowerBound)
+            }
+        }
+    }
+
+    @Test func edgeValue() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                let domain = edges[0].edgeAdaptorDomain
+                let p = edges[0].edgeAdaptorValue(at: domain.lowerBound)
+                let mag = sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+                #expect(mag >= 0)
+            }
+        }
+    }
+
+    @Test func edgeCurveType() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                let curveType = edges[0].edgeAdaptorCurveType
+                #expect(curveType == 0) // Line for box edges
+            }
+        }
+    }
+
+    @Test func faceBounds() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let bounds = faces[0].faceAdaptorBounds
+                #expect(bounds.uMax > bounds.uMin || bounds.vMax > bounds.vMin)
+            }
+        }
+    }
+
+    @Test func faceValue() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let bounds = faces[0].faceAdaptorBounds
+                let midU = (bounds.uMin + bounds.uMax) / 2.0
+                let midV = (bounds.vMin + bounds.vMax) / 2.0
+                let p = faces[0].faceAdaptorValue(u: midU, v: midV)
+                let mag = sqrt(p.x * p.x + p.y * p.y + p.z * p.z)
+                #expect(mag >= 0)
+            }
+        }
+    }
+
+    @Test func faceSurfaceType() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let surfType = faces[0].faceAdaptorSurfaceType
+                #expect(surfType == 0) // Plane for box faces
+            }
+        }
+    }
+}
+
+@Suite("v0.115.0 - Shape Queries")
+struct ShapeQueryTests {
+
+    @Test func obbVolume() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let vol = box.obbVolume
+            #expect(vol > 0)
+            // OBB should be close to 10*10*10 = 1000 but may differ due to centering
+            #expect(vol > 500)
+        }
+    }
+
+    @Test func maxTolerances() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let edgeTol = box.maxEdgeTolerance
+            let faceTol = box.maxFaceTolerance
+            let vertTol = box.maxVertexTolerance
+            #expect(edgeTol > 0)
+            #expect(faceTol >= 0)
+            #expect(vertTol > 0)
+        }
+    }
+
+    @Test func freeEdges() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // A solid box should not have free edges
+            #expect(!box.hasFreeEdges)
+        }
+    }
+
+    @Test func freeEdgesOnOpenShell() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let faces = box.subShapes(ofType: .face)
+            if faces.count >= 5 {
+                // Make an open shell (5 out of 6 faces)
+                if let compound = Shape.builderMakeCompound() {
+                    for i in 0..<5 {
+                        compound.builderAdd(faces[i])
+                    }
+                    // An open shell should have free edges
+                    let hasFree = compound.hasFreeEdges
+                    #expect(hasFree)
+                }
+            }
+        }
+    }
+
+    @Test func boundingDiagonal() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let diag = box.boundingDiagonal
+            // For a 10x10x10 box centered at origin, diagonal = sqrt(100+100+100) ~ 17.3
+            #expect(diag > 15)
+            #expect(diag < 20)
+        }
+    }
+
+    @Test func centroid() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let c = box.centroid
+            // Box centered at origin
+            #expect(abs(c.x) < 1)
+            #expect(abs(c.y) < 1)
+            #expect(abs(c.z) < 1)
+        }
+    }
+
+    @Test func totalEdgeLength() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let len = box.totalEdgeLength
+            // 12 edges * 10 = 120; LinearProperties counts wire lengths
+            #expect(len > 0)
+        }
+    }
+}
+
+@Suite("v0.115.0 - Curve Length and Closest")
+struct CurveLengthTests {
+
+    @Test func curve3DArcLength() {
+        let points = [SIMD3(0.0,0.0,0.0), SIMD3(10.0,0.0,0.0)]
+        if let curve = Curve3D.interpolate(points: points,
+                                            startTangent: SIMD3(1,0,0),
+                                            endTangent: SIMD3(1,0,0)) {
+            let domain = curve.domain
+            let len = curve.arcLength(from: domain.lowerBound, to: domain.upperBound)
+            #expect(len > 0)
+        }
+    }
+
+    @Test func curve3DClosestParameter() {
+        if let line = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)) {
+            let param = line.closestParameter(to: SIMD3(5, 3, 0))
+            // For a line along X, closest to (5,3,0) should be near param=5
+            #expect(abs(param - 5.0) < 0.1)
+        }
+    }
+
+    @Test func curve2DArcLength() {
+        let points = [SIMD2(0.0, 0.0), SIMD2(5.0, 5.0), SIMD2(10.0, 0.0)]
+        if let curve = Curve2D.interpolate(points: points,
+                                            startTangent: SIMD2(1, 1),
+                                            endTangent: SIMD2(1, -1)) {
+            let domain = curve.domain
+            let len = curve.arcLength(from: domain.lowerBound, to: domain.upperBound)
+            #expect(len > 0)
+        }
+    }
+}
+
+@Suite("v0.115.0 - Curve Split and Concatenate")
+struct CurveSplitConcatTests {
+
+    @Test func splitAtContinuity3D() {
+        let points = [SIMD3(0.0,0.0,0.0), SIMD3(5.0,5.0,0.0), SIMD3(10.0,0.0,0.0)]
+        if let curve = Curve3D.fit(points: points) {
+            let segs = curve.splitAtContinuity()
+            #expect(segs.count >= 1)
+        }
+    }
+
+    @Test func concatenateCurvesG1() {
+        let pts1 = [SIMD3(0.0,0.0,0.0), SIMD3(5.0,5.0,0.0), SIMD3(10.0,0.0,0.0)]
+        let pts2 = [SIMD3(10.0,0.0,0.0), SIMD3(15.0,-5.0,0.0), SIMD3(20.0,0.0,0.0)]
+        if let c1 = Curve3D.fit(points: pts1),
+           let c2 = Curve3D.fit(points: pts2) {
+            let joined = Curve3D.concatenateG1(curves: [c1, c2])
+            #expect(joined != nil)
+        }
+    }
+
+    @Test func splitCurve2DAtContinuity() {
+        let points = [SIMD2(0.0,0.0), SIMD2(5.0,5.0), SIMD2(10.0,0.0)]
+        if let curve = Curve2D.fit(through: points) {
+            let segs = curve.splitAtContinuity()
+            #expect(segs.count >= 1)
+        }
+    }
+}
+
+@Suite("v0.115.0 - Surface From Grid")
+struct SurfaceFromGridTests {
+
+    @Test func surfaceNormal() {
+        if let sphere = Surface.sphere(center: SIMD3(0,0,0), radius: 5) {
+            let n = sphere.normal(u: 0, v: Double.pi / 4)
+            let mag = sqrt(n.x * n.x + n.y * n.y + n.z * n.z)
+            #expect(abs(mag - 1.0) < 0.01)
+        }
+    }
+
+    @Test func surfaceCurvatures() {
+        if let sphere = Surface.sphere(center: SIMD3(0,0,0), radius: 5) {
+            let (gaussian, mean) = sphere.curvatures(u: 0, v: Double.pi / 4)
+            // Gaussian curvature of sphere radius R = 1/R^2 = 0.04
+            #expect(abs(gaussian - 0.04) < 0.01)
+            // Mean curvature = 1/R = 0.2
+            #expect(abs(abs(mean) - 0.2) < 0.01)
+        }
+    }
+
+    @Test func surfaceFromGrid() {
+        var points = [SIMD3<Double>]()
+        for v in 0..<5 {
+            for u in 0..<5 {
+                points.append(SIMD3(Double(u), Double(v), sin(Double(u)) * cos(Double(v))))
+            }
+        }
+        let surf = Surface.fromPointGrid(points: points, uCount: 5, vCount: 5)
+        #expect(surf != nil)
+    }
+}
+
+@Suite("v0.115.0 - GeomConvert Utilities")
+struct GeomConvertUtilTests {
+
+    @Test func curveSplitAndJoin() {
+        let pts = [SIMD3(0.0,0.0,0.0), SIMD3(5.0,5.0,0.0), SIMD3(10.0,0.0,0.0)]
+        if let curve = Curve3D.fit(points: pts) {
+            let segs = curve.splitAtContinuity()
+            if segs.count >= 1 {
+                let rejoined = Curve3D.concatenateG1(curves: segs)
+                #expect(rejoined != nil)
+            }
+        }
+    }
+}

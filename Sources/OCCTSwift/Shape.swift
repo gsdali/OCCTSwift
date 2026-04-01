@@ -11237,3 +11237,344 @@ extension Shape {
         return Shape(handle: ref)
     }
 }
+
+// MARK: - v0.115.0: Transform expansion, Boolean expansion, Shape queries
+
+extension Shape {
+    /// Apply a general affine transformation (3x3 rotation + translation).
+    /// matrix12 = [r00,r01,r02, r10,r11,r12, r20,r21,r22, tx,ty,tz]
+    public func transformed(matrix: [Double]) -> Shape? {
+        guard matrix.count == 12 else { return nil }
+        guard let ref = matrix.withUnsafeBufferPointer({ buf in
+            OCCTShapeTransformed(handle, buf.baseAddress!)
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Apply a general affine transformation (non-uniform scaling).
+    /// matrix12 = row-major 3x4 affine matrix [r00,r01,r02,tx, r10,r11,r12,ty, r20,r21,r22,tz]
+    public func gTransformed(matrix: [Double]) -> Shape? {
+        guard matrix.count == 12 else { return nil }
+        guard let ref = matrix.withUnsafeBufferPointer({ buf in
+            OCCTShapeGTransformed(handle, buf.baseAddress!)
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Boolean section with fuzzy tolerance.
+    public func section(with other: Shape, tolerance: Double) -> Shape? {
+        guard let ref = OCCTBooleanSectionWithTolerance(handle, other.handle, tolerance) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Split this shape by multiple tool shapes.
+    public func split(tools: [Shape], tolerance: Double = 0) -> Shape? {
+        let toolRefs = tools.map { $0.handle as OCCTShapeRef }
+        guard let ref = toolRefs.withUnsafeBufferPointer({ buf in
+            OCCTBooleanSplitMulti(handle, buf.baseAddress!, Int32(tools.count), tolerance)
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Result of a boolean operation with history tracking.
+    public struct BooleanHistoryResult: Sendable {
+        public let shape: Shape
+        public let hasDeleted: Bool
+        public let hasModified: Bool
+        public let hasGenerated: Bool
+    }
+
+    /// Boolean cut with history tracking.
+    public func subtractedWithHistory(_ tool: Shape, tolerance: Double = 0) -> BooleanHistoryResult? {
+        var hasDel = false, hasMod = false, hasGen = false
+        guard let ref = OCCTBooleanCutWithHistory(handle, tool.handle, tolerance,
+                                                   &hasDel, &hasMod, &hasGen) else { return nil }
+        return BooleanHistoryResult(shape: Shape(handle: ref),
+                                     hasDeleted: hasDel, hasModified: hasMod, hasGenerated: hasGen)
+    }
+
+    /// Remove faces from a shape with fuzzy tolerance (defeaturing).
+    public func defeature(faces: [Shape], tolerance: Double = 0) -> Shape? {
+        let faceRefs = faces.map { $0.handle as OCCTShapeRef }
+        guard let ref = faceRefs.withUnsafeBufferPointer({ buf in
+            OCCTDefeatureWithTolerance(handle, buf.baseAddress!, Int32(faces.count), tolerance)
+        }) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    // --- Triangulation queries ---
+
+    /// Number of triangulation nodes on a face.
+    public var triangulationNodeCount: Int32 {
+        OCCTFaceTriangulationNodeCount(handle)
+    }
+
+    /// Number of triangles in the triangulation of a face.
+    public var triangulationTriangleCount: Int32 {
+        OCCTFaceTriangulationTriangleCount(handle)
+    }
+
+    /// Deflection of the face triangulation.
+    public var triangulationDeflection: Double {
+        OCCTFaceTriangulationDeflection(handle)
+    }
+
+    /// Get the 3D coordinates of a triangulation node (1-based index).
+    public func triangulationNode(at index: Int32) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTFaceTriangulationNode(handle, index, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get the node indices of a triangle (1-based index). Returns 1-based node indices.
+    public func triangulationTriangle(at index: Int32) -> (Int32, Int32, Int32) {
+        var n1: Int32 = 0, n2: Int32 = 0, n3: Int32 = 0
+        OCCTFaceTriangulationTriangle(handle, index, &n1, &n2, &n3)
+        return (n1, n2, n3)
+    }
+
+    /// Whether the face triangulation has normals.
+    public var triangulationHasNormals: Bool {
+        OCCTFaceTriangulationHasNormals(handle)
+    }
+
+    /// Get the normal at a triangulation node (1-based index).
+    public func triangulationNormal(at index: Int32) -> SIMD3<Double> {
+        var nx = 0.0, ny = 0.0, nz = 0.0
+        OCCTFaceTriangulationNormal(handle, index, &nx, &ny, &nz)
+        return SIMD3(nx, ny, nz)
+    }
+
+    /// Whether the face triangulation has UV nodes.
+    public var triangulationHasUVNodes: Bool {
+        OCCTFaceTriangulationHasUVNodes(handle)
+    }
+
+    /// Get the UV coordinates of a triangulation node (1-based index).
+    public func triangulationUVNode(at index: Int32) -> SIMD2<Double> {
+        var u = 0.0, v = 0.0
+        OCCTFaceTriangulationUVNode(handle, index, &u, &v)
+        return SIMD2(u, v)
+    }
+
+    // --- GCPnts_AbscissaPoint expansion ---
+
+    /// Find parameter on an edge at a given arc length from startParam.
+    public func edgeParameterAtArcLength(_ arcLength: Double, from startParam: Double) -> Double {
+        OCCTEdgeParameterAtArcLength(handle, arcLength, startParam)
+    }
+
+    /// Compute total arc length of this edge.
+    public var edgeArcLength: Double {
+        OCCTEdgeArcLength(handle)
+    }
+
+    /// Compute arc length between two parameters on this edge.
+    public func edgeArcLength(from u1: Double, to u2: Double) -> Double {
+        OCCTEdgeArcLengthBetween(handle, u1, u2)
+    }
+
+    /// Find parameter at a fraction (0..1) of total edge length.
+    public func edgeParameterAtFraction(_ fraction: Double) -> Double {
+        OCCTEdgeParameterAtFraction(handle, fraction)
+    }
+
+    // --- BRepAdaptor exposure ---
+
+    /// Get the parameter domain of an edge curve.
+    public var edgeAdaptorDomain: ClosedRange<Double> {
+        var first = 0.0, last = 0.0
+        OCCTEdgeAdaptorDomain(handle, &first, &last)
+        return first...last
+    }
+
+    /// Evaluate the edge curve at a parameter.
+    public func edgeAdaptorValue(at param: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTEdgeAdaptorValue(handle, param, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Curve type of the edge (GeomAbs_CurveType: 0=Line, 1=Circle, etc.).
+    public var edgeAdaptorCurveType: Int32 {
+        OCCTEdgeAdaptorCurveType(handle)
+    }
+
+    /// Get the UV bounds of a face surface.
+    public var faceAdaptorBounds: (uMin: Double, uMax: Double, vMin: Double, vMax: Double) {
+        var uMin = 0.0, uMax = 0.0, vMin = 0.0, vMax = 0.0
+        OCCTFaceAdaptorBounds(handle, &uMin, &uMax, &vMin, &vMax)
+        return (uMin, uMax, vMin, vMax)
+    }
+
+    /// Evaluate the face surface at (u,v).
+    public func faceAdaptorValue(u: Double, v: Double) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTFaceAdaptorValue(handle, u, v, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Surface type of the face (GeomAbs_SurfaceType: 0=Plane, 1=Cylinder, etc.).
+    public var faceAdaptorSurfaceType: Int32 {
+        OCCTFaceAdaptorSurfaceType(handle)
+    }
+
+    // --- Additional shape queries ---
+
+    /// Volume of the oriented bounding box (OBB).
+    public var obbVolume: Double {
+        OCCTShapeOBBVolume(handle)
+    }
+
+    /// Maximum edge tolerance in this shape.
+    public var maxEdgeTolerance: Double {
+        OCCTShapeMaxEdgeTolerance(handle)
+    }
+
+    /// Maximum face tolerance in this shape.
+    public var maxFaceTolerance: Double {
+        OCCTShapeMaxFaceTolerance(handle)
+    }
+
+    /// Maximum vertex tolerance in this shape.
+    public var maxVertexTolerance: Double {
+        OCCTShapeMaxVertexTolerance(handle)
+    }
+
+    /// Whether this shape has free (non-shared) edges.
+    public var hasFreeEdges: Bool {
+        OCCTShapeHasFreeEdges(handle)
+    }
+
+    /// Whether this shape has free (non-shared) wires.
+    public var hasFreeWires: Bool {
+        OCCTShapeHasFreeWires(handle)
+    }
+
+    /// Whether this shape has free (non-shared) faces.
+    public var hasFreeFaces: Bool {
+        OCCTShapeHasFreeFaces(handle)
+    }
+
+    /// Length of the bounding box diagonal.
+    public var boundingDiagonal: Double {
+        OCCTShapeBoundingDiagonal(handle)
+    }
+
+    /// Volumetric centroid of this shape.
+    public var centroid: SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTShapeCentroid(handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Total length of all edges in this shape.
+    public var totalEdgeLength: Double {
+        OCCTShapeTotalEdgeLength(handle)
+    }
+}
+
+// MARK: - v0.115.0: ThruSections builder
+
+/// Builder for lofted shapes through multiple wire sections.
+public final class ThruSectionsBuilder: @unchecked Sendable {
+    private let ref: OCCTThruSectionsRef
+
+    /// Create a ThruSections builder.
+    /// - Parameters:
+    ///   - isSolid: Whether to create a solid (true) or shell (false)
+    ///   - isRuled: Whether to use ruled surfaces
+    ///   - precision: 3D tolerance
+    public init(isSolid: Bool = true, isRuled: Bool = false, precision: Double = 1e-6) {
+        ref = OCCTThruSectionsCreate(isSolid, isRuled, precision)
+    }
+
+    deinit {
+        OCCTThruSectionsRelease(ref)
+    }
+
+    /// Add a wire profile.
+    public func addWire(_ wire: Shape) {
+        OCCTThruSectionsAddWire(ref, wire.handle)
+    }
+
+    /// Add a vertex (point) as a degenerate section.
+    public func addVertex(_ vertex: Shape) {
+        OCCTThruSectionsAddVertex(ref, vertex.handle)
+    }
+
+    /// Enable/disable smoothing.
+    public func setSmoothing(_ smoothing: Bool) {
+        OCCTThruSectionsSetSmoothing(ref, smoothing)
+    }
+
+    /// Set the maximum BSpline degree.
+    public func setMaxDegree(_ maxDeg: Int) {
+        OCCTThruSectionsSetMaxDegree(ref, Int32(maxDeg))
+    }
+
+    /// Set the continuity (0=C0, 1=C1, 2=C2).
+    public func setContinuity(_ continuity: Int) {
+        OCCTThruSectionsSetContinuity(ref, Int32(continuity))
+    }
+
+    /// Build the lofted shape.
+    @discardableResult
+    public func build() -> Bool {
+        OCCTThruSectionsBuild(ref)
+    }
+
+    /// Get the result shape.
+    public var shape: Shape? {
+        guard let h = OCCTThruSectionsShape(ref) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// MARK: - v0.115.0: ShapeFixer builder
+
+/// Configurable shape repair using ShapeFix_Shape.
+public final class ShapeFixer: @unchecked Sendable {
+    private let ref: OCCTShapeFixerRef
+
+    /// Create a shape fixer for the given shape.
+    public init(shape: Shape) {
+        ref = OCCTShapeFixerCreate(shape.handle)
+    }
+
+    deinit {
+        OCCTShapeFixerRelease(ref)
+    }
+
+    /// Set the precision for shape fixing.
+    public func setPrecision(_ precision: Double) {
+        OCCTShapeFixerSetPrecision(ref, precision)
+    }
+
+    /// Set the maximum tolerance.
+    public func setMaxTolerance(_ maxTol: Double) {
+        OCCTShapeFixerSetMaxTolerance(ref, maxTol)
+    }
+
+    /// Set the minimum tolerance.
+    public func setMinTolerance(_ minTol: Double) {
+        OCCTShapeFixerSetMinTolerance(ref, minTol)
+    }
+
+    /// Perform the shape fix. Returns true if something was fixed.
+    @discardableResult
+    public func perform() -> Bool {
+        OCCTShapeFixerPerform(ref)
+    }
+
+    /// Get the result shape after fixing.
+    public var shape: Shape? {
+        guard let h = OCCTShapeFixerShape(ref) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Query status: 1=OK, 2=DONE, 3=FAIL.
+    public func status(_ type: Int) -> Bool {
+        OCCTShapeFixerStatus(ref, Int32(type))
+    }
+}
