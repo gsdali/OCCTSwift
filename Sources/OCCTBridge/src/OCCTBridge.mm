@@ -44505,3 +44505,67 @@ int32_t OCCTPolyQuinticRoots(double a, double b, double c, double d, double e, d
         return n;
     } catch (...) { return 0; }
 }
+
+// MARK: - math_NewtonMinimum (v0.111.1)
+
+#include <math_NewtonMinimum.hxx>
+#include <math_MultipleVarFunctionWithHessian.hxx>
+
+class OCCTMathHessianAdapter : public math_MultipleVarFunctionWithHessian {
+    OCCTMathHessianCallback callback;
+    void* context;
+    int nVars;
+public:
+    OCCTMathHessianAdapter(int n, OCCTMathHessianCallback cb, void* ctx)
+        : nVars(n), callback(cb), context(ctx) {}
+    int NbVariables() const override { return nVars; }
+    bool Value(const math_Vector& X, double& F) override {
+        std::vector<double> x(nVars), g(nVars), h(nVars*nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        return callback(x.data(), nVars, &F, g.data(), h.data(), context);
+    }
+    bool Gradient(const math_Vector& X, math_Vector& G) override {
+        std::vector<double> x(nVars), g(nVars), h(nVars*nVars);
+        double f;
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &f, g.data(), h.data(), context);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        return ok;
+    }
+    bool Values(const math_Vector& X, double& F, math_Vector& G) override {
+        std::vector<double> x(nVars), g(nVars), h(nVars*nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &F, g.data(), h.data(), context);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        return ok;
+    }
+    bool Values(const math_Vector& X, double& F, math_Vector& G, math_Matrix& H) override {
+        std::vector<double> x(nVars), g(nVars), h(nVars*nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &F, g.data(), h.data(), context);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        for (int i = 0; i < nVars; i++)
+            for (int j = 0; j < nVars; j++)
+                H(i+1, j+1) = h[i*nVars + j];
+        return ok;
+    }
+};
+
+bool OCCTMathNewtonMinimum(int32_t nVars,
+                             OCCTMathHessianCallback callback, void* context,
+                             const double* startPoint,
+                             double tolerance, int32_t maxIter,
+                             double* result, double* minimum) {
+    try {
+        OCCTMathHessianAdapter adapter(nVars, callback, context);
+        math_NewtonMinimum newton(adapter, tolerance, maxIter);
+        math_Vector start(1, nVars);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        newton.Perform(adapter, start);
+        if (!newton.IsDone()) return false;
+        const math_Vector& loc = newton.Location();
+        for (int i = 0; i < nVars; i++) result[i] = loc(i+1);
+        *minimum = newton.Minimum();
+        return true;
+    } catch (...) { return false; }
+}

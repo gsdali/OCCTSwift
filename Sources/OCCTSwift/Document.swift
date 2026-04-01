@@ -10983,3 +10983,44 @@ extension Surface {
                 SIMD3(d2ux, d2uy, d2uz), SIMD3(d2vx, d2vy, d2vz), SIMD3(d2uvx, d2uvy, d2uvz))
     }
 }
+
+// MARK: - math_NewtonMinimum (v0.111.1)
+
+extension MathSolver {
+
+    /// Minimize using Newton's method with Hessian (second derivatives).
+    /// The closure takes x[n] and returns (value, gradient[n], hessian[n*n] row-major).
+    /// This is the most precise minimizer when the Hessian is available.
+    public static func minimizeNewton(
+        variables n: Int,
+        startPoint: [Double],
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 40,
+        function: @escaping ([Double]) -> (value: Double, gradient: [Double], hessian: [Double])
+    ) -> (point: [Double], minimum: Double)? {
+        typealias Closure = ([Double]) -> (value: Double, gradient: [Double], hessian: [Double])
+        class Box { let fn: Closure; init(_ f: @escaping Closure) { fn = f } }
+        let box = Box(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<Box>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathHessianCallback = { x, nVars, value, gradient, hessian, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<Box>.fromOpaque(ctx).takeUnretainedValue()
+            let n = Int(nVars)
+            let input = Array(UnsafeBufferPointer(start: x, count: n))
+            let result = box.fn(input)
+            value.pointee = result.value
+            for i in 0..<n { gradient[i] = result.gradient[i] }
+            for i in 0..<(n*n) { hessian[i] = result.hessian[i] }
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: n)
+        var minimum = 0.0
+        let ok = OCCTMathNewtonMinimum(Int32(n), callback, ptr,
+                                        startPoint, tolerance, Int32(maxIterations),
+                                        &result, &minimum)
+        return ok ? (result, minimum) : nil
+    }
+}

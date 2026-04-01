@@ -15411,6 +15411,24 @@ int32_t OCCTPolyLaguerreComplexRoots(const double* _Nonnull coefficients, int32_
 int32_t OCCTPolyQuinticRoots(double a, double b, double c, double d, double e, double f,
                                 double* _Nonnull roots, int32_t maxRoots);
 
+// MARK: - math_NewtonMinimum (v0.111.1)
+
+/// Callback for N-dim function with gradient AND Hessian.
+/// hessian is row-major n*n matrix.
+typedef bool (*OCCTMathHessianCallback)(const double* _Nonnull x, int32_t n,
+                                         double* _Nonnull value,
+                                         double* _Nonnull gradient,
+                                         double* _Nonnull hessian,
+                                         void* _Nullable context);
+
+/// Minimize using Newton's method with Hessian.
+/// Returns true if converged. result is n-element array.
+bool OCCTMathNewtonMinimum(int32_t nVars,
+                             OCCTMathHessianCallback _Nonnull callback, void* _Nullable context,
+                             const double* _Nonnull startPoint,
+                             double tolerance, int32_t maxIter,
+                             double* _Nonnull result, double* _Nonnull minimum);
+
 #ifdef __cplusplus
 }
 #endif
