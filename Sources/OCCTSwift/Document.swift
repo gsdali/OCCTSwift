@@ -12441,3 +12441,695 @@ extension Surface {
         return String(cString: ptr)
     }
 }
+
+// MARK: - v0.116.0: HelixGeom, gp_Ax3, gp_GTrsf2d, gp_Mat2d, Quaternion Interpolation, XY/XYZ, Math Solvers
+
+// MARK: - HelixGeom (v0.116.0)
+
+/// Helix curve construction using OCCT HelixGeom classes (rc4).
+public enum Helix {
+
+    /// Result of a helix build operation.
+    public struct BuildResult: Sendable {
+        public let curve: Curve3D
+        public let toleranceReached: Double
+    }
+
+    /// Build a helix curve approximated as BSpline.
+    /// - Parameters:
+    ///   - origin: Center point of the helix base
+    ///   - direction: Axis direction of the helix
+    ///   - xDirection: X direction for the starting position
+    ///   - parameterRange: Parameter range (t1...t2)
+    ///   - pitch: Helix pitch (distance per revolution)
+    ///   - radius: Starting radius
+    ///   - taperAngle: Taper angle in radians (0 for constant radius)
+    ///   - isClockwise: Whether the helix winds clockwise
+    ///   - tolerance: Approximation tolerance
+    public static func build(
+        origin: SIMD3<Double> = .zero,
+        direction: SIMD3<Double> = SIMD3(0, 0, 1),
+        xDirection: SIMD3<Double> = SIMD3(1, 0, 0),
+        parameterRange: ClosedRange<Double>,
+        pitch: Double,
+        radius: Double,
+        taperAngle: Double = 0,
+        isClockwise: Bool = false,
+        tolerance: Double = 0.001
+    ) -> BuildResult? {
+        var tolReached = 0.0
+        guard let ref = OCCTHelixBuild(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            xDirection.x, xDirection.y, xDirection.z,
+            parameterRange.lowerBound, parameterRange.upperBound,
+            pitch, radius, taperAngle, isClockwise,
+            tolerance, &tolReached
+        ) else { return nil }
+        return BuildResult(curve: Curve3D(handle: ref), toleranceReached: tolReached)
+    }
+
+    /// Build a helix coil (closed-loop helix, no position needed).
+    public static func buildCoil(
+        parameterRange: ClosedRange<Double>,
+        pitch: Double,
+        radius: Double,
+        taperAngle: Double = 0,
+        isClockwise: Bool = false,
+        tolerance: Double = 0.001
+    ) -> BuildResult? {
+        var tolReached = 0.0
+        guard let ref = OCCTHelixCoilBuild(
+            parameterRange.lowerBound, parameterRange.upperBound,
+            pitch, radius, taperAngle, isClockwise,
+            tolerance, &tolReached
+        ) else { return nil }
+        return BuildResult(curve: Curve3D(handle: ref), toleranceReached: tolReached)
+    }
+
+    /// Evaluate a helix curve at parameter u.
+    public static func evaluate(
+        parameterRange: ClosedRange<Double>,
+        pitch: Double, radius: Double,
+        taperAngle: Double = 0, isClockwise: Bool = false,
+        at u: Double
+    ) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTHelixCurveEval(parameterRange.lowerBound, parameterRange.upperBound,
+                           pitch, radius, taperAngle, isClockwise, u, &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+
+    /// Evaluate helix D1 (point + tangent) at parameter u.
+    public static func evaluateD1(
+        parameterRange: ClosedRange<Double>,
+        pitch: Double, radius: Double,
+        taperAngle: Double = 0, isClockwise: Bool = false,
+        at u: Double
+    ) -> (point: SIMD3<Double>, tangent: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTHelixCurveD1(parameterRange.lowerBound, parameterRange.upperBound,
+                         pitch, radius, taperAngle, isClockwise, u,
+                         &px, &py, &pz, &vx, &vy, &vz)
+        return (SIMD3(px, py, pz), SIMD3(vx, vy, vz))
+    }
+
+    /// Evaluate helix D2 (point + 1st + 2nd derivative) at parameter u.
+    public static func evaluateD2(
+        parameterRange: ClosedRange<Double>,
+        pitch: Double, radius: Double,
+        taperAngle: Double = 0, isClockwise: Bool = false,
+        at u: Double
+    ) -> (point: SIMD3<Double>, d1: SIMD3<Double>, d2: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var v1x = 0.0, v1y = 0.0, v1z = 0.0
+        var v2x = 0.0, v2y = 0.0, v2z = 0.0
+        OCCTHelixCurveD2(parameterRange.lowerBound, parameterRange.upperBound,
+                         pitch, radius, taperAngle, isClockwise, u,
+                         &px, &py, &pz, &v1x, &v1y, &v1z, &v2x, &v2y, &v2z)
+        return (SIMD3(px, py, pz), SIMD3(v1x, v1y, v1z), SIMD3(v2x, v2y, v2z))
+    }
+
+    /// Approximate a helix directly to a BSpline curve.
+    public static func approximateToBSpline(
+        parameterRange: ClosedRange<Double>,
+        pitch: Double, radius: Double,
+        taperAngle: Double = 0, isClockwise: Bool = false,
+        tolerance: Double = 0.001
+    ) -> (curve: Curve3D, maxError: Double)? {
+        var maxError = 0.0
+        guard let ref = OCCTHelixApproxToBSpline(
+            parameterRange.lowerBound, parameterRange.upperBound,
+            pitch, radius, taperAngle, isClockwise,
+            tolerance, &maxError
+        ) else { return nil }
+        return (Curve3D(handle: ref), maxError)
+    }
+}
+
+// MARK: - CoordinateSystem3D (gp_Ax3) (v0.116.0)
+
+/// A 3D coordinate system (right- or left-handed), wrapping gp_Ax3.
+public struct CoordinateSystem3D: Sendable {
+    public let origin: SIMD3<Double>
+    public let direction: SIMD3<Double>
+    public let xDirection: SIMD3<Double>
+    public let yDirection: SIMD3<Double>
+    public let isDirect: Bool
+
+    /// Create from origin, main direction, and X direction.
+    public init(origin: SIMD3<Double>, direction: SIMD3<Double>, xDirection: SIMD3<Double>) {
+        var isDirect = false
+        var xDx = 0.0, xDy = 0.0, xDz = 0.0
+        var yDx = 0.0, yDy = 0.0, yDz = 0.0
+        OCCTAx3Create(origin.x, origin.y, origin.z,
+                       direction.x, direction.y, direction.z,
+                       xDirection.x, xDirection.y, xDirection.z,
+                       &isDirect, &xDx, &xDy, &xDz, &yDx, &yDy, &yDz)
+        self.origin = origin
+        self.direction = direction
+        self.xDirection = SIMD3(xDx, xDy, xDz)
+        self.yDirection = SIMD3(yDx, yDy, yDz)
+        self.isDirect = isDirect
+    }
+
+    /// Create from origin and main direction only (X/Y auto-computed).
+    public init(origin: SIMD3<Double>, direction: SIMD3<Double>) {
+        var isDirect = false
+        var xDx = 0.0, xDy = 0.0, xDz = 0.0
+        var yDx = 0.0, yDy = 0.0, yDz = 0.0
+        OCCTAx3CreateFromNormal(origin.x, origin.y, origin.z,
+                                direction.x, direction.y, direction.z,
+                                &isDirect, &xDx, &xDy, &xDz, &yDx, &yDy, &yDz)
+        self.origin = origin
+        self.direction = direction
+        self.xDirection = SIMD3(xDx, xDy, xDz)
+        self.yDirection = SIMD3(yDx, yDy, yDz)
+        self.isDirect = isDirect
+    }
+
+    /// Angle between this and another coordinate system.
+    public func angle(to other: CoordinateSystem3D) -> Double {
+        OCCTAx3Angle(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z, xDirection.x, xDirection.y, xDirection.z,
+                     other.origin.x, other.origin.y, other.origin.z, other.direction.x, other.direction.y, other.direction.z,
+                     other.xDirection.x, other.xDirection.y, other.xDirection.z)
+    }
+
+    /// Check if this and another coordinate system are coplanar.
+    public func isCoplanar(with other: CoordinateSystem3D, linearTolerance: Double = 1e-6, angularTolerance: Double = 1e-6) -> Bool {
+        OCCTAx3IsCoplanar(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z, xDirection.x, xDirection.y, xDirection.z,
+                          other.origin.x, other.origin.y, other.origin.z, other.direction.x, other.direction.y, other.direction.z,
+                          other.xDirection.x, other.xDirection.y, other.xDirection.z,
+                          linearTolerance, angularTolerance)
+    }
+
+    /// Mirror this coordinate system about a point.
+    public func mirrored(about point: SIMD3<Double>) -> CoordinateSystem3D {
+        var rpx = 0.0, rpy = 0.0, rpz = 0.0
+        var rnx = 0.0, rny = 0.0, rnz = 0.0
+        var rxDx = 0.0, rxDy = 0.0, rxDz = 0.0
+        OCCTAx3MirrorPoint(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z,
+                           xDirection.x, xDirection.y, xDirection.z,
+                           point.x, point.y, point.z,
+                           &rpx, &rpy, &rpz, &rnx, &rny, &rnz, &rxDx, &rxDy, &rxDz)
+        return CoordinateSystem3D(origin: SIMD3(rpx, rpy, rpz), direction: SIMD3(rnx, rny, rnz), xDirection: SIMD3(rxDx, rxDy, rxDz))
+    }
+
+    /// Rotate about an axis.
+    public func rotated(about axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>, angle: Double) -> CoordinateSystem3D {
+        var rpx = 0.0, rpy = 0.0, rpz = 0.0
+        var rnx = 0.0, rny = 0.0, rnz = 0.0
+        var rxDx = 0.0, rxDy = 0.0, rxDz = 0.0
+        OCCTAx3Rotate(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z,
+                      xDirection.x, xDirection.y, xDirection.z,
+                      axisOrigin.x, axisOrigin.y, axisOrigin.z, axisDirection.x, axisDirection.y, axisDirection.z, angle,
+                      &rpx, &rpy, &rpz, &rnx, &rny, &rnz, &rxDx, &rxDy, &rxDz)
+        return CoordinateSystem3D(origin: SIMD3(rpx, rpy, rpz), direction: SIMD3(rnx, rny, rnz), xDirection: SIMD3(rxDx, rxDy, rxDz))
+    }
+
+    /// Translate by a vector.
+    public func translated(by vector: SIMD3<Double>) -> CoordinateSystem3D {
+        var rpx = 0.0, rpy = 0.0, rpz = 0.0
+        OCCTAx3Translate(origin.x, origin.y, origin.z, direction.x, direction.y, direction.z,
+                         xDirection.x, xDirection.y, xDirection.z,
+                         vector.x, vector.y, vector.z, &rpx, &rpy, &rpz)
+        return CoordinateSystem3D(origin: SIMD3(rpx, rpy, rpz), direction: direction, xDirection: xDirection)
+    }
+}
+
+// MARK: - GeneralTransform2D (gp_GTrsf2d) (v0.116.0)
+
+/// A general 2D transformation (supports non-uniform scaling/affinity), wrapping gp_GTrsf2d.
+public struct GeneralTransform2D: Sendable {
+    /// 2x2 matrix (row-major: m11, m12, m21, m22)
+    public let matrix: [Double]
+    /// Translation vector
+    public let translation: SIMD2<Double>
+
+    /// Create an affinity transformation about a 2D axis with given ratio.
+    public static func affinity(axisOrigin: SIMD2<Double>, axisDirection: SIMD2<Double>, ratio: Double) -> GeneralTransform2D {
+        var mat = [Double](repeating: 0, count: 4)
+        var tx = 0.0, ty = 0.0
+        OCCTGTrsf2dAffinity(axisOrigin.x, axisOrigin.y, axisDirection.x, axisDirection.y, ratio, &mat, &tx, &ty)
+        return GeneralTransform2D(matrix: mat, translation: SIMD2(tx, ty))
+    }
+
+    /// Multiply this transform by another.
+    public func multiplied(by other: GeneralTransform2D) -> GeneralTransform2D {
+        var matR = [Double](repeating: 0, count: 4)
+        var txR = 0.0, tyR = 0.0
+        OCCTGTrsf2dMultiply(matrix, translation.x, translation.y,
+                            other.matrix, other.translation.x, other.translation.y,
+                            &matR, &txR, &tyR)
+        return GeneralTransform2D(matrix: matR, translation: SIMD2(txR, tyR))
+    }
+
+    /// Invert this transform.
+    public func inverted() -> GeneralTransform2D? {
+        var matR = [Double](repeating: 0, count: 4)
+        var txR = 0.0, tyR = 0.0
+        guard OCCTGTrsf2dInvert(matrix, translation.x, translation.y, &matR, &txR, &tyR) else { return nil }
+        return GeneralTransform2D(matrix: matR, translation: SIMD2(txR, tyR))
+    }
+
+    /// Transform a 2D point.
+    public func transformPoint(_ point: SIMD2<Double>) -> SIMD2<Double> {
+        var rx = 0.0, ry = 0.0
+        OCCTGTrsf2dTransformPoint(matrix, translation.x, translation.y, point.x, point.y, &rx, &ry)
+        return SIMD2(rx, ry)
+    }
+}
+
+// MARK: - Matrix2D (gp_Mat2d) (v0.116.0)
+
+/// A 2x2 matrix for 2D operations, wrapping gp_Mat2d.
+public enum Matrix2D {
+
+    /// Identity matrix.
+    public static func identity() -> [Double] {
+        var mat = [Double](repeating: 0, count: 4)
+        OCCTMat2dIdentity(&mat)
+        return mat
+    }
+
+    /// Rotation matrix for given angle.
+    public static func rotation(angle: Double) -> [Double] {
+        var mat = [Double](repeating: 0, count: 4)
+        OCCTMat2dRotation(angle, &mat)
+        return mat
+    }
+
+    /// Uniform scale matrix.
+    public static func scale(_ s: Double) -> [Double] {
+        var mat = [Double](repeating: 0, count: 4)
+        OCCTMat2dScale(s, &mat)
+        return mat
+    }
+
+    /// Determinant of a 2x2 matrix.
+    public static func determinant(_ mat: [Double]) -> Double {
+        OCCTMat2dDeterminant(mat)
+    }
+
+    /// Invert a 2x2 matrix.
+    public static func invert(_ mat: [Double]) -> [Double]? {
+        var result = [Double](repeating: 0, count: 4)
+        guard OCCTMat2dInvert(mat, &result) else { return nil }
+        return result
+    }
+
+    /// Multiply two 2x2 matrices.
+    public static func multiply(_ a: [Double], _ b: [Double]) -> [Double] {
+        var result = [Double](repeating: 0, count: 4)
+        OCCTMat2dMultiply(a, b, &result)
+        return result
+    }
+
+    /// Transpose a 2x2 matrix.
+    public static func transpose(_ mat: [Double]) -> [Double] {
+        var result = [Double](repeating: 0, count: 4)
+        OCCTMat2dTranspose(mat, &result)
+        return result
+    }
+}
+
+// MARK: - Quaternion Interpolation (v0.116.0)
+
+extension MathSolver {
+
+    /// Spherical linear interpolation (SLERP) between two quaternions.
+    public static func quaternionSlerp(
+        from q1: SIMD4<Double>, to q2: SIMD4<Double>, t: Double
+    ) -> SIMD4<Double> {
+        var rx = 0.0, ry = 0.0, rz = 0.0, rw = 0.0
+        OCCTQuaternionSLerp(q1.x, q1.y, q1.z, q1.w,
+                            q2.x, q2.y, q2.z, q2.w,
+                            t, &rx, &ry, &rz, &rw)
+        return SIMD4(rx, ry, rz, rw)
+    }
+
+    /// Linear interpolation (NLERP) between two quaternions (result normalized).
+    public static func quaternionNlerp(
+        from q1: SIMD4<Double>, to q2: SIMD4<Double>, t: Double
+    ) -> SIMD4<Double> {
+        var rx = 0.0, ry = 0.0, rz = 0.0, rw = 0.0
+        OCCTQuaternionNLerp(q1.x, q1.y, q1.z, q1.w,
+                            q2.x, q2.y, q2.z, q2.w,
+                            t, &rx, &ry, &rz, &rw)
+        return SIMD4(rx, ry, rz, rw)
+    }
+
+    /// Interpolate between two transforms (translation + rotation via NLerp).
+    public static func transformInterpolate(
+        from: (translation: SIMD3<Double>, quaternion: SIMD4<Double>),
+        to: (translation: SIMD3<Double>, quaternion: SIMD4<Double>),
+        t: Double
+    ) -> (translation: SIMD3<Double>, quaternion: SIMD4<Double>) {
+        var rtx = 0.0, rty = 0.0, rtz = 0.0
+        var rqx = 0.0, rqy = 0.0, rqz = 0.0, rqw = 0.0
+        OCCTTrsfInterpolate(from.translation.x, from.translation.y, from.translation.z,
+                            from.quaternion.x, from.quaternion.y, from.quaternion.z, from.quaternion.w,
+                            to.translation.x, to.translation.y, to.translation.z,
+                            to.quaternion.x, to.quaternion.y, to.quaternion.z, to.quaternion.w,
+                            t, &rtx, &rty, &rtz, &rqx, &rqy, &rqz, &rqw)
+        return (SIMD3(rtx, rty, rtz), SIMD4(rqx, rqy, rqz, rqw))
+    }
+}
+
+// MARK: - XY/XYZ Utilities (v0.116.0)
+
+/// 2D vector math utilities wrapping gp_XY.
+public enum Vector2DMath {
+    /// Length of a 2D vector.
+    public static func modulus(_ v: SIMD2<Double>) -> Double { OCCTXYModulus(v.x, v.y) }
+    /// 2D cross product (scalar).
+    public static func cross(_ a: SIMD2<Double>, _ b: SIMD2<Double>) -> Double { OCCTXYCrossed(a.x, a.y, b.x, b.y) }
+    /// 2D dot product.
+    public static func dot(_ a: SIMD2<Double>, _ b: SIMD2<Double>) -> Double { OCCTXYDot(a.x, a.y, b.x, b.y) }
+    /// Normalize a 2D vector.
+    public static func normalize(_ v: SIMD2<Double>) -> SIMD2<Double>? {
+        var rx = 0.0, ry = 0.0
+        guard OCCTXYNormalize(v.x, v.y, &rx, &ry) else { return nil }
+        return SIMD2(rx, ry)
+    }
+}
+
+/// 3D vector math utilities wrapping gp_XYZ.
+public enum Vector3DMath {
+    /// Length of a 3D vector.
+    public static func modulus(_ v: SIMD3<Double>) -> Double { OCCTXYZModulus(v.x, v.y, v.z) }
+    /// 3D cross product.
+    public static func cross(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> SIMD3<Double> {
+        var rx = 0.0, ry = 0.0, rz = 0.0
+        OCCTXYZCrossed(a.x, a.y, a.z, b.x, b.y, b.z, &rx, &ry, &rz)
+        return SIMD3(rx, ry, rz)
+    }
+    /// 3D dot product.
+    public static func dot(_ a: SIMD3<Double>, _ b: SIMD3<Double>) -> Double { OCCTXYZDot(a.x, a.y, a.z, b.x, b.y, b.z) }
+    /// Scalar triple product a . (b x c).
+    public static func dotCross(_ a: SIMD3<Double>, _ b: SIMD3<Double>, _ c: SIMD3<Double>) -> Double {
+        OCCTXYZDotCross(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z)
+    }
+    /// Normalize a 3D vector.
+    public static func normalize(_ v: SIMD3<Double>) -> SIMD3<Double>? {
+        var rx = 0.0, ry = 0.0, rz = 0.0
+        guard OCCTXYZNormalize(v.x, v.y, v.z, &rx, &ry, &rz) else { return nil }
+        return SIMD3(rx, ry, rz)
+    }
+}
+
+// MARK: - MathSolver Extensions (v0.116.0)
+
+extension MathSolver {
+
+    /// Find root of f(x)=0 in [bound1, bound2] using Brent's method (no derivative needed internally, but callback provides it).
+    public static func bracketedRoot(
+        in range: ClosedRange<Double>,
+        tolerance: Double = 1e-10,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> (value: Double, derivative: Double)
+    ) -> (root: Double, iterations: Int)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncDerivCallback = { x, value, derivative, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ctx).takeUnretainedValue()
+            let result = box.closure(x)
+            value.pointee = result.value
+            derivative.pointee = result.derivative
+            return true
+        }
+
+        var isDone = false
+        var nbIter: Int32 = 0
+        let result = OCCTMathBracketedRoot(callback, ptr, range.lowerBound, range.upperBound,
+                                           tolerance, Int32(maxIterations), &isDone, &nbIter)
+        return isDone ? (result, Int(nbIter)) : nil
+    }
+
+    /// Bracket a minimum of f(x) starting from two points.
+    public static func bracketMinimum(
+        a: Double, b: Double,
+        function: @escaping (Double) -> Double
+    ) -> (a: Double, b: Double, c: Double, fa: Double, fb: Double, fc: Double)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        var ra = 0.0, rb = 0.0, rc = 0.0
+        var fa = 0.0, fb = 0.0, fc = 0.0
+        guard OCCTMathBracketMinimum(callback, ptr, a, b, &ra, &rb, &rc, &fa, &fb, &fc) else { return nil }
+        return (ra, rb, rc, fa, fb, fc)
+    }
+
+    /// Minimize using Fletcher-Reeves-Polak-Ribiere conjugate gradient.
+    public static func minimizeFRPR(
+        startPoint: [Double],
+        tolerance: Double = 1e-8,
+        maxIterations: Int = 200,
+        function: @escaping ([Double]) -> (value: Double, gradient: [Double])
+    ) -> (location: [Double], minimum: Double, iterations: Int)? {
+        let nVars = startPoint.count
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<([Double]) -> (value: Double, gradient: [Double])>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathMultiVarGradCallback = { x, n, value, gradient, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<([Double]) -> (value: Double, gradient: [Double])>>.fromOpaque(ctx).takeUnretainedValue()
+            let input = Array(UnsafeBufferPointer(start: x, count: Int(n)))
+            let result = box.closure(input)
+            value.pointee = result.value
+            for i in 0..<Int(n) { gradient[i] = result.gradient[i] }
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: nVars)
+        var minimum = 0.0
+        var nbIter: Int32 = 0
+        guard OCCTMathFRPR(Int32(nVars), callback, ptr, startPoint, tolerance,
+                           Int32(maxIterations), &result, &minimum, &nbIter) else { return nil }
+        return (result, minimum, Int(nbIter))
+    }
+
+    /// Find all roots of f(x)=0 in a range using sampling + refinement.
+    public static func findAllRoots(
+        in range: ClosedRange<Double>,
+        samples: Int = 100,
+        epsX: Double = 1e-8,
+        epsF: Double = 1e-8,
+        epsNul: Double = 1e-8,
+        function: @escaping (Double) -> (value: Double, derivative: Double)
+    ) -> [Double] {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncDerivCallback = { x, value, derivative, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ctx).takeUnretainedValue()
+            let result = box.closure(x)
+            value.pointee = result.value
+            derivative.pointee = result.derivative
+            return true
+        }
+
+        var roots = [Double](repeating: 0, count: 1000)
+        let n = OCCTMathFunctionAllRoots(callback, ptr, range.lowerBound, range.upperBound,
+                                         Int32(samples), epsX, epsF, epsNul, &roots, 1000)
+        return Array(roots.prefix(Int(n)))
+    }
+
+    /// Solve overdetermined linear system Ax=b in least-squares sense.
+    public static func leastSquares(
+        matrix: [Double], rows: Int, cols: Int,
+        rhs: [Double]
+    ) -> [Double]? {
+        var x = [Double](repeating: 0, count: cols)
+        guard OCCTMathGaussLeastSquare(matrix, Int32(rows), Int32(cols), rhs, &x) else { return nil }
+        return x
+    }
+
+    /// Find root using Newton's method from a guess.
+    public static func newtonRoot(
+        guess: Double,
+        epsX: Double = 1e-10,
+        epsF: Double = 1e-10,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> (value: Double, derivative: Double)
+    ) -> (root: Double, derivative: Double, iterations: Int)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncDerivCallback = { x, value, derivative, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> (value: Double, derivative: Double)>>.fromOpaque(ctx).takeUnretainedValue()
+            let result = box.closure(x)
+            value.pointee = result.value
+            derivative.pointee = result.derivative
+            return true
+        }
+
+        var isDone = false
+        var deriv = 0.0
+        var nbIter: Int32 = 0
+        let root = OCCTMathNewtonFunctionRoot(callback, ptr, guess, epsX, epsF,
+                                              Int32(maxIterations), &isDone, &deriv, &nbIter)
+        return isDone ? (root, deriv, Int(nbIter)) : nil
+    }
+
+    /// Solve constrained optimization via Uzawa method.
+    /// Minimize ||x||^2 subject to constraintMatrix * x = constraintRHS.
+    public static func uzawa(
+        constraintMatrix: [Double], nConstraints: Int, nVars: Int,
+        constraintRHS: [Double],
+        startPoint: [Double],
+        epsLix: Double = 1e-6, epsLic: Double = 1e-6,
+        maxIterations: Int = 500
+    ) -> (result: [Double], iterations: Int)? {
+        var result = [Double](repeating: 0, count: nVars)
+        var nbIter: Int32 = 0
+        guard OCCTMathUzawa(constraintMatrix, Int32(nConstraints), Int32(nVars),
+                            constraintRHS, startPoint, epsLix, epsLic, Int32(maxIterations),
+                            &result, &nbIter) else { return nil }
+        return (result, Int(nbIter))
+    }
+
+    /// Find eigenvalues of a symmetric tridiagonal matrix.
+    /// diagonal and subdiagonal must be same length (last subdiagonal element unused).
+    public static func eigenvalues(
+        diagonal: [Double], subdiagonal: [Double]
+    ) -> [Double]? {
+        let n = diagonal.count
+        var eigenvalues = [Double](repeating: 0, count: n)
+        let count = OCCTMathEigenValues(diagonal, subdiagonal, Int32(n), &eigenvalues)
+        return count > 0 ? Array(eigenvalues.prefix(Int(count))) : nil
+    }
+
+    /// Find eigenvalues and eigenvectors of a symmetric tridiagonal matrix.
+    public static func eigenvaluesAndVectors(
+        diagonal: [Double], subdiagonal: [Double]
+    ) -> (eigenvalues: [Double], eigenvectors: [[Double]])? {
+        let n = diagonal.count
+        var eigenvalues = [Double](repeating: 0, count: n)
+        var eigenvectors = [Double](repeating: 0, count: n * n)
+        let count = OCCTMathEigenValuesAndVectors(diagonal, subdiagonal, Int32(n), &eigenvalues, &eigenvectors)
+        guard count > 0 else { return nil }
+        let evs = (0..<Int(count)).map { i in Array(eigenvectors[(i*n)..<(i*n+n)]) }
+        return (Array(eigenvalues.prefix(Int(count))), evs)
+    }
+
+    /// Gauss-Kronrod integration of f(x) over an interval.
+    public static func kronrodIntegrate(
+        over range: ClosedRange<Double>,
+        points: Int = 15,
+        function: @escaping (Double) -> Double
+    ) -> (value: Double, error: Double)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        var isDone = false
+        var error = 0.0
+        let result = OCCTMathKronrodIntegration(callback, ptr, range.lowerBound, range.upperBound,
+                                                Int32(points), &isDone, &error)
+        return isDone ? (result, error) : nil
+    }
+
+    /// Adaptive Gauss-Kronrod integration with tolerance.
+    public static func kronrodIntegrateAdaptive(
+        over range: ClosedRange<Double>,
+        points: Int = 15,
+        tolerance: Double = 1e-10,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> Double
+    ) -> (value: Double, error: Double, iterations: Int)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        var isDone = false
+        var error = 0.0
+        var nbIter: Int32 = 0
+        let result = OCCTMathKronrodIntegrationAdaptive(callback, ptr, range.lowerBound, range.upperBound,
+                                                        Int32(points), tolerance, Int32(maxIterations),
+                                                        &isDone, &error, &nbIter)
+        return isDone ? (result, error, Int(nbIter)) : nil
+    }
+
+    /// Multi-dimensional Gauss-Legendre integration.
+    public static func gaussMultipleIntegration(
+        lower: [Double], upper: [Double], order: [Int],
+        function: @escaping ([Double]) -> Double
+    ) -> Double? {
+        let nVars = lower.count
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<([Double]) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathMultiVarCallback = { x, n, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<([Double]) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            let input = Array(UnsafeBufferPointer(start: x, count: Int(n)))
+            value.pointee = box.closure(input)
+            return true
+        }
+
+        var isDone = false
+        let ord = order.map { Int32($0) }
+        let result = OCCTMathGaussMultipleIntegration(callback, ptr, Int32(nVars), lower, upper, ord, &isDone)
+        return isDone ? result : nil
+    }
+
+    /// Gauss-Legendre integration for function sets.
+    public static func gaussSetIntegration(
+        nEquations: Int,
+        lower: [Double], upper: [Double], order: [Int],
+        function: @escaping ([Double]) -> [Double]
+    ) -> [Double]? {
+        let nVars = lower.count
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<([Double]) -> [Double]>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathFuncSetCallback = { x, nv, values, ne, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<([Double]) -> [Double]>>.fromOpaque(ctx).takeUnretainedValue()
+            let input = Array(UnsafeBufferPointer(start: x, count: Int(nv)))
+            let result = box.closure(input)
+            for i in 0..<Int(ne) { values[i] = result[i] }
+            return true
+        }
+
+        var result = [Double](repeating: 0, count: nEquations)
+        let ord = order.map { Int32($0) }
+        guard OCCTMathGaussSetIntegration(callback, ptr, Int32(nVars), Int32(nEquations),
+                                          lower, upper, ord, &result) else { return nil }
+        return result
+    }
+}

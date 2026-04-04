@@ -16594,6 +16594,299 @@ void OCCTSurfaceNormal(OCCTSurfaceRef _Nonnull surface, double u, double v,
 void OCCTSurfaceCurvatures(OCCTSurfaceRef _Nonnull surface, double u, double v,
                              double* _Nonnull gaussian, double* _Nonnull mean);
 
+// MARK: - HelixGeom (v0.116.0)
+
+/// Build a helix curve approximated as BSpline. Returns curve handle; NULL on failure.
+/// t1/t2: parameter range, pitch: helix pitch, rStart: radius, taperAngle: taper in radians, isClockwise.
+/// posX/Y/Z + dirX/Y/Z + xDirX/Y/Z define the gp_Ax2 position.
+OCCTCurve3DRef _Nullable OCCTHelixBuild(double posX, double posY, double posZ,
+                                          double dirX, double dirY, double dirZ,
+                                          double xDirX, double xDirY, double xDirZ,
+                                          double t1, double t2, double pitch, double rStart,
+                                          double taperAngle, bool isClockwise,
+                                          double tolerance, double* _Nonnull tolReached);
+
+/// Build a helix coil (closed loop helix). Returns curve handle; NULL on failure.
+OCCTCurve3DRef _Nullable OCCTHelixCoilBuild(double t1, double t2, double pitch, double rStart,
+                                              double taperAngle, bool isClockwise,
+                                              double tolerance, double* _Nonnull tolReached);
+
+/// Evaluate helix curve at parameter u. Returns point.
+void OCCTHelixCurveEval(double t1, double t2, double pitch, double rStart,
+                          double taperAngle, bool isClockwise, double u,
+                          double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Evaluate helix curve D1 (point + first derivative) at parameter u.
+void OCCTHelixCurveD1(double t1, double t2, double pitch, double rStart,
+                        double taperAngle, bool isClockwise, double u,
+                        double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                        double* _Nonnull vx, double* _Nonnull vy, double* _Nonnull vz);
+
+/// Evaluate helix curve D2 at parameter u.
+void OCCTHelixCurveD2(double t1, double t2, double pitch, double rStart,
+                        double taperAngle, bool isClockwise, double u,
+                        double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                        double* _Nonnull v1x, double* _Nonnull v1y, double* _Nonnull v1z,
+                        double* _Nonnull v2x, double* _Nonnull v2y, double* _Nonnull v2z);
+
+/// Approximate a helix to BSpline directly via HelixGeom_Tools::ApprHelix.
+OCCTCurve3DRef _Nullable OCCTHelixApproxToBSpline(double t1, double t2, double pitch, double rStart,
+                                                     double taperAngle, bool isClockwise,
+                                                     double tolerance, double* _Nonnull maxError);
+
+// MARK: - gp_Ax3 (v0.116.0)
+
+/// Create Ax3 from point + main direction + X direction. isDirect reports handedness.
+void OCCTAx3Create(double px, double py, double pz,
+                     double nx, double ny, double nz,
+                     double xDirX, double xDirY, double xDirZ,
+                     bool* _Nonnull isDirect,
+                     double* _Nonnull xDx, double* _Nonnull xDy, double* _Nonnull xDz,
+                     double* _Nonnull yDx, double* _Nonnull yDy, double* _Nonnull yDz);
+
+/// Create Ax3 from point + main direction only (X/Y auto-computed).
+void OCCTAx3CreateFromNormal(double px, double py, double pz,
+                               double nx, double ny, double nz,
+                               bool* _Nonnull isDirect,
+                               double* _Nonnull xDx, double* _Nonnull xDy, double* _Nonnull xDz,
+                               double* _Nonnull yDx, double* _Nonnull yDy, double* _Nonnull yDz);
+
+/// Angle between two Ax3 coordinate systems.
+double OCCTAx3Angle(double p1x, double p1y, double p1z, double n1x, double n1y, double n1z, double x1x, double x1y, double x1z,
+                      double p2x, double p2y, double p2z, double n2x, double n2y, double n2z, double x2x, double x2y, double x2z);
+
+/// Check if two Ax3 are coplanar.
+bool OCCTAx3IsCoplanar(double p1x, double p1y, double p1z, double n1x, double n1y, double n1z, double x1x, double x1y, double x1z,
+                         double p2x, double p2y, double p2z, double n2x, double n2y, double n2z, double x2x, double x2y, double x2z,
+                         double linearTol, double angularTol);
+
+/// Mirror Ax3 about a point.
+void OCCTAx3MirrorPoint(double px, double py, double pz, double nx, double ny, double nz, double xDx, double xDy, double xDz,
+                          double mx, double my, double mz,
+                          double* _Nonnull rpx, double* _Nonnull rpy, double* _Nonnull rpz,
+                          double* _Nonnull rnx, double* _Nonnull rny, double* _Nonnull rnz,
+                          double* _Nonnull rxDx, double* _Nonnull rxDy, double* _Nonnull rxDz);
+
+/// Rotate Ax3 about an axis.
+void OCCTAx3Rotate(double px, double py, double pz, double nx, double ny, double nz, double xDx, double xDy, double xDz,
+                     double axPx, double axPy, double axPz, double axDx, double axDy, double axDz, double angle,
+                     double* _Nonnull rpx, double* _Nonnull rpy, double* _Nonnull rpz,
+                     double* _Nonnull rnx, double* _Nonnull rny, double* _Nonnull rnz,
+                     double* _Nonnull rxDx, double* _Nonnull rxDy, double* _Nonnull rxDz);
+
+/// Translate Ax3.
+void OCCTAx3Translate(double px, double py, double pz, double nx, double ny, double nz, double xDx, double xDy, double xDz,
+                        double vx, double vy, double vz,
+                        double* _Nonnull rpx, double* _Nonnull rpy, double* _Nonnull rpz);
+
+// MARK: - gp_GTrsf2d (v0.116.0)
+
+/// Create a 2D affinity transformation about an axis with given ratio.
+/// Returns the 2x2 matrix (row-major) and translation vector.
+void OCCTGTrsf2dAffinity(double axPx, double axPy, double axDx, double axDy, double ratio,
+                           double* _Nonnull mat, double* _Nonnull tx, double* _Nonnull ty);
+
+/// Multiply two GTrsf2d (each as 2x2 matrix + translation). Result = A * B.
+void OCCTGTrsf2dMultiply(const double* _Nonnull matA, double txA, double tyA,
+                           const double* _Nonnull matB, double txB, double tyB,
+                           double* _Nonnull matR, double* _Nonnull txR, double* _Nonnull tyR);
+
+/// Invert a GTrsf2d. Returns false if singular.
+bool OCCTGTrsf2dInvert(const double* _Nonnull mat, double tx, double ty,
+                         double* _Nonnull matR, double* _Nonnull txR, double* _Nonnull tyR);
+
+/// Transform a 2D point by GTrsf2d.
+void OCCTGTrsf2dTransformPoint(const double* _Nonnull mat, double tx, double ty,
+                                 double px, double py, double* _Nonnull rx, double* _Nonnull ry);
+
+// MARK: - gp_Mat2d (v0.116.0)
+
+/// Create 2x2 identity matrix (row-major output: m11, m12, m21, m22).
+void OCCTMat2dIdentity(double* _Nonnull mat);
+
+/// Create 2x2 rotation matrix.
+void OCCTMat2dRotation(double angle, double* _Nonnull mat);
+
+/// Create 2x2 scale matrix.
+void OCCTMat2dScale(double s, double* _Nonnull mat);
+
+/// Determinant of 2x2 matrix.
+double OCCTMat2dDeterminant(const double* _Nonnull mat);
+
+/// Invert 2x2 matrix. Returns false if singular.
+bool OCCTMat2dInvert(const double* _Nonnull mat, double* _Nonnull result);
+
+/// Multiply two 2x2 matrices. Result = A * B.
+void OCCTMat2dMultiply(const double* _Nonnull matA, const double* _Nonnull matB, double* _Nonnull result);
+
+/// Transpose 2x2 matrix.
+void OCCTMat2dTranspose(const double* _Nonnull mat, double* _Nonnull result);
+
+// MARK: - Quaternion Interpolation (v0.116.0)
+
+/// Spherical linear interpolation (SLERP) between two quaternions at parameter t.
+void OCCTQuaternionSLerp(double x1, double y1, double z1, double w1,
+                           double x2, double y2, double z2, double w2,
+                           double t,
+                           double* _Nonnull rx, double* _Nonnull ry, double* _Nonnull rz, double* _Nonnull rw);
+
+/// Linear interpolation (NLERP) between two quaternions at parameter t. Result is normalized.
+void OCCTQuaternionNLerp(double x1, double y1, double z1, double w1,
+                           double x2, double y2, double z2, double w2,
+                           double t,
+                           double* _Nonnull rx, double* _Nonnull ry, double* _Nonnull rz, double* _Nonnull rw);
+
+/// Interpolate between two gp_Trsf at parameter t (translation + rotation interpolation).
+/// Each transform is: translation(tx,ty,tz) + quaternion(qx,qy,qz,qw) + scale.
+void OCCTTrsfInterpolate(double tx1, double ty1, double tz1, double qx1, double qy1, double qz1, double qw1,
+                           double tx2, double ty2, double tz2, double qx2, double qy2, double qz2, double qw2,
+                           double t,
+                           double* _Nonnull rtx, double* _Nonnull rty, double* _Nonnull rtz,
+                           double* _Nonnull rqx, double* _Nonnull rqy, double* _Nonnull rqz, double* _Nonnull rqw);
+
+// MARK: - gp_XY (v0.116.0)
+
+/// 2D vector modulus (length).
+double OCCTXYModulus(double x, double y);
+
+/// 2D cross product (scalar).
+double OCCTXYCrossed(double x1, double y1, double x2, double y2);
+
+/// 2D dot product.
+double OCCTXYDot(double x1, double y1, double x2, double y2);
+
+/// Normalize 2D vector. Returns false if zero length.
+bool OCCTXYNormalize(double x, double y, double* _Nonnull rx, double* _Nonnull ry);
+
+// MARK: - gp_XYZ (v0.116.0)
+
+/// 3D vector modulus (length).
+double OCCTXYZModulus(double x, double y, double z);
+
+/// 3D cross product.
+void OCCTXYZCrossed(double x1, double y1, double z1, double x2, double y2, double z2,
+                      double* _Nonnull rx, double* _Nonnull ry, double* _Nonnull rz);
+
+/// 3D dot product.
+double OCCTXYZDot(double x1, double y1, double z1, double x2, double y2, double z2);
+
+/// Scalar triple product (a . (b x c)).
+double OCCTXYZDotCross(double ax, double ay, double az,
+                         double bx, double by, double bz,
+                         double cx, double cy, double cz);
+
+/// Normalize 3D vector. Returns false if zero length.
+bool OCCTXYZNormalize(double x, double y, double z,
+                        double* _Nonnull rx, double* _Nonnull ry, double* _Nonnull rz);
+
+// MARK: - math_BracketedRoot (v0.116.0)
+
+/// Find root of f(x)=0 in [bound1, bound2] using Brent's method.
+/// Uses OCCTMathFuncDerivCallback. Returns root value; isDone indicates convergence.
+double OCCTMathBracketedRoot(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                               double bound1, double bound2, double tolerance, int32_t maxIter,
+                               bool* _Nonnull isDone, int32_t* _Nonnull nbIter);
+
+// MARK: - math_BracketMinimum (v0.116.0)
+
+/// Bracket a minimum of f(x) starting from points a and b.
+/// Returns the bracketing triplet (a,b,c) with f(b) < f(a) and f(b) < f(c).
+bool OCCTMathBracketMinimum(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                              double a, double b,
+                              double* _Nonnull ra, double* _Nonnull rb, double* _Nonnull rc,
+                              double* _Nonnull fa, double* _Nonnull fb, double* _Nonnull fc);
+
+// MARK: - math_FRPR (v0.116.0)
+
+/// Minimize a multivariate function using Fletcher-Reeves-Polak-Ribiere conjugate gradient.
+/// startPoint[nVars], result[nVars]. Returns true on convergence.
+bool OCCTMathFRPR(int32_t nVars,
+                    OCCTMathMultiVarGradCallback _Nonnull callback, void* _Nullable context,
+                    const double* _Nonnull startPoint, double tolerance, int32_t maxIter,
+                    double* _Nonnull result, double* _Nonnull minimum, int32_t* _Nonnull nbIter);
+
+// MARK: - math_FunctionAllRoots (v0.116.0)
+
+/// Find all roots of f(x)=0 in [a,b] using sampling + refinement.
+/// Returns number of isolated roots found. roots[] must be pre-allocated with maxRoots capacity.
+int32_t OCCTMathFunctionAllRoots(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                                   double a, double b, int32_t nbSamples,
+                                   double epsX, double epsF, double epsNul,
+                                   double* _Nonnull roots, int32_t maxRoots);
+
+// MARK: - math_GaussLeastSquare (v0.116.0)
+
+/// Solve overdetermined linear system Ax=b in least-squares sense.
+/// matA is row-major [nRows x nCols], b[nRows], x[nCols]. Returns true on success.
+bool OCCTMathGaussLeastSquare(const double* _Nonnull matA, int32_t nRows, int32_t nCols,
+                                const double* _Nonnull b, double* _Nonnull x);
+
+// MARK: - math_NewtonFunctionRoot (v0.116.0)
+
+/// Find root of f(x)=0 starting from guess, optionally bounded.
+/// Uses OCCTMathFuncDerivCallback. Returns root; isDone on convergence.
+double OCCTMathNewtonFunctionRoot(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                                    double guess, double epsX, double epsF, int32_t maxIter,
+                                    bool* _Nonnull isDone, double* _Nonnull derivative, int32_t* _Nonnull nbIter);
+
+/// Bounded variant.
+double OCCTMathNewtonFunctionRootBounded(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                                           double guess, double epsX, double epsF, double a, double b,
+                                           int32_t maxIter, bool* _Nonnull isDone);
+
+// MARK: - math_Uzawa (v0.116.0)
+
+/// Solve constrained optimization: minimize ||x||^2 subject to Cont * x = Secont.
+/// Cont is row-major [nConstraints x nVars], Secont[nConstraints], startPoint[nVars], result[nVars].
+bool OCCTMathUzawa(const double* _Nonnull contData, int32_t nConstraints, int32_t nVars,
+                     const double* _Nonnull secont, const double* _Nonnull startPoint,
+                     double epsLix, double epsLic, int32_t maxIter,
+                     double* _Nonnull result, int32_t* _Nonnull nbIter);
+
+// MARK: - math_EigenValuesSearcher (v0.116.0)
+
+/// Find eigenvalues of symmetric tridiagonal matrix.
+/// diagonal[n], subdiagonal[n] (last element unused). eigenvalues[n].
+/// Returns number of eigenvalues found (n on success, 0 on failure).
+int32_t OCCTMathEigenValues(const double* _Nonnull diagonal, const double* _Nonnull subdiagonal,
+                              int32_t n, double* _Nonnull eigenvalues);
+
+/// Find eigenvalues and eigenvectors. eigenvectors is row-major [n x n].
+int32_t OCCTMathEigenValuesAndVectors(const double* _Nonnull diagonal, const double* _Nonnull subdiagonal,
+                                        int32_t n, double* _Nonnull eigenvalues, double* _Nonnull eigenvectors);
+
+// MARK: - math_KronrodSingleIntegration (v0.116.0)
+
+/// Gauss-Kronrod integration of f(x) over [lower, upper].
+/// Returns integral value; errorReached and nbIterReached are output.
+double OCCTMathKronrodIntegration(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                    double lower, double upper, int32_t nbPoints,
+                                    bool* _Nonnull isDone, double* _Nonnull errorReached);
+
+/// Adaptive Gauss-Kronrod with tolerance.
+double OCCTMathKronrodIntegrationAdaptive(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                            double lower, double upper, int32_t nbPoints,
+                                            double tolerance, int32_t maxIter,
+                                            bool* _Nonnull isDone, double* _Nonnull errorReached,
+                                            int32_t* _Nonnull nbIterReached);
+
+// MARK: - math_GaussMultipleIntegration (v0.116.0)
+
+/// Multi-dimensional Gauss-Legendre integration.
+/// lower[nVars], upper[nVars], order[nVars]. Returns integral value.
+double OCCTMathGaussMultipleIntegration(OCCTMathMultiVarCallback _Nonnull callback, void* _Nullable context,
+                                          int32_t nVars, const double* _Nonnull lower, const double* _Nonnull upper,
+                                          const int32_t* _Nonnull order, bool* _Nonnull isDone);
+
+// MARK: - math_GaussSetIntegration (v0.116.0)
+
+/// Gauss-Legendre integration for function sets.
+/// lower[nVars], upper[nVars], order[nVars], result[nEqs].
+bool OCCTMathGaussSetIntegration(OCCTMathFuncSetCallback _Nonnull callback, void* _Nullable context,
+                                   int32_t nVars, int32_t nEqs,
+                                   const double* _Nonnull lower, const double* _Nonnull upper,
+                                   const int32_t* _Nonnull order, double* _Nonnull result);
+
 #ifdef __cplusplus
 }
 #endif

@@ -34619,3 +34619,395 @@ struct GeomConvertUtilTests {
         }
     }
 }
+
+// MARK: - v0.116.0: HelixGeom, gp_Ax3, gp_GTrsf2d, gp_Mat2d, Quaternion Interpolation, XY/XYZ, Math Solvers
+
+@Suite("HelixGeom Build")
+struct HelixGeomBuildTests {
+    @Test func basicHelixBuild() {
+        let result = Helix.build(parameterRange: 0...10, pitch: 5.0, radius: 10.0)
+        #expect(result != nil)
+        if let r = result { #expect(r.toleranceReached < 0.1) }
+    }
+
+    @Test func taperedHelix() {
+        let result = Helix.build(parameterRange: 0...(6 * .pi), pitch: 5.0, radius: 10.0,
+                                 taperAngle: 5.0 * .pi / 180.0, isClockwise: true)
+        #expect(result != nil)
+    }
+
+    @Test func helixWithCustomPosition() {
+        let result = Helix.build(origin: SIMD3(1, 2, 3), parameterRange: 0...10, pitch: 4.0, radius: 8.0)
+        #expect(result != nil)
+    }
+
+    @Test func coilBuild() {
+        let result = Helix.buildCoil(parameterRange: 0...(8 * .pi), pitch: 3.0, radius: 5.0)
+        #expect(result != nil)
+    }
+}
+
+@Suite("HelixGeom Evaluate")
+struct HelixGeomEvalTests {
+    @Test func helixCurveEval() {
+        let p = Helix.evaluate(parameterRange: 0...(4 * .pi), pitch: 5.0, radius: 10.0, at: 0.0)
+        #expect(abs(p.x - 10.0) < 1.0) // near radius at t=0
+    }
+
+    @Test func helixCurveD1() {
+        let (point, tangent) = Helix.evaluateD1(parameterRange: 0...(4 * .pi), pitch: 5.0, radius: 10.0, at: 0.0)
+        #expect(point.x > 0)
+        let mag = sqrt(tangent.x * tangent.x + tangent.y * tangent.y + tangent.z * tangent.z)
+        #expect(mag > 0)
+    }
+
+    @Test func helixCurveD2() {
+        let (_, _, d2) = Helix.evaluateD2(parameterRange: 0...(4 * .pi), pitch: 5.0, radius: 10.0, at: .pi)
+        let mag = sqrt(d2.x * d2.x + d2.y * d2.y + d2.z * d2.z)
+        #expect(mag > 0)
+    }
+
+    @Test func helixApproxToBSpline() {
+        let result = Helix.approximateToBSpline(parameterRange: 0...(4 * .pi), pitch: 5.0, radius: 10.0)
+        #expect(result != nil)
+        if let r = result { #expect(r.maxError < 0.01) }
+    }
+}
+
+@Suite("CoordinateSystem3D")
+struct CoordinateSystem3DTests {
+    @Test func defaultXYZ() {
+        let cs = CoordinateSystem3D(origin: .zero, direction: SIMD3(0, 0, 1), xDirection: SIMD3(1, 0, 0))
+        #expect(cs.isDirect)
+        #expect(abs(cs.yDirection.y - 1.0) < 1e-10)
+    }
+
+    @Test func fromNormal() {
+        let cs = CoordinateSystem3D(origin: .zero, direction: SIMD3(0, 0, 1))
+        #expect(cs.isDirect)
+    }
+
+    @Test func angle() {
+        let cs1 = CoordinateSystem3D(origin: .zero, direction: SIMD3(0, 0, 1))
+        let cs2 = CoordinateSystem3D(origin: .zero, direction: SIMD3(1, 0, 0))
+        #expect(abs(cs1.angle(to: cs2) - .pi / 2) < 1e-10)
+    }
+
+    @Test func isCoplanar() {
+        let cs1 = CoordinateSystem3D(origin: .zero, direction: SIMD3(0, 0, 1))
+        let cs2 = CoordinateSystem3D(origin: SIMD3(1, 1, 0), direction: SIMD3(0, 0, 1))
+        #expect(cs1.isCoplanar(with: cs2))
+    }
+
+    @Test func mirrorPoint() {
+        let cs = CoordinateSystem3D(origin: SIMD3(1, 0, 0), direction: SIMD3(0, 0, 1), xDirection: SIMD3(1, 0, 0))
+        let mirrored = cs.mirrored(about: .zero)
+        #expect(abs(mirrored.origin.x + 1.0) < 1e-10)
+    }
+
+    @Test func rotate() {
+        let cs = CoordinateSystem3D(origin: SIMD3(1, 0, 0), direction: SIMD3(0, 0, 1), xDirection: SIMD3(1, 0, 0))
+        let rotated = cs.rotated(about: .zero, axisDirection: SIMD3(0, 0, 1), angle: .pi / 2)
+        #expect(abs(rotated.origin.x) < 1e-10)
+        #expect(abs(rotated.origin.y - 1.0) < 1e-10)
+    }
+
+    @Test func translate() {
+        let cs = CoordinateSystem3D(origin: .zero, direction: SIMD3(0, 0, 1), xDirection: SIMD3(1, 0, 0))
+        let translated = cs.translated(by: SIMD3(1, 2, 3))
+        #expect(abs(translated.origin.x - 1.0) < 1e-10)
+        #expect(abs(translated.origin.z - 3.0) < 1e-10)
+    }
+}
+
+@Suite("GeneralTransform2D")
+struct GeneralTransform2DTests {
+    @Test func affinity() {
+        let gt = GeneralTransform2D.affinity(axisOrigin: .zero, axisDirection: SIMD2(1, 0), ratio: 2.0)
+        #expect(gt.matrix.count == 4)
+    }
+
+    @Test func multiply() {
+        let a = GeneralTransform2D.affinity(axisOrigin: .zero, axisDirection: SIMD2(1, 0), ratio: 2.0)
+        let b = GeneralTransform2D.affinity(axisOrigin: .zero, axisDirection: SIMD2(1, 0), ratio: 0.5)
+        let _ = a.multiplied(by: b)
+    }
+
+    @Test func invert() {
+        let gt = GeneralTransform2D.affinity(axisOrigin: .zero, axisDirection: SIMD2(1, 0), ratio: 2.0)
+        #expect(gt.inverted() != nil)
+    }
+
+    @Test func transformPoint() {
+        let gt = GeneralTransform2D.affinity(axisOrigin: .zero, axisDirection: SIMD2(1, 0), ratio: 2.0)
+        let p = gt.transformPoint(SIMD2(1.0, 1.0))
+        #expect(abs(p.x - 1.0) < 1e-10) // x unchanged
+    }
+}
+
+@Suite("Matrix2D")
+struct Matrix2DTests {
+    @Test func identity() {
+        let m = Matrix2D.identity()
+        #expect(abs(Matrix2D.determinant(m) - 1.0) < 1e-10)
+    }
+
+    @Test func rotation() {
+        let m = Matrix2D.rotation(angle: .pi / 2)
+        #expect(abs(Matrix2D.determinant(m) - 1.0) < 1e-10)
+    }
+
+    @Test func scale() {
+        let m = Matrix2D.scale(3.0)
+        #expect(abs(Matrix2D.determinant(m) - 9.0) < 1e-10)
+    }
+
+    @Test func multiplyAndInvert() {
+        let a = Matrix2D.rotation(angle: .pi / 4)
+        let b = Matrix2D.rotation(angle: -.pi / 4)
+        let c = Matrix2D.multiply(a, b)
+        #expect(abs(c[0] - 1.0) < 1e-10) // should be identity
+    }
+
+    @Test func transpose() {
+        var m = Matrix2D.identity()
+        m[1] = 5.0
+        let t = Matrix2D.transpose(m)
+        #expect(abs(t[2] - 5.0) < 1e-10)
+    }
+
+    @Test func invert() {
+        let m = Matrix2D.rotation(angle: .pi / 3)
+        let inv = Matrix2D.invert(m)
+        #expect(inv != nil)
+        if let inv = inv {
+            let prod = Matrix2D.multiply(m, inv)
+            #expect(abs(prod[0] - 1.0) < 1e-10)
+        }
+    }
+}
+
+@Suite("Quaternion Interpolation")
+struct QuaternionInterpolationTests {
+    @Test func slerpMidpoint() {
+        let q1 = SIMD4<Double>(0, 0, 0, 1) // identity
+        let q2 = SIMD4<Double>(0, 0, sin(.pi / 4), cos(.pi / 4)) // 90 deg about Z
+        let mid = MathSolver.quaternionSlerp(from: q1, to: q2, t: 0.5)
+        #expect(abs(mid.w) > 0.9) // close to 45 deg
+    }
+
+    @Test func nlerpEndpoints() {
+        let q1 = SIMD4<Double>(0, 0, 0, 1)
+        let q2 = SIMD4<Double>(0, 0, sin(.pi / 4), cos(.pi / 4))
+        let r0 = MathSolver.quaternionNlerp(from: q1, to: q2, t: 0.0)
+        #expect(abs(r0.w - 1.0) < 0.1)
+    }
+
+    @Test func transformInterpolate() {
+        let from = (translation: SIMD3<Double>(0, 0, 0), quaternion: SIMD4<Double>(0, 0, 0, 1))
+        let to = (translation: SIMD3<Double>(10, 0, 0), quaternion: SIMD4<Double>(0, 0, 0, 1))
+        let mid = MathSolver.transformInterpolate(from: from, to: to, t: 0.5)
+        #expect(abs(mid.translation.x - 5.0) < 0.5)
+    }
+}
+
+@Suite("Vector2DMath")
+struct Vector2DMathTests {
+    @Test func modulus() {
+        #expect(abs(Vector2DMath.modulus(SIMD2(3, 4)) - 5.0) < 1e-10)
+    }
+
+    @Test func cross() {
+        #expect(abs(Vector2DMath.cross(SIMD2(1, 0), SIMD2(0, 1)) - 1.0) < 1e-10)
+    }
+
+    @Test func dot() {
+        #expect(abs(Vector2DMath.dot(SIMD2(1, 2), SIMD2(3, 4)) - 11.0) < 1e-10)
+    }
+
+    @Test func normalize() {
+        let n = Vector2DMath.normalize(SIMD2(3, 4))
+        #expect(n != nil)
+        if let n = n { #expect(abs(Vector2DMath.modulus(n) - 1.0) < 1e-10) }
+    }
+}
+
+@Suite("Vector3DMath")
+struct Vector3DMathTests {
+    @Test func modulus() {
+        #expect(abs(Vector3DMath.modulus(SIMD3(1, 2, 2)) - 3.0) < 1e-10)
+    }
+
+    @Test func cross() {
+        let c = Vector3DMath.cross(SIMD3(1, 0, 0), SIMD3(0, 1, 0))
+        #expect(abs(c.z - 1.0) < 1e-10)
+    }
+
+    @Test func dot() {
+        #expect(abs(Vector3DMath.dot(SIMD3(1, 2, 3), SIMD3(4, 5, 6)) - 32.0) < 1e-10)
+    }
+
+    @Test func dotCross() {
+        #expect(abs(Vector3DMath.dotCross(SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(0, 0, 1)) - 1.0) < 1e-10)
+    }
+
+    @Test func normalize() {
+        let n = Vector3DMath.normalize(SIMD3(1, 2, 2))
+        #expect(n != nil)
+        if let n = n { #expect(abs(Vector3DMath.modulus(n) - 1.0) < 1e-10) }
+    }
+}
+
+@Suite("BracketedRoot")
+struct BracketedRootTests {
+    @Test func findRoot() {
+        let result = MathSolver.bracketedRoot(in: 0...5) { x in
+            (value: x * x - 4.0, derivative: 2.0 * x)
+        }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.root - 2.0) < 1e-8) }
+    }
+
+    @Test func findSinRoot() {
+        let result = MathSolver.bracketedRoot(in: 2...4) { x in
+            (value: sin(x), derivative: cos(x))
+        }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.root - .pi) < 1e-8) }
+    }
+}
+
+@Suite("BracketMinimum")
+struct BracketMinimumTests {
+    @Test func bracketQuadratic() {
+        let result = MathSolver.bracketMinimum(a: -5.0, b: 2.0) { x in x * x }
+        #expect(result != nil)
+        if let r = result { #expect(r.fb <= r.fa && r.fb <= r.fc) }
+    }
+}
+
+@Suite("FRPR Minimizer")
+struct FRPRTests {
+    @Test func minimizeQuadratic() {
+        let result = MathSolver.minimizeFRPR(startPoint: [10.0, 10.0]) { x in
+            let fx = (x[0] - 1.0) * (x[0] - 1.0) + (x[1] - 2.0) * (x[1] - 2.0)
+            let gx = [2.0 * (x[0] - 1.0), 2.0 * (x[1] - 2.0)]
+            return (value: fx, gradient: gx)
+        }
+        #expect(result != nil)
+        if let r = result {
+            #expect(abs(r.location[0] - 1.0) < 0.01)
+            #expect(abs(r.location[1] - 2.0) < 0.01)
+        }
+    }
+}
+
+@Suite("FunctionAllRoots")
+struct FunctionAllRootsTests {
+    @Test func sinRoots() {
+        let roots = MathSolver.findAllRoots(in: 0.1...10.0) { x in
+            (value: sin(x), derivative: cos(x))
+        }
+        #expect(roots.count >= 3) // pi, 2pi, 3pi
+    }
+}
+
+@Suite("GaussLeastSquare")
+struct GaussLeastSquareTests {
+    @Test func overdetermined() {
+        let A: [Double] = [1, 0, 0, 1, 1, 1] // 3x2
+        let b: [Double] = [1, 2, 3]
+        let x = MathSolver.leastSquares(matrix: A, rows: 3, cols: 2, rhs: b)
+        #expect(x != nil)
+        if let x = x { #expect(x.count == 2) }
+    }
+}
+
+@Suite("NewtonRoot")
+struct NewtonRootTests {
+    @Test func findRoot() {
+        let result = MathSolver.newtonRoot(guess: 3.0) { x in
+            (value: x * x - 4.0, derivative: 2.0 * x)
+        }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.root - 2.0) < 1e-8) }
+    }
+}
+
+@Suite("Uzawa")
+struct UzawaTests {
+    @Test func constrainedOptimization() {
+        let cont: [Double] = [1, 1] // x + y = 1
+        let sec: [Double] = [1]
+        let result = MathSolver.uzawa(constraintMatrix: cont, nConstraints: 1, nVars: 2,
+                                      constraintRHS: sec, startPoint: [0, 0])
+        #expect(result != nil)
+        if let r = result {
+            #expect(abs(r.result[0] - 0.5) < 0.1)
+            #expect(abs(r.result[1] - 0.5) < 0.1)
+        }
+    }
+}
+
+@Suite("EigenValues")
+struct EigenValuesTests {
+    @Test func tridiagonal() {
+        let diag = [2.0, 2.0, 2.0]
+        let subdiag = [1.0, 1.0, 0.0]
+        let ev = MathSolver.eigenvalues(diagonal: diag, subdiagonal: subdiag)
+        #expect(ev != nil)
+        if let ev = ev { #expect(ev.count == 3) }
+    }
+
+    @Test func withVectors() {
+        let diag = [2.0, 2.0, 2.0]
+        let subdiag = [1.0, 1.0, 0.0]
+        let result = MathSolver.eigenvaluesAndVectors(diagonal: diag, subdiagonal: subdiag)
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.eigenvalues.count == 3)
+            #expect(r.eigenvectors.count == 3)
+            #expect(r.eigenvectors[0].count == 3)
+        }
+    }
+}
+
+@Suite("KronrodIntegration")
+struct KronrodIntegrationTests {
+    @Test func integrateSin() {
+        let result = MathSolver.kronrodIntegrate(over: 0...Double.pi) { sin($0) }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.value - 2.0) < 1e-6) }
+    }
+
+    @Test func adaptive() {
+        let result = MathSolver.kronrodIntegrateAdaptive(over: 0...Double.pi, tolerance: 1e-10) { sin($0) }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.value - 2.0) < 1e-8) }
+    }
+}
+
+@Suite("GaussMultipleIntegration")
+struct GaussMultipleIntegrationTests {
+    @Test func integrate2D() {
+        let result = MathSolver.gaussMultipleIntegration(
+            lower: [0, 0], upper: [1, 1], order: [10, 10]
+        ) { x in x[0] * x[0] + x[1] * x[1] }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r - 2.0 / 3.0) < 1e-6) }
+    }
+}
+
+@Suite("GaussSetIntegration")
+struct GaussSetIntegrationTests {
+    @Test func integrateSet() {
+        let result = MathSolver.gaussSetIntegration(
+            nEquations: 1, lower: [0, 0], upper: [1, 1], order: [10, 10]
+        ) { x in [x[0] + x[1]] }
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.count == 1)
+            #expect(abs(r[0] - 0.5) < 1e-6)
+        }
+    }
+}

@@ -425,7 +425,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **IntCS Full Results** | 6 | create, release, nbPoints, point (with params), nbSegments |
 | **BSplineCurve Mutations** | 8 | setKnot, getKnotSequence, getWeights, insertKnots, movePoint, localValue, maxDegree, locateU |
 | **BSplineSurface Mutations** | 6 | setUKnot, setVKnot, getUKnots, getVKnots, getWeights, removeUKnot |
-| **Total** | **2682** | |
+| **HelixGeom (rc4)** | 7 | helixBuild, helixCoilBuild, helixCurveEval, helixCurveD1, helixCurveD2, helixApproxToBSpline |
+| **CoordinateSystem3D (gp_Ax3)** | 7 | create, createFromNormal, angle, isCoplanar, mirror, rotate, translate |
+| **GeneralTransform2D (gp_GTrsf2d)** | 4 | affinity, multiply, invert, transformPoint |
+| **Matrix2D (gp_Mat2d)** | 7 | identity, rotation, scale, determinant, invert, multiply, transpose |
+| **Quaternion Interpolation** | 3 | slerp, nlerp, transformInterpolate |
+| **Vector2D/3D Math (gp_XY/XYZ)** | 9 | modulus, cross, dot, normalize (2D), modulus, cross, dot, dotCross, normalize (3D) |
+| **Math Solvers Part 2** | 13 | bracketedRoot, bracketMinimum, frpr, functionAllRoots, gaussLeastSquare, newtonFunctionRoot, uzawa, eigenvalues, eigenvaluesAndVectors, kronrodIntegrate, kronrodIntegrateAdaptive, gaussMultipleIntegration, gaussSetIntegration |
+| **Total** | **2869** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1717,6 +1724,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.116.0: HelixGeom helix construction (rc4: BuilderHelix, BuilderHelixCoil, HelixCurve, Tools), gp_Ax3 coordinate system (create, angle, coplanar, mirror, rotate, translate), gp_GTrsf2d affinity/multiply/invert/transform, gp_Mat2d 2x2 matrix (identity, rotation, scale, determinant, invert, multiply, transpose), quaternion interpolation (SLERP, NLERP, transform lerp), gp_XY/gp_XYZ vector math (modulus, cross, dot, dotCross, normalize), math solvers (BracketedRoot, BracketMinimum, FRPR conjugate gradient, FunctionAllRoots, GaussLeastSquare, NewtonFunctionRoot, Uzawa constrained optimization, EigenValuesSearcher, KronrodSingleIntegration, GaussMultipleIntegration, GaussSetIntegration) (2869 ops, 2918 tests)
 > - v0.115.0: GeomAPI_Interpolate expansion (endpoint/per-point tangents, parameters, periodic 3D/2D), PointsToBSpline configurable (3D/2D/surface grid), BRepBuilderAPI_Transform/GTransform (general affine + non-uniform scale), BRepAlgoAPI expansion (section tolerance, split multi, cut with history, defeature tolerance), ThruSections builder (9 ops), GeomConvert split/concatenate, ShapeFix_Shape builder (8 ops), Poly_Triangulation queries (9 ops), GCPnts arc length/parameter (4 ops), BRepAdaptor exposure (6 ops), shape queries (OBB volume, tolerances, free edges/wires/faces, bounding diagonal, centroid, total edge length), Curve3D/2D arc length + closest point, Surface normal/curvatures/fromPointGrid (2819 ops, 2861 tests)
 > - v0.114.0: TopoDS_Builder low-level topology, ShapeContentsExtended analysis, FreeBoundsProperties handle-based, WireBuilder incremental, Boolean tolerance/glue modes, Offset wire/face, ThickSolid options, BRepLib utilities, mass properties (inertia/principal axes/radius of gyration), Curve/Surface DN arbitrary derivatives, BRep_Tool queries, unique sub-shape counts, type names (2748 ops, 2811 tests)
 > - v0.113.0: MakeEdge completions (ellipse/hyperbola/parabola/curve), ProjectionOnCurve/Surface multi-result, DistShapeShape full results, WireFixer/FaceFixer individual fixes, MakeFace from surface/plane/cylinder, IntCS full results, BSplineCurve/Surface mutations (2682 ops, 2758 tests)
