@@ -16887,6 +16887,122 @@ bool OCCTMathGaussSetIntegration(OCCTMathFuncSetCallback _Nonnull callback, void
                                    const double* _Nonnull lower, const double* _Nonnull upper,
                                    const int32_t* _Nonnull order, double* _Nonnull result);
 
+// MARK: - MathPoly rc4 polynomial solvers (v0.117.0)
+
+/// Solve linear equation: a*x + b = 0. Returns number of roots found (-1 on error).
+int32_t OCCTMathPolyLinear(double a, double b, double* _Nonnull roots, int32_t maxRoots);
+
+/// Solve quadratic equation: a*x^2 + b*x + c = 0. Returns number of roots found (-1 on error).
+int32_t OCCTMathPolyQuadratic(double a, double b, double c, double* _Nonnull roots, int32_t maxRoots);
+
+/// Solve cubic equation: a*x^3 + b*x^2 + c*x + d = 0. Returns number of roots found (-1 on error).
+int32_t OCCTMathPolyCubic(double a, double b, double c, double d, double* _Nonnull roots, int32_t maxRoots);
+
+/// Solve quartic equation: a*x^4 + b*x^3 + c*x^2 + d*x + e = 0. Returns number of roots found (-1 on error).
+int32_t OCCTMathPolyQuartic(double a, double b, double c, double d, double e, double* _Nonnull roots, int32_t maxRoots);
+
+// MARK: - MathInteg rc4 integration (v0.117.0)
+
+/// Gauss-Legendre quadrature using rc4 MathInteg templates.
+double OCCTMathIntegGauss(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                           double lower, double upper, int32_t nbPoints,
+                           bool* _Nonnull isDone, double* _Nonnull error);
+
+/// Adaptive Gauss-Legendre using rc4 MathInteg templates.
+double OCCTMathIntegGaussAdaptive(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                    double lower, double upper,
+                                    double tolerance, int32_t maxIter,
+                                    bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter);
+
+/// Gauss-Kronrod rule using rc4 MathInteg templates.
+double OCCTMathIntegKronrod(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                              double lower, double upper, int32_t nbGaussPoints,
+                              bool* _Nonnull isDone, double* _Nonnull error);
+
+/// Adaptive Gauss-Kronrod using rc4 MathInteg templates.
+double OCCTMathIntegKronrodAdaptive(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                      double lower, double upper, int32_t nbGaussPoints,
+                                      double tolerance, int32_t maxIter,
+                                      bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter);
+
+/// Tanh-Sinh (double exponential) quadrature using rc4 MathInteg templates.
+double OCCTMathIntegTanhSinh(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                               double lower, double upper, double tolerance, int32_t maxLevels,
+                               bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter);
+
+// MARK: - UnitsMethods (v0.117.0)
+
+/// Get length factor value for IGES unit code.
+double OCCTUnitsGetLengthFactor(int32_t unit);
+
+/// Get scale factor between two length units.
+double OCCTUnitsGetLengthUnitScale(int32_t fromUnit, int32_t toUnit);
+
+/// Get string name for a length unit enum value.
+const char* _Nullable OCCTUnitsDumpLengthUnit(int32_t unit);
+
+// MARK: - LProp3d_CLProps (v0.117.0)
+
+/// Get curvature at parameter on a 3D curve.
+double OCCTCurve3DLocalCurvature(OCCTCurve3DRef _Nonnull curve, double u);
+
+/// Get tangent direction at parameter on a 3D curve.
+void OCCTCurve3DLocalTangent(OCCTCurve3DRef _Nonnull curve, double u,
+                               double* _Nonnull tx, double* _Nonnull ty, double* _Nonnull tz,
+                               bool* _Nonnull isDefined);
+
+/// Get normal direction at parameter on a 3D curve.
+void OCCTCurve3DLocalNormal(OCCTCurve3DRef _Nonnull curve, double u,
+                              double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz,
+                              bool* _Nonnull isDefined);
+
+/// Get centre of curvature at parameter on a 3D curve.
+void OCCTCurve3DLocalCentreOfCurvature(OCCTCurve3DRef _Nonnull curve, double u,
+                                         double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz,
+                                         bool* _Nonnull isDefined);
+
+// MARK: - LProp3d_SLProps (v0.117.0)
+
+/// Get surface curvatures at (u,v).
+void OCCTSurfaceLocalCurvatures(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                  double* _Nonnull gaussian, double* _Nonnull mean,
+                                  double* _Nonnull maxCurvature, double* _Nonnull minCurvature,
+                                  bool* _Nonnull isDefined);
+
+/// Get curvature directions at (u,v).
+void OCCTSurfaceLocalCurvatureDirections(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                           double* _Nonnull maxDx, double* _Nonnull maxDy, double* _Nonnull maxDz,
+                                           double* _Nonnull minDx, double* _Nonnull minDy, double* _Nonnull minDz,
+                                           bool* _Nonnull isDefined);
+
+// MARK: - ProjLib (v0.117.0)
+
+/// Project 3D line onto plane, return 2D line parameters.
+bool OCCTProjLibPlaneProjectLine(double plnPx, double plnPy, double plnPz,
+                                   double plnNx, double plnNy, double plnNz,
+                                   double linPx, double linPy, double linPz,
+                                   double linDx, double linDy, double linDz,
+                                   double* _Nonnull resPx, double* _Nonnull resPy,
+                                   double* _Nonnull resDx, double* _Nonnull resDy);
+
+/// Project 3D line onto cylinder, return 2D line parameters.
+bool OCCTProjLibCylinderProjectLine(double cylPx, double cylPy, double cylPz,
+                                      double cylDx, double cylDy, double cylDz,
+                                      double cylRadius,
+                                      double linPx, double linPy, double linPz,
+                                      double linDx, double linDy, double linDz,
+                                      double* _Nonnull resPx, double* _Nonnull resPy,
+                                      double* _Nonnull resDx, double* _Nonnull resDy);
+
+/// Project 3D circle onto plane, return 2D circle parameters.
+bool OCCTProjLibPlaneProjectCircle(double plnPx, double plnPy, double plnPz,
+                                     double plnNx, double plnNy, double plnNz,
+                                     double cirCx, double cirCy, double cirCz,
+                                     double cirNx, double cirNy, double cirNz,
+                                     double cirRadius,
+                                     double* _Nonnull resCx, double* _Nonnull resCy,
+                                     double* _Nonnull resRadius);
+
 #ifdef __cplusplus
 }
 #endif

@@ -35011,3 +35011,251 @@ struct GaussSetIntegrationTests {
         }
     }
 }
+
+// MARK: - v0.117.0 Tests
+
+@Suite("MathPolyRc4")
+struct MathPolyRc4Tests {
+    @Test func linear() {
+        // 2x + 4 = 0 => x = -2
+        let roots = PolynomialSolver.linearRc4(a: 2, b: 4)
+        #expect(roots != nil)
+        if let r = roots {
+            #expect(r.count == 1)
+            #expect(abs(r[0] - (-2.0)) < 1e-10)
+        }
+    }
+
+    @Test func linearDegenerate() {
+        // 0x + 0 = 0 => infinite solutions => returns -1
+        let roots = PolynomialSolver.linearRc4(a: 0, b: 0)
+        // InfiniteSolutions status means IsDone() is false => returns nil or -1
+        // The function returns -1 when IsDone is false, so nil
+        #expect(roots == nil)
+    }
+
+    @Test func quadratic() {
+        // x^2 - 5x + 6 = 0 => x = 2, 3
+        let roots = PolynomialSolver.quadraticRc4(a: 1, b: -5, c: 6)
+        #expect(roots != nil)
+        if let r = roots {
+            #expect(r.count == 2)
+            #expect(abs(r[0] - 2.0) < 1e-10)
+            #expect(abs(r[1] - 3.0) < 1e-10)
+        }
+    }
+
+    @Test func quadraticNoRealRoots() {
+        // x^2 + 1 = 0 => no real roots
+        let roots = PolynomialSolver.quadraticRc4(a: 1, b: 0, c: 1)
+        #expect(roots != nil)
+        if let r = roots {
+            #expect(r.count == 0)
+        }
+    }
+
+    @Test func cubic() {
+        // x^3 - 6x^2 + 11x - 6 = 0 => x = 1, 2, 3
+        let roots = PolynomialSolver.cubicRc4(a: 1, b: -6, c: 11, d: -6)
+        #expect(roots != nil)
+        if let r = roots {
+            #expect(r.count == 3)
+            #expect(abs(r[0] - 1.0) < 1e-8)
+            #expect(abs(r[1] - 2.0) < 1e-8)
+            #expect(abs(r[2] - 3.0) < 1e-8)
+        }
+    }
+
+    @Test func quartic() {
+        // (x-1)(x-2)(x-3)(x-4) = x^4 - 10x^3 + 35x^2 - 50x + 24
+        let roots = PolynomialSolver.quarticRc4(a: 1, b: -10, c: 35, d: -50, e: 24)
+        #expect(roots != nil)
+        if let r = roots {
+            #expect(r.count == 4)
+            #expect(abs(r[0] - 1.0) < 1e-6)
+            #expect(abs(r[1] - 2.0) < 1e-6)
+            #expect(abs(r[2] - 3.0) < 1e-6)
+            #expect(abs(r[3] - 4.0) < 1e-6)
+        }
+    }
+}
+
+@Suite("MathIntegRc4")
+struct MathIntegRc4Tests {
+    @Test func gauss() {
+        let result = MathSolver.integGauss(over: 0...Double.pi) { sin($0) }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.value - 2.0) < 1e-6) }
+    }
+
+    @Test func gaussAdaptive() {
+        let result = MathSolver.integGaussAdaptive(over: 0...Double.pi, tolerance: 1e-10) { sin($0) }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.value - 2.0) < 1e-8) }
+    }
+
+    @Test func kronrod() {
+        let result = MathSolver.integKronrod(over: 0...Double.pi) { sin($0) }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.value - 2.0) < 1e-6) }
+    }
+
+    @Test func kronrodAdaptive() {
+        let result = MathSolver.integKronrodAdaptive(over: 0...Double.pi, tolerance: 1e-10) { sin($0) }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.value - 2.0) < 1e-8) }
+    }
+
+    @Test func tanhSinh() {
+        let result = MathSolver.integTanhSinh(over: 0...Double.pi, tolerance: 1e-8) { sin($0) }
+        #expect(result != nil)
+        if let r = result { #expect(abs(r.value - 2.0) < 1e-4) }
+    }
+}
+
+@Suite("UnitsConversion")
+struct UnitsConversionTests {
+    @Test func lengthFactor() {
+        // IGES unit 6 = meter = 1000 mm
+        let factor = UnitsConversion.lengthFactor(igesUnit: 6)
+        #expect(abs(factor - 1000.0) < 1e-6)
+    }
+
+    @Test func unitScale() {
+        // meter to millimeter = 1000
+        let scale = UnitsConversion.lengthUnitScale(from: OCCTLengthUnit.meter, to: OCCTLengthUnit.millimeter)
+        #expect(abs(scale - 1000.0) < 1e-6)
+    }
+
+    @Test func unitScaleInverse() {
+        // millimeter to meter = 0.001
+        let scale = UnitsConversion.lengthUnitScale(from: OCCTLengthUnit.millimeter, to: OCCTLengthUnit.meter)
+        #expect(abs(scale - 0.001) < 1e-9)
+    }
+
+    @Test func dumpUnit() {
+        let name = UnitsConversion.dumpLengthUnit(OCCTLengthUnit.millimeter)
+        #expect(name != nil)
+        if let n = name { #expect(n.contains("mm") || n.contains("illi")) }
+    }
+}
+
+@Suite("LProp3dCurve")
+struct LProp3dCurveTests {
+    @Test func curvatureOfCircle() {
+        // Circle of radius 5: curvature = 1/5 = 0.2
+        let circle = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5.0)
+        if let c = circle {
+            let curv = c.localCurvature(at: 0.0)
+            #expect(abs(curv - 0.2) < 1e-6)
+        }
+    }
+
+    @Test func tangentOfCircle() {
+        let circle = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5.0)
+        if let c = circle {
+            let tangent = c.localTangent(at: 0.0)
+            #expect(tangent != nil)
+            if let t = tangent {
+                // At u=0 on a circle in XY plane, tangent should be along Y
+                #expect(abs(t.y) > 0.5)
+            }
+        }
+    }
+
+    @Test func normalOfCircle() {
+        let circle = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5.0)
+        if let c = circle {
+            let normal = c.localNormal(at: 0.0)
+            #expect(normal != nil)
+        }
+    }
+
+    @Test func centreOfCurvature() {
+        // Centre of curvature of a circle = the center of the circle
+        let circle = Curve3D.circle(center: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5.0)
+        if let c = circle {
+            let centre = c.localCentreOfCurvature(at: 0.0)
+            #expect(centre != nil)
+            if let p = centre {
+                #expect(abs(p.x) < 1e-6)
+                #expect(abs(p.y) < 1e-6)
+                #expect(abs(p.z) < 1e-6)
+            }
+        }
+    }
+}
+
+@Suite("LProp3dSurface")
+struct LProp3dSurfaceTests {
+    @Test func sphereCurvatures() {
+        // Sphere of radius R: Gaussian = 1/R^2, Mean = 1/R
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 10.0)
+        if let s = sphere {
+            let curvs = s.localCurvatures(u: 0.0, v: 0.5)
+            #expect(curvs != nil)
+            if let c = curvs {
+                #expect(abs(c.gaussian - 1.0 / 100.0) < 1e-4)
+                #expect(abs(abs(c.mean) - 1.0 / 10.0) < 1e-4)
+            }
+        }
+    }
+
+    @Test func cylinderCurvatures() {
+        // Cylinder of radius R: Gaussian = 0, one principal curvature = 1/R, other = 0
+        let cyl = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5.0)
+        if let s = cyl {
+            let curvs = s.localCurvatures(u: 0.0, v: 0.0)
+            #expect(curvs != nil)
+            if let c = curvs {
+                #expect(abs(c.gaussian) < 1e-6) // Gaussian = 0 for cylinder
+            }
+        }
+    }
+
+    @Test func curvatureDirections() {
+        // Cylinder should have non-umbilic curvature directions
+        let cyl = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5.0)
+        if let s = cyl {
+            let dirs = s.localCurvatureDirections(u: 0.0, v: 0.0)
+            #expect(dirs != nil)
+        }
+    }
+}
+
+@Suite("ProjLib")
+struct ProjLibTests {
+    @Test func lineOnPlane() {
+        // Project a line along X axis onto XY plane
+        let result = ProjLib.projectLineOnPlane(
+            planePoint: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1),
+            linePoint: SIMD3(0, 0, 0), lineDirection: SIMD3(1, 0, 0))
+        #expect(result != nil)
+        if let r = result {
+            // The 2D direction should be along the X axis of the plane's parameter space
+            let dirMag = sqrt(r.directionX * r.directionX + r.directionY * r.directionY)
+            #expect(dirMag > 0.5)
+        }
+    }
+
+    @Test func circleOnPlane() {
+        // Project a circle in the XY plane onto the XY plane
+        let result = ProjLib.projectCircleOnPlane(
+            planePoint: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1),
+            circleCenter: SIMD3(0, 0, 0), circleNormal: SIMD3(0, 0, 1),
+            circleRadius: 5.0)
+        #expect(result != nil)
+        if let r = result {
+            #expect(abs(r.radius - 5.0) < 1e-6)
+        }
+    }
+
+    @Test func lineOnCylinder() {
+        // Project a line along the cylinder axis onto a cylinder
+        let result = ProjLib.projectLineOnCylinder(
+            cylinderPoint: SIMD3(0, 0, 0), cylinderAxis: SIMD3(0, 0, 1),
+            cylinderRadius: 5.0,
+            linePoint: SIMD3(5, 0, 0), lineDirection: SIMD3(0, 0, 1))
+        #expect(result != nil)
+    }
+}

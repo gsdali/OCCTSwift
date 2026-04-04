@@ -48440,3 +48440,356 @@ bool OCCTMathGaussSetIntegration(OCCTMathFuncSetCallback _Nonnull callback, void
 
 // end of v0.116.0 implementations
 
+// ============================================================================
+// v0.117.0 implementations
+// ============================================================================
+
+// MathPoly rc4 polynomial solvers
+
+#include <MathPoly_Quadratic.hxx>
+#include <MathPoly_Cubic.hxx>
+#include <MathPoly_Quartic.hxx>
+
+int32_t OCCTMathPolyLinear(double a, double b, double* _Nonnull roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Linear(a, b);
+        if (!result.IsDone()) return -1;
+        int32_t n = (int32_t)result.NbRoots;
+        for (int32_t i = 0; i < n && i < maxRoots; i++) roots[i] = result.Roots[i];
+        return std::min(n, maxRoots);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTMathPolyQuadratic(double a, double b, double c, double* _Nonnull roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Quadratic(a, b, c);
+        if (!result.IsDone()) return -1;
+        int32_t n = (int32_t)result.NbRoots;
+        for (int32_t i = 0; i < n && i < maxRoots; i++) roots[i] = result.Roots[i];
+        return std::min(n, maxRoots);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTMathPolyCubic(double a, double b, double c, double d, double* _Nonnull roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Cubic(a, b, c, d);
+        if (!result.IsDone()) return -1;
+        int32_t n = (int32_t)result.NbRoots;
+        for (int32_t i = 0; i < n && i < maxRoots; i++) roots[i] = result.Roots[i];
+        return std::min(n, maxRoots);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTMathPolyQuartic(double a, double b, double c, double d, double e, double* _Nonnull roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Quartic(a, b, c, d, e);
+        if (!result.IsDone()) return -1;
+        int32_t n = (int32_t)result.NbRoots;
+        for (int32_t i = 0; i < n && i < maxRoots; i++) roots[i] = result.Roots[i];
+        return std::min(n, maxRoots);
+    } catch (...) { return -1; }
+}
+
+// MathInteg rc4 integration
+
+#include <MathInteg_Gauss.hxx>
+#include <MathInteg_Kronrod.hxx>
+#include <MathInteg_DoubleExp.hxx>
+
+namespace {
+    class MathIntegFuncAdapter {
+        OCCTMathSimpleFuncCallback cb; void* ctx;
+    public:
+        MathIntegFuncAdapter(OCCTMathSimpleFuncCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(double x, double& f) { return cb(x, &f, ctx); }
+    };
+}
+
+double OCCTMathIntegGauss(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                           double lower, double upper, int32_t nbPoints,
+                           bool* _Nonnull isDone, double* _Nonnull error) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        auto result = MathInteg::Gauss(f, lower, upper, nbPoints);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; return 0.0; }
+}
+
+double OCCTMathIntegGaussAdaptive(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                    double lower, double upper,
+                                    double tolerance, int32_t maxIter,
+                                    bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        MathUtils::IntegConfig config;
+        config.Tolerance = tolerance;
+        config.MaxIterations = maxIter;
+        auto result = MathInteg::GaussAdaptive(f, lower, upper, config);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        *nbIter = (int32_t)result.NbIterations;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; *nbIter = 0; return 0.0; }
+}
+
+double OCCTMathIntegKronrod(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                              double lower, double upper, int32_t nbGaussPoints,
+                              bool* _Nonnull isDone, double* _Nonnull error) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        auto result = MathInteg::KronrodRule(f, lower, upper, nbGaussPoints);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; return 0.0; }
+}
+
+double OCCTMathIntegKronrodAdaptive(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                      double lower, double upper, int32_t nbGaussPoints,
+                                      double tolerance, int32_t maxIter,
+                                      bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        MathInteg::KronrodConfig config;
+        config.NbGaussPoints = nbGaussPoints;
+        config.Tolerance = tolerance;
+        config.MaxIterations = maxIter;
+        config.Adaptive = true;
+        auto result = MathInteg::Kronrod(f, lower, upper, config);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        *nbIter = (int32_t)result.NbIterations;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; *nbIter = 0; return 0.0; }
+}
+
+double OCCTMathIntegTanhSinh(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                               double lower, double upper, double tolerance, int32_t maxLevels,
+                               bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        MathInteg::DoubleExpConfig config;
+        config.Tolerance = tolerance;
+        config.NbLevels = maxLevels;
+        auto result = MathInteg::TanhSinh(f, lower, upper, config);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        *nbIter = (int32_t)result.NbIterations;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; *nbIter = 0; return 0.0; }
+}
+
+// UnitsMethods
+
+#include <UnitsMethods.hxx>
+
+double OCCTUnitsGetLengthFactor(int32_t unit) {
+    try {
+        return UnitsMethods::GetLengthFactorValue(unit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsGetLengthUnitScale(int32_t fromUnit, int32_t toUnit) {
+    try {
+        return UnitsMethods::GetLengthUnitScale((UnitsMethods_LengthUnit)fromUnit,
+                                                 (UnitsMethods_LengthUnit)toUnit);
+    } catch (...) { return 0.0; }
+}
+
+const char* _Nullable OCCTUnitsDumpLengthUnit(int32_t unit) {
+    try {
+        return UnitsMethods::DumpLengthUnit((UnitsMethods_LengthUnit)unit);
+    } catch (...) { return nullptr; }
+}
+
+// LProp3d_CLProps
+
+#include <LProp3d_CLProps.hxx>
+#include <GeomAdaptor_Curve.hxx>
+
+double OCCTCurve3DLocalCurvature(OCCTCurve3DRef _Nonnull curve, double u) {
+    try {
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve->curve);
+        LProp3d_CLProps props(adaptor, u, 2, 1e-10);
+        return props.Curvature();
+    } catch (...) { return 0.0; }
+}
+
+void OCCTCurve3DLocalTangent(OCCTCurve3DRef _Nonnull curve, double u,
+                               double* _Nonnull tx, double* _Nonnull ty, double* _Nonnull tz,
+                               bool* _Nonnull isDefined) {
+    try {
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve->curve);
+        LProp3d_CLProps props(adaptor, u, 1, 1e-10);
+        *isDefined = props.IsTangentDefined();
+        if (*isDefined) {
+            gp_Dir d;
+            props.Tangent(d);
+            *tx = d.X(); *ty = d.Y(); *tz = d.Z();
+        } else {
+            *tx = 0; *ty = 0; *tz = 0;
+        }
+    } catch (...) { *isDefined = false; *tx = 0; *ty = 0; *tz = 0; }
+}
+
+void OCCTCurve3DLocalNormal(OCCTCurve3DRef _Nonnull curve, double u,
+                              double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz,
+                              bool* _Nonnull isDefined) {
+    try {
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve->curve);
+        LProp3d_CLProps props(adaptor, u, 2, 1e-10);
+        *isDefined = props.IsTangentDefined();
+        if (*isDefined) {
+            gp_Dir n;
+            props.Normal(n);
+            *nx = n.X(); *ny = n.Y(); *nz = n.Z();
+        } else {
+            *nx = 0; *ny = 0; *nz = 0;
+        }
+    } catch (...) { *isDefined = false; *nx = 0; *ny = 0; *nz = 0; }
+}
+
+void OCCTCurve3DLocalCentreOfCurvature(OCCTCurve3DRef _Nonnull curve, double u,
+                                         double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz,
+                                         bool* _Nonnull isDefined) {
+    try {
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve->curve);
+        LProp3d_CLProps props(adaptor, u, 2, 1e-10);
+        double curv = props.Curvature();
+        if (curv > 1e-10 && props.IsTangentDefined()) {
+            gp_Pnt p;
+            props.CentreOfCurvature(p);
+            *cx = p.X(); *cy = p.Y(); *cz = p.Z();
+            *isDefined = true;
+        } else {
+            *cx = 0; *cy = 0; *cz = 0;
+            *isDefined = false;
+        }
+    } catch (...) { *isDefined = false; *cx = 0; *cy = 0; *cz = 0; }
+}
+
+// LProp3d_SLProps
+
+#include <LProp3d_SLProps.hxx>
+#include <GeomAdaptor_Surface.hxx>
+
+void OCCTSurfaceLocalCurvatures(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                  double* _Nonnull gaussian, double* _Nonnull mean,
+                                  double* _Nonnull maxCurvature, double* _Nonnull minCurvature,
+                                  bool* _Nonnull isDefined) {
+    try {
+        Handle(GeomAdaptor_Surface) adaptor = new GeomAdaptor_Surface(surface->surface);
+        LProp3d_SLProps props(adaptor, u, v, 2, 1e-10);
+        *isDefined = props.IsCurvatureDefined();
+        if (*isDefined) {
+            *gaussian = props.GaussianCurvature();
+            *mean = props.MeanCurvature();
+            *maxCurvature = props.MaxCurvature();
+            *minCurvature = props.MinCurvature();
+        } else {
+            *gaussian = 0; *mean = 0; *maxCurvature = 0; *minCurvature = 0;
+        }
+    } catch (...) { *isDefined = false; *gaussian = 0; *mean = 0; *maxCurvature = 0; *minCurvature = 0; }
+}
+
+void OCCTSurfaceLocalCurvatureDirections(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                           double* _Nonnull maxDx, double* _Nonnull maxDy, double* _Nonnull maxDz,
+                                           double* _Nonnull minDx, double* _Nonnull minDy, double* _Nonnull minDz,
+                                           bool* _Nonnull isDefined) {
+    try {
+        Handle(GeomAdaptor_Surface) adaptor = new GeomAdaptor_Surface(surface->surface);
+        LProp3d_SLProps props(adaptor, u, v, 2, 1e-10);
+        *isDefined = props.IsCurvatureDefined() && !props.IsUmbilic();
+        if (*isDefined) {
+            gp_Dir maxD, minD;
+            props.CurvatureDirections(maxD, minD);
+            *maxDx = maxD.X(); *maxDy = maxD.Y(); *maxDz = maxD.Z();
+            *minDx = minD.X(); *minDy = minD.Y(); *minDz = minD.Z();
+        } else {
+            *maxDx = 0; *maxDy = 0; *maxDz = 0;
+            *minDx = 0; *minDy = 0; *minDz = 0;
+        }
+    } catch (...) {
+        *isDefined = false;
+        *maxDx = 0; *maxDy = 0; *maxDz = 0;
+        *minDx = 0; *minDy = 0; *minDz = 0;
+    }
+}
+
+// ProjLib
+
+#include <ProjLib_Plane.hxx>
+#include <ProjLib_Cylinder.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Lin.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Ax3.hxx>
+
+bool OCCTProjLibPlaneProjectLine(double plnPx, double plnPy, double plnPz,
+                                   double plnNx, double plnNy, double plnNz,
+                                   double linPx, double linPy, double linPz,
+                                   double linDx, double linDy, double linDz,
+                                   double* _Nonnull resPx, double* _Nonnull resPy,
+                                   double* _Nonnull resDx, double* _Nonnull resDy) {
+    try {
+        gp_Pln pln(gp_Pnt(plnPx, plnPy, plnPz), gp_Dir(plnNx, plnNy, plnNz));
+        gp_Lin lin(gp_Pnt(linPx, linPy, linPz), gp_Dir(linDx, linDy, linDz));
+        ProjLib_Plane proj(pln, lin);
+        if (proj.IsDone()) {
+            gp_Lin2d l2d = proj.Line();
+            *resPx = l2d.Location().X(); *resPy = l2d.Location().Y();
+            *resDx = l2d.Direction().X(); *resDy = l2d.Direction().Y();
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTProjLibCylinderProjectLine(double cylPx, double cylPy, double cylPz,
+                                      double cylDx, double cylDy, double cylDz,
+                                      double cylRadius,
+                                      double linPx, double linPy, double linPz,
+                                      double linDx, double linDy, double linDz,
+                                      double* _Nonnull resPx, double* _Nonnull resPy,
+                                      double* _Nonnull resDx, double* _Nonnull resDy) {
+    try {
+        gp_Ax3 ax(gp_Pnt(cylPx, cylPy, cylPz), gp_Dir(cylDx, cylDy, cylDz));
+        gp_Cylinder cyl(ax, cylRadius);
+        gp_Lin lin(gp_Pnt(linPx, linPy, linPz), gp_Dir(linDx, linDy, linDz));
+        ProjLib_Cylinder proj(cyl, lin);
+        if (proj.IsDone()) {
+            gp_Lin2d l2d = proj.Line();
+            *resPx = l2d.Location().X(); *resPy = l2d.Location().Y();
+            *resDx = l2d.Direction().X(); *resDy = l2d.Direction().Y();
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTProjLibPlaneProjectCircle(double plnPx, double plnPy, double plnPz,
+                                     double plnNx, double plnNy, double plnNz,
+                                     double cirCx, double cirCy, double cirCz,
+                                     double cirNx, double cirNy, double cirNz,
+                                     double cirRadius,
+                                     double* _Nonnull resCx, double* _Nonnull resCy,
+                                     double* _Nonnull resRadius) {
+    try {
+        gp_Pln pln(gp_Pnt(plnPx, plnPy, plnPz), gp_Dir(plnNx, plnNy, plnNz));
+        gp_Ax2 ax(gp_Pnt(cirCx, cirCy, cirCz), gp_Dir(cirNx, cirNy, cirNz));
+        gp_Circ circ(ax, cirRadius);
+        ProjLib_Plane proj(pln, circ);
+        if (proj.IsDone()) {
+            gp_Circ2d c2d = proj.Circle();
+            *resCx = c2d.Location().X(); *resCy = c2d.Location().Y();
+            *resRadius = c2d.Radius();
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+// end of v0.117.0 implementations
+

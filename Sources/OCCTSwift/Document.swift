@@ -13133,3 +13133,353 @@ extension MathSolver {
         return result
     }
 }
+
+// MARK: - PolynomialSolver rc4 Extensions (v0.117.0)
+
+extension PolynomialSolver {
+
+    /// Solve linear equation: ax + b = 0 using MathPoly rc4 solver.
+    public static func linearRc4(a: Double, b: Double) -> [Double]? {
+        var roots = [Double](repeating: 0, count: 1)
+        let n = OCCTMathPolyLinear(a, b, &roots, 1)
+        return n >= 0 ? Array(roots.prefix(Int(n))) : nil
+    }
+
+    /// Solve quadratic equation: ax^2 + bx + c = 0 using MathPoly rc4 solver.
+    public static func quadraticRc4(a: Double, b: Double, c: Double) -> [Double]? {
+        var roots = [Double](repeating: 0, count: 2)
+        let n = OCCTMathPolyQuadratic(a, b, c, &roots, 2)
+        return n >= 0 ? Array(roots.prefix(Int(n))) : nil
+    }
+
+    /// Solve cubic equation: ax^3 + bx^2 + cx + d = 0 using MathPoly rc4 solver.
+    public static func cubicRc4(a: Double, b: Double, c: Double, d: Double) -> [Double]? {
+        var roots = [Double](repeating: 0, count: 3)
+        let n = OCCTMathPolyCubic(a, b, c, d, &roots, 3)
+        return n >= 0 ? Array(roots.prefix(Int(n))) : nil
+    }
+
+    /// Solve quartic equation: ax^4 + bx^3 + cx^2 + dx + e = 0 using MathPoly rc4 solver.
+    public static func quarticRc4(a: Double, b: Double, c: Double, d: Double, e: Double) -> [Double]? {
+        var roots = [Double](repeating: 0, count: 4)
+        let n = OCCTMathPolyQuartic(a, b, c, d, e, &roots, 4)
+        return n >= 0 ? Array(roots.prefix(Int(n))) : nil
+    }
+}
+
+// MARK: - MathInteg rc4 Extensions (v0.117.0)
+
+extension MathSolver {
+
+    /// Gauss-Legendre quadrature using rc4 MathInteg templates.
+    public static func integGauss(
+        over range: ClosedRange<Double>,
+        points: Int = 15,
+        function: @escaping (Double) -> Double
+    ) -> (value: Double, error: Double)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        var isDone = false
+        var error = 0.0
+        let result = OCCTMathIntegGauss(callback, ptr, range.lowerBound, range.upperBound,
+                                        Int32(points), &isDone, &error)
+        return isDone ? (result, error) : nil
+    }
+
+    /// Adaptive Gauss-Legendre using rc4 MathInteg templates.
+    public static func integGaussAdaptive(
+        over range: ClosedRange<Double>,
+        tolerance: Double = 1e-10,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> Double
+    ) -> (value: Double, error: Double, iterations: Int)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        var isDone = false
+        var error = 0.0
+        var nbIter: Int32 = 0
+        let result = OCCTMathIntegGaussAdaptive(callback, ptr, range.lowerBound, range.upperBound,
+                                                tolerance, Int32(maxIterations),
+                                                &isDone, &error, &nbIter)
+        return isDone ? (result, error, Int(nbIter)) : nil
+    }
+
+    /// Gauss-Kronrod rule using rc4 MathInteg templates.
+    public static func integKronrod(
+        over range: ClosedRange<Double>,
+        gaussPoints: Int = 7,
+        function: @escaping (Double) -> Double
+    ) -> (value: Double, error: Double)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        var isDone = false
+        var error = 0.0
+        let result = OCCTMathIntegKronrod(callback, ptr, range.lowerBound, range.upperBound,
+                                          Int32(gaussPoints), &isDone, &error)
+        return isDone ? (result, error) : nil
+    }
+
+    /// Adaptive Gauss-Kronrod using rc4 MathInteg templates.
+    public static func integKronrodAdaptive(
+        over range: ClosedRange<Double>,
+        gaussPoints: Int = 7,
+        tolerance: Double = 1e-10,
+        maxIterations: Int = 100,
+        function: @escaping (Double) -> Double
+    ) -> (value: Double, error: Double, iterations: Int)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        var isDone = false
+        var error = 0.0
+        var nbIter: Int32 = 0
+        let result = OCCTMathIntegKronrodAdaptive(callback, ptr, range.lowerBound, range.upperBound,
+                                                  Int32(gaussPoints), tolerance, Int32(maxIterations),
+                                                  &isDone, &error, &nbIter)
+        return isDone ? (result, error, Int(nbIter)) : nil
+    }
+
+    /// Tanh-Sinh (double exponential) quadrature using rc4 MathInteg templates.
+    public static func integTanhSinh(
+        over range: ClosedRange<Double>,
+        tolerance: Double = 1e-10,
+        maxLevels: Int = 6,
+        function: @escaping (Double) -> Double
+    ) -> (value: Double, error: Double, iterations: Int)? {
+        let box = ClosureBox(function)
+        let ptr = Unmanaged.passRetained(box).toOpaque()
+        defer { Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ptr).release() }
+
+        let callback: OCCTMathSimpleFuncCallback = { x, value, context in
+            guard let ctx = context else { return false }
+            let box = Unmanaged<ClosureBox<(Double) -> Double>>.fromOpaque(ctx).takeUnretainedValue()
+            value.pointee = box.closure(x)
+            return true
+        }
+
+        var isDone = false
+        var error = 0.0
+        var nbIter: Int32 = 0
+        let result = OCCTMathIntegTanhSinh(callback, ptr, range.lowerBound, range.upperBound,
+                                           tolerance, Int32(maxLevels),
+                                           &isDone, &error, &nbIter)
+        return isDone ? (result, error, Int(nbIter)) : nil
+    }
+}
+
+// MARK: - UnitsConversion (v0.117.0)
+
+/// Length unit types matching OCCT UnitsMethods_LengthUnit enum.
+public enum OCCTLengthUnit: Int32, Sendable {
+    case undefined = 0
+    case inch = 1
+    case millimeter = 2
+    case foot = 4
+    case mile = 5
+    case meter = 6
+    case kilometer = 7
+    case mil = 8
+    case micron = 9
+    case centimeter = 10
+    case microinch = 11
+}
+
+/// Utility for unit conversions using OCCT UnitsMethods.
+public enum UnitsConversion {
+
+    /// Get the length factor for an IGES unit code (in millimeters).
+    public static func lengthFactor(igesUnit: Int) -> Double {
+        OCCTUnitsGetLengthFactor(Int32(igesUnit))
+    }
+
+    /// Get the scale factor to convert between two length units.
+    public static func lengthUnitScale(from: OCCTLengthUnit, to: OCCTLengthUnit) -> Double {
+        OCCTUnitsGetLengthUnitScale(from.rawValue, to.rawValue)
+    }
+
+    /// Get the string name for a length unit.
+    public static func dumpLengthUnit(_ unit: OCCTLengthUnit) -> String? {
+        guard let cStr = OCCTUnitsDumpLengthUnit(unit.rawValue) else { return nil }
+        return String(cString: cStr)
+    }
+}
+
+// MARK: - Curve3D LProp3d Extensions (v0.117.0)
+
+extension Curve3D {
+
+    /// Get the curvature at a parameter value using LProp3d_CLProps.
+    public func localCurvature(at u: Double) -> Double {
+        OCCTCurve3DLocalCurvature(handle, u)
+    }
+
+    /// Get the tangent direction at a parameter value using LProp3d_CLProps.
+    public func localTangent(at u: Double) -> SIMD3<Double>? {
+        var tx = 0.0, ty = 0.0, tz = 0.0
+        var isDefined = false
+        OCCTCurve3DLocalTangent(handle, u, &tx, &ty, &tz, &isDefined)
+        return isDefined ? SIMD3(tx, ty, tz) : nil
+    }
+
+    /// Get the normal direction at a parameter value using LProp3d_CLProps.
+    public func localNormal(at u: Double) -> SIMD3<Double>? {
+        var nx = 0.0, ny = 0.0, nz = 0.0
+        var isDefined = false
+        OCCTCurve3DLocalNormal(handle, u, &nx, &ny, &nz, &isDefined)
+        return isDefined ? SIMD3(nx, ny, nz) : nil
+    }
+
+    /// Get the centre of curvature at a parameter value using LProp3d_CLProps.
+    public func localCentreOfCurvature(at u: Double) -> SIMD3<Double>? {
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        var isDefined = false
+        OCCTCurve3DLocalCentreOfCurvature(handle, u, &cx, &cy, &cz, &isDefined)
+        return isDefined ? SIMD3(cx, cy, cz) : nil
+    }
+}
+
+// MARK: - Surface LProp3d Extensions (v0.117.0)
+
+extension Surface {
+
+    /// Surface curvature result at a point.
+    public struct LocalCurvatures: Sendable {
+        public let gaussian: Double
+        public let mean: Double
+        public let maxCurvature: Double
+        public let minCurvature: Double
+    }
+
+    /// Get all curvatures at (u, v) using LProp3d_SLProps.
+    public func localCurvatures(u: Double, v: Double) -> LocalCurvatures? {
+        var gaussian = 0.0, mean = 0.0, maxC = 0.0, minC = 0.0
+        var isDefined = false
+        OCCTSurfaceLocalCurvatures(handle, u, v, &gaussian, &mean, &maxC, &minC, &isDefined)
+        return isDefined ? LocalCurvatures(gaussian: gaussian, mean: mean,
+                                           maxCurvature: maxC, minCurvature: minC) : nil
+    }
+
+    /// Curvature direction result.
+    public struct CurvatureDirections: Sendable {
+        public let maxDirection: SIMD3<Double>
+        public let minDirection: SIMD3<Double>
+    }
+
+    /// Get curvature directions at (u, v) using LProp3d_SLProps.
+    /// Returns nil for umbilic points (where curvature is constant).
+    public func localCurvatureDirections(u: Double, v: Double) -> CurvatureDirections? {
+        var maxDx = 0.0, maxDy = 0.0, maxDz = 0.0
+        var minDx = 0.0, minDy = 0.0, minDz = 0.0
+        var isDefined = false
+        OCCTSurfaceLocalCurvatureDirections(handle, u, v,
+                                            &maxDx, &maxDy, &maxDz,
+                                            &minDx, &minDy, &minDz, &isDefined)
+        return isDefined ? CurvatureDirections(maxDirection: SIMD3(maxDx, maxDy, maxDz),
+                                               minDirection: SIMD3(minDx, minDy, minDz)) : nil
+    }
+}
+
+// MARK: - ProjLib (v0.117.0)
+
+/// Projection utilities for projecting 3D curves onto analytic surfaces.
+public enum ProjLib {
+
+    /// Result of projecting a line onto a surface (2D line parameters).
+    public struct Line2DResult: Sendable {
+        public let locationX: Double
+        public let locationY: Double
+        public let directionX: Double
+        public let directionY: Double
+    }
+
+    /// Result of projecting a circle onto a plane (2D circle parameters).
+    public struct Circle2DResult: Sendable {
+        public let centerX: Double
+        public let centerY: Double
+        public let radius: Double
+    }
+
+    /// Project a 3D line onto a plane, returning the 2D line in the plane's parameter space.
+    public static func projectLineOnPlane(
+        planePoint: SIMD3<Double>, planeNormal: SIMD3<Double>,
+        linePoint: SIMD3<Double>, lineDirection: SIMD3<Double>
+    ) -> Line2DResult? {
+        var rPx = 0.0, rPy = 0.0, rDx = 0.0, rDy = 0.0
+        let ok = OCCTProjLibPlaneProjectLine(
+            planePoint.x, planePoint.y, planePoint.z,
+            planeNormal.x, planeNormal.y, planeNormal.z,
+            linePoint.x, linePoint.y, linePoint.z,
+            lineDirection.x, lineDirection.y, lineDirection.z,
+            &rPx, &rPy, &rDx, &rDy)
+        return ok ? Line2DResult(locationX: rPx, locationY: rPy,
+                                 directionX: rDx, directionY: rDy) : nil
+    }
+
+    /// Project a 3D line onto a cylinder, returning the 2D line in the cylinder's parameter space.
+    public static func projectLineOnCylinder(
+        cylinderPoint: SIMD3<Double>, cylinderAxis: SIMD3<Double>, cylinderRadius: Double,
+        linePoint: SIMD3<Double>, lineDirection: SIMD3<Double>
+    ) -> Line2DResult? {
+        var rPx = 0.0, rPy = 0.0, rDx = 0.0, rDy = 0.0
+        let ok = OCCTProjLibCylinderProjectLine(
+            cylinderPoint.x, cylinderPoint.y, cylinderPoint.z,
+            cylinderAxis.x, cylinderAxis.y, cylinderAxis.z,
+            cylinderRadius,
+            linePoint.x, linePoint.y, linePoint.z,
+            lineDirection.x, lineDirection.y, lineDirection.z,
+            &rPx, &rPy, &rDx, &rDy)
+        return ok ? Line2DResult(locationX: rPx, locationY: rPy,
+                                 directionX: rDx, directionY: rDy) : nil
+    }
+
+    /// Project a 3D circle onto a plane, returning the 2D circle.
+    public static func projectCircleOnPlane(
+        planePoint: SIMD3<Double>, planeNormal: SIMD3<Double>,
+        circleCenter: SIMD3<Double>, circleNormal: SIMD3<Double>, circleRadius: Double
+    ) -> Circle2DResult? {
+        var rCx = 0.0, rCy = 0.0, rR = 0.0
+        let ok = OCCTProjLibPlaneProjectCircle(
+            planePoint.x, planePoint.y, planePoint.z,
+            planeNormal.x, planeNormal.y, planeNormal.z,
+            circleCenter.x, circleCenter.y, circleCenter.z,
+            circleNormal.x, circleNormal.y, circleNormal.z,
+            circleRadius,
+            &rCx, &rCy, &rR)
+        return ok ? Circle2DResult(centerX: rCx, centerY: rCy, radius: rR) : nil
+    }
+}
