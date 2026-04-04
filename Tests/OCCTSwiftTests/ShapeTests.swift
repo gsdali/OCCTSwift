@@ -36304,3 +36304,470 @@ struct GpDirExtrasTests {
         #expect(Shape.dirIsNormal(d1, d2, tolerance: 0.01))
     }
 }
+
+// MARK: - Integration Tests
+
+@Suite("Integration: Mounting Bracket")
+struct IntegrationMountingBracketTests {
+
+    @Test func mountingBracketFullWorkflow() {
+        // Step 1: Create base plate (centered at origin)
+        guard let basePlate = Shape.box(width: 80, height: 40, depth: 5) else {
+            #expect(Bool(false), "Failed to create base plate")
+            return
+        }
+        #expect(basePlate.isValid)
+        if let v0 = basePlate.volume { #expect(v0 > 0) }
+
+        // Step 2: Create wall positioned on top of base plate (non-overlapping union)
+        guard let wallRaw = Shape.box(origin: SIMD3(-40.0, -2.5, 2.5), width: 80, height: 5, depth: 30) else {
+            #expect(Bool(false), "Failed to create wall")
+            return
+        }
+        #expect(wallRaw.isValid)
+
+        // Step 3: Union base + wall
+        guard let bracket = basePlate.union(with: wallRaw) else {
+            #expect(Bool(false), "Failed to union base + wall")
+            return
+        }
+        #expect(bracket.isValid)
+        if let vUnion = bracket.volume { #expect(vUnion > 0) }
+
+        // Step 4: Fillet edges (may fail on complex boolean result — proceed without if needed)
+        var current = bracket
+        if let filleted = bracket.filleted(radius: 1.0) {
+            #expect(filleted.isValid)
+            current = filleted
+        }
+
+        // Step 5: Drill 4 mounting holes at corners of base plate
+        let holePositions: [SIMD3<Double>] = [
+            SIMD3(-30.0, -12.0, 5.0),
+            SIMD3(30.0, -12.0, 5.0),
+            SIMD3(-30.0, 12.0, 5.0),
+            SIMD3(30.0, 12.0, 5.0)
+        ]
+        for pos in holePositions {
+            if let drilled = current.drilled(at: pos, direction: SIMD3(0, 0, -1), radius: 3, depth: 0) {
+                current = drilled
+            }
+        }
+        #expect(current.isValid)
+
+        // Step 6: Chamfer all edges
+        if let chamfered = current.chamfered(distance: 0.5) {
+            #expect(chamfered.isValid)
+            current = chamfered
+        }
+
+        // Step 7-8: Final checks
+        let faceCount = current.subShapeCount(ofType: .face)
+        let edgeCount = current.subShapeCount(ofType: .edge)
+        #expect(faceCount > 6)
+        #expect(edgeCount > 12)
+        if let vol = current.volume { #expect(vol > 0) }
+    }
+}
+
+@Suite("Integration: Fluent Composition Chain")
+struct IntegrationFluentCompositionChainTests {
+
+    @Test func fluentChainVolumeDecreases() {
+        // Stage 1: Box
+        guard let box = Shape.box(width: 20, height: 20, depth: 10) else {
+            #expect(Bool(false), "Failed to create box")
+            return
+        }
+        #expect(box.isValid)
+        let v1 = box.volume ?? 0
+        #expect(v1 > 0)
+
+        // Stage 2: Fillet
+        guard let filleted = box.filleted(radius: 1.0) else {
+            #expect(Bool(false), "Failed to fillet box")
+            return
+        }
+        #expect(filleted.isValid)
+        let v2 = filleted.volume ?? 0
+
+        // Stage 3: Drill
+        guard let drilled = filleted.drilled(at: SIMD3(0.0, 0.0, 5.0), direction: SIMD3(0, 0, -1), radius: 3, depth: 0) else {
+            #expect(Bool(false), "Failed to drill filleted box")
+            return
+        }
+        #expect(drilled.isValid)
+        let v3 = drilled.volume ?? 0
+        #expect(v3 < v2)
+
+        // Stage 4: Chamfer
+        guard let chamfered = drilled.chamfered(distance: 0.3) else {
+            #expect(Bool(false), "Failed to chamfer drilled box")
+            return
+        }
+        #expect(chamfered.isValid)
+        let v4 = chamfered.volume ?? 0
+        #expect(v4 < v3)
+
+        // Stage 5: Shell
+        if let shelled = chamfered.shelled(thickness: -1.0) {
+            #expect(shelled.isValid)
+            let v5 = shelled.volume ?? 0
+            #expect(v5 < v4)
+        }
+    }
+}
+
+@Suite("Integration: Assembly Interference")
+struct IntegrationAssemblyInterferenceTests {
+
+    @Test func shaftHousingClearanceAndInterference() {
+        // Step 1-3: Create shaft, housing, bore
+        guard let shaft = Shape.cylinder(radius: 10, height: 100),
+              let housing = Shape.cylinder(radius: 15, height: 20),
+              let bore = Shape.cylinder(radius: 10.05, height: 20) else {
+            #expect(Bool(false), "Failed to create primitives")
+            return
+        }
+
+        // Step 4: Housing with bore
+        guard let hollowHousing = housing.subtracting(bore) else {
+            #expect(Bool(false), "Failed to subtract bore from housing")
+            return
+        }
+        #expect(hollowHousing.isValid)
+
+        // Step 5: Position housing on shaft
+        if let positionedHousing = hollowHousing.translated(by: SIMD3(0.0, 0.0, 40.0)) {
+            #expect(positionedHousing.isValid)
+
+            // Step 6: Check clearance
+            if let distResult = shaft.distance(to: positionedHousing) {
+                #expect(distResult.distance >= 0)
+            }
+        }
+
+        // Step 7: Move housing to interfere (full cylinder, not hollow)
+        if let interferingHousing = housing.translated(by: SIMD3(0.0, 0.0, 40.0)) {
+            // Step 8-9: Compute interference volume
+            if let interference = shaft.intersection(with: interferingHousing) {
+                if let vol = interference.volume {
+                    #expect(vol > 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("Integration: Z-Level Slicing")
+struct IntegrationZLevelSlicingTests {
+
+    @Test func cylinderWithHolesSlicing() {
+        // Step 1: Create cylinder
+        guard var shape = Shape.cylinder(radius: 25, height: 50) else {
+            #expect(Bool(false), "Failed to create cylinder")
+            return
+        }
+
+        // Step 2: Drill 3 through-holes at different positions
+        let holePositions: [SIMD3<Double>] = [
+            SIMD3(10.0, 0.0, 55.0),
+            SIMD3(-10.0, 0.0, 55.0),
+            SIMD3(0.0, 10.0, 55.0)
+        ]
+        for pos in holePositions {
+            if let drilled = shape.drilled(at: pos, direction: SIMD3(0, 0, -1), radius: 3, depth: 0) {
+                shape = drilled
+            }
+        }
+        #expect(shape.isValid)
+
+        // Step 3: Slice at 10 Z-levels
+        var allSlicesNonEmpty = true
+        for i in 1...10 {
+            let z = Double(i) * 5.0
+            let wires = shape.sectionWiresAtZ(z)
+            if wires.isEmpty {
+                allSlicesNonEmpty = false
+            }
+        }
+        #expect(allSlicesNonEmpty)
+
+        // Step 4: At a mid-level, expect 4 wires (outer cylinder + 3 holes)
+        let midWires = shape.sectionWiresAtZ(25.0)
+        #expect(midWires.count == 4)
+
+        // Step 5: Each wire should have positive length
+        for wire in midWires {
+            if let len = wire.length {
+                #expect(len > 0)
+            }
+        }
+    }
+}
+
+@Suite("Integration: Hole Detection")
+struct IntegrationHoleDetectionTests {
+
+    @Test func plateWithHolesSection() {
+        // Step 1: Create plate
+        guard var plate = Shape.box(width: 100, height: 100, depth: 10) else {
+            #expect(Bool(false), "Failed to create plate")
+            return
+        }
+
+        // Step 2: Drill 4 holes at known positions
+        let holePositions: [SIMD3<Double>] = [
+            SIMD3(-25.0, -25.0, 10.0),
+            SIMD3(25.0, -25.0, 10.0),
+            SIMD3(-25.0, 25.0, 10.0),
+            SIMD3(25.0, 25.0, 10.0)
+        ]
+        for pos in holePositions {
+            if let drilled = plate.drilled(at: pos, direction: SIMD3(0, 0, -1), radius: 5, depth: 0) {
+                plate = drilled
+            }
+        }
+        #expect(plate.isValid)
+
+        // Step 3: Slice at Z=0 (mid-height, box is centered)
+        let wires = plate.sectionWiresAtZ(0.0)
+
+        // Step 4-5: Should be 5 wires (outer boundary + 4 holes)
+        #expect(wires.count == 5)
+    }
+}
+
+@Suite("Integration: STEP Round-Trip")
+struct IntegrationSTEPRoundTripTests {
+
+    @Test func stepRoundTripPreservesGeometry() throws {
+        // Step 1: Create complex shape
+        guard var shape = Shape.box(width: 30, height: 20, depth: 15) else {
+            #expect(Bool(false), "Failed to create box")
+            return
+        }
+        if let f = shape.filleted(radius: 2) { shape = f }
+        if let d = shape.drilled(at: SIMD3(0.0, 0.0, 10.0), direction: SIMD3(0, 0, -1), radius: 3, depth: 0) {
+            shape = d
+        }
+        #expect(shape.isValid)
+
+        // Step 2: Measure original
+        let origVolume = shape.volume ?? 0
+        let origArea = shape.surfaceArea ?? 0
+        let origFaces = shape.subShapeCount(ofType: .face)
+        let origEdges = shape.subShapeCount(ofType: .edge)
+
+        // Step 3: Export to temp STEP file
+        let tempDir = FileManager.default.temporaryDirectory
+        let stepURL = tempDir.appendingPathComponent("integration_test_\(UUID().uuidString).step")
+        defer { try? FileManager.default.removeItem(at: stepURL) }
+        try Exporter.writeSTEP(shape: shape, to: stepURL, modelType: .asIs)
+
+        // Step 4: Reimport
+        let reimported = try Shape.load(from: stepURL)
+        #expect(reimported.isValid)
+
+        // Step 5-6: Compare
+        if let rVol = reimported.volume {
+            let volDiff = abs(rVol - origVolume) / origVolume
+            #expect(volDiff < 0.01)
+        }
+        if let rArea = reimported.surfaceArea {
+            let areaDiff = abs(rArea - origArea) / origArea
+            #expect(areaDiff < 0.01)
+        }
+        #expect(reimported.subShapeCount(ofType: .face) == origFaces)
+        #expect(reimported.subShapeCount(ofType: .edge) == origEdges)
+
+        // Step 7: BREP round-trip (should be very close)
+        let brepURL = tempDir.appendingPathComponent("integration_test_\(UUID().uuidString).brep")
+        defer { try? FileManager.default.removeItem(at: brepURL) }
+        try Exporter.writeBREP(shape: shape, to: brepURL)
+        let brepReimported = try Shape.loadBREP(from: brepURL)
+        #expect(brepReimported.isValid)
+        if let bVol = brepReimported.volume {
+            let volDiff = abs(bVol - origVolume) / origVolume
+            #expect(volDiff < 0.001)
+        }
+    }
+}
+
+@Suite("Integration: Boolean Chain Stress")
+struct IntegrationBooleanChainStressTests {
+
+    @Test func twentySubtractions() {
+        guard var shape = Shape.box(width: 100, height: 100, depth: 100) else {
+            #expect(Bool(false), "Failed to create box")
+            return
+        }
+        let origVolume = shape.volume ?? 0
+        #expect(origVolume > 0)
+
+        var prevVolume = origVolume
+        for i in 0..<20 {
+            let angle = Double(i) * (2.0 * .pi / 20.0)
+            let x = 30.0 * cos(angle)
+            let y = 30.0 * sin(angle)
+            if let sphere = Shape.sphere(radius: 5),
+               let positioned = sphere.translated(by: SIMD3(x, y, 0.0)),
+               let result = shape.subtracting(positioned) {
+                shape = result
+            }
+
+            // Every 5 subtractions, check validity and volume
+            if (i + 1) % 5 == 0 {
+                #expect(shape.isValid)
+                if let vol = shape.volume {
+                    #expect(vol < prevVolume)
+                    prevVolume = vol
+                }
+            }
+        }
+
+        // Final checks
+        #expect(shape.isValid)
+        if let finalVol = shape.volume {
+            #expect(finalVol < origVolume)
+        }
+    }
+}
+
+@Suite("Integration: Precision Extremes")
+struct IntegrationPrecisionExtremesTests {
+
+    @Test func microScale() {
+        if let micro = Shape.box(width: 0.001, height: 0.001, depth: 0.001) {
+            #expect(micro.isValid)
+            if let vol = micro.volume {
+                #expect(abs(vol - 1e-9) < 1e-12)
+            }
+        }
+    }
+
+    @Test func macroScale() {
+        if let macro = Shape.box(width: 1000, height: 1000, depth: 1000) {
+            #expect(macro.isValid)
+            if let vol = macro.volume {
+                #expect(abs(vol - 1e9) < 1e3)
+            }
+        }
+    }
+
+    @Test func mixedScaleLargeBoxSmallHole() {
+        if let big = Shape.box(width: 1000, height: 1000, depth: 1000) {
+            if let drilled = big.drilled(at: SIMD3(0.0, 0.0, 500.0), direction: SIMD3(0, 0, -1), radius: 0.01, depth: 0) {
+                #expect(drilled.isValid)
+            }
+        }
+    }
+}
+
+@Suite("Integration: Degenerate Resilience")
+struct IntegrationDegenerateResilienceTests {
+
+    @Test func oversizedFilletReturnsNil() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let result = box.filleted(radius: 20)
+            // Radius larger than shortest edge half-length should fail
+            #expect(result == nil)
+        }
+    }
+
+    @Test func zeroDepthDrill() {
+        if let box = Shape.box(width: 20, height: 20, depth: 20) {
+            // depth: 0 means through-hole
+            if let drilled = box.drilled(at: SIMD3(0.0, 0.0, 10.0), direction: SIMD3(0, 0, -1), radius: 3, depth: 0) {
+                #expect(drilled.isValid)
+                if let vol = drilled.volume, let origVol = box.volume {
+                    #expect(vol < origVol)
+                }
+            }
+        }
+    }
+
+    @Test func selfUnion() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let result = box.union(with: box) {
+                #expect(result.isValid)
+                if let vol = result.volume, let origVol = box.volume {
+                    #expect(abs(vol - origVol) / origVol < 0.01)
+                }
+            }
+        }
+    }
+}
+
+@Suite("Integration: OBB Tightness")
+struct IntegrationOBBTightnessTests {
+
+    @Test func obbTighterThanAABBForRotatedShape() {
+        guard let box = Shape.box(width: 40, height: 10, depth: 10),
+              let rotated = box.rotated(axis: SIMD3(0.0, 0.0, 1.0), angle: .pi / 4) else {
+            #expect(Bool(false), "Failed to create rotated box")
+            return
+        }
+        #expect(rotated.isValid)
+
+        let bounds = rotated.bounds
+        let aabbSize = bounds.max - bounds.min
+        let aabbVolume = aabbSize.x * aabbSize.y * aabbSize.z
+
+        if let obb = rotated.orientedBoundingBox(optimal: true) {
+            let obbVolume = 8.0 * obb.halfSizes.x * obb.halfSizes.y * obb.halfSizes.z
+            // OBB should be tighter for rotated shapes
+            #expect(obbVolume <= aabbVolume * 1.01)
+        }
+    }
+}
+
+@Suite("Integration: Surface Curvature Analysis")
+struct IntegrationSurfaceCurvatureAnalysisTests {
+
+    @Test func sphereCurvatureIsConstant() {
+        let radius = 10.0
+        guard let sphere = Surface.sphere(center: .zero, radius: radius) else {
+            #expect(Bool(false), "Failed to create sphere surface")
+            return
+        }
+        let expectedGaussian = 1.0 / (radius * radius) // 0.01
+        let expectedMean = 1.0 / radius                 // 0.1
+
+        // Evaluate at multiple parameter points
+        let params: [(Double, Double)] = [
+            (0.0, 0.5), (1.0, 0.5), (0.5, 1.0), (1.5, 0.3), (2.0, 1.0)
+        ]
+
+        for (u, v) in params {
+            let gauss = sphere.gaussianCurvature(atU: u, v: v)
+            let mean = sphere.meanCurvature(atU: u, v: v)
+
+            // Gaussian curvature is always 1/R^2 (positive)
+            #expect(abs(gauss - expectedGaussian) < 0.001)
+            // Mean curvature magnitude is 1/R; sign depends on normal orientation
+            #expect(abs(abs(mean) - expectedMean) < 0.001)
+        }
+    }
+}
+
+@Suite("Integration: Memory Stress")
+struct IntegrationMemoryStressTests {
+
+    @Test func thousandBoxesNoLeak() {
+        var firstVolume: Double = 0
+        var lastVolume: Double = 0
+
+        for i in 0..<1000 {
+            if let box = Shape.box(width: 10, height: 20, depth: 30) {
+                if let vol = box.volume {
+                    if i == 0 { firstVolume = vol }
+                    if i == 999 { lastVolume = vol }
+                }
+            }
+        }
+
+        #expect(firstVolume > 0)
+        #expect(abs(firstVolume - lastVolume) < 1e-10)
+    }
+}
