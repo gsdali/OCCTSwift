@@ -438,7 +438,16 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **LProp3d Curve** | 4 | localCurvature, localTangent, localNormal, localCentreOfCurvature |
 | **LProp3d Surface** | 2 | localCurvatures, localCurvatureDirections |
 | **ProjLib Projectors** | 3 | projectLineOnPlane, projectLineOnCylinder, projectCircleOnPlane |
-| **Total** | **2890** | |
+| **BRepBndLib** | 3 | boundingBox, boundingBoxOptimal, orientedBoundingBoxDetailed |
+| **ShapeAnalysis Tolerance** | 3 | toleranceValue, toleranceOverCount, toleranceInRangeCount |
+| **Boolean Validation** | 2 | isBooleanValid, isBooleanValidWith |
+| **Defeaturing** | 1 | defeature(faces:) |
+| **Polynomial Conversion** | 1 | polynomialToPoles |
+| **Transform Extras** | 4 | transformed(byMatrix:), isTransformNegative, displacement, transformation |
+| **TopExp Extras** | 1 | commonVertex |
+| **BRep_Tool Extras** | 5 | edgeSameParameter, edgeSameRange, faceNaturalRestriction, edgeIsGeometric, faceIsGeometric |
+| **Sewing Extras** | 2 | multipleEdgeCount, multipleEdge(at:) |
+| **Total** | **2912** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1730,6 +1739,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.118.0: BRepBndLib shape bounding boxes (AABB, optimal, OBB detailed), ShapeAnalysis_ShapeTolerance (min/max/avg/over/inRange), BRepAlgoAPI_Check boolean validation, BRepAlgoAPI_Defeaturing feature removal, Convert_CompPolynomialToPoles, gp_Trsf matrix transform/displacement/transformation, TopExp common vertex, BRep_Tool edge/face flags (SameParameter/SameRange/NaturalRestriction/IsGeometric), Sewing multiple edges (2912 ops, 2982 tests)
 > - v0.117.0: MathPoly rc4 polynomial solvers (Linear/Quadratic/Cubic/Quartic), MathInteg rc4 numerical integration (Gauss/Kronrod/TanhSinh adaptive), UnitsMethods length unit conversion, LProp3d curve/surface local properties (curvature/tangent/normal/directions via adaptor), ProjLib surface projectors (line/circle on plane/cylinder) (2890 ops, 2943 tests)
 > - v0.116.0: HelixGeom helix construction (rc4: BuilderHelix, BuilderHelixCoil, HelixCurve, Tools), gp_Ax3 coordinate system (create, angle, coplanar, mirror, rotate, translate), gp_GTrsf2d affinity/multiply/invert/transform, gp_Mat2d 2x2 matrix (identity, rotation, scale, determinant, invert, multiply, transpose), quaternion interpolation (SLERP, NLERP, transform lerp), gp_XY/gp_XYZ vector math (modulus, cross, dot, dotCross, normalize), math solvers (BracketedRoot, BracketMinimum, FRPR conjugate gradient, FunctionAllRoots, GaussLeastSquare, NewtonFunctionRoot, Uzawa constrained optimization, EigenValuesSearcher, KronrodSingleIntegration, GaussMultipleIntegration, GaussSetIntegration) (2869 ops, 2918 tests)
 > - v0.115.0: GeomAPI_Interpolate expansion (endpoint/per-point tangents, parameters, periodic 3D/2D), PointsToBSpline configurable (3D/2D/surface grid), BRepBuilderAPI_Transform/GTransform (general affine + non-uniform scale), BRepAlgoAPI expansion (section tolerance, split multi, cut with history, defeature tolerance), ThruSections builder (9 ops), GeomConvert split/concatenate, ShapeFix_Shape builder (8 ops), Poly_Triangulation queries (9 ops), GCPnts arc length/parameter (4 ops), BRepAdaptor exposure (6 ops), shape queries (OBB volume, tolerances, free edges/wires/faces, bounding diagonal, centroid, total edge length), Curve3D/2D arc length + closest point, Surface normal/curvatures/fromPointGrid (2819 ops, 2861 tests)

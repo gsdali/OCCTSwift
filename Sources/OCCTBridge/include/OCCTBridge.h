@@ -17003,6 +17003,127 @@ bool OCCTProjLibPlaneProjectCircle(double plnPx, double plnPy, double plnPz,
                                      double* _Nonnull resCx, double* _Nonnull resCy,
                                      double* _Nonnull resRadius);
 
+// MARK: - BRepBndLib (v0.118.0)
+
+/// Compute axis-aligned bounding box for a shape.
+void OCCTShapeBoundingBox(OCCTShapeRef _Nonnull shape,
+                          double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                          double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+/// Compute optimal (tight) axis-aligned bounding box for a shape.
+void OCCTShapeBoundingBoxOptimal(OCCTShapeRef _Nonnull shape, bool useShapeTolerance,
+                                  double* _Nonnull xmin, double* _Nonnull ymin, double* _Nonnull zmin,
+                                  double* _Nonnull xmax, double* _Nonnull ymax, double* _Nonnull zmax);
+
+/// Compute oriented bounding box (OBB) for a shape with detailed axes output.
+void OCCTShapeOrientedBoundingBoxDetailed(OCCTShapeRef _Nonnull shape, bool isOptimal,
+                                           double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz,
+                                           double* _Nonnull xDirX, double* _Nonnull xDirY, double* _Nonnull xDirZ,
+                                           double* _Nonnull yDirX, double* _Nonnull yDirY, double* _Nonnull yDirZ,
+                                           double* _Nonnull zDirX, double* _Nonnull zDirY, double* _Nonnull zDirZ,
+                                           double* _Nonnull xHSize, double* _Nonnull yHSize, double* _Nonnull zHSize,
+                                           bool* _Nonnull isVoid);
+
+// MARK: - ShapeAnalysis_ShapeTolerance (v0.118.0)
+
+/// Get shape tolerance: mode 0=average, >0=max, <0=min. type: 0=all, 7=VERTEX, 6=EDGE, 4=FACE.
+double OCCTShapeToleranceValue(OCCTShapeRef _Nonnull shape, int32_t mode, int32_t shapeType);
+
+/// Count shapes with tolerance over given value.
+int32_t OCCTShapeToleranceOverCount(OCCTShapeRef _Nonnull shape, double value, int32_t shapeType);
+
+/// Count shapes with tolerance in given interval.
+int32_t OCCTShapeToleranceInRangeCount(OCCTShapeRef _Nonnull shape, double valmin, double valmax, int32_t shapeType);
+
+// MARK: - BRepAlgoAPI_Check (v0.118.0)
+
+/// Check validity of a single shape for boolean operations. Returns true if valid.
+bool OCCTShapeBooleanCheckSingle(OCCTShapeRef _Nonnull shape, bool testSmallEdges, bool testSelfInterference);
+
+/// Check validity of two shapes for boolean operation. Returns true if valid.
+bool OCCTShapeBooleanCheckPair(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2,
+                                int32_t operation, bool testSmallEdges, bool testSelfInterference);
+
+// MARK: - BRepAlgoAPI_Defeaturing (v0.118.0)
+
+/// Remove faces (features) from a solid shape. facesArray contains face shapes to remove.
+OCCTShapeRef _Nullable OCCTShapeDefeature(OCCTShapeRef _Nonnull shape,
+                                           const OCCTShapeRef _Nonnull * _Nonnull faces, int32_t faceCount);
+
+// MARK: - Convert_CompPolynomialToPoles (v0.118.0)
+
+/// Convert a single polynomial segment to BSpline poles/knots/mults.
+/// Returns true on success. Caller must free outPoles and outKnots with free().
+bool OCCTConvertPolynomialToPoles(int32_t dimension, int32_t maxDegree, int32_t degree,
+                                   const double* _Nonnull coefficients, int32_t coeffCount,
+                                   double polyStart, double polyEnd,
+                                   double trueStart, double trueEnd,
+                                   double* _Nullable * _Nonnull outPoles, int32_t* _Nonnull outPoleCount,
+                                   double* _Nullable * _Nonnull outKnots, int32_t* _Nonnull outKnotCount,
+                                   int32_t* _Nonnull outDegree);
+
+// MARK: - gp_Trsf extras (v0.118.0)
+
+/// Create a transform from 3x4 matrix values.
+void OCCTShapeTransformFromMatrix(OCCTShapeRef _Nonnull shape,
+                                   double a11, double a12, double a13, double a14,
+                                   double a21, double a22, double a23, double a24,
+                                   double a31, double a32, double a33, double a34,
+                                   OCCTShapeRef _Nullable * _Nonnull result);
+
+/// Check if a transform is negative (IsNegative).
+bool OCCTShapeTransformIsNegative(OCCTShapeRef _Nonnull shape);
+
+/// Create displacement transform from one coordinate system to another.
+void OCCTTrsfDisplacement(double fromPx, double fromPy, double fromPz,
+                           double fromDx, double fromDy, double fromDz,
+                           double toPx, double toPy, double toPz,
+                           double toDx, double toDy, double toDz,
+                           double* _Nonnull a11, double* _Nonnull a12, double* _Nonnull a13, double* _Nonnull a14,
+                           double* _Nonnull a21, double* _Nonnull a22, double* _Nonnull a23, double* _Nonnull a24,
+                           double* _Nonnull a31, double* _Nonnull a32, double* _Nonnull a33, double* _Nonnull a34);
+
+/// Create transformation between two coordinate systems.
+void OCCTTrsfTransformation(double fromPx, double fromPy, double fromPz,
+                             double fromDx, double fromDy, double fromDz,
+                             double toPx, double toPy, double toPz,
+                             double toDx, double toDy, double toDz,
+                             double* _Nonnull a11, double* _Nonnull a12, double* _Nonnull a13, double* _Nonnull a14,
+                             double* _Nonnull a21, double* _Nonnull a22, double* _Nonnull a23, double* _Nonnull a24,
+                             double* _Nonnull a31, double* _Nonnull a32, double* _Nonnull a33, double* _Nonnull a34);
+
+// MARK: - TopExp extras (v0.118.0)
+
+/// Find common vertex between two edges. Returns false if none.
+bool OCCTEdgesCommonVertex(OCCTShapeRef _Nonnull edge1, OCCTShapeRef _Nonnull edge2,
+                            double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+// MARK: - BRep_Tool extras (v0.118.0)
+
+/// Check if edge has SameParameter flag set.
+bool OCCTEdgeSameParameter(OCCTShapeRef _Nonnull edge);
+
+/// Check if edge has SameRange flag set.
+bool OCCTEdgeSameRange(OCCTShapeRef _Nonnull edge);
+
+/// Check if face has NaturalRestriction flag.
+bool OCCTFaceNaturalRestriction(OCCTShapeRef _Nonnull face);
+
+/// Check if edge is geometric (has 3D curve or curve on surface).
+bool OCCTEdgeIsGeometric(OCCTShapeRef _Nonnull edge);
+
+/// Check if face is geometric (has underlying surface).
+bool OCCTFaceIsGeometric(OCCTShapeRef _Nonnull face);
+
+// MARK: - Sewing extras (v0.118.0)
+
+/// Get number of multiple edges from sewing operation.
+int32_t OCCTSewingNbMultipleEdges(OCCTSewingRef _Nonnull sewing);
+
+/// Check if edge is a multiple edge (shared by >2 faces) after sewing.
+bool OCCTSewingIsMultipleEdge(OCCTSewingRef _Nonnull sewing, int32_t index,
+                               OCCTShapeRef _Nullable * _Nonnull outEdge);
+
 #ifdef __cplusplus
 }
 #endif

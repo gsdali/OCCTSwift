@@ -13483,3 +13483,294 @@ public enum ProjLib {
         return ok ? Circle2DResult(centerX: rCx, centerY: rCy, radius: rR) : nil
     }
 }
+
+// MARK: - BRepBndLib extensions (v0.118.0)
+
+extension Shape {
+    /// Axis-aligned bounding box of the shape.
+    public var boundingBox: (min: SIMD3<Double>, max: SIMD3<Double>)? {
+        var xmin = 0.0, ymin = 0.0, zmin = 0.0, xmax = 0.0, ymax = 0.0, zmax = 0.0
+        OCCTShapeBoundingBox(handle, &xmin, &ymin, &zmin, &xmax, &ymax, &zmax)
+        if xmin == 0 && ymin == 0 && zmin == 0 && xmax == 0 && ymax == 0 && zmax == 0 {
+            return nil
+        }
+        return (min: SIMD3(xmin, ymin, zmin), max: SIMD3(xmax, ymax, zmax))
+    }
+
+    /// Optimal (tight) axis-aligned bounding box using precise geometry.
+    public func boundingBoxOptimal(useShapeTolerance: Bool = false) -> (min: SIMD3<Double>, max: SIMD3<Double>)? {
+        var xmin = 0.0, ymin = 0.0, zmin = 0.0, xmax = 0.0, ymax = 0.0, zmax = 0.0
+        OCCTShapeBoundingBoxOptimal(handle, useShapeTolerance, &xmin, &ymin, &zmin, &xmax, &ymax, &zmax)
+        if xmin == 0 && ymin == 0 && zmin == 0 && xmax == 0 && ymax == 0 && zmax == 0 {
+            return nil
+        }
+        return (min: SIMD3(xmin, ymin, zmin), max: SIMD3(xmax, ymax, zmax))
+    }
+
+    /// Oriented bounding box with axes and half-sizes.
+    public struct DetailedOBB: Sendable {
+        public let center: SIMD3<Double>
+        public let xDirection: SIMD3<Double>
+        public let yDirection: SIMD3<Double>
+        public let zDirection: SIMD3<Double>
+        public let xHalfSize: Double
+        public let yHalfSize: Double
+        public let zHalfSize: Double
+    }
+
+    /// Compute oriented bounding box with detailed axis information.
+    public func orientedBoundingBoxDetailed(optimal: Bool = false) -> DetailedOBB? {
+        var cx = 0.0, cy = 0.0, cz = 0.0
+        var xDx = 0.0, xDy = 0.0, xDz = 0.0
+        var yDx = 0.0, yDy = 0.0, yDz = 0.0
+        var zDx = 0.0, zDy = 0.0, zDz = 0.0
+        var xHS = 0.0, yHS = 0.0, zHS = 0.0
+        var isVoid = false
+        OCCTShapeOrientedBoundingBoxDetailed(handle, optimal,
+            &cx, &cy, &cz,
+            &xDx, &xDy, &xDz,
+            &yDx, &yDy, &yDz,
+            &zDx, &zDy, &zDz,
+            &xHS, &yHS, &zHS,
+            &isVoid)
+        if isVoid { return nil }
+        return DetailedOBB(
+            center: SIMD3(cx, cy, cz),
+            xDirection: SIMD3(xDx, xDy, xDz),
+            yDirection: SIMD3(yDx, yDy, yDz),
+            zDirection: SIMD3(zDx, zDy, zDz),
+            xHalfSize: xHS, yHalfSize: yHS, zHalfSize: zHS)
+    }
+}
+
+// MARK: - ShapeAnalysis_ShapeTolerance extensions (v0.118.0)
+
+extension Shape {
+    /// Tolerance mode for shape tolerance queries.
+    public enum ToleranceMode: Int32, Sendable {
+        case average = 0
+        case maximum = 1
+        case minimum = -1
+    }
+
+    /// Get the tolerance value of the shape's sub-shapes.
+    /// subShapeType: 8=all(SHAPE), 7=VERTEX, 6=EDGE, 4=FACE, 3=SHELL
+    public func toleranceValue(mode: ToleranceMode, subShapeType: Int32 = 8) -> Double {
+        OCCTShapeToleranceValue(handle, mode.rawValue, subShapeType)
+    }
+
+    /// Count sub-shapes with tolerance over a given value.
+    /// subShapeType: 8=all(SHAPE), 7=VERTEX, 6=EDGE, 4=FACE
+    public func toleranceOverCount(value: Double, subShapeType: Int32 = 8) -> Int {
+        Int(OCCTShapeToleranceOverCount(handle, value, subShapeType))
+    }
+
+    /// Count sub-shapes with tolerance in a given range.
+    /// subShapeType: 8=all(SHAPE), 7=VERTEX, 6=EDGE, 4=FACE
+    public func toleranceInRangeCount(min: Double, max: Double, subShapeType: Int32 = 8) -> Int {
+        Int(OCCTShapeToleranceInRangeCount(handle, min, max, subShapeType))
+    }
+}
+
+// MARK: - BRepAlgoAPI_Check extensions (v0.118.0)
+
+extension Shape {
+    /// Check shape validity for boolean operations (small edges, self-interference).
+    public func isBooleanValid(testSmallEdges: Bool = true, testSelfInterference: Bool = true) -> Bool {
+        OCCTShapeBooleanCheckSingle(handle, testSmallEdges, testSelfInterference)
+    }
+
+    /// Check if two shapes are valid for a boolean operation.
+    /// Operation: 0=unknown, 1=common, 2=fuse, 3=cut, 4=section.
+    public func isBooleanValidWith(_ other: Shape, operation: Int32 = 0,
+                                    testSmallEdges: Bool = true,
+                                    testSelfInterference: Bool = true) -> Bool {
+        OCCTShapeBooleanCheckPair(handle, other.handle, operation, testSmallEdges, testSelfInterference)
+    }
+}
+
+// MARK: - BRepAlgoAPI_Defeaturing extensions (v0.118.0)
+
+extension Shape {
+    /// Remove feature faces from a solid shape (e.g., fillets, holes).
+    public func defeature(faces: [Shape]) -> Shape? {
+        let faceHandles = faces.map { $0.handle as OCCTShapeRef? }
+        return faceHandles.withUnsafeBufferPointer { buf -> Shape? in
+            guard let baseAddress = buf.baseAddress else { return nil }
+            // Need to cast from UnsafePointer<OCCTShapeRef?> to UnsafePointer<OCCTShapeRef>
+            let ptr = UnsafeRawPointer(baseAddress).assumingMemoryBound(to: OCCTShapeRef.self)
+            guard let result = OCCTShapeDefeature(handle, ptr, Int32(faces.count)) else { return nil }
+            return Shape(handle: result)
+        }
+    }
+}
+
+// MARK: - Convert_CompPolynomialToPoles (v0.118.0)
+
+/// Polynomial-to-BSpline conversion utilities.
+public enum PolynomialConvert {
+    /// Result of polynomial to BSpline poles conversion.
+    public struct PolesResult: Sendable {
+        public let poles: [Double]
+        public let knots: [Double]
+        public let degree: Int
+    }
+
+    /// Convert a polynomial to BSpline poles and knots.
+    /// - Parameters:
+    ///   - dimension: Number of dimensions (1 for scalar, 3 for 3D)
+    ///   - maxDegree: Maximum degree
+    ///   - degree: Actual degree of polynomial
+    ///   - coefficients: Polynomial coefficients (constant, linear, quadratic, ...)
+    ///   - polynomialInterval: Parameter interval of the polynomial
+    ///   - trueInterval: Target parameter interval for the BSpline
+    public static func polynomialToPoles(
+        dimension: Int, maxDegree: Int, degree: Int,
+        coefficients: [Double],
+        polynomialInterval: ClosedRange<Double>,
+        trueInterval: ClosedRange<Double>
+    ) -> PolesResult? {
+        var outPoles: UnsafeMutablePointer<Double>?
+        var outKnots: UnsafeMutablePointer<Double>?
+        var outPoleCount: Int32 = 0
+        var outKnotCount: Int32 = 0
+        var outDegree: Int32 = 0
+        let ok = coefficients.withUnsafeBufferPointer { buf in
+            OCCTConvertPolynomialToPoles(
+                Int32(dimension), Int32(maxDegree), Int32(degree),
+                buf.baseAddress!, Int32(coefficients.count),
+                polynomialInterval.lowerBound, polynomialInterval.upperBound,
+                trueInterval.lowerBound, trueInterval.upperBound,
+                &outPoles, &outPoleCount, &outKnots, &outKnotCount, &outDegree)
+        }
+        guard ok, let poles = outPoles, let knots = outKnots else { return nil }
+        defer { free(poles); free(knots) }
+        let polesArray = Array(UnsafeBufferPointer(start: poles, count: Int(outPoleCount) * dimension))
+        let knotsArray = Array(UnsafeBufferPointer(start: knots, count: Int(outKnotCount)))
+        return PolesResult(poles: polesArray, knots: knotsArray, degree: Int(outDegree))
+    }
+}
+
+// MARK: - gp_Trsf extras (v0.118.0)
+
+extension Shape {
+    /// Transform shape using a 3x4 matrix (row-major: [a11..a14, a21..a24, a31..a34]).
+    public func transformed(byMatrix matrix: [Double]) -> Shape? {
+        guard matrix.count == 12 else { return nil }
+        var result: OCCTShapeRef?
+        OCCTShapeTransformFromMatrix(handle,
+            matrix[0], matrix[1], matrix[2], matrix[3],
+            matrix[4], matrix[5], matrix[6], matrix[7],
+            matrix[8], matrix[9], matrix[10], matrix[11],
+            &result)
+        guard let r = result else { return nil }
+        return Shape(handle: r)
+    }
+
+    /// Check if the shape's location transform has negative determinant (mirror/reflection).
+    public var isTransformNegative: Bool {
+        OCCTShapeTransformIsNegative(handle)
+    }
+}
+
+/// Coordinate system transformation utilities.
+public enum TransformUtils {
+    /// 3x4 matrix result (row-major).
+    public struct Matrix3x4: Sendable {
+        public let values: [Double] // 12 elements: [a11,a12,a13,a14, a21,a22,a23,a24, a31,a32,a33,a34]
+    }
+
+    /// Compute displacement transform from one coordinate system to another.
+    public static func displacement(
+        from: (point: SIMD3<Double>, direction: SIMD3<Double>),
+        to: (point: SIMD3<Double>, direction: SIMD3<Double>)
+    ) -> Matrix3x4 {
+        var a11 = 0.0, a12 = 0.0, a13 = 0.0, a14 = 0.0
+        var a21 = 0.0, a22 = 0.0, a23 = 0.0, a24 = 0.0
+        var a31 = 0.0, a32 = 0.0, a33 = 0.0, a34 = 0.0
+        OCCTTrsfDisplacement(
+            from.point.x, from.point.y, from.point.z,
+            from.direction.x, from.direction.y, from.direction.z,
+            to.point.x, to.point.y, to.point.z,
+            to.direction.x, to.direction.y, to.direction.z,
+            &a11, &a12, &a13, &a14, &a21, &a22, &a23, &a24, &a31, &a32, &a33, &a34)
+        return Matrix3x4(values: [a11, a12, a13, a14, a21, a22, a23, a24, a31, a32, a33, a34])
+    }
+
+    /// Compute coordinate transformation between two systems.
+    public static func transformation(
+        from: (point: SIMD3<Double>, direction: SIMD3<Double>),
+        to: (point: SIMD3<Double>, direction: SIMD3<Double>)
+    ) -> Matrix3x4 {
+        var a11 = 0.0, a12 = 0.0, a13 = 0.0, a14 = 0.0
+        var a21 = 0.0, a22 = 0.0, a23 = 0.0, a24 = 0.0
+        var a31 = 0.0, a32 = 0.0, a33 = 0.0, a34 = 0.0
+        OCCTTrsfTransformation(
+            from.point.x, from.point.y, from.point.z,
+            from.direction.x, from.direction.y, from.direction.z,
+            to.point.x, to.point.y, to.point.z,
+            to.direction.x, to.direction.y, to.direction.z,
+            &a11, &a12, &a13, &a14, &a21, &a22, &a23, &a24, &a31, &a32, &a33, &a34)
+        return Matrix3x4(values: [a11, a12, a13, a14, a21, a22, a23, a24, a31, a32, a33, a34])
+    }
+}
+
+// MARK: - TopExp extras (v0.118.0)
+
+extension Shape {
+    /// Find the common vertex between two edges.
+    public static func commonVertex(edge1: Shape, edge2: Shape) -> SIMD3<Double>? {
+        var x = 0.0, y = 0.0, z = 0.0
+        if OCCTEdgesCommonVertex(edge1.handle, edge2.handle, &x, &y, &z) {
+            return SIMD3(x, y, z)
+        }
+        return nil
+    }
+}
+
+// MARK: - BRep_Tool extras (v0.118.0)
+
+extension Shape {
+    /// Check if edge has SameParameter flag (3D curve matches pcurves parametrically).
+    public var edgeSameParameter: Bool {
+        OCCTEdgeSameParameter(handle)
+    }
+
+    /// Check if edge has SameRange flag (all representations share the same range).
+    public var edgeSameRange: Bool {
+        OCCTEdgeSameRange(handle)
+    }
+
+    /// Check if face has NaturalRestriction (bounded by its own parametric bounds).
+    public var faceNaturalRestriction: Bool {
+        OCCTFaceNaturalRestriction(handle)
+    }
+
+    /// Check if edge has geometric representation (3D curve or curve on surface).
+    public var edgeIsGeometric: Bool {
+        OCCTEdgeIsGeometric(handle)
+    }
+
+    /// Check if face has geometric representation (underlying surface).
+    public var faceIsGeometric: Bool {
+        OCCTFaceIsGeometric(handle)
+    }
+}
+
+// MARK: - Sewing extras (v0.118.0)
+
+extension SewingBuilder {
+    /// Number of multiple edges (edges shared by more than two faces).
+    public var multipleEdgeCount: Int {
+        Int(OCCTSewingNbMultipleEdges(ref))
+    }
+
+    /// Get a multiple edge by index (1-based).
+    public func multipleEdge(at index: Int) -> Shape? {
+        var outEdge: OCCTShapeRef?
+        if OCCTSewingIsMultipleEdge(ref, Int32(index), &outEdge), let edge = outEdge {
+            return Shape(handle: edge)
+        }
+        return nil
+    }
+}

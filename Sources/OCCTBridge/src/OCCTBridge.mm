@@ -48793,3 +48793,362 @@ bool OCCTProjLibPlaneProjectCircle(double plnPx, double plnPy, double plnPz,
 
 // end of v0.117.0 implementations
 
+// MARK: - v0.118.0 implementations
+
+// === BRepBndLib ===
+#include <BRepBndLib.hxx>
+
+void OCCTShapeBoundingBox(OCCTShapeRef shape,
+                          double* xmin, double* ymin, double* zmin,
+                          double* xmax, double* ymax, double* zmax) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        Bnd_Box box;
+        BRepBndLib::Add(s->shape, box);
+        if (box.IsVoid()) {
+            *xmin = *ymin = *zmin = *xmax = *ymax = *zmax = 0.0;
+        } else {
+            box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+        }
+    } catch (...) {
+        *xmin = *ymin = *zmin = *xmax = *ymax = *zmax = 0.0;
+    }
+}
+
+void OCCTShapeBoundingBoxOptimal(OCCTShapeRef shape, bool useShapeTolerance,
+                                  double* xmin, double* ymin, double* zmin,
+                                  double* xmax, double* ymax, double* zmax) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        Bnd_Box box;
+        BRepBndLib::AddOptimal(s->shape, box, true, useShapeTolerance);
+        if (box.IsVoid()) {
+            *xmin = *ymin = *zmin = *xmax = *ymax = *zmax = 0.0;
+        } else {
+            box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+        }
+    } catch (...) {
+        *xmin = *ymin = *zmin = *xmax = *ymax = *zmax = 0.0;
+    }
+}
+
+#include <Bnd_OBB.hxx>
+
+void OCCTShapeOrientedBoundingBoxDetailed(OCCTShapeRef shape, bool isOptimal,
+                                   double* cx, double* cy, double* cz,
+                                   double* xDirX, double* xDirY, double* xDirZ,
+                                   double* yDirX, double* yDirY, double* yDirZ,
+                                   double* zDirX, double* zDirY, double* zDirZ,
+                                   double* xHSize, double* yHSize, double* zHSize,
+                                   bool* isVoid) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        Bnd_OBB obb;
+        BRepBndLib::AddOBB(s->shape, obb, true, isOptimal, true);
+        *isVoid = obb.IsVoid();
+        if (!obb.IsVoid()) {
+            gp_Pnt center = obb.Center();
+            *cx = center.X(); *cy = center.Y(); *cz = center.Z();
+            gp_XYZ xDir = obb.XDirection();
+            *xDirX = xDir.X(); *xDirY = xDir.Y(); *xDirZ = xDir.Z();
+            gp_XYZ yDir = obb.YDirection();
+            *yDirX = yDir.X(); *yDirY = yDir.Y(); *yDirZ = yDir.Z();
+            gp_XYZ zDir = obb.ZDirection();
+            *zDirX = zDir.X(); *zDirY = zDir.Y(); *zDirZ = zDir.Z();
+            *xHSize = obb.XHSize(); *yHSize = obb.YHSize(); *zHSize = obb.ZHSize();
+        } else {
+            *cx = *cy = *cz = 0.0;
+            *xDirX = 1; *xDirY = 0; *xDirZ = 0;
+            *yDirX = 0; *yDirY = 1; *yDirZ = 0;
+            *zDirX = 0; *zDirY = 0; *zDirZ = 1;
+            *xHSize = *yHSize = *zHSize = 0.0;
+        }
+    } catch (...) {
+        *isVoid = true;
+        *cx = *cy = *cz = 0.0;
+        *xDirX = 1; *xDirY = 0; *xDirZ = 0;
+        *yDirX = 0; *yDirY = 1; *yDirZ = 0;
+        *zDirX = 0; *zDirY = 0; *zDirZ = 1;
+        *xHSize = *yHSize = *zHSize = 0.0;
+    }
+}
+
+// === ShapeAnalysis_ShapeTolerance ===
+#include <ShapeAnalysis_ShapeTolerance.hxx>
+
+double OCCTShapeToleranceValue(OCCTShapeRef shape, int32_t mode, int32_t shapeType) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        ShapeAnalysis_ShapeTolerance sat;
+        return sat.Tolerance(s->shape, mode, static_cast<TopAbs_ShapeEnum>(shapeType));
+    } catch (...) { return 0.0; }
+}
+
+int32_t OCCTShapeToleranceOverCount(OCCTShapeRef shape, double value, int32_t shapeType) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        ShapeAnalysis_ShapeTolerance sat;
+        auto seq = sat.OverTolerance(s->shape, value, static_cast<TopAbs_ShapeEnum>(shapeType));
+        return seq.IsNull() ? 0 : (int32_t)seq->Length();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTShapeToleranceInRangeCount(OCCTShapeRef shape, double valmin, double valmax, int32_t shapeType) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        ShapeAnalysis_ShapeTolerance sat;
+        auto seq = sat.InTolerance(s->shape, valmin, valmax, static_cast<TopAbs_ShapeEnum>(shapeType));
+        return seq.IsNull() ? 0 : (int32_t)seq->Length();
+    } catch (...) { return 0; }
+}
+
+// === BRepAlgoAPI_Check ===
+#include <BRepAlgoAPI_Check.hxx>
+
+bool OCCTShapeBooleanCheckSingle(OCCTShapeRef shape, bool testSmallEdges, bool testSelfInterference) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        BRepAlgoAPI_Check check(s->shape, testSmallEdges, testSelfInterference);
+        return check.IsValid();
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeBooleanCheckPair(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                int32_t operation, bool testSmallEdges, bool testSelfInterference) {
+    try {
+        auto* s1 = static_cast<OCCTShape*>(shape1);
+        auto* s2 = static_cast<OCCTShape*>(shape2);
+        BRepAlgoAPI_Check check(s1->shape, s2->shape,
+            static_cast<BOPAlgo_Operation>(operation), testSmallEdges, testSelfInterference);
+        return check.IsValid();
+    } catch (...) { return false; }
+}
+
+// === BRepAlgoAPI_Defeaturing ===
+#include <BRepAlgoAPI_Defeaturing.hxx>
+
+OCCTShapeRef OCCTShapeDefeature(OCCTShapeRef shape,
+                                 const OCCTShapeRef* faces, int32_t faceCount) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        BRepAlgoAPI_Defeaturing df;
+        df.SetShape(s->shape);
+        for (int32_t i = 0; i < faceCount; i++) {
+            auto* f = static_cast<OCCTShape*>(faces[i]);
+            df.AddFaceToRemove(f->shape);
+        }
+        df.Build();
+        if (df.IsDone() && !df.Shape().IsNull()) {
+            auto* result = new OCCTShape();
+            result->shape = df.Shape();
+            return result;
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// === Convert_CompPolynomialToPoles ===
+#include <Convert_CompPolynomialToPoles.hxx>
+
+bool OCCTConvertPolynomialToPoles(int32_t dimension, int32_t maxDegree, int32_t degree,
+                                   const double* coefficients, int32_t coeffCount,
+                                   double polyStart, double polyEnd,
+                                   double trueStart, double trueEnd,
+                                   double** outPoles, int32_t* outPoleCount,
+                                   double** outKnots, int32_t* outKnotCount,
+                                   int32_t* outDegree) {
+    try {
+        NCollection_Array1<double> coeff(1, coeffCount);
+        for (int32_t i = 0; i < coeffCount; i++) coeff(i + 1) = coefficients[i];
+        NCollection_Array1<double> polyIntervals(1, 2);
+        polyIntervals(1) = polyStart; polyIntervals(2) = polyEnd;
+        NCollection_Array1<double> trueIntervals(1, 2);
+        trueIntervals(1) = trueStart; trueIntervals(2) = trueEnd;
+
+        Convert_CompPolynomialToPoles converter(dimension, maxDegree, degree,
+            coeff, polyIntervals, trueIntervals);
+        if (!converter.IsDone()) return false;
+
+        int nbPoles = converter.NbPoles();
+        *outPoleCount = nbPoles;
+        *outDegree = converter.Degree();
+
+        // Get poles (NCollection_Array2: [1..NbPoles][1..Dimension])
+        const NCollection_Array2<double>& poles = converter.Poles();
+        int totalPoleValues = nbPoles * dimension;
+        *outPoles = (double*)malloc(sizeof(double) * totalPoleValues);
+        int idx = 0;
+        for (int i = poles.LowerRow(); i <= poles.UpperRow(); i++) {
+            for (int j = poles.LowerCol(); j <= poles.UpperCol(); j++) {
+                (*outPoles)[idx++] = poles(i, j);
+            }
+        }
+
+        // Get knots
+        const NCollection_Array1<double>& knots = converter.Knots();
+        *outKnotCount = knots.Length();
+        *outKnots = (double*)malloc(sizeof(double) * knots.Length());
+        for (int i = 0; i < knots.Length(); i++) (*outKnots)[i] = knots(knots.Lower() + i);
+
+        return true;
+    } catch (...) {
+        *outPoles = nullptr; *outKnots = nullptr;
+        *outPoleCount = *outKnotCount = *outDegree = 0;
+        return false;
+    }
+}
+
+// === gp_Trsf extras ===
+
+void OCCTShapeTransformFromMatrix(OCCTShapeRef shape,
+                                   double a11, double a12, double a13, double a14,
+                                   double a21, double a22, double a23, double a24,
+                                   double a31, double a32, double a33, double a34,
+                                   OCCTShapeRef* result) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        gp_Trsf trsf;
+        trsf.SetValues(a11, a12, a13, a14,
+                       a21, a22, a23, a24,
+                       a31, a32, a33, a34);
+        BRepBuilderAPI_Transform xform(s->shape, trsf, true);
+        if (xform.IsDone()) {
+            auto* r = new OCCTShape();
+            r->shape = xform.Shape();
+            *result = r;
+        } else {
+            *result = nullptr;
+        }
+    } catch (...) { *result = nullptr; }
+}
+
+bool OCCTShapeTransformIsNegative(OCCTShapeRef shape) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        if (s->shape.IsNull()) return false;
+        const TopLoc_Location& loc = s->shape.Location();
+        return loc.IsIdentity() ? false : loc.Transformation().IsNegative();
+    } catch (...) { return false; }
+}
+
+void OCCTTrsfDisplacement(double fromPx, double fromPy, double fromPz,
+                           double fromDx, double fromDy, double fromDz,
+                           double toPx, double toPy, double toPz,
+                           double toDx, double toDy, double toDz,
+                           double* a11, double* a12, double* a13, double* a14,
+                           double* a21, double* a22, double* a23, double* a24,
+                           double* a31, double* a32, double* a33, double* a34) {
+    try {
+        gp_Ax3 from(gp_Pnt(fromPx, fromPy, fromPz), gp_Dir(fromDx, fromDy, fromDz));
+        gp_Ax3 to(gp_Pnt(toPx, toPy, toPz), gp_Dir(toDx, toDy, toDz));
+        gp_Trsf t;
+        t.SetDisplacement(from, to);
+        *a11 = t.Value(1,1); *a12 = t.Value(1,2); *a13 = t.Value(1,3); *a14 = t.Value(1,4);
+        *a21 = t.Value(2,1); *a22 = t.Value(2,2); *a23 = t.Value(2,3); *a24 = t.Value(2,4);
+        *a31 = t.Value(3,1); *a32 = t.Value(3,2); *a33 = t.Value(3,3); *a34 = t.Value(3,4);
+    } catch (...) {
+        *a11 = 1; *a12 = 0; *a13 = 0; *a14 = 0;
+        *a21 = 0; *a22 = 1; *a23 = 0; *a24 = 0;
+        *a31 = 0; *a32 = 0; *a33 = 1; *a34 = 0;
+    }
+}
+
+void OCCTTrsfTransformation(double fromPx, double fromPy, double fromPz,
+                             double fromDx, double fromDy, double fromDz,
+                             double toPx, double toPy, double toPz,
+                             double toDx, double toDy, double toDz,
+                             double* a11, double* a12, double* a13, double* a14,
+                             double* a21, double* a22, double* a23, double* a24,
+                             double* a31, double* a32, double* a33, double* a34) {
+    try {
+        gp_Ax3 from(gp_Pnt(fromPx, fromPy, fromPz), gp_Dir(fromDx, fromDy, fromDz));
+        gp_Ax3 to(gp_Pnt(toPx, toPy, toPz), gp_Dir(toDx, toDy, toDz));
+        gp_Trsf t;
+        t.SetTransformation(from, to);
+        *a11 = t.Value(1,1); *a12 = t.Value(1,2); *a13 = t.Value(1,3); *a14 = t.Value(1,4);
+        *a21 = t.Value(2,1); *a22 = t.Value(2,2); *a23 = t.Value(2,3); *a24 = t.Value(2,4);
+        *a31 = t.Value(3,1); *a32 = t.Value(3,2); *a33 = t.Value(3,3); *a34 = t.Value(3,4);
+    } catch (...) {
+        *a11 = 1; *a12 = 0; *a13 = 0; *a14 = 0;
+        *a21 = 0; *a22 = 1; *a23 = 0; *a24 = 0;
+        *a31 = 0; *a32 = 0; *a33 = 1; *a34 = 0;
+    }
+}
+
+// === TopExp extras ===
+
+bool OCCTEdgesCommonVertex(OCCTShapeRef edge1, OCCTShapeRef edge2,
+                            double* x, double* y, double* z) {
+    try {
+        auto* s1 = static_cast<OCCTShape*>(edge1);
+        auto* s2 = static_cast<OCCTShape*>(edge2);
+        TopoDS_Edge e1 = TopoDS::Edge(s1->shape);
+        TopoDS_Edge e2 = TopoDS::Edge(s2->shape);
+        TopoDS_Vertex cv;
+        if (TopExp::CommonVertex(e1, e2, cv)) {
+            gp_Pnt p = BRep_Tool::Pnt(cv);
+            *x = p.X(); *y = p.Y(); *z = p.Z();
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+// === BRep_Tool extras ===
+
+bool OCCTEdgeSameParameter(OCCTShapeRef edge) {
+    try {
+        auto* s = static_cast<OCCTShape*>(edge);
+        return BRep_Tool::SameParameter(TopoDS::Edge(s->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeSameRange(OCCTShapeRef edge) {
+    try {
+        auto* s = static_cast<OCCTShape*>(edge);
+        return BRep_Tool::SameRange(TopoDS::Edge(s->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTFaceNaturalRestriction(OCCTShapeRef face) {
+    try {
+        auto* s = static_cast<OCCTShape*>(face);
+        return BRep_Tool::NaturalRestriction(TopoDS::Face(s->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeIsGeometric(OCCTShapeRef edge) {
+    try {
+        auto* s = static_cast<OCCTShape*>(edge);
+        return BRep_Tool::IsGeometric(TopoDS::Edge(s->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTFaceIsGeometric(OCCTShapeRef face) {
+    try {
+        auto* s = static_cast<OCCTShape*>(face);
+        return BRep_Tool::IsGeometric(TopoDS::Face(s->shape));
+    } catch (...) { return false; }
+}
+
+// === Sewing extras ===
+
+int32_t OCCTSewingNbMultipleEdges(OCCTSewingRef sewing) {
+    try {
+        return (int32_t)sewing->sewing.NbMultipleEdges();
+    } catch (...) { return 0; }
+}
+
+bool OCCTSewingIsMultipleEdge(OCCTSewingRef sewing, int32_t index, OCCTShapeRef* outEdge) {
+    try {
+        if (index < 1 || index > sewing->sewing.NbMultipleEdges()) { *outEdge = nullptr; return false; }
+        const TopoDS_Edge& edge = sewing->sewing.MultipleEdge(index);
+        auto* r = new OCCTShape();
+        r->shape = edge;
+        *outEdge = r;
+        return true;
+    } catch (...) { *outEdge = nullptr; return false; }
+}
+
+// end of v0.118.0 implementations
+

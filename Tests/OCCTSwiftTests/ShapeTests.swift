@@ -35259,3 +35259,464 @@ struct ProjLibTests {
         #expect(result != nil)
     }
 }
+
+// MARK: - v0.118.0 Tests
+
+@Suite("BRepBndLib")
+struct BRepBndLibTests {
+    @Test func shapeBoundingBox() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let bb = b.boundingBox
+            #expect(bb != nil)
+            if let bb = bb {
+                #expect(bb.max.x - bb.min.x > 9.0)
+                #expect(bb.max.y - bb.min.y > 19.0)
+                #expect(bb.max.z - bb.min.z > 29.0)
+            }
+        }
+    }
+
+    @Test func shapeBoundingBoxOptimal() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let bb = b.boundingBoxOptimal()
+            #expect(bb != nil)
+            if let bb = bb {
+                #expect(bb.max.x - bb.min.x > 9.0)
+                #expect(bb.max.y - bb.min.y > 19.0)
+                #expect(bb.max.z - bb.min.z > 29.0)
+            }
+        }
+    }
+
+    @Test func shapeBoundingBoxOptimalWithTolerance() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let bb = b.boundingBoxOptimal(useShapeTolerance: true)
+            #expect(bb != nil)
+        }
+    }
+
+    @Test func orientedBoundingBoxDetailed() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let obb = b.orientedBoundingBoxDetailed()
+            #expect(obb != nil)
+            if let obb = obb {
+                #expect(obb.xHalfSize > 0)
+                #expect(obb.yHalfSize > 0)
+                #expect(obb.zHalfSize > 0)
+            }
+        }
+    }
+
+    @Test func orientedBoundingBoxDetailedOptimal() {
+        let sphere = Shape.sphere(radius: 5)
+        if let s = sphere {
+            let obb = s.orientedBoundingBoxDetailed(optimal: true)
+            #expect(obb != nil)
+        }
+    }
+
+    @Test func boundingBoxSphere() {
+        let sphere = Shape.sphere(radius: 10)
+        if let s = sphere {
+            let bb = s.boundingBox
+            #expect(bb != nil)
+            if let bb = bb {
+                // Sphere of radius 10 should have bounds approximately [-10, 10] in each axis
+                #expect(bb.min.x < -9.0)
+                #expect(bb.max.x > 9.0)
+            }
+        }
+    }
+}
+
+@Suite("ShapeAnalysis_ShapeTolerance")
+struct ShapeToleranceTests {
+    @Test func averageTolerance() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let avg = b.toleranceValue(mode: .average)
+            #expect(avg > 0)
+        }
+    }
+
+    @Test func maximumTolerance() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let max = b.toleranceValue(mode: .maximum)
+            #expect(max > 0)
+        }
+    }
+
+    @Test func minimumTolerance() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let min = b.toleranceValue(mode: .minimum)
+            #expect(min > 0)
+        }
+    }
+
+    @Test func toleranceOrdering() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let minT = b.toleranceValue(mode: .minimum)
+            let avgT = b.toleranceValue(mode: .average)
+            let maxT = b.toleranceValue(mode: .maximum)
+            #expect(minT <= avgT)
+            #expect(avgT <= maxT)
+        }
+    }
+
+    @Test func overToleranceCount() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            // Default tolerance is ~1e-7, so nothing should exceed 1e-3
+            let count = b.toleranceOverCount(value: 1e-3)
+            #expect(count == 0)
+        }
+    }
+
+    @Test func inToleranceRangeCount() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let count = b.toleranceInRangeCount(min: 0, max: 1e-3)
+            #expect(count > 0) // All sub-shapes should be within this range
+        }
+    }
+
+    @Test func vertexTolerance() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let tol = b.toleranceValue(mode: .average, subShapeType: 7) // VERTEX
+            #expect(tol > 0)
+        }
+    }
+
+    @Test func edgeTolerance() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let tol = b.toleranceValue(mode: .average, subShapeType: 6) // EDGE
+            #expect(tol > 0)
+        }
+    }
+}
+
+@Suite("BRepAlgoAPI_Check")
+struct BRepAlgoCheckTests {
+    @Test func singleShapeValid() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            #expect(b.isBooleanValid())
+        }
+    }
+
+    @Test func sphereValid() {
+        let sphere = Shape.sphere(radius: 5)
+        if let s = sphere {
+            #expect(s.isBooleanValid())
+        }
+    }
+
+    @Test func pairShapesValidForFuse() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        let sphere = Shape.sphere(radius: 5)
+        if let b = box, let s = sphere {
+            // operation 2 = BOPAlgo_FUSE
+            #expect(b.isBooleanValidWith(s, operation: 2))
+        }
+    }
+
+    @Test func pairShapesValidForCut() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        let sphere = Shape.sphere(radius: 5)
+        if let b = box, let s = sphere {
+            // operation 3 = BOPAlgo_CUT
+            #expect(b.isBooleanValidWith(s, operation: 3))
+        }
+    }
+
+    @Test func singleShapeNoSelfInterference() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            #expect(b.isBooleanValid(testSmallEdges: false, testSelfInterference: true))
+        }
+    }
+}
+
+@Suite("BRepAlgoAPI_Defeaturing")
+struct DefeaturingTests {
+    @Test func defeatureBox() {
+        // Create a box, fillet an edge, then try to remove the fillet
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let b = box {
+            if let filleted = b.filleted(radius: 2.0) {
+                // Get faces from the filleted shape
+                let faces = filleted.subShapes(ofType: .face)
+                // The filleted shape should have more faces than the original 6
+                #expect(faces.count > 6)
+                // Try to remove one of the extra faces (the fillet face)
+                if faces.count > 6 {
+                    // Try removing the 7th face (likely a fillet face)
+                    let result = filleted.defeature(faces: [faces[6]])
+                    // Defeaturing may or may not succeed depending on geometry
+                    if let r = result {
+                        #expect(r.isValid)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("Convert_CompPolynomialToPoles")
+struct PolynomialConvertTests {
+    @Test func linearPolynomial() {
+        // f(x) = 2x + 1 on [0,1]
+        let result = PolynomialConvert.polynomialToPoles(
+            dimension: 1, maxDegree: 1, degree: 1,
+            coefficients: [1.0, 2.0],
+            polynomialInterval: 0.0...1.0,
+            trueInterval: 0.0...1.0)
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.poles.count > 0)
+            #expect(r.knots.count > 0)
+            #expect(r.degree == 1)
+        }
+    }
+
+    @Test func quadraticPolynomial() {
+        // f(x) = x^2 + x + 1 on [0,1]
+        let result = PolynomialConvert.polynomialToPoles(
+            dimension: 1, maxDegree: 2, degree: 2,
+            coefficients: [1.0, 1.0, 1.0],
+            polynomialInterval: 0.0...1.0,
+            trueInterval: 0.0...1.0)
+        #expect(result != nil)
+        if let r = result {
+            #expect(r.poles.count > 0)
+            #expect(r.degree == 2)
+        }
+    }
+
+    @Test func remappedInterval() {
+        // Linear polynomial remapped from [0,1] to [-1,1]
+        let result = PolynomialConvert.polynomialToPoles(
+            dimension: 1, maxDegree: 1, degree: 1,
+            coefficients: [0.0, 1.0],
+            polynomialInterval: 0.0...1.0,
+            trueInterval: -1.0...1.0)
+        #expect(result != nil)
+    }
+}
+
+@Suite("gp_Trsf_Extras")
+struct TrsfExtrasTests {
+    @Test func transformFromMatrix() {
+        // Translation by (5, 10, 15)
+        let box = Shape.box(width: 1, height: 1, depth: 1)
+        if let b = box {
+            let result = b.transformed(byMatrix: [
+                1, 0, 0, 5,
+                0, 1, 0, 10,
+                0, 0, 1, 15
+            ])
+            #expect(result != nil)
+            if let r = result {
+                let bb = r.boundingBox
+                #expect(bb != nil)
+                if let bb = bb {
+                    // Should be translated
+                    #expect(bb.min.x > 4.0)
+                    #expect(bb.min.y > 9.0)
+                    #expect(bb.min.z > 14.0)
+                }
+            }
+        }
+    }
+
+    @Test func transformIsNegative() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            // A freshly created box has identity location
+            #expect(b.isTransformNegative == false)
+        }
+    }
+
+    @Test func mirrorTransformProducesResult() {
+        // Use origin-based box (corner at 5,0,0) so mirror moves it clearly
+        let box = Shape.box(origin: SIMD3(5, 0, 0), width: 10, height: 10, depth: 10)
+        if let b = box {
+            // Mirror through YZ plane: X -> -X
+            let mirrored = b.transformed(byMatrix: [
+                -1, 0, 0, 0,
+                 0, 1, 0, 0,
+                 0, 0, 1, 0
+            ])
+            #expect(mirrored != nil)
+            if let m = mirrored {
+                let bb = m.boundingBox
+                #expect(bb != nil)
+                if let bb = bb {
+                    // Original was [5,15], mirrored should be [-15,-5]
+                    #expect(bb.max.x < -4.0)
+                }
+            }
+        }
+    }
+
+    @Test func displacement() {
+        let m = TransformUtils.displacement(
+            from: (point: SIMD3(0, 0, 0), direction: SIMD3(0, 0, 1)),
+            to: (point: SIMD3(10, 0, 0), direction: SIMD3(0, 0, 1)))
+        #expect(m.values.count == 12)
+        // Translation of 10 in X should appear in a14
+        #expect(abs(m.values[3] - 10.0) < 1e-10)
+    }
+
+    @Test func transformation() {
+        let m = TransformUtils.transformation(
+            from: (point: SIMD3(0, 0, 0), direction: SIMD3(0, 0, 1)),
+            to: (point: SIMD3(5, 5, 5), direction: SIMD3(0, 0, 1)))
+        #expect(m.values.count == 12)
+    }
+
+    @Test func invalidMatrixSize() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            // Wrong size array should return nil
+            let result = b.transformed(byMatrix: [1, 0, 0])
+            #expect(result == nil)
+        }
+    }
+}
+
+@Suite("TopExp_CommonVertex")
+struct TopExpCommonVertexTests {
+    @Test func commonVertexBetweenEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.subShapes(ofType: .edge)
+            if edges.count >= 2 {
+                // Try to find a pair with a common vertex
+                var found = false
+                for i in 0..<min(edges.count, 5) {
+                    for j in (i+1)..<min(edges.count, 6) {
+                        let cv = Shape.commonVertex(edge1: edges[i], edge2: edges[j])
+                        if cv != nil {
+                            found = true
+                            break
+                        }
+                    }
+                    if found { break }
+                }
+                #expect(found)
+            }
+        }
+    }
+
+    @Test func noCommonVertexForDisjointEdges() {
+        // Create two separate boxes and take edges from each
+        let box1 = Shape.box(origin: SIMD3(0, 0, 0), width: 1, height: 1, depth: 1)
+        let box2 = Shape.box(origin: SIMD3(100, 100, 100), width: 1, height: 1, depth: 1)
+        if let b1 = box1, let b2 = box2 {
+            let e1 = b1.subShapes(ofType: .edge)
+            let e2 = b2.subShapes(ofType: .edge)
+            if !e1.isEmpty && !e2.isEmpty {
+                let cv = Shape.commonVertex(edge1: e1[0], edge2: e2[0])
+                #expect(cv == nil)
+            }
+        }
+    }
+}
+
+@Suite("BRep_Tool_Extras")
+struct BRepToolExtrasTests {
+    @Test func edgeSameParameter() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.subShapes(ofType: .edge)
+            if !edges.isEmpty {
+                #expect(edges[0].edgeSameParameter)
+            }
+        }
+    }
+
+    @Test func edgeSameRange() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.subShapes(ofType: .edge)
+            if !edges.isEmpty {
+                #expect(edges[0].edgeSameRange)
+            }
+        }
+    }
+
+    @Test func faceNaturalRestriction() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            if !faces.isEmpty {
+                // Box faces may or may not have natural restriction
+                let _ = faces[0].faceNaturalRestriction
+            }
+        }
+    }
+
+    @Test func edgeIsGeometric() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.subShapes(ofType: .edge)
+            if !edges.isEmpty {
+                #expect(edges[0].edgeIsGeometric)
+            }
+        }
+    }
+
+    @Test func faceIsGeometric() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            if !faces.isEmpty {
+                #expect(faces[0].faceIsGeometric)
+            }
+        }
+    }
+}
+
+@Suite("Sewing_Extras")
+struct SewingExtrasTests {
+    @Test func multipleEdgeCount() {
+        let sewing = SewingBuilder(tolerance: 1e-6)
+        if let s = sewing {
+            let box = Shape.box(width: 10, height: 10, depth: 10)
+            if let b = box { s.add(b) }
+            s.perform()
+            #expect(s.multipleEdgeCount >= 0)
+        }
+    }
+
+    @Test func noMultipleEdgesForBox() {
+        let sewing = SewingBuilder(tolerance: 1e-6)
+        if let s = sewing {
+            let box = Shape.box(width: 10, height: 10, depth: 10)
+            if let b = box { s.add(b) }
+            s.perform()
+            #expect(s.multipleEdgeCount == 0)
+        }
+    }
+
+    @Test func multipleEdgeAtInvalidIndex() {
+        let sewing = SewingBuilder(tolerance: 1e-6)
+        if let s = sewing {
+            let box = Shape.box(width: 10, height: 10, depth: 10)
+            if let b = box { s.add(b) }
+            s.perform()
+            let edge = s.multipleEdge(at: 999)
+            #expect(edge == nil)
+        }
+    }
+}
