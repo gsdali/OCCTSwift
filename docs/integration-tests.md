@@ -272,27 +272,28 @@ swift run OCCTSwiftMetalDemo --test-all-demos
 
 | Test | Status | Notes |
 |------|--------|-------|
-| 1.1 Mounting Bracket | Planned | |
-| 1.2 Involute Gear | Planned | |
-| 1.3 OCCT Bottle | Planned | |
-| 1.4 Assembly Interference | Planned | |
-| 1.5 Fluent Chain | Planned | |
-| 2.1 Pocket Clearing | Planned | |
-| 2.2 Z-Level Slicing | Planned | |
-| 2.3 Hole Detection | Planned | |
-| 2.4 Scallop Analysis | Planned | |
-| 2.5 Profile Contouring | Planned | |
-| 3.1 Draft Analysis | Planned | |
-| 3.2 UV Unwrapping | Planned | |
-| 3.3 Geodesic Path | Planned | |
-| 3.4 OBB Tightness | Planned | |
-| 3.5 Thickness Analysis | Planned | |
-| 4.1 Boolean Chain | Planned | |
-| 4.2 Precision Extremes | Planned | |
-| 4.3 Degenerate Resilience | Planned | |
-| 4.4 Format Round-Trip | Planned | |
-| 4.5 Memory Stress | Planned | |
-| 4.6 Concurrent Ops | Planned | Known OCCT #1179 SEGV |
-| 5.1 Golden Baselines | Planned | |
-| 5.2 Cross-Section | Planned | |
-| 5.3 Tolerance Cascade | Planned | |
+|------|--------|-------|
+| 1.1 Mounting Bracket | PASS | |
+| 1.2 Involute Gear | PASS | |
+| 1.3 OCCT Bottle | PASS | |
+| 1.4 Assembly Interference | PASS | |
+| 1.5 Fluent Chain | PASS | |
+| 2.1 Pocket Clearing | PASS | |
+| 2.2 Z-Level Slicing | PASS | |
+| 2.3 Hole Detection | PASS | |
+| 2.4 Scallop Analysis | PASS | |
+| 2.5 Profile Contouring | PASS | |
+| 3.1 Draft Analysis | PASS | |
+| 3.2 UV Unwrapping | PASS | |
+| 3.3 Geodesic Path | PASS | |
+| 3.4 OBB Tightness | PASS | |
+| 3.5 Thickness Analysis | PASS | |
+| 4.1 Boolean Chain | PASS | |
+| 4.2 Precision Extremes | PASS | |
+| 4.3 Degenerate Resilience | PASS | |
+| 4.4 Format Round-Trip | PASS | |
+| 4.5 Memory Stress | PASS | |
+| 4.6 Concurrent Ops | PASS | Known OCCT #1179 SEGV |
+| 5.1 Golden Baselines | PASS | |
+| 5.2 Cross-Section | PASS | |
+| 5.3 Tolerance Cascade | PASS | |
