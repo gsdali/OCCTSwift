@@ -49513,3 +49513,223 @@ double OCCTSurfaceBSplineGetWeight(OCCTSurfaceRef surface, int32_t uIndex, int32
 }
 
 // end of v0.119.0 implementations
+
+// MARK: - v0.120.0 implementations
+
+#include <Geom_Curve.hxx>
+#include <Geom2d_Curve.hxx>
+#include <Geom_Surface.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BezierCurve.hxx>
+#include <Geom_BezierSurface.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom2d_BezierCurve.hxx>
+#include <gp_Vec.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Trsf.hxx>
+
+// --- Curve3D continuity queries ---
+
+bool OCCTCurve3DIsCN(OCCTCurve3DRef _Nonnull curve, int32_t n) {
+    try {
+        auto c = *(occ::handle<Geom_Curve>*)curve;
+        if (c.IsNull()) return false;
+        return c->IsCN(n);
+    } catch (...) { return false; }
+}
+
+double OCCTCurve3DReversedParameter(OCCTCurve3DRef _Nonnull curve, double u) {
+    try {
+        auto c = *(occ::handle<Geom_Curve>*)curve;
+        if (c.IsNull()) return u;
+        return c->ReversedParameter(u);
+    } catch (...) { return u; }
+}
+
+double OCCTCurve3DParametricTransformation(OCCTCurve3DRef _Nonnull curve,
+                                            const double* _Nonnull trsf12) {
+    try {
+        auto c = *(occ::handle<Geom_Curve>*)curve;
+        if (c.IsNull()) return 1.0;
+        gp_Trsf t;
+        t.SetValues(trsf12[0], trsf12[1], trsf12[2], trsf12[9],
+                    trsf12[3], trsf12[4], trsf12[5], trsf12[10],
+                    trsf12[6], trsf12[7], trsf12[8], trsf12[11]);
+        return c->ParametricTransformation(t);
+    } catch (...) { return 1.0; }
+}
+
+// --- Curve2D continuity queries ---
+
+bool OCCTCurve2DIsCN(OCCTCurve2DRef _Nonnull curve, int32_t n) {
+    try {
+        auto c = *(occ::handle<Geom2d_Curve>*)curve;
+        if (c.IsNull()) return false;
+        return c->IsCN(n);
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DReversedParameter(OCCTCurve2DRef _Nonnull curve, double u) {
+    try {
+        auto c = *(occ::handle<Geom2d_Curve>*)curve;
+        if (c.IsNull()) return u;
+        return c->ReversedParameter(u);
+    } catch (...) { return u; }
+}
+
+// --- Surface continuity queries ---
+
+bool OCCTSurfaceIsCNu(OCCTSurfaceRef _Nonnull surface, int32_t n) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return false;
+        return s->IsCNu(n);
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceIsCNv(OCCTSurfaceRef _Nonnull surface, int32_t n) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return false;
+        return s->IsCNv(n);
+    } catch (...) { return false; }
+}
+
+OCCTSurfaceRef _Nullable OCCTSurfaceUReversed(OCCTSurfaceRef _Nonnull surface) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return nullptr;
+        auto rev = s->UReversed();
+        if (rev.IsNull()) return nullptr;
+        auto* result = new occ::handle<Geom_Surface>(rev);
+        return (OCCTSurfaceRef)result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef _Nullable OCCTSurfaceVReversed(OCCTSurfaceRef _Nonnull surface) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return nullptr;
+        auto rev = s->VReversed();
+        if (rev.IsNull()) return nullptr;
+        auto* result = new occ::handle<Geom_Surface>(rev);
+        return (OCCTSurfaceRef)result;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTSurfaceUReversedParameter(OCCTSurfaceRef _Nonnull surface, double u) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return u;
+        return s->UReversedParameter(u);
+    } catch (...) { return u; }
+}
+
+double OCCTSurfaceVReversedParameter(OCCTSurfaceRef _Nonnull surface, double v) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return v;
+        return s->VReversedParameter(v);
+    } catch (...) { return v; }
+}
+
+// --- BSpline surface RemoveVKnot ---
+
+bool OCCTSurfaceBSplineRemoveVKnot(OCCTSurfaceRef _Nonnull surface,
+                                     int32_t index, int32_t mult, double tol) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return false;
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s);
+        if (bsp.IsNull()) return false;
+        return bsp->RemoveVKnot(index, mult, tol);
+    } catch (...) { return false; }
+}
+
+// --- gp_Vec extras ---
+
+double OCCTVecCrossMagnitude(double v1x, double v1y, double v1z,
+                              double v2x, double v2y, double v2z) {
+    gp_Vec v1(v1x, v1y, v1z);
+    gp_Vec v2(v2x, v2y, v2z);
+    return v1.CrossMagnitude(v2);
+}
+
+double OCCTVecCrossSquareMagnitude(double v1x, double v1y, double v1z,
+                                    double v2x, double v2y, double v2z) {
+    gp_Vec v1(v1x, v1y, v1z);
+    gp_Vec v2(v2x, v2y, v2z);
+    return v1.CrossSquareMagnitude(v2);
+}
+
+// --- gp_Dir extras ---
+
+bool OCCTDirIsOpposite(double d1x, double d1y, double d1z,
+                        double d2x, double d2y, double d2z,
+                        double angularTolerance) {
+    try {
+        gp_Dir d1(d1x, d1y, d1z);
+        gp_Dir d2(d2x, d2y, d2z);
+        return d1.IsOpposite(d2, angularTolerance);
+    } catch (...) { return false; }
+}
+
+bool OCCTDirIsNormal(double d1x, double d1y, double d1z,
+                      double d2x, double d2y, double d2z,
+                      double angularTolerance) {
+    try {
+        gp_Dir d1(d1x, d1y, d1z);
+        gp_Dir d2(d2x, d2y, d2z);
+        return d1.IsNormal(d2, angularTolerance);
+    } catch (...) { return false; }
+}
+
+// --- Bezier curve/surface Resolution + MaxDegree ---
+
+double OCCTCurve3DBezierResolution(OCCTCurve3DRef _Nonnull curve, double tolerance3d) {
+    try {
+        auto c = *(occ::handle<Geom_Curve>*)curve;
+        if (c.IsNull()) return 0;
+        auto bez = occ::handle<Geom_BezierCurve>::DownCast(c);
+        if (bez.IsNull()) return 0;
+        double uTol = 0;
+        bez->Resolution(tolerance3d, uTol);
+        return uTol;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTCurve3DBezierMaxDegree(void) {
+    return Geom_BezierCurve::MaxDegree();
+}
+
+int32_t OCCTCurve2DBezierMaxDegree(void) {
+    return Geom2d_BezierCurve::MaxDegree();
+}
+
+void OCCTSurfaceBezierResolution(OCCTSurfaceRef _Nonnull surface, double tolerance3d,
+                                  double* _Nonnull uResolution, double* _Nonnull vResolution) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) { *uResolution = 0; *vResolution = 0; return; }
+        auto bez = occ::handle<Geom_BezierSurface>::DownCast(s);
+        if (bez.IsNull()) { *uResolution = 0; *vResolution = 0; return; }
+        bez->Resolution(tolerance3d, *uResolution, *vResolution);
+    } catch (...) { *uResolution = 0; *vResolution = 0; }
+}
+
+int32_t OCCTSurfaceBezierMaxDegree(void) {
+    return Geom_BezierSurface::MaxDegree();
+}
+
+// --- BSpline MaxDegree (surface + 2D curve) ---
+
+int32_t OCCTSurfaceBSplineMaxDegree(void) {
+    return Geom_BSplineSurface::MaxDegree();
+}
+
+int32_t OCCTCurve2DBSplineMaxDegree(void) {
+    return Geom2d_BSplineCurve::MaxDegree();
+}
+
+// end of v0.120.0 implementations

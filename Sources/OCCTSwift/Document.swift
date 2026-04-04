@@ -14010,3 +14010,150 @@ extension Curve2D {
         return weights
     }
 }
+
+// MARK: - v0.120.0: Final cleanup — IsCN, ReversedParameter, ParametricTransformation,
+//                    gp extras, surface reversed copies, BSpline/Bezier MaxDegree/Resolution
+
+// --- Curve3D continuity and parameter extras ---
+
+extension Curve3D {
+
+    /// The overall continuity order of this curve (0=C0, 1=C1, 2=C2, etc.).
+    public var continuityOrder: Int { Int(OCCTCurve3DContinuity(handle)) }
+
+    /// Check if this curve has at least Cn continuity.
+    public func isCN(_ n: Int) -> Bool {
+        OCCTCurve3DIsCN(handle, Int32(n))
+    }
+
+    /// Get the parameter on the reversed curve corresponding to parameter u on this curve.
+    public func reversedParameter(_ u: Double) -> Double {
+        OCCTCurve3DReversedParameter(handle, u)
+    }
+
+    /// Get the parametric transformation scale factor under a geometric transform.
+    /// The transform is specified as a 3x3 rotation matrix (row-major) + 3 translation values.
+    public func parametricTransformation(rotation: [Double], translation: SIMD3<Double>) -> Double {
+        guard rotation.count == 9 else { return 1.0 }
+        let trsf12 = rotation + [translation.x, translation.y, translation.z]
+        return trsf12.withUnsafeBufferPointer { buf in
+            OCCTCurve3DParametricTransformation(handle, buf.baseAddress!)
+        }
+    }
+
+    /// Resolution for 3D Bezier curves.
+    public func bezierResolution(tolerance3d: Double) -> Double {
+        OCCTCurve3DBezierResolution(handle, tolerance3d)
+    }
+
+    /// Maximum degree for 3D Bezier curves (static).
+    public static var bezierMaxDegree: Int { Int(OCCTCurve3DBezierMaxDegree()) }
+
+}
+
+// --- Curve2D continuity and parameter extras ---
+
+extension Curve2D {
+
+    /// The overall continuity order of this curve (0=C0, 1=C1, 2=C2, etc.).
+    public var continuityOrder: Int { Int(OCCTCurve2DContinuity(handle)) }
+
+    /// Check if this curve has at least Cn continuity.
+    public func isCN(_ n: Int) -> Bool {
+        OCCTCurve2DIsCN(handle, Int32(n))
+    }
+
+    /// Get the parameter on the reversed curve corresponding to parameter u on this curve.
+    public func reversedParameter(_ u: Double) -> Double {
+        OCCTCurve2DReversedParameter(handle, u)
+    }
+
+    /// Maximum degree for 2D Bezier curves (static).
+    public static var bezierMaxDegree: Int { Int(OCCTCurve2DBezierMaxDegree()) }
+
+    /// Maximum degree for 2D BSpline curves (static).
+    public static var bsplineMaxDegree: Int { Int(OCCTCurve2DBSplineMaxDegree()) }
+}
+
+// --- Surface continuity, reversed copies, parameter extras ---
+
+extension Surface {
+
+    /// Check if this surface has at least Cn continuity in the U direction.
+    public func isCNu(_ n: Int) -> Bool {
+        OCCTSurfaceIsCNu(handle, Int32(n))
+    }
+
+    /// Check if this surface has at least Cn continuity in the V direction.
+    public func isCNv(_ n: Int) -> Bool {
+        OCCTSurfaceIsCNv(handle, Int32(n))
+    }
+
+    /// Create a U-reversed copy of this surface.
+    public func uReversed() -> Surface? {
+        guard let ref = OCCTSurfaceUReversed(handle) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a V-reversed copy of this surface.
+    public func vReversed() -> Surface? {
+        guard let ref = OCCTSurfaceVReversed(handle) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Get the reversed U parameter value.
+    public func uReversedParameter(_ u: Double) -> Double {
+        OCCTSurfaceUReversedParameter(handle, u)
+    }
+
+    /// Get the reversed V parameter value.
+    public func vReversedParameter(_ v: Double) -> Double {
+        OCCTSurfaceVReversedParameter(handle, v)
+    }
+
+    /// Remove a V knot from a BSpline surface. Returns true if successful.
+    @discardableResult
+    public func bsplineRemoveVKnot(index: Int, mult: Int, tolerance: Double) -> Bool {
+        OCCTSurfaceBSplineRemoveVKnot(handle, Int32(index), Int32(mult), tolerance)
+    }
+
+    /// Resolution for Bezier surfaces (U and V).
+    public func bezierResolution(tolerance3d: Double) -> (u: Double, v: Double) {
+        var ur = 0.0, vr = 0.0
+        OCCTSurfaceBezierResolution(handle, tolerance3d, &ur, &vr)
+        return (ur, vr)
+    }
+
+    /// Maximum degree for Bezier surfaces (static).
+    public static var bezierMaxDegree: Int { Int(OCCTSurfaceBezierMaxDegree()) }
+
+    /// Maximum degree for BSpline surfaces (static).
+    public static var bsplineMaxDegree: Int { Int(OCCTSurfaceBSplineMaxDegree()) }
+}
+
+// --- gp_Vec extras ---
+
+extension Shape {
+
+    /// Compute the magnitude of the cross product of two vectors.
+    public static func vecCrossMagnitude(_ v1: SIMD3<Double>, _ v2: SIMD3<Double>) -> Double {
+        OCCTVecCrossMagnitude(v1.x, v1.y, v1.z, v2.x, v2.y, v2.z)
+    }
+
+    /// Compute the square magnitude of the cross product of two vectors.
+    public static func vecCrossSquareMagnitude(_ v1: SIMD3<Double>, _ v2: SIMD3<Double>) -> Double {
+        OCCTVecCrossSquareMagnitude(v1.x, v1.y, v1.z, v2.x, v2.y, v2.z)
+    }
+
+    /// Check if two directions are opposite within angular tolerance (radians).
+    public static func dirIsOpposite(_ d1: SIMD3<Double>, _ d2: SIMD3<Double>,
+                                     tolerance: Double = 1e-10) -> Bool {
+        OCCTDirIsOpposite(d1.x, d1.y, d1.z, d2.x, d2.y, d2.z, tolerance)
+    }
+
+    /// Check if two directions are normal (perpendicular) within angular tolerance (radians).
+    public static func dirIsNormal(_ d1: SIMD3<Double>, _ d2: SIMD3<Double>,
+                                   tolerance: Double = 1e-10) -> Bool {
+        OCCTDirIsNormal(d1.x, d1.y, d1.z, d2.x, d2.y, d2.z, tolerance)
+    }
+}

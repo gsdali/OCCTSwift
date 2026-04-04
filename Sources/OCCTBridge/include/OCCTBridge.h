@@ -17262,6 +17262,104 @@ bool OCCTSurfaceBSplineSetVPeriodic(OCCTSurfaceRef _Nonnull surface, bool period
 /// Get a weight from a BSpline surface (1-based indices).
 double OCCTSurfaceBSplineGetWeight(OCCTSurfaceRef _Nonnull surface, int32_t uIndex, int32_t vIndex);
 
+// MARK: - v0.120.0: Final cleanup — IsCN, ReversedParameter, ParametricTransformation,
+//                    gp extras, surface reversed copies, BSpline/Bezier MaxDegree/Resolution
+
+// --- Curve3D continuity queries ---
+
+/// Check if a 3D curve has Cn continuity.
+bool OCCTCurve3DIsCN(OCCTCurve3DRef _Nonnull curve, int32_t n);
+
+/// Get the reversed parameter value for a 3D curve.
+double OCCTCurve3DReversedParameter(OCCTCurve3DRef _Nonnull curve, double u);
+
+/// Get the parametric transformation scale factor for a 3D curve under a geometric transform.
+/// Pass the transform as 12 doubles: 3x3 rotation matrix (row-major) + 3 translation.
+double OCCTCurve3DParametricTransformation(OCCTCurve3DRef _Nonnull curve,
+                                            const double* _Nonnull trsf12);
+
+// --- Curve2D continuity queries ---
+
+/// Check if a 2D curve has Cn continuity.
+bool OCCTCurve2DIsCN(OCCTCurve2DRef _Nonnull curve, int32_t n);
+
+/// Get the reversed parameter value for a 2D curve.
+double OCCTCurve2DReversedParameter(OCCTCurve2DRef _Nonnull curve, double u);
+
+// --- Surface continuity queries ---
+
+/// Check if a surface has Cn continuity in U direction.
+bool OCCTSurfaceIsCNu(OCCTSurfaceRef _Nonnull surface, int32_t n);
+
+/// Check if a surface has Cn continuity in V direction.
+bool OCCTSurfaceIsCNv(OCCTSurfaceRef _Nonnull surface, int32_t n);
+
+/// Create a U-reversed copy of a surface.
+OCCTSurfaceRef _Nullable OCCTSurfaceUReversed(OCCTSurfaceRef _Nonnull surface);
+
+/// Create a V-reversed copy of a surface.
+OCCTSurfaceRef _Nullable OCCTSurfaceVReversed(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the reversed U parameter value.
+double OCCTSurfaceUReversedParameter(OCCTSurfaceRef _Nonnull surface, double u);
+
+/// Get the reversed V parameter value.
+double OCCTSurfaceVReversedParameter(OCCTSurfaceRef _Nonnull surface, double v);
+
+// --- BSpline surface RemoveVKnot ---
+
+/// Remove a V knot from a BSpline surface. Returns true if successful.
+bool OCCTSurfaceBSplineRemoveVKnot(OCCTSurfaceRef _Nonnull surface,
+                                     int32_t index, int32_t mult, double tol);
+
+// --- gp_Vec extras ---
+
+/// Compute the magnitude of the cross product of two vectors.
+double OCCTVecCrossMagnitude(double v1x, double v1y, double v1z,
+                              double v2x, double v2y, double v2z);
+
+/// Compute the square magnitude of the cross product of two vectors.
+double OCCTVecCrossSquareMagnitude(double v1x, double v1y, double v1z,
+                                    double v2x, double v2y, double v2z);
+
+// --- gp_Dir extras ---
+
+/// Check if two directions are opposite within angular tolerance (radians).
+bool OCCTDirIsOpposite(double d1x, double d1y, double d1z,
+                        double d2x, double d2y, double d2z,
+                        double angularTolerance);
+
+/// Check if two directions are normal (perpendicular) within angular tolerance (radians).
+bool OCCTDirIsNormal(double d1x, double d1y, double d1z,
+                      double d2x, double d2y, double d2z,
+                      double angularTolerance);
+
+// --- Bezier curve/surface Resolution + MaxDegree ---
+
+/// Compute parameter resolution for a 3D Bezier curve from a 3D tolerance.
+double OCCTCurve3DBezierResolution(OCCTCurve3DRef _Nonnull curve, double tolerance3d);
+
+/// Get the maximum degree for Bezier curves (3D).
+int32_t OCCTCurve3DBezierMaxDegree(void);
+
+/// Get the maximum degree for 2D Bezier curves.
+int32_t OCCTCurve2DBezierMaxDegree(void);
+
+/// Compute U and V parameter resolution for a Bezier surface from a 3D tolerance.
+void OCCTSurfaceBezierResolution(OCCTSurfaceRef _Nonnull surface, double tolerance3d,
+                                  double* _Nonnull uResolution, double* _Nonnull vResolution);
+
+/// Get the maximum degree for Bezier surfaces.
+int32_t OCCTSurfaceBezierMaxDegree(void);
+
+// --- BSpline MaxDegree (surface + 2D curve) ---
+
+/// Get the maximum degree for BSpline surfaces (static).
+int32_t OCCTSurfaceBSplineMaxDegree(void);
+
+/// Get the maximum degree for 2D BSpline curves (static).
+int32_t OCCTCurve2DBSplineMaxDegree(void);
+
 #ifdef __cplusplus
 }
 #endif
