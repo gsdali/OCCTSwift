@@ -13774,3 +13774,239 @@ extension SewingBuilder {
         return nil
     }
 }
+
+// MARK: - v0.119.0: BREP serialization, gp distance/contains, BezierSurface, Curve2D extras, BSplineSurface extras
+
+// --- BREP string serialization ---
+
+extension Shape {
+    /// Serialize this shape to a BREP format string.
+    public func toBREPString() -> String? {
+        guard let cstr = OCCTShapeToBREPString(handle) else { return nil }
+        let result = String(cString: cstr)
+        free(cstr)
+        return result
+    }
+
+    /// Deserialize a shape from a BREP format string.
+    public static func fromBREPString(_ brep: String) -> Shape? {
+        guard let ref = OCCTShapeFromBREPString(brep) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- gp_Pln distance/contains ---
+
+/// Geometric plane utilities (gp_Pln operations).
+public enum PlaneGeometry {
+    /// Distance from a plane (origin + normal) to a point.
+    public static func distanceToPoint(planeOrigin: SIMD3<Double>, planeNormal: SIMD3<Double>,
+                                       point: SIMD3<Double>) -> Double {
+        OCCTPlaneDistanceToPoint(planeOrigin.x, planeOrigin.y, planeOrigin.z,
+                                planeNormal.x, planeNormal.y, planeNormal.z,
+                                point.x, point.y, point.z)
+    }
+
+    /// Distance from a plane to a line.
+    public static func distanceToLine(planeOrigin: SIMD3<Double>, planeNormal: SIMD3<Double>,
+                                      linePoint: SIMD3<Double>, lineDirection: SIMD3<Double>) -> Double {
+        OCCTPlaneDistanceToLine(planeOrigin.x, planeOrigin.y, planeOrigin.z,
+                                planeNormal.x, planeNormal.y, planeNormal.z,
+                                linePoint.x, linePoint.y, linePoint.z,
+                                lineDirection.x, lineDirection.y, lineDirection.z)
+    }
+
+    /// Check if a plane contains a point within tolerance.
+    public static func containsPoint(planeOrigin: SIMD3<Double>, planeNormal: SIMD3<Double>,
+                                     point: SIMD3<Double>, tolerance: Double = 1e-7) -> Bool {
+        OCCTPlaneContainsPoint(planeOrigin.x, planeOrigin.y, planeOrigin.z,
+                               planeNormal.x, planeNormal.y, planeNormal.z,
+                               point.x, point.y, point.z, tolerance)
+    }
+}
+
+// --- gp_Lin distance/contains ---
+
+/// Geometric line utilities (gp_Lin operations).
+public enum LineGeometry {
+    /// Distance from a line (point + direction) to a point.
+    public static func distanceToPoint(linePoint: SIMD3<Double>, lineDirection: SIMD3<Double>,
+                                       point: SIMD3<Double>) -> Double {
+        OCCTLineDistanceToPoint(linePoint.x, linePoint.y, linePoint.z,
+                                lineDirection.x, lineDirection.y, lineDirection.z,
+                                point.x, point.y, point.z)
+    }
+
+    /// Distance between two lines.
+    public static func distanceToLine(line1Point: SIMD3<Double>, line1Direction: SIMD3<Double>,
+                                      line2Point: SIMD3<Double>, line2Direction: SIMD3<Double>) -> Double {
+        OCCTLineDistanceToLine(line1Point.x, line1Point.y, line1Point.z,
+                               line1Direction.x, line1Direction.y, line1Direction.z,
+                               line2Point.x, line2Point.y, line2Point.z,
+                               line2Direction.x, line2Direction.y, line2Direction.z)
+    }
+
+    /// Check if a line contains a point within tolerance.
+    public static func containsPoint(linePoint: SIMD3<Double>, lineDirection: SIMD3<Double>,
+                                     point: SIMD3<Double>, tolerance: Double = 1e-7) -> Bool {
+        OCCTLineContainsPoint(linePoint.x, linePoint.y, linePoint.z,
+                              lineDirection.x, lineDirection.y, lineDirection.z,
+                              point.x, point.y, point.z, tolerance)
+    }
+}
+
+// --- Geom_BezierSurface ---
+
+extension Surface {
+    /// Bezier surface properties (meaningful only when the underlying surface is Geom_BezierSurface).
+    public struct BezierProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTSurfaceRef
+
+        /// Number of U poles.
+        public var nbUPoles: Int { Int(OCCTSurfaceBezierNbUPoles(handle)) }
+
+        /// Number of V poles.
+        public var nbVPoles: Int { Int(OCCTSurfaceBezierNbVPoles(handle)) }
+
+        /// U degree.
+        public var uDegree: Int { Int(OCCTSurfaceBezierUDegree(handle)) }
+
+        /// V degree.
+        public var vDegree: Int { Int(OCCTSurfaceBezierVDegree(handle)) }
+
+        /// Whether the surface is rational in U.
+        public var isURational: Bool { OCCTSurfaceBezierIsURational(handle) }
+
+        /// Whether the surface is rational in V.
+        public var isVRational: Bool { OCCTSurfaceBezierIsVRational(handle) }
+
+        /// Get a pole (1-based indices).
+        public func pole(uIndex: Int, vIndex: Int) -> SIMD3<Double> {
+            var x = 0.0, y = 0.0, z = 0.0
+            OCCTSurfaceBezierGetPole(handle, Int32(uIndex), Int32(vIndex), &x, &y, &z)
+            return SIMD3(x, y, z)
+        }
+
+        /// Set a pole (1-based indices).
+        @discardableResult
+        public func setPole(uIndex: Int, vIndex: Int, point: SIMD3<Double>) -> Bool {
+            OCCTSurfaceBezierSetPole(handle, Int32(uIndex), Int32(vIndex), point.x, point.y, point.z)
+        }
+
+        /// Set a weight (1-based indices).
+        @discardableResult
+        public func setWeight(uIndex: Int, vIndex: Int, weight: Double) -> Bool {
+            OCCTSurfaceBezierSetWeight(handle, Int32(uIndex), Int32(vIndex), weight)
+        }
+
+        /// Extract a segment of the Bezier surface.
+        @discardableResult
+        public func segment(u1: Double, u2: Double, v1: Double, v2: Double) -> Bool {
+            OCCTSurfaceBezierSegment(handle, u1, u2, v1, v2)
+        }
+
+        /// Exchange U and V parametric directions.
+        @discardableResult
+        public func exchangeUV() -> Bool {
+            OCCTSurfaceBezierExchangeUV(handle)
+        }
+    }
+
+    /// Bezier-surface-specific properties.
+    public var bezierProperties: BezierProperties { BezierProperties(handle: handle) }
+
+    // --- BSplineSurface extras ---
+
+    /// Compute U and V parameter resolution for a given 3D tolerance (BSpline surface).
+    public func bsplineResolution(tolerance3d: Double) -> (uResolution: Double, vResolution: Double) {
+        var ur = 0.0, vr = 0.0
+        OCCTSurfaceBSplineResolution(handle, tolerance3d, &ur, &vr)
+        return (ur, vr)
+    }
+
+    /// Set U periodicity on a BSpline surface.
+    @discardableResult
+    public func bsplineSetUPeriodic(_ periodic: Bool) -> Bool {
+        OCCTSurfaceBSplineSetUPeriodic(handle, periodic)
+    }
+
+    /// Set V periodicity on a BSpline surface.
+    @discardableResult
+    public func bsplineSetVPeriodic(_ periodic: Bool) -> Bool {
+        OCCTSurfaceBSplineSetVPeriodic(handle, periodic)
+    }
+
+    /// Get a weight from a BSpline surface (1-based indices).
+    public func bsplineWeight(uIndex: Int, vIndex: Int) -> Double {
+        OCCTSurfaceBSplineGetWeight(handle, Int32(uIndex), Int32(vIndex))
+    }
+}
+
+// --- Curve2D Bezier ---
+
+extension Curve2D {
+    /// 2D Bezier curve properties (meaningful only when the underlying curve is Geom2d_BezierCurve).
+    public struct BezierProperties: @unchecked Sendable {
+        fileprivate let handle: OCCTCurve2DRef
+
+        /// Degree of the Bezier curve.
+        public var degree: Int { Int(OCCTCurve2DBezierDegree(handle)) }
+
+        /// Number of poles.
+        public var poleCount: Int { Int(OCCTCurve2DBezierPoleCount(handle)) }
+
+        /// Whether the Bezier curve is rational.
+        public var isRational: Bool { OCCTCurve2DBezierIsRational(handle) }
+
+        /// Get a pole (1-based index).
+        public func pole(at index: Int) -> SIMD2<Double> {
+            var x = 0.0, y = 0.0
+            OCCTCurve2DBezierGetPole(handle, Int32(index), &x, &y)
+            return SIMD2(x, y)
+        }
+
+        /// Set a pole (1-based index).
+        @discardableResult
+        public func setPole(at index: Int, point: SIMD2<Double>) -> Bool {
+            OCCTCurve2DBezierSetPole(handle, Int32(index), point.x, point.y)
+        }
+
+        /// Set a weight (1-based index).
+        @discardableResult
+        public func setWeight(at index: Int, weight: Double) -> Bool {
+            OCCTCurve2DBezierSetWeight(handle, Int32(index), weight)
+        }
+
+        /// Compute parameter resolution from 2D tolerance.
+        public func resolution(tolerance: Double) -> Double {
+            OCCTCurve2DBezierResolution(handle, tolerance)
+        }
+    }
+
+    /// 2D Bezier curve-specific properties.
+    public var bezierProperties: BezierProperties { BezierProperties(handle: handle) }
+
+    // --- Curve2D BSpline extras ---
+
+    /// Set periodic/non-periodic on a 2D BSpline curve.
+    @discardableResult
+    public func bsplineSetPeriodic(_ periodic: Bool) -> Bool {
+        OCCTCurve2DBSplineSetPeriodic(handle, periodic)
+    }
+
+    /// Get weight at index (1-based) from a 2D BSpline curve.
+    public func bsplineWeight(at index: Int) -> Double {
+        OCCTCurve2DBSplineGetWeight(handle, Int32(index))
+    }
+
+    /// Get all weights from a 2D BSpline curve.
+    public func bsplineWeights() -> [Double] {
+        let count = Int(OCCTCurve2DBSplinePoleCount(handle))
+        guard count > 0 else { return [] }
+        var weights = [Double](repeating: 0, count: count)
+        weights.withUnsafeMutableBufferPointer { buf in
+            OCCTCurve2DBSplineGetWeights(handle, buf.baseAddress!)
+        }
+        return weights
+    }
+}

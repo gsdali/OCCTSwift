@@ -49152,3 +49152,364 @@ bool OCCTSewingIsMultipleEdge(OCCTSewingRef sewing, int32_t index, OCCTShapeRef*
 
 // end of v0.118.0 implementations
 
+
+// === v0.119.0: BREP serialization, gp distance/contains, BezierSurface, Curve2D Bezier/BSpline extras ===
+
+#include <sstream>
+#include <BRepTools.hxx>
+#include <BRep_Builder.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Lin.hxx>
+#include <Geom_BezierSurface.hxx>
+#include <Geom2d_BezierCurve.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom_BSplineSurface.hxx>
+
+// --- BREP string serialization ---
+
+char* OCCTShapeToBREPString(OCCTShapeRef shape) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        std::ostringstream oss;
+        BRepTools::Write(s->shape, oss);
+        std::string str = oss.str();
+        char* result = (char*)malloc(str.size() + 1);
+        if (!result) return nullptr;
+        memcpy(result, str.c_str(), str.size() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeFromBREPString(const char* brepString) {
+    try {
+        std::istringstream iss(brepString);
+        BRep_Builder builder;
+        TopoDS_Shape shape;
+        BRepTools::Read(shape, iss, builder);
+        if (shape.IsNull()) return nullptr;
+        auto* r = new OCCTShape();
+        r->shape = shape;
+        return r;
+    } catch (...) { return nullptr; }
+}
+
+// --- gp_Pln distance/contains ---
+
+double OCCTPlaneDistanceToPoint(double ox, double oy, double oz,
+                                double nx, double ny, double nz,
+                                double px, double py, double pz) {
+    try {
+        gp_Pln pln(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        return pln.Distance(gp_Pnt(px, py, pz));
+    } catch (...) { return -1.0; }
+}
+
+double OCCTPlaneDistanceToLine(double ox, double oy, double oz,
+                               double nx, double ny, double nz,
+                               double lx, double ly, double lz,
+                               double dx, double dy, double dz) {
+    try {
+        gp_Pln pln(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        gp_Lin lin(gp_Pnt(lx, ly, lz), gp_Dir(dx, dy, dz));
+        return pln.Distance(lin);
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTPlaneContainsPoint(double ox, double oy, double oz,
+                            double nx, double ny, double nz,
+                            double px, double py, double pz,
+                            double tolerance) {
+    try {
+        gp_Pln pln(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        return pln.Contains(gp_Pnt(px, py, pz), tolerance);
+    } catch (...) { return false; }
+}
+
+// --- gp_Lin distance/contains ---
+
+double OCCTLineDistanceToPoint(double lx, double ly, double lz,
+                               double dx, double dy, double dz,
+                               double px, double py, double pz) {
+    try {
+        gp_Lin lin(gp_Pnt(lx, ly, lz), gp_Dir(dx, dy, dz));
+        return lin.Distance(gp_Pnt(px, py, pz));
+    } catch (...) { return -1.0; }
+}
+
+double OCCTLineDistanceToLine(double l1x, double l1y, double l1z,
+                              double d1x, double d1y, double d1z,
+                              double l2x, double l2y, double l2z,
+                              double d2x, double d2y, double d2z) {
+    try {
+        gp_Lin lin1(gp_Pnt(l1x, l1y, l1z), gp_Dir(d1x, d1y, d1z));
+        gp_Lin lin2(gp_Pnt(l2x, l2y, l2z), gp_Dir(d2x, d2y, d2z));
+        return lin1.Distance(lin2);
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTLineContainsPoint(double lx, double ly, double lz,
+                           double dx, double dy, double dz,
+                           double px, double py, double pz,
+                           double tolerance) {
+    try {
+        gp_Lin lin(gp_Pnt(lx, ly, lz), gp_Dir(dx, dy, dz));
+        return lin.Contains(gp_Pnt(px, py, pz), tolerance);
+    } catch (...) { return false; }
+}
+
+// --- Geom_BezierSurface ---
+
+int32_t OCCTSurfaceBezierNbUPoles(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return 0;
+        return (int32_t)bezier->NbUPoles();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBezierNbVPoles(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return 0;
+        return (int32_t)bezier->NbVPoles();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBezierUDegree(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return -1;
+        return (int32_t)bezier->UDegree();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTSurfaceBezierVDegree(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return -1;
+        return (int32_t)bezier->VDegree();
+    } catch (...) { return -1; }
+}
+
+void OCCTSurfaceBezierGetPole(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex,
+                              double* x, double* y, double* z) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) { *x = *y = *z = 0; return; }
+        gp_Pnt p = bezier->Pole(uIndex, vIndex);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+bool OCCTSurfaceBezierSetPole(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex,
+                              double x, double y, double z) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        bezier->SetPole(uIndex, vIndex, gp_Pnt(x, y, z));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetWeight(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex,
+                                double weight) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        bezier->SetWeight(uIndex, vIndex, weight);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSegment(OCCTSurfaceRef surface,
+                              double u1, double u2, double v1, double v2) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        bezier->Segment(u1, u2, v1, v2);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIsURational(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        return bezier->IsURational();
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIsVRational(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        return bezier->IsVRational();
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierExchangeUV(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        bezier->ExchangeUV();
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- Curve2D Bezier ---
+
+void OCCTCurve2DBezierGetPole(OCCTCurve2DRef curve, int32_t index, double* x, double* y) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) { *x = *y = 0; return; }
+        gp_Pnt2d p = bezier->Pole(index);
+        *x = p.X(); *y = p.Y();
+    } catch (...) { *x = *y = 0; }
+}
+
+bool OCCTCurve2DBezierSetPole(OCCTCurve2DRef curve, int32_t index, double x, double y) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return false;
+        bezier->SetPole(index, gp_Pnt2d(x, y));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBezierSetWeight(OCCTCurve2DRef curve, int32_t index, double weight) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return false;
+        bezier->SetWeight(index, weight);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTCurve2DBezierDegree(OCCTCurve2DRef curve) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return -1;
+        return (int32_t)bezier->Degree();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTCurve2DBezierPoleCount(OCCTCurve2DRef curve) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return 0;
+        return (int32_t)bezier->NbPoles();
+    } catch (...) { return 0; }
+}
+
+bool OCCTCurve2DBezierIsRational(OCCTCurve2DRef curve) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return false;
+        return bezier->IsRational();
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DBezierResolution(OCCTCurve2DRef curve, double tolerance) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return 0;
+        double utol = 0;
+        bezier->Resolution(tolerance, utol);
+        return utol;
+    } catch (...) { return 0; }
+}
+
+// --- Curve2D BSpline extras ---
+
+bool OCCTCurve2DBSplineSetPeriodic(OCCTCurve2DRef curve, bool periodic) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bsp = occ::handle<Geom2d_BSplineCurve>::DownCast(c->curve);
+        if (bsp.IsNull()) return false;
+        if (periodic) bsp->SetPeriodic(); else bsp->SetNotPeriodic();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DBSplineGetWeight(OCCTCurve2DRef curve, int32_t index) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bsp = occ::handle<Geom2d_BSplineCurve>::DownCast(c->curve);
+        if (bsp.IsNull()) return 0;
+        return bsp->Weight(index);
+    } catch (...) { return 0; }
+}
+
+void OCCTCurve2DBSplineGetWeights(OCCTCurve2DRef curve, double* weights) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bsp = occ::handle<Geom2d_BSplineCurve>::DownCast(c->curve);
+        if (bsp.IsNull()) return;
+        NCollection_Array1<double> w(1, bsp->NbPoles());
+        bsp->Weights(w);
+        for (int i = 1; i <= bsp->NbPoles(); i++) {
+            weights[i-1] = w(i);
+        }
+    } catch (...) {}
+}
+
+// --- BSplineSurface extras ---
+
+void OCCTSurfaceBSplineResolution(OCCTSurfaceRef surface, double tolerance3d,
+                                  double* uResolution, double* vResolution) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s->surface);
+        if (bsp.IsNull()) { *uResolution = *vResolution = 0; return; }
+        bsp->Resolution(tolerance3d, *uResolution, *vResolution);
+    } catch (...) { *uResolution = *vResolution = 0; }
+}
+
+bool OCCTSurfaceBSplineSetUPeriodic(OCCTSurfaceRef surface, bool periodic) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s->surface);
+        if (bsp.IsNull()) return false;
+        if (periodic) bsp->SetUPeriodic(); else bsp->SetUNotPeriodic();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetVPeriodic(OCCTSurfaceRef surface, bool periodic) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s->surface);
+        if (bsp.IsNull()) return false;
+        if (periodic) bsp->SetVPeriodic(); else bsp->SetVNotPeriodic();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTSurfaceBSplineGetWeight(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s->surface);
+        if (bsp.IsNull()) return 0;
+        return bsp->Weight(uIndex, vIndex);
+    } catch (...) { return 0; }
+}
+
+// end of v0.119.0 implementations

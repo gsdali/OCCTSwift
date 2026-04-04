@@ -17124,6 +17124,144 @@ int32_t OCCTSewingNbMultipleEdges(OCCTSewingRef _Nonnull sewing);
 bool OCCTSewingIsMultipleEdge(OCCTSewingRef _Nonnull sewing, int32_t index,
                                OCCTShapeRef _Nullable * _Nonnull outEdge);
 
+// MARK: - v0.119.0: BREP serialization, gp distance/contains, BezierSurface, Curve2D Bezier/BSpline extras, BSplineSurface extras
+
+// --- BREP string serialization ---
+
+/// Serialize a shape to BREP format string. Caller must free the returned string with free().
+char* _Nullable OCCTShapeToBREPString(OCCTShapeRef _Nonnull shape);
+
+/// Deserialize a shape from a BREP format string.
+OCCTShapeRef _Nullable OCCTShapeFromBREPString(const char* _Nonnull brepString);
+
+// --- gp_Pln distance/contains ---
+
+/// Distance from a plane (given by origin + normal) to a point.
+double OCCTPlaneDistanceToPoint(double ox, double oy, double oz,
+                                double nx, double ny, double nz,
+                                double px, double py, double pz);
+
+/// Distance from a plane to a line (given by line point + direction).
+double OCCTPlaneDistanceToLine(double ox, double oy, double oz,
+                               double nx, double ny, double nz,
+                               double lx, double ly, double lz,
+                               double dx, double dy, double dz);
+
+/// Check if a plane contains a point within tolerance.
+bool OCCTPlaneContainsPoint(double ox, double oy, double oz,
+                            double nx, double ny, double nz,
+                            double px, double py, double pz,
+                            double tolerance);
+
+// --- gp_Lin distance/contains ---
+
+/// Distance from a line (point + direction) to a point.
+double OCCTLineDistanceToPoint(double lx, double ly, double lz,
+                               double dx, double dy, double dz,
+                               double px, double py, double pz);
+
+/// Distance between two lines.
+double OCCTLineDistanceToLine(double l1x, double l1y, double l1z,
+                              double d1x, double d1y, double d1z,
+                              double l2x, double l2y, double l2z,
+                              double d2x, double d2y, double d2z);
+
+/// Check if a line contains a point within tolerance.
+bool OCCTLineContainsPoint(double lx, double ly, double lz,
+                           double dx, double dy, double dz,
+                           double px, double py, double pz,
+                           double tolerance);
+
+// --- Geom_BezierSurface queries ---
+
+/// Number of U poles of a Bezier surface.
+int32_t OCCTSurfaceBezierNbUPoles(OCCTSurfaceRef _Nonnull surface);
+
+/// Number of V poles of a Bezier surface.
+int32_t OCCTSurfaceBezierNbVPoles(OCCTSurfaceRef _Nonnull surface);
+
+/// U degree of a Bezier surface.
+int32_t OCCTSurfaceBezierUDegree(OCCTSurfaceRef _Nonnull surface);
+
+/// V degree of a Bezier surface.
+int32_t OCCTSurfaceBezierVDegree(OCCTSurfaceRef _Nonnull surface);
+
+/// Get a pole from a Bezier surface (1-based indices).
+void OCCTSurfaceBezierGetPole(OCCTSurfaceRef _Nonnull surface, int32_t uIndex, int32_t vIndex,
+                              double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Set a pole on a Bezier surface (1-based indices).
+bool OCCTSurfaceBezierSetPole(OCCTSurfaceRef _Nonnull surface, int32_t uIndex, int32_t vIndex,
+                              double x, double y, double z);
+
+/// Set a weight on a Bezier surface (1-based indices).
+bool OCCTSurfaceBezierSetWeight(OCCTSurfaceRef _Nonnull surface, int32_t uIndex, int32_t vIndex,
+                                double weight);
+
+/// Extract a segment of a Bezier surface.
+bool OCCTSurfaceBezierSegment(OCCTSurfaceRef _Nonnull surface,
+                              double u1, double u2, double v1, double v2);
+
+/// Check if Bezier surface is rational in U.
+bool OCCTSurfaceBezierIsURational(OCCTSurfaceRef _Nonnull surface);
+
+/// Check if Bezier surface is rational in V.
+bool OCCTSurfaceBezierIsVRational(OCCTSurfaceRef _Nonnull surface);
+
+/// Exchange U and V parametric directions of a Bezier surface.
+bool OCCTSurfaceBezierExchangeUV(OCCTSurfaceRef _Nonnull surface);
+
+// --- Curve2D Bezier methods ---
+
+/// Get a pole from a 2D Bezier curve (1-based index).
+void OCCTCurve2DBezierGetPole(OCCTCurve2DRef _Nonnull curve, int32_t index,
+                              double* _Nonnull x, double* _Nonnull y);
+
+/// Set a pole on a 2D Bezier curve (1-based index).
+bool OCCTCurve2DBezierSetPole(OCCTCurve2DRef _Nonnull curve, int32_t index,
+                              double x, double y);
+
+/// Set a weight on a 2D Bezier curve (1-based index).
+bool OCCTCurve2DBezierSetWeight(OCCTCurve2DRef _Nonnull curve, int32_t index, double weight);
+
+/// Degree of a 2D Bezier curve.
+int32_t OCCTCurve2DBezierDegree(OCCTCurve2DRef _Nonnull curve);
+
+/// Number of poles of a 2D Bezier curve.
+int32_t OCCTCurve2DBezierPoleCount(OCCTCurve2DRef _Nonnull curve);
+
+/// Check if a 2D Bezier curve is rational.
+bool OCCTCurve2DBezierIsRational(OCCTCurve2DRef _Nonnull curve);
+
+/// Compute parameter resolution from 2D tolerance for a 2D Bezier curve.
+double OCCTCurve2DBezierResolution(OCCTCurve2DRef _Nonnull curve, double tolerance);
+
+// --- Curve2D BSpline extras ---
+
+/// Set periodic/non-periodic on a 2D BSpline curve.
+bool OCCTCurve2DBSplineSetPeriodic(OCCTCurve2DRef _Nonnull curve, bool periodic);
+
+/// Get weight at index (1-based) from a 2D BSpline curve.
+double OCCTCurve2DBSplineGetWeight(OCCTCurve2DRef _Nonnull curve, int32_t index);
+
+/// Get all weights from a 2D BSpline curve (caller allocates array of size PoleCount).
+void OCCTCurve2DBSplineGetWeights(OCCTCurve2DRef _Nonnull curve, double* _Nonnull weights);
+
+// --- BSplineSurface extras ---
+
+/// Compute U and V parameter resolution for a given 3D tolerance.
+void OCCTSurfaceBSplineResolution(OCCTSurfaceRef _Nonnull surface, double tolerance3d,
+                                  double* _Nonnull uResolution, double* _Nonnull vResolution);
+
+/// Set U periodic on a BSpline surface.
+bool OCCTSurfaceBSplineSetUPeriodic(OCCTSurfaceRef _Nonnull surface, bool periodic);
+
+/// Set V periodic on a BSpline surface.
+bool OCCTSurfaceBSplineSetVPeriodic(OCCTSurfaceRef _Nonnull surface, bool periodic);
+
+/// Get a weight from a BSpline surface (1-based indices).
+double OCCTSurfaceBSplineGetWeight(OCCTSurfaceRef _Nonnull surface, int32_t uIndex, int32_t vIndex);
+
 #ifdef __cplusplus
 }
 #endif

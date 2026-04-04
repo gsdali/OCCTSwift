@@ -447,7 +447,14 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **TopExp Extras** | 1 | commonVertex |
 | **BRep_Tool Extras** | 5 | edgeSameParameter, edgeSameRange, faceNaturalRestriction, edgeIsGeometric, faceIsGeometric |
 | **Sewing Extras** | 2 | multipleEdgeCount, multipleEdge(at:) |
-| **Total** | **2912** | |
+| **BREP Serialization** | 2 | toBREPString, fromBREPString |
+| **Plane Geometry** | 3 | PlaneGeometry.distanceToPoint, distanceToLine, containsPoint |
+| **Line Geometry** | 3 | LineGeometry.distanceToPoint, distanceToLine, containsPoint |
+| **Bezier Surface** | 11 | bezierProperties (nbUPoles, nbVPoles, uDegree, vDegree, pole, setPole, setWeight, segment, isURational, isVRational, exchangeUV) |
+| **Curve2D Bezier** | 7 | bezierProperties (degree, poleCount, isRational, pole, setPole, setWeight, resolution) |
+| **Curve2D BSpline Extras** | 3 | bsplineSetPeriodic, bsplineWeight, bsplineWeights |
+| **BSplineSurface Extras** | 4 | bsplineResolution, bsplineSetUPeriodic, bsplineSetVPeriodic, bsplineWeight |
+| **Total** | **2945** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1739,6 +1746,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.119.0: BREP string serialization, gp_Pln/gp_Lin distance/contains, Geom_BezierSurface queries/mutations, Curve2D Bezier properties, Curve2D BSpline extras, BSplineSurface resolution/periodicity/weight (2945 ops, 3015 tests)
 > - v0.118.0: BRepBndLib shape bounding boxes (AABB, optimal, OBB detailed), ShapeAnalysis_ShapeTolerance (min/max/avg/over/inRange), BRepAlgoAPI_Check boolean validation, BRepAlgoAPI_Defeaturing feature removal, Convert_CompPolynomialToPoles, gp_Trsf matrix transform/displacement/transformation, TopExp common vertex, BRep_Tool edge/face flags (SameParameter/SameRange/NaturalRestriction/IsGeometric), Sewing multiple edges (2912 ops, 2982 tests)
 > - v0.117.0: MathPoly rc4 polynomial solvers (Linear/Quadratic/Cubic/Quartic), MathInteg rc4 numerical integration (Gauss/Kronrod/TanhSinh adaptive), UnitsMethods length unit conversion, LProp3d curve/surface local properties (curvature/tangent/normal/directions via adaptor), ProjLib surface projectors (line/circle on plane/cylinder) (2890 ops, 2943 tests)
 > - v0.116.0: HelixGeom helix construction (rc4: BuilderHelix, BuilderHelixCoil, HelixCurve, Tools), gp_Ax3 coordinate system (create, angle, coplanar, mirror, rotate, translate), gp_GTrsf2d affinity/multiply/invert/transform, gp_Mat2d 2x2 matrix (identity, rotation, scale, determinant, invert, multiply, transpose), quaternion interpolation (SLERP, NLERP, transform lerp), gp_XY/gp_XYZ vector math (modulus, cross, dot, dotCross, normalize), math solvers (BracketedRoot, BracketMinimum, FRPR conjugate gradient, FunctionAllRoots, GaussLeastSquare, NewtonFunctionRoot, Uzawa constrained optimization, EigenValuesSearcher, KronrodSingleIntegration, GaussMultipleIntegration, GaussSetIntegration) (2869 ops, 2918 tests)

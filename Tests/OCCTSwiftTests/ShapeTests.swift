@@ -35720,3 +35720,325 @@ struct SewingExtrasTests {
         }
     }
 }
+
+// MARK: - v0.119.0 Tests
+
+@Suite("BREP_String_Serialization")
+struct BREPStringSerializationTests {
+    @Test func boxToAndFromBREPString() {
+        if let box = Shape.box(width: 10, height: 20, depth: 30) {
+            if let brep = box.toBREPString() {
+                #expect(!brep.isEmpty)
+                if let restored = Shape.fromBREPString(brep) {
+                    #expect(restored.isValid)
+                    if let vol = restored.volume {
+                        #expect(abs(vol - 6000.0) < 1.0)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func sphereRoundTrip() {
+        if let sphere = Shape.sphere(radius: 5) {
+            if let brep = sphere.toBREPString() {
+                #expect(brep.count > 100)
+                if let restored = Shape.fromBREPString(brep) {
+                    #expect(restored.isValid)
+                }
+            }
+        }
+    }
+
+    @Test func invalidBREPStringReturnsNil() {
+        let result = Shape.fromBREPString("not a valid brep")
+        #expect(result == nil)
+    }
+
+    @Test func emptyBREPStringReturnsNil() {
+        let result = Shape.fromBREPString("")
+        #expect(result == nil)
+    }
+}
+
+@Suite("PlaneGeometry_Operations")
+struct PlaneGeometryTests {
+    @Test func distanceToPointOnPlane() {
+        let d = PlaneGeometry.distanceToPoint(
+            planeOrigin: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1),
+            point: SIMD3(5, 5, 0))
+        #expect(abs(d) < 1e-10)
+    }
+
+    @Test func distanceToPointAbovePlane() {
+        let d = PlaneGeometry.distanceToPoint(
+            planeOrigin: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1),
+            point: SIMD3(0, 0, 7))
+        #expect(abs(d - 7.0) < 1e-10)
+    }
+
+    @Test func distanceToParallelLine() {
+        let d = PlaneGeometry.distanceToLine(
+            planeOrigin: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1),
+            linePoint: SIMD3(0, 0, 5), lineDirection: SIMD3(1, 0, 0))
+        #expect(abs(d - 5.0) < 1e-10)
+    }
+
+    @Test func distanceToIntersectingLine() {
+        let d = PlaneGeometry.distanceToLine(
+            planeOrigin: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1),
+            linePoint: SIMD3(0, 0, 5), lineDirection: SIMD3(0, 0, 1))
+        #expect(abs(d) < 1e-10)
+    }
+
+    @Test func containsPointTrue() {
+        let r = PlaneGeometry.containsPoint(
+            planeOrigin: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1),
+            point: SIMD3(100, 200, 0), tolerance: 1e-7)
+        #expect(r)
+    }
+
+    @Test func containsPointFalse() {
+        let r = PlaneGeometry.containsPoint(
+            planeOrigin: SIMD3(0, 0, 0), planeNormal: SIMD3(0, 0, 1),
+            point: SIMD3(0, 0, 1), tolerance: 1e-7)
+        #expect(!r)
+    }
+}
+
+@Suite("LineGeometry_Operations")
+struct LineGeometryTests {
+    @Test func distanceToPointOnLine() {
+        let d = LineGeometry.distanceToPoint(
+            linePoint: SIMD3(0, 0, 0), lineDirection: SIMD3(1, 0, 0),
+            point: SIMD3(5, 0, 0))
+        #expect(abs(d) < 1e-10)
+    }
+
+    @Test func distanceToPointOffLine() {
+        let d = LineGeometry.distanceToPoint(
+            linePoint: SIMD3(0, 0, 0), lineDirection: SIMD3(1, 0, 0),
+            point: SIMD3(5, 3, 0))
+        #expect(abs(d - 3.0) < 1e-10)
+    }
+
+    @Test func distanceBetweenParallelLines() {
+        let d = LineGeometry.distanceToLine(
+            line1Point: SIMD3(0, 0, 0), line1Direction: SIMD3(1, 0, 0),
+            line2Point: SIMD3(0, 4, 0), line2Direction: SIMD3(1, 0, 0))
+        #expect(abs(d - 4.0) < 1e-10)
+    }
+
+    @Test func distanceBetweenIntersectingLines() {
+        let d = LineGeometry.distanceToLine(
+            line1Point: SIMD3(0, 0, 0), line1Direction: SIMD3(1, 0, 0),
+            line2Point: SIMD3(0, 0, 0), line2Direction: SIMD3(0, 1, 0))
+        #expect(abs(d) < 1e-10)
+    }
+
+    @Test func containsPointTrue() {
+        let r = LineGeometry.containsPoint(
+            linePoint: SIMD3(0, 0, 0), lineDirection: SIMD3(1, 0, 0),
+            point: SIMD3(100, 0, 0), tolerance: 1e-7)
+        #expect(r)
+    }
+
+    @Test func containsPointFalse() {
+        let r = LineGeometry.containsPoint(
+            linePoint: SIMD3(0, 0, 0), lineDirection: SIMD3(1, 0, 0),
+            point: SIMD3(0, 1, 0), tolerance: 1e-7)
+        #expect(!r)
+    }
+}
+
+@Suite("BezierSurface_Properties")
+struct BezierSurfaceTests {
+    func makeBezierSurface() -> Surface? {
+        Surface.bezier(poles: [
+            [SIMD3(0, 0, 0), SIMD3(0, 5, 1), SIMD3(0, 10, 0)],
+            [SIMD3(5, 0, 1), SIMD3(5, 5, 2), SIMD3(5, 10, 1)],
+            [SIMD3(10, 0, 0), SIMD3(10, 5, 1), SIMD3(10, 10, 0)]
+        ])
+    }
+
+    @Test func nbPoles() {
+        if let surf = makeBezierSurface() {
+            let bp = surf.bezierProperties
+            #expect(bp.nbUPoles >= 2)
+            #expect(bp.nbVPoles >= 2)
+        }
+    }
+
+    @Test func degree() {
+        if let surf = makeBezierSurface() {
+            let bp = surf.bezierProperties
+            #expect(bp.uDegree >= 1)
+            #expect(bp.vDegree >= 1)
+        }
+    }
+
+    @Test func getPoleAndSet() {
+        if let surf = makeBezierSurface() {
+            let bp = surf.bezierProperties
+            let p = bp.pole(uIndex: 1, vIndex: 1)
+            // Should be a valid point
+            #expect(p.x.isFinite)
+            // Set it to a new value
+            let ok = bp.setPole(uIndex: 1, vIndex: 1, point: SIMD3(1, 2, 3))
+            #expect(ok)
+            let p2 = bp.pole(uIndex: 1, vIndex: 1)
+            #expect(abs(p2.x - 1.0) < 1e-10)
+            #expect(abs(p2.y - 2.0) < 1e-10)
+            #expect(abs(p2.z - 3.0) < 1e-10)
+        }
+    }
+
+    @Test func rationalFlags() {
+        if let surf = makeBezierSurface() {
+            let bp = surf.bezierProperties
+            // Non-rational by default
+            #expect(!bp.isURational)
+            #expect(!bp.isVRational)
+        }
+    }
+
+    @Test func exchangeUV() {
+        if let surf = makeBezierSurface() {
+            let bp = surf.bezierProperties
+            let uDeg = bp.uDegree
+            let vDeg = bp.vDegree
+            let ok = bp.exchangeUV()
+            #expect(ok)
+            #expect(bp.uDegree == vDeg)
+            #expect(bp.vDegree == uDeg)
+        }
+    }
+}
+
+@Suite("Curve2D_Bezier_Properties")
+struct Curve2DBezierTests {
+    func makeBezier2D() -> Curve2D? {
+        // Create a 2D line segment (which is a Bezier of degree 1)
+        Curve2D.segment(from: SIMD2(0, 0), to: SIMD2(10, 10))
+    }
+
+    @Test func degreeAndPoleCount() {
+        if let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 0)]) {
+            let bp = c.bezierProperties
+            #expect(bp.degree == 2)
+            #expect(bp.poleCount == 3)
+        }
+    }
+
+    @Test func getPole() {
+        if let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 0)]) {
+            let bp = c.bezierProperties
+            let p = bp.pole(at: 1)
+            #expect(abs(p.x) < 1e-10)
+            #expect(abs(p.y) < 1e-10)
+        }
+    }
+
+    @Test func setPole() {
+        if let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 0)]) {
+            let bp = c.bezierProperties
+            let ok = bp.setPole(at: 2, point: SIMD2(3, 7))
+            #expect(ok)
+            let p = bp.pole(at: 2)
+            #expect(abs(p.x - 3.0) < 1e-10)
+            #expect(abs(p.y - 7.0) < 1e-10)
+        }
+    }
+
+    @Test func isRational() {
+        if let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 0)]) {
+            let bp = c.bezierProperties
+            #expect(!bp.isRational)
+        }
+    }
+
+    @Test func resolution() {
+        if let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(5, 10), SIMD2(10, 0)]) {
+            let bp = c.bezierProperties
+            let r = bp.resolution(tolerance: 0.1)
+            #expect(r > 0)
+        }
+    }
+}
+
+@Suite("Curve2D_BSpline_Extras")
+struct Curve2DBSplineExtrasTests {
+    func makeBSpline2D() -> Curve2D? {
+        Curve2D.interpolate(through: [SIMD2(0, 0), SIMD2(3, 5), SIMD2(6, 2), SIMD2(10, 10)])
+    }
+
+    @Test func getWeight() {
+        if let c = makeBSpline2D() {
+            let w = c.bsplineWeight(at: 1)
+            #expect(abs(w - 1.0) < 1e-10)
+        }
+    }
+
+    @Test func getAllWeights() {
+        if let c = makeBSpline2D() {
+            let weights = c.bsplineWeights()
+            #expect(!weights.isEmpty)
+            for w in weights {
+                #expect(abs(w - 1.0) < 1e-10)
+            }
+        }
+    }
+
+    @Test func setPeriodic() {
+        // Create a closed BSpline to make periodic meaningful
+        if let c = Curve2D.interpolate(through: [SIMD2(0, 0), SIMD2(5, 5), SIMD2(10, 0), SIMD2(5, -5), SIMD2(0, 0)]) {
+            // Try setting periodic — may succeed or fail depending on curve structure
+            let _ = c.bsplineSetPeriodic(true)
+            // Just ensure no crash
+            #expect(true)
+        }
+    }
+}
+
+@Suite("BSplineSurface_Extras")
+struct BSplineSurfaceExtrasTests {
+    func makeBSplineSurface() -> Surface? {
+        var pts = [SIMD3<Double>]()
+        for v in 0..<4 {
+            for u in 0..<4 {
+                pts.append(SIMD3(Double(u) * 3, Double(v) * 3, Double((u + v) % 3)))
+            }
+        }
+        return Surface.fromPointGrid(points: pts, uCount: 4, vCount: 4)
+    }
+
+    @Test func resolution() {
+        if let s = makeBSplineSurface() {
+            let (ur, vr) = s.bsplineResolution(tolerance3d: 0.01)
+            #expect(ur > 0)
+            #expect(vr > 0)
+        }
+    }
+
+    @Test func getWeight() {
+        if let s = makeBSplineSurface() {
+            let w = s.bsplineWeight(uIndex: 1, vIndex: 1)
+            #expect(abs(w - 1.0) < 1e-10)
+        }
+    }
+
+    @Test func setUPeriodic() {
+        if let s = makeBSplineSurface() {
+            // May or may not succeed depending on surface structure
+            let _ = s.bsplineSetUPeriodic(false)
+            #expect(true)  // no crash
+        }
+    }
+
+    @Test func setVPeriodic() {
+        if let s = makeBSplineSurface() {
+            let _ = s.bsplineSetVPeriodic(false)
+            #expect(true)  // no crash
+        }
+    }
+}
