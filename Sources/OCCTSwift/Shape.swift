@@ -8814,9 +8814,10 @@ extension Shape {
     ///
     /// - Parameters:
     ///   - gluedShape: Shape to glue.
-    ///   - facePairs: Matching face pairs (base from this shape, glued from gluedShape).
+    ///   - facePairs: At least one matching face pair required (base from this shape, glued from gluedShape).
+    ///     Empty array will return nil.
     ///   - edgePairs: Optional matching edge pairs for precise alignment.
-    /// - Returns: Result shape, or nil on failure.
+    /// - Returns: Result shape, or nil on failure (including empty facePairs).
     public func locOpeGlue(_ gluedShape: Shape,
                            facePairs: [(base: Shape, glued: Shape)],
                            edgePairs: [(base: Shape, glued: Shape)] = []) -> Shape? {
@@ -8852,11 +8853,16 @@ extension Shape {
 
     /// Add a 2D fillet at a vertex on a planar face.
     ///
-    /// Uses ChFi2d_Builder to create a fillet arc at the given vertex.
+    /// This operation works exclusively on **planar faces**, not solids.
+    /// To fillet a vertex on a solid, first extract the face:
+    /// ```swift
+    /// let face = solid.subShapes(ofType: .face)[faceIndex]
+    /// let filleted = face.addFillet2d(vertexIndex: 0, radius: 1.0)
+    /// ```
     /// - Parameters:
     ///   - vertexIndex: 0-based index of the vertex to fillet.
     ///   - radius: Fillet radius.
-    /// - Returns: Result face with fillet, or nil on failure.
+    /// - Returns: Result face with fillet, or nil if shape is not a planar face.
     public func addFillet2d(vertexIndex: Int, radius: Double) -> Shape? {
         guard let ref = OCCTChFi2dAddFillet(handle, Int32(vertexIndex), radius) else { return nil }
         return Shape(handle: ref)
@@ -8864,13 +8870,18 @@ extension Shape {
 
     /// Add a 2D chamfer between two edges on a planar face.
     ///
-    /// Uses ChFi2d_Builder with two distances.
+    /// This operation works exclusively on **planar faces**, not solids.
+    /// To chamfer edges on a solid, first extract the face:
+    /// ```swift
+    /// let face = solid.subShapes(ofType: .face)[faceIndex]
+    /// let chamfered = face.addChamfer2d(edge1Index: 0, edge2Index: 1, d1: 1.0, d2: 0.5)
+    /// ```
     /// - Parameters:
     ///   - edge1Index: 0-based index of first edge.
     ///   - edge2Index: 0-based index of second edge.
     ///   - d1: Distance on first edge.
     ///   - d2: Distance on second edge.
-    /// - Returns: Result face with chamfer, or nil on failure.
+    /// - Returns: Result face with chamfer, or nil if shape is not a planar face.
     public func addChamfer2d(edge1Index: Int, edge2Index: Int, d1: Double, d2: Double) -> Shape? {
         guard let ref = OCCTChFi2dAddChamfer(handle, Int32(edge1Index), Int32(edge2Index), d1, d2) else { return nil }
         return Shape(handle: ref)

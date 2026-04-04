@@ -8,6 +8,12 @@
 #ifndef OCCTBridge_h
 #define OCCTBridge_h
 
+// Suppress nullability-completeness warnings. This header mixes annotated and
+// unannotated pointer declarations across ~17K lines. Full annotation would
+// require changing thousands of lines and altering the Swift import surface.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnullability-completeness"
+
 #import <Foundation/Foundation.h>
 
 // MARK: - OCCT Class Cross-Reference Index
@@ -17363,5 +17369,7 @@ int32_t OCCTCurve2DBSplineMaxDegree(void);
 #ifdef __cplusplus
 }
 #endif
+
+#pragma clang diagnostic pop
 
 #endif /* OCCTBridge_h */
