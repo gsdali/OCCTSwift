@@ -14157,3 +14157,369 @@ extension Shape {
         OCCTDirIsNormal(d1.x, d1.y, d1.z, d2.x, d2.y, d2.z, tolerance)
     }
 }
+
+// =============================================================================
+// MARK: - v0.121.0: BSpline completions, FilletBuilder, ChamferBuilder
+// =============================================================================
+
+// --- BSplineSurface completions ---
+
+extension Surface {
+
+    /// Remove U periodicity from BSpline surface.
+    @discardableResult
+    public func bsplineSetUNotPeriodic() -> Bool {
+        OCCTSurfaceBSplineSetUNotPeriodic(handle)
+    }
+
+    /// Remove V periodicity from BSpline surface.
+    @discardableResult
+    public func bsplineSetVNotPeriodic() -> Bool {
+        OCCTSurfaceBSplineSetVNotPeriodic(handle)
+    }
+
+    /// Set origin knot index in U direction (1-based).
+    @discardableResult
+    public func bsplineSetUOrigin(index: Int) -> Bool {
+        OCCTSurfaceBSplineSetUOrigin(handle, Int32(index))
+    }
+
+    /// Set origin knot index in V direction (1-based).
+    @discardableResult
+    public func bsplineSetVOrigin(index: Int) -> Bool {
+        OCCTSurfaceBSplineSetVOrigin(handle, Int32(index))
+    }
+
+    /// Increase U multiplicity at knot index to at least mult (1-based).
+    @discardableResult
+    public func bsplineIncreaseUMultiplicity(index: Int, multiplicity: Int) -> Bool {
+        OCCTSurfaceBSplineIncreaseUMultiplicity(handle, Int32(index), Int32(multiplicity))
+    }
+
+    /// Increase V multiplicity at knot index to at least mult (1-based).
+    @discardableResult
+    public func bsplineIncreaseVMultiplicity(index: Int, multiplicity: Int) -> Bool {
+        OCCTSurfaceBSplineIncreaseVMultiplicity(handle, Int32(index), Int32(multiplicity))
+    }
+
+    /// Batch insert U knots with multiplicities.
+    @discardableResult
+    public func bsplineInsertUKnots(_ knots: [Double], multiplicities: [Int], tolerance: Double = 1e-10) -> Bool {
+        let count = min(knots.count, multiplicities.count)
+        guard count > 0 else { return false }
+        let mults = multiplicities.map { Int32($0) }
+        return OCCTSurfaceBSplineInsertUKnots(handle, knots, mults, Int32(count), tolerance)
+    }
+
+    /// Batch insert V knots with multiplicities.
+    @discardableResult
+    public func bsplineInsertVKnots(_ knots: [Double], multiplicities: [Int], tolerance: Double = 1e-10) -> Bool {
+        let count = min(knots.count, multiplicities.count)
+        guard count > 0 else { return false }
+        let mults = multiplicities.map { Int32($0) }
+        return OCCTSurfaceBSplineInsertVKnots(handle, knots, mults, Int32(count), tolerance)
+    }
+
+    /// Move BSpline surface to pass through point at (u,v), adjusting poles in range.
+    @discardableResult
+    public func bsplineMovePoint(u: Double, v: Double, to point: SIMD3<Double>,
+                                 uPoleRange: ClosedRange<Int>, vPoleRange: ClosedRange<Int>) -> Bool {
+        OCCTSurfaceBSplineMovePoint(handle, u, v, point.x, point.y, point.z,
+                                     Int32(uPoleRange.lowerBound), Int32(uPoleRange.upperBound),
+                                     Int32(vPoleRange.lowerBound), Int32(vPoleRange.upperBound))
+    }
+
+    /// Set an entire column of poles (all U poles at vIndex, 1-based). coords is [x,y,z,...] with count = NbUPoles.
+    @discardableResult
+    public func bsplineSetPoleCol(vIndex: Int, poles: [SIMD3<Double>]) -> Bool {
+        let coords = poles.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTSurfaceBSplineSetPoleCol(handle, Int32(vIndex), coords, Int32(poles.count))
+    }
+
+    /// Set an entire row of poles (all V poles at uIndex, 1-based). coords is [x,y,z,...] with count = NbVPoles.
+    @discardableResult
+    public func bsplineSetPoleRow(uIndex: Int, poles: [SIMD3<Double>]) -> Bool {
+        let coords = poles.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTSurfaceBSplineSetPoleRow(handle, Int32(uIndex), coords, Int32(poles.count))
+    }
+}
+
+// --- BSplineCurve 3D completions ---
+
+extension Curve3D {
+
+    /// Remove periodicity from BSpline curve.
+    @discardableResult
+    public func bsplineSetNotPeriodic() -> Bool {
+        OCCTCurve3DBSplineSetNotPeriodic(handle)
+    }
+
+    /// Set origin knot index (1-based) on periodic BSpline curve.
+    @discardableResult
+    public func bsplineSetOrigin(index: Int) -> Bool {
+        OCCTCurve3DBSplineSetOrigin(handle, Int32(index))
+    }
+
+    /// Increase multiplicity of knot at index to at least mult (1-based).
+    @discardableResult
+    public func bsplineIncreaseMultiplicity(index: Int, multiplicity: Int) -> Bool {
+        OCCTCurve3DBSplineIncreaseMultiplicity(handle, Int32(index), Int32(multiplicity))
+    }
+
+    /// Increment multiplicity of all knots from index1 to index2 by step (1-based).
+    @discardableResult
+    public func bsplineIncrementMultiplicity(from: Int, to: Int, step: Int = 1) -> Bool {
+        OCCTCurve3DBSplineIncrementMultiplicity(handle, Int32(from), Int32(to), Int32(step))
+    }
+
+    /// Set all knot values at once (count must match NbKnots).
+    @discardableResult
+    public func bsplineSetKnots(_ knots: [Double]) -> Bool {
+        OCCTCurve3DBSplineSetKnots(handle, knots, Int32(knots.count))
+    }
+
+    /// Reverse parameterization of BSpline curve.
+    @discardableResult
+    public func bsplineReverse() -> Bool {
+        OCCTCurve3DBSplineReverse(handle)
+    }
+
+    /// Move point and tangent at parameter u on BSpline curve.
+    @discardableResult
+    public func bsplineMovePointAndTangent(u: Double, point: SIMD3<Double>, tangent: SIMD3<Double>,
+                                           tolerance: Double, poleRange: ClosedRange<Int>) -> Bool {
+        OCCTCurve3DBSplineMovePointAndTangent(handle, u, point.x, point.y, point.z,
+                                               tangent.x, tangent.y, tangent.z,
+                                               tolerance,
+                                               Int32(poleRange.lowerBound), Int32(poleRange.upperBound))
+    }
+}
+
+// --- BSplineCurve 2D completions ---
+
+extension Curve2D {
+
+    /// Remove periodicity from 2D BSpline curve.
+    @discardableResult
+    public func bsplineSetNotPeriodic() -> Bool {
+        OCCTCurve2DBSplineSetNotPeriodic(handle)
+    }
+
+    /// Set origin knot index (1-based) on periodic 2D BSpline curve.
+    @discardableResult
+    public func bsplineSetOrigin(index: Int) -> Bool {
+        OCCTCurve2DBSplineSetOrigin(handle, Int32(index))
+    }
+
+    /// Increase multiplicity of knot at index to at least mult (1-based).
+    @discardableResult
+    public func bsplineIncreaseMultiplicity(index: Int, multiplicity: Int) -> Bool {
+        OCCTCurve2DBSplineIncreaseMultiplicity(handle, Int32(index), Int32(multiplicity))
+    }
+
+    /// Increment multiplicity of all knots from index1 to index2 by step (1-based).
+    @discardableResult
+    public func bsplineIncrementMultiplicity(from: Int, to: Int, step: Int = 1) -> Bool {
+        OCCTCurve2DBSplineIncrementMultiplicity(handle, Int32(from), Int32(to), Int32(step))
+    }
+
+    /// Set all knot values at once (count must match NbKnots).
+    @discardableResult
+    public func bsplineSetKnots(_ knots: [Double]) -> Bool {
+        OCCTCurve2DBSplineSetKnots(handle, knots, Int32(knots.count))
+    }
+
+    /// Reverse parameterization of 2D BSpline curve.
+    @discardableResult
+    public func bsplineReverse() -> Bool {
+        OCCTCurve2DBSplineReverse(handle)
+    }
+
+    /// Move point and tangent at parameter u on 2D BSpline curve.
+    @discardableResult
+    public func bsplineMovePointAndTangent(u: Double, point: SIMD2<Double>, tangent: SIMD2<Double>,
+                                           tolerance: Double, poleRange: ClosedRange<Int>) -> Bool {
+        OCCTCurve2DBSplineMovePointAndTangent(handle, u, point.x, point.y,
+                                               tangent.x, tangent.y,
+                                               tolerance,
+                                               Int32(poleRange.lowerBound), Int32(poleRange.upperBound))
+    }
+}
+
+// --- FilletBuilder ---
+
+/// Builder for creating fillets on edges of a shape, wrapping BRepFilletAPI_MakeFillet.
+public final class FilletBuilder: @unchecked Sendable {
+    private let handle: OCCTFilletBuilderRef
+
+    /// Create a fillet builder on the given shape.
+    public init?(shape: Shape) {
+        guard let ref = OCCTFilletBuilderCreate(shape.handle) else { return nil }
+        self.handle = ref
+    }
+
+    deinit { OCCTFilletBuilderRelease(handle) }
+
+    /// Add an edge with constant fillet radius.
+    @discardableResult
+    public func addEdge(_ edge: Edge, radius: Double) -> Bool {
+        OCCTFilletBuilderAddEdge(handle, edge.handle, radius)
+    }
+
+    /// Add an edge with evolving fillet radius (r1 at start, r2 at end).
+    @discardableResult
+    public func addEdge(_ edge: Edge, radius1: Double, radius2: Double) -> Bool {
+        OCCTFilletBuilderAddEdgeEvolving(handle, edge.handle, radius1, radius2)
+    }
+
+    /// Build the filleted result.
+    public func build() -> Shape? {
+        guard let ref = OCCTFilletBuilderBuild(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Number of contours.
+    public var contourCount: Int { Int(OCCTFilletBuilderNbContours(handle)) }
+
+    /// Number of edges in a contour (1-based index).
+    public func edgeCount(contour: Int) -> Int {
+        Int(OCCTFilletBuilderNbEdges(handle, Int32(contour)))
+    }
+
+    /// Whether the builder has a result (may be partial).
+    public var hasResult: Bool { OCCTFilletBuilderHasResult(handle) }
+
+    /// Get the shape that caused failure (if any).
+    public var badShape: Shape? {
+        guard let ref = OCCTFilletBuilderBadShape(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Number of faulty contours.
+    public var faultyContourCount: Int { Int(OCCTFilletBuilderNbFaultyContours(handle)) }
+
+    /// Number of faulty vertices.
+    public var faultyVertexCount: Int { Int(OCCTFilletBuilderNbFaultyVertices(handle)) }
+
+    /// Get radius of a contour (1-based index).
+    public func radius(contour: Int) -> Double {
+        OCCTFilletBuilderGetRadius(handle, Int32(contour))
+    }
+
+    /// Get length of a contour (1-based index).
+    public func length(contour: Int) -> Double {
+        OCCTFilletBuilderGetLength(handle, Int32(contour))
+    }
+
+    /// Whether a contour has constant radius (1-based index).
+    public func isConstant(contour: Int) -> Bool {
+        OCCTFilletBuilderIsConstant(handle, Int32(contour))
+    }
+
+    /// Remove an edge from its contour.
+    @discardableResult
+    public func removeEdge(_ edge: Edge) -> Bool {
+        OCCTFilletBuilderRemoveEdge(handle, edge.handle)
+    }
+
+    /// Reset all contours.
+    public func reset() {
+        OCCTFilletBuilderReset(handle)
+    }
+}
+
+// --- ChamferBuilder ---
+
+/// Builder for creating chamfers on edges of a shape, wrapping BRepFilletAPI_MakeChamfer.
+public final class ChamferBuilder: @unchecked Sendable {
+    private let handle: OCCTChamferBuilderRef
+
+    /// Create a chamfer builder on the given shape.
+    public init?(shape: Shape) {
+        guard let ref = OCCTChamferBuilderCreate(shape.handle) else { return nil }
+        self.handle = ref
+    }
+
+    deinit { OCCTChamferBuilderRelease(handle) }
+
+    /// Add an edge with symmetric chamfer distance.
+    @discardableResult
+    public func addEdge(_ edge: Edge, distance: Double) -> Bool {
+        OCCTChamferBuilderAddEdge(handle, edge.handle, distance)
+    }
+
+    /// Add an edge with two distances (requires face for orientation).
+    @discardableResult
+    public func addEdge(_ edge: Edge, face: Face, distance1: Double, distance2: Double) -> Bool {
+        OCCTChamferBuilderAddEdgeTwoDists(handle, edge.handle, face.handle, distance1, distance2)
+    }
+
+    /// Add an edge with distance and angle (requires face for orientation).
+    @discardableResult
+    public func addEdge(_ edge: Edge, face: Face, distance: Double, angle: Double) -> Bool {
+        OCCTChamferBuilderAddEdgeDistAngle(handle, edge.handle, face.handle, distance, angle)
+    }
+
+    /// Build the chamfered result.
+    public func build() -> Shape? {
+        guard let ref = OCCTChamferBuilderBuild(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Number of contours.
+    public var contourCount: Int { Int(OCCTChamferBuilderNbContours(handle)) }
+
+    /// Whether a contour uses distance-angle mode (1-based index).
+    public func isDistanceAngle(contour: Int) -> Bool {
+        OCCTChamferBuilderIsDistAngle(handle, Int32(contour))
+    }
+}
+
+// MARK: - GLTF Import/Export (v0.121.0)
+
+extension Shape {
+    /// Load a shape from a GLTF or GLB file.
+    public static func loadGLTF(fromPath path: String) -> Shape? {
+        guard let ref = OCCTImportGLTF(path) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Load a shape from a GLTF or GLB file URL.
+    public static func loadGLTF(from url: URL) -> Shape? {
+        loadGLTF(fromPath: url.path)
+    }
+}
+
+extension Exporter {
+    /// Export a shape to GLTF or GLB format.
+    /// - Parameters:
+    ///   - shape: Shape to export (will be meshed internally).
+    ///   - url: Output file URL (.gltf or .glb).
+    ///   - binary: If true, writes binary GLB. If false, writes text GLTF.
+    ///   - deflection: Mesh deflection tolerance.
+    public static func writeGLTF(shape: Shape, to url: URL, binary: Bool = true, deflection: Double = 0.1) throws {
+        let ok = OCCTExportGLTF(shape.handle, url.path, binary, deflection)
+        if !ok { throw Exporter.ExportError.exportFailed("GLTF export to \(url.lastPathComponent) failed") }
+    }
+}
+
+extension Document {
+    /// Load a GLTF/GLB file into an XDE document (preserves names, materials, colors).
+    public static func loadGLTF(fromPath path: String) -> Document? {
+        guard let ref = OCCTDocumentLoadGLTF(path) else { return nil }
+        return Document(handle: ref)
+    }
+
+    /// Load a GLTF/GLB file into an XDE document.
+    public static func loadGLTF(from url: URL) -> Document? {
+        loadGLTF(fromPath: url.path)
+    }
+
+    /// Write this XDE document to GLTF/GLB format.
+    /// - Parameters:
+    ///   - url: Output file URL (.gltf or .glb).
+    ///   - binary: If true, writes binary GLB. If false, writes text GLTF.
+    public func writeGLTF(to url: URL, binary: Bool = true) -> Bool {
+        OCCTDocumentWriteGLTF(handle, url.path, binary)
+    }
+}

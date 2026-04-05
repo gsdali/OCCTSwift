@@ -17366,6 +17366,218 @@ int32_t OCCTSurfaceBSplineMaxDegree(void);
 /// Get the maximum degree for 2D BSpline curves (static).
 int32_t OCCTCurve2DBSplineMaxDegree(void);
 
+// =============================================================================
+// MARK: - v0.121.0: BSpline completions, FilletBuilder, ChamferBuilder
+// =============================================================================
+
+// --- BSplineSurface completions ---
+
+/// Remove U periodicity from BSpline surface.
+bool OCCTSurfaceBSplineSetUNotPeriodic(OCCTSurfaceRef _Nonnull surface);
+
+/// Remove V periodicity from BSpline surface.
+bool OCCTSurfaceBSplineSetVNotPeriodic(OCCTSurfaceRef _Nonnull surface);
+
+/// Set origin knot index in U direction (1-based).
+bool OCCTSurfaceBSplineSetUOrigin(OCCTSurfaceRef _Nonnull surface, int32_t index);
+
+/// Set origin knot index in V direction (1-based).
+bool OCCTSurfaceBSplineSetVOrigin(OCCTSurfaceRef _Nonnull surface, int32_t index);
+
+/// Increase U multiplicity at knot index to at least mult (1-based).
+bool OCCTSurfaceBSplineIncreaseUMultiplicity(OCCTSurfaceRef _Nonnull surface, int32_t index, int32_t mult);
+
+/// Increase V multiplicity at knot index to at least mult (1-based).
+bool OCCTSurfaceBSplineIncreaseVMultiplicity(OCCTSurfaceRef _Nonnull surface, int32_t index, int32_t mult);
+
+/// Batch insert U knots with multiplicities.
+bool OCCTSurfaceBSplineInsertUKnots(OCCTSurfaceRef _Nonnull surface,
+                                     const double* _Nonnull knots,
+                                     const int32_t* _Nonnull mults,
+                                     int32_t count, double tol);
+
+/// Batch insert V knots with multiplicities.
+bool OCCTSurfaceBSplineInsertVKnots(OCCTSurfaceRef _Nonnull surface,
+                                     const double* _Nonnull knots,
+                                     const int32_t* _Nonnull mults,
+                                     int32_t count, double tol);
+
+/// Move point on BSpline surface to pass through (px,py,pz) at (u,v), adjusting poles in range.
+bool OCCTSurfaceBSplineMovePoint(OCCTSurfaceRef _Nonnull surface,
+                                  double u, double v,
+                                  double px, double py, double pz,
+                                  int32_t uIndex1, int32_t uIndex2,
+                                  int32_t vIndex1, int32_t vIndex2);
+
+/// Set an entire column of poles (all U poles at vIndex, 1-based).
+bool OCCTSurfaceBSplineSetPoleCol(OCCTSurfaceRef _Nonnull surface,
+                                   int32_t vIndex,
+                                   const double* _Nonnull coords, int32_t count);
+
+/// Set an entire row of poles (all V poles at uIndex, 1-based).
+bool OCCTSurfaceBSplineSetPoleRow(OCCTSurfaceRef _Nonnull surface,
+                                   int32_t uIndex,
+                                   const double* _Nonnull coords, int32_t count);
+
+// --- BSplineCurve 3D completions ---
+
+/// Remove periodicity from 3D BSpline curve.
+bool OCCTCurve3DBSplineSetNotPeriodic(OCCTCurve3DRef _Nonnull curve);
+
+/// Set origin knot index (1-based) on periodic 3D BSpline curve.
+bool OCCTCurve3DBSplineSetOrigin(OCCTCurve3DRef _Nonnull curve, int32_t index);
+
+/// Increase multiplicity of knot at index to at least mult (1-based).
+bool OCCTCurve3DBSplineIncreaseMultiplicity(OCCTCurve3DRef _Nonnull curve, int32_t index, int32_t mult);
+
+/// Increment multiplicity of all knots from index1 to index2 by step (1-based).
+bool OCCTCurve3DBSplineIncrementMultiplicity(OCCTCurve3DRef _Nonnull curve, int32_t index1, int32_t index2, int32_t step);
+
+/// Set all knot values at once (count must match NbKnots).
+bool OCCTCurve3DBSplineSetKnots(OCCTCurve3DRef _Nonnull curve, const double* _Nonnull knots, int32_t count);
+
+/// Reverse parameterization of 3D BSpline curve.
+bool OCCTCurve3DBSplineReverse(OCCTCurve3DRef _Nonnull curve);
+
+/// Move point and tangent at parameter u on 3D BSpline curve.
+bool OCCTCurve3DBSplineMovePointAndTangent(OCCTCurve3DRef _Nonnull curve, double u,
+                                            double px, double py, double pz,
+                                            double tx, double ty, double tz,
+                                            double tolerance,
+                                            int32_t startIndex, int32_t endIndex);
+
+// --- BSplineCurve 2D completions ---
+
+/// Remove periodicity from 2D BSpline curve.
+bool OCCTCurve2DBSplineSetNotPeriodic(OCCTCurve2DRef _Nonnull curve);
+
+/// Set origin knot index (1-based) on periodic 2D BSpline curve.
+bool OCCTCurve2DBSplineSetOrigin(OCCTCurve2DRef _Nonnull curve, int32_t index);
+
+/// Increase multiplicity of knot at index to at least mult (1-based).
+bool OCCTCurve2DBSplineIncreaseMultiplicity(OCCTCurve2DRef _Nonnull curve, int32_t index, int32_t mult);
+
+/// Increment multiplicity of all knots from index1 to index2 by step (1-based).
+bool OCCTCurve2DBSplineIncrementMultiplicity(OCCTCurve2DRef _Nonnull curve, int32_t index1, int32_t index2, int32_t step);
+
+/// Set all knot values at once (count must match NbKnots).
+bool OCCTCurve2DBSplineSetKnots(OCCTCurve2DRef _Nonnull curve, const double* _Nonnull knots, int32_t count);
+
+/// Reverse parameterization of 2D BSpline curve.
+bool OCCTCurve2DBSplineReverse(OCCTCurve2DRef _Nonnull curve);
+
+/// Move point and tangent at parameter u on 2D BSpline curve.
+bool OCCTCurve2DBSplineMovePointAndTangent(OCCTCurve2DRef _Nonnull curve, double u,
+                                            double px, double py,
+                                            double tx, double ty,
+                                            double tolerance,
+                                            int32_t startIndex, int32_t endIndex);
+
+// --- FilletBuilder (BRepFilletAPI_MakeFillet) ---
+
+typedef struct OCCTFilletBuilder* OCCTFilletBuilderRef;
+
+/// Create a fillet builder on a shape.
+OCCTFilletBuilderRef _Nullable OCCTFilletBuilderCreate(OCCTShapeRef _Nonnull shape);
+
+/// Release a fillet builder.
+void OCCTFilletBuilderRelease(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Add an edge with constant radius.
+bool OCCTFilletBuilderAddEdge(OCCTFilletBuilderRef _Nonnull builder,
+                               OCCTEdgeRef _Nonnull edge, double radius);
+
+/// Add an edge with evolving radius (r1 at start, r2 at end).
+bool OCCTFilletBuilderAddEdgeEvolving(OCCTFilletBuilderRef _Nonnull builder,
+                                       OCCTEdgeRef _Nonnull edge, double r1, double r2);
+
+/// Build the filleted result.
+OCCTShapeRef _Nullable OCCTFilletBuilderBuild(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Number of contours.
+int32_t OCCTFilletBuilderNbContours(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Number of edges in a contour (1-based index).
+int32_t OCCTFilletBuilderNbEdges(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Whether the builder has a result (may be partial).
+bool OCCTFilletBuilderHasResult(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Get the shape that caused failure (if any).
+OCCTShapeRef _Nullable OCCTFilletBuilderBadShape(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Number of faulty contours.
+int32_t OCCTFilletBuilderNbFaultyContours(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Number of faulty vertices.
+int32_t OCCTFilletBuilderNbFaultyVertices(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Get radius of a contour (1-based index).
+double OCCTFilletBuilderGetRadius(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Get length of a contour (1-based index).
+double OCCTFilletBuilderGetLength(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Whether a contour has constant radius (1-based index).
+bool OCCTFilletBuilderIsConstant(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Remove an edge from its contour.
+bool OCCTFilletBuilderRemoveEdge(OCCTFilletBuilderRef _Nonnull builder, OCCTEdgeRef _Nonnull edge);
+
+/// Reset all contours.
+void OCCTFilletBuilderReset(OCCTFilletBuilderRef _Nonnull builder);
+
+// --- ChamferBuilder (BRepFilletAPI_MakeChamfer) ---
+
+typedef struct OCCTChamferBuilder* OCCTChamferBuilderRef;
+
+/// Create a chamfer builder on a shape.
+OCCTChamferBuilderRef _Nullable OCCTChamferBuilderCreate(OCCTShapeRef _Nonnull shape);
+
+/// Release a chamfer builder.
+void OCCTChamferBuilderRelease(OCCTChamferBuilderRef _Nonnull builder);
+
+/// Add an edge with symmetric distance.
+bool OCCTChamferBuilderAddEdge(OCCTChamferBuilderRef _Nonnull builder,
+                                OCCTEdgeRef _Nonnull edge, double dist);
+
+/// Add an edge with two distances (requires face for orientation).
+bool OCCTChamferBuilderAddEdgeTwoDists(OCCTChamferBuilderRef _Nonnull builder,
+                                        OCCTEdgeRef _Nonnull edge,
+                                        OCCTFaceRef _Nonnull face,
+                                        double d1, double d2);
+
+/// Add an edge with distance and angle (requires face for orientation).
+bool OCCTChamferBuilderAddEdgeDistAngle(OCCTChamferBuilderRef _Nonnull builder,
+                                         OCCTEdgeRef _Nonnull edge,
+                                         OCCTFaceRef _Nonnull face,
+                                         double dist, double angle);
+
+/// Build the chamfered result.
+OCCTShapeRef _Nullable OCCTChamferBuilderBuild(OCCTChamferBuilderRef _Nonnull builder);
+
+/// Number of contours.
+int32_t OCCTChamferBuilderNbContours(OCCTChamferBuilderRef _Nonnull builder);
+
+/// Whether a contour uses distance-angle mode (1-based index).
+bool OCCTChamferBuilderIsDistAngle(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+// MARK: - GLTF Import/Export (v0.121.0)
+
+/// Import a GLTF/GLB file as a shape (mesh-based). Returns NULL on failure.
+OCCTShapeRef _Nullable OCCTImportGLTF(const char* _Nonnull path);
+
+/// Export a shape to GLTF format. isBinary=true for GLB, false for GLTF.
+/// The shape must be meshed first (call mesh() before exporting).
+bool OCCTExportGLTF(OCCTShapeRef _Nonnull shape, const char* _Nonnull path,
+                      bool isBinary, double deflection);
+
+/// Load a GLTF/GLB file into an XDE document (preserves names, materials, colors).
+OCCTDocumentRef _Nullable OCCTDocumentLoadGLTF(const char* _Nonnull path);
+
+/// Write an XDE document to GLTF/GLB format.
+bool OCCTDocumentWriteGLTF(OCCTDocumentRef _Nonnull doc, const char* _Nonnull path, bool isBinary);
+
 #ifdef __cplusplus
 }
 #endif

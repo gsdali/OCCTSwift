@@ -49733,3 +49733,496 @@ int32_t OCCTCurve2DBSplineMaxDegree(void) {
 }
 
 // end of v0.120.0 implementations
+
+// =============================================================================
+// MARK: - v0.121.0: BSpline completions, FilletBuilder, ChamferBuilder
+// =============================================================================
+
+// --- BSplineSurface completions ---
+
+bool OCCTSurfaceBSplineSetUNotPeriodic(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetUNotPeriodic(); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetVNotPeriodic(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetVNotPeriodic(); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetUOrigin(OCCTSurfaceRef surface, int32_t index) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetUOrigin(index); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetVOrigin(OCCTSurfaceRef surface, int32_t index) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetVOrigin(index); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncreaseUMultiplicity(OCCTSurfaceRef surface, int32_t index, int32_t mult) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseUMultiplicity(index, mult); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncreaseVMultiplicity(OCCTSurfaceRef surface, int32_t index, int32_t mult) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseVMultiplicity(index, mult); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineInsertUKnots(OCCTSurfaceRef surface,
+                                     const double* knots, const int32_t* mults,
+                                     int32_t count, double tol) {
+    if (!surface || surface->surface.IsNull() || !knots || !mults || count <= 0) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal kArr(1, count);
+        TColStd_Array1OfInteger mArr(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            kArr.SetValue(i + 1, knots[i]);
+            mArr.SetValue(i + 1, mults[i]);
+        }
+        bs->InsertUKnots(kArr, mArr, tol);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineInsertVKnots(OCCTSurfaceRef surface,
+                                     const double* knots, const int32_t* mults,
+                                     int32_t count, double tol) {
+    if (!surface || surface->surface.IsNull() || !knots || !mults || count <= 0) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal kArr(1, count);
+        TColStd_Array1OfInteger mArr(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            kArr.SetValue(i + 1, knots[i]);
+            mArr.SetValue(i + 1, mults[i]);
+        }
+        bs->InsertVKnots(kArr, mArr, tol);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineMovePoint(OCCTSurfaceRef surface,
+                                  double u, double v,
+                                  double px, double py, double pz,
+                                  int32_t uIndex1, int32_t uIndex2,
+                                  int32_t vIndex1, int32_t vIndex2) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        Standard_Integer uFirstIndex, uLastIndex, vFirstIndex, vLastIndex;
+        bs->MovePoint(u, v, gp_Pnt(px, py, pz),
+                      uIndex1, uIndex2, vIndex1, vIndex2,
+                      uFirstIndex, uLastIndex, vFirstIndex, vLastIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetPoleCol(OCCTSurfaceRef surface,
+                                   int32_t vIndex,
+                                   const double* coords, int32_t count) {
+    if (!surface || surface->surface.IsNull() || !coords || count <= 0) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        int32_t nUPoles = bs->NbUPoles();
+        if (count != nUPoles) return false;
+        TColgp_Array1OfPnt poles(1, nUPoles);
+        for (int32_t i = 0; i < nUPoles; i++) {
+            poles.SetValue(i + 1, gp_Pnt(coords[i * 3], coords[i * 3 + 1], coords[i * 3 + 2]));
+        }
+        bs->SetPoleCol(vIndex, poles);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetPoleRow(OCCTSurfaceRef surface,
+                                   int32_t uIndex,
+                                   const double* coords, int32_t count) {
+    if (!surface || surface->surface.IsNull() || !coords || count <= 0) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        int32_t nVPoles = bs->NbVPoles();
+        if (count != nVPoles) return false;
+        TColgp_Array1OfPnt poles(1, nVPoles);
+        for (int32_t i = 0; i < nVPoles; i++) {
+            poles.SetValue(i + 1, gp_Pnt(coords[i * 3], coords[i * 3 + 1], coords[i * 3 + 2]));
+        }
+        bs->SetPoleRow(uIndex, poles);
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- BSplineCurve 3D completions ---
+
+bool OCCTCurve3DBSplineSetNotPeriodic(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->SetNotPeriodic(); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineSetOrigin(OCCTCurve3DRef curve, int32_t index) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->SetOrigin(index); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineIncreaseMultiplicity(OCCTCurve3DRef curve, int32_t index, int32_t mult) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseMultiplicity(index, mult); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineIncrementMultiplicity(OCCTCurve3DRef curve, int32_t index1, int32_t index2, int32_t step) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncrementMultiplicity(index1, index2, step); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineSetKnots(OCCTCurve3DRef curve, const double* knots, int32_t count) {
+    if (!curve || curve->curve.IsNull() || !knots || count <= 0) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || count != bs->NbKnots()) return false;
+    try {
+        TColStd_Array1OfReal kArr(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            kArr.SetValue(i + 1, knots[i]);
+        }
+        bs->SetKnots(kArr);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineReverse(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->Reverse(); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineMovePointAndTangent(OCCTCurve3DRef curve, double u,
+                                            double px, double py, double pz,
+                                            double tx, double ty, double tz,
+                                            double tolerance,
+                                            int32_t startIndex, int32_t endIndex) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try {
+        Standard_Integer errorStatus = 0;
+        bs->MovePointAndTangent(u, gp_Pnt(px, py, pz), gp_Vec(tx, ty, tz),
+                                tolerance, startIndex, endIndex, errorStatus);
+        return (errorStatus == 0);
+    } catch (...) { return false; }
+}
+
+// --- BSplineCurve 2D completions ---
+
+bool OCCTCurve2DBSplineSetNotPeriodic(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->SetNotPeriodic(); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineSetOrigin(OCCTCurve2DRef curve, int32_t index) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->SetOrigin(index); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineIncreaseMultiplicity(OCCTCurve2DRef curve, int32_t index, int32_t mult) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseMultiplicity(index, mult); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineIncrementMultiplicity(OCCTCurve2DRef curve, int32_t index1, int32_t index2, int32_t step) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncrementMultiplicity(index1, index2, step); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineSetKnots(OCCTCurve2DRef curve, const double* knots, int32_t count) {
+    if (!curve || curve->curve.IsNull() || !knots || count <= 0) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || count != bs->NbKnots()) return false;
+    try {
+        TColStd_Array1OfReal kArr(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            kArr.SetValue(i + 1, knots[i]);
+        }
+        bs->SetKnots(kArr);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineReverse(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->Reverse(); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineMovePointAndTangent(OCCTCurve2DRef curve, double u,
+                                            double px, double py,
+                                            double tx, double ty,
+                                            double tolerance,
+                                            int32_t startIndex, int32_t endIndex) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try {
+        Standard_Integer errorStatus = 0;
+        bs->MovePointAndTangent(u, gp_Pnt2d(px, py), gp_Vec2d(tx, ty),
+                                tolerance, startIndex, endIndex, errorStatus);
+        return (errorStatus == 0);
+    } catch (...) { return false; }
+}
+
+// --- FilletBuilder (BRepFilletAPI_MakeFillet) ---
+
+struct OCCTFilletBuilder {
+    BRepFilletAPI_MakeFillet fillet;
+    OCCTFilletBuilder(const TopoDS_Shape& s) : fillet(s) {}
+};
+
+OCCTFilletBuilderRef OCCTFilletBuilderCreate(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        return new OCCTFilletBuilder(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTFilletBuilderRelease(OCCTFilletBuilderRef builder) {
+    delete builder;
+}
+
+bool OCCTFilletBuilderAddEdge(OCCTFilletBuilderRef builder, OCCTEdgeRef edge, double radius) {
+    if (!builder || !edge) return false;
+    try { builder->fillet.Add(radius, edge->edge); return true; } catch (...) { return false; }
+}
+
+bool OCCTFilletBuilderAddEdgeEvolving(OCCTFilletBuilderRef builder, OCCTEdgeRef edge, double r1, double r2) {
+    if (!builder || !edge) return false;
+    try { builder->fillet.Add(r1, r2, edge->edge); return true; } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTFilletBuilderBuild(OCCTFilletBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        builder->fillet.Build();
+        if (!builder->fillet.IsDone()) return nullptr;
+        return new OCCTShape(builder->fillet.Shape());
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTFilletBuilderNbContours(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbContours(); } catch (...) { return 0; }
+}
+
+int32_t OCCTFilletBuilderNbEdges(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbEdges(contourIndex); } catch (...) { return 0; }
+}
+
+bool OCCTFilletBuilderHasResult(OCCTFilletBuilderRef builder) {
+    if (!builder) return false;
+    try { return builder->fillet.HasResult(); } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTFilletBuilderBadShape(OCCTFilletBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        const TopoDS_Shape& bad = builder->fillet.BadShape();
+        if (bad.IsNull()) return nullptr;
+        return new OCCTShape(bad);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTFilletBuilderNbFaultyContours(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbFaultyContours(); } catch (...) { return 0; }
+}
+
+int32_t OCCTFilletBuilderNbFaultyVertices(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbFaultyVertices(); } catch (...) { return 0; }
+}
+
+double OCCTFilletBuilderGetRadius(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try { return builder->fillet.Radius(contourIndex); } catch (...) { return 0; }
+}
+
+double OCCTFilletBuilderGetLength(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try { return builder->fillet.Length(contourIndex); } catch (...) { return 0; }
+}
+
+bool OCCTFilletBuilderIsConstant(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->fillet.IsConstant(contourIndex); } catch (...) { return false; }
+}
+
+bool OCCTFilletBuilderRemoveEdge(OCCTFilletBuilderRef builder, OCCTEdgeRef edge) {
+    if (!builder || !edge) return false;
+    try { builder->fillet.Remove(edge->edge); return true; } catch (...) { return false; }
+}
+
+void OCCTFilletBuilderReset(OCCTFilletBuilderRef builder) {
+    if (!builder) return;
+    try { builder->fillet.Reset(); } catch (...) {}
+}
+
+// --- ChamferBuilder (BRepFilletAPI_MakeChamfer) ---
+
+struct OCCTChamferBuilder {
+    BRepFilletAPI_MakeChamfer chamfer;
+    OCCTChamferBuilder(const TopoDS_Shape& s) : chamfer(s) {}
+};
+
+OCCTChamferBuilderRef OCCTChamferBuilderCreate(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        return new OCCTChamferBuilder(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTChamferBuilderRelease(OCCTChamferBuilderRef builder) {
+    delete builder;
+}
+
+bool OCCTChamferBuilderAddEdge(OCCTChamferBuilderRef builder, OCCTEdgeRef edge, double dist) {
+    if (!builder || !edge) return false;
+    try { builder->chamfer.Add(dist, edge->edge); return true; } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderAddEdgeTwoDists(OCCTChamferBuilderRef builder,
+                                        OCCTEdgeRef edge, OCCTFaceRef face,
+                                        double d1, double d2) {
+    if (!builder || !edge || !face) return false;
+    try { builder->chamfer.Add(d1, d2, edge->edge, face->face); return true; } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderAddEdgeDistAngle(OCCTChamferBuilderRef builder,
+                                         OCCTEdgeRef edge, OCCTFaceRef face,
+                                         double dist, double angle) {
+    if (!builder || !edge || !face) return false;
+    try { builder->chamfer.AddDA(dist, angle, edge->edge, face->face); return true; } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTChamferBuilderBuild(OCCTChamferBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        builder->chamfer.Build();
+        if (!builder->chamfer.IsDone()) return nullptr;
+        return new OCCTShape(builder->chamfer.Shape());
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTChamferBuilderNbContours(OCCTChamferBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->chamfer.NbContours(); } catch (...) { return 0; }
+}
+
+bool OCCTChamferBuilderIsDistAngle(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->chamfer.IsDistanceAngle(contourIndex); } catch (...) { return false; }
+}
+
+// MARK: - GLTF Import/Export (v0.121.0)
+
+#include <RWGltf_CafReader.hxx>
+#include <RWGltf_CafWriter.hxx>
+
+OCCTShapeRef _Nullable OCCTImportGLTF(const char* _Nonnull path) {
+    if (!path) return nullptr;
+    try {
+        RWGltf_CafReader reader;
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+        reader.SetDocument(doc);
+        TCollection_AsciiString filePath(path);
+        if (!reader.Perform(filePath, Message_ProgressRange())) return nullptr;
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        TopoDS_Shape shape = shapeTool->GetOneShape();
+        if (shape.IsNull()) return nullptr;
+        auto* ref = new OCCTShape;
+        ref->shape = shape;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTExportGLTF(OCCTShapeRef _Nonnull shape, const char* _Nonnull path,
+                      bool isBinary, double deflection) {
+    if (!shape || !path) return false;
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        shapeTool->AddShape(shape->shape);
+        TCollection_AsciiString filePath(path);
+        RWGltf_CafWriter writer(filePath, isBinary);
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        return writer.Perform(doc, fileInfo, Message_ProgressRange());
+    } catch (...) { return false; }
+}
+
+OCCTDocumentRef _Nullable OCCTDocumentLoadGLTF(const char* _Nonnull path) {
+    if (!path) return nullptr;
+    try {
+        auto* docRef = new OCCTDocument;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", docRef->doc);
+        RWGltf_CafReader reader;
+        reader.SetDocument(docRef->doc);
+        TCollection_AsciiString filePath(path);
+        if (!reader.Perform(filePath, Message_ProgressRange())) {
+            delete docRef;
+            return nullptr;
+        }
+        return docRef;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentWriteGLTF(OCCTDocumentRef _Nonnull doc, const char* _Nonnull path, bool isBinary) {
+    if (!doc || !path) return false;
+    try {
+        TCollection_AsciiString filePath(path);
+        RWGltf_CafWriter writer(filePath, isBinary);
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        return writer.Perform(doc->doc, fileInfo, Message_ProgressRange());
+    } catch (...) { return false; }
+}
+
+// end of v0.121.0 implementations

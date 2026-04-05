@@ -37450,3 +37450,545 @@ struct IntegrationConcurrentShapeOperationsTests {
         }
     }
 }
+
+// =============================================================================
+// MARK: - v0.121.0: BSpline completions, FilletBuilder, ChamferBuilder
+// =============================================================================
+
+@Suite("BSplineSurface Completions v121")
+struct BSplineSurfaceCompletionsV121Tests {
+
+    /// Helper: create a simple 4x4 BSpline surface
+    private func makeBSplineSurface() -> Surface? {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0,0,0), SIMD3(3,0,0), SIMD3(7,0,0), SIMD3(10,0,0)],
+            [SIMD3(0,3,1), SIMD3(3,3,2), SIMD3(7,3,2), SIMD3(10,3,1)],
+            [SIMD3(0,7,1), SIMD3(3,7,2), SIMD3(7,7,2), SIMD3(10,7,1)],
+            [SIMD3(0,10,0), SIMD3(3,10,0), SIMD3(7,10,0), SIMD3(10,10,0)]
+        ]
+        return Surface.bspline(poles: poles,
+                               knotsU: [0, 1], multiplicitiesU: [4, 4],
+                               knotsV: [0, 1], multiplicitiesV: [4, 4],
+                               degreeU: 3, degreeV: 3)
+    }
+
+    @Test("SetUNotPeriodic / SetVNotPeriodic")
+    func setNotPeriodic() {
+        if let surf = makeBSplineSurface() {
+            // Non-periodic surface — calling SetNotPeriodic is a no-op but should succeed
+            let r1 = surf.bsplineSetUNotPeriodic()
+            let r2 = surf.bsplineSetVNotPeriodic()
+            #expect(r1)
+            #expect(r2)
+        }
+    }
+
+    @Test("IncreaseUMultiplicity / IncreaseVMultiplicity")
+    func increaseMultiplicity() {
+        if let surf = makeBSplineSurface() {
+            // Insert a knot first so we have interior knots to increase
+            let inserted = surf.bsplineInsertUKnots([0.5], multiplicities: [1])
+            #expect(inserted)
+            // Now increase multiplicity of the new knot (index 2)
+            let r = surf.bsplineIncreaseUMultiplicity(index: 2, multiplicity: 2)
+            #expect(r)
+        }
+    }
+
+    @Test("InsertUKnots / InsertVKnots batch")
+    func insertKnotsBatch() {
+        if let surf = makeBSplineSurface() {
+            let r1 = surf.bsplineInsertUKnots([0.25, 0.75], multiplicities: [1, 1])
+            #expect(r1)
+            let nuk = surf.bsplineSurface.nbUKnots
+            #expect(nuk == 4) // original 2 + 2 new
+
+            let r2 = surf.bsplineInsertVKnots([0.5], multiplicities: [1])
+            #expect(r2)
+            let nvk = surf.bsplineSurface.nbVKnots
+            #expect(nvk == 3) // original 2 + 1 new
+        }
+    }
+
+    @Test("MovePoint on BSpline surface")
+    func movePoint() {
+        if let surf = makeBSplineSurface() {
+            let target = SIMD3<Double>(5, 5, 10)
+            let r = surf.bsplineMovePoint(u: 0.5, v: 0.5, to: target,
+                                           uPoleRange: 1...4, vPoleRange: 1...4)
+            #expect(r)
+            // Evaluate at (0.5, 0.5) — should be close to target
+            let p = surf.point(atU: 0.5, v: 0.5)
+            #expect(abs(p.x - target.x) < 1.0)
+            #expect(abs(p.y - target.y) < 1.0)
+        }
+    }
+
+    @Test("SetPoleCol and SetPoleRow")
+    func setPoleColRow() {
+        if let surf = makeBSplineSurface() {
+            // Set column 1 (vIndex=1) to new values — 4 poles for NbUPoles=4
+            let newCol: [SIMD3<Double>] = [
+                SIMD3(0, 0, 5), SIMD3(0, 3, 5), SIMD3(0, 7, 5), SIMD3(0, 10, 5)
+            ]
+            let r1 = surf.bsplineSetPoleCol(vIndex: 1, poles: newCol)
+            #expect(r1)
+
+            // Set row 1 (uIndex=1) to new values — 4 poles for NbVPoles=4
+            let newRow: [SIMD3<Double>] = [
+                SIMD3(0, 0, 3), SIMD3(3, 0, 3), SIMD3(7, 0, 3), SIMD3(10, 0, 3)
+            ]
+            let r2 = surf.bsplineSetPoleRow(uIndex: 1, poles: newRow)
+            #expect(r2)
+        }
+    }
+
+    @Test("SetUOrigin / SetVOrigin fail on non-periodic")
+    func setOriginNonPeriodic() {
+        if let surf = makeBSplineSurface() {
+            // SetOrigin only works on periodic surfaces — should fail gracefully
+            let r1 = surf.bsplineSetUOrigin(index: 1)
+            #expect(!r1)
+            let r2 = surf.bsplineSetVOrigin(index: 1)
+            #expect(!r2)
+        }
+    }
+}
+
+@Suite("BSplineCurve 3D Completions v121")
+struct BSplineCurve3DCompletionsV121Tests {
+
+    /// Helper: create a simple BSpline curve
+    private func makeBSplineCurve() -> Curve3D? {
+        let poles: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(3, 5, 0), SIMD3(7, 5, 0), SIMD3(10, 0, 0)
+        ]
+        return Curve3D.bspline(poles: poles, knots: [0, 1], multiplicities: [4, 4], degree: 3)
+    }
+
+    @Test("SetNotPeriodic on non-periodic curve")
+    func setNotPeriodic() {
+        if let curve = makeBSplineCurve() {
+            let r = curve.bsplineSetNotPeriodic()
+            #expect(r)
+        }
+    }
+
+    @Test("IncreaseMultiplicity")
+    func increaseMultiplicity() {
+        if let curve = makeBSplineCurve() {
+            // Insert an interior knot first
+            let ok = curve.bsplineInsertKnots([0.5], multiplicities: [1])
+            #expect(ok)
+            // Increase mult of new interior knot (index 2, 1-based)
+            let r = curve.bsplineIncreaseMultiplicity(index: 2, multiplicity: 2)
+            #expect(r)
+        }
+    }
+
+    @Test("IncrementMultiplicity")
+    func incrementMultiplicity() {
+        if let curve = makeBSplineCurve() {
+            // Insert interior knots first
+            let ok = curve.bsplineInsertKnots([0.3, 0.7], multiplicities: [1, 1])
+            #expect(ok)
+            // Increment multiplicity of knots 2 to 3 by 1
+            let r = curve.bsplineIncrementMultiplicity(from: 2, to: 3, step: 1)
+            #expect(r)
+        }
+    }
+
+    @Test("Reverse parameterization")
+    func reverse() {
+        if let curve = makeBSplineCurve() {
+            let startBefore = curve.startPoint
+            let endBefore = curve.endPoint
+            let r = curve.bsplineReverse()
+            #expect(r)
+            let startAfter = curve.startPoint
+            let endAfter = curve.endPoint
+            // After reverse, start and end should swap
+            #expect(abs(startAfter.x - endBefore.x) < 1e-10)
+            #expect(abs(endAfter.x - startBefore.x) < 1e-10)
+        }
+    }
+
+    @Test("SetKnots batch")
+    func setKnots() {
+        if let curve = makeBSplineCurve() {
+            // Set knots to new values (same count=2)
+            let r = curve.bsplineSetKnots([0.0, 2.0])
+            #expect(r)
+        }
+    }
+
+    @Test("SetOrigin fails on non-periodic")
+    func setOriginNonPeriodic() {
+        if let curve = makeBSplineCurve() {
+            let r = curve.bsplineSetOrigin(index: 1)
+            #expect(!r)
+        }
+    }
+
+    @Test("MovePointAndTangent")
+    func movePointAndTangent() {
+        if let curve = makeBSplineCurve() {
+            let target = SIMD3<Double>(5, 10, 0)
+            let tangent = SIMD3<Double>(1, 0, 0)
+            let r = curve.bsplineMovePointAndTangent(u: 0.5, point: target, tangent: tangent,
+                                                      tolerance: 1e-6, poleRange: 1...4)
+            // MovePointAndTangent may fail if constraints are incompatible — just check it doesn't crash
+            _ = r
+        }
+    }
+}
+
+@Suite("BSplineCurve 2D Completions v121")
+struct BSplineCurve2DCompletionsV121Tests {
+
+    /// Helper: create a simple 2D BSpline curve
+    private func makeBSplineCurve2D() -> Curve2D? {
+        let poles: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(3, 5), SIMD2(7, 5), SIMD2(10, 0)
+        ]
+        return Curve2D.bspline(poles: poles, knots: [0, 1], multiplicities: [4, 4], degree: 3)
+    }
+
+    @Test("SetNotPeriodic on 2D curve")
+    func setNotPeriodic() {
+        if let curve = makeBSplineCurve2D() {
+            let r = curve.bsplineSetNotPeriodic()
+            #expect(r)
+        }
+    }
+
+    @Test("IncreaseMultiplicity 2D")
+    func increaseMultiplicity() {
+        if let curve = makeBSplineCurve2D() {
+            let ok = curve.bspline.insertKnot(u: 0.5, multiplicity: 1, tolerance: 1e-10)
+            #expect(ok)
+            let r = curve.bsplineIncreaseMultiplicity(index: 2, multiplicity: 2)
+            #expect(r)
+        }
+    }
+
+    @Test("Reverse 2D")
+    func reverse() {
+        if let curve = makeBSplineCurve2D() {
+            let r = curve.bsplineReverse()
+            #expect(r)
+        }
+    }
+
+    @Test("SetKnots 2D")
+    func setKnots() {
+        if let curve = makeBSplineCurve2D() {
+            let r = curve.bsplineSetKnots([0.0, 2.0])
+            #expect(r)
+        }
+    }
+
+    @Test("MovePointAndTangent 2D")
+    func movePointAndTangent() {
+        if let curve = makeBSplineCurve2D() {
+            let target = SIMD2<Double>(5, 10)
+            let tangent = SIMD2<Double>(1, 0)
+            let r = curve.bsplineMovePointAndTangent(u: 0.5, point: target, tangent: tangent,
+                                                      tolerance: 1e-6, poleRange: 1...4)
+            _ = r
+        }
+    }
+
+    @Test("IncrementMultiplicity 2D")
+    func incrementMultiplicity() {
+        if let curve = makeBSplineCurve2D() {
+            let ok = curve.bspline.insertKnot(u: 0.3, multiplicity: 1, tolerance: 1e-10)
+            #expect(ok)
+            let ok2 = curve.bspline.insertKnot(u: 0.7, multiplicity: 1, tolerance: 1e-10)
+            #expect(ok2)
+            let r = curve.bsplineIncrementMultiplicity(from: 2, to: 3, step: 1)
+            #expect(r)
+        }
+    }
+
+    @Test("SetOrigin 2D fails on non-periodic")
+    func setOriginNonPeriodic() {
+        if let curve = makeBSplineCurve2D() {
+            let r = curve.bsplineSetOrigin(index: 1)
+            #expect(!r)
+        }
+    }
+}
+
+@Suite("FilletBuilder v121")
+struct FilletBuilderV121Tests {
+
+    @Test("Create fillet builder and add edges with constant radius")
+    func filletBuilderConstantRadius() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        #expect(box != nil)
+        if let box = box {
+            if let builder = FilletBuilder(shape: box) {
+                let edges = box.edges()
+                #expect(edges.count > 0)
+                if let firstEdge = edges.first {
+                    let added = builder.addEdge(firstEdge, radius: 2.0)
+                    #expect(added)
+                    #expect(builder.contourCount == 1)
+                    #expect(builder.isConstant(contour: 1))
+                    #expect(abs(builder.radius(contour: 1) - 2.0) < 1e-10)
+
+                    if let result = builder.build() {
+                        #expect(result.isValid)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Fillet builder with evolving radius")
+    func filletBuilderEvolvingRadius() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = FilletBuilder(shape: box) {
+                let edges = box.edges()
+                if let edge = edges.first {
+                    let added = builder.addEdge(edge, radius1: 1.0, radius2: 3.0)
+                    #expect(added)
+                    #expect(builder.contourCount == 1)
+                    #expect(!builder.isConstant(contour: 1))
+
+                    if let result = builder.build() {
+                        #expect(result.isValid)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Fillet builder multiple edges")
+    func filletBuilderMultipleEdges() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = FilletBuilder(shape: box) {
+                let edges = box.edges()
+                var addedCount = 0
+                for edge in edges.prefix(3) {
+                    if builder.addEdge(edge, radius: 1.5) {
+                        addedCount += 1
+                    }
+                }
+                #expect(addedCount > 0)
+                #expect(builder.contourCount > 0)
+
+                if let result = builder.build() {
+                    #expect(result.isValid)
+                }
+            }
+        }
+    }
+
+    @Test("Fillet builder query and diagnostic properties")
+    func filletBuilderDiagnostics() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = FilletBuilder(shape: box) {
+                let edges = box.edges()
+                if let edge = edges.first {
+                    builder.addEdge(edge, radius: 2.0)
+                    #expect(builder.edgeCount(contour: 1) >= 1)
+                    #expect(builder.length(contour: 1) > 0)
+                    #expect(builder.faultyContourCount == 0)
+                    #expect(builder.faultyVertexCount == 0)
+                }
+            }
+        }
+    }
+
+    @Test("Fillet builder reset")
+    func filletBuilderReset() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = FilletBuilder(shape: box) {
+                let edges = box.edges()
+                if let edge = edges.first {
+                    builder.addEdge(edge, radius: 2.0)
+                    #expect(builder.contourCount == 1)
+                    // Reset clears build state but contours remain — verify no crash
+                    builder.reset()
+                    // Can still build after reset
+                    if let result = builder.build() {
+                        #expect(result.isValid)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Fillet builder remove edge")
+    func filletBuilderRemoveEdge() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = FilletBuilder(shape: box) {
+                let edges = box.edges()
+                if let edge = edges.first {
+                    builder.addEdge(edge, radius: 2.0)
+                    #expect(builder.contourCount == 1)
+                    let removed = builder.removeEdge(edge)
+                    #expect(removed)
+                    #expect(builder.contourCount == 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("ChamferBuilder v121")
+struct ChamferBuilderV121Tests {
+
+    @Test("Create chamfer builder with symmetric distance")
+    func chamferBuilderSymmetric() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = ChamferBuilder(shape: box) {
+                let edges = box.edges()
+                if let edge = edges.first {
+                    let added = builder.addEdge(edge, distance: 2.0)
+                    #expect(added)
+                    #expect(builder.contourCount == 1)
+
+                    if let result = builder.build() {
+                        #expect(result.isValid)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Chamfer builder with two distances")
+    func chamferBuilderTwoDists() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = ChamferBuilder(shape: box) {
+                let edges = box.edges()
+                let faces = box.faces()
+                // Find an edge and a face sharing that edge
+                if let edge = edges.first, let face = faces.first {
+                    let added = builder.addEdge(edge, face: face, distance1: 2.0, distance2: 3.0)
+                    #expect(added)
+                    if added {
+                        #expect(builder.contourCount == 1)
+                        if let result = builder.build() {
+                            #expect(result.isValid)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Chamfer builder with distance and angle")
+    func chamferBuilderDistAngle() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = ChamferBuilder(shape: box) {
+                let edges = box.edges()
+                let faces = box.faces()
+                if let edge = edges.first, let face = faces.first {
+                    let angle = Double.pi / 4.0  // 45 degrees
+                    let added = builder.addEdge(edge, face: face, distance: 2.0, angle: angle)
+                    #expect(added)
+                    if added {
+                        #expect(builder.contourCount == 1)
+                        #expect(builder.isDistanceAngle(contour: 1))
+                        if let result = builder.build() {
+                            #expect(result.isValid)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Chamfer builder multiple edges")
+    func chamferBuilderMultiple() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            if let builder = ChamferBuilder(shape: box) {
+                let edges = box.edges()
+                var addedCount = 0
+                for edge in edges.prefix(4) {
+                    if builder.addEdge(edge, distance: 1.0) {
+                        addedCount += 1
+                    }
+                }
+                #expect(addedCount > 0)
+                if let result = builder.build() {
+                    #expect(result.isValid)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - GLTF Import/Export Tests (v0.121.0)
+
+@Suite("GLTF Export/Import v121")
+struct GLTFTests {
+    @Test func exportGLB() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let tmpPath = NSTemporaryDirectory() + "test_v121.glb"
+            let url = URL(fileURLWithPath: tmpPath)
+            try Exporter.writeGLTF(shape: b, to: url, binary: true, deflection: 0.5)
+            let data = try Data(contentsOf: url)
+            #expect(data.count > 0)
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func exportGLTF() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let tmpPath = NSTemporaryDirectory() + "test_v121.gltf"
+            let url = URL(fileURLWithPath: tmpPath)
+            try Exporter.writeGLTF(shape: b, to: url, binary: false, deflection: 0.5)
+            let data = try Data(contentsOf: url)
+            #expect(data.count > 0)
+            // GLTF text format should contain "asset"
+            if let text = String(data: data, encoding: .utf8) {
+                #expect(text.contains("asset"))
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func roundTripGLB() throws {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let b = box {
+            let tmpPath = NSTemporaryDirectory() + "test_roundtrip_v121.glb"
+            let url = URL(fileURLWithPath: tmpPath)
+            try Exporter.writeGLTF(shape: b, to: url, binary: true, deflection: 0.1)
+
+            // Reimport — GLTF is mesh-based, produces triangulation faces not B-Rep
+            let reimported = Shape.loadGLTF(from: url)
+            // loadGLTF returns non-nil if file was successfully read
+            #expect(reimported != nil)
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    @Test func documentGLTFRoundTrip() throws {
+        let box = Shape.box(width: 5, height: 5, depth: 5)
+        if let b = box {
+            let tmpPath = NSTemporaryDirectory() + "test_doc_v121.glb"
+            let url = URL(fileURLWithPath: tmpPath)
+            try Exporter.writeGLTF(shape: b, to: url, binary: true, deflection: 0.5)
+
+            // Load as document — GLTF documents contain mesh data
+            let doc = Document.loadGLTF(from: url)
+            #expect(doc != nil)
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+}
