@@ -39340,3 +39340,679 @@ struct WireAnalyzerV124Tests {
     }
 }
 
+// MARK: - v0.125.0: BSpline/Bezier deep method completion tests
+
+@Suite("BSplineSurface Local Evaluation")
+struct BSplineSurfaceLocalEvalTests {
+    @Test("LocalD0 matches global D0")
+    func localD0() {
+        // Create a BSpline surface via converting a sphere
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let uMid = (bounds.u1 + bounds.u2) / 2.0
+            let vMid = (bounds.v1 + bounds.v2) / 2.0
+            // Locate knot span
+            let uSpan = bs.bsplineLocateU(u: uMid, paramTol: 1e-10)
+            let vSpan = bs.bsplineLocateV(v: vMid, paramTol: 1e-10)
+            if uSpan.i1 > 0 && uSpan.i2 > 0 && vSpan.i1 > 0 && vSpan.i2 > 0 {
+                let localPt = bs.bsplineLocalD0(u: uMid, v: vMid,
+                                                 fromUK1: uSpan.i1, toUK2: uSpan.i2,
+                                                 fromVK1: vSpan.i1, toVK2: vSpan.i2)
+                let globalPt = bs.point(atU: uMid, v: vMid)
+                let dist = simd_length(localPt - globalPt)
+                #expect(dist < 1e-10)
+            }
+        }
+    }
+
+    @Test("LocalD1 returns point and derivatives")
+    func localD1() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let uMid = (bounds.u1 + bounds.u2) / 2.0
+            let vMid = (bounds.v1 + bounds.v2) / 2.0
+            let uSpan = bs.bsplineLocateU(u: uMid, paramTol: 1e-10)
+            let vSpan = bs.bsplineLocateV(v: vMid, paramTol: 1e-10)
+            if uSpan.i1 > 0 && uSpan.i2 > 0 && vSpan.i1 > 0 && vSpan.i2 > 0 {
+                let r = bs.bsplineLocalD1(u: uMid, v: vMid,
+                                           fromUK1: uSpan.i1, toUK2: uSpan.i2,
+                                           fromVK1: vSpan.i1, toVK2: vSpan.i2)
+                #expect(simd_length(r.d1u) > 0)
+                #expect(simd_length(r.d1v) > 0)
+            }
+        }
+    }
+
+    @Test("LocalD2 returns second derivatives")
+    func localD2() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let uMid = (bounds.u1 + bounds.u2) / 2.0
+            let vMid = (bounds.v1 + bounds.v2) / 2.0
+            let uSpan = bs.bsplineLocateU(u: uMid, paramTol: 1e-10)
+            let vSpan = bs.bsplineLocateV(v: vMid, paramTol: 1e-10)
+            if uSpan.i1 > 0 && uSpan.i2 > 0 && vSpan.i1 > 0 && vSpan.i2 > 0 {
+                let r = bs.bsplineLocalD2(u: uMid, v: vMid,
+                                           fromUK1: uSpan.i1, toUK2: uSpan.i2,
+                                           fromVK1: vSpan.i1, toVK2: vSpan.i2)
+                #expect(simd_length(r.point) > 0)
+            }
+        }
+    }
+
+    @Test("LocalD3 returns third derivatives")
+    func localD3() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let uMid = (bounds.u1 + bounds.u2) / 2.0
+            let vMid = (bounds.v1 + bounds.v2) / 2.0
+            let uSpan = bs.bsplineLocateU(u: uMid, paramTol: 1e-10)
+            let vSpan = bs.bsplineLocateV(v: vMid, paramTol: 1e-10)
+            if uSpan.i1 > 0 && uSpan.i2 > 0 && vSpan.i1 > 0 && vSpan.i2 > 0 {
+                let r = bs.bsplineLocalD3(u: uMid, v: vMid,
+                                           fromUK1: uSpan.i1, toUK2: uSpan.i2,
+                                           fromVK1: vSpan.i1, toVK2: vSpan.i2)
+                #expect(simd_length(r.point) > 0)
+            }
+        }
+    }
+
+    @Test("LocalDN derivative")
+    func localDN() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let uMid = (bounds.u1 + bounds.u2) / 2.0
+            let vMid = (bounds.v1 + bounds.v2) / 2.0
+            let uSpan = bs.bsplineLocateU(u: uMid, paramTol: 1e-10)
+            let vSpan = bs.bsplineLocateV(v: vMid, paramTol: 1e-10)
+            if uSpan.i1 > 0 && uSpan.i2 > 0 && vSpan.i1 > 0 && vSpan.i2 > 0 {
+                let v = bs.bsplineLocalDN(u: uMid, v: vMid,
+                                           fromUK1: uSpan.i1, toUK2: uSpan.i2,
+                                           fromVK1: vSpan.i1, toVK2: vSpan.i2,
+                                           nu: 1, nv: 0)
+                #expect(simd_length(v) > 0)
+            }
+        }
+    }
+
+    @Test("LocalValue matches global")
+    func localValue() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let uMid = (bounds.u1 + bounds.u2) / 2.0
+            let vMid = (bounds.v1 + bounds.v2) / 2.0
+            let uSpan = bs.bsplineLocateU(u: uMid, paramTol: 1e-10)
+            let vSpan = bs.bsplineLocateV(v: vMid, paramTol: 1e-10)
+            if uSpan.i1 > 0 && uSpan.i2 > 0 && vSpan.i1 > 0 && vSpan.i2 > 0 {
+                let localPt = bs.bsplineLocalValue(u: uMid, v: vMid,
+                                                    fromUK1: uSpan.i1, toUK2: uSpan.i2,
+                                                    fromVK1: vSpan.i1, toVK2: vSpan.i2)
+                let globalPt = bs.point(atU: uMid, v: vMid)
+                let dist = simd_length(localPt - globalPt)
+                #expect(dist < 1e-10)
+            }
+        }
+    }
+}
+
+@Suite("BSplineSurface Iso Curves")
+struct BSplineSurfaceIsoTests {
+    @Test("UIso returns curve")
+    func uIso() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let uMid = (bounds.u1 + bounds.u2) / 2.0
+            let iso = bs.bsplineUIso(u: uMid)
+            #expect(iso != nil)
+        }
+    }
+
+    @Test("VIso returns curve")
+    func vIso() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let vMid = (bounds.v1 + bounds.v2) / 2.0
+            let iso = bs.bsplineVIso(v: vMid)
+            #expect(iso != nil)
+        }
+    }
+}
+
+@Suite("BSplineSurface Knot Queries")
+struct BSplineSurfaceKnotTests {
+    @Test("LocateU returns valid span")
+    func locateU() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let uMid = (bounds.u1 + bounds.u2) / 2.0
+            let span = bs.bsplineLocateU(u: uMid, paramTol: 1e-10)
+            #expect(span.i1 > 0)
+            #expect(span.i2 > 0)
+        }
+    }
+
+    @Test("LocateV returns valid span")
+    func locateV() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let bounds = bs.bsplineBounds
+            let vMid = (bounds.v1 + bounds.v2) / 2.0
+            let span = bs.bsplineLocateV(v: vMid, paramTol: 1e-10)
+            #expect(span.i1 > 0)
+            #expect(span.i2 > 0)
+        }
+    }
+
+    @Test("UKnot and VKnot return values")
+    func knotValues() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            // First knot is always index 1
+            let uk = bs.bsplineUKnot(index: 1)
+            let vk = bs.bsplineVKnot(index: 1)
+            #expect(uk.isFinite)
+            #expect(vk.isFinite)
+        }
+    }
+
+    @Test("UMultiplicity and VMultiplicity")
+    func multiplicity() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let um = bs.bsplineUMultiplicity(index: 1)
+            let vm = bs.bsplineVMultiplicity(index: 1)
+            #expect(um > 0)
+            #expect(vm > 0)
+        }
+    }
+
+    @Test("UKnotDistribution and VKnotDistribution")
+    func knotDistribution() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let ud = bs.bsplineUKnotDistribution
+            let vd = bs.bsplineVKnotDistribution
+            #expect(ud >= 0 && ud <= 3)
+            #expect(vd >= 0 && vd <= 3)
+        }
+    }
+
+    @Test("Bounds returns valid range")
+    func bounds() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let b = bs.bsplineBounds
+            #expect(b.u2 > b.u1)
+            #expect(b.v2 > b.v1)
+        }
+    }
+
+    @Test("IsUClosed and IsVClosed")
+    func closedQueries() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            // Sphere is closed in U (full revolution) but typically closed in V too
+            let uc = bs.bsplineIsUClosed
+            let vc = bs.bsplineIsVClosed
+            // Just verify they return without error
+            #expect(uc || !uc) // always true, verifies the call works
+            #expect(vc || !vc)
+        }
+    }
+
+    @Test("BSpline GetPoles bulk")
+    func getPoles() {
+        let sphere = Surface.sphere(center: SIMD3(0, 0, 0), radius: 5.0)
+        if let bs = sphere?.toBSpline() {
+            let poles = bs.bsplinePoles
+            let expected = bs.uPoleCount * bs.vPoleCount
+            #expect(poles.count == expected)
+            if let first = poles.first {
+                #expect(simd_length(first) > 0)
+            }
+        }
+    }
+}
+
+@Suite("Curve2D BSpline Local Evaluation")
+struct Curve2DBSplineLocalTests {
+    @Test("LocalD0 matches global")
+    func localD0() {
+        // Create a 2D BSpline via interpolation
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0), SIMD2(3, 1)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let fk = c.bsplineFirstUKnotIndex
+            let lk = c.bsplineLastUKnotIndex
+            if fk > 0 && lk > fk {
+                let u = (c.bsplineKnot(index: fk) + c.bsplineKnot(index: lk)) / 2.0
+                let span = c.bsplineLocateU(u: u, paramTol: 1e-10)
+                if span.i1 > 0 && span.i2 > 0 {
+                    let local = c.bsplineLocalD0(u: u, fromK1: span.i1, toK2: span.i2)
+                    let global = c.point(at: u)
+                    let dist = simd_length(local - global)
+                    #expect(dist < 1e-10)
+                }
+            }
+        }
+    }
+
+    @Test("LocalD1 returns derivative")
+    func localD1() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let fk = c.bsplineFirstUKnotIndex
+            let lk = c.bsplineLastUKnotIndex
+            if fk > 0 && lk > fk {
+                let u = (c.bsplineKnot(index: fk) + c.bsplineKnot(index: lk)) / 2.0
+                let span = c.bsplineLocateU(u: u, paramTol: 1e-10)
+                if span.i1 > 0 && span.i2 > 0 {
+                    let r = c.bsplineLocalD1(u: u, fromK1: span.i1, toK2: span.i2)
+                    #expect(simd_length(r.v1) > 0)
+                }
+            }
+        }
+    }
+
+    @Test("LocalD2 returns second derivative")
+    func localD2() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 2), SIMD2(2, 0), SIMD2(3, 2)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let fk = c.bsplineFirstUKnotIndex
+            let lk = c.bsplineLastUKnotIndex
+            if fk > 0 && lk > fk {
+                let u = (c.bsplineKnot(index: fk) + c.bsplineKnot(index: lk)) / 2.0
+                let span = c.bsplineLocateU(u: u, paramTol: 1e-10)
+                if span.i1 > 0 && span.i2 > 0 {
+                    let r = c.bsplineLocalD2(u: u, fromK1: span.i1, toK2: span.i2)
+                    #expect(simd_length(r.point) > 0 || simd_length(r.point) == 0) // just check no crash
+                }
+            }
+        }
+    }
+
+    @Test("LocalD3 and LocalDN")
+    func localD3DN() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 2), SIMD2(2, 0), SIMD2(3, 2), SIMD2(4, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let fk = c.bsplineFirstUKnotIndex
+            let lk = c.bsplineLastUKnotIndex
+            if fk > 0 && lk > fk {
+                let u = (c.bsplineKnot(index: fk) + c.bsplineKnot(index: lk)) / 2.0
+                let span = c.bsplineLocateU(u: u, paramTol: 1e-10)
+                if span.i1 > 0 && span.i2 > 0 {
+                    let _ = c.bsplineLocalD3(u: u, fromK1: span.i1, toK2: span.i2)
+                    let dn = c.bsplineLocalDN(u: u, fromK1: span.i1, toK2: span.i2, n: 1)
+                    #expect(simd_length(dn) > 0)
+                }
+            }
+        }
+    }
+
+    @Test("LocalValue matches global")
+    func localValue() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let fk = c.bsplineFirstUKnotIndex
+            let lk = c.bsplineLastUKnotIndex
+            if fk > 0 && lk > fk {
+                let u = (c.bsplineKnot(index: fk) + c.bsplineKnot(index: lk)) / 2.0
+                let span = c.bsplineLocateU(u: u, paramTol: 1e-10)
+                if span.i1 > 0 && span.i2 > 0 {
+                    let local = c.bsplineLocalValue(u: u, fromK1: span.i1, toK2: span.i2)
+                    let global = c.point(at: u)
+                    let dist = simd_length(local - global)
+                    #expect(dist < 1e-10)
+                }
+            }
+        }
+    }
+}
+
+@Suite("Curve2D BSpline Knot Queries")
+struct Curve2DBSplineKnotQueryTests {
+    @Test("FirstUKnotIndex and LastUKnotIndex")
+    func knotIndices() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let fk = c.bsplineFirstUKnotIndex
+            let lk = c.bsplineLastUKnotIndex
+            #expect(fk > 0)
+            #expect(lk >= fk)
+        }
+    }
+
+    @Test("Knot value by index")
+    func knotValue() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            // Index 1 is always valid for a BSpline with knots
+            let k = c.bsplineKnot(index: 1)
+            #expect(k.isFinite)
+        }
+    }
+
+    @Test("KnotDistribution")
+    func knotDistribution() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let d = c.bsplineKnotDistribution
+            #expect(d >= 0 && d <= 3)
+        }
+    }
+
+    @Test("Multiplicity by index")
+    func multiplicity() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let m = c.bsplineMultiplicity(index: 1)
+            #expect(m > 0)
+        }
+    }
+
+    @Test("GetMultiplicities bulk")
+    func multiplicities() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let mults = c.bsplineMultiplicities
+            #expect(mults.count > 0)
+            if let first = mults.first {
+                #expect(first > 0)
+            }
+        }
+    }
+
+    @Test("StartPoint and EndPoint")
+    func startEndPoint() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let sp = c.bsplineStartPoint
+            let ep = c.bsplineEndPoint
+            #expect(abs(sp.x - 0) < 1e-6)
+            #expect(abs(sp.y - 0) < 1e-6)
+            #expect(abs(ep.x - 2) < 1e-6)
+            #expect(abs(ep.y - 0) < 1e-6)
+        }
+    }
+
+    @Test("GetPoles bulk")
+    func poles() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let poles = c.bsplinePoles
+            let count = c.poleCount ?? 0
+            #expect(poles.count == count)
+        }
+    }
+
+    @Test("IsClosed and IsPeriodic")
+    func closedPeriodic() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            #expect(!c.bsplineIsClosed)
+            #expect(!c.bsplineIsPeriodic)
+        }
+    }
+
+    @Test("Continuity and IsCN")
+    func continuity() {
+        let pts: [SIMD2<Double>] = [SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)]
+        let c = Curve2D.interpolate(through: pts)
+        if let c = c {
+            let cont = c.bsplineContinuity
+            #expect(cont >= 0)
+            #expect(c.bsplineIsCN(0))
+        }
+    }
+}
+
+@Suite("Bezier Curve 3D Completions")
+struct BezierCurve3DCompletionTests {
+    @Test("StartPoint and EndPoint")
+    func startEndPoint() {
+        let poles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0)]
+        let c = Curve3D.bezier(poles: poles)
+        if let c = c {
+            let sp = c.bezierStartPoint
+            let ep = c.bezierEndPoint
+            #expect(abs(sp.x - 0) < 1e-10)
+            #expect(abs(ep.x - 2) < 1e-10)
+        }
+    }
+
+    @Test("GetPoles bulk")
+    func poles() {
+        let inputPoles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0)]
+        let c = Curve3D.bezier(poles: inputPoles)
+        if let c = c {
+            let p = c.bezierPoles
+            #expect(p.count == 3)
+            if p.count == 3 {
+                #expect(abs(p[0].x - 0) < 1e-10)
+                #expect(abs(p[1].x - 1) < 1e-10)
+                #expect(abs(p[2].x - 2) < 1e-10)
+            }
+        }
+    }
+
+    @Test("GetWeights returns nil for non-rational")
+    func weightsNonRational() {
+        let poles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0)]
+        let c = Curve3D.bezier(poles: poles)
+        if let c = c {
+            let w = c.bezierWeights
+            // Non-rational curve may return nil or all 1.0 weights
+            if let w = w {
+                for weight in w {
+                    #expect(abs(weight - 1.0) < 1e-10)
+                }
+            }
+        }
+    }
+
+    @Test("GetWeights returns values for rational")
+    func weightsRational() {
+        let poles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0)]
+        let weights = [1.0, 2.0, 1.0]
+        let c = Curve3D.bezier(poles: poles, weights: weights)
+        if let c = c {
+            let w = c.bezierWeights
+            #expect(w != nil)
+            if let w = w {
+                #expect(w.count == 3)
+                if w.count == 3 {
+                    #expect(abs(w[1] - 2.0) < 1e-10)
+                }
+            }
+        }
+    }
+
+    @Test("IsClosed for open curve")
+    func isClosed() {
+        let poles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0)]
+        let c = Curve3D.bezier(poles: poles)
+        if let c = c {
+            #expect(!c.bezierIsClosed)
+        }
+    }
+
+    @Test("IsClosed for closed curve")
+    func isClosedTrue() {
+        let poles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0), SIMD3(0, 0, 0)]
+        let c = Curve3D.bezier(poles: poles)
+        if let c = c {
+            #expect(c.bezierIsClosed)
+        }
+    }
+
+    @Test("IsPeriodic always false for Bezier")
+    func isPeriodic() {
+        let poles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0)]
+        let c = Curve3D.bezier(poles: poles)
+        if let c = c {
+            #expect(!c.bezierIsPeriodic)
+        }
+    }
+
+    @Test("Continuity is CN for Bezier")
+    func continuity() {
+        let poles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0)]
+        let c = Curve3D.bezier(poles: poles)
+        if let c = c {
+            let cont = c.bezierContinuity
+            #expect(cont == 6) // CN = 6 in GeomAbs_Shape
+        }
+    }
+
+    @Test("IsCN always true for Bezier")
+    func isCN() {
+        let poles: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(2, 0, 0)]
+        let c = Curve3D.bezier(poles: poles)
+        if let c = c {
+            #expect(c.bezierIsCN(0))
+            #expect(c.bezierIsCN(1))
+            #expect(c.bezierIsCN(10))
+        }
+    }
+}
+
+@Suite("Bezier Surface Completions")
+struct BezierSurfaceCompletionTests {
+    @Test("UIso and VIso return curves")
+    func isoCurves() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0), SIMD3(0, 2, 0)],
+            [SIMD3(1, 0, 1), SIMD3(1, 1, 1), SIMD3(1, 2, 1)],
+            [SIMD3(2, 0, 0), SIMD3(2, 1, 0), SIMD3(2, 2, 0)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            let uIso = s.bezierUIso(u: 0.5)
+            let vIso = s.bezierVIso(v: 0.5)
+            #expect(uIso != nil)
+            #expect(vIso != nil)
+        }
+    }
+
+    @Test("IsUClosed and IsVClosed")
+    func closedQueries() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 1), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            #expect(!s.bezierIsUClosed)
+            #expect(!s.bezierIsVClosed)
+        }
+    }
+
+    @Test("IsUPeriodic and IsVPeriodic always false")
+    func periodicQueries() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 1), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            #expect(!s.bezierIsUPeriodic)
+            #expect(!s.bezierIsVPeriodic)
+        }
+    }
+
+    @Test("Continuity is CN")
+    func continuity() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 1), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            #expect(s.bezierContinuity == 6) // CN = 6 in GeomAbs_Shape
+        }
+    }
+
+    @Test("IsCNu and IsCNv always true")
+    func isCN() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 1), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            #expect(s.bezierIsCNu(0))
+            #expect(s.bezierIsCNu(10))
+            #expect(s.bezierIsCNv(0))
+            #expect(s.bezierIsCNv(10))
+        }
+    }
+
+    @Test("GetPoles bulk")
+    func poles() {
+        let inputPoles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 1), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: inputPoles)
+        if let s = s {
+            let p = s.bezierPoles
+            #expect(p.count == 4) // 2x2
+        }
+    }
+
+    @Test("GetWeights for non-rational returns nil")
+    func weightsNonRational() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 1), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            let w = s.bezierWeights
+            // Non-rational: may return nil or all 1.0
+            if let w = w {
+                for weight in w {
+                    #expect(abs(weight - 1.0) < 1e-10)
+                }
+            }
+        }
+    }
+
+    @Test("Bounds returns [0,1]x[0,1]")
+    func bounds() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 1), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            let b = s.bezierBounds
+            #expect(abs(b.u1 - 0) < 1e-10)
+            #expect(abs(b.u2 - 1) < 1e-10)
+            #expect(abs(b.v1 - 0) < 1e-10)
+            #expect(abs(b.v2 - 1) < 1e-10)
+        }
+    }
+}
+

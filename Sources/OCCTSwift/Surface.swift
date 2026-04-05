@@ -2100,4 +2100,258 @@ extension Surface {
         OCCTSurfaceCurvatures(handle, u, v, &g, &m)
         return (g, m)
     }
+
+    // MARK: - v0.125.0: BSpline Surface deep method completion
+
+    /// Local evaluation D0 within a specific knot span.
+    public func bsplineLocalD0(u: Double, v: Double, fromUK1: Int, toUK2: Int,
+                                fromVK1: Int, toVK2: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTSurfaceBSplineLocalD0(handle, u, v, Int32(fromUK1), Int32(toUK2),
+                                   Int32(fromVK1), Int32(toVK2), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Local evaluation D1 within a specific knot span.
+    public func bsplineLocalD1(u: Double, v: Double, fromUK1: Int, toUK2: Int,
+                                fromVK1: Int, toVK2: Int)
+        -> (point: SIMD3<Double>, d1u: SIMD3<Double>, d1v: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1ux = 0.0, d1uy = 0.0, d1uz = 0.0
+        var d1vx = 0.0, d1vy = 0.0, d1vz = 0.0
+        OCCTSurfaceBSplineLocalD1(handle, u, v, Int32(fromUK1), Int32(toUK2),
+                                   Int32(fromVK1), Int32(toVK2),
+                                   &px, &py, &pz, &d1ux, &d1uy, &d1uz, &d1vx, &d1vy, &d1vz)
+        return (SIMD3(px, py, pz), SIMD3(d1ux, d1uy, d1uz), SIMD3(d1vx, d1vy, d1vz))
+    }
+
+    /// Local evaluation D2 within a specific knot span.
+    public func bsplineLocalD2(u: Double, v: Double, fromUK1: Int, toUK2: Int,
+                                fromVK1: Int, toVK2: Int)
+        -> (point: SIMD3<Double>, d1u: SIMD3<Double>, d1v: SIMD3<Double>,
+            d2u: SIMD3<Double>, d2v: SIMD3<Double>, d2uv: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1ux = 0.0, d1uy = 0.0, d1uz = 0.0, d1vx = 0.0, d1vy = 0.0, d1vz = 0.0
+        var d2ux = 0.0, d2uy = 0.0, d2uz = 0.0, d2vx = 0.0, d2vy = 0.0, d2vz = 0.0
+        var d2uvx = 0.0, d2uvy = 0.0, d2uvz = 0.0
+        OCCTSurfaceBSplineLocalD2(handle, u, v, Int32(fromUK1), Int32(toUK2),
+                                   Int32(fromVK1), Int32(toVK2),
+                                   &px, &py, &pz, &d1ux, &d1uy, &d1uz, &d1vx, &d1vy, &d1vz,
+                                   &d2ux, &d2uy, &d2uz, &d2vx, &d2vy, &d2vz,
+                                   &d2uvx, &d2uvy, &d2uvz)
+        return (SIMD3(px, py, pz), SIMD3(d1ux, d1uy, d1uz), SIMD3(d1vx, d1vy, d1vz),
+                SIMD3(d2ux, d2uy, d2uz), SIMD3(d2vx, d2vy, d2vz), SIMD3(d2uvx, d2uvy, d2uvz))
+    }
+
+    /// Local evaluation D3 within a specific knot span.
+    public func bsplineLocalD3(u: Double, v: Double, fromUK1: Int, toUK2: Int,
+                                fromVK1: Int, toVK2: Int)
+        -> (point: SIMD3<Double>, d1u: SIMD3<Double>, d1v: SIMD3<Double>,
+            d2u: SIMD3<Double>, d2v: SIMD3<Double>, d2uv: SIMD3<Double>,
+            d3u: SIMD3<Double>, d3v: SIMD3<Double>, d3uuv: SIMD3<Double>, d3uvv: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1ux = 0.0, d1uy = 0.0, d1uz = 0.0, d1vx = 0.0, d1vy = 0.0, d1vz = 0.0
+        var d2ux = 0.0, d2uy = 0.0, d2uz = 0.0, d2vx = 0.0, d2vy = 0.0, d2vz = 0.0
+        var d2uvx = 0.0, d2uvy = 0.0, d2uvz = 0.0
+        var d3ux = 0.0, d3uy = 0.0, d3uz = 0.0, d3vx = 0.0, d3vy = 0.0, d3vz = 0.0
+        var d3uuvx = 0.0, d3uuvy = 0.0, d3uuvz = 0.0, d3uvvx = 0.0, d3uvvy = 0.0, d3uvvz = 0.0
+        OCCTSurfaceBSplineLocalD3(handle, u, v, Int32(fromUK1), Int32(toUK2),
+                                   Int32(fromVK1), Int32(toVK2),
+                                   &px, &py, &pz, &d1ux, &d1uy, &d1uz, &d1vx, &d1vy, &d1vz,
+                                   &d2ux, &d2uy, &d2uz, &d2vx, &d2vy, &d2vz,
+                                   &d2uvx, &d2uvy, &d2uvz,
+                                   &d3ux, &d3uy, &d3uz, &d3vx, &d3vy, &d3vz,
+                                   &d3uuvx, &d3uuvy, &d3uuvz, &d3uvvx, &d3uvvy, &d3uvvz)
+        return (SIMD3(px, py, pz), SIMD3(d1ux, d1uy, d1uz), SIMD3(d1vx, d1vy, d1vz),
+                SIMD3(d2ux, d2uy, d2uz), SIMD3(d2vx, d2vy, d2vz), SIMD3(d2uvx, d2uvy, d2uvz),
+                SIMD3(d3ux, d3uy, d3uz), SIMD3(d3vx, d3vy, d3vz),
+                SIMD3(d3uuvx, d3uuvy, d3uuvz), SIMD3(d3uvvx, d3uvvy, d3uvvz))
+    }
+
+    /// Local derivative DN within a specific knot span.
+    public func bsplineLocalDN(u: Double, v: Double, fromUK1: Int, toUK2: Int,
+                                fromVK1: Int, toVK2: Int, nu: Int, nv: Int) -> SIMD3<Double> {
+        var vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTSurfaceBSplineLocalDN(handle, u, v, Int32(fromUK1), Int32(toUK2),
+                                   Int32(fromVK1), Int32(toVK2), Int32(nu), Int32(nv), &vx, &vy, &vz)
+        return SIMD3(vx, vy, vz)
+    }
+
+    /// Local value within a specific knot span.
+    public func bsplineLocalValue(u: Double, v: Double, fromUK1: Int, toUK2: Int,
+                                   fromVK1: Int, toVK2: Int) -> SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTSurfaceBSplineLocalValue(handle, u, v, Int32(fromUK1), Int32(toUK2),
+                                      Int32(fromVK1), Int32(toVK2), &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Extract U isoparametric curve from BSpline surface.
+    public func bsplineUIso(u: Double) -> Curve3D? {
+        guard let ref = OCCTSurfaceBSplineUIso(handle, u) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Extract V isoparametric curve from BSpline surface.
+    public func bsplineVIso(v: Double) -> Curve3D? {
+        guard let ref = OCCTSurfaceBSplineVIso(handle, v) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Locate U knot span. Returns (i1, i2) indices.
+    public func bsplineLocateU(u: Double, paramTol: Double) -> (i1: Int, i2: Int) {
+        var i1: Int32 = 0, i2: Int32 = 0
+        OCCTSurfaceBSplineLocateU(handle, u, paramTol, &i1, &i2)
+        return (Int(i1), Int(i2))
+    }
+
+    /// Locate V knot span. Returns (i1, i2) indices.
+    public func bsplineLocateV(v: Double, paramTol: Double) -> (i1: Int, i2: Int) {
+        var i1: Int32 = 0, i2: Int32 = 0
+        OCCTSurfaceBSplineLocateV(handle, v, paramTol, &i1, &i2)
+        return (Int(i1), Int(i2))
+    }
+
+    /// Get a single U knot value by index (1-based).
+    public func bsplineUKnot(index: Int) -> Double {
+        OCCTSurfaceBSplineUKnot(handle, Int32(index))
+    }
+
+    /// Get a single V knot value by index (1-based).
+    public func bsplineVKnot(index: Int) -> Double {
+        OCCTSurfaceBSplineVKnot(handle, Int32(index))
+    }
+
+    /// Get U multiplicity by index (1-based).
+    public func bsplineUMultiplicity(index: Int) -> Int {
+        Int(OCCTSurfaceBSplineUMultiplicity(handle, Int32(index)))
+    }
+
+    /// Get V multiplicity by index (1-based).
+    public func bsplineVMultiplicity(index: Int) -> Int {
+        Int(OCCTSurfaceBSplineVMultiplicity(handle, Int32(index)))
+    }
+
+    /// U knot distribution (0=NonUniform, 1=Uniform, 2=QuasiUniform, 3=PiecewiseBezier).
+    public var bsplineUKnotDistribution: Int {
+        Int(OCCTSurfaceBSplineUKnotDistribution(handle))
+    }
+
+    /// V knot distribution (0=NonUniform, 1=Uniform, 2=QuasiUniform, 3=PiecewiseBezier).
+    public var bsplineVKnotDistribution: Int {
+        Int(OCCTSurfaceBSplineVKnotDistribution(handle))
+    }
+
+    /// Get all poles as flat array for BSpline surface.
+    public var bsplinePoles: [SIMD3<Double>] {
+        let uCount = Int(OCCTSurfaceBSplineNbUPoles(handle))
+        let vCount = Int(OCCTSurfaceBSplineNbVPoles(handle))
+        guard uCount > 0 && vCount > 0 else { return [] }
+        var flat = [Double](repeating: 0, count: uCount * vCount * 3)
+        OCCTSurfaceBSplineGetPoles(handle, &flat)
+        var result = [SIMD3<Double>]()
+        result.reserveCapacity(uCount * vCount)
+        for i in stride(from: 0, to: flat.count, by: 3) {
+            result.append(SIMD3(flat[i], flat[i + 1], flat[i + 2]))
+        }
+        return result
+    }
+
+    /// Get parameter bounds for BSpline surface.
+    public var bsplineBounds: (u1: Double, u2: Double, v1: Double, v2: Double) {
+        var u1 = 0.0, u2 = 0.0, v1 = 0.0, v2 = 0.0
+        OCCTSurfaceBSplineBounds(handle, &u1, &u2, &v1, &v2)
+        return (u1, u2, v1, v2)
+    }
+
+    /// Is the BSpline surface closed in U?
+    public var bsplineIsUClosed: Bool {
+        OCCTSurfaceBSplineIsUClosed(handle)
+    }
+
+    /// Is the BSpline surface closed in V?
+    public var bsplineIsVClosed: Bool {
+        OCCTSurfaceBSplineIsVClosed(handle)
+    }
+
+    // MARK: - v0.125.0: Bezier Surface deep method completion
+
+    /// Extract U isoparametric curve from Bezier surface.
+    public func bezierUIso(u: Double) -> Curve3D? {
+        guard let ref = OCCTSurfaceBezierUIso(handle, u) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Extract V isoparametric curve from Bezier surface.
+    public func bezierVIso(v: Double) -> Curve3D? {
+        guard let ref = OCCTSurfaceBezierVIso(handle, v) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Is the Bezier surface closed in U?
+    public var bezierIsUClosed: Bool {
+        OCCTSurfaceBezierIsUClosed(handle)
+    }
+
+    /// Is the Bezier surface closed in V?
+    public var bezierIsVClosed: Bool {
+        OCCTSurfaceBezierIsVClosed(handle)
+    }
+
+    /// Is the Bezier surface periodic in U?
+    public var bezierIsUPeriodic: Bool {
+        OCCTSurfaceBezierIsUPeriodic(handle)
+    }
+
+    /// Is the Bezier surface periodic in V?
+    public var bezierIsVPeriodic: Bool {
+        OCCTSurfaceBezierIsVPeriodic(handle)
+    }
+
+    /// Bezier surface continuity (0=C0, 1=C1, 2=C2, 3=C3, 4=CN).
+    public var bezierContinuity: Int {
+        Int(OCCTSurfaceBezierContinuity(handle))
+    }
+
+    /// Is the Bezier surface at least CN continuous in U?
+    public func bezierIsCNu(_ n: Int) -> Bool {
+        OCCTSurfaceBezierIsCNu(handle, Int32(n))
+    }
+
+    /// Is the Bezier surface at least CN continuous in V?
+    public func bezierIsCNv(_ n: Int) -> Bool {
+        OCCTSurfaceBezierIsCNv(handle, Int32(n))
+    }
+
+    /// Get all poles as flat array for Bezier surface.
+    public var bezierPoles: [SIMD3<Double>] {
+        let uCount = Int(OCCTSurfaceBezierNbUPoles(handle))
+        let vCount = Int(OCCTSurfaceBezierNbVPoles(handle))
+        guard uCount > 0 && vCount > 0 else { return [] }
+        var flat = [Double](repeating: 0, count: uCount * vCount * 3)
+        OCCTSurfaceBezierGetPoles(handle, &flat)
+        var result = [SIMD3<Double>]()
+        result.reserveCapacity(uCount * vCount)
+        for i in stride(from: 0, to: flat.count, by: 3) {
+            result.append(SIMD3(flat[i], flat[i + 1], flat[i + 2]))
+        }
+        return result
+    }
+
+    /// Get all weights as flat array for Bezier surface. Returns nil if non-rational.
+    public var bezierWeights: [Double]? {
+        let uCount = Int(OCCTSurfaceBezierNbUPoles(handle))
+        let vCount = Int(OCCTSurfaceBezierNbVPoles(handle))
+        guard uCount > 0 && vCount > 0 else { return nil }
+        var weights = [Double](repeating: 0, count: uCount * vCount)
+        guard OCCTSurfaceBezierGetWeights(handle, &weights) else { return nil }
+        return weights
+    }
+
+    /// Get parameter bounds for Bezier surface.
+    public var bezierBounds: (u1: Double, u2: Double, v1: Double, v2: Double) {
+        var u1 = 0.0, u2 = 0.0, v1 = 0.0, v2 = 0.0
+        OCCTSurfaceBezierBounds(handle, &u1, &u2, &v1, &v2)
+        return (u1, u2, v1, v2)
+    }
 }

@@ -18073,6 +18073,246 @@ int32_t OCCTShapeNbFaces(OCCTShapeRef _Nonnull shape);
 /// Get the number of vertices in a shape.
 int32_t OCCTShapeNbVertices(OCCTShapeRef _Nonnull shape);
 
+// MARK: - v0.125.0: BSpline/Bezier deep method completion
+
+// --- Geom_BSplineSurface completions ---
+
+/// Local evaluation D0 within knot span.
+void OCCTSurfaceBSplineLocalD0(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Local evaluation D1 within knot span.
+void OCCTSurfaceBSplineLocalD1(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                                double* _Nonnull d1ux, double* _Nonnull d1uy, double* _Nonnull d1uz,
+                                double* _Nonnull d1vx, double* _Nonnull d1vy, double* _Nonnull d1vz);
+
+/// Local evaluation D2 within knot span.
+void OCCTSurfaceBSplineLocalD2(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                                double* _Nonnull d1ux, double* _Nonnull d1uy, double* _Nonnull d1uz,
+                                double* _Nonnull d1vx, double* _Nonnull d1vy, double* _Nonnull d1vz,
+                                double* _Nonnull d2ux, double* _Nonnull d2uy, double* _Nonnull d2uz,
+                                double* _Nonnull d2vx, double* _Nonnull d2vy, double* _Nonnull d2vz,
+                                double* _Nonnull d2uvx, double* _Nonnull d2uvy, double* _Nonnull d2uvz);
+
+/// Local evaluation D3 within knot span.
+void OCCTSurfaceBSplineLocalD3(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                                double* _Nonnull d1ux, double* _Nonnull d1uy, double* _Nonnull d1uz,
+                                double* _Nonnull d1vx, double* _Nonnull d1vy, double* _Nonnull d1vz,
+                                double* _Nonnull d2ux, double* _Nonnull d2uy, double* _Nonnull d2uz,
+                                double* _Nonnull d2vx, double* _Nonnull d2vy, double* _Nonnull d2vz,
+                                double* _Nonnull d2uvx, double* _Nonnull d2uvy, double* _Nonnull d2uvz,
+                                double* _Nonnull d3ux, double* _Nonnull d3uy, double* _Nonnull d3uz,
+                                double* _Nonnull d3vx, double* _Nonnull d3vy, double* _Nonnull d3vz,
+                                double* _Nonnull d3uuvx, double* _Nonnull d3uuvy, double* _Nonnull d3uuvz,
+                                double* _Nonnull d3uvvx, double* _Nonnull d3uvvy, double* _Nonnull d3uvvz);
+
+/// Local derivative DN within knot span.
+void OCCTSurfaceBSplineLocalDN(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                int32_t nu, int32_t nv,
+                                double* _Nonnull vx, double* _Nonnull vy, double* _Nonnull vz);
+
+/// Local value within knot span.
+void OCCTSurfaceBSplineLocalValue(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                   int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                   double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// UIso: extract isoparametric curve at U.
+OCCTCurve3DRef _Nullable OCCTSurfaceBSplineUIso(OCCTSurfaceRef _Nonnull surface, double u);
+
+/// VIso: extract isoparametric curve at V.
+OCCTCurve3DRef _Nullable OCCTSurfaceBSplineVIso(OCCTSurfaceRef _Nonnull surface, double v);
+
+/// Locate U knot span. Returns I1 and I2 via out params.
+void OCCTSurfaceBSplineLocateU(OCCTSurfaceRef _Nonnull surface, double u, double paramTol,
+                                int32_t* _Nonnull i1, int32_t* _Nonnull i2);
+
+/// Locate V knot span. Returns I1 and I2 via out params.
+void OCCTSurfaceBSplineLocateV(OCCTSurfaceRef _Nonnull surface, double v, double paramTol,
+                                int32_t* _Nonnull i1, int32_t* _Nonnull i2);
+
+/// Get a single U knot value by index (1-based).
+double OCCTSurfaceBSplineUKnot(OCCTSurfaceRef _Nonnull surface, int32_t index);
+
+/// Get a single V knot value by index (1-based).
+double OCCTSurfaceBSplineVKnot(OCCTSurfaceRef _Nonnull surface, int32_t index);
+
+/// Get U multiplicity by index (1-based).
+int32_t OCCTSurfaceBSplineUMultiplicity(OCCTSurfaceRef _Nonnull surface, int32_t index);
+
+/// Get V multiplicity by index (1-based).
+int32_t OCCTSurfaceBSplineVMultiplicity(OCCTSurfaceRef _Nonnull surface, int32_t index);
+
+/// U knot distribution: 0=NonUniform, 1=Uniform, 2=QuasiUniform, 3=PiecewiseBezier.
+int32_t OCCTSurfaceBSplineUKnotDistribution(OCCTSurfaceRef _Nonnull surface);
+
+/// V knot distribution: 0=NonUniform, 1=Uniform, 2=QuasiUniform, 3=PiecewiseBezier.
+int32_t OCCTSurfaceBSplineVKnotDistribution(OCCTSurfaceRef _Nonnull surface);
+
+/// Get all poles as flat array (x1,y1,z1,x2,...). Array must be pre-allocated to NbUPoles*NbVPoles*3.
+void OCCTSurfaceBSplineGetPoles(OCCTSurfaceRef _Nonnull surface, double* _Nonnull poles);
+
+/// Get parameter bounds (u1, u2, v1, v2).
+void OCCTSurfaceBSplineBounds(OCCTSurfaceRef _Nonnull surface,
+                               double* _Nonnull u1, double* _Nonnull u2,
+                               double* _Nonnull v1, double* _Nonnull v2);
+
+/// Is the surface closed in U?
+bool OCCTSurfaceBSplineIsUClosed(OCCTSurfaceRef _Nonnull surface);
+
+/// Is the surface closed in V?
+bool OCCTSurfaceBSplineIsVClosed(OCCTSurfaceRef _Nonnull surface);
+
+// --- Geom2d_BSplineCurve completions ---
+
+/// Local D0 within knot span.
+void OCCTCurve2DBSplineLocalD0(OCCTCurve2DRef _Nonnull curve, double u, int32_t fromK1, int32_t toK2,
+                                double* _Nonnull x, double* _Nonnull y);
+
+/// Local D1 within knot span.
+void OCCTCurve2DBSplineLocalD1(OCCTCurve2DRef _Nonnull curve, double u, int32_t fromK1, int32_t toK2,
+                                double* _Nonnull px, double* _Nonnull py,
+                                double* _Nonnull v1x, double* _Nonnull v1y);
+
+/// Local D2 within knot span.
+void OCCTCurve2DBSplineLocalD2(OCCTCurve2DRef _Nonnull curve, double u, int32_t fromK1, int32_t toK2,
+                                double* _Nonnull px, double* _Nonnull py,
+                                double* _Nonnull v1x, double* _Nonnull v1y,
+                                double* _Nonnull v2x, double* _Nonnull v2y);
+
+/// Local D3 within knot span.
+void OCCTCurve2DBSplineLocalD3(OCCTCurve2DRef _Nonnull curve, double u, int32_t fromK1, int32_t toK2,
+                                double* _Nonnull px, double* _Nonnull py,
+                                double* _Nonnull v1x, double* _Nonnull v1y,
+                                double* _Nonnull v2x, double* _Nonnull v2y,
+                                double* _Nonnull v3x, double* _Nonnull v3y);
+
+/// Local DN within knot span.
+void OCCTCurve2DBSplineLocalDN(OCCTCurve2DRef _Nonnull curve, double u, int32_t fromK1, int32_t toK2,
+                                int32_t n, double* _Nonnull vx, double* _Nonnull vy);
+
+/// Local value within knot span.
+void OCCTCurve2DBSplineLocalValue(OCCTCurve2DRef _Nonnull curve, double u, int32_t fromK1, int32_t toK2,
+                                   double* _Nonnull x, double* _Nonnull y);
+
+/// Locate U knot span. Returns I1 and I2 via out params.
+void OCCTCurve2DBSplineLocateU(OCCTCurve2DRef _Nonnull curve, double u, double paramTol,
+                                int32_t* _Nonnull i1, int32_t* _Nonnull i2);
+
+/// First U knot index.
+int32_t OCCTCurve2DBSplineFirstUKnotIndex(OCCTCurve2DRef _Nonnull curve);
+
+/// Last U knot index.
+int32_t OCCTCurve2DBSplineLastUKnotIndex(OCCTCurve2DRef _Nonnull curve);
+
+/// Get a single knot value by index (1-based).
+double OCCTCurve2DBSplineKnot(OCCTCurve2DRef _Nonnull curve, int32_t index);
+
+/// Knot distribution: 0=NonUniform, 1=Uniform, 2=QuasiUniform, 3=PiecewiseBezier.
+int32_t OCCTCurve2DBSplineKnotDistribution(OCCTCurve2DRef _Nonnull curve);
+
+/// Get multiplicity by index (1-based).
+int32_t OCCTCurve2DBSplineMultiplicity(OCCTCurve2DRef _Nonnull curve, int32_t index);
+
+/// Get all multiplicities. Array must be pre-allocated to KnotCount.
+void OCCTCurve2DBSplineGetMultiplicities(OCCTCurve2DRef _Nonnull curve, int32_t* _Nonnull mults);
+
+/// Get start point.
+void OCCTCurve2DBSplineStartPoint(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+/// Get end point.
+void OCCTCurve2DBSplineEndPoint(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+/// Get all poles as flat array (x1,y1,x2,y2,...). Array must be pre-allocated to NbPoles*2.
+void OCCTCurve2DBSplineGetPoles(OCCTCurve2DRef _Nonnull curve, double* _Nonnull poles);
+
+/// Is the curve closed?
+bool OCCTCurve2DBSplineIsClosed(OCCTCurve2DRef _Nonnull curve);
+
+/// Is the curve periodic?
+bool OCCTCurve2DBSplineIsPeriodic(OCCTCurve2DRef _Nonnull curve);
+
+/// Continuity: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN, 5=G1, 6=G2.
+int32_t OCCTCurve2DBSplineContinuity(OCCTCurve2DRef _Nonnull curve);
+
+/// IsCN: is the curve at least CN continuous?
+bool OCCTCurve2DBSplineIsCN(OCCTCurve2DRef _Nonnull curve, int32_t n);
+
+// --- Geom_BezierCurve completions ---
+
+/// Get start point.
+void OCCTCurve3DBezierStartPoint(OCCTCurve3DRef _Nonnull curve,
+                                  double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get end point.
+void OCCTCurve3DBezierEndPoint(OCCTCurve3DRef _Nonnull curve,
+                                double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get all poles as flat array (x1,y1,z1,...). Array must be pre-allocated to NbPoles*3.
+void OCCTCurve3DBezierGetPoles(OCCTCurve3DRef _Nonnull curve, double* _Nonnull poles);
+
+/// Get all weights. Array must be pre-allocated to NbPoles. Returns false if non-rational.
+bool OCCTCurve3DBezierGetWeights(OCCTCurve3DRef _Nonnull curve, double* _Nonnull weights);
+
+/// Is the curve closed?
+bool OCCTCurve3DBezierIsClosed(OCCTCurve3DRef _Nonnull curve);
+
+/// Is the curve periodic?
+bool OCCTCurve3DBezierIsPeriodic(OCCTCurve3DRef _Nonnull curve);
+
+/// Continuity: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN, 5=G1, 6=G2.
+int32_t OCCTCurve3DBezierContinuity(OCCTCurve3DRef _Nonnull curve);
+
+/// IsCN: is the curve at least CN continuous?
+bool OCCTCurve3DBezierIsCN(OCCTCurve3DRef _Nonnull curve, int32_t n);
+
+// --- Geom_BezierSurface completions ---
+
+/// UIso: extract isoparametric curve at U.
+OCCTCurve3DRef _Nullable OCCTSurfaceBezierUIso(OCCTSurfaceRef _Nonnull surface, double u);
+
+/// VIso: extract isoparametric curve at V.
+OCCTCurve3DRef _Nullable OCCTSurfaceBezierVIso(OCCTSurfaceRef _Nonnull surface, double v);
+
+/// Is the surface closed in U?
+bool OCCTSurfaceBezierIsUClosed(OCCTSurfaceRef _Nonnull surface);
+
+/// Is the surface closed in V?
+bool OCCTSurfaceBezierIsVClosed(OCCTSurfaceRef _Nonnull surface);
+
+/// Is the surface periodic in U?
+bool OCCTSurfaceBezierIsUPeriodic(OCCTSurfaceRef _Nonnull surface);
+
+/// Is the surface periodic in V?
+bool OCCTSurfaceBezierIsVPeriodic(OCCTSurfaceRef _Nonnull surface);
+
+/// Continuity: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN, 5=G1, 6=G2.
+int32_t OCCTSurfaceBezierContinuity(OCCTSurfaceRef _Nonnull surface);
+
+/// IsCNu: is the surface at least CN continuous in U?
+bool OCCTSurfaceBezierIsCNu(OCCTSurfaceRef _Nonnull surface, int32_t n);
+
+/// IsCNv: is the surface at least CN continuous in V?
+bool OCCTSurfaceBezierIsCNv(OCCTSurfaceRef _Nonnull surface, int32_t n);
+
+/// Get all poles as flat array (x1,y1,z1,...). Array must be pre-allocated to NbUPoles*NbVPoles*3.
+void OCCTSurfaceBezierGetPoles(OCCTSurfaceRef _Nonnull surface, double* _Nonnull poles);
+
+/// Get all weights as flat array. Array must be pre-allocated to NbUPoles*NbVPoles. Returns false if non-rational.
+bool OCCTSurfaceBezierGetWeights(OCCTSurfaceRef _Nonnull surface, double* _Nonnull weights);
+
+/// Get parameter bounds (u1, u2, v1, v2).
+void OCCTSurfaceBezierBounds(OCCTSurfaceRef _Nonnull surface,
+                              double* _Nonnull u1, double* _Nonnull u2,
+                              double* _Nonnull v1, double* _Nonnull v2);
+
 #ifdef __cplusplus
 }
 #endif

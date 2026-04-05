@@ -2198,4 +2198,144 @@ extension Curve2D {
         }
         return result
     }
+
+    // MARK: - v0.125.0: Geom2d_BSplineCurve deep method completion
+
+    /// Local D0 within a specific knot span.
+    public func bsplineLocalD0(u: Double, fromK1: Int, toK2: Int) -> SIMD2<Double> {
+        var x = 0.0, y = 0.0
+        OCCTCurve2DBSplineLocalD0(handle, u, Int32(fromK1), Int32(toK2), &x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// Local D1 within a specific knot span.
+    public func bsplineLocalD1(u: Double, fromK1: Int, toK2: Int)
+        -> (point: SIMD2<Double>, v1: SIMD2<Double>) {
+        var px = 0.0, py = 0.0, v1x = 0.0, v1y = 0.0
+        OCCTCurve2DBSplineLocalD1(handle, u, Int32(fromK1), Int32(toK2),
+                                   &px, &py, &v1x, &v1y)
+        return (SIMD2(px, py), SIMD2(v1x, v1y))
+    }
+
+    /// Local D2 within a specific knot span.
+    public func bsplineLocalD2(u: Double, fromK1: Int, toK2: Int)
+        -> (point: SIMD2<Double>, v1: SIMD2<Double>, v2: SIMD2<Double>) {
+        var px = 0.0, py = 0.0, v1x = 0.0, v1y = 0.0, v2x = 0.0, v2y = 0.0
+        OCCTCurve2DBSplineLocalD2(handle, u, Int32(fromK1), Int32(toK2),
+                                   &px, &py, &v1x, &v1y, &v2x, &v2y)
+        return (SIMD2(px, py), SIMD2(v1x, v1y), SIMD2(v2x, v2y))
+    }
+
+    /// Local D3 within a specific knot span.
+    public func bsplineLocalD3(u: Double, fromK1: Int, toK2: Int)
+        -> (point: SIMD2<Double>, v1: SIMD2<Double>, v2: SIMD2<Double>, v3: SIMD2<Double>) {
+        var px = 0.0, py = 0.0
+        var v1x = 0.0, v1y = 0.0, v2x = 0.0, v2y = 0.0, v3x = 0.0, v3y = 0.0
+        OCCTCurve2DBSplineLocalD3(handle, u, Int32(fromK1), Int32(toK2),
+                                   &px, &py, &v1x, &v1y, &v2x, &v2y, &v3x, &v3y)
+        return (SIMD2(px, py), SIMD2(v1x, v1y), SIMD2(v2x, v2y), SIMD2(v3x, v3y))
+    }
+
+    /// Local DN within a specific knot span.
+    public func bsplineLocalDN(u: Double, fromK1: Int, toK2: Int, n: Int) -> SIMD2<Double> {
+        var vx = 0.0, vy = 0.0
+        OCCTCurve2DBSplineLocalDN(handle, u, Int32(fromK1), Int32(toK2), Int32(n), &vx, &vy)
+        return SIMD2(vx, vy)
+    }
+
+    /// Local value within a specific knot span.
+    public func bsplineLocalValue(u: Double, fromK1: Int, toK2: Int) -> SIMD2<Double> {
+        var x = 0.0, y = 0.0
+        OCCTCurve2DBSplineLocalValue(handle, u, Int32(fromK1), Int32(toK2), &x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// Locate U knot span. Returns (i1, i2) indices.
+    public func bsplineLocateU(u: Double, paramTol: Double) -> (i1: Int, i2: Int) {
+        var i1: Int32 = 0, i2: Int32 = 0
+        OCCTCurve2DBSplineLocateU(handle, u, paramTol, &i1, &i2)
+        return (Int(i1), Int(i2))
+    }
+
+    /// First U knot index.
+    public var bsplineFirstUKnotIndex: Int {
+        Int(OCCTCurve2DBSplineFirstUKnotIndex(handle))
+    }
+
+    /// Last U knot index.
+    public var bsplineLastUKnotIndex: Int {
+        Int(OCCTCurve2DBSplineLastUKnotIndex(handle))
+    }
+
+    /// Get a single knot value by index (1-based).
+    public func bsplineKnot(index: Int) -> Double {
+        OCCTCurve2DBSplineKnot(handle, Int32(index))
+    }
+
+    /// Knot distribution (0=NonUniform, 1=Uniform, 2=QuasiUniform, 3=PiecewiseBezier).
+    public var bsplineKnotDistribution: Int {
+        Int(OCCTCurve2DBSplineKnotDistribution(handle))
+    }
+
+    /// Get multiplicity by index (1-based).
+    public func bsplineMultiplicity(index: Int) -> Int {
+        Int(OCCTCurve2DBSplineMultiplicity(handle, Int32(index)))
+    }
+
+    /// Get all multiplicities.
+    public var bsplineMultiplicities: [Int] {
+        let count = Int(OCCTCurve2DBSplineKnotCount(handle))
+        guard count > 0 else { return [] }
+        var mults = [Int32](repeating: 0, count: count)
+        OCCTCurve2DBSplineGetMultiplicities(handle, &mults)
+        return mults.map { Int($0) }
+    }
+
+    /// BSpline start point.
+    public var bsplineStartPoint: SIMD2<Double> {
+        var x = 0.0, y = 0.0
+        OCCTCurve2DBSplineStartPoint(handle, &x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// BSpline end point.
+    public var bsplineEndPoint: SIMD2<Double> {
+        var x = 0.0, y = 0.0
+        OCCTCurve2DBSplineEndPoint(handle, &x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// Get all BSpline poles.
+    public var bsplinePoles: [SIMD2<Double>] {
+        let count = Int(OCCTCurve2DBSplinePoleCount(handle))
+        guard count > 0 else { return [] }
+        var flat = [Double](repeating: 0, count: count * 2)
+        OCCTCurve2DBSplineGetPoles(handle, &flat)
+        var result = [SIMD2<Double>]()
+        result.reserveCapacity(count)
+        for i in stride(from: 0, to: flat.count, by: 2) {
+            result.append(SIMD2(flat[i], flat[i + 1]))
+        }
+        return result
+    }
+
+    /// Is the BSpline curve closed?
+    public var bsplineIsClosed: Bool {
+        OCCTCurve2DBSplineIsClosed(handle)
+    }
+
+    /// Is the BSpline curve periodic?
+    public var bsplineIsPeriodic: Bool {
+        OCCTCurve2DBSplineIsPeriodic(handle)
+    }
+
+    /// BSpline curve continuity (0=C0, 1=C1, 2=C2, 3=C3, 4=CN).
+    public var bsplineContinuity: Int {
+        Int(OCCTCurve2DBSplineContinuity(handle))
+    }
+
+    /// Is the BSpline curve at least CN continuous?
+    public func bsplineIsCN(_ n: Int) -> Bool {
+        OCCTCurve2DBSplineIsCN(handle, Int32(n))
+    }
 }

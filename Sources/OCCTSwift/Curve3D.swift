@@ -1538,4 +1538,63 @@ extension Curve3D {
         }) else { return nil }
         return Curve3D(handle: ref)
     }
+
+    // MARK: - v0.125.0: Bezier Curve deep method completion
+
+    /// Bezier start point.
+    public var bezierStartPoint: SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTCurve3DBezierStartPoint(handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Bezier end point.
+    public var bezierEndPoint: SIMD3<Double> {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTCurve3DBezierEndPoint(handle, &x, &y, &z)
+        return SIMD3(x, y, z)
+    }
+
+    /// Get all Bezier poles as flat array.
+    public var bezierPoles: [SIMD3<Double>] {
+        let count = Int(OCCTCurve3DBezierPoleCount(handle))
+        guard count > 0 else { return [] }
+        var flat = [Double](repeating: 0, count: count * 3)
+        OCCTCurve3DBezierGetPoles(handle, &flat)
+        var result = [SIMD3<Double>]()
+        result.reserveCapacity(count)
+        for i in stride(from: 0, to: flat.count, by: 3) {
+            result.append(SIMD3(flat[i], flat[i + 1], flat[i + 2]))
+        }
+        return result
+    }
+
+    /// Get all Bezier weights. Returns nil if non-rational.
+    public var bezierWeights: [Double]? {
+        let count = Int(OCCTCurve3DBezierPoleCount(handle))
+        guard count > 0 else { return nil }
+        var weights = [Double](repeating: 0, count: count)
+        guard OCCTCurve3DBezierGetWeights(handle, &weights) else { return nil }
+        return weights
+    }
+
+    /// Is the Bezier curve closed?
+    public var bezierIsClosed: Bool {
+        OCCTCurve3DBezierIsClosed(handle)
+    }
+
+    /// Is the Bezier curve periodic?
+    public var bezierIsPeriodic: Bool {
+        OCCTCurve3DBezierIsPeriodic(handle)
+    }
+
+    /// Bezier curve continuity (0=C0, 1=C1, 2=C2, 3=C3, 4=CN).
+    public var bezierContinuity: Int {
+        Int(OCCTCurve3DBezierContinuity(handle))
+    }
+
+    /// Is the Bezier curve at least CN continuous?
+    public func bezierIsCN(_ n: Int) -> Bool {
+        OCCTCurve3DBezierIsCN(handle, Int32(n))
+    }
 }
