@@ -14475,6 +14475,311 @@ public final class ChamferBuilder: @unchecked Sendable {
     }
 }
 
+// MARK: - v0.124.0: ChamferBuilder completions, FilletBuilder completions, WireAnalyzer
+
+// --- ChamferBuilder completions ---
+
+extension ChamferBuilder {
+    /// Number of edges in contour (1-based index).
+    public func edgeCount(contour: Int) -> Int {
+        Int(OCCTChamferBuilderNbEdges(handle, Int32(contour)))
+    }
+
+    /// Get the symmetric distance for a contour (1-based).
+    public func getDistance(contour: Int) -> Double {
+        var dist: Double = -1.0
+        OCCTChamferBuilderGetDist(handle, Int32(contour), &dist)
+        return dist
+    }
+
+    /// Get the two distances for a contour (1-based).
+    public func getDistances(contour: Int) -> (d1: Double, d2: Double) {
+        var d1: Double = -1.0
+        var d2: Double = -1.0
+        OCCTChamferBuilderGetDists(handle, Int32(contour), &d1, &d2)
+        return (d1, d2)
+    }
+
+    /// Get distance and angle for a contour (1-based).
+    public func getDistAngle(contour: Int) -> (distance: Double, angle: Double) {
+        var dist: Double = -1.0
+        var angle: Double = -1.0
+        OCCTChamferBuilderGetDistAngle(handle, Int32(contour), &dist, &angle)
+        return (dist, angle)
+    }
+
+    /// Set symmetric distance on a contour (1-based, requires face for orientation).
+    @discardableResult
+    public func setDistance(_ dist: Double, contour: Int, face: Face) -> Bool {
+        OCCTChamferBuilderSetDist(handle, dist, Int32(contour), face.handle)
+    }
+
+    /// Set two distances on a contour (1-based, requires face for orientation).
+    @discardableResult
+    public func setDistances(_ d1: Double, _ d2: Double, contour: Int, face: Face) -> Bool {
+        OCCTChamferBuilderSetDists(handle, d1, d2, Int32(contour), face.handle)
+    }
+
+    /// Set distance and angle on a contour (1-based, requires face for orientation).
+    @discardableResult
+    public func setDistAngle(distance: Double, angle: Double, contour: Int, face: Face) -> Bool {
+        OCCTChamferBuilderSetDistAngle(handle, distance, angle, Int32(contour), face.handle)
+    }
+
+    /// Length of contour (1-based).
+    public func length(contour: Int) -> Double {
+        OCCTChamferBuilderLength(handle, Int32(contour))
+    }
+
+    /// Remove the contour containing the given edge.
+    @discardableResult
+    public func removeEdge(_ edge: Edge) -> Bool {
+        OCCTChamferBuilderRemoveEdge(handle, edge.handle)
+    }
+
+    /// Reset all contours, canceling effects of build.
+    public func reset() {
+        OCCTChamferBuilderReset(handle)
+    }
+
+    /// Whether contour (1-based) is closed.
+    public func isClosed(contour: Int) -> Bool {
+        OCCTChamferBuilderClosed(handle, Int32(contour))
+    }
+
+    /// Whether contour (1-based) is closed and tangent at closure.
+    public func isClosedAndTangent(contour: Int) -> Bool {
+        OCCTChamferBuilderClosedAndTangent(handle, Int32(contour))
+    }
+
+    /// Whether contour (1-based) is symmetric.
+    public func isSymmetric(contour: Int) -> Bool {
+        OCCTChamferBuilderIsSymmetric(handle, Int32(contour))
+    }
+
+    /// Whether contour (1-based) uses two distances.
+    public func isTwoDistances(contour: Int) -> Bool {
+        OCCTChamferBuilderIsTwoDists(handle, Int32(contour))
+    }
+
+    /// Get edge J in contour I (both 1-based).
+    public func edge(contour: Int, index: Int) -> Shape? {
+        guard let ref = OCCTChamferBuilderEdge(handle, Int32(contour), Int32(index)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get first vertex of contour (1-based).
+    public func firstVertex(contour: Int) -> Shape? {
+        guard let ref = OCCTChamferBuilderFirstVertex(handle, Int32(contour)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get last vertex of contour (1-based).
+    public func lastVertex(contour: Int) -> Shape? {
+        guard let ref = OCCTChamferBuilderLastVertex(handle, Int32(contour)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get contour index for an edge (0 if not found).
+    public func contour(for edge: Edge) -> Int {
+        Int(OCCTChamferBuilderContour(handle, edge.handle))
+    }
+
+    /// Curvilinear abscissa of vertex on contour (1-based).
+    public func abscissa(contour: Int, vertex: Shape) -> Double {
+        OCCTChamferBuilderAbscissa(handle, Int32(contour), vertex.handle)
+    }
+
+    /// Relative abscissa (0..1) of vertex on contour (1-based).
+    public func relativeAbscissa(contour: Int, vertex: Shape) -> Double {
+        OCCTChamferBuilderRelativeAbscissa(handle, Int32(contour), vertex.handle)
+    }
+}
+
+// --- FilletBuilder completions ---
+
+extension FilletBuilder {
+    /// Set radius on a specific edge in a contour.
+    @discardableResult
+    public func setRadius(_ radius: Double, contour: Int, edge: Edge) -> Bool {
+        OCCTFilletBuilderSetRadiusOnEdge(handle, radius, Int32(contour), edge.handle)
+    }
+
+    /// Set radius at a specific vertex in a contour.
+    @discardableResult
+    public func setRadius(_ radius: Double, contour: Int, vertex: Shape) -> Bool {
+        OCCTFilletBuilderSetRadiusAtVertex(handle, radius, Int32(contour), vertex.handle)
+    }
+
+    /// Set two radii (evolving) on a contour edge.
+    @discardableResult
+    public func setTwoRadii(_ r1: Double, _ r2: Double, contour: Int, edgeInContour: Int) -> Bool {
+        OCCTFilletBuilderSetTwoRadii(handle, r1, r2, Int32(contour), Int32(edgeInContour))
+    }
+
+    /// Get contour index for an edge (0 if not found).
+    public func contour(for edge: Edge) -> Int {
+        Int(OCCTFilletBuilderContour(handle, edge.handle))
+    }
+
+    /// Get edge J in contour I (both 1-based).
+    public func edge(contour: Int, index: Int) -> Shape? {
+        guard let ref = OCCTFilletBuilderEdge(handle, Int32(contour), Int32(index)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// First vertex of contour (1-based).
+    public func firstVertex(contour: Int) -> Shape? {
+        guard let ref = OCCTFilletBuilderFirstVertex(handle, Int32(contour)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Last vertex of contour (1-based).
+    public func lastVertex(contour: Int) -> Shape? {
+        guard let ref = OCCTFilletBuilderLastVertex(handle, Int32(contour)) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Curvilinear abscissa of vertex on contour (1-based).
+    public func abscissa(contour: Int, vertex: Shape) -> Double {
+        OCCTFilletBuilderAbscissa(handle, Int32(contour), vertex.handle)
+    }
+
+    /// Relative abscissa (0..1) of vertex on contour (1-based).
+    public func relativeAbscissa(contour: Int, vertex: Shape) -> Double {
+        OCCTFilletBuilderRelativeAbscissa(handle, Int32(contour), vertex.handle)
+    }
+
+    /// Whether contour (1-based) is closed and tangent at closure.
+    public func isClosedAndTangent(contour: Int) -> Bool {
+        OCCTFilletBuilderClosedAndTangent(handle, Int32(contour))
+    }
+
+    /// Whether contour (1-based) is closed.
+    public func isClosed(contour: Int) -> Bool {
+        OCCTFilletBuilderClosed(handle, Int32(contour))
+    }
+
+    /// Number of surfaces after build.
+    public var surfaceCount: Int { Int(OCCTFilletBuilderNbSurfaces(handle)) }
+
+    /// Number of computed surfaces for contour (1-based).
+    public func computedSurfaceCount(contour: Int) -> Int {
+        Int(OCCTFilletBuilderNbComputedSurfaces(handle, Int32(contour)))
+    }
+
+    /// Error status for contour (1-based). Returns ChFiDS_ErrorStatus as Int.
+    public func stripeStatus(contour: Int) -> Int {
+        Int(OCCTFilletBuilderStripeStatus(handle, Int32(contour)))
+    }
+
+    /// Get the faulty contour index for the i-th fault (1-based).
+    public func faultyContour(index: Int) -> Int {
+        Int(OCCTFilletBuilderFaultyContour(handle, Int32(index)))
+    }
+
+    /// Get the faulty vertex for the i-th fault (1-based).
+    public func faultyVertex(index: Int) -> Shape? {
+        guard let ref = OCCTFilletBuilderFaultyVertex(handle, Int32(index)) else { return nil }
+        return Shape(handle: ref)
+    }
+}
+
+// --- WireAnalyzer (ShapeAnalysis_Wire) ---
+
+/// Analyzer for wire geometry and topology, wrapping ShapeAnalysis_Wire.
+public final class WireAnalyzer: @unchecked Sendable {
+    private let handle: OCCTWireAnalyzerRef
+
+    /// Create a wire analyzer from a wire shape, a face it lies on, and precision.
+    public init?(wire: Wire, face: Shape, precision: Double = 1e-7) {
+        guard let ref = OCCTWireAnalyzerCreate(wire.handle, face.handle, precision) else { return nil }
+        self.handle = ref
+    }
+
+    deinit { OCCTWireAnalyzerRelease(handle) }
+
+    /// Run all checks (order, small, connected, degenerated, self-intersection, lacking, closed).
+    public func perform() -> Bool {
+        OCCTWireAnalyzerPerform(handle)
+    }
+
+    /// Check edge ordering.
+    public func checkOrder() -> Bool {
+        OCCTWireAnalyzerCheckOrder(handle)
+    }
+
+    /// Check if edge (1-based) is connected to the previous one.
+    public func checkConnected(edgeNum: Int) -> Bool {
+        OCCTWireAnalyzerCheckConnected(handle, Int32(edgeNum))
+    }
+
+    /// Check if edge (1-based) is small.
+    public func checkSmall(edgeNum: Int) -> Bool {
+        OCCTWireAnalyzerCheckSmall(handle, Int32(edgeNum))
+    }
+
+    /// Check if edge (1-based) is degenerated.
+    public func checkDegenerated(edgeNum: Int) -> Bool {
+        OCCTWireAnalyzerCheckDegenerated(handle, Int32(edgeNum))
+    }
+
+    /// Check 3D gap at edge (1-based, 0 = check all).
+    public func checkGap3d(edgeNum: Int = 0) -> Bool {
+        OCCTWireAnalyzerCheckGap3d(handle, Int32(edgeNum))
+    }
+
+    /// Check 2D gap at edge (1-based, 0 = check all).
+    public func checkGap2d(edgeNum: Int = 0) -> Bool {
+        OCCTWireAnalyzerCheckGap2d(handle, Int32(edgeNum))
+    }
+
+    /// Check if edge (1-based) is a seam.
+    public func checkSeam(edgeNum: Int) -> Bool {
+        OCCTWireAnalyzerCheckSeam(handle, Int32(edgeNum))
+    }
+
+    /// Check if edge (1-based) is lacking.
+    public func checkLacking(edgeNum: Int) -> Bool {
+        OCCTWireAnalyzerCheckLacking(handle, Int32(edgeNum))
+    }
+
+    /// Check wire self-intersection.
+    public func checkSelfIntersection() -> Bool {
+        OCCTWireAnalyzerCheckSelfIntersection(handle)
+    }
+
+    /// Check if wire is closed.
+    public func checkClosed() -> Bool {
+        OCCTWireAnalyzerCheckClosed(handle)
+    }
+
+    /// Get the minimum 3D distance computed.
+    public var minDistance3d: Double {
+        OCCTWireAnalyzerMinDistance3d(handle)
+    }
+
+    /// Get the maximum 3D distance computed.
+    public var maxDistance3d: Double {
+        OCCTWireAnalyzerMaxDistance3d(handle)
+    }
+
+    /// Number of edges in the wire.
+    public var edgeCount: Int {
+        Int(OCCTWireAnalyzerNbEdges(handle))
+    }
+
+    /// Whether the wire is loaded.
+    public var isLoaded: Bool {
+        OCCTWireAnalyzerIsLoaded(handle)
+    }
+
+    /// Whether the analyzer is ready (wire + face loaded).
+    public var isReady: Bool {
+        OCCTWireAnalyzerIsReady(handle)
+    }
+}
+
 // MARK: - GLTF Import/Export (v0.121.0)
 
 extension Shape {

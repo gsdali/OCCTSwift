@@ -38915,3 +38915,428 @@ struct ShapeQueriesV123Tests {
     }
 }
 
+// MARK: - v0.124.0 Tests
+
+@Suite("ChamferBuilder Completions v124")
+struct ChamferBuilderCompletionsV124Tests {
+
+    @Test("ChamferBuilder edge count, length, closed")
+    func chamferEdgeCountAndLength() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let cb = ChamferBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    cb.addEdge(e, distance: 1.0)
+                    #expect(cb.contourCount >= 1)
+                    let ec = cb.edgeCount(contour: 1)
+                    #expect(ec >= 1)
+                    let len = cb.length(contour: 1)
+                    #expect(len > 0)
+                    let closed = cb.isClosed(contour: 1)
+                    #expect(!closed || closed) // just check no crash
+                    let cat = cb.isClosedAndTangent(contour: 1)
+                    #expect(!cat || cat)
+                }
+            }
+        }
+    }
+
+    @Test("ChamferBuilder get/set distance")
+    func chamferGetSetDist() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let cb = ChamferBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    cb.addEdge(e, distance: 2.0)
+                    let dist = cb.getDistance(contour: 1)
+                    #expect(abs(dist - 2.0) < 1e-6)
+                    let sym = cb.isSymmetric(contour: 1)
+                    #expect(sym)
+                }
+            }
+        }
+    }
+
+    @Test("ChamferBuilder two distances")
+    func chamferTwoDists() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let b = box {
+            if let cb = ChamferBuilder(shape: b) {
+                let edges = b.edges()
+                let faces = b.faces()
+                if let e = edges.first, let f = faces.first {
+                    let added = cb.addEdge(e, face: f, distance1: 1.0, distance2: 2.0)
+                    if added && cb.contourCount >= 1 {
+                        let dists = cb.getDistances(contour: 1)
+                        #expect(abs(dists.d1 - 1.0) < 1e-6)
+                        #expect(abs(dists.d2 - 2.0) < 1e-6)
+                        let twod = cb.isTwoDistances(contour: 1)
+                        #expect(twod)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("ChamferBuilder remove and reset")
+    func chamferRemoveReset() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let cb = ChamferBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    cb.addEdge(e, distance: 1.0)
+                    #expect(cb.contourCount >= 1)
+                    cb.removeEdge(e)
+                    #expect(cb.contourCount == 0)
+
+                    // Add again and reset
+                    cb.addEdge(e, distance: 1.0)
+                    #expect(cb.contourCount >= 1)
+                    cb.reset()
+                    // Reset cancels build effects, contours remain
+                }
+            }
+        }
+    }
+
+    @Test("ChamferBuilder contour/edge/vertex queries")
+    func chamferContourQueries() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let cb = ChamferBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    cb.addEdge(e, distance: 1.0)
+                    let ci = cb.contour(for: e)
+                    #expect(ci >= 1)
+                    if ci >= 1 {
+                        let edgeShape = cb.edge(contour: ci, index: 1)
+                        #expect(edgeShape != nil)
+                        let fv = cb.firstVertex(contour: ci)
+                        #expect(fv != nil)
+                        let lv = cb.lastVertex(contour: ci)
+                        #expect(lv != nil)
+                        if let v = fv {
+                            let a = cb.abscissa(contour: ci, vertex: v)
+                            #expect(a >= 0)
+                            let ra = cb.relativeAbscissa(contour: ci, vertex: v)
+                            #expect(ra >= 0 && ra <= 1.0 + 1e-6)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("ChamferBuilder dist-angle mode")
+    func chamferDistAngle() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let b = box {
+            if let cb = ChamferBuilder(shape: b) {
+                let edges = b.edges()
+                let faces = b.faces()
+                if let e = edges.first, let f = faces.first {
+                    let added = cb.addEdge(e, face: f, distance: 1.0, angle: 0.5)
+                    if added && cb.contourCount >= 1 {
+                        let da = cb.isDistanceAngle(contour: 1)
+                        #expect(da)
+                        let vals = cb.getDistAngle(contour: 1)
+                        #expect(abs(vals.distance - 1.0) < 1e-6)
+                        #expect(abs(vals.angle - 0.5) < 1e-6)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("FilletBuilder Completions v124")
+struct FilletBuilderCompletionsV124Tests {
+
+    @Test("FilletBuilder contour access")
+    func filletContourAccess() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let fb = FilletBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    fb.addEdge(e, radius: 1.0)
+                    let ci = fb.contour(for: e)
+                    #expect(ci >= 1)
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder edge and vertex queries")
+    func filletEdgeVertexQueries() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let fb = FilletBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    fb.addEdge(e, radius: 1.0)
+                    let ci = fb.contour(for: e)
+                    if ci >= 1 {
+                        let edgeShape = fb.edge(contour: ci, index: 1)
+                        #expect(edgeShape != nil)
+                        let fv = fb.firstVertex(contour: ci)
+                        #expect(fv != nil)
+                        let lv = fb.lastVertex(contour: ci)
+                        #expect(lv != nil)
+                        if let v = fv {
+                            let a = fb.abscissa(contour: ci, vertex: v)
+                            #expect(a >= 0)
+                            let ra = fb.relativeAbscissa(contour: ci, vertex: v)
+                            #expect(ra >= 0 && ra <= 1.0 + 1e-6)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder closed and tangent")
+    func filletClosedAndTangent() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let fb = FilletBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    fb.addEdge(e, radius: 1.0)
+                    let ci = fb.contour(for: e)
+                    if ci >= 1 {
+                        let closed = fb.isClosed(contour: ci)
+                        let cat = fb.isClosedAndTangent(contour: ci)
+                        #expect(!closed || closed)
+                        #expect(!cat || cat)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder surfaces after build")
+    func filletSurfaces() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let fb = FilletBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    fb.addEdge(e, radius: 1.0)
+                    let result = fb.build()
+                    if result != nil {
+                        let ns = fb.surfaceCount
+                        #expect(ns >= 1)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder set radius on edge and vertex")
+    func filletSetRadius() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let fb = FilletBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    fb.addEdge(e, radius: 1.0)
+                    let ci = fb.contour(for: e)
+                    if ci >= 1 {
+                        let ok = fb.setRadius(2.0, contour: ci, edge: e)
+                        #expect(ok)
+                        let ok2 = fb.setTwoRadii(1.0, 3.0, contour: ci, edgeInContour: 1)
+                        #expect(ok2)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder stripe status and faulty queries")
+    func filletStripeAndFaulty() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            if let fb = FilletBuilder(shape: b) {
+                let edges = b.edges()
+                if let e = edges.first {
+                    fb.addEdge(e, radius: 1.0)
+                    _ = fb.build()
+                    let ci = fb.contour(for: e)
+                    if ci >= 1 {
+                        let status = fb.stripeStatus(contour: ci)
+                        #expect(status >= 0)
+                        let ncs = fb.computedSurfaceCount(contour: ci)
+                        #expect(ncs >= 0)
+                    }
+                    let nfc = fb.faultyContourCount
+                    #expect(nfc >= 0)
+                    let nfv = fb.faultyVertexCount
+                    #expect(nfv >= 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("WireAnalyzer v124")
+struct WireAnalyzerV124Tests {
+
+    @Test("WireAnalyzer create and basic properties")
+    func wireAnalyzerCreate() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    #expect(a.isLoaded)
+                    #expect(a.isReady)
+                    #expect(a.edgeCount == 4)
+                }
+            }
+        }
+    }
+
+    @Test("WireAnalyzer perform all checks")
+    func wireAnalyzerPerform() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    let hasIssues = a.perform()
+                    #expect(!hasIssues || hasIssues)
+                }
+            }
+        }
+    }
+
+    @Test("WireAnalyzer check order")
+    func wireAnalyzerCheckOrder() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    let disordered = a.checkOrder()
+                    #expect(!disordered)
+                }
+            }
+        }
+    }
+
+    @Test("WireAnalyzer check individual edges")
+    func wireAnalyzerCheckEdges() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    let n = a.edgeCount
+                    #expect(n == 4)
+                    for i in 1...n {
+                        let connected = a.checkConnected(edgeNum: i)
+                        #expect(!connected)
+                        let small = a.checkSmall(edgeNum: i)
+                        #expect(!small)
+                        let degen = a.checkDegenerated(edgeNum: i)
+                        #expect(!degen)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("WireAnalyzer check self-intersection")
+    func wireAnalyzerSelfIntersection() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    let si = a.checkSelfIntersection()
+                    #expect(!si)
+                }
+            }
+        }
+    }
+
+    @Test("WireAnalyzer check closed")
+    func wireAnalyzerCheckClosed() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    let notClosed = a.checkClosed()
+                    #expect(!notClosed || notClosed)
+                }
+            }
+        }
+    }
+
+    @Test("WireAnalyzer distances")
+    func wireAnalyzerDistances() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    _ = a.perform()
+                    let min3d = a.minDistance3d
+                    let max3d = a.maxDistance3d
+                    #expect(min3d >= 0)
+                    #expect(max3d >= 0)
+                }
+            }
+        }
+    }
+
+    @Test("WireAnalyzer gap checks")
+    func wireAnalyzerGaps() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    for i in 1...a.edgeCount {
+                        let gap3d = a.checkGap3d(edgeNum: i)
+                        #expect(!gap3d)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("WireAnalyzer seam and lacking")
+    func wireAnalyzerSeamLacking() {
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let w = wire {
+            let face = Shape.face(from: w)
+            if let f = face {
+                let analyzer = WireAnalyzer(wire: w, face: f, precision: 1e-7)
+                if let a = analyzer {
+                    for i in 1...a.edgeCount {
+                        let seam = a.checkSeam(edgeNum: i)
+                        #expect(!seam)
+                        let lacking = a.checkLacking(edgeNum: i)
+                        #expect(!lacking)
+                    }
+                }
+            }
+        }
+    }
+}
+

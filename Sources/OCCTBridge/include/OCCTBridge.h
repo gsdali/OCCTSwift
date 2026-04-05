@@ -17562,6 +17562,186 @@ int32_t OCCTChamferBuilderNbContours(OCCTChamferBuilderRef _Nonnull builder);
 /// Whether a contour uses distance-angle mode (1-based index).
 bool OCCTChamferBuilderIsDistAngle(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
 
+// --- ChamferBuilder completions (v0.124.0) ---
+
+/// Number of edges in a contour (1-based index).
+int32_t OCCTChamferBuilderNbEdges(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Get the symmetric distance for contour IC (1-based).
+void OCCTChamferBuilderGetDist(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex, double* _Nonnull dist);
+
+/// Get the two distances for contour IC (1-based).
+void OCCTChamferBuilderGetDists(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex,
+                                 double* _Nonnull d1, double* _Nonnull d2);
+
+/// Get distance and angle for contour IC (1-based).
+void OCCTChamferBuilderGetDistAngle(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex,
+                                     double* _Nonnull dist, double* _Nonnull angle);
+
+/// Set symmetric distance on a contour (requires face for orientation).
+bool OCCTChamferBuilderSetDist(OCCTChamferBuilderRef _Nonnull builder, double dist,
+                                int32_t contourIndex, OCCTFaceRef _Nonnull face);
+
+/// Set two distances on a contour (requires face for orientation).
+bool OCCTChamferBuilderSetDists(OCCTChamferBuilderRef _Nonnull builder, double d1, double d2,
+                                 int32_t contourIndex, OCCTFaceRef _Nonnull face);
+
+/// Set distance and angle on a contour (requires face for orientation).
+bool OCCTChamferBuilderSetDistAngle(OCCTChamferBuilderRef _Nonnull builder, double dist, double angle,
+                                     int32_t contourIndex, OCCTFaceRef _Nonnull face);
+
+/// Length of contour IC (1-based).
+double OCCTChamferBuilderLength(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Remove the contour containing the given edge.
+bool OCCTChamferBuilderRemoveEdge(OCCTChamferBuilderRef _Nonnull builder, OCCTEdgeRef _Nonnull edge);
+
+/// Reset all contours, canceling effects of Build.
+void OCCTChamferBuilderReset(OCCTChamferBuilderRef _Nonnull builder);
+
+/// Whether contour IC (1-based) is closed.
+bool OCCTChamferBuilderClosed(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Whether contour IC (1-based) is closed and tangent at closure.
+bool OCCTChamferBuilderClosedAndTangent(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Whether contour IC is symmetric.
+bool OCCTChamferBuilderIsSymmetric(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Whether contour IC uses two distances.
+bool OCCTChamferBuilderIsTwoDists(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Get edge J in contour I (both 1-based).
+OCCTShapeRef _Nullable OCCTChamferBuilderEdge(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex, int32_t edgeIndex);
+
+/// Get first vertex of contour IC (1-based).
+OCCTShapeRef _Nullable OCCTChamferBuilderFirstVertex(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Get last vertex of contour IC (1-based).
+OCCTShapeRef _Nullable OCCTChamferBuilderLastVertex(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Get the contour index containing the given edge (0 if not found).
+int32_t OCCTChamferBuilderContour(OCCTChamferBuilderRef _Nonnull builder, OCCTEdgeRef _Nonnull edge);
+
+/// Curvilinear abscissa of vertex on contour IC (1-based).
+double OCCTChamferBuilderAbscissa(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex, OCCTShapeRef _Nonnull vertex);
+
+/// Relative abscissa (0..1) of vertex on contour IC (1-based).
+double OCCTChamferBuilderRelativeAbscissa(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex, OCCTShapeRef _Nonnull vertex);
+
+// --- FilletBuilder completions (v0.124.0) ---
+
+/// Set radius on a specific edge in a contour (1-based indices).
+bool OCCTFilletBuilderSetRadiusOnEdge(OCCTFilletBuilderRef _Nonnull builder, double radius,
+                                       int32_t contourIndex, OCCTEdgeRef _Nonnull edge);
+
+/// Set radius at a specific vertex in a contour (1-based index).
+bool OCCTFilletBuilderSetRadiusAtVertex(OCCTFilletBuilderRef _Nonnull builder, double radius,
+                                         int32_t contourIndex, OCCTShapeRef _Nonnull vertex);
+
+/// Set two radii (evolving) on a contour edge (1-based indices).
+bool OCCTFilletBuilderSetTwoRadii(OCCTFilletBuilderRef _Nonnull builder, double r1, double r2,
+                                   int32_t contourIndex, int32_t edgeInContour);
+
+/// Get contour index for an edge (0 if not found, 1-based otherwise).
+int32_t OCCTFilletBuilderContour(OCCTFilletBuilderRef _Nonnull builder, OCCTEdgeRef _Nonnull edge);
+
+/// Get edge J in contour I (both 1-based).
+OCCTShapeRef _Nullable OCCTFilletBuilderEdge(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex, int32_t edgeIndex);
+
+/// First vertex of contour IC (1-based).
+OCCTShapeRef _Nullable OCCTFilletBuilderFirstVertex(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Last vertex of contour IC (1-based).
+OCCTShapeRef _Nullable OCCTFilletBuilderLastVertex(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Curvilinear abscissa of vertex on contour IC (1-based).
+double OCCTFilletBuilderAbscissa(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex, OCCTShapeRef _Nonnull vertex);
+
+/// Relative abscissa (0..1) of vertex on contour IC (1-based).
+double OCCTFilletBuilderRelativeAbscissa(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex, OCCTShapeRef _Nonnull vertex);
+
+/// Whether contour IC (1-based) is closed and tangent.
+bool OCCTFilletBuilderClosedAndTangent(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Whether contour IC (1-based) is closed.
+bool OCCTFilletBuilderClosed(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Number of surfaces after build.
+int32_t OCCTFilletBuilderNbSurfaces(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Number of computed surfaces for contour IC (1-based).
+int32_t OCCTFilletBuilderNbComputedSurfaces(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Error status for contour IC (1-based). Returns ChFiDS_ErrorStatus as int.
+int32_t OCCTFilletBuilderStripeStatus(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Get the faulty contour index for the I-th fault (1-based).
+int32_t OCCTFilletBuilderFaultyContour(OCCTFilletBuilderRef _Nonnull builder, int32_t faultIndex);
+
+/// Get the faulty vertex for the I-th fault (1-based).
+OCCTShapeRef _Nullable OCCTFilletBuilderFaultyVertex(OCCTFilletBuilderRef _Nonnull builder, int32_t faultIndex);
+
+// --- WireAnalyzer (ShapeAnalysis_Wire) (v0.124.0) ---
+
+typedef struct OCCTWireAnalyzer* OCCTWireAnalyzerRef;
+
+/// Create a wire analyzer from a wire, face, and precision.
+OCCTWireAnalyzerRef _Nullable OCCTWireAnalyzerCreate(OCCTShapeRef _Nonnull wire,
+                                                       OCCTShapeRef _Nonnull face,
+                                                       double precision);
+
+/// Release a wire analyzer.
+void OCCTWireAnalyzerRelease(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Run all checks (CheckOrder, CheckSmall, CheckConnected, etc.).
+bool OCCTWireAnalyzerPerform(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Check edge ordering.
+bool OCCTWireAnalyzerCheckOrder(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Check if edge num (1-based) is connected to previous.
+bool OCCTWireAnalyzerCheckConnected(OCCTWireAnalyzerRef _Nonnull analyzer, int32_t edgeNum);
+
+/// Check if edge num (1-based) is small.
+bool OCCTWireAnalyzerCheckSmall(OCCTWireAnalyzerRef _Nonnull analyzer, int32_t edgeNum);
+
+/// Check if edge num (1-based) is degenerated.
+bool OCCTWireAnalyzerCheckDegenerated(OCCTWireAnalyzerRef _Nonnull analyzer, int32_t edgeNum);
+
+/// Check 3D gap at edge num (1-based, 0 = all).
+bool OCCTWireAnalyzerCheckGap3d(OCCTWireAnalyzerRef _Nonnull analyzer, int32_t edgeNum);
+
+/// Check 2D gap at edge num (1-based, 0 = all).
+bool OCCTWireAnalyzerCheckGap2d(OCCTWireAnalyzerRef _Nonnull analyzer, int32_t edgeNum);
+
+/// Check if edge num (1-based) is a seam.
+bool OCCTWireAnalyzerCheckSeam(OCCTWireAnalyzerRef _Nonnull analyzer, int32_t edgeNum);
+
+/// Check if edge num (1-based) is lacking.
+bool OCCTWireAnalyzerCheckLacking(OCCTWireAnalyzerRef _Nonnull analyzer, int32_t edgeNum);
+
+/// Check wire self-intersection.
+bool OCCTWireAnalyzerCheckSelfIntersection(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Check if wire is closed.
+bool OCCTWireAnalyzerCheckClosed(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Get the minimum 3D distance computed.
+double OCCTWireAnalyzerMinDistance3d(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Get the maximum 3D distance computed.
+double OCCTWireAnalyzerMaxDistance3d(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Number of edges in the wire.
+int32_t OCCTWireAnalyzerNbEdges(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Whether the wire is loaded.
+bool OCCTWireAnalyzerIsLoaded(OCCTWireAnalyzerRef _Nonnull analyzer);
+
+/// Whether the analyzer is ready (wire + face loaded).
+bool OCCTWireAnalyzerIsReady(OCCTWireAnalyzerRef _Nonnull analyzer);
+
 // MARK: - GLTF Import/Export (v0.121.0)
 
 /// Import a GLTF/GLB file as a shape (mesh-based). Returns NULL on failure.
