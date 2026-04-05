@@ -17578,6 +17578,174 @@ OCCTDocumentRef _Nullable OCCTDocumentLoadGLTF(const char* _Nonnull path);
 /// Write an XDE document to GLTF/GLB format.
 bool OCCTDocumentWriteGLTF(OCCTDocumentRef _Nonnull doc, const char* _Nonnull path, bool isBinary);
 
+// MARK: - v0.122.0: WireFixer extended, ShapeFix_Edge, BRepTools/BRepLib statics, History extended, Sewing extended
+
+// --- WireFixer extended (ShapeFix_Wire) ---
+
+/// Fix 2D gaps between edges.
+bool OCCTWireFixerFixGaps2d(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix seam edge at the given index (1-based).
+bool OCCTWireFixerFixSeam(OCCTWireFixerRef _Nonnull fixer, int32_t edgeIndex);
+
+/// Fix shifted pcurves.
+bool OCCTWireFixerFixShifted(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix notched edges.
+bool OCCTWireFixerFixNotchedEdges(OCCTWireFixerRef _Nonnull fixer);
+
+/// Fix tail edges.
+bool OCCTWireFixerFixTails(OCCTWireFixerRef _Nonnull fixer);
+
+/// Set the maximum tail angle (radians).
+void OCCTWireFixerSetMaxTailAngle(OCCTWireFixerRef _Nonnull fixer, double angle);
+
+/// Set the maximum tail width.
+void OCCTWireFixerSetMaxTailWidth(OCCTWireFixerRef _Nonnull fixer, double width);
+
+// --- ShapeFix_Edge extended ---
+
+/// Add missing 3D curve to an edge. Returns true if fixed.
+bool OCCTShapeFixEdgeAddCurve3d(OCCTShapeRef _Nonnull edge);
+
+/// Add missing PCurve to an edge on a face. isSeam: true for seam edges.
+bool OCCTShapeFixEdgeAddPCurve(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face, bool isSeam);
+
+/// Remove 3D curve from an edge. Returns true if removed.
+bool OCCTShapeFixEdgeRemoveCurve3d(OCCTShapeRef _Nonnull edge);
+
+/// Remove PCurve from an edge on a face. Returns true if removed.
+bool OCCTShapeFixEdgeRemovePCurve(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face);
+
+/// Fix reversed 2D curve on an edge/face pair.
+bool OCCTShapeFixEdgeFixReversed2d(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face);
+
+// --- BRepTools statics ---
+
+/// Remove triangulation from a shape (BRepTools::Clean).
+void OCCTBRepToolsCleanTriangulation(OCCTShapeRef _Nonnull shape);
+
+/// Remove internal edges/vertices from a shape (BRepTools::RemoveInternals).
+void OCCTBRepToolsRemoveInternals(OCCTShapeRef _Nonnull shape);
+
+/// Detect if a face is closed in U and/or V (BRepTools::DetectClosedness).
+/// Sets isClosedU and isClosedV.
+void OCCTBRepToolsDetectClosedness(OCCTShapeRef _Nonnull face,
+                                    bool* _Nonnull isClosedU, bool* _Nonnull isClosedV);
+
+/// Evaluate and update tolerance of an edge on a face. Returns the new tolerance.
+/// Uses BRep_Tool to extract curves, then BRepTools::EvalAndUpdateTol.
+double OCCTBRepToolsEvalAndUpdateTol(OCCTShapeRef _Nonnull edge,
+                                      OCCTShapeRef _Nonnull face);
+
+/// Count 3D edges in a shape (via BRepTools::Map3DEdges).
+int32_t OCCTBRepToolsMap3DEdgeCount(OCCTShapeRef _Nonnull shape);
+
+/// Update face UV points (BRepTools::UpdateFaceUVPoints).
+void OCCTBRepToolsUpdateFaceUVPoints(OCCTShapeRef _Nonnull face);
+
+/// Compare two vertices for geometric equality.
+bool OCCTBRepToolsCompareVertices(OCCTShapeRef _Nonnull v1, OCCTShapeRef _Nonnull v2);
+
+/// Compare two edges for geometric equality.
+bool OCCTBRepToolsCompareEdges(OCCTShapeRef _Nonnull e1, OCCTShapeRef _Nonnull e2);
+
+/// Check if an edge is really closed on a face.
+bool OCCTBRepToolsIsReallyClosed(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face);
+
+/// Update a shape (all sub-shape types, BRepTools::Update).
+void OCCTBRepToolsUpdate(OCCTShapeRef _Nonnull shape);
+
+// --- BRepLib extended statics ---
+
+/// Ensure normal consistency of triangulated shape. Returns true if normals were fixed.
+bool OCCTBRepLibEnsureNormalConsistency(OCCTShapeRef _Nonnull shape, double maxAngleRad);
+
+/// Update deflection information of a shape.
+void OCCTBRepLibUpdateDeflection(OCCTShapeRef _Nonnull shape);
+
+/// Get the continuity of the surface across an edge between two faces.
+/// Returns GeomAbs_Shape: 0=C0, 1=G1, 2=C1, 3=G2, 4=C2, 5=CN, -1=error.
+int32_t OCCTBRepLibContinuityOfFaces(OCCTShapeRef _Nonnull edge,
+                                      OCCTShapeRef _Nonnull face1, OCCTShapeRef _Nonnull face2,
+                                      double tolerance);
+
+/// Build 3D curves for all edges in a shape. Returns true if all curves built.
+bool OCCTBRepLibBuildCurves3dAll(OCCTShapeRef _Nonnull shape, double tolerance);
+
+/// Same-parameter all edges in a shape.
+void OCCTBRepLibSameParameterAll(OCCTShapeRef _Nonnull shape, double tolerance,
+                                  bool forced);
+
+// --- History extended ---
+
+/// Merge another history into this one.
+void OCCTHistoryMerge(OCCTHistoryRef history, OCCTHistoryRef other);
+
+/// Replace a generated entry.
+void OCCTHistoryReplaceGenerated(OCCTHistoryRef history,
+                                  OCCTShapeRef initial,
+                                  OCCTShapeRef generated);
+
+/// Replace a modified entry.
+void OCCTHistoryReplaceModified(OCCTHistoryRef history,
+                                 OCCTShapeRef initial,
+                                 OCCTShapeRef modified);
+
+/// Get the list of shapes that the initial shape was modified to.
+/// Writes up to maxCount shape refs into outShapes, returns actual count.
+int32_t OCCTHistoryGetModifiedShapes(OCCTHistoryRef history,
+                                      OCCTShapeRef initial,
+                                      OCCTShapeRef _Nullable* _Nonnull outShapes,
+                                      int32_t maxCount);
+
+/// Get the list of shapes generated from the initial shape.
+int32_t OCCTHistoryGetGeneratedShapes(OCCTHistoryRef history,
+                                       OCCTShapeRef initial,
+                                       OCCTShapeRef _Nullable* _Nonnull outShapes,
+                                       int32_t maxCount);
+
+// --- Sewing extended ---
+
+/// Get the number of deleted faces after sewing.
+int32_t OCCTSewingNbDeletedFaces(OCCTSewingRef _Nonnull sewing);
+
+/// Get a deleted face by index (1-based).
+OCCTShapeRef _Nullable OCCTSewingDeletedFace(OCCTSewingRef _Nonnull sewing, int32_t index);
+
+/// Check if a sub-shape was modified by sewing.
+bool OCCTSewingIsModified(OCCTSewingRef _Nonnull sewing, OCCTShapeRef _Nonnull shape);
+
+/// Get the modified version of a shape. Returns NULL if not modified.
+OCCTShapeRef _Nullable OCCTSewingModified(OCCTSewingRef _Nonnull sewing, OCCTShapeRef _Nonnull shape);
+
+/// Check if a shape is degenerated.
+bool OCCTSewingIsDegenerated(OCCTSewingRef _Nonnull sewing, OCCTShapeRef _Nonnull shape);
+
+/// Check if an edge is a section bound.
+bool OCCTSewingIsSectionBound(OCCTSewingRef _Nonnull sewing, OCCTShapeRef _Nonnull edge);
+
+/// Get the face that contains the given edge (after sewing).
+OCCTShapeRef _Nullable OCCTSewingWhichFace(OCCTSewingRef _Nonnull sewing, OCCTShapeRef _Nonnull edge);
+
+/// Load the base shape context for sewing.
+void OCCTSewingLoad(OCCTSewingRef _Nonnull sewing, OCCTShapeRef _Nonnull shape);
+
+/// Set non-manifold mode for sewing.
+void OCCTSewingSetNonManifoldMode(OCCTSewingRef _Nonnull sewing, bool nonManifold);
+
+/// Set face mode for sewing (controls face analysis).
+void OCCTSewingSetFaceMode(OCCTSewingRef _Nonnull sewing, bool faceMode);
+
+/// Set floating edges mode for sewing.
+void OCCTSewingSetFloatingEdgesMode(OCCTSewingRef _Nonnull sewing, bool floatingEdges);
+
+/// Set minimum tolerance for sewing.
+void OCCTSewingSetMinTolerance(OCCTSewingRef _Nonnull sewing, double minTol);
+
+/// Set maximum tolerance for sewing.
+void OCCTSewingSetMaxTolerance(OCCTSewingRef _Nonnull sewing, double maxTol);
+
 #ifdef __cplusplus
 }
 #endif

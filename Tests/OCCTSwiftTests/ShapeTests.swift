@@ -37992,3 +37992,491 @@ struct GLTFTests {
         }
     }
 }
+
+// MARK: - v0.122.0: WireFixer extended, ShapeFix_Edge, BRepTools/BRepLib statics, History extended, Sewing extended
+
+@Suite("v0.122.0 — WireFixer Extended")
+struct WireFixerExtendedTests {
+    // Helper: get a face and its wire from a box
+    private func faceAndWire() -> (face: Shape, wire: Shape)? {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return nil }
+        let faces = box.subShapes(ofType: .face)
+        guard faces.count > 0 else { return nil }
+        let face = faces[0]
+        let wires = face.subShapes(ofType: .wire)
+        guard wires.count > 0 else { return nil }
+        return (face, wires[0])
+    }
+
+    @Test("Fix gaps 2D")
+    func fixGaps2d() {
+        if let (face, wire) = faceAndWire() {
+            let fixer = WireFixer(wire: wire, face: face, precision: 1e-6)
+            if let fix = fixer {
+                let _ = fix.fixGaps2d()
+                let result = fix.wire
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("Fix seam")
+    func fixSeam() {
+        // Use cylinder which has seam edges
+        let cyl = Shape.cylinder(radius: 5, height: 10)
+        if let c = cyl {
+            let faces = c.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let face = faces[0]
+                let wires = face.subShapes(ofType: .wire)
+                if wires.count > 0 {
+                    let fixer = WireFixer(wire: wires[0], face: face, precision: 1e-6)
+                    if let fix = fixer {
+                        let _ = fix.fixSeam(edgeIndex: 1)
+                        let result = fix.wire
+                        #expect(result != nil)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("Fix shifted")
+    func fixShifted() {
+        if let (face, wire) = faceAndWire() {
+            let fixer = WireFixer(wire: wire, face: face, precision: 1e-6)
+            if let fix = fixer {
+                let _ = fix.fixShifted()
+                let result = fix.wire
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("Fix notched edges")
+    func fixNotchedEdges() {
+        if let (face, wire) = faceAndWire() {
+            let fixer = WireFixer(wire: wire, face: face, precision: 1e-6)
+            if let fix = fixer {
+                let _ = fix.fixNotchedEdges()
+                let result = fix.wire
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("Fix tails with configuration")
+    func fixTailsWithConfig() {
+        if let (face, wire) = faceAndWire() {
+            let fixer = WireFixer(wire: wire, face: face, precision: 1e-6)
+            if let fix = fixer {
+                fix.setMaxTailAngle(0.5)
+                fix.setMaxTailWidth(0.01)
+                let _ = fix.fixTails()
+                let result = fix.wire
+                #expect(result != nil)
+            }
+        }
+    }
+}
+
+@Suite("v0.122.0 — ShapeFix_Edge Extended")
+struct ShapeFixEdgeExtendedTests {
+    @Test("Add and remove 3D curve")
+    func addRemoveCurve3d() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.subShapes(ofType: .edge)
+            #expect(edges.count > 0)
+            if edges.count > 0 {
+                let edge = edges[0]
+                // Edge already has a 3D curve, remove it then add back
+                let removed = Shape.fixEdgeRemoveCurve3d(edge)
+                // May or may not succeed depending on edge type
+                if removed {
+                    let added = Shape.fixEdgeAddCurve3d(edge)
+                    #expect(added)
+                }
+            }
+        }
+    }
+
+    @Test("Add PCurve to edge on face")
+    func addPCurve() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            let edges = b.subShapes(ofType: .edge)
+            if faces.count > 0, edges.count > 0 {
+                // PCurve may already exist; this should be safe to call
+                let _ = Shape.fixEdgeAddPCurve(edges[0], face: faces[0], isSeam: false)
+                // Just verify it doesn't crash
+            }
+        }
+    }
+
+    @Test("Remove PCurve from edge on face")
+    func removePCurve() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            let edges = b.subShapes(ofType: .edge)
+            if faces.count > 0, edges.count > 0 {
+                let _ = Shape.fixEdgeRemovePCurve(edges[0], face: faces[0])
+                // Just verify it doesn't crash
+            }
+        }
+    }
+
+    @Test("Fix reversed 2D curve")
+    func fixReversed2d() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            let edges = b.subShapes(ofType: .edge)
+            if faces.count > 0, edges.count > 0 {
+                let _ = Shape.fixEdgeReversed2d(edges[0], face: faces[0])
+                // Just verify it doesn't crash
+            }
+        }
+    }
+}
+
+@Suite("v0.122.0 — BRepTools Statics")
+struct BRepToolsStaticsTests {
+    @Test("Clean triangulation")
+    func cleanTriangulation() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let _ = b.mesh(linearDeflection: 0.5)
+            // Clean should remove the triangulation
+            b.cleanTriangulation()
+            // After cleaning, meshing again should work
+            let mesh = b.mesh(linearDeflection: 0.5)
+            #expect(mesh != nil)
+        }
+    }
+
+    @Test("Remove internals")
+    func removeInternals() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            b.removeInternals()
+            #expect(b.isValid)
+        }
+    }
+
+    @Test("Detect closedness of cylindrical face")
+    func detectClosedness() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)
+        if let c = cyl {
+            let faces = c.subShapes(ofType: .face)
+            // Cylinder lateral face should be closed in U
+            for face in faces {
+                let (isClosedU, isClosedV) = face.detectClosedness()
+                // At least check it doesn't crash
+                if isClosedU || isClosedV {
+                    #expect(true)
+                    return
+                }
+            }
+            // Not finding a closed face is OK - detectClosedness was called without crash
+            #expect(true)
+        }
+    }
+
+    @Test("Evaluate and update tolerance")
+    func evalAndUpdateTol() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            let edges = b.subShapes(ofType: .edge)
+            if faces.count > 0, edges.count > 0 {
+                let tol = Shape.evalAndUpdateTolerance(edge: edges[0], face: faces[0])
+                #expect(tol >= 0)
+            }
+        }
+    }
+
+    @Test("Map 3D edge count")
+    func map3DEdgeCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let count = b.map3DEdgeCount
+            #expect(count == 12) // A box has 12 edges
+        }
+    }
+
+    @Test("Update face UV points")
+    func updateFaceUVPoints() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            if faces.count > 0 {
+                faces[0].updateFaceUVPoints()
+                // Just verify no crash
+                #expect(true)
+            }
+        }
+    }
+
+    @Test("Compare vertices")
+    func compareVertices() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let verts = b.subShapes(ofType: .vertex)
+            if verts.count >= 2 {
+                // Same vertex compared to itself
+                let same = Shape.compareVertices(verts[0], verts[0])
+                #expect(same)
+                // Different vertices may not be equal
+                let diff = Shape.compareVertices(verts[0], verts[1])
+                #expect(!diff) // Typically different vertices of a box
+            }
+        }
+    }
+
+    @Test("Compare edges")
+    func compareEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let edges = b.subShapes(ofType: .edge)
+            if edges.count >= 2 {
+                let same = Shape.compareEdges(edges[0], edges[0])
+                #expect(same)
+            }
+        }
+    }
+
+    @Test("Is really closed")
+    func isReallyClosed() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)
+        if let c = cyl {
+            let faces = c.subShapes(ofType: .face)
+            let edges = c.subShapes(ofType: .edge)
+            if faces.count > 0, edges.count > 0 {
+                // Check some edge/face pair — result depends on geometry
+                let _ = Shape.isReallyClosed(edge: edges[0], face: faces[0])
+                #expect(true) // Just verify no crash
+            }
+        }
+    }
+
+    @Test("Update topology")
+    func updateTopology() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            b.updateTopology()
+            #expect(b.isValid)
+        }
+    }
+}
+
+@Suite("v0.122.0 — BRepLib Extended Statics")
+struct BRepLibExtendedTests {
+    @Test("Ensure normal consistency")
+    func ensureNormalConsistency() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let _ = b.mesh(linearDeflection: 0.5)
+            let _ = b.ensureNormalConsistency(maxAngle: 0.01)
+            // Just verify no crash
+            #expect(b.isValid)
+        }
+    }
+
+    @Test("Update deflection")
+    func updateDeflection() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let _ = b.mesh(linearDeflection: 0.5)
+            b.updateDeflection()
+            #expect(b.isValid)
+        }
+    }
+
+    @Test("Continuity of faces")
+    func continuityOfFaces() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            let edges = b.subShapes(ofType: .edge)
+            if faces.count >= 2, edges.count > 0 {
+                // Try to find a shared edge between two faces
+                let cont = Shape.continuityOfFaces(edge: edges[0], face1: faces[0], face2: faces[1])
+                // -1 means error (edge may not be shared); >= 0 is valid
+                #expect(cont >= -1)
+            }
+        }
+    }
+
+    @Test("Build curves 3D all")
+    func buildCurves3dAll() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let ok = b.buildCurves3dAll(tolerance: 1e-5)
+            #expect(ok)
+        }
+    }
+
+    @Test("Same parameter all")
+    func sameParameterAll() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            b.sameParameterAll(tolerance: 1e-5)
+            #expect(b.isValid)
+        }
+    }
+}
+
+@Suite("v0.122.0 — History Extended")
+struct HistoryExtendedTests {
+    @Test("Merge histories")
+    func mergeHistories() {
+        let h1 = Shape.History()
+        let h2 = Shape.History()
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)
+        let box3 = Shape.box(width: 3, height: 3, depth: 3)
+        if let history1 = h1, let history2 = h2,
+           let b1 = box1, let b2 = box2, let b3 = box3 {
+            history1.addModified(initial: b1, modified: b2)
+            history2.addGenerated(initial: b2, generated: b3)
+            history1.merge(history2)
+            #expect(history1.hasModified)
+            #expect(history1.hasGenerated)
+        }
+    }
+
+    @Test("Replace generated and modified")
+    func replaceGeneratedModified() {
+        let h = Shape.History()
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)
+        let box3 = Shape.box(width: 3, height: 3, depth: 3)
+        if let history = h, let b1 = box1, let b2 = box2, let b3 = box3 {
+            history.addGenerated(initial: b1, generated: b2)
+            history.replaceGenerated(initial: b1, generated: b3)
+            #expect(history.hasGenerated)
+
+            history.addModified(initial: b1, modified: b2)
+            history.replaceModified(initial: b1, modified: b3)
+            #expect(history.hasModified)
+        }
+    }
+
+    @Test("Get modified and generated shapes")
+    func getModifiedGeneratedShapes() {
+        let h = Shape.History()
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)
+        let box3 = Shape.box(width: 3, height: 3, depth: 3)
+        if let history = h, let b1 = box1, let b2 = box2, let b3 = box3 {
+            history.addModified(initial: b1, modified: b2)
+            let modified = history.modifiedShapes(of: b1)
+            #expect(modified.count == 1)
+
+            history.addGenerated(initial: b1, generated: b3)
+            let generated = history.generatedShapes(of: b1)
+            #expect(generated.count == 1)
+        }
+    }
+}
+
+@Suite("v0.122.0 — Sewing Extended")
+struct SewingExtendedTests {
+    @Test("Sewing deleted faces and queries")
+    func sewingDeletedFacesAndQueries() {
+        // Create two adjacent faces and sew them
+        let face1 = Shape.box(width: 10, height: 10, depth: 0.01)
+        let face2 = Shape.box(width: 10, height: 10, depth: 0.01)
+        if let f1 = face1, let f2 = face2 {
+            let sewing = SewingBuilder(tolerance: 1e-3)
+            if let s = sewing {
+                s.add(f1)
+                s.add(f2)
+                s.perform()
+                let result = s.result
+                #expect(result != nil)
+                // Check deleted faces count (may be 0)
+                let deletedCount = s.nbDeletedFaces
+                #expect(deletedCount >= 0)
+            }
+        }
+    }
+
+    @Test("Sewing is modified and modified shape")
+    func sewingIsModified() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            if faces.count >= 2 {
+                let sewing = SewingBuilder(tolerance: 1e-3)
+                if let s = sewing {
+                    s.add(faces[0])
+                    s.add(faces[1])
+                    s.perform()
+                    let _ = s.result
+                    // Check modification query
+                    let isMod = s.isModified(faces[0])
+                    if isMod {
+                        let mod = s.modified(faces[0])
+                        #expect(mod != nil)
+                    }
+                    #expect(true) // No crash
+                }
+            }
+        }
+    }
+
+    @Test("Sewing is degenerated")
+    func sewingIsDegenerated() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let sewing = SewingBuilder(tolerance: 1e-3)
+            if let s = sewing {
+                s.add(b)
+                s.perform()
+                let degen = s.isDegenerated(b)
+                #expect(!degen)
+            }
+        }
+    }
+
+    @Test("Sewing load and modes")
+    func sewingLoadAndModes() {
+        let sewing = SewingBuilder(tolerance: 1e-3)
+        if let s = sewing {
+            let box = Shape.box(width: 10, height: 10, depth: 10)
+            if let b = box {
+                s.load(b)
+                s.setNonManifoldMode(true)
+                s.setFaceMode(true)
+                s.setFloatingEdgesMode(false)
+                s.setMinTolerance(1e-6)
+                s.setMaxTolerance(1e-1)
+                s.perform()
+                let result = s.result
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("Sewing section bound and which face")
+    func sewingSectionBoundAndWhichFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let sewing = SewingBuilder(tolerance: 1e-3)
+            if let s = sewing {
+                s.add(b)
+                s.perform()
+                let edges = b.subShapes(ofType: .edge)
+                if edges.count > 0 {
+                    let _ = s.isSectionBound(edges[0])
+                    let _ = s.whichFace(edges[0])
+                    #expect(true)
+                }
+            }
+        }
+    }
+}

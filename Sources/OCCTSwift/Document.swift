@@ -14523,3 +14523,264 @@ extension Document {
         OCCTDocumentWriteGLTF(handle, url.path, binary)
     }
 }
+
+// MARK: - v0.122.0: WireFixer extended, ShapeFix_Edge, BRepTools/BRepLib statics, History extended, Sewing extended
+
+// --- WireFixer extended ---
+
+extension WireFixer {
+    /// Fix 2D gaps between edges.
+    @discardableResult public func fixGaps2d() -> Bool { OCCTWireFixerFixGaps2d(ref) }
+
+    /// Fix seam edge at the given index (1-based).
+    @discardableResult public func fixSeam(edgeIndex: Int) -> Bool { OCCTWireFixerFixSeam(ref, Int32(edgeIndex)) }
+
+    /// Fix shifted pcurves.
+    @discardableResult public func fixShifted() -> Bool { OCCTWireFixerFixShifted(ref) }
+
+    /// Fix notched edges.
+    @discardableResult public func fixNotchedEdges() -> Bool { OCCTWireFixerFixNotchedEdges(ref) }
+
+    /// Fix tail edges.
+    @discardableResult public func fixTails() -> Bool { OCCTWireFixerFixTails(ref) }
+
+    /// Set the maximum tail angle (radians).
+    public func setMaxTailAngle(_ angle: Double) { OCCTWireFixerSetMaxTailAngle(ref, angle) }
+
+    /// Set the maximum tail width.
+    public func setMaxTailWidth(_ width: Double) { OCCTWireFixerSetMaxTailWidth(ref, width) }
+}
+
+// --- ShapeFix_Edge extended ---
+
+extension Shape {
+    /// Add missing 3D curve to an edge. Returns true if fixed.
+    public static func fixEdgeAddCurve3d(_ edge: Shape) -> Bool {
+        OCCTShapeFixEdgeAddCurve3d(edge.handle)
+    }
+
+    /// Add missing PCurve to an edge on a face.
+    public static func fixEdgeAddPCurve(_ edge: Shape, face: Shape, isSeam: Bool = false) -> Bool {
+        OCCTShapeFixEdgeAddPCurve(edge.handle, face.handle, isSeam)
+    }
+
+    /// Remove 3D curve from an edge.
+    public static func fixEdgeRemoveCurve3d(_ edge: Shape) -> Bool {
+        OCCTShapeFixEdgeRemoveCurve3d(edge.handle)
+    }
+
+    /// Remove PCurve from an edge on a face.
+    public static func fixEdgeRemovePCurve(_ edge: Shape, face: Shape) -> Bool {
+        OCCTShapeFixEdgeRemovePCurve(edge.handle, face.handle)
+    }
+
+    /// Fix reversed 2D curve on an edge/face pair.
+    public static func fixEdgeReversed2d(_ edge: Shape, face: Shape) -> Bool {
+        OCCTShapeFixEdgeFixReversed2d(edge.handle, face.handle)
+    }
+}
+
+// --- BRepTools statics ---
+
+extension Shape {
+    /// Remove triangulation from this shape (BRepTools::Clean).
+    public func cleanTriangulation() {
+        OCCTBRepToolsCleanTriangulation(handle)
+    }
+
+    /// Remove internal edges/vertices from this shape (BRepTools::RemoveInternals).
+    public func removeInternals() {
+        OCCTBRepToolsRemoveInternals(handle)
+    }
+
+    /// Detect if this face is closed in U and/or V.
+    /// Returns (isClosedU, isClosedV).
+    public func detectClosedness() -> (isClosedU: Bool, isClosedV: Bool) {
+        var u = false, v = false
+        OCCTBRepToolsDetectClosedness(handle, &u, &v)
+        return (u, v)
+    }
+
+    /// Evaluate and update tolerance of an edge on a face. Returns the new tolerance.
+    public static func evalAndUpdateTolerance(edge: Shape, face: Shape) -> Double {
+        OCCTBRepToolsEvalAndUpdateTol(edge.handle, face.handle)
+    }
+
+    /// Count 3D edges in this shape.
+    public var map3DEdgeCount: Int {
+        Int(OCCTBRepToolsMap3DEdgeCount(handle))
+    }
+
+    /// Update face UV points.
+    public func updateFaceUVPoints() {
+        OCCTBRepToolsUpdateFaceUVPoints(handle)
+    }
+
+    /// Compare two vertices for geometric equality.
+    public static func compareVertices(_ v1: Shape, _ v2: Shape) -> Bool {
+        OCCTBRepToolsCompareVertices(v1.handle, v2.handle)
+    }
+
+    /// Compare two edges for geometric equality.
+    public static func compareEdges(_ e1: Shape, _ e2: Shape) -> Bool {
+        OCCTBRepToolsCompareEdges(e1.handle, e2.handle)
+    }
+
+    /// Check if an edge is really closed on a face.
+    public static func isReallyClosed(edge: Shape, face: Shape) -> Bool {
+        OCCTBRepToolsIsReallyClosed(edge.handle, face.handle)
+    }
+
+    /// Update a shape topology (BRepTools::Update).
+    public func updateTopology() {
+        OCCTBRepToolsUpdate(handle)
+    }
+}
+
+// --- BRepLib extended statics ---
+
+extension Shape {
+    /// Ensure normal consistency of triangulated shape. Returns true if normals were fixed.
+    @discardableResult
+    public func ensureNormalConsistency(maxAngle: Double = 0.001) -> Bool {
+        OCCTBRepLibEnsureNormalConsistency(handle, maxAngle)
+    }
+
+    /// Update deflection information of this shape.
+    public func updateDeflection() {
+        OCCTBRepLibUpdateDeflection(handle)
+    }
+
+    /// Get the continuity of the surface across an edge between two faces.
+    /// Returns GeomAbs_Shape: 0=C0, 1=G1, 2=C1, 3=G2, 4=C2, 5=CN, -1=error.
+    public static func continuityOfFaces(edge: Shape, face1: Shape, face2: Shape,
+                                          tolerance: Double = 1e-6) -> Int {
+        Int(OCCTBRepLibContinuityOfFaces(edge.handle, face1.handle, face2.handle, tolerance))
+    }
+
+    /// Build 3D curves for all edges in a shape.
+    @discardableResult
+    public func buildCurves3dAll(tolerance: Double = 1e-5) -> Bool {
+        OCCTBRepLibBuildCurves3dAll(handle, tolerance)
+    }
+
+    /// Same-parameter all edges in a shape.
+    public func sameParameterAll(tolerance: Double = 1e-5, forced: Bool = false) {
+        OCCTBRepLibSameParameterAll(handle, tolerance, forced)
+    }
+}
+
+// --- History extended ---
+
+extension Shape.History {
+    /// Merge another history into this one.
+    public func merge(_ other: Shape.History) {
+        OCCTHistoryMerge(historyRef, other.historyRef)
+    }
+
+    /// Replace a generated entry.
+    public func replaceGenerated(initial: Shape, generated: Shape) {
+        OCCTHistoryReplaceGenerated(historyRef, initial.handle, generated.handle)
+    }
+
+    /// Replace a modified entry.
+    public func replaceModified(initial: Shape, modified: Shape) {
+        OCCTHistoryReplaceModified(historyRef, initial.handle, modified.handle)
+    }
+
+    /// Get the shapes that the given initial shape was modified to.
+    public func modifiedShapes(of initial: Shape) -> [Shape] {
+        let maxCount: Int32 = 64
+        var refs = [OCCTShapeRef?](repeating: nil, count: Int(maxCount))
+        let count = refs.withUnsafeMutableBufferPointer { buf in
+            OCCTHistoryGetModifiedShapes(historyRef, initial.handle, buf.baseAddress!, maxCount)
+        }
+        return (0..<Int(count)).compactMap { i -> Shape? in
+            guard let ref = refs[i] else { return nil }
+            return Shape(handle: ref)
+        }
+    }
+
+    /// Get the shapes generated from the given initial shape.
+    public func generatedShapes(of initial: Shape) -> [Shape] {
+        let maxCount: Int32 = 64
+        var refs = [OCCTShapeRef?](repeating: nil, count: Int(maxCount))
+        let count = refs.withUnsafeMutableBufferPointer { buf in
+            OCCTHistoryGetGeneratedShapes(historyRef, initial.handle, buf.baseAddress!, maxCount)
+        }
+        return (0..<Int(count)).compactMap { i -> Shape? in
+            guard let ref = refs[i] else { return nil }
+            return Shape(handle: ref)
+        }
+    }
+}
+
+// --- Sewing extended ---
+
+extension SewingBuilder {
+    /// Number of deleted faces after sewing.
+    public var nbDeletedFaces: Int { Int(OCCTSewingNbDeletedFaces(ref)) }
+
+    /// Get a deleted face by index (1-based).
+    public func deletedFace(at index: Int) -> Shape? {
+        guard let r = OCCTSewingDeletedFace(ref, Int32(index)) else { return nil }
+        return Shape(handle: r)
+    }
+
+    /// Check if a sub-shape was modified by sewing.
+    public func isModified(_ shape: Shape) -> Bool {
+        OCCTSewingIsModified(ref, shape.handle)
+    }
+
+    /// Get the modified version of a shape.
+    public func modified(_ shape: Shape) -> Shape? {
+        guard let r = OCCTSewingModified(ref, shape.handle) else { return nil }
+        return Shape(handle: r)
+    }
+
+    /// Check if a shape is degenerated.
+    public func isDegenerated(_ shape: Shape) -> Bool {
+        OCCTSewingIsDegenerated(ref, shape.handle)
+    }
+
+    /// Check if an edge is a section bound.
+    public func isSectionBound(_ edge: Shape) -> Bool {
+        OCCTSewingIsSectionBound(ref, edge.handle)
+    }
+
+    /// Get the face that contains the given edge (after sewing).
+    public func whichFace(_ edge: Shape) -> Shape? {
+        guard let r = OCCTSewingWhichFace(ref, edge.handle) else { return nil }
+        return Shape(handle: r)
+    }
+
+    /// Load a base shape context for sewing.
+    public func load(_ shape: Shape) {
+        OCCTSewingLoad(ref, shape.handle)
+    }
+
+    /// Set non-manifold mode.
+    public func setNonManifoldMode(_ enabled: Bool) {
+        OCCTSewingSetNonManifoldMode(ref, enabled)
+    }
+
+    /// Set face mode (controls face analysis).
+    public func setFaceMode(_ enabled: Bool) {
+        OCCTSewingSetFaceMode(ref, enabled)
+    }
+
+    /// Set floating edges mode.
+    public func setFloatingEdgesMode(_ enabled: Bool) {
+        OCCTSewingSetFloatingEdgesMode(ref, enabled)
+    }
+
+    /// Set minimum tolerance.
+    public func setMinTolerance(_ tolerance: Double) {
+        OCCTSewingSetMinTolerance(ref, tolerance)
+    }
+
+    /// Set maximum tolerance.
+    public func setMaxTolerance(_ tolerance: Double) {
+        OCCTSewingSetMaxTolerance(ref, tolerance)
+    }
+}
