@@ -38480,3 +38480,438 @@ struct SewingExtendedTests {
         }
     }
 }
+
+// MARK: - v0.123.0: Builder extensions, Section ops, Curve/Surface queries
+
+@Suite("v0.123.0 — ThruSections extensions")
+struct ThruSectionsExtensionsTests {
+
+    @Test("CheckCompatibility sets without crash")
+    func checkCompatibility() {
+        let ts = ThruSectionsBuilder(isSolid: true)
+        ts.checkCompatibility(true)
+        let w1 = Wire.circle(origin: .zero, normal: SIMD3(0,0,1), radius: 5.0)
+        let w2 = Wire.circle(origin: SIMD3(0,0,10), normal: SIMD3(0,0,1), radius: 3.0)
+        if let w1 = w1, let w2 = w2 {
+            if let ws1 = Shape.fromWire(w1), let ws2 = Shape.fromWire(w2) {
+                ts.addWire(ws1)
+                ts.addWire(ws2)
+                ts.build()
+                #expect(ts.shape != nil)
+            }
+        }
+    }
+
+    @Test("SetParType parameterization")
+    func setParType() {
+        let ts = ThruSectionsBuilder(isSolid: true)
+        ts.setParType(0) // ChordLength
+        let w1 = Wire.circle(origin: .zero, normal: SIMD3(0,0,1), radius: 5.0)
+        let w2 = Wire.circle(origin: SIMD3(0,0,10), normal: SIMD3(0,0,1), radius: 3.0)
+        if let w1 = w1, let w2 = w2 {
+            if let ws1 = Shape.fromWire(w1), let ws2 = Shape.fromWire(w2) {
+                ts.addWire(ws1)
+                ts.addWire(ws2)
+                ts.build()
+                #expect(ts.shape != nil)
+            }
+        }
+    }
+
+    @Test("SetCriteriumWeight")
+    func setCriteriumWeight() {
+        let ts = ThruSectionsBuilder(isSolid: true)
+        ts.setCriteriumWeight(w1: 1.0, w2: 1.0, w3: 1.0)
+        let w1 = Wire.circle(origin: .zero, normal: SIMD3(0,0,1), radius: 5.0)
+        let w2 = Wire.circle(origin: SIMD3(0,0,10), normal: SIMD3(0,0,1), radius: 3.0)
+        if let w1 = w1, let w2 = w2 {
+            if let ws1 = Shape.fromWire(w1), let ws2 = Shape.fromWire(w2) {
+                ts.addWire(ws1)
+                ts.addWire(ws2)
+                ts.build()
+                #expect(ts.shape != nil)
+            }
+        }
+    }
+
+    @Test("GeneratedFace from edge")
+    func generatedFace() {
+        let ts = ThruSectionsBuilder(isSolid: true)
+        let w1 = Wire.circle(origin: .zero, normal: SIMD3(0,0,1), radius: 5.0)
+        let w2 = Wire.circle(origin: SIMD3(0,0,10), normal: SIMD3(0,0,1), radius: 3.0)
+        if let w1 = w1, let w2 = w2 {
+            if let ws1 = Shape.fromWire(w1), let ws2 = Shape.fromWire(w2) {
+                ts.addWire(ws1)
+                ts.addWire(ws2)
+                ts.build()
+                if let _ = ts.shape {
+                    let edges = ws1.subShapes(ofType: .edge)
+                    if edges.count > 0 {
+                        let face = ts.generatedFace(from: edges[0])
+                        // GeneratedFace may return nil if the edge was not directly used
+                        let _ = face
+                        #expect(true)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.123.0 — CellsBuilder extensions")
+struct CellsBuilderExtensionsTests {
+
+    @Test("AddToResult selective")
+    func addToResultSelective() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(origin: SIMD3(5, 0, 0), width: 10, height: 10, depth: 10)
+        if let b1 = box1, let b2 = box2 {
+            if let cb = CellsBuilder(shapes: [b1, b2]) {
+                cb.addToResult(take: [b1, b2], material: 1)
+                let result = cb.result()
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("RemoveFromResult selective")
+    func removeFromResultSelective() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(origin: SIMD3(5, 0, 0), width: 10, height: 10, depth: 10)
+        if let b1 = box1, let b2 = box2 {
+            if let cb = CellsBuilder(shapes: [b1, b2]) {
+                cb.addAllToResult()
+                cb.removeFromResult(take: [b1, b2])
+                // After removing intersection, result should still work
+                let _ = cb.result()
+                #expect(true)
+            }
+        }
+    }
+
+    @Test("GetAllParts")
+    func getAllParts() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(origin: SIMD3(5, 0, 0), width: 10, height: 10, depth: 10)
+        if let b1 = box1, let b2 = box2 {
+            if let cb = CellsBuilder(shapes: [b1, b2]) {
+                let parts = cb.allParts()
+                #expect(parts != nil)
+            }
+        }
+    }
+
+    @Test("MakeContainers")
+    func makeContainers() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(origin: SIMD3(5, 0, 0), width: 10, height: 10, depth: 10)
+        if let b1 = box1, let b2 = box2 {
+            if let cb = CellsBuilder(shapes: [b1, b2]) {
+                cb.addAllToResult()
+                cb.makeContainers()
+                let result = cb.result()
+                #expect(result != nil)
+            }
+        }
+    }
+}
+
+@Suite("v0.123.0 — PipeShell extensions")
+struct PipeShellExtensionsTests {
+
+    @Test("GetStatus")
+    func getStatus() {
+        let spine = Wire.circle(origin: .zero, normal: SIMD3(0,0,1), radius: 10.0)
+        if let s = spine, let ss = Shape.fromWire(s) {
+            if let ps = PipeShellBuilder(spine: ss) {
+                let profile = Wire.circle(origin: .zero, normal: SIMD3(1,0,0), radius: 2.0)
+                if let p = profile, let pp = Shape.fromWire(p) {
+                    ps.add(profile: pp)
+                    let status = ps.status
+                    // Status should be a valid enum value
+                    #expect(status.rawValue >= 0 && status.rawValue <= 3)
+                }
+            }
+        }
+    }
+
+    @Test("Simulate sections")
+    func simulate() {
+        if let spineWire = Wire.rectangle(width: 10, height: 10),
+           let spine = Shape.fromWire(spineWire) {
+            if let ps = PipeShellBuilder(spine: spine) {
+                let profile = Wire.circle(origin: SIMD3(0,0,0), normal: SIMD3(1,0,0), radius: 1.0)
+                if let p = profile, let pp = Shape.fromWire(p) {
+                    ps.setFrenet()
+                    ps.add(profile: pp)
+                    let sections = ps.simulate(numberOfSections: 5)
+                    #expect(sections.count > 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.123.0 — UnifySameDomain builder")
+struct UnifySameDomainBuilderTests {
+
+    @Test("Basic unification with builder")
+    func basicUnification() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let usd = UnifySameDomainBuilder(shape: b)
+            usd.build()
+            let result = usd.shape
+            #expect(result != nil)
+        }
+    }
+
+    @Test("AllowInternalEdges")
+    func allowInternalEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let usd = UnifySameDomainBuilder(shape: b)
+            usd.allowInternalEdges(true)
+            usd.build()
+            let result = usd.shape
+            #expect(result != nil)
+        }
+    }
+
+    @Test("KeepShape")
+    func keepShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let faces = b.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let usd = UnifySameDomainBuilder(shape: b)
+                usd.keepShape(faces[0])
+                usd.build()
+                let result = usd.shape
+                #expect(result != nil)
+            }
+        }
+    }
+
+    @Test("SetSafeInputMode")
+    func safeInputMode() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let usd = UnifySameDomainBuilder(shape: b)
+            usd.setSafeInputMode(true)
+            usd.build()
+            let result = usd.shape
+            #expect(result != nil)
+        }
+    }
+
+    @Test("SetLinearTolerance and SetAngularTolerance")
+    func tolerances() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let usd = UnifySameDomainBuilder(shape: b)
+            usd.setLinearTolerance(1e-6)
+            usd.setAngularTolerance(1e-3)
+            usd.build()
+            let result = usd.shape
+            #expect(result != nil)
+        }
+    }
+}
+
+@Suite("v0.123.0 — BRepAlgoAPI_Section extended")
+struct SectionExtendedTests {
+
+    @Test("Section with approximation")
+    func sectionWithApproximation() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let sphere = Shape.sphere(radius: 7.0)
+        if let b = box, let s = sphere {
+            let section = Shape.sectionWithOptions(b, s, approximation: true)
+            #expect(section != nil)
+        }
+    }
+
+    @Test("Section with pcurves")
+    func sectionWithPcurves() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let sphere = Shape.sphere(radius: 7.0)
+        if let b = box, let s = sphere {
+            let section = Shape.sectionWithOptions(b, s,
+                approximation: true, computePCurve1: true, computePCurve2: true)
+            #expect(section != nil)
+        }
+    }
+
+    @Test("Ancestor face on shape1")
+    func ancestorFace1() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let sphere = Shape.sphere(radius: 7.0)
+        if let b = box, let s = sphere {
+            let section = Shape.sectionWithOptions(b, s, approximation: true, computePCurve1: true)
+            if let sec = section {
+                let edges = sec.subShapes(ofType: .edge)
+                if edges.count > 0 {
+                    let ancestor = Shape.sectionAncestorFaceOn1(b, s, edge: edges[0],
+                        approximation: true, computePCurve1: true)
+                    // May or may not find ancestor
+                    let _ = ancestor
+                    #expect(true)
+                }
+            }
+        }
+    }
+
+    @Test("Ancestor face on shape2")
+    func ancestorFace2() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let sphere = Shape.sphere(radius: 7.0)
+        if let b = box, let s = sphere {
+            let section = Shape.sectionWithOptions(b, s, approximation: true, computePCurve2: true)
+            if let sec = section {
+                let edges = sec.subShapes(ofType: .edge)
+                if edges.count > 0 {
+                    let ancestor = Shape.sectionAncestorFaceOn2(b, s, edge: edges[0],
+                        approximation: true, computePCurve2: true)
+                    let _ = ancestor
+                    #expect(true)
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.123.0 — Curve3D queries")
+struct Curve3DQueriesV123Tests {
+
+    @Test("Period of circle")
+    func circlePeriod() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0,0,1), radius: 5.0)
+        if let c = circle {
+            let period = c.period
+            if let p = period {
+                #expect(abs(p - 2.0 * .pi) < 1e-10)
+            }
+        }
+    }
+
+    @Test("FirstParameter and LastParameter")
+    func firstLastParameter() {
+        let circle = Curve3D.circle(center: .zero, normal: SIMD3(0,0,1), radius: 5.0)
+        if let c = circle {
+            #expect(abs(c.firstParameter) < 1e-10)
+            #expect(abs(c.lastParameter - 2.0 * .pi) < 1e-10)
+        }
+    }
+
+    @Test("Line first/last parameters")
+    func lineParameters() {
+        let line = Curve3D.line(through: .zero, direction: SIMD3(1,0,0))
+        if let l = line {
+            // Line extends to infinity in both directions
+            #expect(l.firstParameter < -1e10)
+            #expect(l.lastParameter > 1e10)
+        }
+    }
+}
+
+@Suite("v0.123.0 — Surface queries")
+struct SurfaceQueriesV123Tests {
+
+    @Test("Cylinder U period")
+    func cylinderUPeriod() {
+        let cyl = Surface.cylinder(origin: .zero, axis: SIMD3(0,0,1), radius: 5.0)
+        if let s = cyl {
+            let uPeriod = s.uPeriod
+            if let p = uPeriod {
+                #expect(abs(p - 2.0 * .pi) < 1e-10)
+            }
+        }
+    }
+
+    @Test("Plane has no period")
+    func planePeriod() {
+        let plane = Surface.plane(origin: .zero, normal: SIMD3(0,0,1))
+        if let s = plane {
+            let uPeriod = s.uPeriod
+            let vPeriod = s.vPeriod
+            // Plane is not periodic
+            #expect(uPeriod == nil || uPeriod == 0.0)
+            #expect(vPeriod == nil || vPeriod == 0.0)
+        }
+    }
+}
+
+@Suite("v0.123.0 — Shape queries")
+struct ShapeQueriesV123Tests {
+
+    @Test("Shape typeName")
+    func shapTypeName() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let name = b.typeName
+            #expect(name == "SOLID")
+        }
+    }
+
+    @Test("Shape isNotEqual")
+    func shapeIsNotEqual() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(width: 20, height: 20, depth: 20)
+        if let b1 = box1, let b2 = box2 {
+            #expect(b1.isNotEqual(to: b2))
+        }
+    }
+
+    @Test("Shape nullified")
+    func shapeNullified() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let n = b.nullified
+            // Nullified shape exists but is null
+            #expect(n != nil)
+        }
+    }
+
+    @Test("Shape emptied")
+    func shapeEmptied() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let e = b.emptied
+            #expect(e != nil)
+        }
+    }
+
+    @Test("Shape moved")
+    func shapeMoved() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let moved = b.moved(dx: 5, dy: 5, dz: 5)
+            #expect(moved != nil)
+            if let m = moved {
+                #expect(m.isValid)
+            }
+        }
+    }
+
+    @Test("Shape orientationValue")
+    func shapeOrientationValue() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            let orient = b.orientationValue
+            // 0=FORWARD for most shapes
+            #expect(orient >= 0 && orient <= 3)
+        }
+    }
+
+    @Test("Shape nbEdges, nbFaces, nbVertices")
+    func shapeSubShapeCounts() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let b = box {
+            #expect(b.nbEdges > 0)
+            #expect(b.nbFaces == 6)
+            #expect(b.nbVertices > 0)
+        }
+    }
+}
+

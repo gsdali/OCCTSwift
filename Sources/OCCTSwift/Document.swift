@@ -14784,3 +14784,262 @@ extension SewingBuilder {
         OCCTSewingSetMaxTolerance(ref, tolerance)
     }
 }
+
+// MARK: - v0.123.0: Builder extensions, Section ops, Curve/Surface queries
+
+// --- ThruSections extensions ---
+
+extension ThruSectionsBuilder {
+    /// Enable/disable wire compatibility checking (reorders wires to avoid twists).
+    public func checkCompatibility(_ check: Bool = true) {
+        OCCTThruSectionsCheckCompatibility(ref, check)
+    }
+
+    /// Set parameterization type.
+    /// - Parameter type: 0=ChordLength, 1=Centripetal, 2=IsoParametric
+    public func setParType(_ type: Int) {
+        OCCTThruSectionsSetParType(ref, Int32(type))
+    }
+
+    /// Set criterium weights for the approximation algorithm.
+    public func setCriteriumWeight(w1: Double, w2: Double, w3: Double) {
+        OCCTThruSectionsSetCriteriumWeight(ref, w1, w2, w3)
+    }
+
+    /// Get the face generated from an edge after building.
+    public func generatedFace(from edge: Shape) -> Shape? {
+        guard let h = OCCTThruSectionsGeneratedFace(ref, edge.handle) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// --- CellsBuilder extensions ---
+
+extension CellsBuilder {
+    /// Add cells to result selectively: cells present in all take shapes but none of avoid shapes.
+    public func addToResult(take: [Shape], avoid: [Shape] = [], material: Int32 = 0, update: Bool = false) {
+        let takePtrs: [OCCTShapeRef] = take.map { $0.handle }
+        let avoidPtrs: [OCCTShapeRef] = avoid.map { $0.handle }
+        takePtrs.withUnsafeBufferPointer { takeBuf in
+            avoidPtrs.withUnsafeBufferPointer { avoidBuf in
+                OCCTCellsBuilderAddToResultSelective(handle,
+                    takeBuf.baseAddress!, Int32(takeBuf.count),
+                    avoidBuf.baseAddress ?? UnsafePointer(bitPattern: 1)!, Int32(avoidBuf.count),
+                    material, update)
+            }
+        }
+    }
+
+    /// Remove cells from result: cells present in all take shapes but none of avoid shapes.
+    public func removeFromResult(take: [Shape], avoid: [Shape] = []) {
+        let takePtrs: [OCCTShapeRef] = take.map { $0.handle }
+        let avoidPtrs: [OCCTShapeRef] = avoid.map { $0.handle }
+        takePtrs.withUnsafeBufferPointer { takeBuf in
+            avoidPtrs.withUnsafeBufferPointer { avoidBuf in
+                OCCTCellsBuilderRemoveFromResult(handle,
+                    takeBuf.baseAddress!, Int32(takeBuf.count),
+                    avoidBuf.baseAddress ?? UnsafePointer(bitPattern: 1)!, Int32(avoidBuf.count))
+            }
+        }
+    }
+
+    /// Get all split parts (before any result composition).
+    public func allParts() -> Shape? {
+        guard let h = OCCTCellsBuilderGetAllParts(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Make containers (wires from edges, shells from faces, etc.).
+    public func makeContainers() {
+        OCCTCellsBuilderMakeContainers(handle)
+    }
+}
+
+// --- PipeShell extensions ---
+
+/// Status of a pipe shell build operation.
+public enum PipeShellStatus: Int32, Sendable {
+    case ok = 0
+    case notOk = 1
+    case planeNotIntersectGuide = 2
+    case impossibleContact = 3
+}
+
+extension PipeShellBuilder {
+    /// Get the current build status.
+    public var status: PipeShellStatus {
+        PipeShellStatus(rawValue: OCCTPipeShellGetStatus(ref)) ?? .notOk
+    }
+
+    /// Simulate the pipe shell with a given number of sections.
+    /// Returns an array of simulated section shapes (wire cross-sections along the spine).
+    public func simulate(numberOfSections: Int) -> [Shape] {
+        var count: Int32 = 0
+        guard let shapes = OCCTPipeShellSimulate(ref, Int32(numberOfSections), &count) else { return [] }
+        // Transfer ownership of each shape to Swift Shape objects, then free only the array
+        var result: [Shape] = []
+        for i in 0..<Int(count) {
+            if let s = shapes[i] {
+                result.append(Shape(handle: s))
+            }
+        }
+        free(shapes) // Free only the pointer array, not the shapes themselves
+        return result
+    }
+}
+
+// --- UnifySameDomain builder ---
+
+/// Builder for unifying same-domain faces and edges with advanced control.
+public final class UnifySameDomainBuilder: @unchecked Sendable {
+    private let ref: OCCTUnifySameDomainRef
+
+    /// Create a UnifySameDomain builder.
+    /// - Parameters:
+    ///   - shape: Input shape to unify
+    ///   - unifyEdges: Whether to unify edges (default true)
+    ///   - unifyFaces: Whether to unify faces (default true)
+    ///   - concatBSplines: Whether to concatenate adjacent BSplines (default false)
+    public init(shape: Shape, unifyEdges: Bool = true, unifyFaces: Bool = true, concatBSplines: Bool = false) {
+        ref = OCCTUnifySameDomainCreate(shape.handle, unifyEdges, unifyFaces, concatBSplines)
+    }
+
+    deinit { OCCTUnifySameDomainRelease(ref) }
+
+    /// Allow or disallow internal edges in unification.
+    public func allowInternalEdges(_ allow: Bool) {
+        OCCTUnifySameDomainAllowInternalEdges(ref, allow)
+    }
+
+    /// Keep a specific shape from being unified.
+    public func keepShape(_ shape: Shape) {
+        OCCTUnifySameDomainKeepShape(ref, shape.handle)
+    }
+
+    /// Set safe input mode (copies input shape to preserve original).
+    public func setSafeInputMode(_ safe: Bool) {
+        OCCTUnifySameDomainSetSafeInputMode(ref, safe)
+    }
+
+    /// Set linear tolerance for unification.
+    public func setLinearTolerance(_ tol: Double) {
+        OCCTUnifySameDomainSetLinearTolerance(ref, tol)
+    }
+
+    /// Set angular tolerance for unification.
+    public func setAngularTolerance(_ tol: Double) {
+        OCCTUnifySameDomainSetAngularTolerance(ref, tol)
+    }
+
+    /// Build (perform unification).
+    public func build() {
+        OCCTUnifySameDomainBuild(ref)
+    }
+
+    /// Get the unified result shape.
+    public var shape: Shape? {
+        guard let h = OCCTUnifySameDomainShape(ref) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// --- BRepAlgoAPI_Section extended ---
+
+extension Shape {
+    /// Compute section between two shapes with approximation and pcurve options.
+    public static func sectionWithOptions(_ shape1: Shape, _ shape2: Shape,
+                                           approximation: Bool = false,
+                                           computePCurve1: Bool = false,
+                                           computePCurve2: Bool = false) -> Shape? {
+        guard let h = OCCTShapeSectionWithOptions(shape1.handle, shape2.handle,
+                                                    approximation, computePCurve1, computePCurve2) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the ancestor face on shape1 for a section edge.
+    public static func sectionAncestorFaceOn1(_ shape1: Shape, _ shape2: Shape, edge: Shape,
+                                               approximation: Bool = false,
+                                               computePCurve1: Bool = false,
+                                               computePCurve2: Bool = false) -> Shape? {
+        guard let h = OCCTSectionAncestorFaceOn1(shape1.handle, shape2.handle, edge.handle,
+                                                    approximation, computePCurve1, computePCurve2) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the ancestor face on shape2 for a section edge.
+    public static func sectionAncestorFaceOn2(_ shape1: Shape, _ shape2: Shape, edge: Shape,
+                                               approximation: Bool = false,
+                                               computePCurve1: Bool = false,
+                                               computePCurve2: Bool = false) -> Shape? {
+        guard let h = OCCTSectionAncestorFaceOn2(shape1.handle, shape2.handle, edge.handle,
+                                                    approximation, computePCurve1, computePCurve2) else { return nil }
+        return Shape(handle: h)
+    }
+}
+
+// --- Curve3D queries ---
+
+extension Curve3D {
+    /// Get the first parameter of the curve.
+    public var firstParameter: Double {
+        OCCTCurve3DFirstParameter(handle)
+    }
+
+    /// Get the last parameter of the curve.
+    public var lastParameter: Double {
+        OCCTCurve3DLastParameter(handle)
+    }
+}
+
+// --- Additional Shape queries ---
+
+extension Shape {
+    /// Get a nullified copy of the shape.
+    public var nullified: Shape? {
+        guard let h = OCCTShapeNullified(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the shape type as a string name.
+    public var typeName: String? {
+        guard let cstr = OCCTShapeTypeName(handle) else { return nil }
+        return String(cString: cstr)
+    }
+
+    /// Check if this shape is NOT equal to another.
+    public func isNotEqual(to other: Shape) -> Bool {
+        OCCTShapeIsNotEqual(handle, other.handle)
+    }
+
+    /// Get an emptied copy of the shape (no sub-shapes).
+    public var emptied: Shape? {
+        guard let h = OCCTShapeEmptied(handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Move the shape by a translation vector. Returns a new shape.
+    public func moved(dx: Double, dy: Double, dz: Double) -> Shape? {
+        guard let h = OCCTShapeMoved(handle, dx, dy, dz) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the orientation value as integer (0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL).
+    public var orientationValue: Int {
+        Int(OCCTShapeOrientationValue(handle))
+    }
+
+    /// Get the number of edges in this shape.
+    public var nbEdges: Int {
+        Int(OCCTShapeNbEdges(handle))
+    }
+
+    /// Get the number of faces in this shape.
+    public var nbFaces: Int {
+        Int(OCCTShapeNbFaces(handle))
+    }
+
+    /// Get the number of vertices in this shape.
+    public var nbVertices: Int {
+        Int(OCCTShapeNbVertices(handle))
+    }
+}

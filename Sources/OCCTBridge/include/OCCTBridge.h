@@ -17746,6 +17746,153 @@ void OCCTSewingSetMinTolerance(OCCTSewingRef _Nonnull sewing, double minTol);
 /// Set maximum tolerance for sewing.
 void OCCTSewingSetMaxTolerance(OCCTSewingRef _Nonnull sewing, double maxTol);
 
+// MARK: - v0.123.0: Builder extensions, Section ops, Curve/Surface queries
+
+// --- ThruSections extensions ---
+
+/// Enable/disable wire compatibility checking.
+void OCCTThruSectionsCheckCompatibility(OCCTThruSectionsRef _Nonnull ts, bool check);
+
+/// Set parameterization type (0=ChordLength, 1=Centripetal, 2=IsoParametric).
+void OCCTThruSectionsSetParType(OCCTThruSectionsRef _Nonnull ts, int32_t parType);
+
+/// Set criterium weights for the approximation.
+void OCCTThruSectionsSetCriteriumWeight(OCCTThruSectionsRef _Nonnull ts, double w1, double w2, double w3);
+
+/// Get the face generated from an edge after building.
+OCCTShapeRef _Nullable OCCTThruSectionsGeneratedFace(OCCTThruSectionsRef _Nonnull ts, OCCTShapeRef _Nonnull edge);
+
+// --- CellsBuilder extensions ---
+
+/// Add cells to result selectively: take shapes present in theLSToTake, avoid shapes in theLSToAvoid.
+void OCCTCellsBuilderAddToResultSelective(OCCTCellsBuilderRef _Nonnull builder,
+                                           const OCCTShapeRef _Nonnull * _Nonnull takeShapes, int32_t takeCount,
+                                           const OCCTShapeRef _Nonnull * _Nonnull avoidShapes, int32_t avoidCount,
+                                           int32_t material, bool update);
+
+/// Remove cells from result selectively: remove shapes in take but not in avoid.
+void OCCTCellsBuilderRemoveFromResult(OCCTCellsBuilderRef _Nonnull builder,
+                                       const OCCTShapeRef _Nonnull * _Nonnull takeShapes, int32_t takeCount,
+                                       const OCCTShapeRef _Nonnull * _Nonnull avoidShapes, int32_t avoidCount);
+
+/// Get all split parts (before any result composition).
+OCCTShapeRef _Nullable OCCTCellsBuilderGetAllParts(OCCTCellsBuilderRef _Nonnull builder);
+
+/// Make containers (wires from edges, shells from faces, etc.).
+void OCCTCellsBuilderMakeContainers(OCCTCellsBuilderRef _Nonnull builder);
+
+// --- PipeShell extensions ---
+
+/// Get the pipe shell build status (0=Ok, 1=NotOk, 2=PlaneNotIntersectGuide, 3=ImpossibleContact).
+int32_t OCCTPipeShellGetStatus(OCCTPipeShellRef _Nonnull ps);
+
+/// Simulate the pipe shell with a given number of sections.
+/// Returns an array of simulated section shapes and their count.
+OCCTShapeRef _Nullable * _Nullable OCCTPipeShellSimulate(OCCTPipeShellRef _Nonnull ps, int32_t numSections, int32_t* _Nonnull outCount);
+
+/// Free an array of shapes returned by OCCTPipeShellSimulate.
+void OCCTPipeShellSimulateFree(OCCTShapeRef _Nullable * _Nullable shapes, int32_t count);
+
+// --- UnifySameDomain builder ---
+
+typedef void* OCCTUnifySameDomainRef;
+
+/// Create a UnifySameDomain builder.
+OCCTUnifySameDomainRef _Nonnull OCCTUnifySameDomainCreate(OCCTShapeRef _Nonnull shape,
+                                                           bool unifyEdges, bool unifyFaces, bool concatBSplines);
+
+/// Release a UnifySameDomain builder.
+void OCCTUnifySameDomainRelease(OCCTUnifySameDomainRef _Nonnull usd);
+
+/// Allow or disallow internal edges in unification.
+void OCCTUnifySameDomainAllowInternalEdges(OCCTUnifySameDomainRef _Nonnull usd, bool allow);
+
+/// Keep a specific shape from being unified.
+void OCCTUnifySameDomainKeepShape(OCCTUnifySameDomainRef _Nonnull usd, OCCTShapeRef _Nonnull shape);
+
+/// Set safe input mode (copies input shape).
+void OCCTUnifySameDomainSetSafeInputMode(OCCTUnifySameDomainRef _Nonnull usd, bool safe);
+
+/// Set linear tolerance for unification.
+void OCCTUnifySameDomainSetLinearTolerance(OCCTUnifySameDomainRef _Nonnull usd, double tol);
+
+/// Set angular tolerance for unification.
+void OCCTUnifySameDomainSetAngularTolerance(OCCTUnifySameDomainRef _Nonnull usd, double tol);
+
+/// Build (perform unification).
+void OCCTUnifySameDomainBuild(OCCTUnifySameDomainRef _Nonnull usd);
+
+/// Get the unified result shape.
+OCCTShapeRef _Nullable OCCTUnifySameDomainShape(OCCTUnifySameDomainRef _Nonnull usd);
+
+// --- BRepAlgoAPI_Section extended ---
+
+/// Compute section between two shapes with approximation and pcurve options.
+/// Returns the section shape.
+OCCTShapeRef _Nullable OCCTShapeSectionWithOptions(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2,
+                                                    bool approximation, bool computePCurve1, bool computePCurve2);
+
+/// Check if an edge of the section has an ancestor face on shape1.
+/// Returns the ancestor face, or NULL.
+OCCTShapeRef _Nullable OCCTSectionAncestorFaceOn1(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2,
+                                                    OCCTShapeRef _Nonnull edge,
+                                                    bool approximation, bool computePCurve1, bool computePCurve2);
+
+/// Check if an edge of the section has an ancestor face on shape2.
+OCCTShapeRef _Nullable OCCTSectionAncestorFaceOn2(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2,
+                                                    OCCTShapeRef _Nonnull edge,
+                                                    bool approximation, bool computePCurve1, bool computePCurve2);
+
+// --- Curve3D queries ---
+
+/// Get the period of a periodic curve (0.0 if not periodic).
+double OCCTCurve3DPeriod(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the first parameter of a curve.
+double OCCTCurve3DFirstParameter(OCCTCurve3DRef _Nonnull curve);
+
+/// Get the last parameter of a curve.
+double OCCTCurve3DLastParameter(OCCTCurve3DRef _Nonnull curve);
+
+// --- Surface queries ---
+
+/// Get the U period of a periodic surface (0.0 if not periodic in U).
+double OCCTSurfaceUPeriod(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the V period of a periodic surface (0.0 if not periodic in V).
+double OCCTSurfaceVPeriod(OCCTSurfaceRef _Nonnull surface);
+
+// --- Additional Shape queries ---
+
+/// Get a nullified copy of the shape (cleared TShape).
+OCCTShapeRef _Nullable OCCTShapeNullified(OCCTShapeRef _Nonnull shape);
+
+/// Get the shape type as a string name.
+const char* _Nullable OCCTShapeTypeName(OCCTShapeRef _Nonnull shape);
+
+/// Check if this shape is NOT equal to other.
+bool OCCTShapeIsNotEqual(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2);
+
+// --- Shape emptied/moved ---
+
+/// Get an emptied copy of the shape (no sub-shapes).
+OCCTShapeRef _Nullable OCCTShapeEmptied(OCCTShapeRef _Nonnull shape);
+
+/// Move a shape by an XYZ translation. Returns a new copy.
+OCCTShapeRef _Nullable OCCTShapeMoved(OCCTShapeRef _Nonnull shape, double dx, double dy, double dz);
+
+/// Get the shape orientation as integer (0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL).
+int32_t OCCTShapeOrientationValue(OCCTShapeRef _Nonnull shape);
+
+/// Get the number of edges in a shape.
+int32_t OCCTShapeNbEdges(OCCTShapeRef _Nonnull shape);
+
+/// Get the number of faces in a shape.
+int32_t OCCTShapeNbFaces(OCCTShapeRef _Nonnull shape);
+
+/// Get the number of vertices in a shape.
+int32_t OCCTShapeNbVertices(OCCTShapeRef _Nonnull shape);
+
 #ifdef __cplusplus
 }
 #endif

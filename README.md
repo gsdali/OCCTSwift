@@ -460,7 +460,8 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **ChamferBuilder** | 8 | create, addEdge, addEdgeTwoDists, addEdgeDistAngle, build, nbContours, isDistAngle |
 | **BSpline Completions** | 25 | Surface: SetU/VNotPeriodic, SetU/VOrigin, IncreaseU/VMultiplicity, InsertU/VKnots, MovePoint, SetPoleCol/Row. Curve3D/2D: SetNotPeriodic, SetOrigin, IncreaseMultiplicity, IncrementMultiplicity, SetKnots, Reverse, MovePointAndTangent |
 | **v0.122.0 Additions** | 44 | WireFixer: fixGaps2d, fixSeam, fixShifted, fixNotchedEdges, fixTails, setMaxTailAngle, setMaxTailWidth. ShapeFix_Edge: addCurve3d, addPCurve, removeCurve3d, removePCurve, fixReversed2d. BRepTools: cleanTriangulation, removeInternals, detectClosedness, evalAndUpdateTol, map3DEdgeCount, updateFaceUVPoints, compareVertices, compareEdges, isReallyClosed, updateTopology. BRepLib: ensureNormalConsistency, updateDeflection, continuityOfFaces, buildCurves3dAll, sameParameterAll. History: merge, replaceGenerated, replaceModified, getModifiedShapes, getGeneratedShapes. Sewing: nbDeletedFaces, deletedFace, isModified, modified, isDegenerated, isSectionBound, whichFace, load, setNonManifoldMode, setFaceMode, setFloatingEdgesMode, setMinTolerance, setMaxTolerance |
-| **Total** | **3068** | |
+| **v0.123.0 Additions** | 37 | ThruSections: checkCompatibility, setParType, setCriteriumWeight, generatedFace. CellsBuilder: addToResult(selective), removeFromResult, allParts, makeContainers. PipeShell: getStatus, simulate. UnifySameDomainBuilder: create, allowInternalEdges, keepShape, setSafeInputMode, setLinearTolerance, setAngularTolerance, build, shape. Section: sectionWithOptions, ancestorFaceOn1, ancestorFaceOn2. Curve3D: period, firstParameter, lastParameter. Surface: uPeriod, vPeriod. Shape: nullified, typeName, isNotEqual, emptied, moved, orientationValue, nbEdges, nbFaces, nbVertices |
+| **Total** | **3105** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1752,6 +1753,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.123.0: **FINAL RELEASE** — ThruSections extensions (CheckCompatibility, SetParType, SetCriteriumWeight, GeneratedFace), CellsBuilder extensions (AddToResult selective, RemoveFromResult, GetAllParts, MakeContainers), PipeShell extensions (GetStatus, Simulate), UnifySameDomain builder (AllowInternalEdges, KeepShape, SafeInputMode, linear/angular tolerance), BRepAlgoAPI_Section extended (approximation, pcurves, ancestor faces), Curve3D queries (period, firstParameter, lastParameter), Surface queries (uPeriod, vPeriod), Shape queries (typeName, isNotEqual, nullified, emptied, moved, orientationValue, nbEdges/nbFaces/nbVertices) (3105 ops, 3182 tests)
 > - v0.122.0: WireFixer extended (FixGaps2d, FixSeam, FixShifted, FixNotchedEdges, FixTails, tail config), ShapeFix_Edge (AddCurve3d, AddPCurve, RemoveCurve3d, RemovePCurve, FixReversed2d), BRepTools statics (Clean, RemoveInternals, DetectClosedness, EvalAndUpdateTol, Map3DEdges, UpdateFaceUVPoints, CompareVertices/Edges, IsReallyClosed), BRepLib extended (EnsureNormalConsistency, UpdateDeflection, ContinuityOfFaces, BuildCurves3dAll, SameParameterAll), History extended (Merge, ReplaceGenerated/Modified, GetModified/GeneratedShapes), Sewing extended (DeletedFaces, IsModified/Modified, IsDegenerated, IsSectionBound, WhichFace, Load, modes) (3068 ops, 3151 tests)
 > - v0.121.0: GLTF/GLB import+export (RWGltf_CafReader/CafWriter with RapidJSON), FilletBuilder (BRepFilletAPI_MakeFillet builder pattern with edge control, contour queries, error diagnosis), ChamferBuilder (BRepFilletAPI_MakeChamfer with symmetric/two-dist/dist-angle modes), BSpline completions (Surface: SetNotPeriodic, SetOrigin, IncreaseMultiplicity, InsertKnots batch, MovePoint, SetPoleCol/Row; Curve3D/2D: SetNotPeriodic, SetOrigin, IncreaseMultiplicity, IncrementMultiplicity, SetKnots, Reverse, MovePointAndTangent) (3024 ops, 3119 tests)
 > - v0.120.0: Final cleanup — IsCN continuity checks (Curve3D/2D, Surface U/V), ReversedParameter (Curve3D/2D), ParametricTransformation, continuity order wrappers, Surface UReversed/VReversed copies and reversed parameters, BSpline RemoveVKnot, gp_Vec CrossMagnitude/CrossSquareMagnitude, gp_Dir IsOpposite/IsNormal, Bezier Resolution (Curve3D/Surface), MaxDegree statics (Bezier Curve3D/2D/Surface, BSpline Surface/Curve2D) (2970 ops, 3046 tests)
@@ -1806,7 +1808,7 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.114.0
 
-OCCTSwift now wraps **2970 OCCT operations** across 302 categories with 3046 tests across 890 suites.
+OCCTSwift now wraps **3105 OCCT operations** across 302 categories with 3182 tests across 891 suites.
 
 Built on **OCCT 8.0.0-rc4**.
 

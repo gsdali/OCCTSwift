@@ -11489,7 +11489,7 @@ extension Shape {
 
 /// Builder for lofted shapes through multiple wire sections.
 public final class ThruSectionsBuilder: @unchecked Sendable {
-    private let ref: OCCTThruSectionsRef
+    internal let ref: OCCTThruSectionsRef
 
     /// Create a ThruSections builder.
     /// - Parameters:
