@@ -11663,3 +11663,75 @@ extension Shape {
         OCCTBRepToolMaxTolerance(handle, Int32(subShapeType))
     }
 }
+
+// MARK: - v0.127.0: Section with plane/surface, BRep_Tool Polygon queries
+
+extension Shape {
+
+    /// Compute the section (intersection curves) of this shape with a plane.
+    /// - Parameters:
+    ///   - normal: Plane normal direction
+    ///   - origin: A point on the plane
+    /// - Returns: Shape containing section edges, or nil on failure
+    public func sectionWithPlane(normal: SIMD3<Double>, origin: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeSectionWithPlane(handle,
+                                                 normal.x, normal.y, normal.z,
+                                                 origin.x, origin.y, origin.z) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Compute the section (intersection curves) of this shape with a surface.
+    /// - Parameter surface: The surface to intersect with
+    /// - Returns: Shape containing section edges, or nil on failure
+    public func sectionWithSurface(_ surface: Surface) -> Shape? {
+        guard let h = OCCTShapeSectionWithSurface(handle, surface.handle) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Get the 2D curve of an edge computed on a plane surface.
+    /// Uses BRep_Tool::CurveOnPlane.
+    /// - Parameters:
+    ///   - edge: The edge shape
+    ///   - surface: The surface (typically planar)
+    /// - Returns: The 2D curve and parameter range, or nil
+    public static func curveOnPlane(edge: Shape, surface: Surface) -> (curve: Curve2D, first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard let ref = OCCTBRepToolCurveOnPlane(edge.handle, surface.handle, &first, &last) else { return nil }
+        return (Curve2D(handle: ref), first, last)
+    }
+
+    /// Get the 3D polygon of a meshed edge (from BRep_Tool::Polygon3D).
+    /// The shape should be meshed first (e.g., via `mesh(deflection:)`).
+    /// - Parameter edge: The edge shape
+    /// - Returns: Array of 3D points, or nil if no polygon available
+    public static func polygon3D(edge: Shape) -> [SIMD3<Double>]? {
+        var pointsPtr: UnsafeMutablePointer<Double>?
+        let count = OCCTBRepToolPolygon3D(edge.handle, &pointsPtr)
+        guard count > 0, let pts = pointsPtr else { return nil }
+        defer { free(pts) }
+        var result = [SIMD3<Double>]()
+        result.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            result.append(SIMD3(pts[i*3], pts[i*3+1], pts[i*3+2]))
+        }
+        return result
+    }
+
+    /// Get the polygon-on-triangulation indices of a meshed edge.
+    /// Returns 1-based node indices into the triangulation.
+    /// The shape should be meshed first.
+    /// - Parameter edge: The edge shape
+    /// - Returns: Array of 1-based node indices, or nil if not available
+    public static func polygonOnTriangulation(edge: Shape) -> [Int]? {
+        var indicesPtr: UnsafeMutablePointer<Int32>?
+        let count = OCCTBRepToolPolygonOnTriangulation(edge.handle, &indicesPtr)
+        guard count > 0, let indices = indicesPtr else { return nil }
+        defer { free(indices) }
+        var result = [Int]()
+        result.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            result.append(Int(indices[i]))
+        }
+        return result
+    }
+}

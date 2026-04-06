@@ -2457,4 +2457,34 @@ extension Surface {
     public func bezierVReverse() -> Bool {
         OCCTSurfaceBezierVReverse(handle)
     }
+
+    // MARK: - v0.127.0: Bezier surface completions
+
+    /// Set a pole column with weights on a Bezier surface.
+    /// - Parameters:
+    ///   - vIndex: Column index (1-based)
+    ///   - poles: Array of 3D points (must have NbUPoles elements)
+    ///   - weights: Array of weights (must have NbUPoles elements)
+    @discardableResult
+    public func bezierSetPoleColWeights(vIndex: Int, poles: [SIMD3<Double>], weights: [Double]) -> Bool {
+        guard poles.count == weights.count else { return false }
+        var flat = [Double]()
+        flat.reserveCapacity(poles.count * 3)
+        for p in poles { flat.append(p.x); flat.append(p.y); flat.append(p.z) }
+        return OCCTSurfaceBezierSetPoleColWeights(handle, Int32(vIndex), flat, weights, Int32(poles.count))
+    }
+
+    /// Set a pole row with weights on a Bezier surface.
+    /// - Parameters:
+    ///   - uIndex: Row index (1-based)
+    ///   - poles: Array of 3D points (must have NbVPoles elements)
+    ///   - weights: Array of weights (must have NbVPoles elements)
+    @discardableResult
+    public func bezierSetPoleRowWeights(uIndex: Int, poles: [SIMD3<Double>], weights: [Double]) -> Bool {
+        guard poles.count == weights.count else { return false }
+        var flat = [Double]()
+        flat.reserveCapacity(poles.count * 3)
+        for p in poles { flat.append(p.x); flat.append(p.y); flat.append(p.z) }
+        return OCCTSurfaceBezierSetPoleRowWeights(handle, Int32(uIndex), flat, weights, Int32(poles.count))
+    }
 }

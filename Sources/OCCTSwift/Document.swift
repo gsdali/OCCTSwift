@@ -15498,4 +15498,103 @@ extension Document {
     public func shapeToolNbComponents(labelId: Int64, getSubChildren: Bool = false) -> Int {
         Int(OCCTDocumentShapeToolNbComponents(handle, labelId, getSubChildren))
     }
+
+    // MARK: - v0.127.0: ColorTool completions
+
+    /// Get all color labels in the document.
+    /// Returns an array of label IDs for all colors defined in the color tool.
+    public func colorToolGetAllColors() -> [Int64] {
+        var idsPtr: UnsafeMutablePointer<Int64>?
+        let count = OCCTDocumentColorToolGetAllColors(handle, &idsPtr)
+        guard count > 0, let ids = idsPtr else { return [] }
+        defer { free(ids) }
+        var result = [Int64]()
+        result.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            result.append(ids[i])
+        }
+        return result
+    }
+}
+
+// MARK: - v0.127.0: FilletBuilder history queries
+
+extension FilletBuilder {
+
+    /// Get the parameter bounds of a fillet on a contour edge.
+    /// - Parameters:
+    ///   - contour: Contour index (1-based)
+    ///   - edge: The edge in the contour
+    /// - Returns: Parameter range (first, last), or nil if not found
+    public func getBounds(contour: Int, edge: Shape) -> (first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard OCCTFilletBuilderGetBounds(handle, Int32(contour), edge.handle, &first, &last) else { return nil }
+        return (first, last)
+    }
+
+    /// Get the law function for a fillet edge on a contour.
+    /// - Parameters:
+    ///   - contour: Contour index (1-based)
+    ///   - edge: The edge in the contour
+    /// - Returns: The law function, or nil if not available
+    public func getLaw(contour: Int, edge: Shape) -> LawFunction? {
+        guard let ref = OCCTFilletBuilderGetLaw(handle, Int32(contour), edge.handle) else { return nil }
+        return LawFunction(handle: ref)
+    }
+
+    /// Set a law function for a fillet edge on a contour.
+    /// - Parameters:
+    ///   - contour: Contour index (1-based)
+    ///   - edge: The edge
+    ///   - law: The law function to use
+    @discardableResult
+    public func setLaw(contour: Int, edge: Edge, law: LawFunction) -> Bool {
+        OCCTFilletBuilderSetLaw(handle, Int32(contour), edge.handle, law.handle)
+    }
+
+    /// Get shapes generated from an input shape by the fillet operation.
+    /// The fillet must be built first.
+    /// - Parameter shape: The input shape (typically an edge)
+    /// - Returns: Array of generated shapes
+    public func generated(from shape: Shape) -> [Shape] {
+        var shapesPtr: UnsafeMutablePointer<OCCTShapeRef?>?
+        let count = OCCTFilletBuilderGenerated(handle, shape.handle, &shapesPtr)
+        guard count > 0, let shapes = shapesPtr else { return [] }
+        defer { free(shapes) }
+        var result = [Shape]()
+        result.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            if let ref = shapes[i] {
+                result.append(Shape(handle: ref))
+            }
+        }
+        return result
+    }
+
+    /// Get shapes modified from an input shape by the fillet operation.
+    /// The fillet must be built first.
+    /// - Parameter shape: The input shape (typically a face)
+    /// - Returns: Array of modified shapes
+    public func modified(from shape: Shape) -> [Shape] {
+        var shapesPtr: UnsafeMutablePointer<OCCTShapeRef?>?
+        let count = OCCTFilletBuilderModified(handle, shape.handle, &shapesPtr)
+        guard count > 0, let shapes = shapesPtr else { return [] }
+        defer { free(shapes) }
+        var result = [Shape]()
+        result.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            if let ref = shapes[i] {
+                result.append(Shape(handle: ref))
+            }
+        }
+        return result
+    }
+
+    /// Check if a shape was deleted by the fillet operation.
+    /// The fillet must be built first.
+    /// - Parameter shape: The input shape
+    /// - Returns: true if the shape was deleted
+    public func isDeleted(_ shape: Shape) -> Bool {
+        OCCTFilletBuilderIsDeleted(handle, shape.handle)
+    }
 }

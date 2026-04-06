@@ -52622,4 +52622,260 @@ bool OCCTSurfaceBezierVReverse(OCCTSurfaceRef surface) {
     } catch (...) { return false; }
 }
 
-// end of v0.126.0 implementations
+// MARK: - v0.127.0: Section ops, BSpline/Bezier completions, BRep_Tool, ColorTool, FilletBuilder history
+
+// --- BRepAlgoAPI_Section with plane ---
+
+OCCTShapeRef OCCTShapeSectionWithPlane(OCCTShapeRef shape,
+                                        double normalX, double normalY, double normalZ,
+                                        double originX, double originY, double originZ) {
+    if (!shape) return nullptr;
+    try {
+        gp_Pln plane(gp_Pnt(originX, originY, originZ), gp_Dir(normalX, normalY, normalZ));
+        BRepAlgoAPI_Section section(shape->shape, plane);
+        section.Build();
+        if (!section.IsDone() || section.Shape().IsNull()) return nullptr;
+        return new OCCTShape(section.Shape());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeSectionWithSurface(OCCTShapeRef shape, OCCTSurfaceRef surface) {
+    if (!shape || !surface) return nullptr;
+    try {
+        BRepAlgoAPI_Section section(shape->shape, surface->surface);
+        section.Build();
+        if (!section.IsDone() || section.Shape().IsNull()) return nullptr;
+        return new OCCTShape(section.Shape());
+    } catch (...) { return nullptr; }
+}
+
+// --- Geom_BSplineCurve completions ---
+
+bool OCCTCurve3DBSplinePeriodicNormalization(OCCTCurve3DRef curve, double* u) {
+    if (!curve || !u) return false;
+    auto bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bsc.IsNull() || !bsc->IsPeriodic()) return false;
+    try {
+        bsc->PeriodicNormalization(*u);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineIsG1(OCCTCurve3DRef curve, double tFirst, double tLast, double angTol) {
+    if (!curve) return false;
+    auto bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bsc.IsNull()) return false;
+    try {
+        return bsc->IsG1(tFirst, tLast, angTol);
+    } catch (...) { return false; }
+}
+
+// --- BRep_Tool completions ---
+
+OCCTCurve2DRef OCCTBRepToolCurveOnPlane(OCCTShapeRef edge, OCCTSurfaceRef surface,
+                                         double* outFirst, double* outLast) {
+    if (!edge || !surface || !outFirst || !outLast) return nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopLoc_Location loc;
+        double first = 0, last = 0;
+        Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnPlane(e, surface->surface, loc, first, last);
+        if (pcurve.IsNull()) return nullptr;
+        *outFirst = first;
+        *outLast = last;
+        return new OCCTCurve2D(pcurve);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTBRepToolPolygon3D(OCCTShapeRef edge, double** outPoints) {
+    if (!edge || !outPoints) return 0;
+    *outPoints = nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopLoc_Location loc;
+        Handle(Poly_Polygon3D) poly = BRep_Tool::Polygon3D(e, loc);
+        if (poly.IsNull()) return 0;
+        int nb = poly->NbNodes();
+        if (nb == 0) return 0;
+        double* pts = (double*)malloc(nb * 3 * sizeof(double));
+        if (!pts) return 0;
+        gp_Trsf trsf = loc.IsIdentity() ? gp_Trsf() : loc.Transformation();
+        const NCollection_Array1<gp_Pnt>& nodes = poly->Nodes();
+        for (int i = 1; i <= nb; i++) {
+            gp_Pnt p = nodes.Value(i).Transformed(trsf);
+            pts[(i-1)*3+0] = p.X();
+            pts[(i-1)*3+1] = p.Y();
+            pts[(i-1)*3+2] = p.Z();
+        }
+        *outPoints = pts;
+        return nb;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepToolPolygonOnTriangulation(OCCTShapeRef edge, int32_t** outIndices) {
+    if (!edge || !outIndices) return 0;
+    *outIndices = nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopLoc_Location loc;
+        Handle(Poly_PolygonOnTriangulation) pot;
+        Handle(Poly_Triangulation) tri;
+        BRep_Tool::PolygonOnTriangulation(e, pot, tri, loc);
+        if (pot.IsNull()) return 0;
+        int nb = pot->NbNodes();
+        if (nb == 0) return 0;
+        int32_t* indices = (int32_t*)malloc(nb * sizeof(int32_t));
+        if (!indices) return 0;
+        for (int i = 1; i <= nb; i++) {
+            indices[i-1] = pot->Node(i);
+        }
+        *outIndices = indices;
+        return nb;
+    } catch (...) { return 0; }
+}
+
+// --- Geom_BezierSurface completions ---
+
+bool OCCTSurfaceBezierSetPoleColWeights(OCCTSurfaceRef surface, int32_t vIndex,
+                                         const double* poles, const double* weights,
+                                         int32_t count) {
+    if (!surface || !poles || !weights || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        NCollection_Array1<gp_Pnt> colPoles(1, count);
+        NCollection_Array1<double> colWeights(1, count);
+        for (int i = 0; i < count; i++) {
+            colPoles.SetValue(i+1, gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]));
+            colWeights.SetValue(i+1, weights[i]);
+        }
+        bz->SetPoleCol(vIndex, colPoles, colWeights);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetPoleRowWeights(OCCTSurfaceRef surface, int32_t uIndex,
+                                         const double* poles, const double* weights,
+                                         int32_t count) {
+    if (!surface || !poles || !weights || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        NCollection_Array1<gp_Pnt> rowPoles(1, count);
+        NCollection_Array1<double> rowWeights(1, count);
+        for (int i = 0; i < count; i++) {
+            rowPoles.SetValue(i+1, gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]));
+            rowWeights.SetValue(i+1, weights[i]);
+        }
+        bz->SetPoleRow(uIndex, rowPoles, rowWeights);
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- XCAFDoc_ColorTool completions ---
+
+int32_t OCCTDocumentColorToolGetAllColors(OCCTDocumentRef doc, int64_t** outLabelIds) {
+    if (!doc || !outLabelIds) return 0;
+    *outLabelIds = nullptr;
+    try {
+        NCollection_Sequence<TDF_Label> labels;
+        doc->colorTool->GetColors(labels);
+        int count = labels.Size();
+        if (count == 0) return 0;
+        int64_t* ids = (int64_t*)malloc(count * sizeof(int64_t));
+        if (!ids) return 0;
+        for (int i = 1; i <= count; i++) {
+            const TDF_Label& lab = labels.Value(i);
+            // Find or add to label registry
+            int64_t idx = -1;
+            for (int64_t j = 0; j < (int64_t)doc->labels.size(); j++) {
+                if (doc->labels[j].IsEqual(lab)) { idx = j; break; }
+            }
+            if (idx < 0) {
+                idx = (int64_t)doc->labels.size();
+                doc->labels.push_back(lab);
+            }
+            ids[i-1] = idx;
+        }
+        *outLabelIds = ids;
+        return count;
+    } catch (...) { return 0; }
+}
+
+// --- FilletBuilder history queries ---
+
+bool OCCTFilletBuilderGetBounds(OCCTFilletBuilderRef builder, int32_t contourIndex,
+                                 OCCTShapeRef edge, double* outFirst, double* outLast) {
+    if (!builder || !edge || !outFirst || !outLast) return false;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        return builder->fillet.GetBounds(contourIndex, e, *outFirst, *outLast);
+    } catch (...) { return false; }
+}
+
+OCCTLawFunctionRef OCCTFilletBuilderGetLaw(OCCTFilletBuilderRef builder, int32_t contourIndex,
+                                            OCCTShapeRef edge) {
+    if (!builder || !edge) return nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        Handle(Law_Function) law = builder->fillet.GetLaw(contourIndex, e);
+        if (law.IsNull()) return nullptr;
+        return new OCCTLawFunction(law);
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTFilletBuilderSetLaw(OCCTFilletBuilderRef builder, int32_t contourIndex,
+                              OCCTEdgeRef edge, OCCTLawFunctionRef law) {
+    if (!builder || !edge || !law) return false;
+    try {
+        builder->fillet.SetLaw(contourIndex, edge->edge, law->law);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTFilletBuilderGenerated(OCCTFilletBuilderRef builder, OCCTShapeRef shape,
+                                    OCCTShapeRef** outShapes) {
+    if (!builder || !shape || !outShapes) return 0;
+    *outShapes = nullptr;
+    try {
+        const TopTools_ListOfShape& list = builder->fillet.Generated(shape->shape);
+        int count = list.Size();
+        if (count == 0) return 0;
+        OCCTShapeRef* shapes = (OCCTShapeRef*)malloc(count * sizeof(OCCTShapeRef));
+        if (!shapes) return 0;
+        int i = 0;
+        for (auto it = list.cbegin(); it != list.cend(); ++it, ++i) {
+            shapes[i] = new OCCTShape(*it);
+        }
+        *outShapes = shapes;
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTFilletBuilderModified(OCCTFilletBuilderRef builder, OCCTShapeRef shape,
+                                   OCCTShapeRef** outShapes) {
+    if (!builder || !shape || !outShapes) return 0;
+    *outShapes = nullptr;
+    try {
+        const TopTools_ListOfShape& list = builder->fillet.Modified(shape->shape);
+        int count = list.Size();
+        if (count == 0) return 0;
+        OCCTShapeRef* shapes = (OCCTShapeRef*)malloc(count * sizeof(OCCTShapeRef));
+        if (!shapes) return 0;
+        int i = 0;
+        for (auto it = list.cbegin(); it != list.cend(); ++it, ++i) {
+            shapes[i] = new OCCTShape(*it);
+        }
+        *outShapes = shapes;
+        return count;
+    } catch (...) { return 0; }
+}
+
+bool OCCTFilletBuilderIsDeleted(OCCTFilletBuilderRef builder, OCCTShapeRef shape) {
+    if (!builder || !shape) return false;
+    try {
+        return builder->fillet.IsDeleted(shape->shape);
+    } catch (...) { return false; }
+}
+
+// end of v0.127.0 implementations

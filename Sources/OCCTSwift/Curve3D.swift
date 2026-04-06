@@ -1617,4 +1617,24 @@ extension Curve3D {
     public func bezierSetPoleWithWeight(index: Int, point: SIMD3<Double>, weight: Double) -> Bool {
         OCCTCurve3DBezierSetPoleWithWeight(handle, Int32(index), point.x, point.y, point.z, weight)
     }
+
+    // MARK: - v0.127.0: BSpline completions
+
+    /// Normalize a parameter value for a periodic BSpline curve.
+    /// Returns the normalized parameter, or nil if the curve is not periodic.
+    public func bsplinePeriodicNormalization(_ u: Double) -> Double? {
+        var param = u
+        guard OCCTCurve3DBSplinePeriodicNormalization(handle, &param) else { return nil }
+        return param
+    }
+
+    /// Check G1 (tangent) continuity of a BSpline curve on a parameter range.
+    /// - Parameters:
+    ///   - tFirst: Start of parameter range
+    ///   - tLast: End of parameter range
+    ///   - angularTolerance: Angular tolerance for tangent comparison (radians)
+    /// - Returns: true if the curve is G1 continuous on the given range
+    public func bsplineIsG1(tFirst: Double, tLast: Double, angularTolerance: Double = 0.01) -> Bool {
+        OCCTCurve3DBSplineIsG1(handle, tFirst, tLast, angularTolerance)
+    }
 }

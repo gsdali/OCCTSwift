@@ -18544,6 +18544,101 @@ bool OCCTSurfaceBezierUReverse(OCCTSurfaceRef _Nonnull surface);
 /// Reverse V parameter direction of a Bezier surface (in-place).
 bool OCCTSurfaceBezierVReverse(OCCTSurfaceRef _Nonnull surface);
 
+// MARK: - v0.127.0: Section ops, BSpline/Bezier completions, BRep_Tool, ColorTool, FilletBuilder history
+
+// --- BRepAlgoAPI_Section with plane ---
+
+/// Compute section of a shape with a plane (ax + by + cz + d = 0).
+/// @param normalX,normalY,normalZ Plane normal direction
+/// @param originX,originY,originZ A point on the plane
+OCCTShapeRef _Nullable OCCTShapeSectionWithPlane(OCCTShapeRef _Nonnull shape,
+                                                  double normalX, double normalY, double normalZ,
+                                                  double originX, double originY, double originZ);
+
+/// Compute section of a shape with a surface.
+OCCTShapeRef _Nullable OCCTShapeSectionWithSurface(OCCTShapeRef _Nonnull shape,
+                                                    OCCTSurfaceRef _Nonnull surface);
+
+// --- Geom_BSplineCurve completions ---
+
+/// Normalize parameter for periodic BSpline curve. Returns normalized u.
+/// Returns false if curve is not periodic.
+bool OCCTCurve3DBSplinePeriodicNormalization(OCCTCurve3DRef _Nonnull curve, double* _Nonnull u);
+
+/// Check G1 continuity on parameter range [tFirst, tLast] with angular tolerance.
+bool OCCTCurve3DBSplineIsG1(OCCTCurve3DRef _Nonnull curve, double tFirst, double tLast, double angTol);
+
+// --- BRep_Tool completions ---
+
+/// Get the 2D curve of an edge computed on a plane surface.
+/// Returns the Curve2D and parameter range. May return NULL for non-planar surfaces.
+OCCTCurve2DRef _Nullable OCCTBRepToolCurveOnPlane(OCCTShapeRef _Nonnull edge,
+                                                    OCCTSurfaceRef _Nonnull surface,
+                                                    double* _Nonnull outFirst,
+                                                    double* _Nonnull outLast);
+
+/// Get the 3D polygon of a meshed edge. Returns node count (0 if not available).
+/// Points are returned as flat array [x1,y1,z1,...]. Caller must free with free().
+int32_t OCCTBRepToolPolygon3D(OCCTShapeRef _Nonnull edge,
+                               double* _Nullable * _Nonnull outPoints);
+
+/// Get the polygon-on-triangulation of a meshed edge.
+/// Returns node indices (1-based) into the triangulation. Count returned. Caller must free with free().
+int32_t OCCTBRepToolPolygonOnTriangulation(OCCTShapeRef _Nonnull edge,
+                                            int32_t* _Nullable * _Nonnull outIndices);
+
+// --- Geom_BezierSurface completions ---
+
+/// Set a pole column with weights on a Bezier surface. vIndex is 1-based.
+/// poles: flat array [x1,y1,z1,...] of NbUPoles points. weights: array of NbUPoles values.
+bool OCCTSurfaceBezierSetPoleColWeights(OCCTSurfaceRef _Nonnull surface, int32_t vIndex,
+                                         const double* _Nonnull poles, const double* _Nonnull weights,
+                                         int32_t count);
+
+/// Set a pole row with weights on a Bezier surface. uIndex is 1-based.
+/// poles: flat array [x1,y1,z1,...] of NbVPoles points. weights: array of NbVPoles values.
+bool OCCTSurfaceBezierSetPoleRowWeights(OCCTSurfaceRef _Nonnull surface, int32_t uIndex,
+                                         const double* _Nonnull poles, const double* _Nonnull weights,
+                                         int32_t count);
+
+// --- XCAFDoc_ColorTool completions ---
+
+/// Get all color labels in the document. Returns array of label IDs. Caller must free with free().
+int32_t OCCTDocumentColorToolGetAllColors(OCCTDocumentRef _Nonnull doc,
+                                           int64_t* _Nullable * _Nonnull outLabelIds);
+
+// --- FilletBuilder history queries ---
+
+/// Get the parameter bounds of a fillet on a contour edge. Returns false if not found.
+bool OCCTFilletBuilderGetBounds(OCCTFilletBuilderRef _Nonnull builder,
+                                 int32_t contourIndex, OCCTShapeRef _Nonnull edge,
+                                 double* _Nonnull outFirst, double* _Nonnull outLast);
+
+/// Get the law function for a fillet edge on a contour. Returns NULL if not available.
+OCCTLawFunctionRef _Nullable OCCTFilletBuilderGetLaw(OCCTFilletBuilderRef _Nonnull builder,
+                                                      int32_t contourIndex, OCCTShapeRef _Nonnull edge);
+
+/// Set a law function for a fillet edge on a contour.
+bool OCCTFilletBuilderSetLaw(OCCTFilletBuilderRef _Nonnull builder,
+                              int32_t contourIndex, OCCTEdgeRef _Nonnull edge,
+                              OCCTLawFunctionRef _Nonnull law);
+
+/// Get shapes generated from an input shape by the fillet operation.
+/// Returns array of shape refs. Caller must free the array (not the shapes) with free().
+int32_t OCCTFilletBuilderGenerated(OCCTFilletBuilderRef _Nonnull builder,
+                                    OCCTShapeRef _Nonnull shape,
+                                    OCCTShapeRef _Nullable * _Nullable * _Nonnull outShapes);
+
+/// Get shapes modified from an input shape by the fillet operation.
+/// Returns array of shape refs. Caller must free the array (not the shapes) with free().
+int32_t OCCTFilletBuilderModified(OCCTFilletBuilderRef _Nonnull builder,
+                                   OCCTShapeRef _Nonnull shape,
+                                   OCCTShapeRef _Nullable * _Nullable * _Nonnull outShapes);
+
+/// Check if a shape was deleted by the fillet operation.
+bool OCCTFilletBuilderIsDeleted(OCCTFilletBuilderRef _Nonnull builder,
+                                 OCCTShapeRef _Nonnull shape);
+
 #ifdef __cplusplus
 }
 #endif

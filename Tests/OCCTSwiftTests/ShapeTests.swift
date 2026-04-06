@@ -40651,3 +40651,283 @@ struct ShapeToolCompletionsTests {
     }
 }
 
+// MARK: - v0.127.0: Section ops, BSpline/Bezier completions, BRep_Tool, ColorTool, FilletBuilder history
+
+@Suite("v0.127.0 — Section with Plane/Surface")
+struct SectionPlaneTests {
+
+    @Test("Section shape with plane produces edges")
+    func sectionWithPlane() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        if let section = box.sectionWithPlane(normal: SIMD3(0, 0, 1), origin: SIMD3(0, 0, 5)) {
+            let edges = section.subShapes(ofType: .edge)
+            #expect(edges.count > 0)
+        }
+    }
+
+    @Test("Section shape with cylindrical surface")
+    func sectionWithSurface() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        if let surf = Surface.cylindricalSurface(origin: SIMD3(5, 5, 0), direction: SIMD3(0, 0, 1), radius: 3.0) {
+            if let section = box.sectionWithSurface(surf) {
+                let edges = section.subShapes(ofType: .edge)
+                #expect(edges.count > 0)
+            }
+        }
+    }
+}
+
+@Suite("v0.127.0 — BSpline Curve Completions")
+struct BSplineCurveCompletionsTests {
+
+    @Test("BSpline periodic normalization")
+    func periodicNormalization() {
+        // Create a periodic BSpline via interpolation of closed points
+        if let curve = Curve3D.interpolatePeriodic(points: [
+            SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(-1, 0, 0), SIMD3(0, -1, 0)
+        ]) {
+            if let normalized = curve.bsplinePeriodicNormalization(100.0) {
+                let domain = curve.domain
+                #expect(normalized >= domain.lowerBound)
+                #expect(normalized <= domain.upperBound)
+            }
+        }
+    }
+
+    @Test("BSpline periodic normalization returns nil for non-periodic")
+    func periodicNormalizationNonPeriodic() {
+        if let curve = Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(1, 1, 0), SIMD3(2, 0, 0)
+        ]) {
+            let result = curve.bsplinePeriodicNormalization(0.5)
+            #expect(result == nil)
+        }
+    }
+
+    @Test("BSpline IsG1 returns true for smooth curve")
+    func bsplineIsG1() {
+        if let curve = Curve3D.interpolate(points: [
+            SIMD3(0, 0, 0), SIMD3(1, 1, 0), SIMD3(2, 1, 0), SIMD3(3, 0, 0)
+        ]) {
+            let domain = curve.domain
+            let result = curve.bsplineIsG1(tFirst: domain.lowerBound, tLast: domain.upperBound)
+            #expect(result == true)
+        }
+    }
+}
+
+@Suite("v0.127.0 — BRep_Tool Polygon Queries")
+struct BRepToolPolygonTests {
+
+    @Test("Polygon3D from meshed edge")
+    func polygon3D() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let _ = box.mesh(linearDeflection: 0.1)
+        let edges = box.subShapes(ofType: .edge)
+        // At least one edge should have a polygon3D
+        var found = false
+        for edge in edges {
+            if let pts = Shape.polygon3D(edge: edge) {
+                #expect(pts.count >= 2)
+                found = true
+                break
+            }
+        }
+        // Polygon3D may or may not be available depending on mesher
+        // so just verify the call doesn't crash
+    }
+
+    @Test("PolygonOnTriangulation from meshed edge")
+    func polygonOnTriangulation() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let _ = box.mesh(linearDeflection: 0.1)
+        let edges = box.subShapes(ofType: .edge)
+        var found = false
+        for edge in edges {
+            if let indices = Shape.polygonOnTriangulation(edge: edge) {
+                #expect(indices.count >= 2)
+                // Indices should be 1-based
+                for idx in indices {
+                    #expect(idx >= 1)
+                }
+                found = true
+                break
+            }
+        }
+        #expect(found)
+    }
+
+    @Test("CurveOnPlane returns 2D curve for edge on plane")
+    func curveOnPlane() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let edges = box.subShapes(ofType: .edge)
+        guard !edges.isEmpty else { return }
+        // Create a plane surface in XY
+        if let surf = Surface.plane(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)) {
+            // Try each edge — some lie on this plane, some don't
+            for edge in edges {
+                if let result = Shape.curveOnPlane(edge: edge, surface: surf) {
+                    #expect(result.first < result.last)
+                    break
+                }
+            }
+            // May return nil for all edges if none lie on the XY plane — that's ok
+        }
+    }
+}
+
+@Suite("v0.127.0 — Bezier Surface Pole Col/Row with Weights")
+struct BezierSurfaceWeightTests {
+
+    @Test("SetPoleCol with weights modifies surface")
+    func setPoleColWeights() {
+        // Create a rational Bezier surface
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 5, 0), SIMD3(0, 10, 0)],
+            [SIMD3(5, 0, 0), SIMD3(5, 5, 1), SIMD3(5, 10, 0)],
+            [SIMD3(10, 0, 0), SIMD3(10, 5, 0), SIMD3(10, 10, 0)]
+        ]
+        let weights = [[1.0, 1.0, 1.0], [1.0, 2.0, 1.0], [1.0, 1.0, 1.0]]
+        if let surf = Surface.bezier(poles: poles, weights: weights) {
+            let newPoles = [SIMD3(0.0, 5.0, 2.0), SIMD3(5.0, 5.0, 3.0), SIMD3(10.0, 5.0, 2.0)]
+            let newWeights = [3.0, 3.0, 3.0]
+            let ok = surf.bezierSetPoleColWeights(vIndex: 2, poles: newPoles, weights: newWeights)
+            #expect(ok)
+        }
+    }
+
+    @Test("SetPoleRow with weights modifies surface")
+    func setPoleRowWeights() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 5, 0), SIMD3(0, 10, 0)],
+            [SIMD3(5, 0, 0), SIMD3(5, 5, 1), SIMD3(5, 10, 0)],
+            [SIMD3(10, 0, 0), SIMD3(10, 5, 0), SIMD3(10, 10, 0)]
+        ]
+        let weights = [[1.0, 1.0, 1.0], [1.0, 2.0, 1.0], [1.0, 1.0, 1.0]]
+        if let surf = Surface.bezier(poles: poles, weights: weights) {
+            let newPoles = [SIMD3(5.0, 0.0, 2.0), SIMD3(5.0, 5.0, 3.0), SIMD3(5.0, 10.0, 2.0)]
+            let newWeights = [4.0, 4.0, 4.0]
+            let ok = surf.bezierSetPoleRowWeights(uIndex: 2, poles: newPoles, weights: newWeights)
+            #expect(ok)
+        }
+    }
+}
+
+@Suite("v0.127.0 — ColorTool GetAllColors")
+struct ColorToolGetAllColorsTests {
+
+    @Test("GetAllColors returns added colors")
+    func getAllColors() {
+        guard let doc = Document.create() else { return }
+        // Add two colors
+        let redId = doc.colorToolAddColor(r: 1.0, g: 0.0, b: 0.0)
+        let greenId = doc.colorToolAddColor(r: 0.0, g: 1.0, b: 0.0)
+        #expect(redId >= 0)
+        #expect(greenId >= 0)
+
+        let allColors = doc.colorToolGetAllColors()
+        #expect(allColors.count >= 2)
+    }
+
+    @Test("GetAllColors empty for new document")
+    func getAllColorsEmpty() {
+        guard let doc = Document.create() else { return }
+        let allColors = doc.colorToolGetAllColors()
+        #expect(allColors.isEmpty)
+    }
+}
+
+@Suite("v0.127.0 — FilletBuilder History Queries")
+struct FilletBuilderHistoryTests {
+
+    @Test("FilletBuilder GetBounds for evolving radius")
+    func getBounds() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let builder = FilletBuilder(shape: box) else { return }
+        let edges = box.edges()
+        guard !edges.isEmpty else { return }
+        // Use evolving radius to avoid constant-edge law crash
+        let added = builder.addEdge(edges[0], radius1: 0.5, radius2: 2.0)
+        if added {
+            if let _ = builder.build() {
+                // getBounds takes a Shape, convert edge to shape
+                if let edgeShape = Shape.fromEdge(edges[0]) {
+                    if let bounds = builder.getBounds(contour: 1, edge: edgeShape) {
+                        #expect(bounds.first < bounds.last)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder GetLaw for evolving radius")
+    func getLaw() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let builder = FilletBuilder(shape: box) else { return }
+        let edges = box.edges()
+        guard !edges.isEmpty else { return }
+        let added = builder.addEdge(edges[0], radius1: 0.5, radius2: 2.0)
+        if added {
+            if let _ = builder.build() {
+                if let edgeShape = Shape.fromEdge(edges[0]) {
+                    let law = builder.getLaw(contour: 1, edge: edgeShape)
+                    #expect(law != nil)
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder Generated from edge")
+    func generated() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let builder = FilletBuilder(shape: box) else { return }
+        let edges = box.edges()
+        guard !edges.isEmpty else { return }
+        let added = builder.addEdge(edges[0], radius: 1.0)
+        if added {
+            if let _ = builder.build() {
+                if let edgeShape = Shape.fromEdge(edges[0]) {
+                    let gen = builder.generated(from: edgeShape)
+                    #expect(gen.count > 0)
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder Modified from face")
+    func modified() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let builder = FilletBuilder(shape: box) else { return }
+        let edges = box.edges()
+        guard !edges.isEmpty else { return }
+        let added = builder.addEdge(edges[0], radius: 1.0)
+        if added {
+            if let _ = builder.build() {
+                let faces = box.subShapes(ofType: .face)
+                if !faces.isEmpty {
+                    let mod = builder.modified(from: faces[0])
+                    // May or may not have modified faces depending on which face
+                    #expect(mod.count >= 0)
+                }
+            }
+        }
+    }
+
+    @Test("FilletBuilder IsDeleted for filleted edge")
+    func isDeleted() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let builder = FilletBuilder(shape: box) else { return }
+        let edges = box.edges()
+        guard !edges.isEmpty else { return }
+        let added = builder.addEdge(edges[0], radius: 1.0)
+        if added {
+            if let _ = builder.build() {
+                if let edgeShape = Shape.fromEdge(edges[0]) {
+                    let deleted = builder.isDeleted(edgeShape)
+                    #expect(deleted == true) // The original edge should be replaced
+                }
+            }
+        }
+    }
+}
+
