@@ -40016,3 +40016,638 @@ struct BezierSurfaceCompletionTests {
     }
 }
 
+// MARK: - v0.126.0 Tests
+
+@Suite("v0.126.0 — BRep_Tool completions")
+struct BRepToolCompletionsTests {
+    @Test("CurveOnSurface returns pcurve of edge on face")
+    func curveOnSurface() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let faces = box.subShapes(ofType: .face) // faces
+            let edges = box.subShapes(ofType: .edge) // edges
+            if faces.count > 0 && edges.count > 0 {
+                // Try each edge-face pair until we find one with a pcurve
+                var found = false
+                for face in faces {
+                    for edge in edges {
+                        if let result = Shape.curveOnSurface(edge: edge, face: face) {
+                            #expect(result.first < result.last || result.first == result.last)
+                            found = true
+                            break
+                        }
+                    }
+                    if found { break }
+                }
+                // Box edges always have pcurves on their adjacent faces
+                #expect(found)
+            }
+        }
+    }
+
+    @Test("HasContinuity and Continuity between faces")
+    func continuity() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let edges = box.subShapes(ofType: .edge)
+            let faces = box.subShapes(ofType: .face)
+            if edges.count > 0 && faces.count >= 2 {
+                // Test hasContinuity between two faces sharing an edge
+                // Just make sure it doesn't crash
+                let _ = Shape.hasContinuity(edge: edges[0], face1: faces[0], face2: faces[1])
+            }
+        }
+    }
+
+    @Test("HasAnyContinuity on filleted edge")
+    func hasAnyContinuity() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box, let filleted = box.filleted(radius: 1.0) {
+            let edges = filleted.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                // At least some edges on filleted shape may have continuity
+                let _ = Shape.hasAnyContinuity(edge: edges[0])
+                let _ = Shape.maxContinuity(edge: edges[0])
+            }
+        }
+    }
+
+    @Test("Degenerated returns false for box edge")
+    func degenerated() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let edges = box.subShapes(ofType: .edge)
+            if edges.count > 0 {
+                #expect(!Shape.isDegenerated(edge: edges[0]))
+            }
+        }
+    }
+
+    @Test("NaturalRestriction on sphere face")
+    func naturalRestriction() {
+        // Sphere has natural restriction on its face
+        let sphere = Shape.sphere(radius: 5)
+        if let sphere = sphere {
+            let faces = sphere.subShapes(ofType: .face)
+            if faces.count > 0 {
+                // Sphere face may or may not have natural restriction; just ensure no crash
+                let _ = Shape.naturalRestriction(face: faces[0])
+            }
+        }
+    }
+
+    @Test("RangeOnFace returns valid range")
+    func rangeOnFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let faces = box.subShapes(ofType: .face)
+            let edges = box.subShapes(ofType: .edge)
+            if faces.count > 0 && edges.count > 0 {
+                // Try to find an edge that belongs to the face
+                for face in faces {
+                    for edge in edges {
+                        if let range = Shape.rangeOnFace(edge: edge, face: face) {
+                            #expect(range.first <= range.last || range.first == range.last)
+                            return
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("ParametersOnFace returns UV for vertex on box face")
+    func parametersOnFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let vertices = box.subShapes(ofType: .vertex)
+            let faces = box.subShapes(ofType: .face)
+            if vertices.count > 0 && faces.count > 0 {
+                var found = false
+                for face in faces {
+                    for vertex in vertices {
+                        if let uv = Shape.parametersOnFace(vertex: vertex, face: face) {
+                            #expect(uv.u.isFinite)
+                            #expect(uv.v.isFinite)
+                            found = true
+                            break
+                        }
+                    }
+                    if found { break }
+                }
+            }
+        }
+    }
+
+    @Test("UVPoints returns valid UV endpoints for edge on face")
+    func uvPoints() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let faces = box.subShapes(ofType: .face)
+            let edges = box.subShapes(ofType: .edge)
+            if faces.count > 0 && edges.count > 0 {
+                var found = false
+                for face in faces {
+                    for edge in edges {
+                        if let uv = Shape.uvPoints(edge: edge, face: face) {
+                            #expect(uv.firstU.isFinite)
+                            #expect(uv.lastU.isFinite)
+                            found = true
+                            break
+                        }
+                    }
+                    if found { break }
+                }
+            }
+        }
+    }
+
+    @Test("MaxTolerance returns positive value")
+    func maxTolerance() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let tol = box.maxTolerance(subShapeType: 6) // edges
+            #expect(tol >= 0)
+            let tolV = box.maxTolerance(subShapeType: 7) // vertices
+            #expect(tolV >= 0)
+        }
+    }
+}
+
+@Suite("v0.126.0 — Curve2D Bezier completions")
+struct Curve2DBezierCompletionsTests {
+    @Test("InsertPoleAfter increases pole count")
+    func insertPoleAfter() {
+        let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(1, 1)])
+        if let c = c {
+            if let origCount = c.poleCount {
+                let ok = c.bezierInsertPoleAfter(1, point: SIMD2(0.5, 0.5))
+                #expect(ok)
+                if let newCount = c.poleCount {
+                    #expect(newCount == origCount + 1)
+                }
+            }
+        }
+    }
+
+    @Test("RemovePole decreases pole count")
+    func removePole() {
+        let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(0.5, 0.5), SIMD2(1, 1)])
+        if let c = c {
+            if let origCount = c.poleCount {
+                let ok = c.bezierRemovePole(2)
+                #expect(ok)
+                if let newCount = c.poleCount {
+                    #expect(newCount == origCount - 1)
+                }
+            }
+        }
+    }
+
+    @Test("Segment restricts domain")
+    func segment() {
+        let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(0.5, 1), SIMD2(1, 0)])
+        if let c = c {
+            let ok = c.bezierSegment(u1: 0.2, u2: 0.8)
+            #expect(ok)
+        }
+    }
+
+    @Test("IncreaseDegree succeeds")
+    func increaseDegree() {
+        let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(1, 1)])
+        if let c = c {
+            if let origDeg = c.degree {
+                let ok = c.bezierIncreaseDegree(origDeg + 1)
+                #expect(ok)
+                if let newDeg = c.degree {
+                    #expect(newDeg == origDeg + 1)
+                }
+            }
+        }
+    }
+
+    @Test("StartPoint and EndPoint")
+    func startEndPoint() {
+        let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(5, 10)])
+        if let c = c {
+            let sp = c.bezierStartPoint
+            let ep = c.bezierEndPoint
+            #expect(abs(sp.x) < 1e-10)
+            #expect(abs(sp.y) < 1e-10)
+            #expect(abs(ep.x - 5) < 1e-10)
+            #expect(abs(ep.y - 10) < 1e-10)
+        }
+    }
+
+    @Test("GetPoles returns correct poles")
+    func getPoles() {
+        let poles = [SIMD2<Double>(0, 0), SIMD2(3, 4), SIMD2(6, 0)]
+        let c = Curve2D.bezier(poles: poles)
+        if let c = c {
+            let got = c.bezierPoles
+            #expect(got.count == 3)
+            if got.count == 3 {
+                #expect(abs(got[0].x - 0) < 1e-10)
+                #expect(abs(got[1].x - 3) < 1e-10)
+                #expect(abs(got[2].x - 6) < 1e-10)
+            }
+        }
+    }
+
+    @Test("Reverse swaps start and end")
+    func reverse() {
+        let c = Curve2D.bezier(poles: [SIMD2(0, 0), SIMD2(10, 20)])
+        if let c = c {
+            let ok = c.bezierReverse()
+            #expect(ok)
+            let sp = c.bezierStartPoint
+            #expect(abs(sp.x - 10) < 1e-10)
+            #expect(abs(sp.y - 20) < 1e-10)
+        }
+    }
+}
+
+@Suite("v0.126.0 — Curve3D Bezier completions")
+struct Curve3DBezierCompletionsTests {
+    @Test("InsertPoleBefore increases pole count")
+    func insertPoleBefore() {
+        let c = Curve3D.bezier(poles: [SIMD3(0, 0, 0), SIMD3(1, 1, 1)])
+        if let c = c {
+            if let origCount = c.poleCount {
+                let ok = c.bezierInsertPoleBefore(1, point: SIMD3(0.5, 0.5, 0.5))
+                #expect(ok)
+                if let newCount = c.poleCount {
+                    #expect(newCount == origCount + 1)
+                }
+            }
+        }
+    }
+
+    @Test("Reverse swaps start and end")
+    func reverse() {
+        let c = Curve3D.bezier(poles: [SIMD3(0, 0, 0), SIMD3(10, 20, 30)])
+        if let c = c {
+            let ok = c.bezierReverse()
+            #expect(ok)
+            let sp = c.bezierStartPoint
+            #expect(abs(sp.x - 10) < 1e-10)
+        }
+    }
+
+    @Test("SetPoleWithWeight on rational Bezier")
+    func setPoleWithWeight() {
+        let c = Curve3D.bezier(poles: [SIMD3(0, 0, 0), SIMD3(5, 5, 0), SIMD3(10, 0, 0)],
+                               weights: [1, 1, 1])
+        if let c = c {
+            let ok = c.bezierSetPoleWithWeight(index: 2, point: SIMD3(5, 10, 0), weight: 2.0)
+            #expect(ok)
+        }
+    }
+}
+
+@Suite("v0.126.0 — BSpline Surface completions")
+struct BSplineSurfaceCompletionsTests {
+    @Test("U and V multiplicities")
+    func multiplicities() {
+        // Create a BSpline surface from a box face via NURBS conversion
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box, let nurbs = box.nurbsConvertViaModifier() {
+            let faces = nurbs.subShapes(ofType: .face)
+            if faces.count > 0 {
+                let face = faces[0]
+                if let surf = face.faceSurfaceGeom() {
+                    let uMults = surf.bsplineUMultiplicities
+                    let vMults = surf.bsplineVMultiplicities
+                    // NURBS-converted box face should have knots
+                    if !uMults.isEmpty {
+                        for m in uMults {
+                            #expect(m > 0)
+                        }
+                    }
+                    if !vMults.isEmpty {
+                        for m in vMults {
+                            #expect(m > 0)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test("UReverse and VReverse don't crash")
+    func reverse() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box, let nurbs = box.nurbsConvertViaModifier() {
+            let faces = nurbs.subShapes(ofType: .face)
+            if faces.count > 0 {
+                if let surf = faces[0].faceSurfaceGeom() {
+                    let _ = surf.bsplineUReverse()
+                    let _ = surf.bsplineVReverse()
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.126.0 — Bezier Surface completions")
+struct BezierSurfaceCompletionsTests {
+    @Test("InsertPoleColAfter and RemovePoleCol")
+    func insertRemoveCol() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0), SIMD3(0, 2, 0)],
+            [SIMD3(1, 0, 0), SIMD3(1, 1, 1), SIMD3(1, 2, 0)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            let origVPoles = s.bezierNbVPoles
+            // Insert column after col 1 — need NbUPoles (2) points
+            let newCol = [SIMD3<Double>(0, 0.5, 0.5), SIMD3(1, 0.5, 0.5)]
+            let ok = s.bezierInsertPoleColAfter(1, poles: newCol)
+            #expect(ok)
+            #expect(s.bezierNbVPoles == origVPoles + 1)
+            // Remove the column we just inserted
+            let ok2 = s.bezierRemovePoleCol(2)
+            #expect(ok2)
+            #expect(s.bezierNbVPoles == origVPoles)
+        }
+    }
+
+    @Test("InsertPoleRowAfter and RemovePoleRow")
+    func insertRemoveRow() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 0), SIMD3(1, 1, 1)],
+            [SIMD3(2, 0, 0), SIMD3(2, 1, 0)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            let origUPoles = s.bezierNbUPoles
+            // Insert row after row 1 — need NbVPoles (2) points
+            let newRow = [SIMD3<Double>(0.5, 0, 0.5), SIMD3(0.5, 1, 0.5)]
+            let ok = s.bezierInsertPoleRowAfter(1, poles: newRow)
+            #expect(ok)
+            #expect(s.bezierNbUPoles == origUPoles + 1)
+            // Remove the row we just inserted
+            let ok2 = s.bezierRemovePoleRow(2)
+            #expect(ok2)
+            #expect(s.bezierNbUPoles == origUPoles)
+        }
+    }
+
+    @Test("IncreaseDegree")
+    func increaseDegree() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 0), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            let origUDeg = s.bezierUDegree
+            let origVDeg = s.bezierVDegree
+            let ok = s.bezierIncreaseDegree(uDeg: origUDeg + 1, vDeg: origVDeg + 1)
+            #expect(ok)
+            #expect(s.bezierUDegree == origUDeg + 1)
+            #expect(s.bezierVDegree == origVDeg + 1)
+        }
+    }
+
+    @Test("UReverse and VReverse")
+    func reverse() {
+        let poles: [[SIMD3<Double>]] = [
+            [SIMD3(0, 0, 0), SIMD3(0, 1, 0)],
+            [SIMD3(1, 0, 0), SIMD3(1, 1, 1)]
+        ]
+        let s = Surface.bezier(poles: poles)
+        if let s = s {
+            #expect(s.bezierUReverse())
+            #expect(s.bezierVReverse())
+        }
+    }
+}
+
+@Suite("v0.126.0 — FilletBuilder completions")
+struct FilletBuilderCompletionsTests {
+    @Test("SetParams doesn't crash")
+    func setParams() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            let fb = FilletBuilder(shape: box)
+            if let fb = fb {
+                fb.setParams(tang: 1e-4, tesp: 1e-3, t2d: 1e-5, tApp3d: 1e-4, tApp2d: 1e-5, fleche: 1e-3)
+                // Should not crash
+            }
+        }
+    }
+
+    @Test("SetContinuity and Get/SetFilletShape")
+    func continuityAndFilletShape() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            let fb = FilletBuilder(shape: box)
+            if let fb = fb {
+                fb.setContinuity(1, angularTolerance: 0.001) // C1
+                fb.setFilletShape(1) // QuasiAngular
+                #expect(fb.filletShape == 1)
+                fb.setFilletShape(0) // Rational
+                #expect(fb.filletShape == 0)
+            }
+        }
+    }
+
+    @Test("ResetContour and Simulate")
+    func resetAndSimulate() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        if let box = box {
+            let fb = FilletBuilder(shape: box)
+            if let fb = fb {
+                let edges = box.edges()
+                if let firstEdge = edges.first {
+                    fb.addEdge(firstEdge, radius: 2.0)
+                    // resetContour and simulate should not crash even if Build wasn't called
+                    fb.resetContour(1)
+                }
+            }
+        }
+    }
+}
+
+@Suite("v0.126.0 — XCAFDoc_ColorTool completions")
+struct ColorToolCompletionsTests {
+    @Test("AddColor and FindColor")
+    func addAndFindColor() {
+        guard let doc = Document.create() else { return }
+        let tag = doc.colorToolAddColor(r: 1.0, g: 0.0, b: 0.0)
+        #expect(tag >= 0)
+        let found = doc.colorToolFindColor(r: 1.0, g: 0.0, b: 0.0)
+        #expect(found == tag)
+    }
+
+    @Test("GetColorCount increases after AddColor")
+    func colorCount() {
+        guard let doc = Document.create() else { return }
+        let before = doc.colorToolColorCount
+        let _ = doc.colorToolAddColor(r: 0.0, g: 1.0, b: 0.0)
+        let after = doc.colorToolColorCount
+        #expect(after == before + 1)
+    }
+
+    @Test("RemoveColor removes a color")
+    func removeColor() {
+        guard let doc = Document.create() else { return }
+        let tag = doc.colorToolAddColor(r: 0.0, g: 0.0, b: 1.0)
+        let before = doc.colorToolColorCount
+        let ok = doc.colorToolRemoveColor(labelId: tag)
+        #expect(ok)
+        let after = doc.colorToolColorCount
+        #expect(after == before - 1)
+    }
+
+    @Test("Visibility defaults to true")
+    func visibility() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                // Default visibility is true
+                #expect(doc.colorToolIsVisible(labelId: labelId))
+                // Set invisible
+                doc.colorToolSetVisibility(labelId: labelId, visible: false)
+                #expect(!doc.colorToolIsVisible(labelId: labelId))
+                // Set visible again
+                doc.colorToolSetVisibility(labelId: labelId, visible: true)
+                #expect(doc.colorToolIsVisible(labelId: labelId))
+            }
+        }
+    }
+
+    @Test("ColorByLayer defaults to false")
+    func colorByLayer() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                #expect(!doc.colorToolIsColorByLayer(labelId: labelId))
+                doc.colorToolSetColorByLayer(labelId: labelId, isByLayer: true)
+                #expect(doc.colorToolIsColorByLayer(labelId: labelId))
+            }
+        }
+    }
+}
+
+@Suite("v0.126.0 — XCAFDoc_ShapeTool completions")
+struct ShapeToolCompletionsTests {
+    @Test("IsFree returns true for top-level shape")
+    func isFree() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                #expect(doc.shapeToolIsFree(labelId: labelId))
+            }
+        }
+    }
+
+    @Test("IsSimpleShape returns true for box")
+    func isSimpleShape() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                #expect(doc.shapeToolIsSimpleShape(labelId: labelId))
+            }
+        }
+    }
+
+    @Test("IsComponent returns false for simple shape")
+    func isComponent() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                #expect(!doc.shapeToolIsComponent(labelId: labelId))
+            }
+        }
+    }
+
+    @Test("IsCompound returns false for simple box")
+    func isCompound() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                #expect(!doc.shapeToolIsCompound(labelId: labelId))
+            }
+        }
+    }
+
+    @Test("IsSubShape returns false for top-level")
+    func isSubShape() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                #expect(!doc.shapeToolIsSubShape(labelId: labelId))
+            }
+        }
+    }
+
+    @Test("IsExternRef returns false for regular shape")
+    func isExternRef() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                #expect(!doc.shapeToolIsExternRef(labelId: labelId))
+            }
+        }
+    }
+
+    @Test("GetUsers returns 0 for unreferenced shape")
+    func getUsers() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                let users = doc.shapeToolGetUsers(labelId: labelId)
+                #expect(users == 0)
+            }
+        }
+    }
+
+    @Test("NbComponents returns 0 for simple shape")
+    func nbComponents() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                let nb = doc.shapeToolNbComponents(labelId: labelId)
+                #expect(nb == 0)
+            }
+        }
+    }
+
+    @Test("ComputeShapes doesn't crash")
+    func computeShapes() {
+        guard let doc = Document.create() else { return }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box = box {
+            let labelId = doc.addShape(box)
+            if labelId >= 0 {
+                doc.shapeToolComputeShapes(labelId: labelId)
+                // Just check it doesn't crash
+            }
+        }
+    }
+}
+

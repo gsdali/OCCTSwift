@@ -1597,4 +1597,24 @@ extension Curve3D {
     public func bezierIsCN(_ n: Int) -> Bool {
         OCCTCurve3DBezierIsCN(handle, Int32(n))
     }
+
+    // MARK: - Bezier 3D completions (v0.126.0)
+
+    /// Insert a pole before index in a 3D Bezier curve (1-based index).
+    @discardableResult
+    public func bezierInsertPoleBefore(_ index: Int, point: SIMD3<Double>) -> Bool {
+        OCCTCurve3DBezierInsertPoleBefore(handle, Int32(index), point.x, point.y, point.z)
+    }
+
+    /// Reverse the parameterization of a 3D Bezier curve.
+    @discardableResult
+    public func bezierReverse() -> Bool {
+        OCCTCurve3DBezierReverse(handle)
+    }
+
+    /// Set pole with weight for a 3D Bezier curve.
+    @discardableResult
+    public func bezierSetPoleWithWeight(index: Int, point: SIMD3<Double>, weight: Double) -> Bool {
+        OCCTCurve3DBezierSetPoleWithWeight(handle, Int32(index), point.x, point.y, point.z, weight)
+    }
 }

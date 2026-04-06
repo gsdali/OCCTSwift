@@ -2338,4 +2338,59 @@ extension Curve2D {
     public func bsplineIsCN(_ n: Int) -> Bool {
         OCCTCurve2DBSplineIsCN(handle, Int32(n))
     }
+
+    // MARK: - Bezier 2D completions (v0.126.0)
+
+    /// Insert a pole after index in a 2D Bezier curve (1-based index).
+    @discardableResult
+    public func bezierInsertPoleAfter(_ index: Int, point: SIMD2<Double>) -> Bool {
+        OCCTCurve2DBezierInsertPoleAfter(handle, Int32(index), point.x, point.y)
+    }
+
+    /// Remove a pole at index from a 2D Bezier curve (1-based index).
+    @discardableResult
+    public func bezierRemovePole(_ index: Int) -> Bool {
+        OCCTCurve2DBezierRemovePole(handle, Int32(index))
+    }
+
+    /// Segment a 2D Bezier curve to [u1, u2].
+    @discardableResult
+    public func bezierSegment(u1: Double, u2: Double) -> Bool {
+        OCCTCurve2DBezierSegment(handle, u1, u2)
+    }
+
+    /// Increase degree of a 2D Bezier curve.
+    @discardableResult
+    public func bezierIncreaseDegree(_ degree: Int) -> Bool {
+        OCCTCurve2DBezierIncreaseDegree(handle, Int32(degree))
+    }
+
+    /// Get start point of a 2D Bezier curve.
+    public var bezierStartPoint: SIMD2<Double> {
+        var x = 0.0, y = 0.0
+        OCCTCurve2DBezierStartPoint(handle, &x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// Get end point of a 2D Bezier curve.
+    public var bezierEndPoint: SIMD2<Double> {
+        var x = 0.0, y = 0.0
+        OCCTCurve2DBezierEndPoint(handle, &x, &y)
+        return SIMD2(x, y)
+    }
+
+    /// Get all poles of a 2D Bezier curve.
+    public var bezierPoles: [SIMD2<Double>] {
+        let count = Int(OCCTCurve2DBezierPoleCount(handle))
+        guard count > 0 else { return [] }
+        var flat = [Double](repeating: 0, count: count * 2)
+        OCCTCurve2DBezierGetPoles(handle, &flat)
+        return (0..<count).map { SIMD2(flat[$0*2], flat[$0*2+1]) }
+    }
+
+    /// Reverse the parameterization of a 2D Bezier curve.
+    @discardableResult
+    public func bezierReverse() -> Bool {
+        OCCTCurve2DBezierReverse(handle)
+    }
 }

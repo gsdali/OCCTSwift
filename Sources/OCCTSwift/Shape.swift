@@ -11589,3 +11589,77 @@ public final class ShapeFixer: @unchecked Sendable {
         OCCTShapeFixerStatus(ref, Int32(type))
     }
 }
+
+// MARK: - BRep_Tool completions (v0.126.0)
+
+extension Shape {
+    /// Get the 2D curve (pcurve) of an edge on a face, with parameter range.
+    public static func curveOnSurface(edge: Shape, face: Shape) -> (curve: Curve2D, first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard let c = OCCTBRepToolCurveOnSurface(edge.handle, face.handle, &first, &last) else { return nil }
+        return (Curve2D(handle: c), first, last)
+    }
+
+    /// Check if edge has continuity regularity between two faces.
+    public static func hasContinuity(edge: Shape, face1: Shape, face2: Shape) -> Bool {
+        OCCTBRepToolHasContinuity(edge.handle, face1.handle, face2.handle)
+    }
+
+    /// Get the continuity of edge between two faces. Returns GeomAbs_Shape as int.
+    public static func continuity(edge: Shape, face1: Shape, face2: Shape) -> Int {
+        Int(OCCTBRepToolContinuity(edge.handle, face1.handle, face2.handle))
+    }
+
+    /// Check if edge has any regularity on some two surfaces.
+    public static func hasAnyContinuity(edge: Shape) -> Bool {
+        OCCTBRepToolHasAnyContinuity(edge.handle)
+    }
+
+    /// Get the maximum continuity of edge between all its surfaces.
+    public static func maxContinuity(edge: Shape) -> Int {
+        Int(OCCTBRepToolMaxContinuity(edge.handle))
+    }
+
+    /// Check if edge is degenerated.
+    public static func isDegenerated(edge: Shape) -> Bool {
+        OCCTBRepToolDegenerated(edge.handle)
+    }
+
+    /// Check if face has the NaturalRestriction flag set.
+    public static func naturalRestriction(face: Shape) -> Bool {
+        OCCTBRepToolNaturalRestriction(face.handle)
+    }
+
+    /// Get the parameter range of edge on a face (pcurve range).
+    public static func rangeOnFace(edge: Shape, face: Shape) -> (first: Double, last: Double)? {
+        var first = 0.0, last = 0.0
+        guard OCCTBRepToolRangeOnFace(edge.handle, face.handle, &first, &last) else { return nil }
+        return (first, last)
+    }
+
+    /// Get the parameter of vertex on pcurve of edge on face.
+    public static func parameterOnFace(vertex: Shape, edge: Shape, face: Shape) -> Double? {
+        var param = 0.0
+        guard OCCTBRepToolParameterOnFace(vertex.handle, edge.handle, face.handle, &param) else { return nil }
+        return param
+    }
+
+    /// Get the UV parameters of vertex on face.
+    public static func parametersOnFace(vertex: Shape, face: Shape) -> (u: Double, v: Double)? {
+        var u = 0.0, v = 0.0
+        guard OCCTBRepToolParametersOnFace(vertex.handle, face.handle, &u, &v) else { return nil }
+        return (u, v)
+    }
+
+    /// Get UV points at extremities of edge on face.
+    public static func uvPoints(edge: Shape, face: Shape) -> (firstU: Double, firstV: Double, lastU: Double, lastV: Double)? {
+        var fU = 0.0, fV = 0.0, lU = 0.0, lV = 0.0
+        guard OCCTBRepToolUVPoints(edge.handle, face.handle, &fU, &fV, &lU, &lV) else { return nil }
+        return (fU, fV, lU, lV)
+    }
+
+    /// Get maximum tolerance of sub-shapes of given type. type: 6=EDGE, 4=FACE, 7=VERTEX.
+    public func maxTolerance(subShapeType: Int) -> Double {
+        OCCTBRepToolMaxTolerance(handle, Int32(subShapeType))
+    }
+}

@@ -18313,6 +18313,237 @@ void OCCTSurfaceBezierBounds(OCCTSurfaceRef _Nonnull surface,
                               double* _Nonnull u1, double* _Nonnull u2,
                               double* _Nonnull v1, double* _Nonnull v2);
 
+// MARK: - v0.126.0: Final completeness release
+
+// --- BRep_Tool completions ---
+
+/// Get the 2D curve (pcurve) of an edge on a face. Returns the Curve2D ref and parameter range.
+OCCTCurve2DRef _Nullable OCCTBRepToolCurveOnSurface(OCCTShapeRef _Nonnull edge,
+                                                     OCCTShapeRef _Nonnull face,
+                                                     double* _Nonnull outFirst,
+                                                     double* _Nonnull outLast);
+
+/// Check if edge has continuity regularity between two faces.
+bool OCCTBRepToolHasContinuity(OCCTShapeRef _Nonnull edge,
+                                OCCTShapeRef _Nonnull face1,
+                                OCCTShapeRef _Nonnull face2);
+
+/// Get the continuity of edge between two faces. Returns GeomAbs_Shape as int.
+int32_t OCCTBRepToolContinuity(OCCTShapeRef _Nonnull edge,
+                                OCCTShapeRef _Nonnull face1,
+                                OCCTShapeRef _Nonnull face2);
+
+/// Check if edge has any regularity on some two surfaces.
+bool OCCTBRepToolHasAnyContinuity(OCCTShapeRef _Nonnull edge);
+
+/// Get the maximum continuity of edge between all its surfaces. Returns GeomAbs_Shape as int.
+int32_t OCCTBRepToolMaxContinuity(OCCTShapeRef _Nonnull edge);
+
+/// Check if edge is degenerated.
+bool OCCTBRepToolDegenerated(OCCTShapeRef _Nonnull edge);
+
+/// Check if face has the NaturalRestriction flag set.
+bool OCCTBRepToolNaturalRestriction(OCCTShapeRef _Nonnull face);
+
+/// Get the parameter range of edge on a face (pcurve range).
+bool OCCTBRepToolRangeOnFace(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+                              double* _Nonnull outFirst, double* _Nonnull outLast);
+
+/// Get the parameter of vertex on pcurve of edge on face.
+bool OCCTBRepToolParameterOnFace(OCCTShapeRef _Nonnull vertex, OCCTShapeRef _Nonnull edge,
+                                  OCCTShapeRef _Nonnull face, double* _Nonnull outParam);
+
+/// Get the UV parameters of vertex on face.
+bool OCCTBRepToolParametersOnFace(OCCTShapeRef _Nonnull vertex, OCCTShapeRef _Nonnull face,
+                                   double* _Nonnull outU, double* _Nonnull outV);
+
+/// Get UV points at extremities of edge on face.
+bool OCCTBRepToolUVPoints(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+                           double* _Nonnull firstU, double* _Nonnull firstV,
+                           double* _Nonnull lastU, double* _Nonnull lastV);
+
+/// Get maximum tolerance of sub-shapes of given type. type: 6=EDGE, 4=FACE, 7=VERTEX.
+double OCCTBRepToolMaxTolerance(OCCTShapeRef _Nonnull shape, int32_t subShapeType);
+
+// --- XCAFDoc_ColorTool completions ---
+
+/// Add a color to the document color table. Returns label id.
+int64_t OCCTDocumentColorToolAddColor(OCCTDocumentRef _Nonnull doc, double r, double g, double b);
+
+/// Remove a color from the document color table by label id.
+bool OCCTDocumentColorToolRemoveColor(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the number of colors in the color table.
+int32_t OCCTDocumentColorToolGetColorCount(OCCTDocumentRef _Nonnull doc);
+
+/// Unset color of a specific type from a label.
+bool OCCTDocumentColorToolUnSetColor(OCCTDocumentRef _Nonnull doc, int64_t labelId, int32_t colorType);
+
+/// Check if a label is visible.
+bool OCCTDocumentColorToolIsVisible(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set visibility of a label.
+bool OCCTDocumentColorToolSetVisibility(OCCTDocumentRef _Nonnull doc, int64_t labelId, bool visible);
+
+/// Check if color is defined by layer.
+bool OCCTDocumentColorToolIsColorByLayer(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Set color-by-layer flag on a label.
+bool OCCTDocumentColorToolSetColorByLayer(OCCTDocumentRef _Nonnull doc, int64_t labelId, bool isByLayer);
+
+/// Find a color in the color table. Returns label id or -1 if not found.
+int64_t OCCTDocumentColorToolFindColor(OCCTDocumentRef _Nonnull doc, double r, double g, double b);
+
+/// Set instance color on a shape component. Returns false if shape not found.
+bool OCCTDocumentColorToolSetInstanceColor(OCCTDocumentRef _Nonnull doc,
+                                            OCCTShapeRef _Nonnull shape,
+                                            int32_t colorType,
+                                            double r, double g, double b);
+
+/// Get instance color of a shape component. Returns false if not set.
+bool OCCTDocumentColorToolGetInstanceColor(OCCTDocumentRef _Nonnull doc,
+                                            OCCTShapeRef _Nonnull shape,
+                                            int32_t colorType,
+                                            double* _Nonnull r, double* _Nonnull g, double* _Nonnull b);
+
+// --- Geom2d_BezierCurve completions ---
+
+/// Insert a pole after index in a 2D Bezier curve.
+bool OCCTCurve2DBezierInsertPoleAfter(OCCTCurve2DRef _Nonnull curve, int32_t index, double x, double y);
+
+/// Remove a pole at index from a 2D Bezier curve.
+bool OCCTCurve2DBezierRemovePole(OCCTCurve2DRef _Nonnull curve, int32_t index);
+
+/// Segment a 2D Bezier curve to [u1, u2].
+bool OCCTCurve2DBezierSegment(OCCTCurve2DRef _Nonnull curve, double u1, double u2);
+
+/// Increase degree of a 2D Bezier curve.
+bool OCCTCurve2DBezierIncreaseDegree(OCCTCurve2DRef _Nonnull curve, int32_t degree);
+
+/// Get start point of a 2D Bezier curve.
+void OCCTCurve2DBezierStartPoint(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+/// Get end point of a 2D Bezier curve.
+void OCCTCurve2DBezierEndPoint(OCCTCurve2DRef _Nonnull curve, double* _Nonnull x, double* _Nonnull y);
+
+/// Get all poles of a 2D Bezier curve as flat array (x1,y1,x2,y2,...). Array must be pre-allocated to PoleCount*2.
+void OCCTCurve2DBezierGetPoles(OCCTCurve2DRef _Nonnull curve, double* _Nonnull poles);
+
+/// Reverse the parameterization of a 2D Bezier curve.
+bool OCCTCurve2DBezierReverse(OCCTCurve2DRef _Nonnull curve);
+
+// --- BSpline Surface bulk multiplicities and reverse ---
+
+/// Get all U multiplicities. Array must be pre-allocated to NbUKnots.
+void OCCTSurfaceBSplineGetUMultiplicities(OCCTSurfaceRef _Nonnull surface, int32_t* _Nonnull mults);
+
+/// Get all V multiplicities. Array must be pre-allocated to NbVKnots.
+void OCCTSurfaceBSplineGetVMultiplicities(OCCTSurfaceRef _Nonnull surface, int32_t* _Nonnull mults);
+
+/// Reverse the U parameter direction of a BSpline surface (in-place).
+bool OCCTSurfaceBSplineUReverse(OCCTSurfaceRef _Nonnull surface);
+
+/// Reverse the V parameter direction of a BSpline surface (in-place).
+bool OCCTSurfaceBSplineVReverse(OCCTSurfaceRef _Nonnull surface);
+
+/// Normalize U,V parameters for a periodic BSpline surface.
+bool OCCTSurfaceBSplinePeriodicNormalization(OCCTSurfaceRef _Nonnull surface,
+                                              double* _Nonnull u, double* _Nonnull v);
+
+// --- FilletBuilder completions ---
+
+/// Set fillet tolerances: tang, tesp, t2d, tApp3d, tApp2d, fleche.
+void OCCTFilletBuilderSetParams(OCCTFilletBuilderRef _Nonnull builder,
+                                 double tang, double tesp, double t2d,
+                                 double tApp3d, double tApp2d, double fleche);
+
+/// Set fillet continuity: internalContinuity (0=C0, 1=C1, 2=C2), angularTolerance.
+void OCCTFilletBuilderSetContinuity(OCCTFilletBuilderRef _Nonnull builder,
+                                     int32_t internalContinuity, double angularTolerance);
+
+/// Set fillet shape type: 0=Rational, 1=QuasiAngular, 2=Polynomial.
+void OCCTFilletBuilderSetFilletShape(OCCTFilletBuilderRef _Nonnull builder, int32_t filletShape);
+
+/// Get fillet shape type: 0=Rational, 1=QuasiAngular, 2=Polynomial.
+int32_t OCCTFilletBuilderGetFilletShape(OCCTFilletBuilderRef _Nonnull builder);
+
+/// Reset a specific contour's radius info.
+void OCCTFilletBuilderResetContour(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Simulate filleting on contour IC (computes sections without building).
+void OCCTFilletBuilderSimulate(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Get the number of simulated surfaces for contour IC.
+int32_t OCCTFilletBuilderNbSimulatedSurf(OCCTFilletBuilderRef _Nonnull builder, int32_t contourIndex);
+
+// --- XCAFDoc_ShapeTool completions ---
+
+/// Check if a label is a free shape (top-level, not referenced by other shapes).
+bool OCCTDocumentShapeToolIsFree(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a label is a simple shape (not assembly, not compound).
+bool OCCTDocumentShapeToolIsSimpleShape(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a label is a component (reference to another shape).
+bool OCCTDocumentShapeToolIsComponent(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a label is a compound shape.
+bool OCCTDocumentShapeToolIsCompound(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a label is a sub-shape.
+bool OCCTDocumentShapeToolIsSubShape(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Check if a label is an external reference.
+bool OCCTDocumentShapeToolIsExternRef(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the number of users (references) of a shape label.
+int32_t OCCTDocumentShapeToolGetUsers(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Compute shapes (update internal state) for a label.
+void OCCTDocumentShapeToolComputeShapes(OCCTDocumentRef _Nonnull doc, int64_t labelId);
+
+/// Get the number of components of a label.
+int32_t OCCTDocumentShapeToolNbComponents(OCCTDocumentRef _Nonnull doc, int64_t labelId, bool getSubChildren);
+
+// --- Bezier 3D curve InsertPoleBefore (complement to InsertPoleAfter) ---
+
+/// Insert a pole before index in a 3D Bezier curve. Index is 1-based.
+bool OCCTCurve3DBezierInsertPoleBefore(OCCTCurve3DRef _Nonnull curve, int32_t index, double x, double y, double z);
+
+/// Reverse the parameterization of a 3D Bezier curve.
+bool OCCTCurve3DBezierReverse(OCCTCurve3DRef _Nonnull curve);
+
+/// Get all poles of a 3D Bezier curve as flat array (x1,y1,z1,...). Already exists as OCCTCurve3DBezierGetPoles.
+
+/// Set pole with weight for a 3D Bezier curve.
+bool OCCTCurve3DBezierSetPoleWithWeight(OCCTCurve3DRef _Nonnull curve, int32_t index,
+                                         double x, double y, double z, double weight);
+
+// --- Bezier Surface insert/remove poles ---
+
+/// Insert a pole column after index in a Bezier surface.
+bool OCCTSurfaceBezierInsertPoleColAfter(OCCTSurfaceRef _Nonnull surface, int32_t colIndex,
+                                          const double* _Nonnull poles, int32_t poleCount);
+
+/// Insert a pole row after index in a Bezier surface.
+bool OCCTSurfaceBezierInsertPoleRowAfter(OCCTSurfaceRef _Nonnull surface, int32_t rowIndex,
+                                          const double* _Nonnull poles, int32_t poleCount);
+
+/// Remove a pole column from a Bezier surface.
+bool OCCTSurfaceBezierRemovePoleCol(OCCTSurfaceRef _Nonnull surface, int32_t colIndex);
+
+/// Remove a pole row from a Bezier surface.
+bool OCCTSurfaceBezierRemovePoleRow(OCCTSurfaceRef _Nonnull surface, int32_t rowIndex);
+
+/// Increase the degree of a Bezier surface.
+bool OCCTSurfaceBezierIncreaseDegree(OCCTSurfaceRef _Nonnull surface, int32_t uDeg, int32_t vDeg);
+
+/// Reverse U parameter direction of a Bezier surface (in-place).
+bool OCCTSurfaceBezierUReverse(OCCTSurfaceRef _Nonnull surface);
+
+/// Reverse V parameter direction of a Bezier surface (in-place).
+bool OCCTSurfaceBezierVReverse(OCCTSurfaceRef _Nonnull surface);
+
 #ifdef __cplusplus
 }
 #endif

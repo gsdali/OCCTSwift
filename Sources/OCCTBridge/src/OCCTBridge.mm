@@ -51947,3 +51947,679 @@ void OCCTSurfaceBezierBounds(OCCTSurfaceRef surface,
 }
 
 // end of v0.125.0 implementations
+
+// MARK: - v0.126.0 implementations
+
+// --- BRep_Tool completions ---
+
+#import <BRep_Tool.hxx>
+#import <Geom2d_Curve.hxx>
+
+OCCTCurve2DRef OCCTBRepToolCurveOnSurface(OCCTShapeRef edge, OCCTShapeRef face,
+                                           double* outFirst, double* outLast) {
+    if (!edge || !face) return nullptr;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        double first, last;
+        auto c2d = BRep_Tool::CurveOnSurface(e, f, first, last);
+        if (c2d.IsNull()) return nullptr;
+        *outFirst = first;
+        *outLast = last;
+        auto* result = new OCCTCurve2D();
+        result->curve = c2d;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTBRepToolHasContinuity(OCCTShapeRef edge, OCCTShapeRef face1, OCCTShapeRef face2) {
+    if (!edge || !face1 || !face2) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f1 = TopoDS::Face(face1->shape);
+        const TopoDS_Face& f2 = TopoDS::Face(face2->shape);
+        return BRep_Tool::HasContinuity(e, f1, f2);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepToolContinuity(OCCTShapeRef edge, OCCTShapeRef face1, OCCTShapeRef face2) {
+    if (!edge || !face1 || !face2) return 0;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f1 = TopoDS::Face(face1->shape);
+        const TopoDS_Face& f2 = TopoDS::Face(face2->shape);
+        return (int32_t)BRep_Tool::Continuity(e, f1, f2);
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepToolHasAnyContinuity(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        return BRep_Tool::HasContinuity(e);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepToolMaxContinuity(OCCTShapeRef edge) {
+    if (!edge) return 0;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        return (int32_t)BRep_Tool::MaxContinuity(e);
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepToolDegenerated(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        return BRep_Tool::Degenerated(e);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolNaturalRestriction(OCCTShapeRef face) {
+    if (!face) return false;
+    try {
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        return BRep_Tool::NaturalRestriction(f);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolRangeOnFace(OCCTShapeRef edge, OCCTShapeRef face,
+                              double* outFirst, double* outLast) {
+    if (!edge || !face) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        double first, last;
+        BRep_Tool::Range(e, f, first, last);
+        *outFirst = first;
+        *outLast = last;
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolParameterOnFace(OCCTShapeRef vertex, OCCTShapeRef edge,
+                                  OCCTShapeRef face, double* outParam) {
+    if (!vertex || !edge || !face) return false;
+    try {
+        const TopoDS_Vertex& v = TopoDS::Vertex(vertex->shape);
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        *outParam = BRep_Tool::Parameter(v, e, f);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolParametersOnFace(OCCTShapeRef vertex, OCCTShapeRef face,
+                                   double* outU, double* outV) {
+    if (!vertex || !face) return false;
+    try {
+        const TopoDS_Vertex& v = TopoDS::Vertex(vertex->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        gp_Pnt2d uv = BRep_Tool::Parameters(v, f);
+        *outU = uv.X();
+        *outV = uv.Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolUVPoints(OCCTShapeRef edge, OCCTShapeRef face,
+                           double* firstU, double* firstV,
+                           double* lastU, double* lastV) {
+    if (!edge || !face) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        gp_Pnt2d pFirst, pLast;
+        BRep_Tool::UVPoints(e, f, pFirst, pLast);
+        *firstU = pFirst.X();
+        *firstV = pFirst.Y();
+        *lastU = pLast.X();
+        *lastV = pLast.Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTBRepToolMaxTolerance(OCCTShapeRef shape, int32_t subShapeType) {
+    if (!shape) return 0.0;
+    try {
+        return BRep_Tool::MaxTolerance(shape->shape, (TopAbs_ShapeEnum)subShapeType);
+    } catch (...) { return 0.0; }
+}
+
+// --- XCAFDoc_ColorTool completions ---
+
+#import <XCAFDoc_ColorTool.hxx>
+#import <XCAFDoc_DocumentTool.hxx>
+#import <Quantity_Color.hxx>
+#import <Quantity_ColorRGBA.hxx>
+
+int64_t OCCTDocumentColorToolAddColor(OCCTDocumentRef doc, double r, double g, double b) {
+    if (!doc) return -1;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        Quantity_Color col(r, g, b, Quantity_TOC_RGB);
+        TDF_Label lab = colorTool->AddColor(col);
+        if (lab.IsNull()) return -1;
+        return doc->registerLabel(lab);
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentColorToolRemoveColor(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        colorTool->RemoveColor(lab);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentColorToolGetColorCount(OCCTDocumentRef doc) {
+    if (!doc) return 0;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        NCollection_Sequence<TDF_Label> labels;
+        colorTool->GetColors(labels);
+        return (int32_t)labels.Length();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDocumentColorToolUnSetColor(OCCTDocumentRef doc, int64_t labelId, int32_t colorType) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        colorTool->UnSetColor(lab, (XCAFDoc_ColorType)colorType);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentColorToolIsVisible(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return true;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return true;
+        return XCAFDoc_ColorTool::IsVisible(lab);
+    } catch (...) { return true; }
+}
+
+bool OCCTDocumentColorToolSetVisibility(OCCTDocumentRef doc, int64_t labelId, bool visible) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        colorTool->SetVisibility(lab, visible);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentColorToolIsColorByLayer(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return colorTool->IsColorByLayer(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentColorToolSetColorByLayer(OCCTDocumentRef doc, int64_t labelId, bool isByLayer) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        colorTool->SetColorByLayer(lab, isByLayer);
+        return true;
+    } catch (...) { return false; }
+}
+
+int64_t OCCTDocumentColorToolFindColor(OCCTDocumentRef doc, double r, double g, double b) {
+    if (!doc) return -1;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        Quantity_Color col(r, g, b, Quantity_TOC_RGB);
+        TDF_Label lab = colorTool->FindColor(col);
+        if (lab.IsNull()) return -1;
+        return doc->registerLabel(lab);
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentColorToolSetInstanceColor(OCCTDocumentRef doc, OCCTShapeRef shape,
+                                            int32_t colorType, double r, double g, double b) {
+    if (!doc || !shape) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        Quantity_Color col(r, g, b, Quantity_TOC_RGB);
+        return colorTool->SetInstanceColor(shape->shape, (XCAFDoc_ColorType)colorType, col);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentColorToolGetInstanceColor(OCCTDocumentRef doc, OCCTShapeRef shape,
+                                            int32_t colorType,
+                                            double* r, double* g, double* b) {
+    if (!doc || !shape) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        Quantity_Color col;
+        if (!colorTool->GetInstanceColor(shape->shape, (XCAFDoc_ColorType)colorType, col))
+            return false;
+        *r = col.Red();
+        *g = col.Green();
+        *b = col.Blue();
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- Geom2d_BezierCurve completions ---
+
+#import <Geom2d_BezierCurve.hxx>
+
+bool OCCTCurve2DBezierInsertPoleAfter(OCCTCurve2DRef curve, int32_t index, double x, double y) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->InsertPoleAfter(index, gp_Pnt2d(x, y));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBezierRemovePole(OCCTCurve2DRef curve, int32_t index) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->RemovePole(index);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBezierSegment(OCCTCurve2DRef curve, double u1, double u2) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Segment(u1, u2);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBezierIncreaseDegree(OCCTCurve2DRef curve, int32_t degree) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Increase(degree);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTCurve2DBezierStartPoint(OCCTCurve2DRef curve, double* x, double* y) {
+    if (!curve) return;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        gp_Pnt2d p = bz->StartPoint();
+        *x = p.X();
+        *y = p.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBezierEndPoint(OCCTCurve2DRef curve, double* x, double* y) {
+    if (!curve) return;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        gp_Pnt2d p = bz->EndPoint();
+        *x = p.X();
+        *y = p.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBezierGetPoles(OCCTCurve2DRef curve, double* poles) {
+    if (!curve || !poles) return;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        int n = bz->NbPoles();
+        for (int i = 1; i <= n; i++) {
+            gp_Pnt2d p = bz->Pole(i);
+            poles[(i-1)*2] = p.X();
+            poles[(i-1)*2+1] = p.Y();
+        }
+    } catch (...) {}
+}
+
+bool OCCTCurve2DBezierReverse(OCCTCurve2DRef curve) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Reverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- BSpline Surface bulk multiplicities and reverse ---
+
+void OCCTSurfaceBSplineGetUMultiplicities(OCCTSurfaceRef surface, int32_t* mults) {
+    if (!surface || !mults) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        int n = bs->NbUKnots();
+        for (int i = 1; i <= n; i++) {
+            mults[i-1] = bs->UMultiplicity(i);
+        }
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineGetVMultiplicities(OCCTSurfaceRef surface, int32_t* mults) {
+    if (!surface || !mults) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        int n = bs->NbVKnots();
+        for (int i = 1; i <= n; i++) {
+            mults[i-1] = bs->VMultiplicity(i);
+        }
+    } catch (...) {}
+}
+
+bool OCCTSurfaceBSplineUReverse(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        bs->UReverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineVReverse(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        bs->VReverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplinePeriodicNormalization(OCCTSurfaceRef surface, double* u, double* v) {
+    if (!surface) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        bs->PeriodicNormalization(*u, *v);
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- FilletBuilder completions ---
+
+void OCCTFilletBuilderSetParams(OCCTFilletBuilderRef builder,
+                                 double tang, double tesp, double t2d,
+                                 double tApp3d, double tApp2d, double fleche) {
+    if (!builder) return;
+    try {
+        builder->fillet.SetParams(tang, tesp, t2d, tApp3d, tApp2d, fleche);
+    } catch (...) {}
+}
+
+void OCCTFilletBuilderSetContinuity(OCCTFilletBuilderRef builder,
+                                     int32_t internalContinuity, double angularTolerance) {
+    if (!builder) return;
+    try {
+        builder->fillet.SetContinuity((GeomAbs_Shape)internalContinuity, angularTolerance);
+    } catch (...) {}
+}
+
+void OCCTFilletBuilderSetFilletShape(OCCTFilletBuilderRef builder, int32_t filletShape) {
+    if (!builder) return;
+    try {
+        builder->fillet.SetFilletShape((ChFi3d_FilletShape)filletShape);
+    } catch (...) {}
+}
+
+int32_t OCCTFilletBuilderGetFilletShape(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try {
+        return (int32_t)builder->fillet.GetFilletShape();
+    } catch (...) { return 0; }
+}
+
+void OCCTFilletBuilderResetContour(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return;
+    try {
+        builder->fillet.ResetContour(contourIndex);
+    } catch (...) {}
+}
+
+void OCCTFilletBuilderSimulate(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return;
+    try {
+        builder->fillet.Simulate(contourIndex);
+    } catch (...) {}
+}
+
+int32_t OCCTFilletBuilderNbSimulatedSurf(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try {
+        return (int32_t)builder->fillet.NbSurf(contourIndex);
+    } catch (...) { return 0; }
+}
+
+// --- XCAFDoc_ShapeTool completions ---
+
+#import <XCAFDoc_ShapeTool.hxx>
+
+bool OCCTDocumentShapeToolIsFree(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsFree(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsSimpleShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsSimpleShape(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsComponent(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsComponent(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsCompound(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsCompound(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsSubShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsSubShape(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsExternRef(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsExternRef(lab);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentShapeToolGetUsers(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return 0;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return 0;
+        NCollection_Sequence<TDF_Label> users;
+        return (int32_t)XCAFDoc_ShapeTool::GetUsers(lab, users);
+    } catch (...) { return 0; }
+}
+
+void OCCTDocumentShapeToolComputeShapes(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return;
+    try {
+        auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return;
+        shapeTool->ComputeShapes(lab);
+    } catch (...) {}
+}
+
+int32_t OCCTDocumentShapeToolNbComponents(OCCTDocumentRef doc, int64_t labelId, bool getSubChildren) {
+    if (!doc) return 0;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return 0;
+        return (int32_t)XCAFDoc_ShapeTool::NbComponents(lab, getSubChildren);
+    } catch (...) { return 0; }
+}
+
+// --- Bezier 3D curve InsertPoleBefore and Reverse ---
+
+bool OCCTCurve3DBezierInsertPoleBefore(OCCTCurve3DRef curve, int32_t index,
+                                        double x, double y, double z) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->InsertPoleBefore(index, gp_Pnt(x, y, z));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierReverse(OCCTCurve3DRef curve) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Reverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierSetPoleWithWeight(OCCTCurve3DRef curve, int32_t index,
+                                         double x, double y, double z, double weight) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->SetPole(index, gp_Pnt(x, y, z), weight);
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- Bezier Surface insert/remove poles ---
+
+bool OCCTSurfaceBezierInsertPoleColAfter(OCCTSurfaceRef surface, int32_t colIndex,
+                                          const double* poles, int32_t poleCount) {
+    if (!surface || !poles) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        int nbUPoles = bz->NbUPoles();
+        if (poleCount != nbUPoles) return false;
+        NCollection_Array1<gp_Pnt> col(1, nbUPoles);
+        for (int i = 0; i < nbUPoles; i++) {
+            col.SetValue(i+1, gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]));
+        }
+        bz->InsertPoleColAfter(colIndex, col);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierInsertPoleRowAfter(OCCTSurfaceRef surface, int32_t rowIndex,
+                                          const double* poles, int32_t poleCount) {
+    if (!surface || !poles) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        int nbVPoles = bz->NbVPoles();
+        if (poleCount != nbVPoles) return false;
+        NCollection_Array1<gp_Pnt> row(1, nbVPoles);
+        for (int i = 0; i < nbVPoles; i++) {
+            row.SetValue(i+1, gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]));
+        }
+        bz->InsertPoleRowAfter(rowIndex, row);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierRemovePoleCol(OCCTSurfaceRef surface, int32_t colIndex) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->RemovePoleCol(colIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierRemovePoleRow(OCCTSurfaceRef surface, int32_t rowIndex) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->RemovePoleRow(rowIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIncreaseDegree(OCCTSurfaceRef surface, int32_t uDeg, int32_t vDeg) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Increase(uDeg, vDeg);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierUReverse(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->UReverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierVReverse(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->VReverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+// end of v0.126.0 implementations

@@ -2354,4 +2354,107 @@ extension Surface {
         OCCTSurfaceBezierBounds(handle, &u1, &u2, &v1, &v2)
         return (u1, u2, v1, v2)
     }
+
+    /// Number of U poles (rows) for a Bezier surface.
+    public var bezierNbUPoles: Int {
+        Int(OCCTSurfaceBezierNbUPoles(handle))
+    }
+
+    /// Number of V poles (columns) for a Bezier surface.
+    public var bezierNbVPoles: Int {
+        Int(OCCTSurfaceBezierNbVPoles(handle))
+    }
+
+    /// U degree for a Bezier surface.
+    public var bezierUDegree: Int {
+        Int(OCCTSurfaceBezierUDegree(handle))
+    }
+
+    /// V degree for a Bezier surface.
+    public var bezierVDegree: Int {
+        Int(OCCTSurfaceBezierVDegree(handle))
+    }
+
+    // MARK: - BSpline Surface completions (v0.126.0)
+
+    /// Get all U multiplicities for a BSpline surface.
+    public var bsplineUMultiplicities: [Int] {
+        let count = Int(OCCTSurfaceBSplineNbUKnots(handle))
+        guard count > 0 else { return [] }
+        var mults = [Int32](repeating: 0, count: count)
+        OCCTSurfaceBSplineGetUMultiplicities(handle, &mults)
+        return mults.map { Int($0) }
+    }
+
+    /// Get all V multiplicities for a BSpline surface.
+    public var bsplineVMultiplicities: [Int] {
+        let count = Int(OCCTSurfaceBSplineNbVKnots(handle))
+        guard count > 0 else { return [] }
+        var mults = [Int32](repeating: 0, count: count)
+        OCCTSurfaceBSplineGetVMultiplicities(handle, &mults)
+        return mults.map { Int($0) }
+    }
+
+    /// Reverse the U parameter direction of a BSpline surface (in-place).
+    @discardableResult
+    public func bsplineUReverse() -> Bool {
+        OCCTSurfaceBSplineUReverse(handle)
+    }
+
+    /// Reverse the V parameter direction of a BSpline surface (in-place).
+    @discardableResult
+    public func bsplineVReverse() -> Bool {
+        OCCTSurfaceBSplineVReverse(handle)
+    }
+
+    /// Normalize U,V parameters for a periodic BSpline surface.
+    public func bsplinePeriodicNormalization(u: inout Double, v: inout Double) -> Bool {
+        OCCTSurfaceBSplinePeriodicNormalization(handle, &u, &v)
+    }
+
+    // MARK: - Bezier Surface completions (v0.126.0)
+
+    /// Insert a pole column after index in a Bezier surface. Poles array is [SIMD3] of size NbUPoles.
+    @discardableResult
+    public func bezierInsertPoleColAfter(_ colIndex: Int, poles: [SIMD3<Double>]) -> Bool {
+        let flat = poles.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTSurfaceBezierInsertPoleColAfter(handle, Int32(colIndex), flat, Int32(poles.count))
+    }
+
+    /// Insert a pole row after index in a Bezier surface. Poles array is [SIMD3] of size NbVPoles.
+    @discardableResult
+    public func bezierInsertPoleRowAfter(_ rowIndex: Int, poles: [SIMD3<Double>]) -> Bool {
+        let flat = poles.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTSurfaceBezierInsertPoleRowAfter(handle, Int32(rowIndex), flat, Int32(poles.count))
+    }
+
+    /// Remove a pole column from a Bezier surface (1-based index).
+    @discardableResult
+    public func bezierRemovePoleCol(_ colIndex: Int) -> Bool {
+        OCCTSurfaceBezierRemovePoleCol(handle, Int32(colIndex))
+    }
+
+    /// Remove a pole row from a Bezier surface (1-based index).
+    @discardableResult
+    public func bezierRemovePoleRow(_ rowIndex: Int) -> Bool {
+        OCCTSurfaceBezierRemovePoleRow(handle, Int32(rowIndex))
+    }
+
+    /// Increase the degree of a Bezier surface.
+    @discardableResult
+    public func bezierIncreaseDegree(uDeg: Int, vDeg: Int) -> Bool {
+        OCCTSurfaceBezierIncreaseDegree(handle, Int32(uDeg), Int32(vDeg))
+    }
+
+    /// Reverse U parameter direction of a Bezier surface (in-place).
+    @discardableResult
+    public func bezierUReverse() -> Bool {
+        OCCTSurfaceBezierUReverse(handle)
+    }
+
+    /// Reverse V parameter direction of a Bezier surface (in-place).
+    @discardableResult
+    public func bezierVReverse() -> Bool {
+        OCCTSurfaceBezierVReverse(handle)
+    }
 }

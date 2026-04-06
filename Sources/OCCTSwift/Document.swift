@@ -14683,6 +14683,44 @@ extension FilletBuilder {
         guard let ref = OCCTFilletBuilderFaultyVertex(handle, Int32(index)) else { return nil }
         return Shape(handle: ref)
     }
+
+    // MARK: - FilletBuilder completions (v0.126.0)
+
+    /// Set fillet tolerances.
+    public func setParams(tang: Double, tesp: Double, t2d: Double,
+                          tApp3d: Double, tApp2d: Double, fleche: Double) {
+        OCCTFilletBuilderSetParams(handle, tang, tesp, t2d, tApp3d, tApp2d, fleche)
+    }
+
+    /// Set fillet continuity: internalContinuity (0=C0, 1=C1, 2=C2), angularTolerance.
+    public func setContinuity(_ internalContinuity: Int, angularTolerance: Double) {
+        OCCTFilletBuilderSetContinuity(handle, Int32(internalContinuity), angularTolerance)
+    }
+
+    /// Set fillet shape type: 0=Rational, 1=QuasiAngular, 2=Polynomial.
+    public func setFilletShape(_ filletShape: Int) {
+        OCCTFilletBuilderSetFilletShape(handle, Int32(filletShape))
+    }
+
+    /// Get fillet shape type: 0=Rational, 1=QuasiAngular, 2=Polynomial.
+    public var filletShape: Int {
+        Int(OCCTFilletBuilderGetFilletShape(handle))
+    }
+
+    /// Reset radius info on a specific contour (1-based).
+    public func resetContour(_ contourIndex: Int) {
+        OCCTFilletBuilderResetContour(handle, Int32(contourIndex))
+    }
+
+    /// Simulate filleting on a contour (computes sections without building).
+    public func simulate(contour: Int) {
+        OCCTFilletBuilderSimulate(handle, Int32(contour))
+    }
+
+    /// Get the number of simulated surfaces for a contour (1-based).
+    public func simulatedSurfaceCount(contour: Int) -> Int {
+        Int(OCCTFilletBuilderNbSimulatedSurf(handle, Int32(contour)))
+    }
 }
 
 // --- WireAnalyzer (ShapeAnalysis_Wire) ---
@@ -15346,5 +15384,118 @@ extension Shape {
     /// Get the number of vertices in this shape.
     public var nbVertices: Int {
         Int(OCCTShapeNbVertices(handle))
+    }
+}
+
+// MARK: - v0.126.0: XCAFDoc_ColorTool and ShapeTool completions
+
+extension Document {
+    /// Add a color to the document color table. Returns label tag or -1 on failure.
+    public func colorToolAddColor(r: Double, g: Double, b: Double) -> Int64 {
+        OCCTDocumentColorToolAddColor(handle, r, g, b)
+    }
+
+    /// Remove a color from the document color table by label id.
+    @discardableResult
+    public func colorToolRemoveColor(labelId: Int64) -> Bool {
+        OCCTDocumentColorToolRemoveColor(handle, labelId)
+    }
+
+    /// Get the number of colors in the color table.
+    public var colorToolColorCount: Int {
+        Int(OCCTDocumentColorToolGetColorCount(handle))
+    }
+
+    /// Unset color of a specific type from a label. type: 0=generic, 1=surface, 2=curve.
+    @discardableResult
+    public func colorToolUnSetColor(labelId: Int64, colorType: Int) -> Bool {
+        OCCTDocumentColorToolUnSetColor(handle, labelId, Int32(colorType))
+    }
+
+    /// Check if a label is visible.
+    public func colorToolIsVisible(labelId: Int64) -> Bool {
+        OCCTDocumentColorToolIsVisible(handle, labelId)
+    }
+
+    /// Set visibility of a label.
+    @discardableResult
+    public func colorToolSetVisibility(labelId: Int64, visible: Bool) -> Bool {
+        OCCTDocumentColorToolSetVisibility(handle, labelId, visible)
+    }
+
+    /// Check if color is defined by layer.
+    public func colorToolIsColorByLayer(labelId: Int64) -> Bool {
+        OCCTDocumentColorToolIsColorByLayer(handle, labelId)
+    }
+
+    /// Set color-by-layer flag on a label.
+    @discardableResult
+    public func colorToolSetColorByLayer(labelId: Int64, isByLayer: Bool) -> Bool {
+        OCCTDocumentColorToolSetColorByLayer(handle, labelId, isByLayer)
+    }
+
+    /// Find a color in the color table. Returns label tag or -1 if not found.
+    public func colorToolFindColor(r: Double, g: Double, b: Double) -> Int64 {
+        OCCTDocumentColorToolFindColor(handle, r, g, b)
+    }
+
+    /// Set instance color on a shape component.
+    @discardableResult
+    public func colorToolSetInstanceColor(shape: Shape, colorType: Int, r: Double, g: Double, b: Double) -> Bool {
+        OCCTDocumentColorToolSetInstanceColor(handle, shape.handle, Int32(colorType), r, g, b)
+    }
+
+    /// Get instance color of a shape component. Returns (r,g,b) or nil.
+    public func colorToolGetInstanceColor(shape: Shape, colorType: Int) -> (r: Double, g: Double, b: Double)? {
+        var r = 0.0, g = 0.0, b = 0.0
+        guard OCCTDocumentColorToolGetInstanceColor(handle, shape.handle, Int32(colorType), &r, &g, &b) else { return nil }
+        return (r, g, b)
+    }
+
+    // --- ShapeTool completions ---
+
+    /// Check if a label is a free shape (top-level, not referenced by other shapes).
+    public func shapeToolIsFree(labelId: Int64) -> Bool {
+        OCCTDocumentShapeToolIsFree(handle, labelId)
+    }
+
+    /// Check if a label is a simple shape (not assembly, not compound).
+    public func shapeToolIsSimpleShape(labelId: Int64) -> Bool {
+        OCCTDocumentShapeToolIsSimpleShape(handle, labelId)
+    }
+
+    /// Check if a label is a component (reference to another shape).
+    public func shapeToolIsComponent(labelId: Int64) -> Bool {
+        OCCTDocumentShapeToolIsComponent(handle, labelId)
+    }
+
+    /// Check if a label is a compound shape.
+    public func shapeToolIsCompound(labelId: Int64) -> Bool {
+        OCCTDocumentShapeToolIsCompound(handle, labelId)
+    }
+
+    /// Check if a label is a sub-shape.
+    public func shapeToolIsSubShape(labelId: Int64) -> Bool {
+        OCCTDocumentShapeToolIsSubShape(handle, labelId)
+    }
+
+    /// Check if a label is an external reference.
+    public func shapeToolIsExternRef(labelId: Int64) -> Bool {
+        OCCTDocumentShapeToolIsExternRef(handle, labelId)
+    }
+
+    /// Get the number of users (references) of a shape label.
+    public func shapeToolGetUsers(labelId: Int64) -> Int {
+        Int(OCCTDocumentShapeToolGetUsers(handle, labelId))
+    }
+
+    /// Compute shapes (update internal state) for a label.
+    public func shapeToolComputeShapes(labelId: Int64) {
+        OCCTDocumentShapeToolComputeShapes(handle, labelId)
+    }
+
+    /// Get the number of components of a label.
+    public func shapeToolNbComponents(labelId: Int64, getSubChildren: Bool = false) -> Int {
+        Int(OCCTDocumentShapeToolNbComponents(handle, labelId, getSubChildren))
     }
 }
