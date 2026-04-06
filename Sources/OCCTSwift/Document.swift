@@ -8612,6 +8612,15 @@ extension PipeShellBuilder {
         OCCTPipeShellSetForceApproxC1(ref, force)
     }
 
+    /// Enable or disable build history tracking.
+    ///
+    /// History is disabled by default to avoid a segfault on closed spine+profile
+    /// geometries (OCCT bug in `BRepFill_PipeShell::BuildHistory`). Enable only
+    /// if you need `generated`/`modified`/`isDeleted` queries on the result.
+    public func setBuildHistory(_ enabled: Bool) {
+        OCCTPipeShellSetBuildHistory(ref, enabled)
+    }
+
     /// Get the error on the generated surface.
     public var errorOnSurface: Double {
         OCCTPipeShellErrorOnSurface(ref)

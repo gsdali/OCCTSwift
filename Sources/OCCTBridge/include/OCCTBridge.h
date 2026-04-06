@@ -17973,6 +17973,10 @@ OCCTShapeRef _Nullable * _Nullable OCCTPipeShellSimulate(OCCTPipeShellRef _Nonnu
 /// Free an array of shapes returned by OCCTPipeShellSimulate.
 void OCCTPipeShellSimulateFree(OCCTShapeRef _Nullable * _Nullable shapes, int32_t count);
 
+/// Enable or disable build history tracking. Disabled by default to avoid
+/// segfault on closed spine+profile geometries (OCCT bug in BuildHistory).
+void OCCTPipeShellSetBuildHistory(OCCTPipeShellRef _Nonnull ps, bool enabled);
+
 // --- UnifySameDomain builder ---
 
 typedef void* OCCTUnifySameDomainRef;

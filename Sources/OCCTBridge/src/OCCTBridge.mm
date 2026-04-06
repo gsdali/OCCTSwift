@@ -3889,6 +3889,7 @@ OCCTShapeRef OCCTShapeCreatePipeShell(OCCTWireRef spine, OCCTWireRef profile,
         pipeShell.Add(profile->wire);
 
         // Build the shell
+        pipeShell.SetIsBuildHistory(false); // avoid SEGV on closed spine+profile (OCCT bug)
         pipeShell.Build();
         if (!pipeShell.IsDone()) return nullptr;
 
@@ -3923,6 +3924,7 @@ OCCTShapeRef OCCTShapeCreatePipeShellWithBinormal(OCCTWireRef spine, OCCTWireRef
         pipeShell.Add(profile->wire);
 
         // Build the shell
+        pipeShell.SetIsBuildHistory(false); // avoid SEGV on closed spine+profile (OCCT bug)
         pipeShell.Build();
         if (!pipeShell.IsDone()) return nullptr;
 
@@ -3956,6 +3958,7 @@ OCCTShapeRef OCCTShapeCreatePipeShellWithAuxSpine(OCCTWireRef spine, OCCTWireRef
         pipeShell.Add(profile->wire);
 
         // Build the shell
+        pipeShell.SetIsBuildHistory(false); // avoid SEGV on closed spine+profile (OCCT bug)
         pipeShell.Build();
         if (!pipeShell.IsDone()) return nullptr;
 
@@ -10924,6 +10927,7 @@ OCCTShapeRef OCCTShapeCreatePipeShellWithLaw(OCCTWireRef spine,
         BRepOffsetAPI_MakePipeShell pipeShell(spine->wire);
         pipeShell.SetMode(Standard_False); // Frenet
         pipeShell.SetLaw(profile->wire, law->law, Standard_False, Standard_False);
+        pipeShell.SetIsBuildHistory(false); // avoid SEGV on closed spine+profile (OCCT bug)
         pipeShell.Build();
         if (!pipeShell.IsDone()) return nullptr;
 
@@ -15021,6 +15025,7 @@ OCCTShapeRef OCCTShapeCreatePipeShellWithTransition(OCCTWireRef spine, OCCTWireR
             pipeShell.SetTransitionMode(BRepBuilderAPI_Transformed);
         }
         pipeShell.Add(profile->wire);
+        pipeShell.SetIsBuildHistory(false); // avoid SEGV on closed spine+profile (OCCT bug)
         pipeShell.Build();
         if (!pipeShell.IsDone()) return nullptr;
         TopoDS_Shape result = pipeShell.Shape();
@@ -39694,7 +39699,12 @@ void OCCTPipeShellSetTransition(OCCTPipeShellRef ps, int32_t mode) {
 
 bool OCCTPipeShellBuild(OCCTPipeShellRef ps) {
     if (!ps) return false;
-    try { return ps->ps->Build(); } catch (...) { return false; }
+    try {
+        // Disable history tracking to avoid segfault on closed spine+profile
+        // geometries (OCCT bug: BuildHistory crashes via null WireExplorer)
+        ps->ps->SetIsBuildHistory(false);
+        return ps->ps->Build();
+    } catch (...) { return false; }
 }
 
 OCCTShapeRef OCCTPipeShellShape(OCCTPipeShellRef ps) {
@@ -40815,6 +40825,11 @@ void OCCTPipeShellSetMaxSegments(OCCTPipeShellRef ps, int32_t maxSeg) {
 void OCCTPipeShellSetForceApproxC1(OCCTPipeShellRef ps, bool force) {
     if (!ps || ps->ps.IsNull()) return;
     try { ps->ps->SetForceApproxC1(force); } catch (...) {}
+}
+
+void OCCTPipeShellSetBuildHistory(OCCTPipeShellRef ps, bool enabled) {
+    if (!ps || ps->ps.IsNull()) return;
+    try { ps->ps->SetIsBuildHistory(enabled); } catch (...) {}
 }
 
 double OCCTPipeShellErrorOnSurface(OCCTPipeShellRef ps) {
