@@ -11735,3 +11735,49 @@ extension Shape {
         return result
     }
 }
+
+// MARK: - v0.128.0: BRep_Tool completions
+
+extension Shape {
+
+    /// Check if an edge is closed on a face (has two PCurves with different orientations).
+    /// - Parameters:
+    ///   - edge: The edge shape
+    ///   - face: The face shape
+    /// - Returns: true if the edge is closed on the face
+    public static func isClosedOnFace(edge: Shape, face: Shape) -> Bool {
+        OCCTBRepToolIsClosedOnFace(edge.handle, face.handle)
+    }
+
+    /// Get the 2D polygon of an edge on a face (from BRep_Tool::PolygonOnSurface).
+    /// The shape should be meshed first.
+    /// - Parameters:
+    ///   - edge: The edge shape
+    ///   - face: The face shape
+    /// - Returns: Array of 2D UV points, or nil if not available
+    public static func polygonOnSurface(edge: Shape, face: Shape) -> [SIMD2<Double>]? {
+        var pointsPtr: UnsafeMutablePointer<Double>?
+        let count = OCCTBRepToolPolygonOnSurface(edge.handle, face.handle, &pointsPtr)
+        guard count > 0, let pts = pointsPtr else { return nil }
+        defer { free(pts) }
+        var result = [SIMD2<Double>]()
+        result.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            result.append(SIMD2(pts[i*2], pts[i*2+1]))
+        }
+        return result
+    }
+
+    /// Set the UV endpoint coordinates of an edge on a face.
+    /// - Parameters:
+    ///   - edge: The edge shape
+    ///   - face: The face shape
+    ///   - first: UV coordinates of the first point
+    ///   - last: UV coordinates of the last point
+    /// - Returns: true on success
+    @discardableResult
+    public static func setUVPoints(edge: Shape, face: Shape,
+                                    first: SIMD2<Double>, last: SIMD2<Double>) -> Bool {
+        OCCTBRepToolSetUVPoints(edge.handle, face.handle, first.x, first.y, last.x, last.y)
+    }
+}

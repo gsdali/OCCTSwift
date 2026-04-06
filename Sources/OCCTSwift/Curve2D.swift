@@ -2394,3 +2394,48 @@ extension Curve2D {
         OCCTCurve2DBezierReverse(handle)
     }
 }
+
+// MARK: - v0.128.0: Curve2D Transform
+
+extension Curve2D {
+
+    /// Transform type for 2D geometry.
+    public enum TransformType2D: Int32, Sendable {
+        case translation = 0
+        case rotation = 1
+        case scale = 2
+        case mirrorPoint = 3
+        case mirrorAxis = 4
+    }
+
+    /// Translate the 2D curve in place by (dx, dy).
+    @discardableResult
+    public func translate(dx: Double, dy: Double) -> Bool {
+        OCCTCurve2DTransform(handle, TransformType2D.translation.rawValue, dx, dy, 0, 0, 0)
+    }
+
+    /// Rotate the 2D curve in place around a center point by the given angle (radians).
+    @discardableResult
+    public func rotate(center: SIMD2<Double>, angle: Double) -> Bool {
+        OCCTCurve2DTransform(handle, TransformType2D.rotation.rawValue, center.x, center.y, angle, 0, 0)
+    }
+
+    /// Scale the 2D curve in place from a center point by the given factor.
+    @discardableResult
+    public func scale(center: SIMD2<Double>, factor: Double) -> Bool {
+        OCCTCurve2DTransform(handle, TransformType2D.scale.rawValue, center.x, center.y, factor, 0, 0)
+    }
+
+    /// Mirror the 2D curve in place through a point.
+    @discardableResult
+    public func mirrorPoint(_ point: SIMD2<Double>) -> Bool {
+        OCCTCurve2DTransform(handle, TransformType2D.mirrorPoint.rawValue, point.x, point.y, 0, 0, 0)
+    }
+
+    /// Mirror the 2D curve in place through an axis.
+    @discardableResult
+    public func mirrorAxis(origin: SIMD2<Double>, direction: SIMD2<Double>) -> Bool {
+        OCCTCurve2DTransform(handle, TransformType2D.mirrorAxis.rawValue,
+                              origin.x, origin.y, direction.x, direction.y, 0)
+    }
+}

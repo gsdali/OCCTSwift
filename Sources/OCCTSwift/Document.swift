@@ -15598,3 +15598,149 @@ extension FilletBuilder {
         OCCTFilletBuilderIsDeleted(handle, shape.handle)
     }
 }
+
+// MARK: - v0.128.0: ChamferBuilder history & extras
+
+extension ChamferBuilder {
+
+    /// Get shapes generated from an input shape by the chamfer operation.
+    public func generated(from shape: Shape) -> [Shape] {
+        var ptr: UnsafeMutablePointer<OCCTShapeRef?>?
+        let count = OCCTChamferBuilderGenerated(handle, shape.handle, &ptr)
+        guard count > 0, let shapes = ptr else { return [] }
+        defer { free(shapes) }
+        var result = [Shape]()
+        result.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            if let ref = shapes[i] { result.append(Shape(handle: ref)) }
+        }
+        return result
+    }
+
+    /// Get shapes modified from an input shape by the chamfer operation.
+    public func modified(from shape: Shape) -> [Shape] {
+        var ptr: UnsafeMutablePointer<OCCTShapeRef?>?
+        let count = OCCTChamferBuilderModified(handle, shape.handle, &ptr)
+        guard count > 0, let shapes = ptr else { return [] }
+        defer { free(shapes) }
+        var result = [Shape]()
+        result.reserveCapacity(Int(count))
+        for i in 0..<Int(count) {
+            if let ref = shapes[i] { result.append(Shape(handle: ref)) }
+        }
+        return result
+    }
+
+    /// Check if a shape was deleted by the chamfer operation.
+    public func isDeleted(_ shape: Shape) -> Bool {
+        OCCTChamferBuilderIsDeleted(handle, shape.handle)
+    }
+
+    /// Chamfer mode: classic, constant throat, or constant throat with penetration.
+    public enum ChamferMode: Int32, Sendable {
+        case classic = 0
+        case constThroat = 1
+        case constThroatWithPenetration = 2
+    }
+
+    /// Set the chamfer mode.
+    public func setMode(_ mode: ChamferMode) {
+        OCCTChamferBuilderSetMode(handle, mode.rawValue)
+    }
+
+    /// Simulate the chamfer on a contour (1-based index) without building.
+    @discardableResult
+    public func simulate(contour: Int) -> Bool {
+        OCCTChamferBuilderSimulate(handle, Int32(contour))
+    }
+
+    /// Get the number of simulated surfaces for a contour (1-based). Call after simulate.
+    public func simulatedSurfaceCount(contour: Int) -> Int {
+        Int(OCCTChamferBuilderNbSurf(handle, Int32(contour)))
+    }
+}
+
+// MARK: - v0.128.0: SectionBuilder (BRepAlgoAPI_Section)
+
+/// A builder for computing sections (intersections) between shapes, planes, and surfaces.
+/// Allows fine-grained control over approximation and PCurve computation.
+public final class SectionBuilder: @unchecked Sendable {
+    let handle: OCCTSectionBuilderRef
+
+    /// Create an empty section builder. Use init1/init2 to set arguments.
+    public init?() {
+        guard let ref = OCCTSectionBuilderCreate() else { return nil }
+        self.handle = ref
+    }
+
+    /// Create a section builder from two shapes.
+    public init?(shape1: Shape, shape2: Shape) {
+        guard let ref = OCCTSectionBuilderCreateFromShapes(shape1.handle, shape2.handle) else { return nil }
+        self.handle = ref
+    }
+
+    deinit { OCCTSectionBuilderRelease(handle) }
+
+    /// Set the first argument as a shape.
+    public func init1(shape: Shape) {
+        OCCTSectionBuilderInit1Shape(handle, shape.handle)
+    }
+
+    /// Set the first argument as a plane (ax + by + cz + d = 0).
+    public func init1(plane a: Double, _ b: Double, _ c: Double, _ d: Double) {
+        OCCTSectionBuilderInit1Plane(handle, a, b, c, d)
+    }
+
+    /// Set the first argument as a surface.
+    public func init1(surface: Surface) {
+        OCCTSectionBuilderInit1Surface(handle, surface.handle)
+    }
+
+    /// Set the second argument as a shape.
+    public func init2(shape: Shape) {
+        OCCTSectionBuilderInit2Shape(handle, shape.handle)
+    }
+
+    /// Set the second argument as a plane (ax + by + cz + d = 0).
+    public func init2(plane a: Double, _ b: Double, _ c: Double, _ d: Double) {
+        OCCTSectionBuilderInit2Plane(handle, a, b, c, d)
+    }
+
+    /// Set the second argument as a surface.
+    public func init2(surface: Surface) {
+        OCCTSectionBuilderInit2Surface(handle, surface.handle)
+    }
+
+    /// Toggle curve approximation (default: false).
+    public func setApproximation(_ enabled: Bool) {
+        OCCTSectionBuilderSetApproximation(handle, enabled)
+    }
+
+    /// Toggle computation of PCurves on the first shape.
+    public func computePCurveOn1(_ enabled: Bool) {
+        OCCTSectionBuilderComputePCurveOn1(handle, enabled)
+    }
+
+    /// Toggle computation of PCurves on the second shape.
+    public func computePCurveOn2(_ enabled: Bool) {
+        OCCTSectionBuilderComputePCurveOn2(handle, enabled)
+    }
+
+    /// Build the section. Returns the result shape, or nil on failure.
+    public func build() -> Shape? {
+        guard let ref = OCCTSectionBuilderBuild(handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get the ancestor face on the first shape for a section edge. Returns nil if none.
+    public func ancestorFaceOn1(edge: Shape) -> Shape? {
+        guard let ref = OCCTSectionBuilderAncestorFaceOn1(handle, edge.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+
+    /// Get the ancestor face on the second shape for a section edge. Returns nil if none.
+    public func ancestorFaceOn2(edge: Shape) -> Shape? {
+        guard let ref = OCCTSectionBuilderAncestorFaceOn2(handle, edge.handle) else { return nil }
+        return Shape(handle: ref)
+    }
+}

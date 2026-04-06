@@ -68,7 +68,7 @@
 // BRepAlgoAPI_Cut                     → OCCTShapeSubtract
 // BRepAlgoAPI_Defeaturing             → OCCTShapeRemoveFeatures
 // BRepAlgoAPI_Fuse                    → OCCTShapeUnion
-// BRepAlgoAPI_Section                 → OCCTShapeSection, OCCTShapeSliceAtZ
+// BRepAlgoAPI_Section                 → OCCTShapeSection, OCCTShapeSliceAtZ, OCCTSectionBuilder*
 // BRepAlgoAPI_Splitter                → OCCTShapeSplit
 //
 // --- BRepBuilderAPI ---
@@ -18638,6 +18638,130 @@ int32_t OCCTFilletBuilderModified(OCCTFilletBuilderRef _Nonnull builder,
 /// Check if a shape was deleted by the fillet operation.
 bool OCCTFilletBuilderIsDeleted(OCCTFilletBuilderRef _Nonnull builder,
                                  OCCTShapeRef _Nonnull shape);
+
+// MARK: - v0.128.0: ChamferBuilder history, SectionBuilder, BRep_Tool extras, Curve/Surface Transform
+
+// --- ChamferBuilder history & extras ---
+
+/// Get shapes generated from an input shape by the chamfer operation.
+/// Returns count. Caller must free the array (not the shapes) with free().
+int32_t OCCTChamferBuilderGenerated(OCCTChamferBuilderRef _Nonnull builder,
+                                     OCCTShapeRef _Nonnull shape,
+                                     OCCTShapeRef _Nullable * _Nullable * _Nonnull outShapes);
+
+/// Get shapes modified from an input shape by the chamfer operation.
+/// Returns count. Caller must free the array (not the shapes) with free().
+int32_t OCCTChamferBuilderModified(OCCTChamferBuilderRef _Nonnull builder,
+                                    OCCTShapeRef _Nonnull shape,
+                                    OCCTShapeRef _Nullable * _Nullable * _Nonnull outShapes);
+
+/// Check if a shape was deleted by the chamfer operation.
+bool OCCTChamferBuilderIsDeleted(OCCTChamferBuilderRef _Nonnull builder,
+                                  OCCTShapeRef _Nonnull shape);
+
+/// Set the chamfer mode: 0=ClassicChamfer, 1=ConstThroatChamfer, 2=ConstThroatWithPenetrationChamfer.
+void OCCTChamferBuilderSetMode(OCCTChamferBuilderRef _Nonnull builder, int32_t mode);
+
+/// Simulate the chamfer on a contour (1-based) to prepare surface data.
+bool OCCTChamferBuilderSimulate(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+/// Get the number of simulated surfaces for a contour (1-based). Call after Simulate.
+int32_t OCCTChamferBuilderNbSurf(OCCTChamferBuilderRef _Nonnull builder, int32_t contourIndex);
+
+// --- SectionBuilder (BRepAlgoAPI_Section) ---
+
+typedef struct OCCTSectionBuilder* OCCTSectionBuilderRef;
+
+/// Create a section builder with default initialization.
+OCCTSectionBuilderRef _Nullable OCCTSectionBuilderCreate(void);
+
+/// Create a section builder from two shapes.
+OCCTSectionBuilderRef _Nullable OCCTSectionBuilderCreateFromShapes(OCCTShapeRef _Nonnull shape1,
+                                                                     OCCTShapeRef _Nonnull shape2);
+
+/// Release a section builder.
+void OCCTSectionBuilderRelease(OCCTSectionBuilderRef _Nonnull builder);
+
+/// Set the first argument as a shape.
+void OCCTSectionBuilderInit1Shape(OCCTSectionBuilderRef _Nonnull builder,
+                                   OCCTShapeRef _Nonnull shape);
+
+/// Set the first argument as a plane (ax + by + cz + d = 0).
+void OCCTSectionBuilderInit1Plane(OCCTSectionBuilderRef _Nonnull builder,
+                                   double a, double b, double c, double d);
+
+/// Set the first argument as a surface.
+void OCCTSectionBuilderInit1Surface(OCCTSectionBuilderRef _Nonnull builder,
+                                     OCCTSurfaceRef _Nonnull surface);
+
+/// Set the second argument as a shape.
+void OCCTSectionBuilderInit2Shape(OCCTSectionBuilderRef _Nonnull builder,
+                                   OCCTShapeRef _Nonnull shape);
+
+/// Set the second argument as a plane (ax + by + cz + d = 0).
+void OCCTSectionBuilderInit2Plane(OCCTSectionBuilderRef _Nonnull builder,
+                                   double a, double b, double c, double d);
+
+/// Set the second argument as a surface.
+void OCCTSectionBuilderInit2Surface(OCCTSectionBuilderRef _Nonnull builder,
+                                     OCCTSurfaceRef _Nonnull surface);
+
+/// Toggle curve approximation (default: false).
+void OCCTSectionBuilderSetApproximation(OCCTSectionBuilderRef _Nonnull builder, bool approx);
+
+/// Toggle computation of PCurves on first shape.
+void OCCTSectionBuilderComputePCurveOn1(OCCTSectionBuilderRef _Nonnull builder, bool compute);
+
+/// Toggle computation of PCurves on second shape.
+void OCCTSectionBuilderComputePCurveOn2(OCCTSectionBuilderRef _Nonnull builder, bool compute);
+
+/// Build the section. Returns the result shape, or NULL on failure.
+OCCTShapeRef _Nullable OCCTSectionBuilderBuild(OCCTSectionBuilderRef _Nonnull builder);
+
+/// Check if an edge has an ancestor face on the first shape. Returns the face, or NULL.
+OCCTShapeRef _Nullable OCCTSectionBuilderAncestorFaceOn1(OCCTSectionBuilderRef _Nonnull builder,
+                                                           OCCTShapeRef _Nonnull edge);
+
+/// Check if an edge has an ancestor face on the second shape. Returns the face, or NULL.
+OCCTShapeRef _Nullable OCCTSectionBuilderAncestorFaceOn2(OCCTSectionBuilderRef _Nonnull builder,
+                                                           OCCTShapeRef _Nonnull edge);
+
+// --- BRep_Tool completions ---
+
+/// Check if an edge is closed on a face (has same PCurve with different orientations).
+bool OCCTBRepToolIsClosedOnFace(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face);
+
+/// Get the 2D polygon of an edge on a face. Returns 2D point count (0 if not available).
+/// Points are returned as flat array [x1,y1,x2,y2,...]. Caller must free with free().
+int32_t OCCTBRepToolPolygonOnSurface(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+                                      double* _Nullable * _Nonnull outPoints);
+
+/// Set UV points of an edge on a face.
+bool OCCTBRepToolSetUVPoints(OCCTShapeRef _Nonnull edge, OCCTShapeRef _Nonnull face,
+                              double fU, double fV, double lU, double lV);
+
+// --- Geometry Transform (in-place) ---
+
+/// Transform a 3D curve in place using a gp_Trsf (translate/rotate/scale/mirror).
+/// transformType: 0=translation(dx,dy,dz), 1=rotation(ox,oy,oz,dx,dy,dz,angle), 2=scale(cx,cy,cz,factor),
+/// 3=mirror point(px,py,pz), 4=mirror axis(ox,oy,oz,dx,dy,dz), 5=mirror plane(ox,oy,oz,nx,ny,nz)
+bool OCCTCurve3DTransform(OCCTCurve3DRef _Nonnull curve, int32_t transformType,
+                           double p1, double p2, double p3,
+                           double p4, double p5, double p6,
+                           double p7);
+
+/// Transform a 2D curve in place using a gp_Trsf2d.
+/// transformType: 0=translation(dx,dy), 1=rotation(cx,cy,angle), 2=scale(cx,cy,factor),
+/// 3=mirror point(px,py), 4=mirror axis(ox,oy,dx,dy)
+bool OCCTCurve2DTransform(OCCTCurve2DRef _Nonnull curve, int32_t transformType,
+                           double p1, double p2, double p3, double p4, double p5);
+
+/// Transform a surface in place using a gp_Trsf.
+/// Same transformType as OCCTCurve3DTransform.
+bool OCCTSurfaceTransform(OCCTSurfaceRef _Nonnull surface, int32_t transformType,
+                           double p1, double p2, double p3,
+                           double p4, double p5, double p6,
+                           double p7);
 
 #ifdef __cplusplus
 }

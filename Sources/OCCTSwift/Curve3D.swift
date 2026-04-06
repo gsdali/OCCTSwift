@@ -1638,3 +1638,63 @@ extension Curve3D {
         OCCTCurve3DBSplineIsG1(handle, tFirst, tLast, angularTolerance)
     }
 }
+
+// MARK: - v0.128.0: Curve3D Transform
+
+extension Curve3D {
+
+    /// Transform type for 3D geometry.
+    public enum TransformType: Int32, Sendable {
+        case translation = 0
+        case rotation = 1
+        case scale = 2
+        case mirrorPoint = 3
+        case mirrorAxis = 4
+        case mirrorPlane = 5
+    }
+
+    /// Translate the curve in place by (dx, dy, dz).
+    @discardableResult
+    public func translate(dx: Double, dy: Double, dz: Double) -> Bool {
+        OCCTCurve3DTransform(handle, TransformType.translation.rawValue,
+                              dx, dy, dz, 0, 0, 0, 0)
+    }
+
+    /// Rotate the curve in place around an axis by the given angle (radians).
+    @discardableResult
+    public func rotate(axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>, angle: Double) -> Bool {
+        OCCTCurve3DTransform(handle, TransformType.rotation.rawValue,
+                              axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                              axisDirection.x, axisDirection.y, axisDirection.z, angle)
+    }
+
+    /// Scale the curve in place from a center point by the given factor.
+    @discardableResult
+    public func scale(center: SIMD3<Double>, factor: Double) -> Bool {
+        OCCTCurve3DTransform(handle, TransformType.scale.rawValue,
+                              center.x, center.y, center.z, factor, 0, 0, 0)
+    }
+
+    /// Mirror the curve in place through a point.
+    @discardableResult
+    public func mirrorPoint(_ point: SIMD3<Double>) -> Bool {
+        OCCTCurve3DTransform(handle, TransformType.mirrorPoint.rawValue,
+                              point.x, point.y, point.z, 0, 0, 0, 0)
+    }
+
+    /// Mirror the curve in place through an axis.
+    @discardableResult
+    public func mirrorAxis(origin: SIMD3<Double>, direction: SIMD3<Double>) -> Bool {
+        OCCTCurve3DTransform(handle, TransformType.mirrorAxis.rawValue,
+                              origin.x, origin.y, origin.z,
+                              direction.x, direction.y, direction.z, 0)
+    }
+
+    /// Mirror the curve in place through a plane.
+    @discardableResult
+    public func mirrorPlane(origin: SIMD3<Double>, normal: SIMD3<Double>) -> Bool {
+        OCCTCurve3DTransform(handle, TransformType.mirrorPlane.rawValue,
+                              origin.x, origin.y, origin.z,
+                              normal.x, normal.y, normal.z, 0)
+    }
+}

@@ -52878,4 +52878,318 @@ bool OCCTFilletBuilderIsDeleted(OCCTFilletBuilderRef builder, OCCTShapeRef shape
     } catch (...) { return false; }
 }
 
-// end of v0.127.0 implementations
+// MARK: - v0.128.0: ChamferBuilder history, SectionBuilder, BRep_Tool extras, Curve/Surface Transform
+
+#include <ChFiDS_ChamfMode.hxx>
+#include <gp_Trsf2d.hxx>
+
+// --- ChamferBuilder history & extras ---
+
+int32_t OCCTChamferBuilderGenerated(OCCTChamferBuilderRef builder, OCCTShapeRef shape,
+                                     OCCTShapeRef** outShapes) {
+    if (!builder || !shape || !outShapes) return 0;
+    *outShapes = nullptr;
+    try {
+        const TopTools_ListOfShape& list = builder->chamfer.Generated(shape->shape);
+        int32_t count = list.Size();
+        if (count == 0) return 0;
+        *outShapes = (OCCTShapeRef*)malloc(count * sizeof(OCCTShapeRef));
+        int32_t i = 0;
+        for (auto it = list.cbegin(); it != list.cend(); ++it, ++i) {
+            (*outShapes)[i] = new OCCTShape{*it};
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTChamferBuilderModified(OCCTChamferBuilderRef builder, OCCTShapeRef shape,
+                                    OCCTShapeRef** outShapes) {
+    if (!builder || !shape || !outShapes) return 0;
+    *outShapes = nullptr;
+    try {
+        const TopTools_ListOfShape& list = builder->chamfer.Modified(shape->shape);
+        int32_t count = list.Size();
+        if (count == 0) return 0;
+        *outShapes = (OCCTShapeRef*)malloc(count * sizeof(OCCTShapeRef));
+        int32_t i = 0;
+        for (auto it = list.cbegin(); it != list.cend(); ++it, ++i) {
+            (*outShapes)[i] = new OCCTShape{*it};
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+bool OCCTChamferBuilderIsDeleted(OCCTChamferBuilderRef builder, OCCTShapeRef shape) {
+    if (!builder || !shape) return false;
+    try {
+        return builder->chamfer.IsDeleted(shape->shape);
+    } catch (...) { return false; }
+}
+
+void OCCTChamferBuilderSetMode(OCCTChamferBuilderRef builder, int32_t mode) {
+    if (!builder) return;
+    try {
+        ChFiDS_ChamfMode chamfMode;
+        switch (mode) {
+            case 1: chamfMode = ChFiDS_ConstThroatChamfer; break;
+            case 2: chamfMode = ChFiDS_ConstThroatWithPenetrationChamfer; break;
+            default: chamfMode = ChFiDS_ClassicChamfer; break;
+        }
+        builder->chamfer.SetMode(chamfMode);
+    } catch (...) {}
+}
+
+bool OCCTChamferBuilderSimulate(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try {
+        builder->chamfer.Simulate(contourIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTChamferBuilderNbSurf(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try {
+        return builder->chamfer.NbSurf(contourIndex);
+    } catch (...) { return 0; }
+}
+
+// --- SectionBuilder (BRepAlgoAPI_Section) ---
+
+struct OCCTSectionBuilder {
+    BRepAlgoAPI_Section section;
+    bool built;
+    OCCTSectionBuilder() : section(), built(false) {}
+    OCCTSectionBuilder(const TopoDS_Shape& s1, const TopoDS_Shape& s2) : section(s1, s2, false), built(false) {}
+};
+
+OCCTSectionBuilderRef OCCTSectionBuilderCreate(void) {
+    try {
+        return new OCCTSectionBuilder();
+    } catch (...) { return nullptr; }
+}
+
+OCCTSectionBuilderRef OCCTSectionBuilderCreateFromShapes(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1 || !shape2) return nullptr;
+    try {
+        return new OCCTSectionBuilder(shape1->shape, shape2->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTSectionBuilderRelease(OCCTSectionBuilderRef builder) {
+    delete builder;
+}
+
+void OCCTSectionBuilderInit1Shape(OCCTSectionBuilderRef builder, OCCTShapeRef shape) {
+    if (!builder || !shape) return;
+    try { builder->section.Init1(shape->shape); } catch (...) {}
+}
+
+void OCCTSectionBuilderInit1Plane(OCCTSectionBuilderRef builder,
+                                   double a, double b, double c, double d) {
+    if (!builder) return;
+    try {
+        gp_Pln plane(a, b, c, d);
+        builder->section.Init1(plane);
+    } catch (...) {}
+}
+
+void OCCTSectionBuilderInit1Surface(OCCTSectionBuilderRef builder, OCCTSurfaceRef surface) {
+    if (!builder || !surface) return;
+    try { builder->section.Init1(surface->surface); } catch (...) {}
+}
+
+void OCCTSectionBuilderInit2Shape(OCCTSectionBuilderRef builder, OCCTShapeRef shape) {
+    if (!builder || !shape) return;
+    try { builder->section.Init2(shape->shape); } catch (...) {}
+}
+
+void OCCTSectionBuilderInit2Plane(OCCTSectionBuilderRef builder,
+                                   double a, double b, double c, double d) {
+    if (!builder) return;
+    try {
+        gp_Pln plane(a, b, c, d);
+        builder->section.Init2(plane);
+    } catch (...) {}
+}
+
+void OCCTSectionBuilderInit2Surface(OCCTSectionBuilderRef builder, OCCTSurfaceRef surface) {
+    if (!builder || !surface) return;
+    try { builder->section.Init2(surface->surface); } catch (...) {}
+}
+
+void OCCTSectionBuilderSetApproximation(OCCTSectionBuilderRef builder, bool approx) {
+    if (!builder) return;
+    try { builder->section.Approximation(approx); } catch (...) {}
+}
+
+void OCCTSectionBuilderComputePCurveOn1(OCCTSectionBuilderRef builder, bool compute) {
+    if (!builder) return;
+    try { builder->section.ComputePCurveOn1(compute); } catch (...) {}
+}
+
+void OCCTSectionBuilderComputePCurveOn2(OCCTSectionBuilderRef builder, bool compute) {
+    if (!builder) return;
+    try { builder->section.ComputePCurveOn2(compute); } catch (...) {}
+}
+
+OCCTShapeRef OCCTSectionBuilderBuild(OCCTSectionBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        builder->section.Build();
+        if (!builder->section.IsDone()) return nullptr;
+        builder->built = true;
+        return new OCCTShape{builder->section.Shape()};
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTSectionBuilderAncestorFaceOn1(OCCTSectionBuilderRef builder, OCCTShapeRef edge) {
+    if (!builder || !edge || !builder->built) return nullptr;
+    try {
+        TopoDS_Shape face;
+        if (builder->section.HasAncestorFaceOn1(edge->shape, face)) {
+            return new OCCTShape{face};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTSectionBuilderAncestorFaceOn2(OCCTSectionBuilderRef builder, OCCTShapeRef edge) {
+    if (!builder || !edge || !builder->built) return nullptr;
+    try {
+        TopoDS_Shape face;
+        if (builder->section.HasAncestorFaceOn2(edge->shape, face)) {
+            return new OCCTShape{face};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- BRep_Tool completions ---
+
+bool OCCTBRepToolIsClosedOnFace(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return false;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        return BRep_Tool::IsClosed(e, f);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepToolPolygonOnSurface(OCCTShapeRef edge, OCCTShapeRef face,
+                                      double** outPoints) {
+    if (!edge || !face || !outPoints) return 0;
+    *outPoints = nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        Handle(Poly_Polygon2D) poly = BRep_Tool::PolygonOnSurface(e, f);
+        if (poly.IsNull()) return 0;
+        int32_t count = poly->NbNodes();
+        if (count == 0) return 0;
+        *outPoints = (double*)malloc(count * 2 * sizeof(double));
+        const TColgp_Array1OfPnt2d& nodes = poly->Nodes();
+        for (int i = 1; i <= count; i++) {
+            (*outPoints)[(i-1)*2] = nodes.Value(i).X();
+            (*outPoints)[(i-1)*2+1] = nodes.Value(i).Y();
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepToolSetUVPoints(OCCTShapeRef edge, OCCTShapeRef face,
+                              double fU, double fV, double lU, double lV) {
+    if (!edge || !face) return false;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        gp_Pnt2d p1(fU, fV), p2(lU, lV);
+        BRep_Tool::SetUVPoints(e, f, p1, p2);
+        return true;
+    } catch (...) { return false; }
+}
+
+// --- Geometry Transform (in-place) ---
+
+static bool buildTrsf3D(gp_Trsf& trsf, int32_t type,
+                          double p1, double p2, double p3,
+                          double p4, double p5, double p6, double p7) {
+    switch (type) {
+        case 0: // translation (dx, dy, dz)
+            trsf.SetTranslation(gp_Vec(p1, p2, p3));
+            return true;
+        case 1: // rotation (ox, oy, oz, dx, dy, dz, angle)
+            trsf.SetRotation(gp_Ax1(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)), p7);
+            return true;
+        case 2: // scale (cx, cy, cz, factor)
+            trsf.SetScale(gp_Pnt(p1, p2, p3), p4);
+            return true;
+        case 3: // mirror point (px, py, pz)
+            trsf.SetMirror(gp_Pnt(p1, p2, p3));
+            return true;
+        case 4: // mirror axis (ox, oy, oz, dx, dy, dz)
+            trsf.SetMirror(gp_Ax1(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)));
+            return true;
+        case 5: // mirror plane (ox, oy, oz, nx, ny, nz)
+            trsf.SetMirror(gp_Ax2(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)));
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool OCCTCurve3DTransform(OCCTCurve3DRef curve, int32_t transformType,
+                           double p1, double p2, double p3,
+                           double p4, double p5, double p6, double p7) {
+    if (!curve) return false;
+    try {
+        gp_Trsf trsf;
+        if (!buildTrsf3D(trsf, transformType, p1, p2, p3, p4, p5, p6, p7)) return false;
+        curve->curve->Transform(trsf);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DTransform(OCCTCurve2DRef curve, int32_t transformType,
+                           double p1, double p2, double p3, double p4, double p5) {
+    if (!curve) return false;
+    try {
+        gp_Trsf2d trsf;
+        switch (transformType) {
+            case 0: // translation (dx, dy)
+                trsf.SetTranslation(gp_Vec2d(p1, p2));
+                break;
+            case 1: // rotation (cx, cy, angle)
+                trsf.SetRotation(gp_Pnt2d(p1, p2), p3);
+                break;
+            case 2: // scale (cx, cy, factor)
+                trsf.SetScaleFactor(p3);
+                trsf.SetTranslationPart(gp_Vec2d(p1 * (1.0 - p3), p2 * (1.0 - p3)));
+                break;
+            case 3: // mirror point (px, py)
+                trsf.SetMirror(gp_Pnt2d(p1, p2));
+                break;
+            case 4: // mirror axis (ox, oy, dx, dy)
+                trsf.SetMirror(gp_Ax2d(gp_Pnt2d(p1, p2), gp_Dir2d(p3, p4)));
+                break;
+            default:
+                return false;
+        }
+        curve->curve->Transform(trsf);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceTransform(OCCTSurfaceRef surface, int32_t transformType,
+                           double p1, double p2, double p3,
+                           double p4, double p5, double p6, double p7) {
+    if (!surface) return false;
+    try {
+        gp_Trsf trsf;
+        if (!buildTrsf3D(trsf, transformType, p1, p2, p3, p4, p5, p6, p7)) return false;
+        surface->surface->Transform(trsf);
+        return true;
+    } catch (...) { return false; }
+}
+
+// end of v0.128.0 implementations

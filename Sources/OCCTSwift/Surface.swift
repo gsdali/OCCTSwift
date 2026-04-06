@@ -2488,3 +2488,50 @@ extension Surface {
         return OCCTSurfaceBezierSetPoleRowWeights(handle, Int32(uIndex), flat, weights, Int32(poles.count))
     }
 }
+
+// MARK: - v0.128.0: Surface Transform
+
+extension Surface {
+
+    /// Translate the surface in place by (dx, dy, dz).
+    @discardableResult
+    public func translate(dx: Double, dy: Double, dz: Double) -> Bool {
+        OCCTSurfaceTransform(handle, 0, dx, dy, dz, 0, 0, 0, 0)
+    }
+
+    /// Rotate the surface in place around an axis by the given angle (radians).
+    @discardableResult
+    public func rotate(axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>, angle: Double) -> Bool {
+        OCCTSurfaceTransform(handle, 1,
+                              axisOrigin.x, axisOrigin.y, axisOrigin.z,
+                              axisDirection.x, axisDirection.y, axisDirection.z, angle)
+    }
+
+    /// Scale the surface in place from a center point by the given factor.
+    @discardableResult
+    public func scale(center: SIMD3<Double>, factor: Double) -> Bool {
+        OCCTSurfaceTransform(handle, 2, center.x, center.y, center.z, factor, 0, 0, 0)
+    }
+
+    /// Mirror the surface in place through a point.
+    @discardableResult
+    public func mirrorPoint(_ point: SIMD3<Double>) -> Bool {
+        OCCTSurfaceTransform(handle, 3, point.x, point.y, point.z, 0, 0, 0, 0)
+    }
+
+    /// Mirror the surface in place through an axis.
+    @discardableResult
+    public func mirrorAxis(origin: SIMD3<Double>, direction: SIMD3<Double>) -> Bool {
+        OCCTSurfaceTransform(handle, 4,
+                              origin.x, origin.y, origin.z,
+                              direction.x, direction.y, direction.z, 0)
+    }
+
+    /// Mirror the surface in place through a plane.
+    @discardableResult
+    public func mirrorPlane(origin: SIMD3<Double>, normal: SIMD3<Double>) -> Bool {
+        OCCTSurfaceTransform(handle, 5,
+                              origin.x, origin.y, origin.z,
+                              normal.x, normal.y, normal.z, 0)
+    }
+}
