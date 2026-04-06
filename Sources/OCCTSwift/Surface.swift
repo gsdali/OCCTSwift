@@ -2487,6 +2487,48 @@ extension Surface {
         for p in poles { flat.append(p.x); flat.append(p.y); flat.append(p.z) }
         return OCCTSurfaceBezierSetPoleRowWeights(handle, Int32(uIndex), flat, weights, Int32(poles.count))
     }
+
+    // MARK: - v0.129.0: Bezier surface completions
+
+    /// Insert a pole column before index in a Bezier surface. Poles array is [SIMD3] of size NbUPoles.
+    @discardableResult
+    public func bezierInsertPoleColBefore(_ colIndex: Int, poles: [SIMD3<Double>]) -> Bool {
+        let flat = poles.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTSurfaceBezierInsertPoleColBefore(handle, Int32(colIndex), flat, Int32(poles.count))
+    }
+
+    /// Insert a pole row before index in a Bezier surface. Poles array is [SIMD3] of size NbVPoles.
+    @discardableResult
+    public func bezierInsertPoleRowBefore(_ rowIndex: Int, poles: [SIMD3<Double>]) -> Bool {
+        let flat = poles.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTSurfaceBezierInsertPoleRowBefore(handle, Int32(rowIndex), flat, Int32(poles.count))
+    }
+
+    /// Set a pole column (without weights) on a Bezier surface. vIndex is 1-based.
+    @discardableResult
+    public func bezierSetPoleCol(vIndex: Int, poles: [SIMD3<Double>]) -> Bool {
+        let flat = poles.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTSurfaceBezierSetPoleCol(handle, Int32(vIndex), flat, Int32(poles.count))
+    }
+
+    /// Set a pole row (without weights) on a Bezier surface. uIndex is 1-based.
+    @discardableResult
+    public func bezierSetPoleRow(uIndex: Int, poles: [SIMD3<Double>]) -> Bool {
+        let flat = poles.flatMap { [$0.x, $0.y, $0.z] }
+        return OCCTSurfaceBezierSetPoleRow(handle, Int32(uIndex), flat, Int32(poles.count))
+    }
+
+    /// Set a column of weights on a Bezier surface. vIndex is 1-based, count = NbUPoles.
+    @discardableResult
+    public func bezierSetWeightCol(vIndex: Int, weights: [Double]) -> Bool {
+        OCCTSurfaceBezierSetWeightCol(handle, Int32(vIndex), weights, Int32(weights.count))
+    }
+
+    /// Set a row of weights on a Bezier surface. uIndex is 1-based, count = NbVPoles.
+    @discardableResult
+    public func bezierSetWeightRow(uIndex: Int, weights: [Double]) -> Bool {
+        OCCTSurfaceBezierSetWeightRow(handle, Int32(uIndex), weights, Int32(weights.count))
+    }
 }
 
 // MARK: - v0.128.0: Surface Transform

@@ -53192,4 +53192,263 @@ bool OCCTSurfaceTransform(OCCTSurfaceRef surface, int32_t transformType,
     } catch (...) { return false; }
 }
 
+// --- v0.129.0: BSplineCurve3D LocalD0-D3/DN, BSplineSurface completions, BezierSurface completions ---
+
+void OCCTCurve3DBSplineLocalD0(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* pz) {
+    if (!curve || curve->curve.IsNull()) { *px = *py = *pz = 0; return; }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) { *px = *py = *pz = 0; return; }
+        gp_Pnt p;
+        bs->LocalD0(u, fromK1, toK2, p);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+    } catch (...) { *px = *py = *pz = 0; }
+}
+
+void OCCTCurve3DBSplineLocalD1(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* pz,
+                                double* vx, double* vy, double* vz) {
+    if (!curve || curve->curve.IsNull()) { *px = *py = *pz = *vx = *vy = *vz = 0; return; }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) { *px = *py = *pz = *vx = *vy = *vz = 0; return; }
+        gp_Pnt p; gp_Vec v1;
+        bs->LocalD1(u, fromK1, toK2, p, v1);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *vx = v1.X(); *vy = v1.Y(); *vz = v1.Z();
+    } catch (...) { *px = *py = *pz = *vx = *vy = *vz = 0; }
+}
+
+void OCCTCurve3DBSplineLocalD2(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* pz,
+                                double* v1x, double* v1y, double* v1z,
+                                double* v2x, double* v2y, double* v2z) {
+    if (!curve || curve->curve.IsNull()) {
+        *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = 0; return;
+    }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) { *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = 0; return; }
+        gp_Pnt p; gp_Vec v1, v2;
+        bs->LocalD2(u, fromK1, toK2, p, v1, v2);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *v1x = v1.X(); *v1y = v1.Y(); *v1z = v1.Z();
+        *v2x = v2.X(); *v2y = v2.Y(); *v2z = v2.Z();
+    } catch (...) { *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = 0; }
+}
+
+void OCCTCurve3DBSplineLocalD3(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* pz,
+                                double* v1x, double* v1y, double* v1z,
+                                double* v2x, double* v2y, double* v2z,
+                                double* v3x, double* v3y, double* v3z) {
+    if (!curve || curve->curve.IsNull()) {
+        *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = *v3x = *v3y = *v3z = 0; return;
+    }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) {
+            *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = *v3x = *v3y = *v3z = 0; return;
+        }
+        gp_Pnt p; gp_Vec v1, v2, v3;
+        bs->LocalD3(u, fromK1, toK2, p, v1, v2, v3);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *v1x = v1.X(); *v1y = v1.Y(); *v1z = v1.Z();
+        *v2x = v2.X(); *v2y = v2.Y(); *v2z = v2.Z();
+        *v3x = v3.X(); *v3y = v3.Y(); *v3z = v3.Z();
+    } catch (...) {
+        *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = *v3x = *v3y = *v3z = 0;
+    }
+}
+
+void OCCTCurve3DBSplineLocalDN(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2, int32_t n,
+                                double* vx, double* vy, double* vz) {
+    if (!curve || curve->curve.IsNull()) { *vx = *vy = *vz = 0; return; }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) { *vx = *vy = *vz = 0; return; }
+        gp_Vec v = bs->LocalDN(u, fromK1, toK2, n);
+        *vx = v.X(); *vy = v.Y(); *vz = v.Z();
+    } catch (...) { *vx = *vy = *vz = 0; }
+}
+
+// BSplineSurface completions
+
+bool OCCTSurfaceBSplineSetWeightCol(OCCTSurfaceRef surface, int32_t vIndex,
+                                     const double* weights, int32_t count) {
+    if (!surface || surface->surface.IsNull() || !weights || count <= 0) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal w(1, count);
+        for (int i = 0; i < count; i++) w.SetValue(i + 1, weights[i]);
+        bs->SetWeightCol(vIndex, w);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetWeightRow(OCCTSurfaceRef surface, int32_t uIndex,
+                                     const double* weights, int32_t count) {
+    if (!surface || surface->surface.IsNull() || !weights || count <= 0) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal w(1, count);
+        for (int i = 0; i < count; i++) w.SetValue(i + 1, weights[i]);
+        bs->SetWeightRow(uIndex, w);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncrementUMultiplicity(OCCTSurfaceRef surface,
+                                               int32_t fromIndex, int32_t toIndex, int32_t step) {
+    if (!surface || surface->surface.IsNull()) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncrementUMultiplicity(fromIndex, toIndex, step); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncrementVMultiplicity(OCCTSurfaceRef surface,
+                                               int32_t fromIndex, int32_t toIndex, int32_t step) {
+    if (!surface || surface->surface.IsNull()) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncrementVMultiplicity(fromIndex, toIndex, step); return true; } catch (...) { return false; }
+}
+
+int32_t OCCTSurfaceBSplineFirstUKnotIndex(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->FirstUKnotIndex(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineLastUKnotIndex(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->LastUKnotIndex(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineFirstVKnotIndex(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->FirstVKnotIndex(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineLastVKnotIndex(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->LastVKnotIndex(); } catch (...) { return 0; }
+}
+
+bool OCCTSurfaceBSplineCheckAndSegment(OCCTSurfaceRef surface,
+                                        double u1, double u2, double v1, double v2,
+                                        double uTol, double vTol) {
+    if (!surface || surface->surface.IsNull()) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->CheckAndSegment(u1, u2, v1, v2, uTol, vTol); return true; } catch (...) { return false; }
+}
+
+// BezierSurface completions
+
+bool OCCTSurfaceBezierInsertPoleColBefore(OCCTSurfaceRef surface, int32_t colIndex,
+                                           const double* poles, int32_t poleCount) {
+    if (!surface || !poles) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        int nbUPoles = bz->NbUPoles();
+        if (poleCount != nbUPoles) return false;
+        NCollection_Array1<gp_Pnt> col(1, nbUPoles);
+        for (int i = 0; i < nbUPoles; i++) {
+            col.SetValue(i + 1, gp_Pnt(poles[i * 3], poles[i * 3 + 1], poles[i * 3 + 2]));
+        }
+        bz->InsertPoleColBefore(colIndex, col);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierInsertPoleRowBefore(OCCTSurfaceRef surface, int32_t rowIndex,
+                                           const double* poles, int32_t poleCount) {
+    if (!surface || !poles) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        int nbVPoles = bz->NbVPoles();
+        if (poleCount != nbVPoles) return false;
+        NCollection_Array1<gp_Pnt> row(1, nbVPoles);
+        for (int i = 0; i < nbVPoles; i++) {
+            row.SetValue(i + 1, gp_Pnt(poles[i * 3], poles[i * 3 + 1], poles[i * 3 + 2]));
+        }
+        bz->InsertPoleRowBefore(rowIndex, row);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetPoleCol(OCCTSurfaceRef surface, int32_t vIndex,
+                                  const double* poles, int32_t count) {
+    if (!surface || !poles || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        NCollection_Array1<gp_Pnt> col(1, count);
+        for (int i = 0; i < count; i++) {
+            col.SetValue(i + 1, gp_Pnt(poles[i * 3], poles[i * 3 + 1], poles[i * 3 + 2]));
+        }
+        bz->SetPoleCol(vIndex, col);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetPoleRow(OCCTSurfaceRef surface, int32_t uIndex,
+                                  const double* poles, int32_t count) {
+    if (!surface || !poles || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        NCollection_Array1<gp_Pnt> row(1, count);
+        for (int i = 0; i < count; i++) {
+            row.SetValue(i + 1, gp_Pnt(poles[i * 3], poles[i * 3 + 1], poles[i * 3 + 2]));
+        }
+        bz->SetPoleRow(uIndex, row);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetWeightCol(OCCTSurfaceRef surface, int32_t vIndex,
+                                    const double* weights, int32_t count) {
+    if (!surface || !weights || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal w(1, count);
+        for (int i = 0; i < count; i++) w.SetValue(i + 1, weights[i]);
+        bz->SetWeightCol(vIndex, w);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetWeightRow(OCCTSurfaceRef surface, int32_t uIndex,
+                                    const double* weights, int32_t count) {
+    if (!surface || !weights || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal w(1, count);
+        for (int i = 0; i < count; i++) w.SetValue(i + 1, weights[i]);
+        bz->SetWeightRow(uIndex, w);
+        return true;
+    } catch (...) { return false; }
+}
+
 // end of v0.128.0 implementations

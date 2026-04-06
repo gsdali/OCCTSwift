@@ -18763,6 +18763,102 @@ bool OCCTSurfaceTransform(OCCTSurfaceRef _Nonnull surface, int32_t transformType
                            double p4, double p5, double p6,
                            double p7);
 
+// --- v0.129.0: BSplineCurve3D LocalD0-D3/DN, BSplineSurface completions, BezierSurface completions ---
+
+// BSplineCurve3D local evaluation on knot span
+
+/// Evaluate point on BSpline curve within knot span [fromK1, toK2].
+void OCCTCurve3DBSplineLocalD0(OCCTCurve3DRef _Nonnull curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Evaluate point + 1st derivative on BSpline curve within knot span.
+void OCCTCurve3DBSplineLocalD1(OCCTCurve3DRef _Nonnull curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                                double* _Nonnull vx, double* _Nonnull vy, double* _Nonnull vz);
+
+/// Evaluate point + 1st + 2nd derivative on BSpline curve within knot span.
+void OCCTCurve3DBSplineLocalD2(OCCTCurve3DRef _Nonnull curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                                double* _Nonnull v1x, double* _Nonnull v1y, double* _Nonnull v1z,
+                                double* _Nonnull v2x, double* _Nonnull v2y, double* _Nonnull v2z);
+
+/// Evaluate point + 1st + 2nd + 3rd derivative on BSpline curve within knot span.
+void OCCTCurve3DBSplineLocalD3(OCCTCurve3DRef _Nonnull curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                                double* _Nonnull v1x, double* _Nonnull v1y, double* _Nonnull v1z,
+                                double* _Nonnull v2x, double* _Nonnull v2y, double* _Nonnull v2z,
+                                double* _Nonnull v3x, double* _Nonnull v3y, double* _Nonnull v3z);
+
+/// Evaluate Nth derivative on BSpline curve within knot span.
+void OCCTCurve3DBSplineLocalDN(OCCTCurve3DRef _Nonnull curve, double u,
+                                int32_t fromK1, int32_t toK2, int32_t n,
+                                double* _Nonnull vx, double* _Nonnull vy, double* _Nonnull vz);
+
+// BSplineSurface completions
+
+/// Set a column of weights on a BSpline surface. vIndex is 1-based. count = NbUPoles.
+bool OCCTSurfaceBSplineSetWeightCol(OCCTSurfaceRef _Nonnull surface, int32_t vIndex,
+                                     const double* _Nonnull weights, int32_t count);
+
+/// Set a row of weights on a BSpline surface. uIndex is 1-based. count = NbVPoles.
+bool OCCTSurfaceBSplineSetWeightRow(OCCTSurfaceRef _Nonnull surface, int32_t uIndex,
+                                     const double* _Nonnull weights, int32_t count);
+
+/// Increment U knot multiplicities in range [fromIndex, toIndex] by step.
+bool OCCTSurfaceBSplineIncrementUMultiplicity(OCCTSurfaceRef _Nonnull surface,
+                                               int32_t fromIndex, int32_t toIndex, int32_t step);
+
+/// Increment V knot multiplicities in range [fromIndex, toIndex] by step.
+bool OCCTSurfaceBSplineIncrementVMultiplicity(OCCTSurfaceRef _Nonnull surface,
+                                               int32_t fromIndex, int32_t toIndex, int32_t step);
+
+/// First U knot index of a BSpline surface.
+int32_t OCCTSurfaceBSplineFirstUKnotIndex(OCCTSurfaceRef _Nonnull surface);
+
+/// Last U knot index of a BSpline surface.
+int32_t OCCTSurfaceBSplineLastUKnotIndex(OCCTSurfaceRef _Nonnull surface);
+
+/// First V knot index of a BSpline surface.
+int32_t OCCTSurfaceBSplineFirstVKnotIndex(OCCTSurfaceRef _Nonnull surface);
+
+/// Last V knot index of a BSpline surface.
+int32_t OCCTSurfaceBSplineLastVKnotIndex(OCCTSurfaceRef _Nonnull surface);
+
+/// Validate parameter ranges and segment the BSpline surface.
+bool OCCTSurfaceBSplineCheckAndSegment(OCCTSurfaceRef _Nonnull surface,
+                                        double u1, double u2, double v1, double v2,
+                                        double uTol, double vTol);
+
+// BezierSurface completions
+
+/// Insert a pole column before index in a Bezier surface. poles: flat [x,y,z,...], count = NbUPoles.
+bool OCCTSurfaceBezierInsertPoleColBefore(OCCTSurfaceRef _Nonnull surface, int32_t colIndex,
+                                           const double* _Nonnull poles, int32_t poleCount);
+
+/// Insert a pole row before index in a Bezier surface. poles: flat [x,y,z,...], count = NbVPoles.
+bool OCCTSurfaceBezierInsertPoleRowBefore(OCCTSurfaceRef _Nonnull surface, int32_t rowIndex,
+                                           const double* _Nonnull poles, int32_t poleCount);
+
+/// Set a pole column (without weights) on a Bezier surface. vIndex is 1-based.
+bool OCCTSurfaceBezierSetPoleCol(OCCTSurfaceRef _Nonnull surface, int32_t vIndex,
+                                  const double* _Nonnull poles, int32_t count);
+
+/// Set a pole row (without weights) on a Bezier surface. uIndex is 1-based.
+bool OCCTSurfaceBezierSetPoleRow(OCCTSurfaceRef _Nonnull surface, int32_t uIndex,
+                                  const double* _Nonnull poles, int32_t count);
+
+/// Set a column of weights on a Bezier surface. vIndex is 1-based. count = NbUPoles.
+bool OCCTSurfaceBezierSetWeightCol(OCCTSurfaceRef _Nonnull surface, int32_t vIndex,
+                                    const double* _Nonnull weights, int32_t count);
+
+/// Set a row of weights on a Bezier surface. uIndex is 1-based. count = NbVPoles.
+bool OCCTSurfaceBezierSetWeightRow(OCCTSurfaceRef _Nonnull surface, int32_t uIndex,
+                                    const double* _Nonnull weights, int32_t count);
+
 #ifdef __cplusplus
 }
 #endif

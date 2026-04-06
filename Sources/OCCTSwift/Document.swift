@@ -11860,6 +11860,56 @@ extension Curve3D {
         return SIMD3(x, y, z)
     }
 
+    /// Evaluate point on BSpline curve within knot span [fromKnot, toKnot].
+    public func bsplineLocalD0(u: Double, fromKnot: Int, toKnot: Int) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTCurve3DBSplineLocalD0(handle, u, Int32(fromKnot), Int32(toKnot), &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+
+    /// Evaluate point + 1st derivative on BSpline curve within knot span.
+    public func bsplineLocalD1(u: Double, fromKnot: Int, toKnot: Int)
+        -> (point: SIMD3<Double>, d1: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTCurve3DBSplineLocalD1(handle, u, Int32(fromKnot), Int32(toKnot),
+                                   &px, &py, &pz, &vx, &vy, &vz)
+        return (SIMD3(px, py, pz), SIMD3(vx, vy, vz))
+    }
+
+    /// Evaluate point + 1st + 2nd derivative on BSpline curve within knot span.
+    public func bsplineLocalD2(u: Double, fromKnot: Int, toKnot: Int)
+        -> (point: SIMD3<Double>, d1: SIMD3<Double>, d2: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var v1x = 0.0, v1y = 0.0, v1z = 0.0
+        var v2x = 0.0, v2y = 0.0, v2z = 0.0
+        OCCTCurve3DBSplineLocalD2(handle, u, Int32(fromKnot), Int32(toKnot),
+                                   &px, &py, &pz, &v1x, &v1y, &v1z, &v2x, &v2y, &v2z)
+        return (SIMD3(px, py, pz), SIMD3(v1x, v1y, v1z), SIMD3(v2x, v2y, v2z))
+    }
+
+    /// Evaluate point + 1st + 2nd + 3rd derivative on BSpline curve within knot span.
+    public func bsplineLocalD3(u: Double, fromKnot: Int, toKnot: Int)
+        -> (point: SIMD3<Double>, d1: SIMD3<Double>, d2: SIMD3<Double>, d3: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var v1x = 0.0, v1y = 0.0, v1z = 0.0
+        var v2x = 0.0, v2y = 0.0, v2z = 0.0
+        var v3x = 0.0, v3y = 0.0, v3z = 0.0
+        OCCTCurve3DBSplineLocalD3(handle, u, Int32(fromKnot), Int32(toKnot),
+                                   &px, &py, &pz, &v1x, &v1y, &v1z,
+                                   &v2x, &v2y, &v2z, &v3x, &v3y, &v3z)
+        return (SIMD3(px, py, pz), SIMD3(v1x, v1y, v1z),
+                SIMD3(v2x, v2y, v2z), SIMD3(v3x, v3y, v3z))
+    }
+
+    /// Evaluate Nth derivative on BSpline curve within knot span.
+    public func bsplineLocalDN(u: Double, fromKnot: Int, toKnot: Int, n: Int) -> SIMD3<Double> {
+        var vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTCurve3DBSplineLocalDN(handle, u, Int32(fromKnot), Int32(toKnot), Int32(n),
+                                   &vx, &vy, &vz)
+        return SIMD3(vx, vy, vz)
+    }
+
     /// Maximum BSpline degree supported (static).
     public static var bsplineMaxDegree: Int { Int(OCCTCurve3DBSplineMaxDegree()) }
 
@@ -14241,6 +14291,51 @@ extension Surface {
     public func bsplineSetPoleRow(uIndex: Int, poles: [SIMD3<Double>]) -> Bool {
         let coords = poles.flatMap { [$0.x, $0.y, $0.z] }
         return OCCTSurfaceBSplineSetPoleRow(handle, Int32(uIndex), coords, Int32(poles.count))
+    }
+
+    // --- v0.129.0 BSplineSurface completions ---
+
+    /// Set a column of weights on BSpline surface. vIndex is 1-based, count = NbUPoles.
+    @discardableResult
+    public func bsplineSetWeightCol(vIndex: Int, weights: [Double]) -> Bool {
+        OCCTSurfaceBSplineSetWeightCol(handle, Int32(vIndex), weights, Int32(weights.count))
+    }
+
+    /// Set a row of weights on BSpline surface. uIndex is 1-based, count = NbVPoles.
+    @discardableResult
+    public func bsplineSetWeightRow(uIndex: Int, weights: [Double]) -> Bool {
+        OCCTSurfaceBSplineSetWeightRow(handle, Int32(uIndex), weights, Int32(weights.count))
+    }
+
+    /// Increment U knot multiplicities in range [fromIndex, toIndex] by step.
+    @discardableResult
+    public func bsplineIncrementUMultiplicity(fromIndex: Int, toIndex: Int, step: Int) -> Bool {
+        OCCTSurfaceBSplineIncrementUMultiplicity(handle, Int32(fromIndex), Int32(toIndex), Int32(step))
+    }
+
+    /// Increment V knot multiplicities in range [fromIndex, toIndex] by step.
+    @discardableResult
+    public func bsplineIncrementVMultiplicity(fromIndex: Int, toIndex: Int, step: Int) -> Bool {
+        OCCTSurfaceBSplineIncrementVMultiplicity(handle, Int32(fromIndex), Int32(toIndex), Int32(step))
+    }
+
+    /// First U knot index of BSpline surface.
+    public var bsplineFirstUKnotIndex: Int { Int(OCCTSurfaceBSplineFirstUKnotIndex(handle)) }
+
+    /// Last U knot index of BSpline surface.
+    public var bsplineLastUKnotIndex: Int { Int(OCCTSurfaceBSplineLastUKnotIndex(handle)) }
+
+    /// First V knot index of BSpline surface.
+    public var bsplineFirstVKnotIndex: Int { Int(OCCTSurfaceBSplineFirstVKnotIndex(handle)) }
+
+    /// Last V knot index of BSpline surface.
+    public var bsplineLastVKnotIndex: Int { Int(OCCTSurfaceBSplineLastVKnotIndex(handle)) }
+
+    /// Validate parameter ranges and segment the BSpline surface.
+    @discardableResult
+    public func bsplineCheckAndSegment(u1: Double, u2: Double, v1: Double, v2: Double,
+                                        uTolerance: Double = 1e-10, vTolerance: Double = 1e-10) -> Bool {
+        OCCTSurfaceBSplineCheckAndSegment(handle, u1, u2, v1, v2, uTolerance, vTolerance)
     }
 }
 

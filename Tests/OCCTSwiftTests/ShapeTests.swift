@@ -41354,3 +41354,221 @@ struct SurfaceTransformTests {
     }
 }
 
+// MARK: - v0.129.0: BSplineCurve LocalD, BSplineSurface completions, BezierSurface completions
+
+@Suite("BSplineCurve3D LocalD v129")
+struct BSplineCurve3DLocalDTests {
+
+    @Test("LocalD0 matches LocalValue")
+    func localD0() {
+        // Create a BSpline curve via interpolation
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(3, 1, 0), SIMD3(5, 3, 0)
+        ]
+        if let curve = Curve3D.interpolate(points: points) {
+            let k = curve.bsplineLocateU(0.5)
+            let val = curve.bsplineLocalValue(u: 0.5, fromKnot: k, toKnot: k + 1)
+            let d0 = curve.bsplineLocalD0(u: 0.5, fromKnot: k, toKnot: k + 1)
+            #expect(abs(val.x - d0.x) < 1e-10)
+            #expect(abs(val.y - d0.y) < 1e-10)
+            #expect(abs(val.z - d0.z) < 1e-10)
+        }
+    }
+
+    @Test("LocalD1 returns point + tangent")
+    func localD1() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(3, 1, 0), SIMD3(5, 3, 0)
+        ]
+        if let curve = Curve3D.interpolate(points: points) {
+            let k = curve.bsplineLocateU(0.5)
+            let result = curve.bsplineLocalD1(u: 0.5, fromKnot: k, toKnot: k + 1)
+            let mag = sqrt(result.d1.x * result.d1.x + result.d1.y * result.d1.y + result.d1.z * result.d1.z)
+            #expect(mag > 0.01) // tangent should be non-zero
+        }
+    }
+
+    @Test("LocalD2 returns curvature information")
+    func localD2() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(3, 1, 0), SIMD3(5, 3, 0)
+        ]
+        if let curve = Curve3D.interpolate(points: points) {
+            let k = curve.bsplineLocateU(0.5)
+            let result = curve.bsplineLocalD2(u: 0.5, fromKnot: k, toKnot: k + 1)
+            // Point should match D0
+            let d0 = curve.bsplineLocalD0(u: 0.5, fromKnot: k, toKnot: k + 1)
+            #expect(abs(result.point.x - d0.x) < 1e-10)
+            #expect(abs(result.point.y - d0.y) < 1e-10)
+        }
+    }
+
+    @Test("LocalD3 returns all derivatives")
+    func localD3() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(3, 1, 0), SIMD3(5, 3, 0)
+        ]
+        if let curve = Curve3D.interpolate(points: points) {
+            let k = curve.bsplineLocateU(0.5)
+            let result = curve.bsplineLocalD3(u: 0.5, fromKnot: k, toKnot: k + 1)
+            // Point should match D0
+            let d0 = curve.bsplineLocalD0(u: 0.5, fromKnot: k, toKnot: k + 1)
+            #expect(abs(result.point.x - d0.x) < 1e-10)
+            // D1 should match
+            let d1result = curve.bsplineLocalD1(u: 0.5, fromKnot: k, toKnot: k + 1)
+            #expect(abs(result.d1.x - d1result.d1.x) < 1e-10)
+        }
+    }
+
+    @Test("LocalDN matches D1 for n=1")
+    func localDN() {
+        let points: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 2, 0), SIMD3(3, 1, 0), SIMD3(5, 3, 0)
+        ]
+        if let curve = Curve3D.interpolate(points: points) {
+            let k = curve.bsplineLocateU(0.5)
+            let dn1 = curve.bsplineLocalDN(u: 0.5, fromKnot: k, toKnot: k + 1, n: 1)
+            let d1result = curve.bsplineLocalD1(u: 0.5, fromKnot: k, toKnot: k + 1)
+            #expect(abs(dn1.x - d1result.d1.x) < 1e-10)
+            #expect(abs(dn1.y - d1result.d1.y) < 1e-10)
+            #expect(abs(dn1.z - d1result.d1.z) < 1e-10)
+        }
+    }
+}
+
+@Suite("BSplineSurface Completions v129")
+struct BSplineSurfaceCompletionsV129Tests {
+
+    @Test("SetWeightCol and SetWeightRow")
+    func setWeightColRow() {
+        // Create a BSpline surface from a sphere
+        let sphere = Surface.sphere(center: .zero, radius: 5)
+        if let bs = sphere?.toBSpline() {
+            let nbU = bs.bsplineSurface.nbUPoles
+            let nbV = bs.bsplineSurface.nbVPoles
+            if nbU > 0 && nbV > 0 {
+                // Set weight column: all weights = 1.0
+                let colWeights = [Double](repeating: 1.0, count: nbU)
+                let ok1 = bs.bsplineSetWeightCol(vIndex: 1, weights: colWeights)
+                #expect(ok1)
+
+                let rowWeights = [Double](repeating: 1.0, count: nbV)
+                let ok2 = bs.bsplineSetWeightRow(uIndex: 1, weights: rowWeights)
+                #expect(ok2)
+            }
+        }
+    }
+
+    @Test("IncrementUMultiplicity and IncrementVMultiplicity range")
+    func incrementMultiplicity() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)
+        if let bs = sphere?.toBSpline() {
+            let nbUK = bs.bsplineSurface.nbUKnots
+            let nbVK = bs.bsplineSurface.nbVKnots
+            if nbUK >= 2 && nbVK >= 2 {
+                let ok1 = bs.bsplineIncrementUMultiplicity(fromIndex: 1, toIndex: nbUK, step: 1)
+                #expect(ok1)
+                let ok2 = bs.bsplineIncrementVMultiplicity(fromIndex: 1, toIndex: nbVK, step: 1)
+                #expect(ok2)
+            }
+        }
+    }
+
+    @Test("First/Last U/V KnotIndex")
+    func knotIndices() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)
+        if let bs = sphere?.toBSpline() {
+            let firstU = bs.bsplineFirstUKnotIndex
+            let lastU = bs.bsplineLastUKnotIndex
+            let firstV = bs.bsplineFirstVKnotIndex
+            let lastV = bs.bsplineLastVKnotIndex
+            #expect(firstU >= 1)
+            #expect(lastU >= firstU)
+            #expect(firstV >= 1)
+            #expect(lastV >= firstV)
+        }
+    }
+
+    @Test("CheckAndSegment")
+    func checkAndSegment() {
+        let sphere = Surface.sphere(center: .zero, radius: 5)
+        if let bs = sphere?.toBSpline() {
+            // Segment within current bounds should succeed
+            let ok = bs.bsplineCheckAndSegment(u1: 0.0, u2: 1.0, v1: 0.0, v2: 1.0)
+            #expect(ok)
+        }
+    }
+}
+
+@Suite("BezierSurface Completions v129")
+struct BezierSurfaceCompletionsV129Tests {
+
+    @Test("InsertPoleColBefore and InsertPoleRowBefore")
+    func insertBefore() {
+        // Create a simple Bezier surface
+        let c1 = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0))
+        let c2 = Curve3D.line(through: SIMD3(0, 5, 0), direction: SIMD3(1, 0, 0))
+        if let s1 = c1, let s2 = c2, let surf = Surface.bezierFill(s1, s2) {
+            let nbU = surf.bezierNbUPoles
+            let nbV = surf.bezierNbVPoles
+            // Insert a pole column before column 1
+            let colPoles = (0..<nbU).map { i in SIMD3<Double>(Double(i), 2.5, 1.0) }
+            let ok1 = surf.bezierInsertPoleColBefore(1, poles: colPoles)
+            #expect(ok1)
+            #expect(surf.bezierNbVPoles == nbV + 1)
+
+            // Insert a pole row before row 1
+            let nbV2 = surf.bezierNbVPoles
+            let rowPoles = (0..<nbV2).map { i in SIMD3<Double>(-1.0, Double(i), 0.5) }
+            let ok2 = surf.bezierInsertPoleRowBefore(1, poles: rowPoles)
+            #expect(ok2)
+            #expect(surf.bezierNbUPoles == nbU + 1)
+        }
+    }
+
+    @Test("SetPoleCol and SetPoleRow without weights")
+    func setPoleColRow() {
+        let c1 = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0))
+        let c2 = Curve3D.line(through: SIMD3(0, 5, 0), direction: SIMD3(1, 0, 0))
+        if let s1 = c1, let s2 = c2, let surf = Surface.bezierFill(s1, s2) {
+            let nbU = surf.bezierNbUPoles
+            let nbV = surf.bezierNbVPoles
+            // Set pole column
+            let colPoles = (0..<nbU).map { i in SIMD3<Double>(Double(i) * 2.0, 0.0, 0.0) }
+            let ok1 = surf.bezierSetPoleCol(vIndex: 1, poles: colPoles)
+            #expect(ok1)
+
+            // Set pole row
+            let rowPoles = (0..<nbV).map { i in SIMD3<Double>(0.0, Double(i) * 3.0, 0.0) }
+            let ok2 = surf.bezierSetPoleRow(uIndex: 1, poles: rowPoles)
+            #expect(ok2)
+        }
+    }
+
+    @Test("SetWeightCol and SetWeightRow")
+    func setWeightColRow() {
+        // Create a rational Bezier surface by setting pole with weight
+        let c1 = Curve3D.line(through: SIMD3(0, 0, 0), direction: SIMD3(1, 0, 0))
+        let c2 = Curve3D.line(through: SIMD3(0, 5, 0), direction: SIMD3(1, 0, 0))
+        if let s1 = c1, let s2 = c2, let surf = Surface.bezierFill(s1, s2) {
+            let nbU = surf.bezierNbUPoles
+            let nbV = surf.bezierNbVPoles
+
+            // Make it rational via SetPoleColWeights (existing API)
+            let initPoles = (0..<nbU).map { i in SIMD3<Double>(Double(i), 0.0, 0.0) }
+            let initWeights = [Double](repeating: 2.0, count: nbU)
+            let _ = surf.bezierSetPoleColWeights(vIndex: 1, poles: initPoles, weights: initWeights)
+
+            // Now set weight column
+            let colWeights = [Double](repeating: 1.5, count: nbU)
+            let ok1 = surf.bezierSetWeightCol(vIndex: 1, weights: colWeights)
+            #expect(ok1)
+
+            // Set weight row
+            let rowWeights = [Double](repeating: 1.2, count: nbV)
+            let ok2 = surf.bezierSetWeightRow(uIndex: 1, weights: rowWeights)
+            #expect(ok2)
+        }
+    }
+}
+
