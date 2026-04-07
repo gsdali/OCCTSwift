@@ -523,6 +523,10 @@
 extern "C" {
 #endif
 
+// MARK: - Thread Safety Lock
+void OCCTSerialLockAcquire(void);
+void OCCTSerialLockRelease(void);
+
 // MARK: - Opaque Handle Types
 
 typedef struct OCCTShape* OCCTShapeRef;

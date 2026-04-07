@@ -7,6 +7,15 @@
 
 #import "../include/OCCTBridge.h"
 
+// MARK: - Global Serial Lock for Thread Safety
+#include <mutex>
+static std::recursive_mutex& occtGlobalMutex() {
+    static std::recursive_mutex mutex;
+    return mutex;
+}
+void OCCTSerialLockAcquire(void) { occtGlobalMutex().lock(); }
+void OCCTSerialLockRelease(void) { occtGlobalMutex().unlock(); }
+
 // Suppress OCCT 8.0.0 header deprecation warnings (typedef aliases still work).
 // Full migration to NCollection types is tracked for a future release.
 #pragma clang diagnostic push

@@ -42367,3 +42367,59 @@ struct AHTBezierCurve2DTests {
     }
 }
 
+// MARK: - Thread Safety Tests
+
+@Suite("Thread Safety: OCCTSerial")
+struct ThreadSafetyTests {
+    @Test func serialLockBasic() {
+        OCCTSerial.withLock {
+            let box = Shape.box(width: 10, height: 10, depth: 10)
+            #expect(box != nil)
+        }
+    }
+
+    @Test func serialLockReentrant() {
+        OCCTSerial.withLock {
+            OCCTSerial.withLock {
+                let box = Shape.box(width: 5, height: 5, depth: 5)
+                #expect(box != nil)
+            }
+        }
+    }
+
+    @Test func deepCopyForParallel() {
+        if let orig = Shape.box(width: 10, height: 10, depth: 10) {
+            if let copy = orig.deepCopy() {
+                if let origVol = orig.volume, let copyVol = copy.volume {
+                    #expect(abs(origVol - copyVol) < 1e-6)
+                }
+            }
+        }
+    }
+
+    @Test func serializedConcurrentAccess() {
+        let group = DispatchGroup()
+        var results = [Double?](repeating: nil, count: 4)
+        let resultsLock = NSLock()
+        for i in 0..<4 {
+            group.enter()
+            DispatchQueue.global().async {
+                let vol = OCCTSerial.withLock { () -> Double? in
+                    let box = Shape.box(width: Double(i + 1) * 10,
+                                       height: Double(i + 1) * 10,
+                                       depth: Double(i + 1) * 10)
+                    return box?.volume
+                }
+                resultsLock.lock()
+                results[i] = vol
+                resultsLock.unlock()
+                group.leave()
+            }
+        }
+        group.wait()
+        for i in 0..<4 {
+            #expect(results[i] != nil)
+        }
+    }
+}
+
