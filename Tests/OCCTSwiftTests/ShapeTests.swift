@@ -41620,3 +41620,79 @@ struct PipeShellClosedGeometryTests {
     }
 }
 
+// MARK: - SEGV Guard Regression Tests (Issues #54, #55, #56)
+
+@Suite("SEGV Guards — ThruSections empty/single-section")
+struct ThruSectionsGuardTests {
+
+    @Test func emptyBuildReturnsFalse() {
+        let ts = ThruSectionsBuilder(isSolid: true, isRuled: false)
+        #expect(!ts.build())
+        #expect(ts.shape == nil)
+    }
+
+    @Test func singleWireBuildReturnsFalse() {
+        guard let w = Wire.circle(origin: .zero, normal: SIMD3(0, 0, 1), radius: 5),
+              let s = Shape.fromWire(w) else { return }
+        let ts = ThruSectionsBuilder(isSolid: true, isRuled: false)
+        ts.addWire(s)
+        #expect(!ts.build())
+    }
+
+    @Test func singleVertexBuildReturnsFalse() {
+        let ts = ThruSectionsBuilder(isSolid: false, isRuled: false)
+        if let v = Shape.vertex(at: SIMD3(0, 0, 0)) {
+            ts.addVertex(v)
+            #expect(!ts.build())
+        }
+    }
+
+    @Test func twoSectionsBuildSucceeds() {
+        guard let w1 = Wire.circle(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1), radius: 5),
+              let w2 = Wire.circle(origin: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1), radius: 3),
+              let s1 = Shape.fromWire(w1), let s2 = Shape.fromWire(w2) else { return }
+        let ts = ThruSectionsBuilder(isSolid: true, isRuled: false)
+        ts.addWire(s1)
+        ts.addWire(s2)
+        #expect(ts.build())
+        if let shape = ts.shape {
+            #expect(shape.isValid)
+        }
+    }
+}
+
+@Suite("SEGV Guards — CellsBuilder empty inputs")
+struct CellsBuilderGuardTests {
+
+    @Test func emptyArrayReturnsNil() {
+        let cb = CellsBuilder(shapes: [])
+        #expect(cb == nil)
+    }
+
+    @Test func validShapesSucceeds() {
+        guard let box1 = Shape.box(width: 10, height: 10, depth: 10),
+              let box2 = Shape.box(origin: SIMD3(5, 0, 0), width: 10, height: 10, depth: 10) else { return }
+        if let cb = CellsBuilder(shapes: [box1, box2]) {
+            cb.addAllToResult()
+            cb.removeInternalBoundaries()
+            if let result = cb.result() {
+                #expect(result.isValid)
+            }
+        }
+    }
+}
+
+@Suite("SEGV Guards — IGES export validation")
+struct IGESExportGuardTests {
+
+    @Test func validShapeExportsSuccessfully() throws {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        let tmpURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("igs")
+        defer { try? FileManager.default.removeItem(at: tmpURL) }
+        try Exporter.writeIGES(shape: box, to: tmpURL)
+        #expect(FileManager.default.fileExists(atPath: tmpURL.path))
+    }
+}
+

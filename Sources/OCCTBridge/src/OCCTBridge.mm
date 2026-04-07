@@ -4355,8 +4355,13 @@ OCCTShapeRef OCCTImportIGESRobust(const char* path) {
 
 bool OCCTExportIGES(OCCTShapeRef shape, const char* path) {
     if (!shape || !path) return false;
+    if (shape->shape.IsNull()) return false;
 
     try {
+        // Validate shape before IGES export — OCCT translator can segfault on invalid geometry
+        BRepCheck_Analyzer analyzer(shape->shape);
+        if (!analyzer.IsValid()) return false;
+
         bool success = false;
         {
             IGESControl_Writer writer("MM", 0);  // Millimeters, faces mode
@@ -21907,7 +21912,10 @@ OCCTShapeRef OCCTImportIGESVisible(const char* path) {
 
 bool OCCTExportIGESWithUnit(OCCTShapeRef shape, const char* path, const char* unit) {
     if (!shape || !path || !unit) return false;
+    if (shape->shape.IsNull()) return false;
     try {
+        BRepCheck_Analyzer analyzer(shape->shape);
+        if (!analyzer.IsValid()) return false;
         IGESControl_Writer writer(unit, 0); // 0 = Faces mode
         if (!writer.AddShape(shape->shape)) return false;
         writer.ComputeModel();
@@ -21917,7 +21925,10 @@ bool OCCTExportIGESWithUnit(OCCTShapeRef shape, const char* path, const char* un
 
 bool OCCTExportIGESBRepMode(OCCTShapeRef shape, const char* path) {
     if (!shape || !path) return false;
+    if (shape->shape.IsNull()) return false;
     try {
+        BRepCheck_Analyzer analyzer(shape->shape);
+        if (!analyzer.IsValid()) return false;
         IGESControl_Writer writer("MM", 1); // 1 = BRep mode
         if (!writer.AddShape(shape->shape)) return false;
         writer.ComputeModel();
@@ -21929,10 +21940,16 @@ bool OCCTExportIGESMultiShape(const OCCTShapeRef* shapes, int32_t count, const c
     if (!shapes || count <= 0 || !path) return false;
     try {
         IGESControl_Writer writer;
+        int added = 0;
         for (int32_t i = 0; i < count; i++) {
-            if (!shapes[i]) continue;
+            if (!shapes[i] || shapes[i]->shape.IsNull()) continue;
+            // Validate each shape before adding to IGES writer
+            BRepCheck_Analyzer analyzer(shapes[i]->shape);
+            if (!analyzer.IsValid()) continue;
             writer.AddShape(shapes[i]->shape);
+            added++;
         }
+        if (added == 0) return false;
         writer.ComputeModel();
         return writer.Write(path);
     } catch (...) { return false; }
@@ -22725,8 +22742,17 @@ OCCTCellsBuilderRef OCCTCellsBuilderCreate(const OCCTShapeRef* shapes, int32_t c
     if (!shapes || count <= 0) return nullptr;
     try {
         auto* cb = new OCCTCellsBuilder();
+        int added = 0;
         for (int32_t i = 0; i < count; i++) {
-            if (shapes[i]) cb->builder.AddArgument(shapes[i]->shape);
+            if (shapes[i] && !shapes[i]->shape.IsNull()) {
+                cb->builder.AddArgument(shapes[i]->shape);
+                added++;
+            }
+        }
+        // Need at least one valid shape to partition
+        if (added == 0) {
+            delete cb;
+            return nullptr;
         }
         cb->builder.Perform();
         if (cb->builder.HasErrors()) {
@@ -47123,6 +47149,7 @@ OCCTShapeRef OCCTDefeatureWithTolerance(OCCTShapeRef shape, const OCCTShapeRef* 
 
 struct OCCTThruSections {
     BRepOffsetAPI_ThruSections* builder;
+    int sectionCount = 0;
 };
 
 OCCTThruSectionsRef OCCTThruSectionsCreate(bool isSolid, bool isRuled, double pres3d) {
@@ -47144,6 +47171,7 @@ void OCCTThruSectionsAddWire(OCCTThruSectionsRef ref, OCCTShapeRef wire) {
     if (!ts || !wire) return;
     try {
         ts->builder->AddWire(TopoDS::Wire(wire->shape));
+        ts->sectionCount++;
     } catch (...) {}
 }
 
@@ -47152,6 +47180,7 @@ void OCCTThruSectionsAddVertex(OCCTThruSectionsRef ref, OCCTShapeRef vertex) {
     if (!ts || !vertex) return;
     try {
         ts->builder->AddVertex(TopoDS::Vertex(vertex->shape));
+        ts->sectionCount++;
     } catch (...) {}
 }
 
@@ -47181,6 +47210,8 @@ void OCCTThruSectionsSetContinuity(OCCTThruSectionsRef ref, int32_t continuity) 
 bool OCCTThruSectionsBuild(OCCTThruSectionsRef ref) {
     auto ts = (OCCTThruSections*)ref;
     if (!ts) return false;
+    // ThruSections requires at least 2 sections — OCCT segfaults otherwise
+    if (ts->sectionCount < 2) return false;
     try {
         ts->builder->Build();
         return ts->builder->IsDone();
