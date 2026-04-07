@@ -53481,3 +53481,436 @@ bool OCCTSurfaceBezierSetWeightRow(OCCTSurfaceRef surface, int32_t uIndex,
 }
 
 // end of v0.128.0 implementations
+
+// MARK: - v0.130.0: GeomEval, Geom2dEval, GeomFill_Gordon, PointSetLib, ExtremaPC
+
+#include <GeomEval_CircularHelixCurve.hxx>
+#include <GeomEval_SineWaveCurve.hxx>
+#include <GeomEval_EllipsoidSurface.hxx>
+#include <GeomEval_HyperboloidSurface.hxx>
+#include <GeomEval_ParaboloidSurface.hxx>
+#include <GeomEval_CircularHelicoidSurface.hxx>
+#include <GeomEval_HypParaboloidSurface.hxx>
+#include <Geom2dEval_ArchimedeanSpiralCurve.hxx>
+#include <Geom2dEval_LogarithmicSpiralCurve.hxx>
+#include <Geom2dEval_CircleInvoluteCurve.hxx>
+#include <Geom2dEval_SineWaveCurve.hxx>
+#include <GeomFill_Gordon.hxx>
+#include <PointSetLib_Props.hxx>
+#include <PointSetLib_Equation.hxx>
+#include <ExtremaPC_Curve.hxx>
+
+// --- GeomEval Circular Helix ---
+
+void OCCTGeomEvalCircularHelixD0(double radius, double pitch, double u,
+                                  double* px, double* py, double* pz) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_CircularHelixCurve helix(ax, radius, pitch);
+    gp_Pnt p = helix.EvalD0(u);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+void OCCTGeomEvalCircularHelixD1(double radius, double pitch, double u,
+                                  double* px, double* py, double* pz,
+                                  double* vx, double* vy, double* vz) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_CircularHelixCurve helix(ax, radius, pitch);
+    auto res = helix.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y(); *pz = res.Point.Z();
+    *vx = res.D1.X(); *vy = res.D1.Y(); *vz = res.D1.Z();
+}
+
+void OCCTGeomEvalCircularHelixD2(double radius, double pitch, double u,
+                                  double* px, double* py, double* pz,
+                                  double* d1x, double* d1y, double* d1z,
+                                  double* d2x, double* d2y, double* d2z) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_CircularHelixCurve helix(ax, radius, pitch);
+    auto res = helix.EvalD2(u);
+    *px = res.Point.X(); *py = res.Point.Y(); *pz = res.Point.Z();
+    *d1x = res.D1.X(); *d1y = res.D1.Y(); *d1z = res.D1.Z();
+    *d2x = res.D2.X(); *d2y = res.D2.Y(); *d2z = res.D2.Z();
+}
+
+OCCTCurve3DRef OCCTGeomEvalCircularHelixCurveCreate(double radius, double pitch) {
+    try {
+        gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto helix = new GeomEval_CircularHelixCurve(ax, radius, pitch);
+        occ::handle<Geom_Curve> hCurve(helix);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval Sine Wave 3D ---
+
+void OCCTGeomEvalSineWaveD0(double amplitude, double omega, double phase, double u,
+                             double* px, double* py, double* pz) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_SineWaveCurve sw(ax, amplitude, omega, phase);
+    gp_Pnt p = sw.EvalD0(u);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+void OCCTGeomEvalSineWaveD1(double amplitude, double omega, double phase, double u,
+                             double* px, double* py, double* pz,
+                             double* vx, double* vy, double* vz) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_SineWaveCurve sw(ax, amplitude, omega, phase);
+    auto res = sw.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y(); *pz = res.Point.Z();
+    *vx = res.D1.X(); *vy = res.D1.Y(); *vz = res.D1.Z();
+}
+
+OCCTCurve3DRef OCCTGeomEvalSineWaveCurveCreate(double amplitude, double omega, double phase) {
+    try {
+        gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto sw = new GeomEval_SineWaveCurve(ax, amplitude, omega, phase);
+        occ::handle<Geom_Curve> hCurve(sw);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval Surfaces ---
+
+void OCCTGeomEvalEllipsoidD0(double a, double b, double c, double u, double v,
+                              double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_EllipsoidSurface ell(ax, a, b, c);
+    gp_Pnt p = ell.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalEllipsoidCreate(double a, double b, double c) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto ell = new GeomEval_EllipsoidSurface(ax, a, b, c);
+        occ::handle<Geom_Surface> hSurf(ell);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomEvalHyperboloidD0(double r1, double r2, int32_t mode, double u, double v,
+                                double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    auto sm = mode == 0 ? GeomEval_HyperboloidSurface::SheetMode::OneSheet
+                        : GeomEval_HyperboloidSurface::SheetMode::TwoSheets;
+    GeomEval_HyperboloidSurface hyp(ax, r1, r2, sm);
+    gp_Pnt p = hyp.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalHyperboloidCreate(double r1, double r2, int32_t mode) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto sm = mode == 0 ? GeomEval_HyperboloidSurface::SheetMode::OneSheet
+                            : GeomEval_HyperboloidSurface::SheetMode::TwoSheets;
+        auto hyp = new GeomEval_HyperboloidSurface(ax, r1, r2, sm);
+        occ::handle<Geom_Surface> hSurf(hyp);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomEvalParaboloidD0(double focal, double u, double v,
+                               double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_ParaboloidSurface par(ax, focal);
+    gp_Pnt p = par.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalParaboloidCreate(double focal) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto par = new GeomEval_ParaboloidSurface(ax, focal);
+        occ::handle<Geom_Surface> hSurf(par);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomEvalCircularHelicoidD0(double pitch, double u, double v,
+                                     double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_CircularHelicoidSurface hel(ax, pitch);
+    gp_Pnt p = hel.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalCircularHelicoidCreate(double pitch) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto hel = new GeomEval_CircularHelicoidSurface(ax, pitch);
+        occ::handle<Geom_Surface> hSurf(hel);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomEvalHypParaboloidD0(double a, double b, double u, double v,
+                                  double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_HypParaboloidSurface hp(ax, a, b);
+    gp_Pnt p = hp.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalHypParaboloidCreate(double a, double b) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto hp = new GeomEval_HypParaboloidSurface(ax, a, b);
+        occ::handle<Geom_Surface> hSurf(hp);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- Geom2dEval Curves ---
+
+void OCCTGeom2dEvalArchimedeanSpiralD0(double initialRadius, double growthRate, double u,
+                                        double* px, double* py) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_ArchimedeanSpiralCurve sp(ax, initialRadius, growthRate);
+    gp_Pnt2d p = sp.EvalD0(u);
+    *px = p.X(); *py = p.Y();
+}
+
+void OCCTGeom2dEvalArchimedeanSpiralD1(double initialRadius, double growthRate, double u,
+                                        double* px, double* py,
+                                        double* vx, double* vy) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_ArchimedeanSpiralCurve sp(ax, initialRadius, growthRate);
+    auto res = sp.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y();
+    *vx = res.D1.X(); *vy = res.D1.Y();
+}
+
+void OCCTGeom2dEvalLogSpiralD0(double scale, double growthExponent, double u,
+                                double* px, double* py) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_LogarithmicSpiralCurve sp(ax, scale, growthExponent);
+    gp_Pnt2d p = sp.EvalD0(u);
+    *px = p.X(); *py = p.Y();
+}
+
+void OCCTGeom2dEvalLogSpiralD1(double scale, double growthExponent, double u,
+                                double* px, double* py,
+                                double* vx, double* vy) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_LogarithmicSpiralCurve sp(ax, scale, growthExponent);
+    auto res = sp.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y();
+    *vx = res.D1.X(); *vy = res.D1.Y();
+}
+
+void OCCTGeom2dEvalCircleInvoluteD0(double radius, double u,
+                                     double* px, double* py) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_CircleInvoluteCurve inv(ax, radius);
+    gp_Pnt2d p = inv.EvalD0(u);
+    *px = p.X(); *py = p.Y();
+}
+
+void OCCTGeom2dEvalCircleInvoluteD1(double radius, double u,
+                                     double* px, double* py,
+                                     double* vx, double* vy) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_CircleInvoluteCurve inv(ax, radius);
+    auto res = inv.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y();
+    *vx = res.D1.X(); *vy = res.D1.Y();
+}
+
+void OCCTGeom2dEvalSineWaveD0(double amplitude, double omega, double phase, double u,
+                               double* px, double* py) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_SineWaveCurve sw(ax, amplitude, omega, phase);
+    gp_Pnt2d p = sw.EvalD0(u);
+    *px = p.X(); *py = p.Y();
+}
+
+void OCCTGeom2dEvalSineWaveD1(double amplitude, double omega, double phase, double u,
+                               double* px, double* py,
+                               double* vx, double* vy) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_SineWaveCurve sw(ax, amplitude, omega, phase);
+    auto res = sw.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y();
+    *vx = res.D1.X(); *vy = res.D1.Y();
+}
+
+// --- GeomFill_Gordon ---
+
+OCCTSurfaceRef OCCTGeomFillGordon(const OCCTCurve3DRef* profiles, int32_t profileCount,
+                                   const OCCTCurve3DRef* guides, int32_t guideCount,
+                                   double tolerance) {
+    if (!profiles || !guides || profileCount < 2 || guideCount < 2) return nullptr;
+    try {
+        NCollection_Array1<occ::handle<Geom_Curve>> profs(0, profileCount - 1);
+        for (int i = 0; i < profileCount; i++) {
+            if (!profiles[i]) return nullptr;
+            profs.SetValue(i, profiles[i]->curve);
+        }
+        NCollection_Array1<occ::handle<Geom_Curve>> gds(0, guideCount - 1);
+        for (int i = 0; i < guideCount; i++) {
+            if (!guides[i]) return nullptr;
+            gds.SetValue(i, guides[i]->curve);
+        }
+
+        GeomFill_Gordon gordon;
+        gordon.Init(profs, gds, tolerance);
+        gordon.Perform();
+        if (!gordon.IsDone()) return nullptr;
+
+        auto surf = gordon.Surface();
+        if (surf.IsNull()) return nullptr;
+
+        auto ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- PointSetLib ---
+
+void OCCTPointSetProps(const double* points, int32_t count,
+                       double* cx, double* cy, double* cz, double* mass) {
+    if (!points || count <= 0) { *cx = *cy = *cz = *mass = 0; return; }
+    NCollection_Array1<gp_Pnt> pts(0, count - 1);
+    for (int i = 0; i < count; i++) {
+        pts.SetValue(i, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+    }
+    PointSetLib_Props props(pts);
+    auto cg = props.CentreOfMass();
+    *cx = cg.X(); *cy = cg.Y(); *cz = cg.Z();
+    *mass = props.Mass();
+}
+
+void OCCTPointSetPropsInertia(const double* points, int32_t count, double* inertiaMatrix) {
+    if (!points || count <= 0 || !inertiaMatrix) return;
+    NCollection_Array1<gp_Pnt> pts(0, count - 1);
+    for (int i = 0; i < count; i++) {
+        pts.SetValue(i, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+    }
+    PointSetLib_Props props(pts);
+    gp_Mat m = props.MatrixOfInertia();
+    inertiaMatrix[0] = m.Value(1,1); inertiaMatrix[1] = m.Value(1,2); inertiaMatrix[2] = m.Value(1,3);
+    inertiaMatrix[3] = m.Value(2,1); inertiaMatrix[4] = m.Value(2,2); inertiaMatrix[5] = m.Value(2,3);
+    inertiaMatrix[6] = m.Value(3,1); inertiaMatrix[7] = m.Value(3,2); inertiaMatrix[8] = m.Value(3,3);
+}
+
+void OCCTPointSetBarycentre(const double* points, int32_t count,
+                             double* bx, double* by, double* bz) {
+    if (!points || count <= 0) { *bx = *by = *bz = 0; return; }
+    NCollection_Array1<gp_Pnt> pts(0, count - 1);
+    for (int i = 0; i < count; i++) {
+        pts.SetValue(i, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+    }
+    gp_Pnt b = PointSetLib_Props::Barycentre(pts);
+    *bx = b.X(); *by = b.Y(); *bz = b.Z();
+}
+
+int32_t OCCTPointSetEquation(const double* points, int32_t count, double tolerance,
+                              double* baryCx, double* baryCy, double* baryCz,
+                              double* planeNx, double* planeNy, double* planeNz,
+                              double* planeDist) {
+    if (!points || count <= 0) return -1;
+    try {
+        NCollection_Array1<gp_Pnt> pts(0, count - 1);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        PointSetLib_Equation eq(pts, tolerance);
+        auto bary = eq.Barycentre();
+        *baryCx = bary.X(); *baryCy = bary.Y(); *baryCz = bary.Z();
+        *planeNx = *planeNy = *planeNz = *planeDist = 0;
+
+        auto type = eq.GetType();
+        if (type == PointSetLib_Equation::Type::Point) {
+            return 0;
+        } else if (type == PointSetLib_Equation::Type::Line) {
+            return 1;
+        } else if (type == PointSetLib_Equation::Type::Plane) {
+            auto pl = eq.Plane();
+            auto dir = pl.Axis().Direction();
+            *planeNx = dir.X(); *planeNy = dir.Y(); *planeNz = dir.Z();
+            *planeDist = pl.Distance(gp_Pnt(0,0,0));
+            return 2;
+        } else {
+            return 3;
+        }
+    } catch (...) { return -1; }
+}
+
+// --- ExtremaPC ---
+
+int32_t OCCTExtremaPCCurve(OCCTCurve3DRef curve,
+                            double px, double py, double pz,
+                            double* outParams, double* outDistances,
+                            double* outPx, double* outPy, double* outPz,
+                            int32_t maxResults) {
+    if (!curve || !outParams || !outDistances || maxResults <= 0) return 0;
+    try {
+        ExtremaPC_Curve extPC(curve->curve);
+        if (!extPC.IsInitialized()) return 0;
+        const auto& result = extPC.Perform(gp_Pnt(px, py, pz), 1e-9);
+        if (!result.IsDone()) return 0;
+        int n = std::min((int)result.NbExt(), (int)maxResults);
+        for (int i = 0; i < n; i++) {
+            outParams[i] = result[i].Parameter;
+            outDistances[i] = std::sqrt(result[i].SquareDistance);
+            if (outPx) outPx[i] = result[i].Point.X();
+            if (outPy) outPy[i] = result[i].Point.Y();
+            if (outPz) outPz[i] = result[i].Point.Z();
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTExtremaPCCurveBounded(OCCTCurve3DRef curve,
+                                   double px, double py, double pz,
+                                   double uMin, double uMax,
+                                   double* outParams, double* outDistances,
+                                   double* outPx, double* outPy, double* outPz,
+                                   int32_t maxResults) {
+    if (!curve || !outParams || !outDistances || maxResults <= 0) return 0;
+    try {
+        ExtremaPC_Curve extPC(curve->curve, uMin, uMax);
+        if (!extPC.IsInitialized()) return 0;
+        const auto& result = extPC.Perform(gp_Pnt(px, py, pz), 1e-9);
+        if (!result.IsDone()) return 0;
+        int n = std::min((int)result.NbExt(), (int)maxResults);
+        for (int i = 0; i < n; i++) {
+            outParams[i] = result[i].Parameter;
+            outDistances[i] = std::sqrt(result[i].SquareDistance);
+            if (outPx) outPx[i] = result[i].Point.X();
+            if (outPy) outPy[i] = result[i].Point.Y();
+            if (outPz) outPz[i] = result[i].Point.Z();
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+double OCCTExtremaPCMinDistance(OCCTCurve3DRef curve,
+                                double px, double py, double pz) {
+    if (!curve) return -1.0;
+    try {
+        ExtremaPC_Curve extPC(curve->curve);
+        if (!extPC.IsInitialized()) return -1.0;
+        const auto& result = extPC.Perform(gp_Pnt(px, py, pz), 1e-9);
+        if (!result.IsDone() || result.NbExt() == 0) return -1.0;
+        return std::sqrt(result.MinSquareDistance());
+    } catch (...) { return -1.0; }
+}
+
+// end of v0.130.0 implementations

@@ -1698,3 +1698,96 @@ extension Curve3D {
                               normal.x, normal.y, normal.z, 0)
     }
 }
+
+// MARK: - v0.130.0: GeomEval Analytical Curve Factories
+
+extension Curve3D {
+
+    /// Create a circular helix curve.
+    /// C(t) = R*cos(t)*X + R*sin(t)*Y + (P*t/(2*Pi))*Z
+    /// - Parameters:
+    ///   - radius: helix radius (must be > 0)
+    ///   - pitch: axial advance per 2*Pi turn (can be negative for left-handed)
+    /// - Returns: Curve3D or nil on error
+    public static func circularHelix(radius: Double, pitch: Double) -> Curve3D? {
+        guard let ref = OCCTGeomEvalCircularHelixCurveCreate(radius, pitch) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D sine wave curve.
+    /// C(t) = t*X + A*sin(omega*t + phi)*Y
+    /// - Parameters:
+    ///   - amplitude: wave amplitude (must be > 0)
+    ///   - omega: angular frequency (must be > 0)
+    ///   - phase: phase shift (default 0)
+    /// - Returns: Curve3D or nil on error
+    public static func sineWave(amplitude: Double, omega: Double, phase: Double = 0.0) -> Curve3D? {
+        guard let ref = OCCTGeomEvalSineWaveCurveCreate(amplitude, omega, phase) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
+
+// MARK: - v0.130.0: ExtremaPC (Point-Curve Distance)
+
+extension Curve3D {
+
+    /// Result of a point-curve extrema computation.
+    public struct ExtremumResult: Sendable {
+        /// Parameter on the curve
+        public let parameter: Double
+        /// Distance from query point to curve point
+        public let distance: Double
+        /// Closest point on the curve
+        public let point: SIMD3<Double>
+    }
+
+    /// Find all extrema (closest/farthest points) from a point to this curve.
+    /// - Parameter point: the query point
+    /// - Returns: array of extrema results, or empty on failure
+    public func extrema(from point: SIMD3<Double>) -> [ExtremumResult] {
+        let maxResults: Int32 = 64
+        var params = [Double](repeating: 0, count: Int(maxResults))
+        var dists = [Double](repeating: 0, count: Int(maxResults))
+        var px = [Double](repeating: 0, count: Int(maxResults))
+        var py = [Double](repeating: 0, count: Int(maxResults))
+        var pz = [Double](repeating: 0, count: Int(maxResults))
+        let n = OCCTExtremaPCCurve(handle, point.x, point.y, point.z,
+                                    &params, &dists, &px, &py, &pz, maxResults)
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremumResult(parameter: params[i], distance: dists[i],
+                          point: SIMD3(px[i], py[i], pz[i]))
+        }
+    }
+
+    /// Find all extrema from a point to a bounded segment of this curve.
+    /// - Parameters:
+    ///   - point: the query point
+    ///   - uMin: lower parameter bound
+    ///   - uMax: upper parameter bound
+    /// - Returns: array of extrema results
+    public func extrema(from point: SIMD3<Double>, uMin: Double, uMax: Double) -> [ExtremumResult] {
+        let maxResults: Int32 = 64
+        var params = [Double](repeating: 0, count: Int(maxResults))
+        var dists = [Double](repeating: 0, count: Int(maxResults))
+        var px = [Double](repeating: 0, count: Int(maxResults))
+        var py = [Double](repeating: 0, count: Int(maxResults))
+        var pz = [Double](repeating: 0, count: Int(maxResults))
+        let n = OCCTExtremaPCCurveBounded(handle, point.x, point.y, point.z,
+                                           uMin, uMax,
+                                           &params, &dists, &px, &py, &pz, maxResults)
+        guard n > 0 else { return [] }
+        return (0..<Int(n)).map { i in
+            ExtremumResult(parameter: params[i], distance: dists[i],
+                          point: SIMD3(px[i], py[i], pz[i]))
+        }
+    }
+
+    /// Find minimum distance from a point to this curve.
+    /// - Parameter point: the query point
+    /// - Returns: the minimum distance, or nil on failure
+    public func minimumDistance(from point: SIMD3<Double>) -> Double? {
+        let d = OCCTExtremaPCMinDistance(handle, point.x, point.y, point.z)
+        return d >= 0 ? d : nil
+    }
+}

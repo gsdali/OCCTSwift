@@ -18863,6 +18863,176 @@ bool OCCTSurfaceBezierSetWeightCol(OCCTSurfaceRef _Nonnull surface, int32_t vInd
 bool OCCTSurfaceBezierSetWeightRow(OCCTSurfaceRef _Nonnull surface, int32_t uIndex,
                                     const double* _Nonnull weights, int32_t count);
 
+// MARK: - v0.130.0: GeomEval Curves, GeomEval Surfaces, Geom2dEval Curves, GeomFill Gordon, PointSetLib, ExtremaPC
+
+// --- GeomEval 3D Curve Evaluators ---
+
+/// Evaluate a circular helix at parameter u. Returns point (px,py,pz).
+/// Helix: C(t) = O + R*cos(t)*XDir + R*sin(t)*YDir + (P*t/(2*Pi))*ZDir
+void OCCTGeomEvalCircularHelixD0(double radius, double pitch, double u,
+                                  double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Evaluate circular helix D1: point + first derivative.
+void OCCTGeomEvalCircularHelixD1(double radius, double pitch, double u,
+                                  double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                                  double* _Nonnull vx, double* _Nonnull vy, double* _Nonnull vz);
+
+/// Evaluate circular helix D2: point + first + second derivatives.
+void OCCTGeomEvalCircularHelixD2(double radius, double pitch, double u,
+                                  double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                                  double* _Nonnull d1x, double* _Nonnull d1y, double* _Nonnull d1z,
+                                  double* _Nonnull d2x, double* _Nonnull d2y, double* _Nonnull d2z);
+
+/// Create circular helix as OCCTCurve3DRef (Geom_Curve subclass). Returns NULL on error.
+OCCTCurve3DRef _Nullable OCCTGeomEvalCircularHelixCurveCreate(double radius, double pitch);
+
+/// Evaluate a 3D sine wave at parameter u. Returns point.
+/// C(t) = O + t*XDir + A*sin(omega*t + phi)*YDir
+void OCCTGeomEvalSineWaveD0(double amplitude, double omega, double phase, double u,
+                             double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Evaluate 3D sine wave D1: point + first derivative.
+void OCCTGeomEvalSineWaveD1(double amplitude, double omega, double phase, double u,
+                             double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                             double* _Nonnull vx, double* _Nonnull vy, double* _Nonnull vz);
+
+/// Create 3D sine wave as OCCTCurve3DRef. Returns NULL on error.
+OCCTCurve3DRef _Nullable OCCTGeomEvalSineWaveCurveCreate(double amplitude, double omega, double phase);
+
+// --- GeomEval Surfaces ---
+
+/// Evaluate ellipsoid surface D0 at (u,v). Returns point.
+void OCCTGeomEvalEllipsoidD0(double a, double b, double c, double u, double v,
+                              double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Create ellipsoid as OCCTSurfaceRef. Returns NULL on error.
+OCCTSurfaceRef _Nullable OCCTGeomEvalEllipsoidCreate(double a, double b, double c);
+
+/// Evaluate hyperboloid D0 at (u,v). mode: 0=one-sheet, 1=two-sheets.
+void OCCTGeomEvalHyperboloidD0(double r1, double r2, int32_t mode, double u, double v,
+                                double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Create hyperboloid as OCCTSurfaceRef. mode: 0=one-sheet, 1=two-sheets.
+OCCTSurfaceRef _Nullable OCCTGeomEvalHyperboloidCreate(double r1, double r2, int32_t mode);
+
+/// Evaluate paraboloid D0 at (u,v).
+void OCCTGeomEvalParaboloidD0(double focal, double u, double v,
+                               double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Create paraboloid as OCCTSurfaceRef.
+OCCTSurfaceRef _Nullable OCCTGeomEvalParaboloidCreate(double focal);
+
+/// Evaluate circular helicoid D0 at (u,v).
+void OCCTGeomEvalCircularHelicoidD0(double pitch, double u, double v,
+                                     double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Create circular helicoid as OCCTSurfaceRef.
+OCCTSurfaceRef _Nullable OCCTGeomEvalCircularHelicoidCreate(double pitch);
+
+/// Evaluate hyperbolic paraboloid D0 at (u,v).
+void OCCTGeomEvalHypParaboloidD0(double a, double b, double u, double v,
+                                  double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz);
+
+/// Create hyperbolic paraboloid as OCCTSurfaceRef.
+OCCTSurfaceRef _Nullable OCCTGeomEvalHypParaboloidCreate(double a, double b);
+
+// --- Geom2dEval 2D Curve Evaluators ---
+
+/// Evaluate Archimedean spiral D0 at parameter u. Returns 2D point.
+/// C(t) = O + (a + b*t)*cos(t)*XDir + (a + b*t)*sin(t)*YDir
+void OCCTGeom2dEvalArchimedeanSpiralD0(double initialRadius, double growthRate, double u,
+                                        double* _Nonnull px, double* _Nonnull py);
+
+/// Evaluate Archimedean spiral D1: point + first derivative.
+void OCCTGeom2dEvalArchimedeanSpiralD1(double initialRadius, double growthRate, double u,
+                                        double* _Nonnull px, double* _Nonnull py,
+                                        double* _Nonnull vx, double* _Nonnull vy);
+
+/// Evaluate logarithmic spiral D0 at parameter u.
+/// C(t) = O + a*exp(b*t)*cos(t)*XDir + a*exp(b*t)*sin(t)*YDir
+void OCCTGeom2dEvalLogSpiralD0(double scale, double growthExponent, double u,
+                                double* _Nonnull px, double* _Nonnull py);
+
+/// Evaluate logarithmic spiral D1: point + derivative.
+void OCCTGeom2dEvalLogSpiralD1(double scale, double growthExponent, double u,
+                                double* _Nonnull px, double* _Nonnull py,
+                                double* _Nonnull vx, double* _Nonnull vy);
+
+/// Evaluate circle involute D0 at parameter u.
+/// C(t) = O + R*(cos(t) + t*sin(t))*XDir + R*(sin(t) - t*cos(t))*YDir
+void OCCTGeom2dEvalCircleInvoluteD0(double radius, double u,
+                                     double* _Nonnull px, double* _Nonnull py);
+
+/// Evaluate circle involute D1: point + derivative.
+void OCCTGeom2dEvalCircleInvoluteD1(double radius, double u,
+                                     double* _Nonnull px, double* _Nonnull py,
+                                     double* _Nonnull vx, double* _Nonnull vy);
+
+/// Evaluate 2D sine wave D0 at parameter u.
+/// C(t) = O + t*XDir + A*sin(omega*t + phi)*YDir
+void OCCTGeom2dEvalSineWaveD0(double amplitude, double omega, double phase, double u,
+                               double* _Nonnull px, double* _Nonnull py);
+
+/// Evaluate 2D sine wave D1: point + derivative.
+void OCCTGeom2dEvalSineWaveD1(double amplitude, double omega, double phase, double u,
+                               double* _Nonnull px, double* _Nonnull py,
+                               double* _Nonnull vx, double* _Nonnull vy);
+
+// --- GeomFill_Gordon ---
+
+/// Build a Gordon surface from a network of profile and guide curves.
+/// profiles and guides are arrays of OCCTCurve3DRef. Returns surface or NULL.
+OCCTSurfaceRef _Nullable OCCTGeomFillGordon(const OCCTCurve3DRef _Nonnull * _Nonnull profiles,
+                                             int32_t profileCount,
+                                             const OCCTCurve3DRef _Nonnull * _Nonnull guides,
+                                             int32_t guideCount,
+                                             double tolerance);
+
+// --- PointSetLib ---
+
+/// Compute centroid and mass of a point cloud. points: flat [x,y,z,...].
+void OCCTPointSetProps(const double* _Nonnull points, int32_t count,
+                       double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz,
+                       double* _Nonnull mass);
+
+/// Compute inertia matrix at centre of mass. inertiaMatrix: 9 doubles (3x3 row-major).
+void OCCTPointSetPropsInertia(const double* _Nonnull points, int32_t count,
+                               double* _Nonnull inertiaMatrix);
+
+/// Barycentre of point cloud (unit mass). points: flat [x,y,z,...].
+void OCCTPointSetBarycentre(const double* _Nonnull points, int32_t count,
+                             double* _Nonnull bx, double* _Nonnull by, double* _Nonnull bz);
+
+/// PCA analysis of a point cloud. Returns dimensionality: 0=point, 1=line, 2=plane, 3=space.
+/// planeNormal+planeDist valid for type=2; barycentre always valid.
+int32_t OCCTPointSetEquation(const double* _Nonnull points, int32_t count, double tolerance,
+                              double* _Nonnull baryCx, double* _Nonnull baryCy, double* _Nonnull baryCz,
+                              double* _Nonnull planeNx, double* _Nonnull planeNy, double* _Nonnull planeNz,
+                              double* _Nonnull planeDist);
+
+// --- ExtremaPC (Point-Curve Extrema) ---
+
+/// Find closest point on a Geom_Curve to a query point.
+/// Returns number of extrema found (0 on failure).
+/// outParams[i] = parameter on curve, outDistances[i] = distance.
+int32_t OCCTExtremaPCCurve(OCCTCurve3DRef _Nonnull curve,
+                            double px, double py, double pz,
+                            double* _Nonnull outParams, double* _Nonnull outDistances,
+                            double* _Nonnull outPx, double* _Nonnull outPy, double* _Nonnull outPz,
+                            int32_t maxResults);
+
+/// Find closest point on a bounded Geom_Curve segment to a query point.
+int32_t OCCTExtremaPCCurveBounded(OCCTCurve3DRef _Nonnull curve,
+                                   double px, double py, double pz,
+                                   double uMin, double uMax,
+                                   double* _Nonnull outParams, double* _Nonnull outDistances,
+                                   double* _Nonnull outPx, double* _Nonnull outPy, double* _Nonnull outPz,
+                                   int32_t maxResults);
+
+/// Find minimum distance from point to curve (convenience — returns distance, -1 on error).
+double OCCTExtremaPCMinDistance(OCCTCurve3DRef _Nonnull curve,
+                                double px, double py, double pz);
+
 #ifdef __cplusplus
 }
 #endif

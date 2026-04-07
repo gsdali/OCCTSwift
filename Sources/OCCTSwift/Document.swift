@@ -15848,3 +15848,232 @@ public final class SectionBuilder: @unchecked Sendable {
         return Shape(handle: ref)
     }
 }
+
+// MARK: - v0.130.0: GeomEval Standalone Evaluators
+
+/// Standalone evaluators for analytical curves and surfaces.
+/// These evaluate mathematical functions without creating persistent Curve3D/Surface objects.
+public enum GeomEval {
+
+    // MARK: 3D Curves
+
+    /// Evaluate a circular helix at parameter u.
+    /// C(t) = R*cos(t)*X + R*sin(t)*Y + (P*t/(2*Pi))*Z
+    public static func circularHelixD0(radius: Double, pitch: Double, u: Double) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTGeomEvalCircularHelixD0(radius, pitch, u, &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+
+    /// Evaluate circular helix point and first derivative at parameter u.
+    public static func circularHelixD1(radius: Double, pitch: Double, u: Double) -> (point: SIMD3<Double>, d1: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0, vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTGeomEvalCircularHelixD1(radius, pitch, u, &px, &py, &pz, &vx, &vy, &vz)
+        return (SIMD3(px, py, pz), SIMD3(vx, vy, vz))
+    }
+
+    /// Evaluate circular helix point, first and second derivatives.
+    public static func circularHelixD2(radius: Double, pitch: Double, u: Double) -> (point: SIMD3<Double>, d1: SIMD3<Double>, d2: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0
+        var d1x = 0.0, d1y = 0.0, d1z = 0.0
+        var d2x = 0.0, d2y = 0.0, d2z = 0.0
+        OCCTGeomEvalCircularHelixD2(radius, pitch, u, &px, &py, &pz, &d1x, &d1y, &d1z, &d2x, &d2y, &d2z)
+        return (SIMD3(px, py, pz), SIMD3(d1x, d1y, d1z), SIMD3(d2x, d2y, d2z))
+    }
+
+    /// Evaluate a 3D sine wave at parameter u.
+    /// C(t) = t*X + A*sin(omega*t + phi)*Y
+    public static func sineWaveD0(amplitude: Double, omega: Double, phase: Double, u: Double) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTGeomEvalSineWaveD0(amplitude, omega, phase, u, &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+
+    /// Evaluate 3D sine wave point and first derivative.
+    public static func sineWaveD1(amplitude: Double, omega: Double, phase: Double, u: Double) -> (point: SIMD3<Double>, d1: SIMD3<Double>) {
+        var px = 0.0, py = 0.0, pz = 0.0, vx = 0.0, vy = 0.0, vz = 0.0
+        OCCTGeomEvalSineWaveD1(amplitude, omega, phase, u, &px, &py, &pz, &vx, &vy, &vz)
+        return (SIMD3(px, py, pz), SIMD3(vx, vy, vz))
+    }
+
+    // MARK: Surfaces
+
+    /// Evaluate an ellipsoid at (u, v).
+    /// P(u,v) = A*cos(v)*cos(u)*X + B*cos(v)*sin(u)*Y + C*sin(v)*Z
+    public static func ellipsoidD0(a: Double, b: Double, c: Double, u: Double, v: Double) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTGeomEvalEllipsoidD0(a, b, c, u, v, &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+
+    /// Evaluate a hyperboloid at (u, v). twoSheets: false = one-sheet, true = two-sheets.
+    public static func hyperboloidD0(r1: Double, r2: Double, twoSheets: Bool, u: Double, v: Double) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTGeomEvalHyperboloidD0(r1, r2, twoSheets ? 1 : 0, u, v, &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+
+    /// Evaluate a paraboloid at (u, v).
+    public static func paraboloidD0(focal: Double, u: Double, v: Double) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTGeomEvalParaboloidD0(focal, u, v, &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+
+    /// Evaluate a circular helicoid at (u, v).
+    public static func circularHelicoidD0(pitch: Double, u: Double, v: Double) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTGeomEvalCircularHelicoidD0(pitch, u, v, &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+
+    /// Evaluate a hyperbolic paraboloid at (u, v).
+    public static func hyperbolicParaboloidD0(a: Double, b: Double, u: Double, v: Double) -> SIMD3<Double> {
+        var px = 0.0, py = 0.0, pz = 0.0
+        OCCTGeomEvalHypParaboloidD0(a, b, u, v, &px, &py, &pz)
+        return SIMD3(px, py, pz)
+    }
+}
+
+// MARK: - v0.130.0: Geom2dEval Standalone Evaluators
+
+/// Standalone evaluators for analytical 2D curves.
+public enum Geom2dEval {
+
+    /// Evaluate an Archimedean spiral at parameter u.
+    /// C(t) = (a + b*t)*cos(t)*X + (a + b*t)*sin(t)*Y
+    public static func archimedeanSpiralD0(initialRadius: Double, growthRate: Double, u: Double) -> SIMD2<Double> {
+        var px = 0.0, py = 0.0
+        OCCTGeom2dEvalArchimedeanSpiralD0(initialRadius, growthRate, u, &px, &py)
+        return SIMD2(px, py)
+    }
+
+    /// Evaluate Archimedean spiral point and first derivative.
+    public static func archimedeanSpiralD1(initialRadius: Double, growthRate: Double, u: Double) -> (point: SIMD2<Double>, d1: SIMD2<Double>) {
+        var px = 0.0, py = 0.0, vx = 0.0, vy = 0.0
+        OCCTGeom2dEvalArchimedeanSpiralD1(initialRadius, growthRate, u, &px, &py, &vx, &vy)
+        return (SIMD2(px, py), SIMD2(vx, vy))
+    }
+
+    /// Evaluate a logarithmic spiral at parameter u.
+    /// C(t) = a*exp(b*t)*cos(t)*X + a*exp(b*t)*sin(t)*Y
+    public static func logarithmicSpiralD0(scale: Double, growthExponent: Double, u: Double) -> SIMD2<Double> {
+        var px = 0.0, py = 0.0
+        OCCTGeom2dEvalLogSpiralD0(scale, growthExponent, u, &px, &py)
+        return SIMD2(px, py)
+    }
+
+    /// Evaluate logarithmic spiral point and first derivative.
+    public static func logarithmicSpiralD1(scale: Double, growthExponent: Double, u: Double) -> (point: SIMD2<Double>, d1: SIMD2<Double>) {
+        var px = 0.0, py = 0.0, vx = 0.0, vy = 0.0
+        OCCTGeom2dEvalLogSpiralD1(scale, growthExponent, u, &px, &py, &vx, &vy)
+        return (SIMD2(px, py), SIMD2(vx, vy))
+    }
+
+    /// Evaluate a circle involute at parameter u.
+    /// C(t) = R*(cos(t) + t*sin(t))*X + R*(sin(t) - t*cos(t))*Y
+    public static func circleInvoluteD0(radius: Double, u: Double) -> SIMD2<Double> {
+        var px = 0.0, py = 0.0
+        OCCTGeom2dEvalCircleInvoluteD0(radius, u, &px, &py)
+        return SIMD2(px, py)
+    }
+
+    /// Evaluate circle involute point and first derivative.
+    public static func circleInvoluteD1(radius: Double, u: Double) -> (point: SIMD2<Double>, d1: SIMD2<Double>) {
+        var px = 0.0, py = 0.0, vx = 0.0, vy = 0.0
+        OCCTGeom2dEvalCircleInvoluteD1(radius, u, &px, &py, &vx, &vy)
+        return (SIMD2(px, py), SIMD2(vx, vy))
+    }
+
+    /// Evaluate a 2D sine wave at parameter u.
+    /// C(t) = t*X + A*sin(omega*t + phi)*Y
+    public static func sineWaveD0(amplitude: Double, omega: Double, phase: Double, u: Double) -> SIMD2<Double> {
+        var px = 0.0, py = 0.0
+        OCCTGeom2dEvalSineWaveD0(amplitude, omega, phase, u, &px, &py)
+        return SIMD2(px, py)
+    }
+
+    /// Evaluate 2D sine wave point and first derivative.
+    public static func sineWaveD1(amplitude: Double, omega: Double, phase: Double, u: Double) -> (point: SIMD2<Double>, d1: SIMD2<Double>) {
+        var px = 0.0, py = 0.0, vx = 0.0, vy = 0.0
+        OCCTGeom2dEvalSineWaveD1(amplitude, omega, phase, u, &px, &py, &vx, &vy)
+        return (SIMD2(px, py), SIMD2(vx, vy))
+    }
+}
+
+// MARK: - v0.130.0: PointSetLib
+
+/// Point cloud analysis utilities backed by PointSetLib.
+public enum PointSetLib {
+
+    /// Result of point set properties computation.
+    public struct Properties: Sendable {
+        /// Centre of mass (barycentre)
+        public let centroid: SIMD3<Double>
+        /// Total mass (number of points with unit mass)
+        public let mass: Double
+    }
+
+    /// Compute centroid and mass of a point cloud.
+    public static func properties(points: [SIMD3<Double>]) -> Properties {
+        let flat = points.flatMap { [$0.x, $0.y, $0.z] }
+        var cx = 0.0, cy = 0.0, cz = 0.0, mass = 0.0
+        OCCTPointSetProps(flat, Int32(points.count), &cx, &cy, &cz, &mass)
+        return Properties(centroid: SIMD3(cx, cy, cz), mass: mass)
+    }
+
+    /// Compute inertia matrix at centre of mass. Returns 3x3 row-major matrix.
+    public static func inertiaMatrix(points: [SIMD3<Double>]) -> [Double] {
+        let flat = points.flatMap { [$0.x, $0.y, $0.z] }
+        var m = [Double](repeating: 0, count: 9)
+        OCCTPointSetPropsInertia(flat, Int32(points.count), &m)
+        return m
+    }
+
+    /// Compute barycentre (unit mass) of a point cloud.
+    public static func barycentre(points: [SIMD3<Double>]) -> SIMD3<Double> {
+        let flat = points.flatMap { [$0.x, $0.y, $0.z] }
+        var bx = 0.0, by = 0.0, bz = 0.0
+        OCCTPointSetBarycentre(flat, Int32(points.count), &bx, &by, &bz)
+        return SIMD3(bx, by, bz)
+    }
+
+    /// Dimensionality type from PCA analysis.
+    public enum DimensionType: Int32, Sendable {
+        case point = 0
+        case line = 1
+        case plane = 2
+        case space = 3
+    }
+
+    /// Result of PCA-based dimensionality analysis.
+    public struct EquationResult: Sendable {
+        /// Dimensionality type
+        public let type: DimensionType
+        /// Barycentre of the point cloud
+        public let barycentre: SIMD3<Double>
+        /// Plane normal (valid when type == .plane)
+        public let planeNormal: SIMD3<Double>
+        /// Plane distance from origin (valid when type == .plane)
+        public let planeDistance: Double
+    }
+
+    /// Analyze dimensionality of a point cloud using PCA.
+    /// - Parameters:
+    ///   - points: the point cloud
+    ///   - tolerance: tolerance for dimension collapse detection
+    /// - Returns: PCA analysis result, or nil on failure
+    public static func equation(points: [SIMD3<Double>], tolerance: Double = 1e-6) -> EquationResult? {
+        guard points.count >= 2 else { return nil }
+        let flat = points.flatMap { [$0.x, $0.y, $0.z] }
+        var bcx = 0.0, bcy = 0.0, bcz = 0.0
+        var pnx = 0.0, pny = 0.0, pnz = 0.0, pd = 0.0
+        let typeVal = OCCTPointSetEquation(flat, Int32(points.count), tolerance,
+                                            &bcx, &bcy, &bcz, &pnx, &pny, &pnz, &pd)
+        guard typeVal >= 0, let dtype = DimensionType(rawValue: typeVal) else { return nil }
+        return EquationResult(type: dtype,
+                             barycentre: SIMD3(bcx, bcy, bcz),
+                             planeNormal: SIMD3(pnx, pny, pnz),
+                             planeDistance: pd)
+    }
+}

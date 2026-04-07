@@ -41696,3 +41696,440 @@ struct IGESExportGuardTests {
     }
 }
 
+// MARK: - v0.130.0 Tests
+
+@Suite("GeomEval — Circular Helix Curve")
+struct GeomEvalCircularHelixTests {
+
+    @Test func helixD0AtZero() {
+        let p = GeomEval.circularHelixD0(radius: 5.0, pitch: 10.0, u: 0.0)
+        #expect(abs(p.x - 5.0) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+        #expect(abs(p.z) < 1e-10)
+    }
+
+    @Test func helixD0AtPi() {
+        let p = GeomEval.circularHelixD0(radius: 5.0, pitch: 10.0, u: .pi)
+        #expect(abs(p.x - (-5.0)) < 1e-6)
+        #expect(abs(p.z - 5.0) < 1e-6) // half turn = pitch/2
+    }
+
+    @Test func helixD1() {
+        let r = GeomEval.circularHelixD1(radius: 5.0, pitch: 10.0, u: 0.0)
+        #expect(abs(r.point.x - 5.0) < 1e-10)
+        // d1 at t=0: dx/dt = -R*sin(0) = 0, dy/dt = R*cos(0) = R
+        #expect(abs(r.d1.x) < 1e-10)
+        #expect(abs(r.d1.y - 5.0) < 1e-10)
+    }
+
+    @Test func helixD2() {
+        let r = GeomEval.circularHelixD2(radius: 5.0, pitch: 10.0, u: 0.0)
+        #expect(abs(r.point.x - 5.0) < 1e-10)
+        // d2 at t=0: d2x/dt2 = -R*cos(0) = -R
+        #expect(abs(r.d2.x - (-5.0)) < 1e-10)
+    }
+
+    @Test func helixCurveCreate() {
+        let curve = Curve3D.circularHelix(radius: 3.0, pitch: 6.0)
+        #expect(curve != nil)
+    }
+
+    @Test func helixCurveMinDistance() {
+        // Verify the helix curve object works with extrema queries
+        if let curve = Curve3D.circularHelix(radius: 5.0, pitch: 10.0) {
+            if let d = curve.minimumDistance(from: SIMD3(10, 0, 0)) {
+                #expect(d > 0)
+            }
+        }
+    }
+}
+
+@Suite("GeomEval — 3D Sine Wave Curve")
+struct GeomEvalSineWaveTests {
+
+    @Test func sineWaveD0AtZero() {
+        let p = GeomEval.sineWaveD0(amplitude: 2.0, omega: 3.0, phase: 0.0, u: 0.0)
+        #expect(abs(p.x) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+    }
+
+    @Test func sineWaveD0AtPiOver2() {
+        // At t=pi/(2*omega): sin(omega*t) = sin(pi/2) = 1
+        let omega = 3.0
+        let t = .pi / (2.0 * omega)
+        let p = GeomEval.sineWaveD0(amplitude: 2.0, omega: omega, phase: 0.0, u: t)
+        #expect(abs(p.x - t) < 1e-10)
+        #expect(abs(p.y - 2.0) < 1e-6) // A*sin(pi/2) = A
+    }
+
+    @Test func sineWaveD1() {
+        let r = GeomEval.sineWaveD1(amplitude: 2.0, omega: 3.0, phase: 0.0, u: 0.0)
+        // d1 at t=0: dx/dt = 1, dy/dt = A*omega*cos(0) = A*omega
+        #expect(abs(r.d1.x - 1.0) < 1e-10)
+        #expect(abs(r.d1.y - 6.0) < 1e-6) // 2*3 = 6
+    }
+
+    @Test func sineWaveCurveCreate() {
+        let curve = Curve3D.sineWave(amplitude: 1.0, omega: 2.0)
+        #expect(curve != nil)
+    }
+
+    @Test func sineWaveWithPhase() {
+        let p = GeomEval.sineWaveD0(amplitude: 1.0, omega: 1.0, phase: .pi / 2.0, u: 0.0)
+        #expect(abs(p.y - 1.0) < 1e-6) // sin(pi/2) = 1
+    }
+}
+
+@Suite("GeomEval — Ellipsoid Surface")
+struct GeomEvalEllipsoidTests {
+
+    @Test func ellipsoidD0AtZeroZero() {
+        let p = GeomEval.ellipsoidD0(a: 3.0, b: 4.0, c: 5.0, u: 0.0, v: 0.0)
+        #expect(abs(p.x - 3.0) < 1e-10) // A*cos(0)*cos(0) = A
+        #expect(abs(p.y) < 1e-10)
+        #expect(abs(p.z) < 1e-10)
+    }
+
+    @Test func ellipsoidD0AtPoles() {
+        // At v = pi/2: north pole = (0, 0, C)
+        let p = GeomEval.ellipsoidD0(a: 3.0, b: 4.0, c: 5.0, u: 0.0, v: .pi / 2.0)
+        #expect(abs(p.x) < 1e-6)
+        #expect(abs(p.y) < 1e-6)
+        #expect(abs(p.z - 5.0) < 1e-6)
+    }
+
+    @Test func ellipsoidSurfaceCreate() {
+        let surf = Surface.ellipsoid(a: 2.0, b: 3.0, c: 4.0)
+        #expect(surf != nil)
+    }
+}
+
+@Suite("GeomEval — Hyperboloid Surface")
+struct GeomEvalHyperboloidTests {
+
+    @Test func hyperboloidOneSheetD0() {
+        // At u=0, v=0: P = (R1*cosh(0)*cos(0), R1*cosh(0)*sin(0), R2*sinh(0))
+        // = (R1, 0, 0)
+        let p = GeomEval.hyperboloidD0(r1: 2.0, r2: 3.0, twoSheets: false, u: 0.0, v: 0.0)
+        #expect(abs(p.x - 2.0) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+        #expect(abs(p.z) < 1e-10)
+    }
+
+    @Test func hyperboloidTwoSheets() {
+        let p = GeomEval.hyperboloidD0(r1: 2.0, r2: 3.0, twoSheets: true, u: 0.0, v: 0.0)
+        #expect(p.z != 0 || p.x != 0) // valid point
+    }
+
+    @Test func hyperboloidSurfaceCreate() {
+        let surf = Surface.hyperboloid(r1: 2.0, r2: 3.0)
+        #expect(surf != nil)
+    }
+
+    @Test func hyperboloidTwoSheetsCreate() {
+        let surf = Surface.hyperboloid(r1: 2.0, r2: 3.0, twoSheets: true)
+        #expect(surf != nil)
+    }
+}
+
+@Suite("GeomEval — Paraboloid Surface")
+struct GeomEvalParaboloidTests {
+
+    @Test func paraboloidD0() {
+        // At u=0, v=1: P = (1*cos(0), 1*sin(0), 1/(4*F)) = (1, 0, 0.125) for F=2
+        let p = GeomEval.paraboloidD0(focal: 2.0, u: 0.0, v: 1.0)
+        #expect(abs(p.x - 1.0) < 1e-10)
+        #expect(abs(p.z - 0.125) < 1e-10) // 1/(4*2) = 0.125
+    }
+
+    @Test func paraboloidSurfaceCreate() {
+        let surf = Surface.paraboloid(focal: 2.0)
+        #expect(surf != nil)
+    }
+}
+
+@Suite("GeomEval — Circular Helicoid Surface")
+struct GeomEvalCircularHelicoidTests {
+
+    @Test func circularHelicoidD0() {
+        // At u=0, v=1: P = (1*cos(0), 1*sin(0), 0) = (1, 0, 0)
+        let p = GeomEval.circularHelicoidD0(pitch: 5.0, u: 0.0, v: 1.0)
+        #expect(abs(p.x - 1.0) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+        #expect(abs(p.z) < 1e-10)
+    }
+
+    @Test func circularHelicoidSurfaceCreate() {
+        let surf = Surface.circularHelicoid(pitch: 5.0)
+        #expect(surf != nil)
+    }
+}
+
+@Suite("GeomEval — Hyperbolic Paraboloid Surface")
+struct GeomEvalHypParaboloidTests {
+
+    @Test func hypParaboloidD0AtOrigin() {
+        let p = GeomEval.hyperbolicParaboloidD0(a: 2.0, b: 3.0, u: 0.0, v: 0.0)
+        #expect(abs(p.x) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+        #expect(abs(p.z) < 1e-10) // saddle point at origin
+    }
+
+    @Test func hypParaboloidD0AwayFromOrigin() {
+        // At u=2, v=0: z = u^2/a^2 - v^2/b^2 = 4/4 = 1
+        let p = GeomEval.hyperbolicParaboloidD0(a: 2.0, b: 3.0, u: 2.0, v: 0.0)
+        #expect(abs(p.x - 2.0) < 1e-10)
+        #expect(abs(p.z - 1.0) < 1e-10)
+    }
+
+    @Test func hypParaboloidSurfaceCreate() {
+        let surf = Surface.hyperbolicParaboloid(a: 2.0, b: 3.0)
+        #expect(surf != nil)
+    }
+}
+
+@Suite("Geom2dEval — Archimedean Spiral")
+struct Geom2dEvalArchimedeanSpiralTests {
+
+    @Test func spiralD0AtZero() {
+        let p = Geom2dEval.archimedeanSpiralD0(initialRadius: 0.0, growthRate: 1.0, u: 0.0)
+        #expect(abs(p.x) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+    }
+
+    @Test func spiralD0AtTwoPi() {
+        // At t=2*pi: r = 0 + 1*2*pi, x = r*cos(2pi) = 2pi
+        let p = Geom2dEval.archimedeanSpiralD0(initialRadius: 0.0, growthRate: 1.0, u: 2.0 * .pi)
+        #expect(abs(p.x - 2.0 * .pi) < 1e-6)
+        #expect(abs(p.y) < 1e-6)
+    }
+
+    @Test func spiralD1() {
+        let r = Geom2dEval.archimedeanSpiralD1(initialRadius: 1.0, growthRate: 0.5, u: 0.0)
+        // At t=0 with a=1, b=0.5: point = (1, 0)
+        #expect(abs(r.point.x - 1.0) < 1e-10)
+        // d1: check it returns non-zero derivative
+        let speed = sqrt(r.d1.x * r.d1.x + r.d1.y * r.d1.y)
+        #expect(speed > 0)
+    }
+
+    @Test func spiralWithInitialRadius() {
+        let p = Geom2dEval.archimedeanSpiralD0(initialRadius: 2.0, growthRate: 1.0, u: 0.0)
+        #expect(abs(p.x - 2.0) < 1e-10) // (a+b*0)*cos(0) = a
+    }
+}
+
+@Suite("Geom2dEval — Logarithmic Spiral")
+struct Geom2dEvalLogSpiralTests {
+
+    @Test func logSpiralD0AtZero() {
+        let p = Geom2dEval.logarithmicSpiralD0(scale: 1.0, growthExponent: 0.2, u: 0.0)
+        // At t=0: a*exp(0)*cos(0) = a = 1
+        #expect(abs(p.x - 1.0) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+    }
+
+    @Test func logSpiralGrows() {
+        let p1 = Geom2dEval.logarithmicSpiralD0(scale: 1.0, growthExponent: 0.2, u: 0.0)
+        let p2 = Geom2dEval.logarithmicSpiralD0(scale: 1.0, growthExponent: 0.2, u: 10.0)
+        let r1 = sqrt(p1.x * p1.x + p1.y * p1.y)
+        let r2 = sqrt(p2.x * p2.x + p2.y * p2.y)
+        #expect(r2 > r1) // spiral grows
+    }
+
+    @Test func logSpiralD1() {
+        let r = Geom2dEval.logarithmicSpiralD1(scale: 1.0, growthExponent: 0.2, u: 1.0)
+        let speed = sqrt(r.d1.x * r.d1.x + r.d1.y * r.d1.y)
+        #expect(speed > 0)
+    }
+}
+
+@Suite("Geom2dEval — Circle Involute")
+struct Geom2dEvalCircleInvoluteTests {
+
+    @Test func involuteD0AtZero() {
+        let p = Geom2dEval.circleInvoluteD0(radius: 2.0, u: 0.0)
+        // C(0) = R*(cos(0)+0*sin(0), sin(0)-0*cos(0)) = (R, 0)
+        #expect(abs(p.x - 2.0) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+    }
+
+    @Test func involuteGrows() {
+        let p1 = Geom2dEval.circleInvoluteD0(radius: 2.0, u: 1.0)
+        let p2 = Geom2dEval.circleInvoluteD0(radius: 2.0, u: 5.0)
+        let r1 = sqrt(p1.x * p1.x + p1.y * p1.y)
+        let r2 = sqrt(p2.x * p2.x + p2.y * p2.y)
+        #expect(r2 > r1)
+    }
+
+    @Test func involuteD1() {
+        let r = Geom2dEval.circleInvoluteD1(radius: 2.0, u: 1.0)
+        let speed = sqrt(r.d1.x * r.d1.x + r.d1.y * r.d1.y)
+        #expect(speed > 0) // |D1(t)| = R*t, at t=1 = 2
+    }
+}
+
+@Suite("Geom2dEval — 2D Sine Wave")
+struct Geom2dEvalSineWaveTests {
+
+    @Test func sineWave2DD0AtZero() {
+        let p = Geom2dEval.sineWaveD0(amplitude: 1.5, omega: 2.0, phase: 0.0, u: 0.0)
+        #expect(abs(p.x) < 1e-10)
+        #expect(abs(p.y) < 1e-10)
+    }
+
+    @Test func sineWave2DD0Peak() {
+        let omega = 2.0
+        let t = .pi / (2.0 * omega)
+        let p = Geom2dEval.sineWaveD0(amplitude: 1.5, omega: omega, phase: 0.0, u: t)
+        #expect(abs(p.y - 1.5) < 1e-6) // A*sin(pi/2) = A
+    }
+
+    @Test func sineWave2DD1() {
+        let r = Geom2dEval.sineWaveD1(amplitude: 1.5, omega: 2.0, phase: 0.0, u: 0.0)
+        #expect(abs(r.d1.x - 1.0) < 1e-10) // dx/dt = 1
+        #expect(abs(r.d1.y - 3.0) < 1e-6) // A*omega*cos(0) = 1.5*2 = 3
+    }
+}
+
+@Suite("GeomFill — Gordon Surface")
+struct GeomFillGordonTests {
+
+    @Test func gordonFromLineNetwork() {
+        // Create a simple 2x2 grid network using interpolated BSplines
+        guard let p1 = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(5,0,0), SIMD3(10,0,0)]),
+              let p2 = Curve3D.interpolate(points: [SIMD3(0,10,0), SIMD3(5,10,0), SIMD3(10,10,0)]),
+              let g1 = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(0,5,0), SIMD3(0,10,0)]),
+              let g2 = Curve3D.interpolate(points: [SIMD3(10,0,0), SIMD3(10,5,0), SIMD3(10,10,0)])
+        else { return }
+
+        let surf = Surface.gordon(profiles: [p1, p2], guides: [g1, g2], tolerance: 1e-3)
+        #expect(surf != nil)
+    }
+
+    @Test func gordonTooFewCurves() {
+        guard let p1 = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(10,0,0)]) else { return }
+        let surf = Surface.gordon(profiles: [p1], guides: [p1])
+        #expect(surf == nil) // need at least 2 each
+    }
+}
+
+@Suite("PointSetLib — Properties")
+struct PointSetLibPropsTests {
+
+    @Test func centroidOfSquare() {
+        let pts: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+            SIMD3(0, 10, 0), SIMD3(10, 10, 0)
+        ]
+        let props = PointSetLib.properties(points: pts)
+        #expect(abs(props.centroid.x - 5.0) < 1e-10)
+        #expect(abs(props.centroid.y - 5.0) < 1e-10)
+        #expect(abs(props.mass - 4.0) < 1e-10)
+    }
+
+    @Test func barycentre() {
+        let pts: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(6, 0, 0), SIMD3(3, 3, 0)
+        ]
+        let b = PointSetLib.barycentre(points: pts)
+        #expect(abs(b.x - 3.0) < 1e-10)
+        #expect(abs(b.y - 1.0) < 1e-10)
+    }
+
+    @Test func inertiaMatrix() {
+        let pts: [SIMD3<Double>] = [
+            SIMD3(1, 0, 0), SIMD3(-1, 0, 0),
+            SIMD3(0, 1, 0), SIMD3(0, -1, 0)
+        ]
+        let m = PointSetLib.inertiaMatrix(points: pts)
+        #expect(m.count == 9)
+    }
+}
+
+@Suite("PointSetLib — Equation (PCA)")
+struct PointSetLibEquationTests {
+
+    @Test func coplanarPoints() {
+        let pts: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+            SIMD3(0, 10, 0), SIMD3(10, 10, 0)
+        ]
+        if let eq = PointSetLib.equation(points: pts) {
+            #expect(eq.type == .plane)
+            #expect(abs(eq.planeNormal.z) > 0.9)
+        }
+    }
+
+    @Test func collinearPoints() {
+        let pts: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(5, 0, 0), SIMD3(10, 0, 0)
+        ]
+        if let eq = PointSetLib.equation(points: pts) {
+            #expect(eq.type == .line)
+        }
+    }
+
+    @Test func coincidentPoints() {
+        let pts: [SIMD3<Double>] = [
+            SIMD3(5, 5, 5), SIMD3(5, 5, 5), SIMD3(5, 5, 5)
+        ]
+        if let eq = PointSetLib.equation(points: pts) {
+            #expect(eq.type == .point)
+            #expect(abs(eq.barycentre.x - 5.0) < 1e-10)
+        }
+    }
+
+    @Test func spacePoints() {
+        let pts: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
+            SIMD3(0, 10, 0), SIMD3(0, 0, 10)
+        ]
+        if let eq = PointSetLib.equation(points: pts) {
+            #expect(eq.type == .space)
+        }
+    }
+}
+
+@Suite("ExtremaPC — Point to Curve Distance")
+struct ExtremaPCTests {
+
+    @Test func pointToCircle() {
+        guard let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5.0) else { return }
+        let results = circ.extrema(from: SIMD3(10, 0, 0))
+        #expect(!results.isEmpty)
+        if let closest = results.min(by: { $0.distance < $1.distance }) {
+            #expect(abs(closest.distance - 5.0) < 1e-6)
+        }
+    }
+
+    @Test func pointToLine() {
+        guard let line = Curve3D.line(through: SIMD3(0,0,0), direction: SIMD3(1,0,0)) else { return }
+        let results = line.extrema(from: SIMD3(5, 3, 0), uMin: 0, uMax: 100)
+        #expect(!results.isEmpty)
+        if let closest = results.min(by: { $0.distance < $1.distance }) {
+            #expect(abs(closest.distance - 3.0) < 1e-6)
+            #expect(abs(closest.point.x - 5.0) < 1e-6)
+        }
+    }
+
+    @Test func minimumDistanceConvenience() {
+        guard let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5.0) else { return }
+        if let d = circ.minimumDistance(from: SIMD3(10, 0, 0)) {
+            #expect(abs(d - 5.0) < 1e-6)
+        }
+    }
+
+    @Test func pointToHelix() {
+        guard let helix = Curve3D.circularHelix(radius: 5.0, pitch: 10.0) else { return }
+        // Point at center of helix — all points on helix are equidistant at radius 5
+        // (in the XY plane). This is an infinite solutions case but the API may
+        // return some extrema or handle it gracefully.
+        let d = helix.minimumDistance(from: SIMD3(0, 0, 0))
+        // Minimum distance should be at least close to the radius
+        if let d = d {
+            #expect(d >= 4.9)
+        }
+    }
+}
+

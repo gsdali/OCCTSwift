@@ -2577,3 +2577,76 @@ extension Surface {
                               normal.x, normal.y, normal.z, 0)
     }
 }
+
+// MARK: - v0.130.0: GeomEval Surface Factories
+
+extension Surface {
+
+    /// Create a triaxial ellipsoid surface.
+    /// P(u,v) = A*cos(v)*cos(u)*X + B*cos(v)*sin(u)*Y + C*sin(v)*Z
+    /// - Parameters:
+    ///   - a: semi-axis along X (> 0)
+    ///   - b: semi-axis along Y (> 0)
+    ///   - c: semi-axis along Z (> 0)
+    public static func ellipsoid(a: Double, b: Double, c: Double) -> Surface? {
+        guard let ref = OCCTGeomEvalEllipsoidCreate(a, b, c) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a hyperboloid of revolution surface.
+    /// - Parameters:
+    ///   - r1: first semi-axis radius (> 0)
+    ///   - r2: second semi-axis radius (> 0)
+    ///   - twoSheets: if true, creates a two-sheet hyperboloid (default: one-sheet)
+    public static func hyperboloid(r1: Double, r2: Double, twoSheets: Bool = false) -> Surface? {
+        guard let ref = OCCTGeomEvalHyperboloidCreate(r1, r2, twoSheets ? 1 : 0) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a circular paraboloid of revolution surface.
+    /// - Parameter focal: focal distance (> 0)
+    public static func paraboloid(focal: Double) -> Surface? {
+        guard let ref = OCCTGeomEvalParaboloidCreate(focal) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a circular helicoid (ruled surface).
+    /// S(u,v) = v*cos(u)*X + v*sin(u)*Y + (P*u/(2*Pi))*Z
+    /// - Parameter pitch: axial advance per 2*Pi turn (must be != 0)
+    public static func circularHelicoid(pitch: Double) -> Surface? {
+        guard let ref = OCCTGeomEvalCircularHelicoidCreate(pitch) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create a hyperbolic paraboloid (saddle surface).
+    /// P(u,v) = u*X + v*Y + (u^2/a^2 - v^2/b^2)*Z
+    /// - Parameters:
+    ///   - a: first semi-axis length (> 0)
+    ///   - b: second semi-axis length (> 0)
+    public static func hyperbolicParaboloid(a: Double, b: Double) -> Surface? {
+        guard let ref = OCCTGeomEvalHypParaboloidCreate(a, b) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Build a Gordon surface from a network of profile and guide curves.
+    /// Requires at least 2 profiles and 2 guides that form a complete grid.
+    /// - Parameters:
+    ///   - profiles: array of profile curves (V-direction)
+    ///   - guides: array of guide curves (U-direction)
+    ///   - tolerance: geometric tolerance for intersection detection
+    /// - Returns: the Gordon B-spline surface, or nil on failure
+    public static func gordon(profiles: [Curve3D], guides: [Curve3D], tolerance: Double = 1e-3) -> Surface? {
+        guard profiles.count >= 2, guides.count >= 2 else { return nil }
+        let profileRefs = profiles.map { $0.handle }
+        let guideRefs = guides.map { $0.handle }
+        return profileRefs.withUnsafeBufferPointer { pBuf in
+            guideRefs.withUnsafeBufferPointer { gBuf in
+                guard let pPtr = pBuf.baseAddress, let gPtr = gBuf.baseAddress else { return nil as Surface? }
+                guard let ref = OCCTGeomFillGordon(pPtr, Int32(profiles.count),
+                                                    gPtr, Int32(guides.count),
+                                                    tolerance) else { return nil }
+                return Surface(handle: ref)
+            }
+        }
+    }
+}
