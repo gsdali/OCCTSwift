@@ -468,7 +468,12 @@ A Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/
 | **v0.128.0 Additions** | 40 | ChamferBuilder: Generated, Modified, IsDeleted, SetMode, Simulate, NbSurf. SectionBuilder: full builder pattern (Create, Init1/Init2 shape/plane/surface, Approximation, ComputePCurveOn1/2, Build, AncestorFaceOn1/2). BRep_Tool: IsClosedOnFace, PolygonOnSurface, SetUVPoints. Curve3D Transform: translate, rotate, scale, mirrorPoint, mirrorAxis, mirrorPlane. Curve2D Transform: translate, rotate, scale, mirrorPoint, mirrorAxis. Surface Transform: translate, rotate, scale, mirrorPoint, mirrorAxis, mirrorPlane |
 | **v0.129.0 Additions** | 20 | BSplineCurve3D: LocalD0/D1/D2/D3/DN on knot span. BSplineSurface: SetWeightCol/Row, IncrementUMultiplicity/IncrementVMultiplicity (range), FirstU/LastU/FirstV/LastVKnotIndex, CheckAndSegment. BezierSurface: InsertPoleColBefore/RowBefore, SetPoleCol/Row (no weights), SetWeightCol/Row |
 | **v0.130.0 Additions** | 33 | GeomEval 3D curves: CircularHelix D0/D1/D2/Create, SineWave D0/D1/Create. GeomEval surfaces: Ellipsoid D0/Create, Hyperboloid D0/Create, Paraboloid D0/Create, CircularHelicoid D0/Create, HypParaboloid D0/Create. Geom2dEval: ArchimedeanSpiral D0/D1, LogSpiral D0/D1, CircleInvolute D0/D1, SineWave2D D0/D1. GeomFill_Gordon surface. PointSetLib: Props/Inertia/Barycentre/Equation. ExtremaPC: Curve/CurveBounded/MinDistance |
-| **Total** | **3386** | |
+| **Approx_BSplineApproxInterp** | 13 | create, interpolatePoint, perform, performOptimal, isDone, curve, maxError, setAlpha, setMinPivot, setClosedTol, setKnotTol, setConvergenceTol, setProjectionTol |
+| **GeomAdaptor_TransformedCurve** | 1 | translated (curve with translation) |
+| **GeomEval TBezier/AHTBezier Curves** | 4 | tBezier (3D), tBezierRational (3D), ahtBezier (3D), ahtBezierRational (3D) |
+| **GeomEval TBezier/AHTBezier Surfaces** | 2 | tBezier surface, ahtBezier surface |
+| **Geom2dEval TBezier/AHTBezier** | 2 | tBezier (2D), ahtBezier (2D) |
+| **Total** | **3408** | |
 
 > **Note:** OCCTSwift wraps a curated subset of OCCT. To add new functions, see [docs/EXTENDING.md](docs/EXTENDING.md).
 
@@ -1760,6 +1765,7 @@ OCCT has thousands of classes. Some notable ones not yet exposed:
 > - v0.27.0: **OCCT 8.0.0-rc4 upgrade** — 111 internal improvements, performance gains, deprecation fixes
 > - v0.26.0: Annotations & measurements — length/radius/angle/diameter dimensions, text labels, point clouds
 > - v0.25.0: Topological naming — record/trace naming history, persistent named selections
+> - v0.131.0: Final RC5 wrapping — Approx_BSplineApproxInterp (constrained least-squares BSpline fitting), GeomEval TBezier/AHTBezier curves (3D/2D) and surfaces, GeomAdaptor_TransformedCurve, upgrade documentation (3408 ops, 1553 tests)
 > - v0.130.0: RC5 analytical geometry — GeomEval 3D curves (CircularHelix, SineWave), GeomEval surfaces (Ellipsoid, Hyperboloid, Paraboloid, CircularHelicoid, HypParaboloid), Geom2dEval 2D curves (ArchimedeanSpiral, LogarithmicSpiral, CircleInvolute, SineWave2D), GeomFill_Gordon transfinite interpolation surface, PointSetLib point cloud analysis (centroid/inertia/PCA), ExtremaPC point-curve distance (3386 ops, 1538 tests)
 > - v0.129.0: BSplineCurve3D local derivatives (LocalD0/D1/D2/D3/DN on knot span), BSplineSurface completions (SetWeightCol/Row, IncrementU/VMultiplicity range, First/LastU/VKnotIndex, CheckAndSegment), BezierSurface completions (InsertPoleCol/RowBefore, SetPoleCol/Row, SetWeightCol/Row) (3353 ops, 2920 tests)
 > - v0.128.0: ChamferBuilder history (Generated/Modified/IsDeleted/SetMode/Simulate/NbSurf), SectionBuilder full builder pattern, BRep_Tool extras (IsClosedOnFace/PolygonOnSurface/SetUVPoints), Curve3D/Curve2D/Surface in-place transforms (3333 ops, 2907 tests)
@@ -1822,9 +1828,9 @@ See `Scripts/build-occt.sh` for instructions on building OCCT for iOS/macOS.
 
 ### Current Status: v0.127.0
 
-OCCTSwift now wraps **3386 OCCT operations** across 337 categories with 1538 tests across 1029 suites.
+OCCTSwift now wraps **3408 OCCT operations** across 342 categories with 1553 tests across 1037 suites.
 
-Built on **OCCT 8.0.0-rc4**.
+Built on **OCCT 8.0.0-rc5**.
 
 ### Coming Soon: Demo App ([#25](https://github.com/gsdali/OCCTSwift/issues/25))
 

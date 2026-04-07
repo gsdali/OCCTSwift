@@ -42133,3 +42133,237 @@ struct ExtremaPCTests {
     }
 }
 
+// MARK: - v0.131.0: BSplineApproxInterp, TBezier/AHTBezier, TransformedCurve
+
+@Suite("BSplineApproxInterp — Constrained Least-Squares Fitting")
+struct BSplineApproxInterpTests {
+
+    @Test func basicApproximation() {
+        var points: [SIMD3<Double>] = []
+        for i in 0..<20 {
+            let t = Double(i) / 19.0 * 2.0 * .pi
+            points.append(SIMD3(cos(t), sin(t), 0.1 * t))
+        }
+        guard let solver = BSplineApproxInterp(points: points, nbControlPoints: 10) else { return }
+        solver.perform()
+        #expect(solver.isDone)
+        if let curve = solver.curve {
+            let domain = curve.domain
+            #expect(domain != nil)
+        }
+        #expect(solver.maxError >= 0)
+    }
+
+    @Test func withInterpolationConstraints() {
+        var points: [SIMD3<Double>] = []
+        for i in 0..<30 {
+            let t = Double(i) / 29.0
+            points.append(SIMD3(t, sin(.pi * t), 0))
+        }
+        guard let solver = BSplineApproxInterp(points: points, nbControlPoints: 15) else { return }
+        solver.interpolatePoint(0)
+        solver.interpolatePoint(29)
+        solver.interpolatePoint(14, withKink: true)
+        solver.perform()
+        #expect(solver.isDone)
+        #expect(solver.maxError < 0.1)
+    }
+
+    @Test func performOptimal() {
+        var points: [SIMD3<Double>] = []
+        for i in 0..<20 {
+            let t = Double(i) / 19.0
+            points.append(SIMD3(t, t * t, 0))
+        }
+        guard let solver = BSplineApproxInterp(points: points, nbControlPoints: 8) else { return }
+        solver.performOptimal(maxIterations: 5)
+        #expect(solver.isDone)
+        if let curve = solver.curve {
+            let domain = curve.domain
+            #expect(domain != nil)
+        }
+    }
+
+    @Test func setters() {
+        var points: [SIMD3<Double>] = []
+        for i in 0..<10 {
+            points.append(SIMD3(Double(i + 1), 0, 0))
+        }
+        guard let solver = BSplineApproxInterp(points: points, nbControlPoints: 6) else { return }
+        solver.setParametrizationAlpha(1.0)
+        solver.setMinPivot(1e-15)
+        solver.setClosedTolerance(1e-10)
+        solver.setKnotInsertionTolerance(1e-3)
+        solver.setConvergenceTolerance(1e-4)
+        solver.setProjectionTolerance(1e-7)
+        solver.perform()
+        #expect(solver.isDone)
+    }
+}
+
+@Suite("TransformedCurve — Curve with Translation")
+struct TransformedCurveTests {
+
+    @Test func translateCircle() {
+        guard let circ = Curve3D.circle(center: SIMD3(0,0,0), normal: SIMD3(0,0,1), radius: 5.0) else { return }
+        guard let translated = circ.translated(tx: 10, ty: 0, tz: 0) else { return }
+        let domain = translated.domain
+        // Evaluate at start — circle starts at (5,0,0), translated to (15,0,0)
+        let pt = translated.point(at: domain.lowerBound)
+        #expect(abs(pt.x - 15.0) < 0.1)
+    }
+}
+
+@Suite("GeomEval TBezier 3D Curve")
+struct TBezierCurve3DTests {
+
+    @Test func createAndEval() {
+        let poles: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 1, 0), SIMD3(2, 0, 0)
+        ]
+        guard let curve = Curve3D.tBezier(poles: poles, alpha: 1.0) else {
+            #expect(Bool(false), "Failed to create TBezier curve")
+            return
+        }
+        let domain = curve.domain
+        #expect(domain.lowerBound >= 0)
+        #expect(domain.upperBound > 0)
+        // Evaluate at endpoints
+        let start = curve.point(at: domain.lowerBound)
+        let end = curve.point(at: domain.upperBound)
+        // T-Bezier basis at t=0: {1, 0, 1} so start = P0 + P2
+        #expect(start.x.isFinite)
+        #expect(end.x.isFinite)
+    }
+
+    @Test func rationalTBezier() {
+        let poles: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 1, 0), SIMD3(2, 0, 0)
+        ]
+        let weights = [1.0, 2.0, 1.0]
+        let curve = Curve3D.tBezierRational(poles: poles, weights: weights, alpha: 1.0)
+        #expect(curve != nil)
+    }
+
+    @Test func rejectsEvenPoleCount() {
+        let poles: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 1, 0)
+        ]
+        let curve = Curve3D.tBezier(poles: poles, alpha: 1.0)
+        #expect(curve == nil)
+    }
+}
+
+@Suite("GeomEval AHTBezier 3D Curve")
+struct AHTBezierCurve3DTests {
+
+    @Test func createAndEval() {
+        // algDeg=0, alpha=1.0, beta=1.0 => 5 poles needed
+        let poles: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(2, 1, 0),
+            SIMD3(3, 0, 0), SIMD3(4, 0, 0)
+        ]
+        guard let curve = Curve3D.ahtBezier(poles: poles, algDegree: 0, alpha: 1.0, beta: 1.0) else {
+            #expect(Bool(false), "Failed to create AHTBezier curve")
+            return
+        }
+        let domain = curve.domain
+        #expect(domain.lowerBound >= 0)
+        #expect(domain.upperBound > 0)
+        let pt = curve.point(at: 0.5)
+        #expect(pt.x.isFinite)
+    }
+
+    @Test func rationalAHTBezier() {
+        let poles: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(2, 1, 0),
+            SIMD3(3, 0, 0), SIMD3(4, 0, 0)
+        ]
+        let weights = [1.0, 1.0, 2.0, 1.0, 1.0]
+        let curve = Curve3D.ahtBezierRational(poles: poles, weights: weights,
+                                                algDegree: 0, alpha: 1.0, beta: 1.0)
+        #expect(curve != nil)
+    }
+}
+
+@Suite("GeomEval TBezier Surface")
+struct TBezierSurfaceTests {
+
+    @Test func createSurface() {
+        var poles: [SIMD3<Double>] = []
+        for i in 0..<3 {
+            for j in 0..<3 {
+                poles.append(SIMD3(Double(i), Double(j), 0.5 * sin(Double(i + j) * 0.5)))
+            }
+        }
+        let surf = Surface.tBezier(poles: poles, uCount: 3, vCount: 3, alphaU: 1.0, alphaV: 1.0)
+        #expect(surf != nil)
+    }
+
+    @Test func rejectsEvenCounts() {
+        var poles: [SIMD3<Double>] = []
+        for i in 0..<4 {
+            for j in 0..<3 {
+                poles.append(SIMD3(Double(i), Double(j), 0))
+            }
+        }
+        let surf = Surface.tBezier(poles: poles, uCount: 4, vCount: 3, alphaU: 1.0, alphaV: 1.0)
+        #expect(surf == nil)
+    }
+}
+
+@Suite("GeomEval AHTBezier Surface")
+struct AHTBezierSurfaceTests {
+
+    @Test func createSurface() {
+        // algDeg=0 both dirs, alpha=1 both, beta=1 both => 5x5 poles
+        var poles: [SIMD3<Double>] = []
+        for i in 0..<5 {
+            for j in 0..<5 {
+                poles.append(SIMD3(Double(i), Double(j), 0.3 * sin(Double(i)) * cos(Double(j))))
+            }
+        }
+        let surf = Surface.ahtBezier(poles: poles, uCount: 5, vCount: 5,
+                                       algDegreeU: 0, algDegreeV: 0,
+                                       alphaU: 1.0, alphaV: 1.0,
+                                       betaU: 1.0, betaV: 1.0)
+        #expect(surf != nil)
+    }
+}
+
+@Suite("Geom2dEval TBezier 2D Curve")
+struct TBezierCurve2DTests {
+
+    @Test func createAndEval() {
+        let poles: [SIMD2<Double>] = [
+            SIMD2(0, 0), SIMD2(1, 1), SIMD2(2, 0)
+        ]
+        guard let curve = Curve2D.tBezier(poles: poles, alpha: 1.0) else {
+            #expect(Bool(false), "Failed to create 2D TBezier curve")
+            return
+        }
+        let domain = curve.domain
+        #expect(domain.lowerBound >= 0)
+        #expect(domain.upperBound > 0)
+    }
+}
+
+@Suite("Geom2dEval AHTBezier 2D Curve")
+struct AHTBezierCurve2DTests {
+
+    @Test func createAndEval() {
+        // algDeg=0, alpha=1.0, beta=1.0 => 5 poles
+        var poles: [SIMD2<Double>] = []
+        for i in 0..<5 {
+            poles.append(SIMD2(Double(i), 0.5 * sin(Double(i + 1))))
+        }
+        guard let curve = Curve2D.ahtBezier(poles: poles, algDegree: 0, alpha: 1.0, beta: 1.0) else {
+            #expect(Bool(false), "Failed to create 2D AHTBezier curve")
+            return
+        }
+        let domain = curve.domain
+        #expect(domain.lowerBound >= 0)
+        #expect(domain.upperBound > 0)
+    }
+}
+

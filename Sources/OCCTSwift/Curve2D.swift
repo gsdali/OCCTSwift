@@ -2439,3 +2439,48 @@ extension Curve2D {
                               origin.x, origin.y, direction.x, direction.y, 0)
     }
 }
+
+// MARK: - v0.131.0: Geom2dEval TBezier / AHTBezier Curves
+
+extension Curve2D {
+
+    /// Create a 2D Trigonometric Bezier curve.
+    ///
+    /// Uses a trigonometric Bernstein-like basis: {1, sin(alpha*t), cos(alpha*t), ...}.
+    /// Parameter domain is [0, pi/alpha].
+    /// - Parameters:
+    ///   - poles: 2D control points (count must be odd >= 3)
+    ///   - alpha: frequency parameter (> 0)
+    /// - Returns: Curve2D or nil on error
+    public static func tBezier(poles: [SIMD2<Double>], alpha: Double) -> Curve2D? {
+        guard poles.count >= 3, poles.count % 2 == 1 else { return nil }
+        var flat = [Double](repeating: 0, count: poles.count * 2)
+        for (i, p) in poles.enumerated() {
+            flat[i * 2] = p.x; flat[i * 2 + 1] = p.y
+        }
+        guard let ref = OCCTGeom2dEvalTBezierCurveCreate(&flat, Int32(poles.count), alpha) else { return nil }
+        return Curve2D(handle: ref)
+    }
+
+    /// Create a 2D Algebraic-Hyperbolic-Trigonometric (AHT) Bezier curve.
+    ///
+    /// Uses a mixed basis: {1, t, ..., t^k, sinh(alpha*t), cosh(alpha*t), sin(beta*t), cos(beta*t)}.
+    /// Number of poles must equal algDegree+1 + 2*(alpha>0) + 2*(beta>0).
+    /// Parameter range: [0, 1].
+    /// - Parameters:
+    ///   - poles: 2D control points
+    ///   - algDegree: algebraic polynomial degree (>= 0)
+    ///   - alpha: hyperbolic frequency (>= 0, 0 = no hyperbolic terms)
+    ///   - beta: trigonometric frequency (>= 0, 0 = no trig terms)
+    /// - Returns: Curve2D or nil on error
+    public static func ahtBezier(poles: [SIMD2<Double>], algDegree: Int, alpha: Double, beta: Double) -> Curve2D? {
+        guard !poles.isEmpty else { return nil }
+        var flat = [Double](repeating: 0, count: poles.count * 2)
+        for (i, p) in poles.enumerated() {
+            flat[i * 2] = p.x; flat[i * 2 + 1] = p.y
+        }
+        guard let ref = OCCTGeom2dEvalAHTBezierCurveCreate(&flat, Int32(poles.count),
+                                                             Int32(algDegree), alpha, beta) else { return nil }
+        return Curve2D(handle: ref)
+    }
+}

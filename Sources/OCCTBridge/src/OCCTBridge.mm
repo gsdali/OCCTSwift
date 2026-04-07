@@ -53914,3 +53914,275 @@ double OCCTExtremaPCMinDistance(OCCTCurve3DRef curve,
 }
 
 // end of v0.130.0 implementations
+
+// MARK: - v0.131.0: Approx_BSplineApproxInterp, GeomEval TBezier/AHTBezier, GeomAdaptor_TransformedCurve
+
+#include <Approx_BSplineApproxInterp.hxx>
+#include <GeomAdaptor_TransformedCurve.hxx>
+#include <GeomEval_TBezierCurve.hxx>
+#include <GeomEval_AHTBezierCurve.hxx>
+#include <GeomEval_TBezierSurface.hxx>
+#include <GeomEval_AHTBezierSurface.hxx>
+#include <Geom2dEval_TBezierCurve.hxx>
+#include <Geom2dEval_AHTBezierCurve.hxx>
+#include <NCollection_Array2.hxx>
+
+// --- Approx_BSplineApproxInterp ---
+
+struct OCCTBSplineApproxInterp {
+    Approx_BSplineApproxInterp* solver;
+    OCCTBSplineApproxInterp() : solver(nullptr) {}
+    ~OCCTBSplineApproxInterp() { delete solver; }
+};
+
+OCCTBSplineApproxInterpRef OCCTBSplineApproxInterpCreate(
+    const double* points, int32_t count,
+    int32_t nbControlPts, int32_t degree, bool continuousIfClosed) {
+    if (!points || count < 2) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]);
+        auto ref = new OCCTBSplineApproxInterp();
+        ref->solver = new Approx_BSplineApproxInterp(pts, nbControlPts, degree, continuousIfClosed);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTBSplineApproxInterpRelease(OCCTBSplineApproxInterpRef ref) {
+    delete ref;
+}
+
+void OCCTBSplineApproxInterpInterpolatePoint(OCCTBSplineApproxInterpRef ref,
+                                              int32_t pointIndex, bool withKink) {
+    if (!ref || !ref->solver) return;
+    try { ref->solver->InterpolatePoint(pointIndex, withKink); } catch (...) {}
+}
+
+void OCCTBSplineApproxInterpPerform(OCCTBSplineApproxInterpRef ref) {
+    if (!ref || !ref->solver) return;
+    try { ref->solver->Perform(); } catch (...) {}
+}
+
+void OCCTBSplineApproxInterpPerformOptimal(OCCTBSplineApproxInterpRef ref,
+                                            int32_t maxIter) {
+    if (!ref || !ref->solver) return;
+    try { ref->solver->PerformOptimal(maxIter); } catch (...) {}
+}
+
+bool OCCTBSplineApproxInterpIsDone(OCCTBSplineApproxInterpRef ref) {
+    if (!ref || !ref->solver) return false;
+    return ref->solver->IsDone();
+}
+
+OCCTCurve3DRef OCCTBSplineApproxInterpCurve(OCCTBSplineApproxInterpRef ref) {
+    if (!ref || !ref->solver || !ref->solver->IsDone()) return nullptr;
+    try {
+        const auto& curve = ref->solver->Curve();
+        if (curve.IsNull()) return nullptr;
+        auto cref = new OCCTCurve3D();
+        cref->curve = curve;
+        return cref;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTBSplineApproxInterpMaxError(OCCTBSplineApproxInterpRef ref) {
+    if (!ref || !ref->solver) return -1.0;
+    return ref->solver->MaxError();
+}
+
+void OCCTBSplineApproxInterpSetAlpha(OCCTBSplineApproxInterpRef ref, double alpha) {
+    if (ref && ref->solver) ref->solver->SetParametrizationAlpha(alpha);
+}
+
+void OCCTBSplineApproxInterpSetMinPivot(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetMinPivot(val);
+}
+
+void OCCTBSplineApproxInterpSetClosedTol(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetClosedTolerance(val);
+}
+
+void OCCTBSplineApproxInterpSetKnotTol(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetKnotInsertionTolerance(val);
+}
+
+void OCCTBSplineApproxInterpSetConvergenceTol(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetConvergenceTolerance(val);
+}
+
+void OCCTBSplineApproxInterpSetProjectionTol(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetProjectionTolerance(val);
+}
+
+// --- GeomAdaptor_TransformedCurve ---
+
+OCCTCurve3DRef OCCTGeomAdaptorTransformedCurveCreate(
+    OCCTCurve3DRef curve,
+    double tx, double ty, double tz) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        gp_Trsf trsf;
+        trsf.SetTranslation(gp_Vec(tx, ty, tz));
+        // Create a trimmed copy of the original curve with the transform applied
+        Handle(Geom_Curve) origCurve = curve->curve;
+        Handle(Geom_Curve) copyCurve = Handle(Geom_Curve)::DownCast(origCurve->Copy());
+        if (copyCurve.IsNull()) return nullptr;
+        copyCurve->Transform(trsf);
+        auto ref = new OCCTCurve3D();
+        ref->curve = copyCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval_TBezierCurve ---
+
+OCCTCurve3DRef OCCTGeomEvalTBezierCurveCreate(
+    const double* poles, int32_t count, double alpha) {
+    if (!poles || count < 3 || count % 2 == 0) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]);
+        auto tc = new GeomEval_TBezierCurve(pts, alpha);
+        occ::handle<Geom_Curve> hCurve(tc);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGeomEvalTBezierCurveCreateRational(
+    const double* poles, const double* weights,
+    int32_t count, double alpha) {
+    if (!poles || !weights || count < 3 || count % 2 == 0) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        NCollection_Array1<double> wts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]);
+            wts(i + 1) = weights[i];
+        }
+        auto tc = new GeomEval_TBezierCurve(pts, wts, alpha);
+        occ::handle<Geom_Curve> hCurve(tc);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval_AHTBezierCurve ---
+
+OCCTCurve3DRef OCCTGeomEvalAHTBezierCurveCreate(
+    const double* poles, int32_t count,
+    int32_t algDegree, double alpha, double beta) {
+    if (!poles || count < 1) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]);
+        auto ac = new GeomEval_AHTBezierCurve(pts, algDegree, alpha, beta);
+        occ::handle<Geom_Curve> hCurve(ac);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGeomEvalAHTBezierCurveCreateRational(
+    const double* poles, const double* weights,
+    int32_t count, int32_t algDegree, double alpha, double beta) {
+    if (!poles || !weights || count < 1) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        NCollection_Array1<double> wts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]);
+            wts(i + 1) = weights[i];
+        }
+        auto ac = new GeomEval_AHTBezierCurve(pts, wts, algDegree, alpha, beta);
+        occ::handle<Geom_Curve> hCurve(ac);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval_TBezierSurface ---
+
+OCCTSurfaceRef OCCTGeomEvalTBezierSurfaceCreate(
+    const double* poles, int32_t uCount, int32_t vCount,
+    double alphaU, double alphaV) {
+    if (!poles || uCount < 3 || vCount < 3 || uCount % 2 == 0 || vCount % 2 == 0) return nullptr;
+    try {
+        NCollection_Array2<gp_Pnt> pts(1, uCount, 1, vCount);
+        for (int i = 0; i < uCount; i++)
+            for (int j = 0; j < vCount; j++) {
+                int idx = (i * vCount + j) * 3;
+                pts(i + 1, j + 1) = gp_Pnt(poles[idx], poles[idx+1], poles[idx+2]);
+            }
+        auto ts = new GeomEval_TBezierSurface(pts, alphaU, alphaV);
+        occ::handle<Geom_Surface> hSurf(ts);
+        auto ref = new OCCTSurface(hSurf);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval_AHTBezierSurface ---
+
+OCCTSurfaceRef OCCTGeomEvalAHTBezierSurfaceCreate(
+    const double* poles, int32_t uCount, int32_t vCount,
+    int32_t algDegreeU, int32_t algDegreeV,
+    double alphaU, double alphaV, double betaU, double betaV) {
+    if (!poles || uCount < 1 || vCount < 1) return nullptr;
+    try {
+        NCollection_Array2<gp_Pnt> pts(1, uCount, 1, vCount);
+        for (int i = 0; i < uCount; i++)
+            for (int j = 0; j < vCount; j++) {
+                int idx = (i * vCount + j) * 3;
+                pts(i + 1, j + 1) = gp_Pnt(poles[idx], poles[idx+1], poles[idx+2]);
+            }
+        auto as = new GeomEval_AHTBezierSurface(pts, algDegreeU, algDegreeV,
+                                                  alphaU, alphaV, betaU, betaV);
+        occ::handle<Geom_Surface> hSurf(as);
+        auto ref = new OCCTSurface(hSurf);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- Geom2dEval_TBezierCurve ---
+
+OCCTCurve2DRef OCCTGeom2dEvalTBezierCurveCreate(
+    const double* poles, int32_t count, double alpha) {
+    if (!poles || count < 3 || count % 2 == 0) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt2d> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt2d(poles[i*2], poles[i*2+1]);
+        auto tc = new Geom2dEval_TBezierCurve(pts, alpha);
+        occ::handle<Geom2d_Curve> hCurve(tc);
+        auto ref = new OCCTCurve2D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- Geom2dEval_AHTBezierCurve ---
+
+OCCTCurve2DRef OCCTGeom2dEvalAHTBezierCurveCreate(
+    const double* poles, int32_t count,
+    int32_t algDegree, double alpha, double beta) {
+    if (!poles || count < 1) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt2d> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt2d(poles[i*2], poles[i*2+1]);
+        auto ac = new Geom2dEval_AHTBezierCurve(pts, algDegree, alpha, beta);
+        occ::handle<Geom2d_Curve> hCurve(ac);
+        auto ref = new OCCTCurve2D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// end of v0.131.0 implementations

@@ -19033,6 +19033,113 @@ int32_t OCCTExtremaPCCurveBounded(OCCTCurve3DRef _Nonnull curve,
 double OCCTExtremaPCMinDistance(OCCTCurve3DRef _Nonnull curve,
                                 double px, double py, double pz);
 
+// MARK: - v0.131.0: Approx_BSplineApproxInterp, GeomEval TBezier/AHTBezier, GeomAdaptor_TransformedCurve
+
+// --- Approx_BSplineApproxInterp ---
+
+/// Opaque ref to Approx_BSplineApproxInterp solver.
+typedef struct OCCTBSplineApproxInterp* OCCTBSplineApproxInterpRef;
+
+/// Create a constrained least-squares B-spline approximation solver.
+/// points: flat [x,y,z,...], count = number of 3D points.
+OCCTBSplineApproxInterpRef _Nullable OCCTBSplineApproxInterpCreate(
+    const double* _Nonnull points, int32_t count,
+    int32_t nbControlPts, int32_t degree, bool continuousIfClosed);
+
+/// Release the solver.
+void OCCTBSplineApproxInterpRelease(OCCTBSplineApproxInterpRef _Nonnull ref);
+
+/// Mark a point to be exactly interpolated (0-based index). withKink inserts C0 break.
+void OCCTBSplineApproxInterpInterpolatePoint(OCCTBSplineApproxInterpRef _Nonnull ref,
+                                              int32_t pointIndex, bool withKink);
+
+/// Perform the fit using auto-computed parameters.
+void OCCTBSplineApproxInterpPerform(OCCTBSplineApproxInterpRef _Nonnull ref);
+
+/// Perform the fit with iterative parameter optimization.
+void OCCTBSplineApproxInterpPerformOptimal(OCCTBSplineApproxInterpRef _Nonnull ref,
+                                            int32_t maxIter);
+
+/// Returns true if the fit was computed successfully.
+bool OCCTBSplineApproxInterpIsDone(OCCTBSplineApproxInterpRef _Nonnull ref);
+
+/// Returns the resulting curve, or null if not done.
+OCCTCurve3DRef _Nullable OCCTBSplineApproxInterpCurve(OCCTBSplineApproxInterpRef _Nonnull ref);
+
+/// Returns the maximum approximation error.
+double OCCTBSplineApproxInterpMaxError(OCCTBSplineApproxInterpRef _Nonnull ref);
+
+/// Set parametrization alpha: 0=uniform, 0.5=centripetal (default), 1=chord-length.
+void OCCTBSplineApproxInterpSetAlpha(OCCTBSplineApproxInterpRef _Nonnull ref, double alpha);
+
+/// Set minimum pivot value for Gauss solver (default 1e-20).
+void OCCTBSplineApproxInterpSetMinPivot(OCCTBSplineApproxInterpRef _Nonnull ref, double val);
+
+/// Set closed-curve detection tolerance (default 1e-12).
+void OCCTBSplineApproxInterpSetClosedTol(OCCTBSplineApproxInterpRef _Nonnull ref, double val);
+
+/// Set knot insertion tolerance (default 1e-4).
+void OCCTBSplineApproxInterpSetKnotTol(OCCTBSplineApproxInterpRef _Nonnull ref, double val);
+
+/// Set convergence tolerance for optimization (default 1e-3).
+void OCCTBSplineApproxInterpSetConvergenceTol(OCCTBSplineApproxInterpRef _Nonnull ref, double val);
+
+/// Set projection tolerance for optimization (default 1e-6).
+void OCCTBSplineApproxInterpSetProjectionTol(OCCTBSplineApproxInterpRef _Nonnull ref, double val);
+
+// --- GeomAdaptor_TransformedCurve ---
+
+/// Create a transformed curve adaptor: wraps a Geom_Curve with a translation.
+/// Returns a new Curve3D that evaluates the curve with the transform applied.
+OCCTCurve3DRef _Nullable OCCTGeomAdaptorTransformedCurveCreate(
+    OCCTCurve3DRef _Nonnull curve,
+    double tx, double ty, double tz);
+
+// --- GeomEval TBezier / AHTBezier Curves ---
+
+/// Create a 3D Trigonometric Bezier curve. poles: flat [x,y,z,...], count must be odd >= 3.
+OCCTCurve3DRef _Nullable OCCTGeomEvalTBezierCurveCreate(
+    const double* _Nonnull poles, int32_t count, double alpha);
+
+/// Create a 3D rational Trigonometric Bezier curve.
+OCCTCurve3DRef _Nullable OCCTGeomEvalTBezierCurveCreateRational(
+    const double* _Nonnull poles, const double* _Nonnull weights,
+    int32_t count, double alpha);
+
+/// Create a 3D AHT Bezier curve. count = algDeg+1 + 2*(alpha>0) + 2*(beta>0).
+OCCTCurve3DRef _Nullable OCCTGeomEvalAHTBezierCurveCreate(
+    const double* _Nonnull poles, int32_t count,
+    int32_t algDegree, double alpha, double beta);
+
+/// Create a 3D rational AHT Bezier curve.
+OCCTCurve3DRef _Nullable OCCTGeomEvalAHTBezierCurveCreateRational(
+    const double* _Nonnull poles, const double* _Nonnull weights,
+    int32_t count, int32_t algDegree, double alpha, double beta);
+
+// --- GeomEval TBezier / AHTBezier Surfaces ---
+
+/// Create a Trigonometric Bezier surface. poles: flat row-major [x,y,z,...], uCount*vCount poles.
+OCCTSurfaceRef _Nullable OCCTGeomEvalTBezierSurfaceCreate(
+    const double* _Nonnull poles, int32_t uCount, int32_t vCount,
+    double alphaU, double alphaV);
+
+/// Create an AHT Bezier surface. poles: flat row-major, uCount*vCount poles.
+OCCTSurfaceRef _Nullable OCCTGeomEvalAHTBezierSurfaceCreate(
+    const double* _Nonnull poles, int32_t uCount, int32_t vCount,
+    int32_t algDegreeU, int32_t algDegreeV,
+    double alphaU, double alphaV, double betaU, double betaV);
+
+// --- Geom2dEval TBezier / AHTBezier Curves ---
+
+/// Create a 2D Trigonometric Bezier curve. poles: flat [x,y,...], count must be odd >= 3.
+OCCTCurve2DRef _Nullable OCCTGeom2dEvalTBezierCurveCreate(
+    const double* _Nonnull poles, int32_t count, double alpha);
+
+/// Create a 2D AHT Bezier curve. count = algDeg+1 + 2*(alpha>0) + 2*(beta>0).
+OCCTCurve2DRef _Nullable OCCTGeom2dEvalAHTBezierCurveCreate(
+    const double* _Nonnull poles, int32_t count,
+    int32_t algDegree, double alpha, double beta);
+
 #ifdef __cplusplus
 }
 #endif

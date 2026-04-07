@@ -2650,3 +2650,63 @@ extension Surface {
         }
     }
 }
+
+// MARK: - v0.131.0: GeomEval TBezier / AHTBezier Surfaces
+
+extension Surface {
+
+    /// Create a Trigonometric Bezier surface.
+    ///
+    /// Tensor-product surface using trigonometric Bernstein-like bases in both U and V.
+    /// Parameter domain: U in [0, pi/alphaU], V in [0, pi/alphaV].
+    /// - Parameters:
+    ///   - poles: control points grid in row-major order (uCount * vCount points)
+    ///   - uCount: number of poles in U direction (must be odd >= 3)
+    ///   - vCount: number of poles in V direction (must be odd >= 3)
+    ///   - alphaU: frequency in U direction (> 0)
+    ///   - alphaV: frequency in V direction (> 0)
+    /// - Returns: Surface or nil on error
+    public static func tBezier(poles: [SIMD3<Double>], uCount: Int, vCount: Int,
+                                alphaU: Double, alphaV: Double) -> Surface? {
+        guard poles.count == uCount * vCount,
+              uCount >= 3, vCount >= 3,
+              uCount % 2 == 1, vCount % 2 == 1 else { return nil }
+        var flat = [Double](repeating: 0, count: poles.count * 3)
+        for (i, p) in poles.enumerated() {
+            flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z
+        }
+        guard let ref = OCCTGeomEvalTBezierSurfaceCreate(&flat, Int32(uCount), Int32(vCount),
+                                                           alphaU, alphaV) else { return nil }
+        return Surface(handle: ref)
+    }
+
+    /// Create an Algebraic-Hyperbolic-Trigonometric (AHT) Bezier surface.
+    ///
+    /// Tensor-product surface using mixed AHT bases in both U and V.
+    /// Parameter domain: U in [0, 1], V in [0, 1].
+    /// - Parameters:
+    ///   - poles: control points grid in row-major order (uCount * vCount points)
+    ///   - uCount: number of poles in U direction
+    ///   - vCount: number of poles in V direction
+    ///   - algDegreeU: algebraic degree in U (>= 0)
+    ///   - algDegreeV: algebraic degree in V (>= 0)
+    ///   - alphaU: hyperbolic frequency in U (>= 0)
+    ///   - alphaV: hyperbolic frequency in V (>= 0)
+    ///   - betaU: trigonometric frequency in U (>= 0)
+    ///   - betaV: trigonometric frequency in V (>= 0)
+    /// - Returns: Surface or nil on error
+    public static func ahtBezier(poles: [SIMD3<Double>], uCount: Int, vCount: Int,
+                                  algDegreeU: Int, algDegreeV: Int,
+                                  alphaU: Double, alphaV: Double,
+                                  betaU: Double, betaV: Double) -> Surface? {
+        guard poles.count == uCount * vCount, uCount >= 1, vCount >= 1 else { return nil }
+        var flat = [Double](repeating: 0, count: poles.count * 3)
+        for (i, p) in poles.enumerated() {
+            flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z
+        }
+        guard let ref = OCCTGeomEvalAHTBezierSurfaceCreate(&flat, Int32(uCount), Int32(vCount),
+                                                             Int32(algDegreeU), Int32(algDegreeV),
+                                                             alphaU, alphaV, betaU, betaV) else { return nil }
+        return Surface(handle: ref)
+    }
+}

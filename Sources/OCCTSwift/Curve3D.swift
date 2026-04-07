@@ -1791,3 +1791,97 @@ extension Curve3D {
         return d >= 0 ? d : nil
     }
 }
+
+// MARK: - v0.131.0: GeomEval TBezier / AHTBezier Curves, TransformedCurve
+
+extension Curve3D {
+
+    /// Create a transformed copy of this curve by applying a translation.
+    /// - Parameters:
+    ///   - tx: X translation
+    ///   - ty: Y translation
+    ///   - tz: Z translation
+    /// - Returns: A new Curve3D with the translation applied, or nil on error
+    public func translated(tx: Double, ty: Double, tz: Double) -> Curve3D? {
+        guard let ref = OCCTGeomAdaptorTransformedCurveCreate(handle, tx, ty, tz) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D Trigonometric Bezier curve.
+    ///
+    /// Uses a trigonometric Bernstein-like basis: {1, sin(alpha*t), cos(alpha*t), ...}.
+    /// Parameter domain is [0, pi/alpha].
+    /// - Parameters:
+    ///   - poles: control points (count must be odd >= 3)
+    ///   - alpha: frequency parameter (> 0)
+    /// - Returns: Curve3D or nil on error
+    public static func tBezier(poles: [SIMD3<Double>], alpha: Double) -> Curve3D? {
+        guard poles.count >= 3, poles.count % 2 == 1 else { return nil }
+        var flat = [Double](repeating: 0, count: poles.count * 3)
+        for (i, p) in poles.enumerated() {
+            flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z
+        }
+        guard let ref = OCCTGeomEvalTBezierCurveCreate(&flat, Int32(poles.count), alpha) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D rational Trigonometric Bezier curve.
+    /// - Parameters:
+    ///   - poles: control points (count must be odd >= 3)
+    ///   - weights: weights for each pole (all > 0)
+    ///   - alpha: frequency parameter (> 0)
+    /// - Returns: Curve3D or nil on error
+    public static func tBezierRational(poles: [SIMD3<Double>], weights: [Double], alpha: Double) -> Curve3D? {
+        guard poles.count >= 3, poles.count % 2 == 1, poles.count == weights.count else { return nil }
+        var flat = [Double](repeating: 0, count: poles.count * 3)
+        for (i, p) in poles.enumerated() {
+            flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z
+        }
+        var wts = weights
+        guard let ref = OCCTGeomEvalTBezierCurveCreateRational(&flat, &wts, Int32(poles.count), alpha) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D Algebraic-Hyperbolic-Trigonometric (AHT) Bezier curve.
+    ///
+    /// Uses a mixed basis: {1, t, ..., t^k, sinh(alpha*t), cosh(alpha*t), sin(beta*t), cos(beta*t)}.
+    /// Number of poles must equal algDegree+1 + 2*(alpha>0) + 2*(beta>0).
+    /// Parameter range: [0, 1].
+    /// - Parameters:
+    ///   - poles: control points
+    ///   - algDegree: algebraic polynomial degree (>= 0)
+    ///   - alpha: hyperbolic frequency (>= 0, 0 = no hyperbolic terms)
+    ///   - beta: trigonometric frequency (>= 0, 0 = no trig terms)
+    /// - Returns: Curve3D or nil on error
+    public static func ahtBezier(poles: [SIMD3<Double>], algDegree: Int, alpha: Double, beta: Double) -> Curve3D? {
+        guard !poles.isEmpty else { return nil }
+        var flat = [Double](repeating: 0, count: poles.count * 3)
+        for (i, p) in poles.enumerated() {
+            flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z
+        }
+        guard let ref = OCCTGeomEvalAHTBezierCurveCreate(&flat, Int32(poles.count),
+                                                          Int32(algDegree), alpha, beta) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
+    /// Create a 3D rational AHT Bezier curve.
+    /// - Parameters:
+    ///   - poles: control points
+    ///   - weights: weights for each pole (all > 0)
+    ///   - algDegree: algebraic polynomial degree (>= 0)
+    ///   - alpha: hyperbolic frequency (>= 0)
+    ///   - beta: trigonometric frequency (>= 0)
+    /// - Returns: Curve3D or nil on error
+    public static func ahtBezierRational(poles: [SIMD3<Double>], weights: [Double],
+                                          algDegree: Int, alpha: Double, beta: Double) -> Curve3D? {
+        guard !poles.isEmpty, poles.count == weights.count else { return nil }
+        var flat = [Double](repeating: 0, count: poles.count * 3)
+        for (i, p) in poles.enumerated() {
+            flat[i * 3] = p.x; flat[i * 3 + 1] = p.y; flat[i * 3 + 2] = p.z
+        }
+        var wts = weights
+        guard let ref = OCCTGeomEvalAHTBezierCurveCreateRational(&flat, &wts, Int32(poles.count),
+                                                                   Int32(algDegree), alpha, beta) else { return nil }
+        return Curve3D(handle: ref)
+    }
+}
