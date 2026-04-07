@@ -7650,8 +7650,8 @@ OCCTCurve2DRef OCCTCurve2DJoinToBSpline(const OCCTCurve2DRef* curves, int32_t co
 
 // MARK: - Local Properties (Geom2dLProp)
 
-#include <Geom2dLProp_CLProps2d.hxx>
-#include <Geom2dLProp_CurAndInf2d.hxx>
+#include <GeomLProp_CLProps.hxx>
+#include <GeomLProp_CurAndInf2d.hxx>
 #include <LProp_CurAndInf.hxx>
 #include <LProp_CIType.hxx>
 #include <Bnd_Box2d.hxx>
@@ -7672,7 +7672,7 @@ OCCTCurve2DRef OCCTCurve2DJoinToBSpline(const OCCTCurve2DRef* curves, int32_t co
 double OCCTCurve2DGetCurvature(OCCTCurve2DRef c, double u) {
     if (!c || c->curve.IsNull()) return 0.0;
     try {
-        Geom2dLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
+        GeomLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
         return props.Curvature();
     } catch (...) {
         return 0.0;
@@ -7682,7 +7682,7 @@ double OCCTCurve2DGetCurvature(OCCTCurve2DRef c, double u) {
 bool OCCTCurve2DGetNormal(OCCTCurve2DRef c, double u, double* nx, double* ny) {
     if (!c || c->curve.IsNull() || !nx || !ny) return false;
     try {
-        Geom2dLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
+        GeomLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
         if (!props.IsTangentDefined()) return false;
         if (props.Curvature() < Precision::Confusion()) return false;
         gp_Dir2d n;
@@ -7697,7 +7697,7 @@ bool OCCTCurve2DGetNormal(OCCTCurve2DRef c, double u, double* nx, double* ny) {
 bool OCCTCurve2DGetTangentDir(OCCTCurve2DRef c, double u, double* tx, double* ty) {
     if (!c || c->curve.IsNull() || !tx || !ty) return false;
     try {
-        Geom2dLProp_CLProps2d props(c->curve, u, 1, Precision::Confusion());
+        GeomLProp_CLProps2d props(c->curve, u, 1, Precision::Confusion());
         if (!props.IsTangentDefined()) return false;
         gp_Dir2d t;
         props.Tangent(t);
@@ -7711,7 +7711,7 @@ bool OCCTCurve2DGetTangentDir(OCCTCurve2DRef c, double u, double* tx, double* ty
 bool OCCTCurve2DGetCenterOfCurvature(OCCTCurve2DRef c, double u, double* cx, double* cy) {
     if (!c || c->curve.IsNull() || !cx || !cy) return false;
     try {
-        Geom2dLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
+        GeomLProp_CLProps2d props(c->curve, u, 2, Precision::Confusion());
         if (!props.IsTangentDefined()) return false;
         if (props.Curvature() < Precision::Confusion()) return false;
         gp_Pnt2d center;
@@ -7726,7 +7726,7 @@ bool OCCTCurve2DGetCenterOfCurvature(OCCTCurve2DRef c, double u, double* cx, dou
 int32_t OCCTCurve2DGetInflectionPoints(OCCTCurve2DRef c, double* outParams, int32_t max) {
     if (!c || c->curve.IsNull() || !outParams || max <= 0) return 0;
     try {
-        Geom2dLProp_CurAndInf2d analyzer;
+        GeomLProp_CurAndInf2d analyzer;
         analyzer.PerformInf(c->curve);
         if (!analyzer.IsDone()) return 0;
         int32_t n = 0;
@@ -7744,7 +7744,7 @@ int32_t OCCTCurve2DGetInflectionPoints(OCCTCurve2DRef c, double* outParams, int3
 int32_t OCCTCurve2DGetCurvatureExtrema(OCCTCurve2DRef c, OCCTCurve2DCurvePoint* out, int32_t max) {
     if (!c || c->curve.IsNull() || !out || max <= 0) return 0;
     try {
-        Geom2dLProp_CurAndInf2d analyzer;
+        GeomLProp_CurAndInf2d analyzer;
         analyzer.PerformCurExt(c->curve);
         if (!analyzer.IsDone()) return 0;
         int32_t n = 0;
@@ -7763,7 +7763,7 @@ int32_t OCCTCurve2DGetCurvatureExtrema(OCCTCurve2DRef c, OCCTCurve2DCurvePoint* 
 int32_t OCCTCurve2DGetAllSpecialPoints(OCCTCurve2DRef c, OCCTCurve2DCurvePoint* out, int32_t max) {
     if (!c || c->curve.IsNull() || !out || max <= 0) return 0;
     try {
-        Geom2dLProp_CurAndInf2d analyzer;
+        GeomLProp_CurAndInf2d analyzer;
         analyzer.Perform(c->curve);
         if (!analyzer.IsDone()) return 0;
         int32_t n = std::min((int32_t)analyzer.NbPoints(), max);
@@ -12768,9 +12768,7 @@ int32_t OCCTCurve2DEvaluateGrid(OCCTCurve2DRef curve,
                                  double* outXY) {
     if (!curve || curve->curve.IsNull() || !params || !outXY || paramCount <= 0) return 0;
     try {
-        Geom2dGridEval_Curve evaluator;
-        evaluator.Initialize(curve->curve);
-        if (!evaluator.IsInitialized()) return 0;
+        Geom2dGridEval_Curve evaluator(curve->curve);
 
         NCollection_Array1<double> paramArr(1, paramCount);
         for (int32_t i = 0; i < paramCount; i++) {
@@ -12795,9 +12793,7 @@ int32_t OCCTCurve2DEvaluateGridD1(OCCTCurve2DRef curve,
                                    double* outXY, double* outDXDY) {
     if (!curve || curve->curve.IsNull() || !params || !outXY || !outDXDY || paramCount <= 0) return 0;
     try {
-        Geom2dGridEval_Curve evaluator;
-        evaluator.Initialize(curve->curve);
-        if (!evaluator.IsInitialized()) return 0;
+        Geom2dGridEval_Curve evaluator(curve->curve);
 
         NCollection_Array1<double> paramArr(1, paramCount);
         for (int32_t i = 0; i < paramCount; i++) {
@@ -12901,9 +12897,7 @@ int32_t OCCTCurve3DEvaluateGrid(OCCTCurve3DRef curve, const double* params, int3
                                  double* outXYZ) {
     if (!curve || curve->curve.IsNull() || !params || !outXYZ || paramCount <= 0) return 0;
     try {
-        GeomGridEval_Curve evaluator;
-        evaluator.Initialize(curve->curve);
-        if (!evaluator.IsInitialized()) return 0;
+        GeomGridEval_Curve evaluator(curve->curve);
 
         NCollection_Array1<double> paramArr(1, paramCount);
         for (int32_t i = 0; i < paramCount; i++) {
@@ -12928,9 +12922,7 @@ int32_t OCCTCurve3DEvaluateGridD1(OCCTCurve3DRef curve, const double* params, in
                                    double* outXYZ, double* outDXDYDZ) {
     if (!curve || curve->curve.IsNull() || !params || !outXYZ || !outDXDYDZ || paramCount <= 0) return 0;
     try {
-        GeomGridEval_Curve evaluator;
-        evaluator.Initialize(curve->curve);
-        if (!evaluator.IsInitialized()) return 0;
+        GeomGridEval_Curve evaluator(curve->curve);
 
         NCollection_Array1<double> paramArr(1, paramCount);
         for (int32_t i = 0; i < paramCount; i++) {
@@ -12965,9 +12957,7 @@ int32_t OCCTSurfaceEvaluateGrid(OCCTSurfaceRef surface,
     if (!surface || surface->surface.IsNull() || !uParams || !vParams || !outXYZ
         || uCount <= 0 || vCount <= 0) return 0;
     try {
-        GeomGridEval_Surface evaluator;
-        evaluator.Initialize(surface->surface);
-        if (!evaluator.IsInitialized()) return 0;
+        GeomGridEval_Surface evaluator(surface->surface);
 
         NCollection_Array1<double> uArr(1, uCount);
         for (int32_t i = 0; i < uCount; i++) {
@@ -19639,7 +19629,7 @@ OCCTAnaFilletResult OCCTChFi2dAnaFillet(OCCTShapeRef edge1, OCCTShapeRef edge2,
 #include <Extrema_ExtPElC2d.hxx>
 #include <Extrema_ExtCC2d.hxx>
 #include <Extrema_POnCurv2d.hxx>
-#include <Geom2dLProp_NumericCurInf2d.hxx>
+#include <GeomLProp_CurAndInf2d.hxx>
 #include <LProp_CurAndInf.hxx>
 #include <LProp_CIType.hxx>
 #include <Bisector_BisecAna.hxx>
@@ -20257,18 +20247,17 @@ int32_t OCCTExtremaExtCC2d(OCCTCurve2DRef c1, double first1, double last1,
     } catch (...) { return -1; }
 }
 
-// --- Geom2dLProp_NumericCurInf2d ---
+// --- GeomLProp_CurAndInf2d (was Geom2dLProp_NumericCurInf2d in RC4) ---
 int32_t OCCTGeom2dLPropCurExt(OCCTCurve2DRef curve,
                               OCCTCurInfPoint* out, int32_t max) {
     try {
-        Geom2dLProp_NumericCurInf2d solver;
-        LProp_CurAndInf result;
-        solver.PerformCurExt(curve->curve, result);
+        GeomLProp_CurAndInf2d solver;
+        solver.PerformCurExt(curve->curve);
         if (!solver.IsDone()) return 0;
-        int32_t nb = std::min((int32_t)result.NbPoints(), max);
+        int32_t nb = std::min((int32_t)solver.NbPoints(), max);
         for (int32_t i = 0; i < nb; i++) {
-            out[i].parameter = result.Parameter(i + 1);
-            LProp_CIType t = result.Type(i + 1);
+            out[i].parameter = solver.Parameter(i + 1);
+            LProp_CIType t = solver.Type(i + 1);
             if (t == LProp_MinCur) out[i].type = 0;
             else if (t == LProp_MaxCur) out[i].type = 1;
             else out[i].type = 2;
@@ -20280,13 +20269,12 @@ int32_t OCCTGeom2dLPropCurExt(OCCTCurve2DRef curve,
 int32_t OCCTGeom2dLPropCurInf(OCCTCurve2DRef curve,
                               OCCTCurInfPoint* out, int32_t max) {
     try {
-        Geom2dLProp_NumericCurInf2d solver;
-        LProp_CurAndInf result;
-        solver.PerformInf(curve->curve, result);
+        GeomLProp_CurAndInf2d solver;
+        solver.PerformInf(curve->curve);
         if (!solver.IsDone()) return 0;
-        int32_t nb = std::min((int32_t)result.NbPoints(), max);
+        int32_t nb = std::min((int32_t)solver.NbPoints(), max);
         for (int32_t i = 0; i < nb; i++) {
-            out[i].parameter = result.Parameter(i + 1);
+            out[i].parameter = solver.Parameter(i + 1);
             out[i].type = 2;
         }
         return nb;
@@ -24594,7 +24582,6 @@ OCCTShapeRef _Nullable OCCTShapeUpgradeConvertSurfaceToBezier(OCCTShapeRef shape
 #include <Geom2d_VectorWithMagnitude.hxx>
 #include <Geom2d_Direction.hxx>
 #include <Geom2dAPI_ProjectPointOnCurve.hxx>
-#include <LProp_AnalyticCurInf.hxx>
 #include <LProp_CurAndInf.hxx>
 #include <LProp_CIType.hxx>
 
@@ -24926,14 +24913,30 @@ double OCCTDirection2DCross(double ax, double ay, double bx, double by) {
     } catch (...) { return 0.0; }
 }
 
-// --- LProp_AnalyticCurInf ---
+// --- LProp_AnalyticCurInf (inlined for RC5 — symbols removed from library) ---
 
 int32_t OCCTLPropAnalyticCurInf(int32_t curveType, double first, double last,
     double* _Nonnull outParams, int32_t* _Nonnull outTypes, int32_t maxResults) {
     try {
-        LProp_AnalyticCurInf analyzer;
+        // Inline implementation matching OCCT LProp_AnalyticCurInf::Perform.
+        // Only ellipses have curvature extrema among analytic curves.
+        // Line: zero curvature, Circle: constant curvature, Parabola/Hyperbola: monotonic curvature.
         LProp_CurAndInf result;
-        analyzer.Perform((GeomAbs_CurveType)curveType, first, last, result);
+        GeomAbs_CurveType ct = (GeomAbs_CurveType)curveType;
+        if (ct == GeomAbs_Ellipse) {
+            // Ellipse curvature extrema at multiples of PI/2
+            // At 0, PI: max curvature (min radius vertex on minor axis)
+            // At PI/2, 3PI/2: min curvature (max radius vertex on major axis)
+            double PI2 = M_PI / 2.0;
+            for (int k = 0; k < 4; k++) {
+                double param = k * PI2;
+                if (param >= first && param <= last) {
+                    bool isMin = (k == 1 || k == 3);
+                    result.AddExtCur(param, isMin);
+                }
+            }
+        }
+        // All other analytic curve types: no curvature extrema to report.
         int32_t count = std::min((int32_t)result.NbPoints(), maxResults);
         for (int32_t i = 0; i < count; i++) {
             outParams[i] = result.Parameter(i + 1);
@@ -44227,9 +44230,7 @@ void OCCTGridEvalCurveD0(OCCTCurve3DRef curve, const double* params, int32_t cou
                            double* xs, double* ys, double* zs) {
     if (!curve || curve->curve.IsNull() || count <= 0) return;
     try {
-        GeomGridEval_Curve eval;
-        eval.Initialize(curve->curve);
-        if (!eval.IsInitialized()) return;
+        GeomGridEval_Curve eval(curve->curve);
         NCollection_Array1<double> pArr(1, count);
         for (int i = 0; i < count; i++) pArr(i+1) = params[i];
         NCollection_Array1<gp_Pnt> results = eval.EvaluateGrid(pArr);
@@ -44244,9 +44245,7 @@ void OCCTGridEvalCurveD1(OCCTCurve3DRef curve, const double* params, int32_t cou
                            double* d1xs, double* d1ys, double* d1zs) {
     if (!curve || curve->curve.IsNull() || count <= 0) return;
     try {
-        GeomGridEval_Curve eval;
-        eval.Initialize(curve->curve);
-        if (!eval.IsInitialized()) return;
+        GeomGridEval_Curve eval(curve->curve);
         NCollection_Array1<double> pArr(1, count);
         for (int i = 0; i < count; i++) pArr(i+1) = params[i];
         NCollection_Array1<GeomGridEval::CurveD1> results = eval.EvaluateGridD1(pArr);
@@ -44263,9 +44262,7 @@ void OCCTGridEvalCurve2dD0(OCCTCurve2DRef curve, const double* params, int32_t c
                               double* xs, double* ys) {
     if (!curve || curve->curve.IsNull() || count <= 0) return;
     try {
-        Geom2dGridEval_Curve eval;
-        eval.Initialize(curve->curve);
-        if (!eval.IsInitialized()) return;
+        Geom2dGridEval_Curve eval(curve->curve);
         NCollection_Array1<double> pArr(1, count);
         for (int i = 0; i < count; i++) pArr(i+1) = params[i];
         NCollection_Array1<gp_Pnt2d> results = eval.EvaluateGrid(pArr);
@@ -44279,9 +44276,7 @@ void OCCTGridEvalCurve2dD1(OCCTCurve2DRef curve, const double* params, int32_t c
                               double* xs, double* ys, double* d1xs, double* d1ys) {
     if (!curve || curve->curve.IsNull() || count <= 0) return;
     try {
-        Geom2dGridEval_Curve eval;
-        eval.Initialize(curve->curve);
-        if (!eval.IsInitialized()) return;
+        Geom2dGridEval_Curve eval(curve->curve);
         NCollection_Array1<double> pArr(1, count);
         for (int i = 0; i < count; i++) pArr(i+1) = params[i];
         NCollection_Array1<Geom2dGridEval::CurveD1> results = eval.EvaluateGridD1(pArr);
@@ -44299,9 +44294,7 @@ void OCCTGridEvalSurfaceD0(OCCTSurfaceRef surface, const double* uParams, int32_
                               double* xs, double* ys, double* zs) {
     if (!surface || surface->surface.IsNull() || uCount <= 0 || vCount <= 0) return;
     try {
-        GeomGridEval_Surface eval;
-        eval.Initialize(surface->surface);
-        if (!eval.IsInitialized()) return;
+        GeomGridEval_Surface eval(surface->surface);
         NCollection_Array1<double> uArr(1, uCount), vArr(1, vCount);
         for (int i = 0; i < uCount; i++) uArr(i+1) = uParams[i];
         for (int i = 0; i < vCount; i++) vArr(i+1) = vParams[i];
@@ -44323,9 +44316,7 @@ void OCCTGridEvalSurfaceD1(OCCTSurfaceRef surface, const double* uParams, int32_
                               double* d1vxs, double* d1vys, double* d1vzs) {
     if (!surface || surface->surface.IsNull() || uCount <= 0 || vCount <= 0) return;
     try {
-        GeomGridEval_Surface eval;
-        eval.Initialize(surface->surface);
-        if (!eval.IsInitialized()) return;
+        GeomGridEval_Surface eval(surface->surface);
         NCollection_Array1<double> uArr(1, uCount), vArr(1, vCount);
         for (int i = 0; i < uCount; i++) uArr(i+1) = uParams[i];
         for (int i = 0; i < vCount; i++) vArr(i+1) = vParams[i];
@@ -48650,15 +48641,13 @@ const char* _Nullable OCCTUnitsDumpLengthUnit(int32_t unit) {
     } catch (...) { return nullptr; }
 }
 
-// LProp3d_CLProps
+// GeomLProp_CLProps (was LProp3d_CLProps in RC4)
 
-#include <LProp3d_CLProps.hxx>
-#include <GeomAdaptor_Curve.hxx>
+#include <GeomLProp_CLProps.hxx>
 
 double OCCTCurve3DLocalCurvature(OCCTCurve3DRef _Nonnull curve, double u) {
     try {
-        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve->curve);
-        LProp3d_CLProps props(adaptor, u, 2, 1e-10);
+        GeomLProp_CLProps props(curve->curve, u, 2, 1e-10);
         return props.Curvature();
     } catch (...) { return 0.0; }
 }
@@ -48667,8 +48656,7 @@ void OCCTCurve3DLocalTangent(OCCTCurve3DRef _Nonnull curve, double u,
                                double* _Nonnull tx, double* _Nonnull ty, double* _Nonnull tz,
                                bool* _Nonnull isDefined) {
     try {
-        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve->curve);
-        LProp3d_CLProps props(adaptor, u, 1, 1e-10);
+        GeomLProp_CLProps props(curve->curve, u, 1, 1e-10);
         *isDefined = props.IsTangentDefined();
         if (*isDefined) {
             gp_Dir d;
@@ -48684,8 +48672,7 @@ void OCCTCurve3DLocalNormal(OCCTCurve3DRef _Nonnull curve, double u,
                               double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz,
                               bool* _Nonnull isDefined) {
     try {
-        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve->curve);
-        LProp3d_CLProps props(adaptor, u, 2, 1e-10);
+        GeomLProp_CLProps props(curve->curve, u, 2, 1e-10);
         *isDefined = props.IsTangentDefined();
         if (*isDefined) {
             gp_Dir n;
@@ -48701,8 +48688,7 @@ void OCCTCurve3DLocalCentreOfCurvature(OCCTCurve3DRef _Nonnull curve, double u,
                                          double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz,
                                          bool* _Nonnull isDefined) {
     try {
-        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve->curve);
-        LProp3d_CLProps props(adaptor, u, 2, 1e-10);
+        GeomLProp_CLProps props(curve->curve, u, 2, 1e-10);
         double curv = props.Curvature();
         if (curv > 1e-10 && props.IsTangentDefined()) {
             gp_Pnt p;
@@ -48716,18 +48702,16 @@ void OCCTCurve3DLocalCentreOfCurvature(OCCTCurve3DRef _Nonnull curve, double u,
     } catch (...) { *isDefined = false; *cx = 0; *cy = 0; *cz = 0; }
 }
 
-// LProp3d_SLProps
+// GeomLProp_SLProps (was LProp3d_SLProps in RC4)
 
-#include <LProp3d_SLProps.hxx>
-#include <GeomAdaptor_Surface.hxx>
+#include <GeomLProp_SLProps.hxx>
 
 void OCCTSurfaceLocalCurvatures(OCCTSurfaceRef _Nonnull surface, double u, double v,
                                   double* _Nonnull gaussian, double* _Nonnull mean,
                                   double* _Nonnull maxCurvature, double* _Nonnull minCurvature,
                                   bool* _Nonnull isDefined) {
     try {
-        Handle(GeomAdaptor_Surface) adaptor = new GeomAdaptor_Surface(surface->surface);
-        LProp3d_SLProps props(adaptor, u, v, 2, 1e-10);
+        GeomLProp_SLProps props(surface->surface, u, v, 2, 1e-10);
         *isDefined = props.IsCurvatureDefined();
         if (*isDefined) {
             *gaussian = props.GaussianCurvature();
@@ -48745,8 +48729,7 @@ void OCCTSurfaceLocalCurvatureDirections(OCCTSurfaceRef _Nonnull surface, double
                                            double* _Nonnull minDx, double* _Nonnull minDy, double* _Nonnull minDz,
                                            bool* _Nonnull isDefined) {
     try {
-        Handle(GeomAdaptor_Surface) adaptor = new GeomAdaptor_Surface(surface->surface);
-        LProp3d_SLProps props(adaptor, u, v, 2, 1e-10);
+        GeomLProp_SLProps props(surface->surface, u, v, 2, 1e-10);
         *isDefined = props.IsCurvatureDefined() && !props.IsUmbilic();
         if (*isDefined) {
             gp_Dir maxD, minD;
