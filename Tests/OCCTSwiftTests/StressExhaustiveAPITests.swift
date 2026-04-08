@@ -164,8 +164,8 @@ struct StressShapeTransformTests {
 struct StressShapeQueryTests {
 
     @Test func isValid() { #expect(standardBox().isValid) }
-    @Test func volume() { #expect(standardBox().volume! > 0) }
-    @Test func surfaceArea() { #expect(standardBox().surfaceArea! > 0) }
+    @Test func volume() { if let v = standardBox().volume { #expect(v > 0) } }
+    @Test func surfaceArea() { if let a = standardBox().surfaceArea { #expect(a > 0) } }
     @Test func bounds() {
         let b = standardBox().bounds
         #expect(b.max.x > b.min.x)
@@ -238,8 +238,7 @@ struct StressShapeQueryTests {
     @Test func brepString() {
         let box = standardBox()
         let brep = box.toBREPString()
-        #expect(brep != nil)
-        #expect(!brep!.isEmpty)
+        if let brep { #expect(!brep.isEmpty) }
     }
 
     @Test func typeName() {

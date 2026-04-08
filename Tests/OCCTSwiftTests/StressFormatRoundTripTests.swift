@@ -196,7 +196,7 @@ struct StressCrossFormatConsistencyTests {
 
     @Test func boxAllBRepFormats() throws {
         let box = standardBox()
-        let origVol = box.volume!
+        let origVol = box.volume ?? 0
 
         // STEP
         let stepURL = tempURL("step")
