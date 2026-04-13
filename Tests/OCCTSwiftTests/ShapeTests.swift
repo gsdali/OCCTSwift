@@ -44008,3 +44008,242 @@ struct TopologyGraphBuilderValidateMutationTests {
         }
     }
 }
+
+// MARK: - TopologyGraph ML Export & Sampling (v0.136.0)
+
+@Suite("TopologyGraph ML Export")
+struct TopologyGraphMLExportTests {
+    @Test func exportBoxGraph() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let export_ = graph.exportForML()
+                #expect(export_.vertexPositions.count == 8)
+                #expect(export_.edgeBoundaryFlags.count == 12)
+                #expect(export_.edgeManifoldFlags.count == 12)
+                #expect(export_.faceAdjacentFaces.count == 6)
+                // Each vertex position should be [x, y, z]
+                for pos in export_.vertexPositions {
+                    #expect(pos.count == 3)
+                }
+                // Box edges are all manifold (shared by 2 faces), none boundary
+                for i in 0..<12 {
+                    #expect(export_.edgeManifoldFlags[i])
+                    #expect(!export_.edgeBoundaryFlags[i])
+                }
+                // Each box face is adjacent to 4 other faces
+                for adj in export_.faceAdjacentFaces {
+                    #expect(adj.count == 4)
+                }
+            }
+        }
+    }
+
+    @Test func exportCOOFormat() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let export_ = graph.exportForML()
+                // Edge-to-vertex: each edge contributes start + end = 24 entries for 12 edges
+                #expect(export_.edgeToVertex.sources.count == export_.edgeToVertex.targets.count)
+                #expect(export_.edgeToVertex.sources.count == 24)
+                // Face-to-edge incidence: should have entries from coedges
+                #expect(export_.faceToEdge.sources.count == export_.faceToEdge.targets.count)
+                #expect(export_.faceToEdge.sources.count > 0)
+                // Face-to-face adjacency: 6 faces * 4 neighbors = 24
+                #expect(export_.faceToFace.sources.count == export_.faceToFace.targets.count)
+                #expect(export_.faceToFace.sources.count == 24)
+            }
+        }
+    }
+
+    @Test func exportJSON() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let json = graph.exportJSON()
+                #expect(json != nil)
+                if let json {
+                    #expect(json.count > 0)
+                    // Should be valid JSON
+                    let obj = try? JSONSerialization.jsonObject(with: json)
+                    #expect(obj != nil)
+                    if let dict = obj as? [String: Any] {
+                        #expect(dict["vertexPositions"] != nil)
+                        #expect(dict["edgeBoundaryFlags"] != nil)
+                        #expect(dict["faceToFaceSources"] != nil)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func exportSphere() {
+        if let sphere = Shape.sphere(radius: 5) {
+            if let graph = TopologyGraph(shape: sphere) {
+                let export_ = graph.exportForML()
+                #expect(export_.vertexPositions.count == graph.vertexCount)
+                #expect(export_.edgeBoundaryFlags.count == graph.edgeCount)
+                #expect(export_.faceAdjacentFaces.count == graph.faceCount)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph UV Grid")
+struct TopologyGraphUVGridTests {
+    @Test func sampleBoxFace() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let sample = graph.sampleFaceUVGrid(faceIndex: 0, uSamples: 5, vSamples: 5)
+                #expect(sample != nil)
+                if let sample {
+                    #expect(sample.positions.count == 25)
+                    #expect(sample.normals.count == 25)
+                    #expect(sample.gaussianCurvatures.count == 25)
+                    #expect(sample.meanCurvatures.count == 25)
+                    #expect(sample.uSamples == 5)
+                    #expect(sample.vSamples == 5)
+                    // All normals should be non-zero (planar face)
+                    for n in sample.normals {
+                        let len = (n.x * n.x + n.y * n.y + n.z * n.z).squareRoot()
+                        #expect(len > 0.99)
+                    }
+                    // Planar face: gaussian curvature should be ~0
+                    for k in sample.gaussianCurvatures {
+                        #expect(abs(k) < 1e-10)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func sampleSphereFace() {
+        if let sphere = Shape.sphere(radius: 5) {
+            if let graph = TopologyGraph(shape: sphere) {
+                if graph.faceCount > 0 {
+                    let sample = graph.sampleFaceUVGrid(faceIndex: 0, uSamples: 4, vSamples: 4)
+                    if let sample {
+                        #expect(sample.positions.count == 16)
+                        // Sphere: non-zero curvature at most points (some may be undefined at poles)
+                        var nonZeroCount = 0
+                        for k in sample.gaussianCurvatures {
+                            if abs(k) > 1e-6 { nonZeroCount += 1 }
+                        }
+                        #expect(nonZeroCount > 0)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func sampleSinglePoint() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let sample = graph.sampleFaceUVGrid(faceIndex: 0, uSamples: 1, vSamples: 1)
+                #expect(sample != nil)
+                if let sample {
+                    #expect(sample.positions.count == 1)
+                }
+            }
+        }
+    }
+
+    @Test func sampleInvalidFace() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let sample = graph.sampleFaceUVGrid(faceIndex: 999, uSamples: 5, vSamples: 5)
+                #expect(sample == nil)
+            }
+        }
+    }
+
+    @Test func sampleZeroCounts() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let sample = graph.sampleFaceUVGrid(faceIndex: 0, uSamples: 0, vSamples: 5)
+                #expect(sample == nil)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Edge Sampling")
+struct TopologyGraphEdgeSamplingTests {
+    @Test func sampleBoxEdge() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                // Find an edge with a curve
+                var sampledEdge = -1
+                for i in 0..<graph.edgeCount {
+                    if graph.edgeHasCurve(i) {
+                        sampledEdge = i
+                        break
+                    }
+                }
+                if sampledEdge >= 0 {
+                    let points = graph.sampleEdgeCurve(edgeIndex: sampledEdge, count: 10)
+                    #expect(points.count == 10)
+                    // Points should be distinct (not all the same)
+                    if points.count >= 2 {
+                        let first = points[0]
+                        let last = points[points.count - 1]
+                        let dist = ((first.x - last.x) * (first.x - last.x) +
+                                    (first.y - last.y) * (first.y - last.y) +
+                                    (first.z - last.z) * (first.z - last.z)).squareRoot()
+                        #expect(dist > 0.001)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func sampleSinglePoint() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                for i in 0..<graph.edgeCount {
+                    if graph.edgeHasCurve(i) {
+                        let points = graph.sampleEdgeCurve(edgeIndex: i, count: 1)
+                        #expect(points.count == 1)
+                        break
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func sampleEdgeWithoutCurve() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                // Test with invalid index
+                let points = graph.sampleEdgeCurve(edgeIndex: 999, count: 10)
+                #expect(points.isEmpty)
+            }
+        }
+    }
+
+    @Test func sampleZeroCount() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let points = graph.sampleEdgeCurve(edgeIndex: 0, count: 0)
+                #expect(points.isEmpty)
+            }
+        }
+    }
+
+    @Test func sampleSphereEdge() {
+        if let sphere = Shape.sphere(radius: 5) {
+            if let graph = TopologyGraph(shape: sphere) {
+                for i in 0..<graph.edgeCount {
+                    if graph.edgeHasCurve(i) {
+                        let points = graph.sampleEdgeCurve(edgeIndex: i, count: 20)
+                        #expect(points.count == 20)
+                        // All points should be on the sphere surface (distance from origin ~= 5)
+                        for p in points {
+                            let r = (p.x * p.x + p.y * p.y + p.z * p.z).squareRoot()
+                            #expect(abs(r - 5.0) < 0.1)
+                        }
+                        break
+                    }
+                }
+            }
+        }
+    }
+}

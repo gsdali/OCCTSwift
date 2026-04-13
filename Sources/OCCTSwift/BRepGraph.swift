@@ -5,6 +5,7 @@
 //  Graph-based B-Rep topology representation (OCCT BRepGraph)
 //
 
+import Foundation
 import OCCTBridge
 
 /// A graph-based representation of B-Rep topology.
@@ -1018,5 +1019,220 @@ public final class TopologyGraph: @unchecked Sendable {
     /// - Returns: True if no issues were found.
     public func validateMutation() -> Bool {
         OCCTBRepGraphBuilderValidateMutation(handle)
+    }
+
+    // MARK: - ML Export (v0.136.0)
+
+    /// Graph data exported in ML-friendly format with flat arrays and COO sparse adjacency.
+    public struct GraphExport: Sendable {
+        /// Nx3 vertex positions (each inner array is [x, y, z]).
+        public let vertexPositions: [[Double]]
+        /// Per-edge boundary flag.
+        public let edgeBoundaryFlags: [Bool]
+        /// Per-edge manifold flag.
+        public let edgeManifoldFlags: [Bool]
+        /// Per-face list of adjacent face indices.
+        public let faceAdjacentFaces: [[Int]]
+        /// Face-to-edge incidence in COO format.
+        public let faceToEdge: (sources: [Int], targets: [Int])
+        /// Edge-to-vertex incidence in COO format.
+        public let edgeToVertex: (sources: [Int], targets: [Int])
+        /// Face-to-face adjacency in COO format.
+        public let faceToFace: (sources: [Int], targets: [Int])
+    }
+
+    /// Export graph in ML-friendly format with flat arrays and COO sparse adjacency.
+    public func exportForML() -> GraphExport {
+        let nv = vertexCount
+        let ne = edgeCount
+        let nf = faceCount
+        let nce = coedgeCount
+
+        // Vertex positions
+        var vertexPositions = [[Double]]()
+        vertexPositions.reserveCapacity(nv)
+        for i in 0..<nv {
+            let p = vertexPoint(i)
+            vertexPositions.append([p.x, p.y, p.z])
+        }
+
+        // Edge flags
+        var edgeBoundary = [Bool]()
+        var edgeManifold = [Bool]()
+        edgeBoundary.reserveCapacity(ne)
+        edgeManifold.reserveCapacity(ne)
+        for i in 0..<ne {
+            edgeBoundary.append(isBoundaryEdge(i))
+            edgeManifold.append(isManifoldEdge(i))
+        }
+
+        // Face adjacency
+        var faceAdj = [[Int]]()
+        faceAdj.reserveCapacity(nf)
+        var f2fSrc = [Int]()
+        var f2fTgt = [Int]()
+        for i in 0..<nf {
+            let adj = adjacentFaces(of: i)
+            faceAdj.append(adj)
+            for j in adj {
+                f2fSrc.append(i)
+                f2fTgt.append(j)
+            }
+        }
+
+        // Face-to-edge incidence via coedges
+        var f2eSrc = [Int]()
+        var f2eTgt = [Int]()
+        for i in 0..<nce {
+            let fIdx = coedgeFace(i)
+            let eIdx = coedgeEdge(i)
+            f2eSrc.append(fIdx)
+            f2eTgt.append(eIdx)
+        }
+
+        // Edge-to-vertex incidence
+        var e2vSrc = [Int]()
+        var e2vTgt = [Int]()
+        for i in 0..<ne {
+            if let sv = edgeStartVertex(i) {
+                e2vSrc.append(i)
+                e2vTgt.append(sv)
+            }
+            if let ev = edgeEndVertex(i) {
+                e2vSrc.append(i)
+                e2vTgt.append(ev)
+            }
+        }
+
+        return GraphExport(
+            vertexPositions: vertexPositions,
+            edgeBoundaryFlags: edgeBoundary,
+            edgeManifoldFlags: edgeManifold,
+            faceAdjacentFaces: faceAdj,
+            faceToEdge: (sources: f2eSrc, targets: f2eTgt),
+            edgeToVertex: (sources: e2vSrc, targets: e2vTgt),
+            faceToFace: (sources: f2fSrc, targets: f2fTgt)
+        )
+    }
+
+    /// Codable wrapper for GraphExport, suitable for JSON serialization.
+    private struct CodableGraphExport: Codable {
+        let vertexPositions: [[Double]]
+        let edgeBoundaryFlags: [Bool]
+        let edgeManifoldFlags: [Bool]
+        let faceAdjacentFaces: [[Int]]
+        let faceToEdgeSources: [Int]
+        let faceToEdgeTargets: [Int]
+        let edgeToVertexSources: [Int]
+        let edgeToVertexTargets: [Int]
+        let faceToFaceSources: [Int]
+        let faceToFaceTargets: [Int]
+    }
+
+    /// Export graph as JSON data for ML pipelines.
+    public func exportJSON() -> Data? {
+        let export_ = exportForML()
+        let codable = CodableGraphExport(
+            vertexPositions: export_.vertexPositions,
+            edgeBoundaryFlags: export_.edgeBoundaryFlags,
+            edgeManifoldFlags: export_.edgeManifoldFlags,
+            faceAdjacentFaces: export_.faceAdjacentFaces,
+            faceToEdgeSources: export_.faceToEdge.sources,
+            faceToEdgeTargets: export_.faceToEdge.targets,
+            edgeToVertexSources: export_.edgeToVertex.sources,
+            edgeToVertexTargets: export_.edgeToVertex.targets,
+            faceToFaceSources: export_.faceToFace.sources,
+            faceToFaceTargets: export_.faceToFace.targets
+        )
+        return try? JSONEncoder().encode(codable)
+    }
+
+    // MARK: - UV-Grid Sampling (v0.136.0)
+
+    /// Result of sampling a face surface on a regular UV grid.
+    public struct FaceGridSample: Sendable {
+        /// Surface positions at grid points.
+        public let positions: [SIMD3<Double>]
+        /// Surface normals at grid points.
+        public let normals: [SIMD3<Double>]
+        /// Gaussian curvature at each grid point.
+        public let gaussianCurvatures: [Double]
+        /// Mean curvature at each grid point.
+        public let meanCurvatures: [Double]
+        /// Number of samples in U direction.
+        public let uSamples: Int
+        /// Number of samples in V direction.
+        public let vSamples: Int
+    }
+
+    /// Sample a face surface on a regular UV grid, evaluating positions, normals, and curvatures.
+    /// - Parameters:
+    ///   - faceIndex: Face definition index.
+    ///   - uSamples: Number of samples in U direction (must be >= 1).
+    ///   - vSamples: Number of samples in V direction (must be >= 1).
+    /// - Returns: Grid sample data, or nil if face has no surface or sampling fails.
+    public func sampleFaceUVGrid(faceIndex: Int, uSamples: Int, vSamples: Int) -> FaceGridSample? {
+        guard uSamples >= 1, vSamples >= 1 else { return nil }
+        let total = uSamples * vSamples
+        var posBuffer = [Double](repeating: 0, count: total * 3)
+        var nrmBuffer = [Double](repeating: 0, count: total * 3)
+        var gaussBuffer = [Double](repeating: 0, count: total)
+        var meanBuffer = [Double](repeating: 0, count: total)
+
+        let result = posBuffer.withUnsafeMutableBufferPointer { posBuf in
+            nrmBuffer.withUnsafeMutableBufferPointer { nrmBuf in
+                gaussBuffer.withUnsafeMutableBufferPointer { gaussBuf in
+                    meanBuffer.withUnsafeMutableBufferPointer { meanBuf in
+                        OCCTBRepGraphSampleFaceUVGrid(
+                            handle, Int32(faceIndex),
+                            Int32(uSamples), Int32(vSamples),
+                            posBuf.baseAddress!, nrmBuf.baseAddress!,
+                            gaussBuf.baseAddress!, meanBuf.baseAddress!)
+                    }
+                }
+            }
+        }
+
+        guard result > 0 else { return nil }
+
+        var positions = [SIMD3<Double>]()
+        positions.reserveCapacity(total)
+        var normals = [SIMD3<Double>]()
+        normals.reserveCapacity(total)
+        for i in 0..<total {
+            positions.append(SIMD3(posBuffer[i * 3], posBuffer[i * 3 + 1], posBuffer[i * 3 + 2]))
+            normals.append(SIMD3(nrmBuffer[i * 3], nrmBuffer[i * 3 + 1], nrmBuffer[i * 3 + 2]))
+        }
+
+        return FaceGridSample(
+            positions: positions,
+            normals: normals,
+            gaussianCurvatures: gaussBuffer,
+            meanCurvatures: meanBuffer,
+            uSamples: uSamples,
+            vSamples: vSamples
+        )
+    }
+
+    // MARK: - Edge Curve Sampling (v0.136.0)
+
+    /// Sample evenly-spaced points along an edge curve.
+    /// - Parameters:
+    ///   - edgeIndex: Edge definition index.
+    ///   - count: Number of points to sample (must be >= 1).
+    /// - Returns: Array of 3D points along the edge, empty if edge has no curve.
+    public func sampleEdgeCurve(edgeIndex: Int, count: Int) -> [SIMD3<Double>] {
+        guard count >= 1 else { return [] }
+        var buffer = [Double](repeating: 0, count: count * 3)
+        let result = buffer.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphSampleEdgeCurve(handle, Int32(edgeIndex), Int32(count), buf.baseAddress!)
+        }
+        guard result > 0 else { return [] }
+        var points = [SIMD3<Double>]()
+        points.reserveCapacity(Int(result))
+        for i in 0..<Int(result) {
+            points.append(SIMD3(buffer[i * 3], buffer[i * 3 + 1], buffer[i * 3 + 2]))
+        }
+        return points
     }
 }

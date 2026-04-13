@@ -55509,3 +55509,102 @@ bool OCCTBRepGraphBuilderValidateMutation(OCCTBRepGraphRef g) {
         return g->graph.Builder().ValidateMutationBoundary();
     } catch (...) { return false; }
 }
+
+// MARK: - BRepGraph ML Export & Sampling (v0.136.0)
+
+#include <BRepTools.hxx>
+#include <GeomLProp_SLProps.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Face.hxx>
+#include <Precision.hxx>
+
+int32_t OCCTBRepGraphSampleFaceUVGrid(OCCTBRepGraphRef g, int32_t faceIndex,
+    int32_t uSamples, int32_t vSamples,
+    double* outPositions, double* outNormals,
+    double* outGaussianCurvatures, double* outMeanCurvatures)
+{
+    if (!g || uSamples < 1 || vSamples < 1) return 0;
+    try {
+        // Reconstruct the face shape to get proper UV bounds (trimmed by wires)
+        BRepGraph_NodeId nid(BRepGraph_NodeId::Kind::Face, faceIndex);
+        TopoDS_Shape faceShape = g->graph.Shapes().Shape(nid);
+        if (faceShape.IsNull()) return 0;
+        const TopoDS_Face& face = TopoDS::Face(faceShape);
+
+        double uMin, uMax, vMin, vMax;
+        BRepTools::UVBounds(face, uMin, uMax, vMin, vMax);
+
+        // Get the surface
+        auto& surfHandle = BRepGraph_Tool::Face::Surface(g->graph, BRepGraph_FaceId(faceIndex));
+        if (surfHandle.IsNull()) return 0;
+
+        int32_t count = uSamples * vSamples;
+        double uStep = (uSamples > 1) ? (uMax - uMin) / (uSamples - 1) : 0.0;
+        double vStep = (vSamples > 1) ? (vMax - vMin) / (vSamples - 1) : 0.0;
+
+        for (int32_t iv = 0; iv < vSamples; ++iv) {
+            double v = vMin + iv * vStep;
+            for (int32_t iu = 0; iu < uSamples; ++iu) {
+                double u = uMin + iu * uStep;
+                int32_t idx = iv * uSamples + iu;
+
+                GeomLProp_SLProps props(surfHandle, u, v, 2, Precision::Confusion());
+
+                // Position
+                gp_Pnt pnt = props.Value();
+                outPositions[idx * 3 + 0] = pnt.X();
+                outPositions[idx * 3 + 1] = pnt.Y();
+                outPositions[idx * 3 + 2] = pnt.Z();
+
+                // Normal
+                if (props.IsNormalDefined()) {
+                    gp_Dir nrm = props.Normal();
+                    outNormals[idx * 3 + 0] = nrm.X();
+                    outNormals[idx * 3 + 1] = nrm.Y();
+                    outNormals[idx * 3 + 2] = nrm.Z();
+                } else {
+                    outNormals[idx * 3 + 0] = 0.0;
+                    outNormals[idx * 3 + 1] = 0.0;
+                    outNormals[idx * 3 + 2] = 0.0;
+                }
+
+                // Curvatures
+                if (props.IsCurvatureDefined()) {
+                    outGaussianCurvatures[idx] = props.GaussianCurvature();
+                    outMeanCurvatures[idx] = props.MeanCurvature();
+                } else {
+                    outGaussianCurvatures[idx] = 0.0;
+                    outMeanCurvatures[idx] = 0.0;
+                }
+            }
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphSampleEdgeCurve(OCCTBRepGraphRef g, int32_t edgeIndex,
+    int32_t count, double* outPoints)
+{
+    if (!g || count < 1) return 0;
+    try {
+        if (!BRepGraph_Tool::Edge::HasCurve(g->graph, BRepGraph_EdgeId(edgeIndex)))
+            return 0;
+
+        auto& curveHandle = BRepGraph_Tool::Edge::Curve(g->graph, BRepGraph_EdgeId(edgeIndex));
+        if (curveHandle.IsNull()) return 0;
+
+        auto range = BRepGraph_Tool::Edge::Range(g->graph, BRepGraph_EdgeId(edgeIndex));
+        double first = range.first;
+        double last = range.second;
+        double step = (count > 1) ? (last - first) / (count - 1) : 0.0;
+
+        for (int32_t i = 0; i < count; ++i) {
+            double t = first + i * step;
+            gp_Pnt pnt = curveHandle->Value(t);
+            outPoints[i * 3 + 0] = pnt.X();
+            outPoints[i * 3 + 1] = pnt.Y();
+            outPoints[i * 3 + 2] = pnt.Z();
+        }
+        return count;
+    } catch (...) { return 0; }
+}

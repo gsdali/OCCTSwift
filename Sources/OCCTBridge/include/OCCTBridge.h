@@ -19779,6 +19779,24 @@ void OCCTBRepGraphBuilderClearEdgePolygon3D(OCCTBRepGraphRef _Nonnull graph,
 /// Validate mutation-boundary invariants. Returns true if no issues found.
 bool OCCTBRepGraphBuilderValidateMutation(OCCTBRepGraphRef _Nonnull graph);
 
+// MARK: - BRepGraph ML Export & Sampling (v0.136.0)
+
+/// Sample a regular UV grid on a face surface. Returns point count (uSamples * vSamples),
+/// or 0 on failure. Caller provides output buffers: positions (count*3 doubles),
+/// normals (count*3 doubles), gaussianCurvatures (count doubles), meanCurvatures (count doubles).
+int32_t OCCTBRepGraphSampleFaceUVGrid(
+    OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex,
+    int32_t uSamples, int32_t vSamples,
+    double* _Nonnull outPositions, double* _Nonnull outNormals,
+    double* _Nonnull outGaussianCurvatures, double* _Nonnull outMeanCurvatures);
+
+/// Sample N evenly-spaced points along an edge curve.
+/// Caller provides outPoints buffer of size count*3.
+/// Returns actual number of points sampled (0 if edge has no curve).
+int32_t OCCTBRepGraphSampleEdgeCurve(
+    OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex,
+    int32_t count, double* _Nonnull outPoints);
+
 #ifdef __cplusplus
 }
 #endif
