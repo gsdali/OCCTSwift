@@ -55291,3 +55291,221 @@ int32_t OCCTBRepGraphEdgeFindCoEdge(OCCTBRepGraphRef g, int32_t edgeIndex, int32
 }
 
 // end of v0.133.0 implementations
+
+// MARK: - BRepGraph Builder (v0.135.0)
+
+#include <BRepGraph_BuilderView.hxx>
+#include <BRepGraph_DeferredScope.hxx>
+
+static TopAbs_Orientation oriFromInt(int32_t o) {
+    switch (o) {
+        case 0: return TopAbs_FORWARD;
+        case 1: return TopAbs_REVERSED;
+        case 2: return TopAbs_INTERNAL;
+        case 3: return TopAbs_EXTERNAL;
+        default: return TopAbs_FORWARD;
+    }
+}
+
+// --- Add Topology Nodes ---
+
+int32_t OCCTBRepGraphBuilderAddVertex(OCCTBRepGraphRef g, double x, double y, double z, double tolerance) {
+    if (!g) return -1;
+    try {
+        auto vid = g->graph.Builder().AddVertex(gp_Pnt(x, y, z), tolerance);
+        return vid.IsValid() ? vid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphBuilderAddShell(OCCTBRepGraphRef g) {
+    if (!g) return -1;
+    try {
+        auto sid = g->graph.Builder().AddShell();
+        return sid.IsValid() ? sid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphBuilderAddSolid(OCCTBRepGraphRef g) {
+    if (!g) return -1;
+    try {
+        auto sid = g->graph.Builder().AddSolid();
+        return sid.IsValid() ? sid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphBuilderAddFaceToShell(OCCTBRepGraphRef g, int32_t shellIndex, int32_t faceIndex, int32_t orientation) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Builder().AddFaceToShell(
+            BRepGraph_ShellId(shellIndex),
+            BRepGraph_FaceId(faceIndex),
+            oriFromInt(orientation));
+        return rid.IsValid() ? rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphBuilderAddShellToSolid(OCCTBRepGraphRef g, int32_t solidIndex, int32_t shellIndex, int32_t orientation) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Builder().AddShellToSolid(
+            BRepGraph_SolidId(solidIndex),
+            BRepGraph_ShellId(shellIndex),
+            oriFromInt(orientation));
+        return rid.IsValid() ? rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphBuilderAddCompound(OCCTBRepGraphRef g, const int32_t* kinds, const int32_t* indices, int32_t count) {
+    if (!g || !kinds || !indices || count <= 0) return -1;
+    try {
+        NCollection_Vector<BRepGraph_NodeId> children;
+        for (int32_t i = 0; i < count; ++i) {
+            children.Append(BRepGraph_NodeId(kindFromInt(kinds[i]), indices[i]));
+        }
+        auto cid = g->graph.Builder().AddCompound(children);
+        return cid.IsValid() ? cid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphBuilderAddCompSolid(OCCTBRepGraphRef g, const int32_t* solidIndices, int32_t count) {
+    if (!g || !solidIndices || count <= 0) return -1;
+    try {
+        NCollection_Vector<BRepGraph_SolidId> solids;
+        for (int32_t i = 0; i < count; ++i) {
+            solids.Append(BRepGraph_SolidId(solidIndices[i]));
+        }
+        auto csid = g->graph.Builder().AddCompSolid(solids);
+        return csid.IsValid() ? csid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+// --- Remove/Modify Nodes ---
+
+void OCCTBRepGraphBuilderRemoveNode(OCCTBRepGraphRef g, int32_t nodeKind, int32_t nodeIndex) {
+    if (!g) return;
+    try {
+        g->graph.Builder().RemoveNode(BRepGraph_NodeId(kindFromInt(nodeKind), nodeIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphBuilderRemoveSubgraph(OCCTBRepGraphRef g, int32_t nodeKind, int32_t nodeIndex) {
+    if (!g) return;
+    try {
+        g->graph.Builder().RemoveSubgraph(BRepGraph_NodeId(kindFromInt(nodeKind), nodeIndex));
+    } catch (...) {}
+}
+
+// --- Append Shapes ---
+
+void OCCTBRepGraphBuilderAppendFlattenedShape(OCCTBRepGraphRef g, OCCTShapeRef shape, bool parallel) {
+    if (!g || !shape) return;
+    try {
+        g->graph.Builder().AppendFlattenedShape(*(const TopoDS_Shape*)shape, parallel);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphBuilderAppendFullShape(OCCTBRepGraphRef g, OCCTShapeRef shape, bool parallel) {
+    if (!g || !shape) return;
+    try {
+        g->graph.Builder().AppendFullShape(*(const TopoDS_Shape*)shape, parallel);
+    } catch (...) {}
+}
+
+// --- Deferred Invalidation ---
+
+void OCCTBRepGraphBuilderBeginDeferred(OCCTBRepGraphRef g) {
+    if (!g) return;
+    try { g->graph.Builder().BeginDeferredInvalidation(); }
+    catch (...) {}
+}
+
+void OCCTBRepGraphBuilderEndDeferred(OCCTBRepGraphRef g) {
+    if (!g) return;
+    try { g->graph.Builder().EndDeferredInvalidation(); }
+    catch (...) {}
+}
+
+bool OCCTBRepGraphBuilderIsDeferredMode(OCCTBRepGraphRef g) {
+    if (!g) return false;
+    try { return g->graph.Builder().IsDeferredMode(); }
+    catch (...) { return false; }
+}
+
+void OCCTBRepGraphBuilderCommitMutation(OCCTBRepGraphRef g) {
+    if (!g) return;
+    try { g->graph.Builder().CommitMutation(); }
+    catch (...) {}
+}
+
+// --- Edge Splitting ---
+
+void OCCTBRepGraphBuilderSplitEdge(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t vertexIndex,
+                                    double param, int32_t* outSubA, int32_t* outSubB) {
+    if (!g || !outSubA || !outSubB) {
+        if (outSubA) *outSubA = -1;
+        if (outSubB) *outSubB = -1;
+        return;
+    }
+    try {
+        BRepGraph_EdgeId subA, subB;
+        g->graph.Builder().SplitEdge(
+            BRepGraph_EdgeId(edgeIndex),
+            BRepGraph_VertexId(vertexIndex),
+            param, subA, subB);
+        *outSubA = subA.IsValid() ? subA.Index : -1;
+        *outSubB = subB.IsValid() ? subB.Index : -1;
+    } catch (...) {
+        *outSubA = -1;
+        *outSubB = -1;
+    }
+}
+
+// --- Replace Edge in Wire ---
+
+void OCCTBRepGraphBuilderReplaceEdgeInWire(OCCTBRepGraphRef g, int32_t wireIndex,
+                                            int32_t oldEdgeIndex, int32_t newEdgeIndex,
+                                            bool reversed) {
+    if (!g) return;
+    try {
+        g->graph.Builder().ReplaceEdgeInWire(
+            BRepGraph_WireId(wireIndex),
+            BRepGraph_EdgeId(oldEdgeIndex),
+            BRepGraph_EdgeId(newEdgeIndex),
+            reversed);
+    } catch (...) {}
+}
+
+// --- Remove Ref ---
+
+bool OCCTBRepGraphBuilderRemoveRef(OCCTBRepGraphRef g, int32_t refKind, int32_t refIndex) {
+    if (!g) return false;
+    try {
+        BRepGraph_RefId rid(refKindFromInt(refKind), refIndex);
+        return g->graph.Builder().RemoveRef(rid);
+    } catch (...) { return false; }
+}
+
+// --- Clear Mesh ---
+
+void OCCTBRepGraphBuilderClearFaceMesh(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return;
+    try {
+        g->graph.Builder().ClearFaceMesh(BRepGraph_FaceId(faceIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphBuilderClearEdgePolygon3D(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return;
+    try {
+        g->graph.Builder().ClearEdgePolygon3D(BRepGraph_EdgeId(edgeIndex));
+    } catch (...) {}
+}
+
+// --- Validate Mutation Boundary ---
+
+bool OCCTBRepGraphBuilderValidateMutation(OCCTBRepGraphRef g) {
+    if (!g) return false;
+    try {
+        return g->graph.Builder().ValidateMutationBoundary();
+    } catch (...) { return false; }
+}

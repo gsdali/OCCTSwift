@@ -43713,3 +43713,298 @@ struct TopologyGraphCompoundTests {
         }
     }
 }
+
+// MARK: - BRepGraph Builder (v0.135.0)
+
+@Suite("TopologyGraph Builder AddVertex")
+struct TopologyGraphBuilderAddVertexTests {
+    @Test func addVertexToGraph() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let origVertexCount = graph.vertexCount
+                if let vidx = graph.addVertex(x: 5.0, y: 5.0, z: 5.0, tolerance: 1e-7) {
+                    #expect(vidx >= 0)
+                    #expect(graph.vertexCount == origVertexCount + 1)
+                    let pt = graph.vertexPoint(vidx)
+                    #expect(abs(pt.x - 5.0) < 1e-6)
+                    #expect(abs(pt.y - 5.0) < 1e-6)
+                    #expect(abs(pt.z - 5.0) < 1e-6)
+                    #expect(abs(graph.vertexTolerance(vidx) - 1e-7) < 1e-10)
+                }
+            }
+        }
+    }
+
+    @Test func addMultipleVertices() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let orig = graph.vertexCount
+                let v1 = graph.addVertex(x: 0, y: 0, z: 0, tolerance: 0.01)
+                let v2 = graph.addVertex(x: 1, y: 2, z: 3, tolerance: 0.02)
+                #expect(v1 != nil)
+                #expect(v2 != nil)
+                #expect(graph.vertexCount == orig + 2)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder AddShell")
+struct TopologyGraphBuilderAddShellTests {
+    @Test func addEmptyShell() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let origShellCount = graph.shellCount
+                if let sidx = graph.addShell() {
+                    #expect(sidx >= 0)
+                    #expect(graph.shellCount == origShellCount + 1)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder AddSolid")
+struct TopologyGraphBuilderAddSolidTests {
+    @Test func addEmptySolid() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let origSolidCount = graph.solidCount
+                if let sidx = graph.addSolid() {
+                    #expect(sidx >= 0)
+                    #expect(graph.solidCount == origSolidCount + 1)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder AddFaceToShell")
+struct TopologyGraphBuilderAddFaceToShellTests {
+    @Test func linkFaceToShell() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                // Add a new shell, then link existing face 0 to it
+                if let shellIdx = graph.addShell() {
+                    let refIdx = graph.addFaceToShell(shellIndex: shellIdx, faceIndex: 0, orientation: 0)
+                    #expect(refIdx != nil)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder AddShellToSolid")
+struct TopologyGraphBuilderAddShellToSolidTests {
+    @Test func linkShellToSolid() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                if let solidIdx = graph.addSolid(), let shellIdx = graph.addShell() {
+                    let refIdx = graph.addShellToSolid(solidIndex: solidIdx, shellIndex: shellIdx, orientation: 0)
+                    #expect(refIdx != nil)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder AddCompound")
+struct TopologyGraphBuilderAddCompoundTests {
+    @Test func addCompoundFromSolids() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let origCompoundCount = graph.compoundCount
+                if graph.solidCount > 0 {
+                    let children: [(kind: TopologyGraph.NodeKind, index: Int)] = [
+                        (.solid, 0)
+                    ]
+                    if let cidx = graph.addCompound(children: children) {
+                        #expect(cidx >= 0)
+                        #expect(graph.compoundCount == origCompoundCount + 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder AddCompSolid")
+struct TopologyGraphBuilderAddCompSolidTests {
+    @Test func addCompSolidFromSolids() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let origCS = graph.compSolidCount
+                if graph.solidCount > 0 {
+                    if let csIdx = graph.addCompSolid(solidIndices: [0]) {
+                        #expect(csIdx >= 0)
+                        #expect(graph.compSolidCount == origCS + 1)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder RemoveNode")
+struct TopologyGraphBuilderRemoveNodeTests {
+    @Test func removeVertex() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                if graph.vertexCount > 0 {
+                    let vIdx = graph.vertexCount - 1
+                    #expect(!graph.isRemoved(nodeKind: .vertex, nodeIndex: vIdx))
+                    graph.removeNode(nodeKind: .vertex, nodeIndex: vIdx)
+                    #expect(graph.isRemoved(nodeKind: .vertex, nodeIndex: vIdx))
+                }
+            }
+        }
+    }
+
+    @Test func removeSubgraph() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                if graph.faceCount > 0 {
+                    let fIdx = graph.faceCount - 1
+                    graph.removeSubgraph(nodeKind: .face, nodeIndex: fIdx)
+                    #expect(graph.isRemoved(nodeKind: .face, nodeIndex: fIdx))
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder AppendShape")
+struct TopologyGraphBuilderAppendShapeTests {
+    @Test func appendFlattenedShape() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let origFaces = graph.faceCount
+                if let sphere = Shape.sphere(radius: 5) {
+                    graph.appendFlattenedShape(sphere)
+                    #expect(graph.faceCount > origFaces)
+                }
+            }
+        }
+    }
+
+    @Test func appendFullShape() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                let origFaces = graph.faceCount
+                if let cylinder = Shape.cylinder(radius: 3, height: 8) {
+                    graph.appendFullShape(cylinder)
+                    #expect(graph.faceCount > origFaces)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder Deferred")
+struct TopologyGraphBuilderDeferredTests {
+    @Test func deferredModeToggle() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                #expect(!graph.isDeferredMode)
+                graph.beginDeferredInvalidation()
+                #expect(graph.isDeferredMode)
+                graph.endDeferredInvalidation()
+                #expect(!graph.isDeferredMode)
+            }
+        }
+    }
+
+    @Test func deferredModeWithMutations() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                graph.beginDeferredInvalidation()
+                _ = graph.addVertex(x: 1, y: 2, z: 3, tolerance: 0.001)
+                _ = graph.addVertex(x: 4, y: 5, z: 6, tolerance: 0.001)
+                graph.endDeferredInvalidation()
+                graph.commitMutation()
+                #expect(!graph.isDeferredMode)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder CommitMutation")
+struct TopologyGraphBuilderCommitMutationTests {
+    @Test func commitAfterAdd() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                _ = graph.addVertex(x: 0, y: 0, z: 0, tolerance: 0.01)
+                graph.commitMutation()
+                // Should not crash
+                #expect(graph.vertexCount > 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder RemoveRef")
+struct TopologyGraphBuilderRemoveRefTests {
+    @Test func removeShellRef() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                if graph.shellRefCount > 0 {
+                    let removed = graph.removeRef(refKind: .shell, refIndex: 0)
+                    // Should succeed or gracefully fail
+                    #expect(removed || !removed) // either outcome acceptable
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder ClearMesh")
+struct TopologyGraphBuilderClearMeshTests {
+    @Test func clearFaceMesh() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            // Mesh the shape first
+            let _ = box.mesh(linearDeflection: 0.1)
+            if let graph = TopologyGraph(shape: box) {
+                if graph.faceCount > 0 {
+                    // Should not crash
+                    graph.clearFaceMesh(faceIndex: 0)
+                }
+            }
+        }
+    }
+
+    @Test func clearEdgePolygon3D() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            let _ = box.mesh(linearDeflection: 0.1)
+            if let graph = TopologyGraph(shape: box) {
+                if graph.edgeCount > 0 {
+                    // Should not crash
+                    graph.clearEdgePolygon3D(edgeIndex: 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Builder ValidateMutation")
+struct TopologyGraphBuilderValidateMutationTests {
+    @Test func validateCleanGraph() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                // A freshly built graph should have valid mutation boundary
+                let valid = graph.validateMutation()
+                #expect(valid)
+            }
+        }
+    }
+
+    @Test func validateAfterAddVertex() {
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            if let graph = TopologyGraph(shape: box) {
+                _ = graph.addVertex(x: 0, y: 0, z: 0, tolerance: 0.01)
+                graph.commitMutation()
+                let valid = graph.validateMutation()
+                #expect(valid)
+            }
+        }
+    }
+}

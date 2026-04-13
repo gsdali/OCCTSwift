@@ -19669,6 +19669,116 @@ int32_t OCCTBRepGraphNbCompSolids(OCCTBRepGraphRef _Nonnull graph);
 int32_t OCCTBRepGraphEdgeFindCoEdge(OCCTBRepGraphRef _Nonnull graph,
                                      int32_t edgeIndex, int32_t faceIndex);
 
+// MARK: - BRepGraph Builder (v0.135.0)
+
+// --- Add Topology Nodes ---
+
+/// Add a vertex to the graph. Returns vertex definition index (-1 on failure).
+int32_t OCCTBRepGraphBuilderAddVertex(OCCTBRepGraphRef _Nonnull graph,
+                                       double x, double y, double z,
+                                       double tolerance);
+
+/// Add an empty shell to the graph. Returns shell definition index (-1 on failure).
+int32_t OCCTBRepGraphBuilderAddShell(OCCTBRepGraphRef _Nonnull graph);
+
+/// Add an empty solid to the graph. Returns solid definition index (-1 on failure).
+int32_t OCCTBRepGraphBuilderAddSolid(OCCTBRepGraphRef _Nonnull graph);
+
+/// Link a face to a shell. Returns face ref index (-1 on failure).
+/// orientation: 0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL
+int32_t OCCTBRepGraphBuilderAddFaceToShell(OCCTBRepGraphRef _Nonnull graph,
+                                            int32_t shellIndex, int32_t faceIndex,
+                                            int32_t orientation);
+
+/// Link a shell to a solid. Returns shell ref index (-1 on failure).
+int32_t OCCTBRepGraphBuilderAddShellToSolid(OCCTBRepGraphRef _Nonnull graph,
+                                             int32_t solidIndex, int32_t shellIndex,
+                                             int32_t orientation);
+
+/// Add a compound with child node entries. Returns compound definition index (-1 on failure).
+/// kinds and indices are parallel arrays of length count.
+int32_t OCCTBRepGraphBuilderAddCompound(OCCTBRepGraphRef _Nonnull graph,
+                                         const int32_t* _Nonnull kinds,
+                                         const int32_t* _Nonnull indices,
+                                         int32_t count);
+
+/// Add a comp-solid with child solid indices. Returns compsolid definition index (-1 on failure).
+int32_t OCCTBRepGraphBuilderAddCompSolid(OCCTBRepGraphRef _Nonnull graph,
+                                          const int32_t* _Nonnull solidIndices,
+                                          int32_t count);
+
+// --- Remove/Modify Nodes ---
+
+/// Mark a node as removed (soft deletion).
+void OCCTBRepGraphBuilderRemoveNode(OCCTBRepGraphRef _Nonnull graph,
+                                     int32_t nodeKind, int32_t nodeIndex);
+
+/// Mark a node and all its descendants as removed.
+void OCCTBRepGraphBuilderRemoveSubgraph(OCCTBRepGraphRef _Nonnull graph,
+                                         int32_t nodeKind, int32_t nodeIndex);
+
+// --- Append Shapes ---
+
+/// Append a shape flattened (container nodes removed, faces as roots).
+void OCCTBRepGraphBuilderAppendFlattenedShape(OCCTBRepGraphRef _Nonnull graph,
+                                               OCCTShapeRef _Nonnull shape,
+                                               bool parallel);
+
+/// Append a shape preserving full topology hierarchy.
+void OCCTBRepGraphBuilderAppendFullShape(OCCTBRepGraphRef _Nonnull graph,
+                                          OCCTShapeRef _Nonnull shape,
+                                          bool parallel);
+
+// --- Deferred Invalidation ---
+
+/// Begin deferred invalidation mode for batch mutations.
+void OCCTBRepGraphBuilderBeginDeferred(OCCTBRepGraphRef _Nonnull graph);
+
+/// End deferred invalidation mode and flush.
+void OCCTBRepGraphBuilderEndDeferred(OCCTBRepGraphRef _Nonnull graph);
+
+/// Check if deferred invalidation mode is active.
+bool OCCTBRepGraphBuilderIsDeferredMode(OCCTBRepGraphRef _Nonnull graph);
+
+/// Finalize batch mutations (validate reverse-index consistency).
+void OCCTBRepGraphBuilderCommitMutation(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Edge Splitting ---
+
+/// Split an edge at a vertex and parameter. Returns sub-edge indices via out params (-1 on failure).
+void OCCTBRepGraphBuilderSplitEdge(OCCTBRepGraphRef _Nonnull graph,
+                                    int32_t edgeIndex, int32_t vertexIndex,
+                                    double param,
+                                    int32_t* _Nonnull outSubA, int32_t* _Nonnull outSubB);
+
+// --- Replace Edge in Wire ---
+
+/// Replace one edge with another in a wire definition.
+void OCCTBRepGraphBuilderReplaceEdgeInWire(OCCTBRepGraphRef _Nonnull graph,
+                                            int32_t wireIndex, int32_t oldEdgeIndex,
+                                            int32_t newEdgeIndex, bool reversed);
+
+// --- Remove Ref ---
+
+/// Mark a reference entry as removed. Returns true if transitioned from active to removed.
+bool OCCTBRepGraphBuilderRemoveRef(OCCTBRepGraphRef _Nonnull graph,
+                                    int32_t refKind, int32_t refIndex);
+
+// --- Clear Mesh ---
+
+/// Clear all mesh representations for a face and its coedges.
+void OCCTBRepGraphBuilderClearFaceMesh(OCCTBRepGraphRef _Nonnull graph,
+                                        int32_t faceIndex);
+
+/// Clear Polygon3D representation from an edge.
+void OCCTBRepGraphBuilderClearEdgePolygon3D(OCCTBRepGraphRef _Nonnull graph,
+                                             int32_t edgeIndex);
+
+// --- Validate Mutation Boundary ---
+
+/// Validate mutation-boundary invariants. Returns true if no issues found.
+bool OCCTBRepGraphBuilderValidateMutation(OCCTBRepGraphRef _Nonnull graph);
+
 #ifdef __cplusplus
 }
 #endif

@@ -834,4 +834,189 @@ public final class TopologyGraph: @unchecked Sendable {
 
     /// Number of comp-solids in the graph.
     public var compSolidCount: Int { Int(OCCTBRepGraphNbCompSolids(handle)) }
+
+    // MARK: - Builder: Add Topology Nodes (v0.135.0)
+
+    /// Add a vertex to the graph.
+    /// - Parameters:
+    ///   - x: X coordinate.
+    ///   - y: Y coordinate.
+    ///   - z: Z coordinate.
+    ///   - tolerance: Vertex tolerance.
+    /// - Returns: Vertex definition index, or nil on failure.
+    public func addVertex(x: Double, y: Double, z: Double, tolerance: Double) -> Int? {
+        let idx = Int(OCCTBRepGraphBuilderAddVertex(handle, x, y, z, tolerance))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Add an empty shell to the graph.
+    /// - Returns: Shell definition index, or nil on failure.
+    public func addShell() -> Int? {
+        let idx = Int(OCCTBRepGraphBuilderAddShell(handle))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Add an empty solid to the graph.
+    /// - Returns: Solid definition index, or nil on failure.
+    public func addSolid() -> Int? {
+        let idx = Int(OCCTBRepGraphBuilderAddSolid(handle))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Link a face to a shell.
+    /// - Parameters:
+    ///   - shellIndex: Shell definition index.
+    ///   - faceIndex: Face definition index.
+    ///   - orientation: TopAbs_Orientation value (0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL).
+    /// - Returns: Face reference index, or nil on failure.
+    public func addFaceToShell(shellIndex: Int, faceIndex: Int, orientation: Int = 0) -> Int? {
+        let idx = Int(OCCTBRepGraphBuilderAddFaceToShell(handle, Int32(shellIndex), Int32(faceIndex), Int32(orientation)))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Link a shell to a solid.
+    /// - Parameters:
+    ///   - solidIndex: Solid definition index.
+    ///   - shellIndex: Shell definition index.
+    ///   - orientation: TopAbs_Orientation value (0=FORWARD, 1=REVERSED, 2=INTERNAL, 3=EXTERNAL).
+    /// - Returns: Shell reference index, or nil on failure.
+    public func addShellToSolid(solidIndex: Int, shellIndex: Int, orientation: Int = 0) -> Int? {
+        let idx = Int(OCCTBRepGraphBuilderAddShellToSolid(handle, Int32(solidIndex), Int32(shellIndex), Int32(orientation)))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Add a compound with child node entries.
+    /// - Parameter children: Array of (kind, index) pairs for child nodes.
+    /// - Returns: Compound definition index, or nil on failure.
+    public func addCompound(children: [(kind: NodeKind, index: Int)]) -> Int? {
+        if children.isEmpty { return nil }
+        var kinds = children.map { $0.kind.rawValue }
+        var indices = children.map { Int32($0.index) }
+        let idx = Int(kinds.withUnsafeMutableBufferPointer { kBuf in
+            indices.withUnsafeMutableBufferPointer { iBuf in
+                OCCTBRepGraphBuilderAddCompound(handle, kBuf.baseAddress!, iBuf.baseAddress!, Int32(children.count))
+            }
+        })
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Add a comp-solid with child solid indices.
+    /// - Parameter solidIndices: Array of solid definition indices.
+    /// - Returns: CompSolid definition index, or nil on failure.
+    public func addCompSolid(solidIndices: [Int]) -> Int? {
+        if solidIndices.isEmpty { return nil }
+        var indices = solidIndices.map { Int32($0) }
+        let idx = Int(indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphBuilderAddCompSolid(handle, buf.baseAddress!, Int32(solidIndices.count))
+        })
+        return idx >= 0 ? idx : nil
+    }
+
+    // MARK: - Builder: Remove/Modify Nodes (v0.135.0)
+
+    /// Mark a node as removed (soft deletion).
+    public func removeNode(nodeKind: NodeKind, nodeIndex: Int) {
+        OCCTBRepGraphBuilderRemoveNode(handle, nodeKind.rawValue, Int32(nodeIndex))
+    }
+
+    /// Mark a node and all its descendants as removed (cascading soft deletion).
+    public func removeSubgraph(nodeKind: NodeKind, nodeIndex: Int) {
+        OCCTBRepGraphBuilderRemoveSubgraph(handle, nodeKind.rawValue, Int32(nodeIndex))
+    }
+
+    // MARK: - Builder: Append Shapes (v0.135.0)
+
+    /// Append a shape to the graph (flattened: container nodes removed, faces as roots).
+    public func appendFlattenedShape(_ shape: Shape, parallel: Bool = false) {
+        OCCTBRepGraphBuilderAppendFlattenedShape(handle, shape.handle, parallel)
+    }
+
+    /// Append a shape to the graph preserving full topology hierarchy.
+    public func appendFullShape(_ shape: Shape, parallel: Bool = false) {
+        OCCTBRepGraphBuilderAppendFullShape(handle, shape.handle, parallel)
+    }
+
+    // MARK: - Builder: Deferred Invalidation (v0.135.0)
+
+    /// Begin deferred invalidation mode for batch mutations.
+    public func beginDeferredInvalidation() {
+        OCCTBRepGraphBuilderBeginDeferred(handle)
+    }
+
+    /// End deferred invalidation mode and batch-flush all accumulated changes.
+    public func endDeferredInvalidation() {
+        OCCTBRepGraphBuilderEndDeferred(handle)
+    }
+
+    /// Whether deferred invalidation mode is currently active.
+    public var isDeferredMode: Bool {
+        OCCTBRepGraphBuilderIsDeferredMode(handle)
+    }
+
+    /// Finalize batch mutations (validates reverse-index consistency).
+    public func commitMutation() {
+        OCCTBRepGraphBuilderCommitMutation(handle)
+    }
+
+    // MARK: - Builder: Edge Splitting (v0.135.0)
+
+    /// Split an edge at a vertex and 3D curve parameter.
+    /// - Parameters:
+    ///   - edgeIndex: Edge definition index to split.
+    ///   - vertexIndex: Vertex definition index at the split point.
+    ///   - param: Parameter on the 3D curve at the split point.
+    /// - Returns: Tuple of (subA, subB) edge indices, or nil on failure.
+    public func splitEdge(edgeIndex: Int, vertexIndex: Int, param: Double) -> (subA: Int, subB: Int)? {
+        var subA: Int32 = -1
+        var subB: Int32 = -1
+        OCCTBRepGraphBuilderSplitEdge(handle, Int32(edgeIndex), Int32(vertexIndex), param, &subA, &subB)
+        if subA >= 0 && subB >= 0 {
+            return (subA: Int(subA), subB: Int(subB))
+        }
+        return nil
+    }
+
+    // MARK: - Builder: Replace Edge in Wire (v0.135.0)
+
+    /// Replace one edge with another in a wire definition.
+    /// - Parameters:
+    ///   - wireIndex: Wire definition index.
+    ///   - oldEdgeIndex: Edge to replace.
+    ///   - newEdgeIndex: Replacement edge.
+    ///   - reversed: Whether to reverse the orientation of the replacement.
+    public func replaceEdgeInWire(wireIndex: Int, oldEdgeIndex: Int, newEdgeIndex: Int, reversed: Bool = false) {
+        OCCTBRepGraphBuilderReplaceEdgeInWire(handle, Int32(wireIndex), Int32(oldEdgeIndex), Int32(newEdgeIndex), reversed)
+    }
+
+    // MARK: - Builder: Remove Ref (v0.135.0)
+
+    /// Mark a reference entry as removed.
+    /// - Parameters:
+    ///   - refKind: Reference kind.
+    ///   - refIndex: Reference index.
+    /// - Returns: True if the reference transitioned from active to removed.
+    @discardableResult
+    public func removeRef(refKind: RefKind, refIndex: Int) -> Bool {
+        OCCTBRepGraphBuilderRemoveRef(handle, refKind.rawValue, Int32(refIndex))
+    }
+
+    // MARK: - Builder: Clear Mesh (v0.135.0)
+
+    /// Clear all mesh representations for a face and its coedges.
+    public func clearFaceMesh(faceIndex: Int) {
+        OCCTBRepGraphBuilderClearFaceMesh(handle, Int32(faceIndex))
+    }
+
+    /// Clear Polygon3D representation from an edge.
+    public func clearEdgePolygon3D(edgeIndex: Int) {
+        OCCTBRepGraphBuilderClearEdgePolygon3D(handle, Int32(edgeIndex))
+    }
+
+    // MARK: - Builder: Validate Mutation (v0.135.0)
+
+    /// Validate mutation-boundary invariants.
+    /// - Returns: True if no issues were found.
+    public func validateMutation() -> Bool {
+        OCCTBRepGraphBuilderValidateMutation(handle)
+    }
 }
