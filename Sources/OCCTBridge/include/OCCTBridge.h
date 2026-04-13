@@ -19144,6 +19144,191 @@ OCCTCurve2DRef _Nullable OCCTGeom2dEvalAHTBezierCurveCreate(
     const double* _Nonnull poles, int32_t count,
     int32_t algDegree, double alpha, double beta);
 
+// MARK: - BRepGraph (Topology Graph)
+
+/// Opaque handle to a BRepGraph instance.
+typedef struct OCCTBRepGraph* OCCTBRepGraphRef;
+
+/// Create a BRepGraph from a shape.
+OCCTBRepGraphRef _Nullable OCCTBRepGraphCreate(OCCTShapeRef _Nonnull shape, bool parallel);
+
+/// Release a BRepGraph.
+void OCCTBRepGraphRelease(OCCTBRepGraphRef _Nonnull graph);
+
+/// Check if the graph was built successfully.
+bool OCCTBRepGraphIsDone(OCCTBRepGraphRef _Nonnull graph);
+
+/// Total number of nodes in the graph.
+int32_t OCCTBRepGraphNbNodes(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Topology Counts ---
+
+/// Number of faces in the graph.
+int32_t OCCTBRepGraphNbFaces(OCCTBRepGraphRef _Nonnull graph);
+/// Number of active (non-removed) faces.
+int32_t OCCTBRepGraphNbActiveFaces(OCCTBRepGraphRef _Nonnull graph);
+/// Number of edges in the graph.
+int32_t OCCTBRepGraphNbEdges(OCCTBRepGraphRef _Nonnull graph);
+/// Number of active edges.
+int32_t OCCTBRepGraphNbActiveEdges(OCCTBRepGraphRef _Nonnull graph);
+/// Number of vertices in the graph.
+int32_t OCCTBRepGraphNbVertices(OCCTBRepGraphRef _Nonnull graph);
+/// Number of active vertices.
+int32_t OCCTBRepGraphNbActiveVertices(OCCTBRepGraphRef _Nonnull graph);
+/// Number of wires.
+int32_t OCCTBRepGraphNbWires(OCCTBRepGraphRef _Nonnull graph);
+/// Number of shells.
+int32_t OCCTBRepGraphNbShells(OCCTBRepGraphRef _Nonnull graph);
+/// Number of solids.
+int32_t OCCTBRepGraphNbSolids(OCCTBRepGraphRef _Nonnull graph);
+/// Number of coedges (half-edges).
+int32_t OCCTBRepGraphNbCoEdges(OCCTBRepGraphRef _Nonnull graph);
+/// Number of compounds.
+int32_t OCCTBRepGraphNbCompounds(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Geometry Counts ---
+
+/// Number of surfaces in the graph.
+int32_t OCCTBRepGraphNbSurfaces(OCCTBRepGraphRef _Nonnull graph);
+/// Number of 3D curves.
+int32_t OCCTBRepGraphNbCurves3D(OCCTBRepGraphRef _Nonnull graph);
+/// Number of 2D curves.
+int32_t OCCTBRepGraphNbCurves2D(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Face Queries ---
+
+/// Number of faces adjacent to a given face.
+int32_t OCCTBRepGraphFaceAdjacentCount(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+/// Get adjacent face indices. Caller provides buffer of size adjacentCount.
+void OCCTBRepGraphFaceAdjacentIndices(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex,
+                                       int32_t* _Nonnull outIndices);
+/// Number of edges shared between two faces.
+int32_t OCCTBRepGraphFaceSharedEdgeCount(OCCTBRepGraphRef _Nonnull graph,
+                                          int32_t faceA, int32_t faceB);
+/// Get shared edge indices between two faces. Caller provides buffer.
+void OCCTBRepGraphFaceSharedEdgeIndices(OCCTBRepGraphRef _Nonnull graph,
+                                         int32_t faceA, int32_t faceB,
+                                         int32_t* _Nonnull outIndices);
+/// Index of the outer wire of a face.
+int32_t OCCTBRepGraphFaceOuterWire(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+// --- Edge Queries ---
+
+/// Number of faces an edge belongs to.
+int32_t OCCTBRepGraphEdgeNbFaces(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+/// Get face indices for an edge. Caller provides buffer of size nbFaces.
+void OCCTBRepGraphEdgeFaceIndices(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex,
+                                   int32_t* _Nonnull outIndices);
+/// Whether an edge is a boundary edge (belongs to only one face).
+bool OCCTBRepGraphEdgeIsBoundary(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+/// Whether an edge is manifold (belongs to exactly two faces).
+bool OCCTBRepGraphEdgeIsManifold(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+/// Number of edges adjacent to a given edge (share a vertex).
+int32_t OCCTBRepGraphEdgeAdjacentCount(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+/// Get adjacent edge indices. Caller provides buffer.
+void OCCTBRepGraphEdgeAdjacentIndices(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex,
+                                       int32_t* _Nonnull outIndices);
+
+// --- Vertex Queries ---
+
+/// Number of edges connected to a vertex.
+int32_t OCCTBRepGraphVertexEdgeCount(OCCTBRepGraphRef _Nonnull graph, int32_t vertexIndex);
+/// Get edge indices connected to a vertex. Caller provides buffer.
+void OCCTBRepGraphVertexEdgeIndices(OCCTBRepGraphRef _Nonnull graph, int32_t vertexIndex,
+                                     int32_t* _Nonnull outIndices);
+
+// --- Child Explorer ---
+
+/// Count descendant nodes of a given kind from a root node.
+/// rootKind: 0=Solid,1=Shell,2=Face,3=Wire,4=Edge,5=Vertex,6=Compound,7=CompSolid,8=CoEdge
+/// targetKind: same enum.
+int32_t OCCTBRepGraphChildCount(OCCTBRepGraphRef _Nonnull graph,
+                                 int32_t rootKind, int32_t rootIndex,
+                                 int32_t targetKind);
+
+// --- Parent Explorer ---
+
+/// Count parent nodes of a given node.
+int32_t OCCTBRepGraphParentCount(OCCTBRepGraphRef _Nonnull graph,
+                                  int32_t nodeKind, int32_t nodeIndex);
+
+// --- Validate ---
+
+/// Validate the graph. Returns true if valid (no errors).
+bool OCCTBRepGraphValidate(OCCTBRepGraphRef _Nonnull graph);
+/// Count validation issues.
+int32_t OCCTBRepGraphValidateIssueCount(OCCTBRepGraphRef _Nonnull graph);
+
+/// Validate result struct.
+typedef struct {
+    bool isValid;
+    int32_t errorCount;
+    int32_t warningCount;
+} OCCTBRepGraphValidateResult;
+
+/// Validate and return detailed result.
+OCCTBRepGraphValidateResult OCCTBRepGraphValidateDetailed(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Compact ---
+
+/// Compact result struct.
+typedef struct {
+    int32_t removedVertices;
+    int32_t removedEdges;
+    int32_t removedFaces;
+    int32_t nodesAfter;
+} OCCTBRepGraphCompactResult;
+
+/// Compact the graph (remove unreferenced nodes).
+OCCTBRepGraphCompactResult OCCTBRepGraphCompact(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Deduplicate ---
+
+/// Deduplicate result struct.
+typedef struct {
+    int32_t canonicalSurfaces;
+    int32_t canonicalCurves;
+    int32_t surfaceRewrites;
+    int32_t curveRewrites;
+} OCCTBRepGraphDeduplicateResult;
+
+/// Deduplicate geometry in the graph.
+OCCTBRepGraphDeduplicateResult OCCTBRepGraphDeduplicate(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Node Removal Check ---
+
+/// Check if a node has been soft-removed.
+bool OCCTBRepGraphIsRemoved(OCCTBRepGraphRef _Nonnull graph, int32_t nodeKind, int32_t nodeIndex);
+
+// --- Root Nodes ---
+
+/// Number of root nodes in the graph.
+int32_t OCCTBRepGraphRootCount(OCCTBRepGraphRef _Nonnull graph);
+/// Get root node kinds and indices. Caller provides buffers of size rootCount.
+void OCCTBRepGraphRootNodes(OCCTBRepGraphRef _Nonnull graph,
+                             int32_t* _Nonnull outKinds, int32_t* _Nonnull outIndices);
+
+// --- Topology Statistics ---
+
+/// Get all topology counts at once.
+typedef struct {
+    int32_t solids;
+    int32_t shells;
+    int32_t faces;
+    int32_t wires;
+    int32_t edges;
+    int32_t vertices;
+    int32_t coedges;
+    int32_t compounds;
+    int32_t totalNodes;
+    int32_t surfaces;
+    int32_t curves3d;
+    int32_t curves2d;
+} OCCTBRepGraphStats;
+
+/// Get comprehensive graph statistics.
+OCCTBRepGraphStats OCCTBRepGraphGetStats(OCCTBRepGraphRef _Nonnull graph);
+
 #ifdef __cplusplus
 }
 #endif

@@ -1,0 +1,310 @@
+//
+//  BRepGraph.swift
+//  OCCTSwift
+//
+//  Graph-based B-Rep topology representation (OCCT BRepGraph)
+//
+
+import OCCTBridge
+
+/// A graph-based representation of B-Rep topology.
+///
+/// `TopologyGraph` provides cache-friendly traversal, O(1) upward navigation,
+/// and parallel geometry extraction over a shape's topology. Built from a
+/// `Shape`, it indexes all faces, edges, vertices, wires, shells, and solids
+/// as flat entity vectors with integer cross-references.
+///
+/// ```swift
+/// let box = Shape.box(width: 10, height: 10, depth: 10)
+/// let graph = TopologyGraph(shape: box)!
+/// print(graph.stats)  // faces: 6, edges: 12, vertices: 8
+///
+/// // Fast adjacency queries
+/// let neighbors = graph.adjacentFaces(of: 0)  // [1, 2, 3, 4]
+/// let shared = graph.sharedEdges(between: 0, and: 1)  // [3]
+/// ```
+public final class TopologyGraph: @unchecked Sendable {
+    internal let handle: OCCTBRepGraphRef
+
+    /// Build a topology graph from a shape.
+    /// - Parameters:
+    ///   - shape: The shape to analyze.
+    ///   - parallel: Whether to build using parallel threads (default: false).
+    public init?(shape: Shape, parallel: Bool = false) {
+        guard let h = OCCTBRepGraphCreate(shape.handle, parallel) else { return nil }
+        self.handle = h
+    }
+
+    deinit {
+        OCCTBRepGraphRelease(handle)
+    }
+
+    // MARK: - Topology Counts
+
+    /// Total number of nodes in the graph (all entity kinds).
+    public var nodeCount: Int { Int(OCCTBRepGraphNbNodes(handle)) }
+
+    /// Number of faces.
+    public var faceCount: Int { Int(OCCTBRepGraphNbFaces(handle)) }
+    /// Number of active (non-removed) faces.
+    public var activeFaceCount: Int { Int(OCCTBRepGraphNbActiveFaces(handle)) }
+    /// Number of edges.
+    public var edgeCount: Int { Int(OCCTBRepGraphNbEdges(handle)) }
+    /// Number of active edges.
+    public var activeEdgeCount: Int { Int(OCCTBRepGraphNbActiveEdges(handle)) }
+    /// Number of vertices.
+    public var vertexCount: Int { Int(OCCTBRepGraphNbVertices(handle)) }
+    /// Number of active vertices.
+    public var activeVertexCount: Int { Int(OCCTBRepGraphNbActiveVertices(handle)) }
+    /// Number of wires.
+    public var wireCount: Int { Int(OCCTBRepGraphNbWires(handle)) }
+    /// Number of shells.
+    public var shellCount: Int { Int(OCCTBRepGraphNbShells(handle)) }
+    /// Number of solids.
+    public var solidCount: Int { Int(OCCTBRepGraphNbSolids(handle)) }
+    /// Number of coedges (half-edges).
+    public var coedgeCount: Int { Int(OCCTBRepGraphNbCoEdges(handle)) }
+    /// Number of compounds.
+    public var compoundCount: Int { Int(OCCTBRepGraphNbCompounds(handle)) }
+
+    // MARK: - Geometry Counts
+
+    /// Number of distinct surfaces.
+    public var surfaceCount: Int { Int(OCCTBRepGraphNbSurfaces(handle)) }
+    /// Number of distinct 3D curves.
+    public var curve3DCount: Int { Int(OCCTBRepGraphNbCurves3D(handle)) }
+    /// Number of distinct 2D curves.
+    public var curve2DCount: Int { Int(OCCTBRepGraphNbCurves2D(handle)) }
+
+    // MARK: - Face Queries
+
+    /// Indices of faces adjacent to a given face (sharing an edge).
+    public func adjacentFaces(of faceIndex: Int) -> [Int] {
+        let count = Int(OCCTBRepGraphFaceAdjacentCount(handle, Int32(faceIndex)))
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphFaceAdjacentIndices(handle, Int32(faceIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    /// Indices of edges shared between two faces.
+    public func sharedEdges(between faceA: Int, and faceB: Int) -> [Int] {
+        let count = Int(OCCTBRepGraphFaceSharedEdgeCount(handle, Int32(faceA), Int32(faceB)))
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphFaceSharedEdgeIndices(handle, Int32(faceA), Int32(faceB), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    /// Index of the outer wire of a face.
+    public func outerWire(of faceIndex: Int) -> Int {
+        Int(OCCTBRepGraphFaceOuterWire(handle, Int32(faceIndex)))
+    }
+
+    // MARK: - Edge Queries
+
+    /// Number of faces an edge belongs to.
+    public func faceCount(of edgeIndex: Int) -> Int {
+        Int(OCCTBRepGraphEdgeNbFaces(handle, Int32(edgeIndex)))
+    }
+
+    /// Indices of faces an edge belongs to.
+    public func faces(of edgeIndex: Int) -> [Int] {
+        let count = faceCount(of: edgeIndex)
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphEdgeFaceIndices(handle, Int32(edgeIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    /// Whether an edge is a boundary edge (belongs to only one face).
+    public func isBoundaryEdge(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeIsBoundary(handle, Int32(edgeIndex))
+    }
+
+    /// Whether an edge is manifold (belongs to exactly two faces).
+    public func isManifoldEdge(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeIsManifold(handle, Int32(edgeIndex))
+    }
+
+    /// Indices of edges adjacent to a given edge (sharing a vertex).
+    public func adjacentEdges(of edgeIndex: Int) -> [Int] {
+        let count = Int(OCCTBRepGraphEdgeAdjacentCount(handle, Int32(edgeIndex)))
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphEdgeAdjacentIndices(handle, Int32(edgeIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    // MARK: - Vertex Queries
+
+    /// Indices of edges connected to a vertex.
+    public func edges(of vertexIndex: Int) -> [Int] {
+        let count = Int(OCCTBRepGraphVertexEdgeCount(handle, Int32(vertexIndex)))
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphVertexEdgeIndices(handle, Int32(vertexIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    // MARK: - Explorers
+
+    /// Node kind enumeration matching OCCT BRepGraph_NodeId::Kind.
+    public enum NodeKind: Int32, Sendable {
+        case solid = 0
+        case shell = 1
+        case face = 2
+        case wire = 3
+        case edge = 4
+        case vertex = 5
+        case compound = 6
+        case compSolid = 7
+        case coedge = 8
+    }
+
+    /// Count descendant nodes of a given kind from a root node.
+    public func childCount(rootKind: NodeKind, rootIndex: Int, targetKind: NodeKind) -> Int {
+        Int(OCCTBRepGraphChildCount(handle, rootKind.rawValue, Int32(rootIndex), targetKind.rawValue))
+    }
+
+    /// Count parent nodes of a given node.
+    public func parentCount(nodeKind: NodeKind, nodeIndex: Int) -> Int {
+        Int(OCCTBRepGraphParentCount(handle, nodeKind.rawValue, Int32(nodeIndex)))
+    }
+
+    // MARK: - Node Status
+
+    /// Check if a node has been soft-removed.
+    public func isRemoved(nodeKind: NodeKind, nodeIndex: Int) -> Bool {
+        OCCTBRepGraphIsRemoved(handle, nodeKind.rawValue, Int32(nodeIndex))
+    }
+
+    // MARK: - Root Nodes
+
+    /// Root node as (kind, index) pair.
+    public struct RootNode: Sendable {
+        public let kind: NodeKind
+        public let index: Int
+    }
+
+    /// Root nodes of the graph.
+    public var rootNodes: [RootNode] {
+        let count = Int(OCCTBRepGraphRootCount(handle))
+        if count == 0 { return [] }
+        var kinds = [Int32](repeating: 0, count: count)
+        var indices = [Int32](repeating: 0, count: count)
+        kinds.withUnsafeMutableBufferPointer { kBuf in
+            indices.withUnsafeMutableBufferPointer { iBuf in
+                OCCTBRepGraphRootNodes(handle, kBuf.baseAddress!, iBuf.baseAddress!)
+            }
+        }
+        return (0..<count).compactMap { i in
+            guard let kind = NodeKind(rawValue: kinds[i]) else { return nil }
+            return RootNode(kind: kind, index: Int(indices[i]))
+        }
+    }
+
+    // MARK: - Validate
+
+    /// Validation result.
+    public struct ValidationResult: Sendable {
+        public let isValid: Bool
+        public let errorCount: Int
+        public let warningCount: Int
+    }
+
+    /// Validate the graph structure.
+    public func validate() -> ValidationResult {
+        let r = OCCTBRepGraphValidateDetailed(handle)
+        return ValidationResult(isValid: r.isValid,
+                                errorCount: Int(r.errorCount),
+                                warningCount: Int(r.warningCount))
+    }
+
+    /// Whether the graph is structurally valid.
+    public var isValid: Bool { OCCTBRepGraphValidate(handle) }
+
+    // MARK: - Compact
+
+    /// Compaction result.
+    public struct CompactResult: Sendable {
+        public let removedVertices: Int
+        public let removedEdges: Int
+        public let removedFaces: Int
+        public let nodesAfter: Int
+    }
+
+    /// Compact the graph by removing unreferenced nodes.
+    @discardableResult
+    public func compact() -> CompactResult {
+        let r = OCCTBRepGraphCompact(handle)
+        return CompactResult(removedVertices: Int(r.removedVertices),
+                             removedEdges: Int(r.removedEdges),
+                             removedFaces: Int(r.removedFaces),
+                             nodesAfter: Int(r.nodesAfter))
+    }
+
+    // MARK: - Deduplicate
+
+    /// Deduplication result.
+    public struct DeduplicateResult: Sendable {
+        public let canonicalSurfaces: Int
+        public let canonicalCurves: Int
+        public let surfaceRewrites: Int
+        public let curveRewrites: Int
+    }
+
+    /// Deduplicate shared geometry in the graph.
+    @discardableResult
+    public func deduplicate() -> DeduplicateResult {
+        let r = OCCTBRepGraphDeduplicate(handle)
+        return DeduplicateResult(canonicalSurfaces: Int(r.canonicalSurfaces),
+                                 canonicalCurves: Int(r.canonicalCurves),
+                                 surfaceRewrites: Int(r.surfaceRewrites),
+                                 curveRewrites: Int(r.curveRewrites))
+    }
+
+    // MARK: - Statistics
+
+    /// Comprehensive graph statistics.
+    public struct Stats: Sendable, CustomStringConvertible {
+        public let solids: Int
+        public let shells: Int
+        public let faces: Int
+        public let wires: Int
+        public let edges: Int
+        public let vertices: Int
+        public let coedges: Int
+        public let compounds: Int
+        public let totalNodes: Int
+        public let surfaces: Int
+        public let curves3D: Int
+        public let curves2D: Int
+
+        public var description: String {
+            "TopologyGraph.Stats(solids: \(solids), shells: \(shells), faces: \(faces), " +
+            "wires: \(wires), edges: \(edges), vertices: \(vertices), coedges: \(coedges), " +
+            "nodes: \(totalNodes), surfaces: \(surfaces), curves3D: \(curves3D), curves2D: \(curves2D))"
+        }
+    }
+
+    /// Get comprehensive graph statistics.
+    public var stats: Stats {
+        let s = OCCTBRepGraphGetStats(handle)
+        return Stats(solids: Int(s.solids), shells: Int(s.shells), faces: Int(s.faces),
+                     wires: Int(s.wires), edges: Int(s.edges), vertices: Int(s.vertices),
+                     coedges: Int(s.coedges), compounds: Int(s.compounds),
+                     totalNodes: Int(s.totalNodes), surfaces: Int(s.surfaces),
+                     curves3D: Int(s.curves3d), curves2D: Int(s.curves2d))
+    }
+}

@@ -42423,3 +42423,340 @@ struct ThreadSafetyTests {
     }
 }
 
+
+// MARK: - BRepGraph Tests (v0.129.0)
+
+@Suite("TopologyGraph Build")
+struct TopologyGraphBuildTests {
+    @Test func buildFromBox() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            #expect(graph != nil)
+            if let graph {
+                #expect(graph.faceCount == 6)
+                #expect(graph.edgeCount == 12)
+                #expect(graph.vertexCount == 8)
+                #expect(graph.shellCount == 1)
+                #expect(graph.solidCount == 1)
+                #expect(graph.wireCount == 6)
+                #expect(graph.compoundCount == 0)
+                #expect(graph.nodeCount > 0)
+            }
+        }
+    }
+
+    @Test func buildParallel() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box {
+            let graph = TopologyGraph(shape: box, parallel: true)
+            #expect(graph != nil)
+            if let graph {
+                #expect(graph.faceCount == 6)
+            }
+        }
+    }
+
+    @Test func buildFromSphere() {
+        let sphere = Shape.sphere(radius: 5)
+        if let sphere {
+            let graph = TopologyGraph(shape: sphere)
+            if let graph {
+                #expect(graph.faceCount > 0)
+                #expect(graph.edgeCount >= 0)
+                #expect(graph.nodeCount > 0)
+            }
+        }
+    }
+
+    @Test func buildFromComplex() {
+        let box = Shape.box(width: 20, height: 20, depth: 20)
+        let cyl = Shape.cylinder(radius: 5, height: 30)
+        if let box, let cyl {
+            let fused = box + cyl
+            if let fused {
+                let graph = TopologyGraph(shape: fused)
+                if let graph {
+                    #expect(graph.faceCount > 6)
+                    #expect(graph.isValid)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Counts")
+struct TopologyGraphCountTests {
+    @Test func activeCounts() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.activeFaceCount == 6)
+                #expect(graph.activeEdgeCount == 12)
+                #expect(graph.activeVertexCount == 8)
+            }
+        }
+    }
+
+    @Test func geometryCounts() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.surfaceCount == 6)
+                #expect(graph.curve3DCount == 12)
+                #expect(graph.curve2DCount > 0)
+            }
+        }
+    }
+
+    @Test func coedgeCounts() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.coedgeCount == 24)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Face Queries")
+struct TopologyGraphFaceQueryTests {
+    @Test func faceAdjacency() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let adj = graph.adjacentFaces(of: 0)
+                #expect(adj.count == 4)
+            }
+        }
+    }
+
+    @Test func sharedEdges() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let adj = graph.adjacentFaces(of: 0)
+                if adj.count > 0 {
+                    let shared = graph.sharedEdges(between: 0, and: adj[0])
+                    #expect(shared.count == 1)
+                }
+            }
+        }
+    }
+
+    @Test func outerWire() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let wire = graph.outerWire(of: 0)
+                #expect(wire >= 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Edge Queries")
+struct TopologyGraphEdgeQueryTests {
+    @Test func edgeFaceCount() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let nbFaces = graph.faceCount(of: 0)
+                #expect(nbFaces == 2)
+            }
+        }
+    }
+
+    @Test func edgeFaces() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let faces = graph.faces(of: 0)
+                #expect(faces.count == 2)
+            }
+        }
+    }
+
+    @Test func noBoundaryEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    #expect(!graph.isBoundaryEdge(i))
+                }
+            }
+        }
+    }
+
+    @Test func allManifoldEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    #expect(graph.isManifoldEdge(i))
+                }
+            }
+        }
+    }
+
+    @Test func edgeAdjacency() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let adj = graph.adjacentEdges(of: 0)
+                #expect(adj.count > 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Vertex Queries")
+struct TopologyGraphVertexQueryTests {
+    @Test func vertexEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let edges = graph.edges(of: 0)
+                #expect(edges.count == 3)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Explorers")
+struct TopologyGraphExplorerTests {
+    @Test func childExplorer() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let roots = graph.rootNodes
+                #expect(roots.count > 0)
+                if let root = roots.first {
+                    let faceCount = graph.childCount(rootKind: root.kind, rootIndex: root.index, targetKind: .face)
+                    #expect(faceCount == 6)
+                }
+            }
+        }
+    }
+
+    @Test func parentExplorer() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let parents = graph.parentCount(nodeKind: .face, nodeIndex: 0)
+                #expect(parents > 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Validate")
+struct TopologyGraphValidateTests {
+    @Test func boxIsValid() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.isValid)
+                let result = graph.validate()
+                #expect(result.isValid)
+                #expect(result.errorCount == 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Compact")
+struct TopologyGraphCompactTests {
+    @Test func compactBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let result = graph.compact()
+                #expect(result.nodesAfter > 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Deduplicate")
+struct TopologyGraphDeduplicateTests {
+    @Test func deduplicateBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let result = graph.deduplicate()
+                #expect(result.canonicalSurfaces == 6)
+                #expect(result.canonicalCurves == 12)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Stats")
+struct TopologyGraphStatsTests {
+    @Test func boxStats() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let s = graph.stats
+                #expect(s.faces == 6)
+                #expect(s.edges == 12)
+                #expect(s.vertices == 8)
+                #expect(s.solids == 1)
+                #expect(s.shells == 1)
+                #expect(s.wires == 6)
+                #expect(s.coedges == 24)
+                #expect(s.surfaces == 6)
+                #expect(s.curves3D == 12)
+                #expect(s.totalNodes > 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Node Status")
+struct TopologyGraphNodeStatusTests {
+    @Test func noRemovedNodes() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.faceCount {
+                    #expect(!graph.isRemoved(nodeKind: .face, nodeIndex: i))
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Root Nodes")
+struct TopologyGraphRootNodeTests {
+    @Test func hasRoots() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let roots = graph.rootNodes
+                #expect(roots.count > 0)
+            }
+        }
+    }
+}
