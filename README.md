@@ -156,10 +156,12 @@ See [docs/guides/building-occt.md](docs/guides/building-occt.md) for details.
 | [Architecture Overview](docs/architecture/overview.md) | Three-layer design, memory management, conventions |
 | [Adding Features](docs/guides/adding-features.md) | How to wrap new OCCT operations |
 | [OCCT Concepts](docs/guides/occt-concepts.md) | B-Rep topology, handles, shapes primer |
+| [API Reference](docs/API_REFERENCE.md) | Full operation-by-operation mapping to OCCT classes |
 | [Thread Safety](docs/thread-safety.md) | OCCTSerial mutex, parallel execution notes |
 | [Naming Conventions](docs/naming-conventions.md) | Bridge and Swift naming patterns |
-| [Integration Tests](docs/integration-tests.md) | Design, CAM, stress, and regression test suites |
-| [CHANGELOG](docs/CHANGELOG.md) | Release history |
+| [OCCT Upgrades](docs/occt-upgrades.md) | Breaking changes and migration for each OCCT version |
+| [Wrapping Status](docs/occtswift-wrapping-gaps.md) | What's wrapped, what's not, and why |
+| [Changelog](docs/CHANGELOG.md) | Release history |
 
 ## Known Issues
 

@@ -17,7 +17,7 @@ cd /path/to/OCCTSwift
 ```
 
 This will:
-1. Download OCCT 8.0.0-rc4 source from GitHub tag `V8_0_0_rc4`
+1. Download OCCT 8.0.0-rc5 source from GitHub tag `V8_0_0_rc5`
 2. Build for iOS (arm64) and iOS Simulator (arm64)
 3. Build for macOS (arm64)
 4. Create `Libraries/OCCT.xcframework` (~568MB with all 3 slices)

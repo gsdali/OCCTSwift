@@ -177,36 +177,32 @@ OCCTShapeRelease() ─── delete struct ─── releases handle
 
 ```
 OCCTSwift/
-├── Package.swift              # SPM configuration
-├── README.md                  # Quick start guide
-├── docs/
-│   ├── architecture/
-│   │   └── overview.md        # This file
-│   ├── guides/
-│   │   ├── getting-started.md # Tutorial
-│   │   ├── building-occt.md   # Build instructions
-│   │   └── adding-features.md # Contribution guide
-│   └── api/
-│       ├── shape.md           # Shape API reference
-│       ├── wire.md            # Wire API reference
-│       └── mesh.md            # Mesh API reference
+├── Package.swift               # SPM configuration
+├── README.md                   # Quick start guide
 ├── Sources/
-│   ├── OCCTSwift/             # Swift public API
-│   │   ├── Shape.swift
-│   │   ├── Wire.swift
-│   │   ├── Mesh.swift
-│   │   └── Exporter.swift
-│   └── OCCTBridge/            # Obj-C++ bridge
+│   ├── OCCTSwift/              # Swift public API
+│   │   ├── Shape.swift         # 3D shapes, booleans, modifications
+│   │   ├── Wire.swift          # 2D/3D wire profiles and paths
+│   │   ├── Face.swift          # Face surface analysis
+│   │   ├── Edge.swift          # Edge curve analysis
+│   │   ├── Curve2D.swift       # 2D parametric curves (Geom2d)
+│   │   ├── Curve3D.swift       # 3D parametric curves (Geom)
+│   │   ├── Surface.swift       # Parametric surfaces (Geom)
+│   │   ├── Document.swift      # XDE assembly + OCAF
+│   │   ├── Mesh.swift          # Triangulated mesh data
+│   │   └── Exporter.swift      # Multi-format export
+│   └── OCCTBridge/             # Objective-C++ bridge
 │       ├── include/
-│       │   └── OCCTBridge.h   # Public C interface
+│       │   └── OCCTBridge.h    # C function declarations
 │       └── src/
-│           └── OCCTBridge.mm  # Implementation
+│           └── OCCTBridge.mm   # OCCT C++ implementations
 ├── Libraries/
-│   └── OCCT.xcframework/      # Pre-built OCCT
+│   └── OCCT.xcframework/       # Pre-built OCCT 8.0.0-rc5
 ├── Scripts/
-│   └── build-occt.sh          # Build script
-└── Tests/
-    └── OCCTSwiftTests/
+│   └── build-occt.sh           # Build OCCT from source
+├── Tests/
+│   └── OCCTSwiftTests/         # Swift Testing (2907 tests)
+└── docs/                       # Documentation
 ```
 
 ## Performance Considerations
