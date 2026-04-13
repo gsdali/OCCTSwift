@@ -4311,10 +4311,18 @@ OCCTShapeRef OCCTShapeShellWithOpenFaces(OCCTShapeRef shape, double thickness,
 
 
 // MARK: - IGES Import/Export (v0.10.0)
+// IGES reader/writer uses C-level global state (iges_newparam, iges_param, etc.)
+// that is NOT thread-safe. All IGES operations MUST be serialized.
+// See: https://github.com/Open-Cascade-SAS/OCCT/issues/1179
+static std::mutex& igesMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
 
 OCCTShapeRef OCCTImportIGES(const char* path) {
     if (!path) return nullptr;
 
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         IGESControl_Reader reader;
         IFSelect_ReturnStatus status = reader.ReadFile(path);
@@ -4336,6 +4344,7 @@ OCCTShapeRef OCCTImportIGES(const char* path) {
 OCCTShapeRef OCCTImportIGESRobust(const char* path) {
     if (!path) return nullptr;
 
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         IGESControl_Reader reader;
 
@@ -4366,6 +4375,7 @@ bool OCCTExportIGES(OCCTShapeRef shape, const char* path) {
     if (!shape || !path) return false;
     if (shape->shape.IsNull()) return false;
 
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         // Validate shape before IGES export — OCCT translator can segfault on invalid geometry
         BRepCheck_Analyzer analyzer(shape->shape);
@@ -21857,6 +21867,7 @@ bool OCCTDocumentWriteSTEPWithModes(OCCTDocumentRef doc, const char* path,
 
 int32_t OCCTIGESReaderNbRoots(const char* path) {
     if (!path) return 0;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         IGESControl_Reader reader;
         IFSelect_ReturnStatus status = reader.ReadFile(path);
@@ -21867,6 +21878,7 @@ int32_t OCCTIGESReaderNbRoots(const char* path) {
 
 OCCTShapeRef OCCTImportIGESRoot(const char* path, int32_t rootIndex) {
     if (!path || rootIndex < 1) return nullptr;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         IGESControl_Reader reader;
         IFSelect_ReturnStatus status = reader.ReadFile(path);
@@ -21882,6 +21894,7 @@ OCCTShapeRef OCCTImportIGESRoot(const char* path, int32_t rootIndex) {
 
 int32_t OCCTIGESReaderNbShapes(const char* path) {
     if (!path) return 0;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         IGESControl_Reader reader;
         IFSelect_ReturnStatus status = reader.ReadFile(path);
@@ -21893,6 +21906,7 @@ int32_t OCCTIGESReaderNbShapes(const char* path) {
 
 OCCTShapeRef OCCTImportIGESVisible(const char* path) {
     if (!path) return nullptr;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         IGESControl_Reader reader;
         reader.SetReadVisible(true);
@@ -21910,6 +21924,7 @@ OCCTShapeRef OCCTImportIGESVisible(const char* path) {
 bool OCCTExportIGESWithUnit(OCCTShapeRef shape, const char* path, const char* unit) {
     if (!shape || !path || !unit) return false;
     if (shape->shape.IsNull()) return false;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         BRepCheck_Analyzer analyzer(shape->shape);
         if (!analyzer.IsValid()) return false;
@@ -21923,6 +21938,7 @@ bool OCCTExportIGESWithUnit(OCCTShapeRef shape, const char* path, const char* un
 bool OCCTExportIGESBRepMode(OCCTShapeRef shape, const char* path) {
     if (!shape || !path) return false;
     if (shape->shape.IsNull()) return false;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         BRepCheck_Analyzer analyzer(shape->shape);
         if (!analyzer.IsValid()) return false;
@@ -21935,6 +21951,7 @@ bool OCCTExportIGESBRepMode(OCCTShapeRef shape, const char* path) {
 
 bool OCCTExportIGESMultiShape(const OCCTShapeRef* shapes, int32_t count, const char* path) {
     if (!shapes || count <= 0 || !path) return false;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
     try {
         IGESControl_Writer writer;
         int added = 0;
