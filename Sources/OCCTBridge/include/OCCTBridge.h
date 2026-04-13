@@ -19329,6 +19329,176 @@ typedef struct {
 /// Get comprehensive graph statistics.
 OCCTBRepGraphStats OCCTBRepGraphGetStats(OCCTBRepGraphRef _Nonnull graph);
 
+// MARK: - BRepGraph Extended (v0.133.0)
+
+/// Reconstruct a TopoDS_Shape from a graph node.
+OCCTShapeRef _Nullable OCCTBRepGraphShapeFromNode(OCCTBRepGraphRef _Nonnull graph,
+                                                   int32_t nodeKind, int32_t nodeIndex);
+
+/// Find the node (kind+index) for a shape. Returns -1 in outKind if not found.
+void OCCTBRepGraphFindNode(OCCTBRepGraphRef _Nonnull graph, OCCTShapeRef _Nonnull shape,
+                           int32_t* _Nonnull outKind, int32_t* _Nonnull outIndex);
+
+/// Check if a shape is known to the graph.
+bool OCCTBRepGraphHasNode(OCCTBRepGraphRef _Nonnull graph, OCCTShapeRef _Nonnull shape);
+
+// --- Vertex Geometry ---
+
+/// Get vertex 3D point.
+void OCCTBRepGraphVertexPoint(OCCTBRepGraphRef _Nonnull graph, int32_t vertexIndex,
+                              double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ);
+
+/// Get vertex tolerance.
+double OCCTBRepGraphVertexTolerance(OCCTBRepGraphRef _Nonnull graph, int32_t vertexIndex);
+
+// --- Edge Geometry ---
+
+/// Get edge tolerance.
+double OCCTBRepGraphEdgeTolerance(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Check if edge is degenerated.
+bool OCCTBRepGraphEdgeIsDegenerated(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Check if edge has SameParameter flag.
+bool OCCTBRepGraphEdgeIsSameParameter(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Check if edge has SameRange flag.
+bool OCCTBRepGraphEdgeIsSameRange(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Get edge parameter range.
+void OCCTBRepGraphEdgeRange(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex,
+                            double* _Nonnull outFirst, double* _Nonnull outLast);
+
+/// Check if edge has a 3D curve.
+bool OCCTBRepGraphEdgeHasCurve(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Check if edge is closed (seam) on a face.
+bool OCCTBRepGraphEdgeIsClosedOnFace(OCCTBRepGraphRef _Nonnull graph,
+                                     int32_t edgeIndex, int32_t faceIndex);
+
+/// Check if edge has a 3D polygon.
+bool OCCTBRepGraphEdgeHasPolygon3D(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Get maximum continuity order of an edge.
+int32_t OCCTBRepGraphEdgeMaxContinuity(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+// --- Face Geometry ---
+
+/// Get face tolerance.
+double OCCTBRepGraphFaceTolerance(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+/// Check if face has natural restriction.
+bool OCCTBRepGraphFaceIsNaturalRestriction(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+/// Check if face has a surface.
+bool OCCTBRepGraphFaceHasSurface(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+/// Check if face has a triangulation.
+bool OCCTBRepGraphFaceHasTriangulation(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+// --- Wire Queries ---
+
+/// Check if wire is closed.
+bool OCCTBRepGraphWireIsClosed(OCCTBRepGraphRef _Nonnull graph, int32_t wireIndex);
+
+/// Number of coedges in a wire.
+int32_t OCCTBRepGraphWireNbCoEdges(OCCTBRepGraphRef _Nonnull graph, int32_t wireIndex);
+
+/// Number of faces a wire belongs to.
+int32_t OCCTBRepGraphWireFaceCount(OCCTBRepGraphRef _Nonnull graph, int32_t wireIndex);
+
+/// Get face indices a wire belongs to.
+void OCCTBRepGraphWireFaceIndices(OCCTBRepGraphRef _Nonnull graph, int32_t wireIndex,
+                                  int32_t* _Nonnull outIndices);
+
+// --- CoEdge Queries ---
+
+/// Get edge index for a coedge.
+int32_t OCCTBRepGraphCoEdgeEdge(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+
+/// Get face index for a coedge.
+int32_t OCCTBRepGraphCoEdgeFace(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+
+/// Get seam pair coedge index (-1 if none).
+int32_t OCCTBRepGraphCoEdgeSeamPair(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+
+/// Check if coedge has a PCurve.
+bool OCCTBRepGraphCoEdgeHasPCurve(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+
+/// Get coedge PCurve range.
+void OCCTBRepGraphCoEdgeRange(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex,
+                              double* _Nonnull outFirst, double* _Nonnull outLast);
+
+// --- Shell Queries ---
+
+/// Number of solids a shell belongs to.
+int32_t OCCTBRepGraphShellSolidCount(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex);
+
+/// Get solid indices a shell belongs to.
+void OCCTBRepGraphShellSolidIndices(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex,
+                                    int32_t* _Nonnull outIndices);
+
+// --- Solid Queries ---
+
+/// Number of comp-solids a solid belongs to.
+int32_t OCCTBRepGraphSolidCompSolidCount(OCCTBRepGraphRef _Nonnull graph, int32_t solidIndex);
+
+// --- History ---
+
+/// Number of history records.
+int32_t OCCTBRepGraphHistoryNbRecords(OCCTBRepGraphRef _Nonnull graph);
+
+/// Check if history recording is enabled.
+bool OCCTBRepGraphHistoryIsEnabled(OCCTBRepGraphRef _Nonnull graph);
+
+/// Enable or disable history recording.
+void OCCTBRepGraphHistorySetEnabled(OCCTBRepGraphRef _Nonnull graph, bool enabled);
+
+/// Clear all history records.
+void OCCTBRepGraphHistoryClear(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Poly Counts ---
+
+/// Number of triangulations.
+int32_t OCCTBRepGraphNbTriangulations(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of 3D polygons.
+int32_t OCCTBRepGraphNbPolygons3D(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Active Geometry Counts ---
+
+/// Number of active (non-removed) surfaces.
+int32_t OCCTBRepGraphNbActiveSurfaces(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of active 3D curves.
+int32_t OCCTBRepGraphNbActiveCurves3D(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of active 2D curves.
+int32_t OCCTBRepGraphNbActiveCurves2D(OCCTBRepGraphRef _Nonnull graph);
+
+// --- SameDomain ---
+
+/// Number of same-domain faces for a given face.
+int32_t OCCTBRepGraphFaceSameDomainCount(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+/// Get same-domain face indices.
+void OCCTBRepGraphFaceSameDomainIndices(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex,
+                                        int32_t* _Nonnull outIndices);
+
+// --- Copy and Transform ---
+
+/// Deep copy the graph.
+OCCTBRepGraphRef _Nullable OCCTBRepGraphCopy(OCCTBRepGraphRef _Nonnull graph, bool copyGeom);
+
+/// Copy a single face sub-graph.
+OCCTBRepGraphRef _Nullable OCCTBRepGraphCopyFace(OCCTBRepGraphRef _Nonnull graph,
+                                                  int32_t faceIndex, bool copyGeom);
+
+/// Transform the graph by a translation vector.
+OCCTBRepGraphRef _Nullable OCCTBRepGraphTransformTranslation(OCCTBRepGraphRef _Nonnull graph,
+                                                              double dx, double dy, double dz,
+                                                              bool copyGeom);
+
 #ifdef __cplusplus
 }
 #endif

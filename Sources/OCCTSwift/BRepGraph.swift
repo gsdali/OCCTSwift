@@ -307,4 +307,276 @@ public final class TopologyGraph: @unchecked Sendable {
                      totalNodes: Int(s.totalNodes), surfaces: Int(s.surfaces),
                      curves3D: Int(s.curves3d), curves2D: Int(s.curves2d))
     }
+
+    // MARK: - Shape Reconstruction (v0.133.0)
+
+    /// Reconstruct a TopoDS_Shape from a graph node.
+    public func shape(nodeKind: NodeKind, nodeIndex: Int) -> Shape? {
+        guard let ref = OCCTBRepGraphShapeFromNode(handle, nodeKind.rawValue, Int32(nodeIndex)) else {
+            return nil
+        }
+        return Shape(handle: ref)
+    }
+
+    /// Find the node (kind, index) for a shape. Returns nil if not found.
+    public func findNode(for shape: Shape) -> (kind: NodeKind, index: Int)? {
+        var outKind: Int32 = -1
+        var outIndex: Int32 = -1
+        OCCTBRepGraphFindNode(handle, shape.handle, &outKind, &outIndex)
+        if outKind < 0 { return nil }
+        guard let kind = NodeKind(rawValue: outKind) else { return nil }
+        return (kind: kind, index: Int(outIndex))
+    }
+
+    /// Check if a shape is known to the graph.
+    public func hasNode(for shape: Shape) -> Bool {
+        OCCTBRepGraphHasNode(handle, shape.handle)
+    }
+
+    // MARK: - Vertex Geometry (v0.133.0)
+
+    /// Get the 3D point of a vertex.
+    public func vertexPoint(_ vertexIndex: Int) -> (x: Double, y: Double, z: Double) {
+        var x = 0.0, y = 0.0, z = 0.0
+        OCCTBRepGraphVertexPoint(handle, Int32(vertexIndex), &x, &y, &z)
+        return (x, y, z)
+    }
+
+    /// Get the tolerance of a vertex.
+    public func vertexTolerance(_ vertexIndex: Int) -> Double {
+        OCCTBRepGraphVertexTolerance(handle, Int32(vertexIndex))
+    }
+
+    // MARK: - Edge Geometry (v0.133.0)
+
+    /// Get the tolerance of an edge.
+    public func edgeTolerance(_ edgeIndex: Int) -> Double {
+        OCCTBRepGraphEdgeTolerance(handle, Int32(edgeIndex))
+    }
+
+    /// Check if an edge is degenerated.
+    public func isEdgeDegenerated(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeIsDegenerated(handle, Int32(edgeIndex))
+    }
+
+    /// Check if an edge has the SameParameter flag.
+    public func isEdgeSameParameter(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeIsSameParameter(handle, Int32(edgeIndex))
+    }
+
+    /// Check if an edge has the SameRange flag.
+    public func isEdgeSameRange(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeIsSameRange(handle, Int32(edgeIndex))
+    }
+
+    /// Get the parameter range of an edge.
+    public func edgeRange(_ edgeIndex: Int) -> (first: Double, last: Double) {
+        var first = 0.0, last = 0.0
+        OCCTBRepGraphEdgeRange(handle, Int32(edgeIndex), &first, &last)
+        return (first, last)
+    }
+
+    /// Check if an edge has a 3D curve.
+    public func edgeHasCurve(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeHasCurve(handle, Int32(edgeIndex))
+    }
+
+    /// Check if an edge is a seam (closed) on a face.
+    public func isEdgeClosedOnFace(edgeIndex: Int, faceIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeIsClosedOnFace(handle, Int32(edgeIndex), Int32(faceIndex))
+    }
+
+    /// Check if an edge has a 3D polygon.
+    public func edgeHasPolygon3D(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeHasPolygon3D(handle, Int32(edgeIndex))
+    }
+
+    /// Get the maximum continuity order of an edge (GeomAbs_Shape enum as Int).
+    public func edgeMaxContinuity(_ edgeIndex: Int) -> Int {
+        Int(OCCTBRepGraphEdgeMaxContinuity(handle, Int32(edgeIndex)))
+    }
+
+    // MARK: - Face Geometry (v0.133.0)
+
+    /// Get the tolerance of a face.
+    public func faceTolerance(_ faceIndex: Int) -> Double {
+        OCCTBRepGraphFaceTolerance(handle, Int32(faceIndex))
+    }
+
+    /// Check if a face has the natural restriction flag.
+    public func isFaceNaturalRestriction(_ faceIndex: Int) -> Bool {
+        OCCTBRepGraphFaceIsNaturalRestriction(handle, Int32(faceIndex))
+    }
+
+    /// Check if a face has a surface.
+    public func faceHasSurface(_ faceIndex: Int) -> Bool {
+        OCCTBRepGraphFaceHasSurface(handle, Int32(faceIndex))
+    }
+
+    /// Check if a face has a triangulation.
+    public func faceHasTriangulation(_ faceIndex: Int) -> Bool {
+        OCCTBRepGraphFaceHasTriangulation(handle, Int32(faceIndex))
+    }
+
+    // MARK: - Wire Queries (v0.133.0)
+
+    /// Check if a wire is topologically closed.
+    public func isWireClosed(_ wireIndex: Int) -> Bool {
+        OCCTBRepGraphWireIsClosed(handle, Int32(wireIndex))
+    }
+
+    /// Number of coedges in a wire.
+    public func wireCoEdgeCount(_ wireIndex: Int) -> Int {
+        Int(OCCTBRepGraphWireNbCoEdges(handle, Int32(wireIndex)))
+    }
+
+    /// Number of faces a wire belongs to.
+    public func wireFaceCount(_ wireIndex: Int) -> Int {
+        Int(OCCTBRepGraphWireFaceCount(handle, Int32(wireIndex)))
+    }
+
+    /// Indices of faces a wire belongs to.
+    public func wireFaces(_ wireIndex: Int) -> [Int] {
+        let count = wireFaceCount(wireIndex)
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphWireFaceIndices(handle, Int32(wireIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    // MARK: - CoEdge Queries (v0.133.0)
+
+    /// Get the edge index of a coedge.
+    public func coedgeEdge(_ coedgeIndex: Int) -> Int {
+        Int(OCCTBRepGraphCoEdgeEdge(handle, Int32(coedgeIndex)))
+    }
+
+    /// Get the face index of a coedge.
+    public func coedgeFace(_ coedgeIndex: Int) -> Int {
+        Int(OCCTBRepGraphCoEdgeFace(handle, Int32(coedgeIndex)))
+    }
+
+    /// Get the seam pair coedge index, or nil if none.
+    public func coedgeSeamPair(_ coedgeIndex: Int) -> Int? {
+        let idx = Int(OCCTBRepGraphCoEdgeSeamPair(handle, Int32(coedgeIndex)))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Check if a coedge has a PCurve.
+    public func coedgeHasPCurve(_ coedgeIndex: Int) -> Bool {
+        OCCTBRepGraphCoEdgeHasPCurve(handle, Int32(coedgeIndex))
+    }
+
+    /// Get the PCurve parameter range of a coedge.
+    public func coedgeRange(_ coedgeIndex: Int) -> (first: Double, last: Double) {
+        var first = 0.0, last = 0.0
+        OCCTBRepGraphCoEdgeRange(handle, Int32(coedgeIndex), &first, &last)
+        return (first, last)
+    }
+
+    // MARK: - Shell Queries (v0.133.0)
+
+    /// Number of solids a shell belongs to.
+    public func shellSolidCount(_ shellIndex: Int) -> Int {
+        Int(OCCTBRepGraphShellSolidCount(handle, Int32(shellIndex)))
+    }
+
+    /// Indices of solids a shell belongs to.
+    public func shellSolids(_ shellIndex: Int) -> [Int] {
+        let count = shellSolidCount(shellIndex)
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphShellSolidIndices(handle, Int32(shellIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    // MARK: - Solid Queries (v0.133.0)
+
+    /// Number of comp-solids a solid belongs to.
+    public func solidCompSolidCount(_ solidIndex: Int) -> Int {
+        Int(OCCTBRepGraphSolidCompSolidCount(handle, Int32(solidIndex)))
+    }
+
+    // MARK: - History (v0.133.0)
+
+    /// Number of history records.
+    public var historyRecordCount: Int {
+        Int(OCCTBRepGraphHistoryNbRecords(handle))
+    }
+
+    /// Whether history recording is enabled.
+    public var isHistoryEnabled: Bool {
+        get { OCCTBRepGraphHistoryIsEnabled(handle) }
+        set { OCCTBRepGraphHistorySetEnabled(handle, newValue) }
+    }
+
+    /// Clear all history records.
+    public func clearHistory() {
+        OCCTBRepGraphHistoryClear(handle)
+    }
+
+    // MARK: - Poly Counts (v0.133.0)
+
+    /// Number of triangulations in the graph.
+    public var triangulationCount: Int { Int(OCCTBRepGraphNbTriangulations(handle)) }
+
+    /// Number of 3D polygons in the graph.
+    public var polygon3DCount: Int { Int(OCCTBRepGraphNbPolygons3D(handle)) }
+
+    // MARK: - Active Geometry Counts (v0.133.0)
+
+    /// Number of active (non-removed) surfaces.
+    public var activeSurfaceCount: Int { Int(OCCTBRepGraphNbActiveSurfaces(handle)) }
+
+    /// Number of active 3D curves.
+    public var activeCurve3DCount: Int { Int(OCCTBRepGraphNbActiveCurves3D(handle)) }
+
+    /// Number of active 2D curves.
+    public var activeCurve2DCount: Int { Int(OCCTBRepGraphNbActiveCurves2D(handle)) }
+
+    // MARK: - SameDomain (v0.133.0)
+
+    /// Indices of same-domain faces for a given face.
+    public func sameDomainFaces(of faceIndex: Int) -> [Int] {
+        let count = Int(OCCTBRepGraphFaceSameDomainCount(handle, Int32(faceIndex)))
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphFaceSameDomainIndices(handle, Int32(faceIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    // MARK: - Copy and Transform (v0.133.0)
+
+    /// Deep copy of the graph.
+    public func copy(copyGeometry: Bool = true) -> TopologyGraph? {
+        guard let ref = OCCTBRepGraphCopy(handle, copyGeometry) else { return nil }
+        return TopologyGraph(borrowedHandle: ref)
+    }
+
+    /// Copy a single face sub-graph.
+    public func copyFace(_ faceIndex: Int, copyGeometry: Bool = true) -> TopologyGraph? {
+        guard let ref = OCCTBRepGraphCopyFace(handle, Int32(faceIndex), copyGeometry) else {
+            return nil
+        }
+        return TopologyGraph(borrowedHandle: ref)
+    }
+
+    /// Transform the graph by a translation.
+    public func translated(dx: Double, dy: Double, dz: Double, copyGeometry: Bool = true) -> TopologyGraph? {
+        guard let ref = OCCTBRepGraphTransformTranslation(handle, dx, dy, dz, copyGeometry) else {
+            return nil
+        }
+        return TopologyGraph(borrowedHandle: ref)
+    }
+
+    /// Internal initializer from an already-created handle (takes ownership).
+    internal init(borrowedHandle: OCCTBRepGraphRef) {
+        self.handle = borrowedHandle
+    }
 }

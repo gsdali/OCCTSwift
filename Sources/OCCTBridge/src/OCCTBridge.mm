@@ -54515,3 +54515,376 @@ OCCTBRepGraphStats OCCTBRepGraphGetStats(OCCTBRepGraphRef g) {
 }
 
 // end of v0.129.0 implementations
+
+// MARK: - BRepGraph Extended (v0.133.0)
+
+#include <BRepGraph_Tool.hxx>
+#include <BRepGraph_ShapesView.hxx>
+#include <BRepGraph_Copy.hxx>
+#include <BRepGraph_Transform.hxx>
+#include <BRepGraph_History.hxx>
+
+// --- Shape Reconstruction ---
+
+OCCTShapeRef OCCTBRepGraphShapeFromNode(OCCTBRepGraphRef g, int32_t nodeKind, int32_t nodeIndex) {
+    if (!g) return nullptr;
+    try {
+        BRepGraph_NodeId nid(kindFromInt(nodeKind), nodeIndex);
+        TopoDS_Shape s = g->graph.Shapes().Shape(nid);
+        if (s.IsNull()) return nullptr;
+        return new OCCTShape{s};
+    } catch (...) { return nullptr; }
+}
+
+void OCCTBRepGraphFindNode(OCCTBRepGraphRef g, OCCTShapeRef shape,
+                           int32_t* outKind, int32_t* outIndex) {
+    *outKind = -1;
+    *outIndex = -1;
+    if (!g || !shape) return;
+    try {
+        auto nid = g->graph.Shapes().FindNode(shape->shape);
+        if (nid.IsValid()) {
+            *outKind = static_cast<int32_t>(nid.NodeKind);
+            *outIndex = nid.Index;
+        }
+    } catch (...) {}
+}
+
+bool OCCTBRepGraphHasNode(OCCTBRepGraphRef g, OCCTShapeRef shape) {
+    if (!g || !shape) return false;
+    try { return g->graph.Shapes().HasNode(shape->shape); }
+    catch (...) { return false; }
+}
+
+// --- Vertex Geometry ---
+
+void OCCTBRepGraphVertexPoint(OCCTBRepGraphRef g, int32_t vertexIndex,
+                              double* outX, double* outY, double* outZ) {
+    *outX = 0; *outY = 0; *outZ = 0;
+    if (!g) return;
+    try {
+        auto pnt = BRepGraph_Tool::Vertex::Pnt(g->graph, BRepGraph_VertexId(vertexIndex));
+        *outX = pnt.X(); *outY = pnt.Y(); *outZ = pnt.Z();
+    } catch (...) {}
+}
+
+double OCCTBRepGraphVertexTolerance(OCCTBRepGraphRef g, int32_t vertexIndex) {
+    if (!g) return 0;
+    try { return BRepGraph_Tool::Vertex::Tolerance(g->graph, BRepGraph_VertexId(vertexIndex)); }
+    catch (...) { return 0; }
+}
+
+// --- Edge Geometry ---
+
+double OCCTBRepGraphEdgeTolerance(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return 0;
+    try { return BRepGraph_Tool::Edge::Tolerance(g->graph, BRepGraph_EdgeId(edgeIndex)); }
+    catch (...) { return 0; }
+}
+
+bool OCCTBRepGraphEdgeIsDegenerated(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Edge::Degenerated(g->graph, BRepGraph_EdgeId(edgeIndex)); }
+    catch (...) { return false; }
+}
+
+bool OCCTBRepGraphEdgeIsSameParameter(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Edge::SameParameter(g->graph, BRepGraph_EdgeId(edgeIndex)); }
+    catch (...) { return false; }
+}
+
+bool OCCTBRepGraphEdgeIsSameRange(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Edge::SameRange(g->graph, BRepGraph_EdgeId(edgeIndex)); }
+    catch (...) { return false; }
+}
+
+void OCCTBRepGraphEdgeRange(OCCTBRepGraphRef g, int32_t edgeIndex,
+                            double* outFirst, double* outLast) {
+    *outFirst = 0; *outLast = 0;
+    if (!g) return;
+    try {
+        auto range = BRepGraph_Tool::Edge::Range(g->graph, BRepGraph_EdgeId(edgeIndex));
+        *outFirst = range.first; *outLast = range.second;
+    } catch (...) {}
+}
+
+bool OCCTBRepGraphEdgeHasCurve(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Edge::HasCurve(g->graph, BRepGraph_EdgeId(edgeIndex)); }
+    catch (...) { return false; }
+}
+
+bool OCCTBRepGraphEdgeIsClosedOnFace(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t faceIndex) {
+    if (!g) return false;
+    try {
+        return BRepGraph_Tool::Edge::IsClosedOnFace(g->graph,
+            BRepGraph_EdgeId(edgeIndex), BRepGraph_FaceId(faceIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphEdgeHasPolygon3D(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Edge::HasPolygon3D(g->graph, BRepGraph_EdgeId(edgeIndex)); }
+    catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphEdgeMaxContinuity(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return 0;
+    try {
+        return static_cast<int32_t>(
+            BRepGraph_Tool::Edge::MaxContinuity(g->graph, BRepGraph_EdgeId(edgeIndex)));
+    } catch (...) { return 0; }
+}
+
+// --- Face Geometry ---
+
+double OCCTBRepGraphFaceTolerance(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try { return BRepGraph_Tool::Face::Tolerance(g->graph, BRepGraph_FaceId(faceIndex)); }
+    catch (...) { return 0; }
+}
+
+bool OCCTBRepGraphFaceIsNaturalRestriction(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Face::NaturalRestriction(g->graph, BRepGraph_FaceId(faceIndex)); }
+    catch (...) { return false; }
+}
+
+bool OCCTBRepGraphFaceHasSurface(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Face::HasSurface(g->graph, BRepGraph_FaceId(faceIndex)); }
+    catch (...) { return false; }
+}
+
+bool OCCTBRepGraphFaceHasTriangulation(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Face::HasTriangulation(g->graph, BRepGraph_FaceId(faceIndex)); }
+    catch (...) { return false; }
+}
+
+// --- Wire Queries ---
+
+bool OCCTBRepGraphWireIsClosed(OCCTBRepGraphRef g, int32_t wireIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::Wire::IsClosed(g->graph, BRepGraph_WireId(wireIndex)); }
+    catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphWireNbCoEdges(OCCTBRepGraphRef g, int32_t wireIndex) {
+    if (!g) return 0;
+    try { return BRepGraph_Tool::Wire::NbCoEdges(g->graph, BRepGraph_WireId(wireIndex)); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphWireFaceCount(OCCTBRepGraphRef g, int32_t wireIndex) {
+    if (!g) return 0;
+    try {
+        auto& faces = g->graph.Topo().Wires().Faces(BRepGraph_WireId(wireIndex));
+        return (int32_t)faces.Size();
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepGraphWireFaceIndices(OCCTBRepGraphRef g, int32_t wireIndex, int32_t* outIndices) {
+    if (!g || !outIndices) return;
+    try {
+        auto& faces = g->graph.Topo().Wires().Faces(BRepGraph_WireId(wireIndex));
+        for (int i = 0; i < faces.Size(); ++i) {
+            outIndices[i] = faces(i).Index;
+        }
+    } catch (...) {}
+}
+
+// --- CoEdge Queries ---
+
+int32_t OCCTBRepGraphCoEdgeEdge(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return -1;
+    try {
+        auto eid = g->graph.Topo().CoEdges().Edge(BRepGraph_CoEdgeId(coedgeIndex));
+        return eid.Index;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphCoEdgeFace(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return -1;
+    try {
+        auto fid = g->graph.Topo().CoEdges().Face(BRepGraph_CoEdgeId(coedgeIndex));
+        return fid.Index;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphCoEdgeSeamPair(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return -1;
+    try {
+        auto pid = g->graph.Topo().CoEdges().SeamPair(BRepGraph_CoEdgeId(coedgeIndex));
+        return pid.IsValid() ? pid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+bool OCCTBRepGraphCoEdgeHasPCurve(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return false;
+    try { return BRepGraph_Tool::CoEdge::HasPCurve(g->graph, BRepGraph_CoEdgeId(coedgeIndex)); }
+    catch (...) { return false; }
+}
+
+void OCCTBRepGraphCoEdgeRange(OCCTBRepGraphRef g, int32_t coedgeIndex,
+                              double* outFirst, double* outLast) {
+    *outFirst = 0; *outLast = 0;
+    if (!g) return;
+    try {
+        auto range = BRepGraph_Tool::CoEdge::Range(g->graph, BRepGraph_CoEdgeId(coedgeIndex));
+        *outFirst = range.first; *outLast = range.second;
+    } catch (...) {}
+}
+
+// --- Shell Queries ---
+
+int32_t OCCTBRepGraphShellSolidCount(OCCTBRepGraphRef g, int32_t shellIndex) {
+    if (!g) return 0;
+    try {
+        auto& solids = g->graph.Topo().Shells().Solids(BRepGraph_ShellId(shellIndex));
+        return (int32_t)solids.Size();
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepGraphShellSolidIndices(OCCTBRepGraphRef g, int32_t shellIndex, int32_t* outIndices) {
+    if (!g || !outIndices) return;
+    try {
+        auto& solids = g->graph.Topo().Shells().Solids(BRepGraph_ShellId(shellIndex));
+        for (int i = 0; i < solids.Size(); ++i) {
+            outIndices[i] = solids(i).Index;
+        }
+    } catch (...) {}
+}
+
+// --- Solid Queries ---
+
+int32_t OCCTBRepGraphSolidCompSolidCount(OCCTBRepGraphRef g, int32_t solidIndex) {
+    if (!g) return 0;
+    try {
+        auto& cs = g->graph.Topo().Solids().CompSolids(BRepGraph_SolidId(solidIndex));
+        return (int32_t)cs.Size();
+    } catch (...) { return 0; }
+}
+
+// --- History ---
+
+int32_t OCCTBRepGraphHistoryNbRecords(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.History().NbRecords(); }
+    catch (...) { return 0; }
+}
+
+bool OCCTBRepGraphHistoryIsEnabled(OCCTBRepGraphRef g) {
+    if (!g) return false;
+    try { return g->graph.History().IsEnabled(); }
+    catch (...) { return false; }
+}
+
+void OCCTBRepGraphHistorySetEnabled(OCCTBRepGraphRef g, bool enabled) {
+    if (!g) return;
+    try { g->graph.History().SetEnabled(enabled); }
+    catch (...) {}
+}
+
+void OCCTBRepGraphHistoryClear(OCCTBRepGraphRef g) {
+    if (!g) return;
+    try { g->graph.History().Clear(); }
+    catch (...) {}
+}
+
+// --- Poly Counts ---
+
+int32_t OCCTBRepGraphNbTriangulations(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Topo().Poly().NbTriangulations(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbPolygons3D(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Topo().Poly().NbPolygons3D(); }
+    catch (...) { return 0; }
+}
+
+// --- Active Geometry Counts ---
+
+int32_t OCCTBRepGraphNbActiveSurfaces(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Topo().Geometry().NbActiveSurfaces(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbActiveCurves3D(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Topo().Geometry().NbActiveCurves3D(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbActiveCurves2D(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Topo().Geometry().NbActiveCurves2D(); }
+    catch (...) { return 0; }
+}
+
+// --- SameDomain ---
+
+int32_t OCCTBRepGraphFaceSameDomainCount(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try {
+        auto sd = g->graph.Topo().Faces().SameDomain(
+            BRepGraph_FaceId(faceIndex), g->graph.Allocator());
+        return (int32_t)sd.Size();
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepGraphFaceSameDomainIndices(OCCTBRepGraphRef g, int32_t faceIndex,
+                                        int32_t* outIndices) {
+    if (!g || !outIndices) return;
+    try {
+        auto sd = g->graph.Topo().Faces().SameDomain(
+            BRepGraph_FaceId(faceIndex), g->graph.Allocator());
+        for (int i = 0; i < sd.Size(); ++i) {
+            outIndices[i] = sd(i).Index;
+        }
+    } catch (...) {}
+}
+
+// --- Copy and Transform ---
+
+OCCTBRepGraphRef OCCTBRepGraphCopy(OCCTBRepGraphRef g, bool copyGeom) {
+    if (!g) return nullptr;
+    try {
+        auto ref = new OCCTBRepGraph();
+        ref->graph = BRepGraph_Copy::Perform(g->graph, copyGeom);
+        if (!ref->graph.IsDone()) { delete ref; return nullptr; }
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTBRepGraphRef OCCTBRepGraphCopyFace(OCCTBRepGraphRef g, int32_t faceIndex, bool copyGeom) {
+    if (!g) return nullptr;
+    try {
+        auto ref = new OCCTBRepGraph();
+        ref->graph = BRepGraph_Copy::CopyFace(g->graph, BRepGraph_FaceId(faceIndex), copyGeom);
+        if (!ref->graph.IsDone()) { delete ref; return nullptr; }
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTBRepGraphRef OCCTBRepGraphTransformTranslation(OCCTBRepGraphRef g,
+                                                    double dx, double dy, double dz,
+                                                    bool copyGeom) {
+    if (!g) return nullptr;
+    try {
+        gp_Trsf trsf;
+        trsf.SetTranslation(gp_Vec(dx, dy, dz));
+        auto ref = new OCCTBRepGraph();
+        ref->graph = BRepGraph_Transform::Perform(g->graph, trsf, copyGeom);
+        if (!ref->graph.IsDone()) { delete ref; return nullptr; }
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// end of v0.133.0 implementations

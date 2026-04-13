@@ -42760,3 +42760,557 @@ struct TopologyGraphRootNodeTests {
         }
     }
 }
+
+// MARK: - TopologyGraph Extended Tests (v0.133.0)
+
+@Suite("TopologyGraph Shape Reconstruction")
+struct TopologyGraphShapeReconstructionTests {
+    @Test func reconstructFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let face = graph.shape(nodeKind: .face, nodeIndex: 0)
+                #expect(face != nil)
+            }
+        }
+    }
+
+    @Test func reconstructSolid() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let solid = graph.shape(nodeKind: .solid, nodeIndex: 0)
+                #expect(solid != nil)
+            }
+        }
+    }
+
+    @Test func findNode() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let found = graph.hasNode(for: box)
+                #expect(found)
+                let node = graph.findNode(for: box)
+                #expect(node != nil)
+            }
+        }
+    }
+
+    @Test func hasNodeFalseForUnrelated() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let sphere = Shape.sphere(radius: 5)
+        if let box, let sphere {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(!graph.hasNode(for: sphere))
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Vertex Geometry")
+struct TopologyGraphVertexGeometryTests {
+    @Test func vertexPoint() {
+        let box = Shape.box(width: 10, height: 20, depth: 30)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let pt = graph.vertexPoint(0)
+                // Vertex should be a finite point
+                #expect(pt.x.isFinite)
+                #expect(pt.y.isFinite)
+                #expect(pt.z.isFinite)
+            }
+        }
+    }
+
+    @Test func vertexTolerance() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let tol = graph.vertexTolerance(0)
+                #expect(tol > 0)
+                #expect(tol < 1.0) // should be a small value
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Edge Geometry")
+struct TopologyGraphEdgeGeometryTests {
+    @Test func edgeTolerance() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let tol = graph.edgeTolerance(0)
+                #expect(tol > 0)
+            }
+        }
+    }
+
+    @Test func edgeNotDegenerated() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    #expect(!graph.isEdgeDegenerated(i))
+                }
+            }
+        }
+    }
+
+    @Test func edgeSameParameter() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    #expect(graph.isEdgeSameParameter(i))
+                }
+            }
+        }
+    }
+
+    @Test func edgeSameRange() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    #expect(graph.isEdgeSameRange(i))
+                }
+            }
+        }
+    }
+
+    @Test func edgeRange() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let range = graph.edgeRange(0)
+                #expect(range.first < range.last)
+            }
+        }
+    }
+
+    @Test func edgeHasCurve() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    #expect(graph.edgeHasCurve(i))
+                }
+            }
+        }
+    }
+
+    @Test func edgeMaxContinuity() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let cont = graph.edgeMaxContinuity(0)
+                #expect(cont >= 0)
+            }
+        }
+    }
+
+    @Test func edgeNotClosedOnFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box edges are not seam edges
+                let faces = graph.faces(of: 0)
+                if let faceIdx = faces.first {
+                    #expect(!graph.isEdgeClosedOnFace(edgeIndex: 0, faceIndex: faceIdx))
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Face Geometry")
+struct TopologyGraphFaceGeometryTests {
+    @Test func faceTolerance() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let tol = graph.faceTolerance(0)
+                #expect(tol > 0)
+            }
+        }
+    }
+
+    @Test func faceHasSurface() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.faceCount {
+                    #expect(graph.faceHasSurface(i))
+                }
+            }
+        }
+    }
+
+    @Test func faceNaturalRestriction() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Just check it returns a bool without crashing
+                let _ = graph.isFaceNaturalRestriction(0)
+            }
+        }
+    }
+
+    @Test func faceHasTriangulation() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box may or may not have triangulation depending on meshing
+                let _ = graph.faceHasTriangulation(0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Wire Extended")
+struct TopologyGraphWireExtendedTests {
+    @Test func wireIsClosed() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.wireCount {
+                    #expect(graph.isWireClosed(i))
+                }
+            }
+        }
+    }
+
+    @Test func wireCoEdgeCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let count = graph.wireCoEdgeCount(0)
+                #expect(count == 4) // box face has 4 edges
+            }
+        }
+    }
+
+    @Test func wireFaces() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let faceCount = graph.wireFaceCount(0)
+                #expect(faceCount == 1)
+                let faces = graph.wireFaces(0)
+                #expect(faces.count == 1)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph CoEdge Queries")
+struct TopologyGraphCoEdgeQueryTests {
+    @Test func coedgeEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let edgeIdx = graph.coedgeEdge(0)
+                #expect(edgeIdx >= 0)
+                #expect(edgeIdx < graph.edgeCount)
+            }
+        }
+    }
+
+    @Test func coedgeFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let faceIdx = graph.coedgeFace(0)
+                #expect(faceIdx >= 0)
+                #expect(faceIdx < graph.faceCount)
+            }
+        }
+    }
+
+    @Test func coedgeSeamPairNilForBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box edges are not seam edges, so no seam pairs
+                let pair = graph.coedgeSeamPair(0)
+                #expect(pair == nil)
+            }
+        }
+    }
+
+    @Test func coedgeSeamPairForSphere() {
+        let sphere = Shape.sphere(radius: 5)
+        if let sphere {
+            let graph = TopologyGraph(shape: sphere)
+            if let graph {
+                // Sphere has seam edges; find a coedge with a seam pair
+                var foundSeam = false
+                for i in 0..<graph.coedgeCount {
+                    if graph.coedgeSeamPair(i) != nil {
+                        foundSeam = true
+                        break
+                    }
+                }
+                // Sphere may or may not have seam depending on representation
+                let _ = foundSeam
+            }
+        }
+    }
+
+    @Test func coedgeHasPCurve() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box coedges should have PCurves
+                var hasPCurve = false
+                for i in 0..<graph.coedgeCount {
+                    if graph.coedgeHasPCurve(i) {
+                        hasPCurve = true
+                        break
+                    }
+                }
+                #expect(hasPCurve)
+            }
+        }
+    }
+
+    @Test func coedgeRange() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                if graph.coedgeHasPCurve(0) {
+                    let range = graph.coedgeRange(0)
+                    #expect(range.first < range.last)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Shell Queries")
+struct TopologyGraphShellQueryTests {
+    @Test func shellSolids() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let count = graph.shellSolidCount(0)
+                #expect(count == 1)
+                let solids = graph.shellSolids(0)
+                #expect(solids.count == 1)
+                #expect(solids[0] == 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Solid Queries")
+struct TopologyGraphSolidQueryTests {
+    @Test func solidCompSolidCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let count = graph.solidCompSolidCount(0)
+                #expect(count == 0) // standalone solid, not in comp-solid
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph History")
+struct TopologyGraphHistoryTests {
+    @Test func historyDefaults() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.isHistoryEnabled)
+                #expect(graph.historyRecordCount == 0)
+            }
+        }
+    }
+
+    @Test func historyToggle() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                graph.isHistoryEnabled = false
+                #expect(!graph.isHistoryEnabled)
+                graph.isHistoryEnabled = true
+                #expect(graph.isHistoryEnabled)
+            }
+        }
+    }
+
+    @Test func historyClear() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                graph.clearHistory()
+                #expect(graph.historyRecordCount == 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Poly Counts")
+struct TopologyGraphPolyCountTests {
+    @Test func polyCounts() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Poly counts are >= 0 (may be 0 if not meshed)
+                #expect(graph.triangulationCount >= 0)
+                #expect(graph.polygon3DCount >= 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Active Geometry")
+struct TopologyGraphActiveGeometryTests {
+    @Test func activeGeometryCounts() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.activeSurfaceCount == 6)
+                #expect(graph.activeCurve3DCount == 12)
+                #expect(graph.activeCurve2DCount > 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph SameDomain")
+struct TopologyGraphSameDomainTests {
+    @Test func boxNoSameDomain() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box faces are all distinct, no same-domain
+                let sd = graph.sameDomainFaces(of: 0)
+                #expect(sd.isEmpty)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Copy")
+struct TopologyGraphCopyTests {
+    @Test func deepCopy() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let copy = graph.copy()
+                #expect(copy != nil)
+                if let copy {
+                    #expect(copy.faceCount == 6)
+                    #expect(copy.edgeCount == 12)
+                    #expect(copy.vertexCount == 8)
+                }
+            }
+        }
+    }
+
+    @Test func lightCopy() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let copy = graph.copy(copyGeometry: false)
+                #expect(copy != nil)
+                if let copy {
+                    #expect(copy.faceCount == 6)
+                }
+            }
+        }
+    }
+
+    @Test func copyFace() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let faceCopy = graph.copyFace(0)
+                #expect(faceCopy != nil)
+                if let faceCopy {
+                    #expect(faceCopy.faceCount == 1)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Transform")
+struct TopologyGraphTransformTests {
+    @Test func translateGraph() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let translated = graph.translated(dx: 100, dy: 200, dz: 300)
+                #expect(translated != nil)
+                if let translated {
+                    #expect(translated.faceCount == 6)
+                    #expect(translated.edgeCount == 12)
+                    #expect(translated.vertexCount == 8)
+                    // Check that vertex moved
+                    let origPt = graph.vertexPoint(0)
+                    let newPt = translated.vertexPoint(0)
+                    #expect(abs(newPt.x - origPt.x - 100) < 1e-6)
+                    #expect(abs(newPt.y - origPt.y - 200) < 1e-6)
+                    #expect(abs(newPt.z - origPt.z - 300) < 1e-6)
+                }
+            }
+        }
+    }
+
+    @Test func translateLightCopy() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                let translated = graph.translated(dx: 10, dy: 0, dz: 0, copyGeometry: false)
+                #expect(translated != nil)
+                if let translated {
+                    #expect(translated.faceCount == 6)
+                }
+            }
+        }
+    }
+}
