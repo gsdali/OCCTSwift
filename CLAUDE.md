@@ -115,6 +115,49 @@ Each release adds ~100 new operations following this strict order:
 5. Insert generated code, `swift build`, `swift test`, iterate on failures
 6. Update README.md, commit, tag, release
 
+## Documentation Standards
+
+### docs/ Structure
+
+```
+docs/
+├── API_REFERENCE.md          # Full operation-by-OCCT-class mapping (generated from README)
+├── CHANGELOG.md              # Release history (every version, concise)
+├── architecture/overview.md  # Three-layer design, memory model, file layout
+├── guides/
+│   ├── adding-features.md    # Step-by-step: bridge header → impl → Swift → test
+│   ├── building-occt.md      # Rebuild OCCT.xcframework from source
+│   └── occt-concepts.md      # B-Rep topology, handles, shapes primer
+├── integration-tests.md      # Design, CAM, stress, and regression test plans
+├── naming-conventions.md     # Bridge and Swift naming patterns
+├── occt-upgrades.md          # Breaking changes per OCCT version (rc3→rc4→rc5)
+├── occtswift-wrapping-gaps.md # What's wrapped, what's not, and why
+└── thread-safety.md          # OCCTSerial mutex, parallel execution
+```
+
+### Rules
+
+- **README.md** stays concise (~175 lines). Detailed content goes in `docs/`.
+- **No stale plans or proposals** — delete docs when the work is done or abandoned.
+- **No version-specific release notes** as separate files — everything goes in `CHANGELOG.md`.
+- **No duplicate content** — one canonical location per topic. Link, don't copy.
+- **Keep docs current** — when upgrading OCCT or changing architecture, update the relevant doc in the same commit.
+- **Operation counts and version numbers** must match reality. Grep for stale numbers when releasing.
+- **Code reviews and handoff docs** are ephemeral — don't commit them.
+
+### What Goes Where
+
+| Content | Location |
+|---------|----------|
+| Quick start, ecosystem links, examples | `README.md` |
+| Full API tables (Swift → OCCT mapping) | `docs/API_REFERENCE.md` |
+| How the bridge works | `docs/architecture/overview.md` |
+| How to add new operations | `docs/guides/adding-features.md` |
+| OCCT version migration notes | `docs/occt-upgrades.md` |
+| What's wrapped and what isn't | `docs/occtswift-wrapping-gaps.md` |
+| Thread safety guidance | `docs/thread-safety.md` |
+| Release-by-release history | `docs/CHANGELOG.md` |
+
 ## User Directives
 
 - Wrap **everything** — comprehensive wrapper, leave nothing out
