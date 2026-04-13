@@ -54887,4 +54887,407 @@ OCCTBRepGraphRef OCCTBRepGraphTransformTranslation(OCCTBRepGraphRef g,
     } catch (...) { return nullptr; }
 }
 
+// MARK: - BRepGraph Assembly & Refs (v0.134.0)
+
+#include <BRepGraph_RefsView.hxx>
+
+static BRepGraph_RefId::Kind refKindFromInt(int32_t k) {
+    switch (k) {
+        case 0: return BRepGraph_RefId::Kind::Shell;
+        case 1: return BRepGraph_RefId::Kind::Face;
+        case 2: return BRepGraph_RefId::Kind::Wire;
+        case 3: return BRepGraph_RefId::Kind::CoEdge;
+        case 4: return BRepGraph_RefId::Kind::Vertex;
+        case 5: return BRepGraph_RefId::Kind::Solid;
+        case 6: return BRepGraph_RefId::Kind::Child;
+        case 7: return BRepGraph_RefId::Kind::Occurrence;
+        default: return BRepGraph_RefId::Kind::Shell;
+    }
+}
+
+static int32_t nodeKindToInt(BRepGraph_NodeId::Kind k) {
+    switch (k) {
+        case BRepGraph_NodeId::Kind::Solid:     return 0;
+        case BRepGraph_NodeId::Kind::Shell:     return 1;
+        case BRepGraph_NodeId::Kind::Face:      return 2;
+        case BRepGraph_NodeId::Kind::Wire:      return 3;
+        case BRepGraph_NodeId::Kind::Edge:      return 4;
+        case BRepGraph_NodeId::Kind::Vertex:    return 5;
+        case BRepGraph_NodeId::Kind::Compound:  return 6;
+        case BRepGraph_NodeId::Kind::CompSolid: return 7;
+        case BRepGraph_NodeId::Kind::CoEdge:    return 8;
+        default: return -1;
+    }
+}
+
+// --- Product (Assembly) Queries ---
+
+int32_t OCCTBRepGraphNbProducts(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Topo().Products().Nb(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbOccurrences(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Topo().Occurrences().Nb(); }
+    catch (...) { return 0; }
+}
+
+bool OCCTBRepGraphProductIsAssembly(OCCTBRepGraphRef g, int32_t productIndex) {
+    if (!g) return false;
+    try { return g->graph.Topo().Products().IsAssembly(BRepGraph_ProductId(productIndex)); }
+    catch (...) { return false; }
+}
+
+bool OCCTBRepGraphProductIsPart(OCCTBRepGraphRef g, int32_t productIndex) {
+    if (!g) return false;
+    try { return g->graph.Topo().Products().IsPart(BRepGraph_ProductId(productIndex)); }
+    catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphProductNbComponents(OCCTBRepGraphRef g, int32_t productIndex) {
+    if (!g) return 0;
+    try { return g->graph.Topo().Products().NbComponents(BRepGraph_ProductId(productIndex)); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphProductShapeRootKind(OCCTBRepGraphRef g, int32_t productIndex) {
+    if (!g) return -1;
+    try {
+        auto nid = g->graph.Topo().Products().ShapeRootNode(BRepGraph_ProductId(productIndex));
+        if (!nid.IsValid()) return -1;
+        return nodeKindToInt(nid.NodeKind);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphProductShapeRootIndex(OCCTBRepGraphRef g, int32_t productIndex) {
+    if (!g) return -1;
+    try {
+        auto nid = g->graph.Topo().Products().ShapeRootNode(BRepGraph_ProductId(productIndex));
+        if (!nid.IsValid()) return -1;
+        return nid.Index;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphOccurrenceProduct(OCCTBRepGraphRef g, int32_t occIndex) {
+    if (!g) return -1;
+    try {
+        auto pid = g->graph.Topo().Occurrences().Product(BRepGraph_OccurrenceId(occIndex));
+        return pid.IsValid() ? pid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphOccurrenceParentProduct(OCCTBRepGraphRef g, int32_t occIndex) {
+    if (!g) return -1;
+    try {
+        auto pid = g->graph.Topo().Occurrences().ParentProduct(BRepGraph_OccurrenceId(occIndex));
+        return pid.IsValid() ? pid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphOccurrenceParentOccurrence(OCCTBRepGraphRef g, int32_t occIndex) {
+    if (!g) return -1;
+    try {
+        auto oid = g->graph.Topo().Occurrences().ParentOccurrence(BRepGraph_OccurrenceId(occIndex));
+        return oid.IsValid() ? oid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphRootProductCount(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try {
+        auto roots = g->graph.Topo().Products().RootProducts(g->graph.Allocator());
+        return (int32_t)roots.Length();
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepGraphRootProductIndices(OCCTBRepGraphRef g, int32_t* outIndices) {
+    if (!g || !outIndices) return;
+    try {
+        auto roots = g->graph.Topo().Products().RootProducts(g->graph.Allocator());
+        for (int i = 0; i < roots.Length(); ++i) {
+            outIndices[i] = roots.Value(i).Index;
+        }
+    } catch (...) {}
+}
+
+// --- RefsView Per-Kind Counts ---
+
+int32_t OCCTBRepGraphNbShellRefs(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Refs().Shells().Nb(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbFaceRefs(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Refs().Faces().Nb(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbWireRefs(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Refs().Wires().Nb(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbCoEdgeRefs(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Refs().CoEdges().Nb(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbVertexRefs(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Refs().Vertices().Nb(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbSolidRefs(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Refs().Solids().Nb(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbChildRefs(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Refs().Children().Nb(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphNbOccurrenceRefs(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Refs().Occurrences().Nb(); }
+    catch (...) { return 0; }
+}
+
+// --- RefsView Global Methods ---
+
+int32_t OCCTBRepGraphRefChildNodeKind(OCCTBRepGraphRef g, int32_t refKind, int32_t refIndex) {
+    if (!g) return -1;
+    try {
+        BRepGraph_RefId rid(refKindFromInt(refKind), refIndex);
+        auto nid = g->graph.Refs().ChildNode(rid);
+        if (!nid.IsValid()) return -1;
+        return nodeKindToInt(nid.NodeKind);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphRefChildNodeIndex(OCCTBRepGraphRef g, int32_t refKind, int32_t refIndex) {
+    if (!g) return -1;
+    try {
+        BRepGraph_RefId rid(refKindFromInt(refKind), refIndex);
+        auto nid = g->graph.Refs().ChildNode(rid);
+        if (!nid.IsValid()) return -1;
+        return nid.Index;
+    } catch (...) { return -1; }
+}
+
+bool OCCTBRepGraphRefIsRemoved(OCCTBRepGraphRef g, int32_t refKind, int32_t refIndex) {
+    if (!g) return false;
+    try {
+        BRepGraph_RefId rid(refKindFromInt(refKind), refIndex);
+        return g->graph.Refs().IsRemoved(rid);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphRefOrientation(OCCTBRepGraphRef g, int32_t refKind, int32_t refIndex) {
+    if (!g) return 0;
+    try {
+        BRepGraph_RefId rid(refKindFromInt(refKind), refIndex);
+        return (int32_t)g->graph.Refs().Orientation(rid);
+    } catch (...) { return 0; }
+}
+
+// --- Face Definition Details ---
+
+int32_t OCCTBRepGraphFaceNbWires(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try {
+        auto& def = g->graph.Topo().Faces().Definition(BRepGraph_FaceId(faceIndex));
+        return (int32_t)def.WireRefIds.Length();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphFaceNbVertexRefs(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try {
+        auto& def = g->graph.Topo().Faces().Definition(BRepGraph_FaceId(faceIndex));
+        return (int32_t)def.VertexRefIds.Length();
+    } catch (...) { return 0; }
+}
+
+// --- Edge Definition Details ---
+
+int32_t OCCTBRepGraphEdgeStartVertex(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return -1;
+    try {
+        auto& vref = BRepGraph_Tool::Edge::StartVertex(g->graph, BRepGraph_EdgeId(edgeIndex));
+        return vref.VertexDefId.IsValid() ? vref.VertexDefId.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphEdgeEndVertex(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return -1;
+    try {
+        auto& vref = BRepGraph_Tool::Edge::EndVertex(g->graph, BRepGraph_EdgeId(edgeIndex));
+        return vref.VertexDefId.IsValid() ? vref.VertexDefId.Index : -1;
+    } catch (...) { return -1; }
+}
+
+bool OCCTBRepGraphEdgeIsClosed(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return false;
+    try {
+        auto& def = g->graph.Topo().Edges().Definition(BRepGraph_EdgeId(edgeIndex));
+        return def.IsClosed;
+    } catch (...) { return false; }
+}
+
+// --- Compound/CompSolid Queries ---
+
+int32_t OCCTBRepGraphCompoundParentCount(OCCTBRepGraphRef g, int32_t compoundIndex) {
+    if (!g) return 0;
+    try {
+        auto& parents = g->graph.Topo().Compounds().ParentCompounds(BRepGraph_CompoundId(compoundIndex));
+        return (int32_t)parents.Length();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphCompoundChildCount(OCCTBRepGraphRef g, int32_t compoundIndex) {
+    if (!g) return 0;
+    try {
+        auto& def = g->graph.Topo().Compounds().Definition(BRepGraph_CompoundId(compoundIndex));
+        return (int32_t)def.ChildRefIds.Length();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphCompSolidSolidCount(OCCTBRepGraphRef g, int32_t compSolidIndex) {
+    if (!g) return 0;
+    try {
+        auto& def = g->graph.Topo().CompSolids().Definition(BRepGraph_CompSolidId(compSolidIndex));
+        return (int32_t)def.SolidRefIds.Length();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphCompSolidCompoundCount(OCCTBRepGraphRef g, int32_t compSolidIndex) {
+    if (!g) return 0;
+    try {
+        auto& compounds = g->graph.Topo().CompSolids().Compounds(BRepGraph_CompSolidId(compSolidIndex));
+        return (int32_t)compounds.Length();
+    } catch (...) { return 0; }
+}
+
+// --- Edge Additional Queries ---
+
+int32_t OCCTBRepGraphEdgeWireCount(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return 0;
+    try {
+        auto& wires = g->graph.Topo().Edges().Wires(BRepGraph_EdgeId(edgeIndex));
+        return (int32_t)wires.Length();
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepGraphEdgeWireIndices(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t* outIndices) {
+    if (!g || !outIndices) return;
+    try {
+        auto& wires = g->graph.Topo().Edges().Wires(BRepGraph_EdgeId(edgeIndex));
+        for (int i = 0; i < wires.Length(); ++i) {
+            outIndices[i] = wires.Value(i).Index;
+        }
+    } catch (...) {}
+}
+
+int32_t OCCTBRepGraphEdgeCoEdgeCount(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return 0;
+    try {
+        auto& coedges = g->graph.Topo().Edges().CoEdges(BRepGraph_EdgeId(edgeIndex));
+        return (int32_t)coedges.Length();
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepGraphEdgeCoEdgeIndices(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t* outIndices) {
+    if (!g || !outIndices) return;
+    try {
+        auto& coedges = g->graph.Topo().Edges().CoEdges(BRepGraph_EdgeId(edgeIndex));
+        for (int i = 0; i < coedges.Length(); ++i) {
+            outIndices[i] = coedges.Value(i).Index;
+        }
+    } catch (...) {}
+}
+
+// --- Face Additional Queries ---
+
+int32_t OCCTBRepGraphFaceShellCount(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try {
+        auto& shells = g->graph.Topo().Faces().Shells(BRepGraph_FaceId(faceIndex));
+        return (int32_t)shells.Length();
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepGraphFaceShellIndices(OCCTBRepGraphRef g, int32_t faceIndex, int32_t* outIndices) {
+    if (!g || !outIndices) return;
+    try {
+        auto& shells = g->graph.Topo().Faces().Shells(BRepGraph_FaceId(faceIndex));
+        for (int i = 0; i < shells.Length(); ++i) {
+            outIndices[i] = shells.Value(i).Index;
+        }
+    } catch (...) {}
+}
+
+int32_t OCCTBRepGraphFaceCompoundCount(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try {
+        auto& compounds = g->graph.Topo().Faces().Compounds(BRepGraph_FaceId(faceIndex));
+        return (int32_t)compounds.Length();
+    } catch (...) { return 0; }
+}
+
+// --- Shell Additional Queries ---
+
+int32_t OCCTBRepGraphShellCompoundCount(OCCTBRepGraphRef g, int32_t shellIndex) {
+    if (!g) return 0;
+    try {
+        auto& compounds = g->graph.Topo().Shells().Compounds(BRepGraph_ShellId(shellIndex));
+        return (int32_t)compounds.Length();
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepGraphShellIsClosed(OCCTBRepGraphRef g, int32_t shellIndex) {
+    if (!g) return false;
+    try {
+        auto& def = g->graph.Topo().Shells().Definition(BRepGraph_ShellId(shellIndex));
+        return def.IsClosed;
+    } catch (...) { return false; }
+}
+
+// --- Solid Additional Queries ---
+
+int32_t OCCTBRepGraphSolidCompoundCount(OCCTBRepGraphRef g, int32_t solidIndex) {
+    if (!g) return 0;
+    try {
+        auto& compounds = g->graph.Topo().Solids().Compounds(BRepGraph_SolidId(solidIndex));
+        return (int32_t)compounds.Length();
+    } catch (...) { return 0; }
+}
+
+// --- CompSolid Count ---
+
+int32_t OCCTBRepGraphNbCompSolids(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Topo().CompSolids().Nb(); }
+    catch (...) { return 0; }
+}
+
+// --- Edge FindCoEdge ---
+
+int32_t OCCTBRepGraphEdgeFindCoEdge(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t faceIndex) {
+    if (!g) return -1;
+    try {
+        auto cid = g->graph.Topo().Edges().FindCoEdgeId(BRepGraph_EdgeId(edgeIndex), BRepGraph_FaceId(faceIndex));
+        return cid.IsValid() ? cid.Index : -1;
+    } catch (...) { return -1; }
+}
+
 // end of v0.133.0 implementations

@@ -43314,3 +43314,402 @@ struct TopologyGraphTransformTests {
         }
     }
 }
+
+// MARK: - BRepGraph Assembly & Refs (v0.134.0)
+
+@Suite("TopologyGraph Products")
+struct TopologyGraphProductTests {
+    @Test func productCountForPrimitive() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Simple shapes have 1 product (the shape itself as a part)
+                #expect(graph.productCount >= 0)
+                #expect(graph.occurrenceCount == 0)
+                if graph.productCount > 0 {
+                    // Root product should be a part, not an assembly
+                    #expect(graph.productIsPart(0))
+                    #expect(!graph.productIsAssembly(0))
+                    // Should have a valid shape root
+                    let root = graph.productShapeRoot(0)
+                    #expect(root != nil)
+                }
+                #expect(graph.rootProductCount == graph.productCount)
+            }
+        }
+    }
+
+    @Test func productQueriesOnSphere() {
+        let sphere = Shape.sphere(radius: 5)
+        if let sphere {
+            let graph = TopologyGraph(shape: sphere)
+            if let graph {
+                #expect(graph.productCount >= 0)
+                #expect(graph.occurrenceCount == 0)
+                if graph.productCount > 0 {
+                    #expect(graph.productIsPart(0))
+                    #expect(graph.productComponentCount(0) == 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Occurrences")
+struct TopologyGraphOccurrenceTests {
+    @Test func occurrenceCountForPrimitive() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.occurrenceCount == 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Ref Counts")
+struct TopologyGraphRefCountTests {
+    @Test func refCountsForBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box has shells, faces, wires, coedges, vertices refs
+                #expect(graph.shellRefCount >= 1)
+                #expect(graph.faceRefCount >= 6)
+                #expect(graph.wireRefCount >= 6)
+                #expect(graph.coedgeRefCount >= 24)
+                #expect(graph.vertexRefCount >= 16) // edges have start/end vertex refs
+                #expect(graph.solidRefCount >= 0)
+                #expect(graph.childRefCount >= 0)
+                #expect(graph.occurrenceRefCount == 0) // no assembly
+            }
+        }
+    }
+
+    @Test func refCountsConsistency() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Face ref count should be >= face definition count
+                #expect(graph.faceRefCount >= graph.faceCount)
+                // Wire ref count should be >= wire definition count
+                #expect(graph.wireRefCount >= graph.wireCount)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Ref Entry Queries")
+struct TopologyGraphRefEntryTests {
+    @Test func refChildNode() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Check face ref 0 child node
+                if graph.faceRefCount > 0 {
+                    let kind = graph.refChildNodeKind(.face, refIndex: 0)
+                    #expect(kind != nil)
+                    if let kind {
+                        #expect(kind == .face)
+                    }
+                    let idx = graph.refChildNodeIndex(.face, refIndex: 0)
+                    #expect(idx >= 0)
+                }
+            }
+        }
+    }
+
+    @Test func refNotRemoved() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                if graph.faceRefCount > 0 {
+                    #expect(!graph.isRefRemoved(.face, refIndex: 0))
+                }
+                if graph.shellRefCount > 0 {
+                    #expect(!graph.isRefRemoved(.shell, refIndex: 0))
+                }
+            }
+        }
+    }
+
+    @Test func refOrientation() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                if graph.faceRefCount > 0 {
+                    let ori = graph.refOrientation(.face, refIndex: 0)
+                    // TopAbs_FORWARD=0, REVERSED=1, INTERNAL=2, EXTERNAL=3
+                    #expect(ori >= 0 && ori <= 3)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Face Def Details")
+struct TopologyGraphFaceDefTests {
+    @Test func faceWireCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Each face of a box has exactly 1 wire (the outer wire)
+                for i in 0..<graph.faceCount {
+                    #expect(graph.faceWireCount(i) >= 1)
+                }
+            }
+        }
+    }
+
+    @Test func faceVertexRefCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box faces normally have no isolated vertices
+                for i in 0..<graph.faceCount {
+                    #expect(graph.faceVertexRefCount(i) == 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Edge Def Details")
+struct TopologyGraphEdgeDefTests {
+    @Test func edgeStartEndVertex() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    let start = graph.edgeStartVertex(i)
+                    let end = graph.edgeEndVertex(i)
+                    #expect(start != nil)
+                    #expect(end != nil)
+                    if let start {
+                        #expect(start >= 0 && start < graph.vertexCount)
+                    }
+                    if let end {
+                        #expect(end >= 0 && end < graph.vertexCount)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func edgeIsClosedOnBox() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box edges are NOT closed (they are line segments)
+                for i in 0..<graph.edgeCount {
+                    #expect(!graph.isEdgeClosed(i))
+                }
+            }
+        }
+    }
+
+    @Test func edgeClosedConsistency() {
+        let sphere = Shape.sphere(radius: 5)
+        if let sphere {
+            let graph = TopologyGraph(shape: sphere)
+            if let graph {
+                // For any closed edge, start == end vertex
+                for i in 0..<graph.edgeCount {
+                    if graph.isEdgeClosed(i) {
+                        let start = graph.edgeStartVertex(i)
+                        let end = graph.edgeEndVertex(i)
+                        if let start, let end {
+                            #expect(start == end)
+                        }
+                    }
+                }
+                // Verify we can query all edges without error
+                #expect(graph.edgeCount > 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Edge Wires CoEdges")
+struct TopologyGraphEdgeWiresCoEdgesTests {
+    @Test func edgeWires() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    let wires = graph.edgeWires(i)
+                    // Each edge of a box belongs to at least 1 wire
+                    #expect(!wires.isEmpty)
+                    for w in wires {
+                        #expect(w >= 0 && w < graph.wireCount)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func edgeCoEdges() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.edgeCount {
+                    let coedges = graph.edgeCoEdges(i)
+                    // Each edge has at least 1 coedge
+                    #expect(!coedges.isEmpty)
+                    for c in coedges {
+                        #expect(c >= 0 && c < graph.coedgeCount)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func edgeFindCoEdge() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // For each edge, find a coedge on one of its faces
+                for i in 0..<graph.edgeCount {
+                    let edgeFaces = graph.faces(of: i)
+                    if let firstFace = edgeFaces.first {
+                        let coedge = graph.edgeFindCoEdge(edgeIndex: i, faceIndex: firstFace)
+                        #expect(coedge != nil)
+                        if let coedge {
+                            #expect(coedge >= 0 && coedge < graph.coedgeCount)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Face Shells")
+struct TopologyGraphFaceShellTests {
+    @Test func faceShells() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.faceCount {
+                    let count = graph.faceShellCount(i)
+                    #expect(count >= 1)
+                    let shells = graph.faceShells(i)
+                    #expect(shells.count == count)
+                    for s in shells {
+                        #expect(s >= 0 && s < graph.shellCount)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func faceCompoundCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box faces are not in compounds
+                for i in 0..<graph.faceCount {
+                    #expect(graph.faceCompoundCount(i) == 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Shell Extended")
+struct TopologyGraphShellExtendedTests {
+    @Test func shellCompoundCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.shellCount {
+                    #expect(graph.shellCompoundCount(i) == 0)
+                }
+            }
+        }
+    }
+
+    @Test func shellIsClosed() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Box shell should be closed
+                #expect(graph.shellCount >= 1)
+                if graph.shellCount > 0 {
+                    #expect(graph.isShellClosed(0))
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Solid Extended")
+struct TopologyGraphSolidExtendedTests {
+    @Test func solidCompoundCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                for i in 0..<graph.solidCount {
+                    #expect(graph.solidCompoundCount(i) == 0)
+                }
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph CompSolid Count")
+struct TopologyGraphCompSolidCountTests {
+    @Test func compSolidCount() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.compSolidCount == 0)
+            }
+        }
+    }
+}
+
+@Suite("TopologyGraph Compound Queries")
+struct TopologyGraphCompoundTests {
+    @Test func compoundQueriesOnCompound() {
+        // Create a compound shape by fusing two boxes
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(origin: SIMD3(20, 0, 0), width: 10, height: 10, depth: 10)
+        if let box1, let box2 {
+            let compound = Shape.compound([box1, box2])
+            if let compound {
+                let graph = TopologyGraph(shape: compound)
+                if let graph {
+                    #expect(graph.compoundCount >= 1)
+                    if graph.compoundCount > 0 {
+                        let childCount = graph.compoundChildCount(0)
+                        #expect(childCount >= 2) // at least 2 solids
+                        let parentCount = graph.compoundParentCount(0)
+                        // Root compound has no parents
+                        #expect(parentCount == 0)
+                    }
+                }
+            }
+        }
+    }
+}

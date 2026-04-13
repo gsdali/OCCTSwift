@@ -579,4 +579,259 @@ public final class TopologyGraph: @unchecked Sendable {
     internal init(borrowedHandle: OCCTBRepGraphRef) {
         self.handle = borrowedHandle
     }
+
+    // MARK: - Product (Assembly) Queries (v0.134.0)
+
+    /// Number of products in the graph (0 for simple shapes).
+    public var productCount: Int { Int(OCCTBRepGraphNbProducts(handle)) }
+
+    /// Number of occurrences in the graph (0 for simple shapes).
+    public var occurrenceCount: Int { Int(OCCTBRepGraphNbOccurrences(handle)) }
+
+    /// Whether product at index is an assembly.
+    public func productIsAssembly(_ productIndex: Int) -> Bool {
+        OCCTBRepGraphProductIsAssembly(handle, Int32(productIndex))
+    }
+
+    /// Whether product at index is a part.
+    public func productIsPart(_ productIndex: Int) -> Bool {
+        OCCTBRepGraphProductIsPart(handle, Int32(productIndex))
+    }
+
+    /// Number of active child occurrences of a product.
+    public func productComponentCount(_ productIndex: Int) -> Int {
+        Int(OCCTBRepGraphProductNbComponents(handle, Int32(productIndex)))
+    }
+
+    /// Shape root node of a product, or nil if assembly/invalid.
+    public func productShapeRoot(_ productIndex: Int) -> (kind: NodeKind, index: Int)? {
+        let k = OCCTBRepGraphProductShapeRootKind(handle, Int32(productIndex))
+        let i = OCCTBRepGraphProductShapeRootIndex(handle, Int32(productIndex))
+        guard k >= 0, let kind = NodeKind(rawValue: k) else { return nil }
+        return (kind: kind, index: Int(i))
+    }
+
+    /// Product index of an occurrence.
+    public func occurrenceProduct(_ occIndex: Int) -> Int {
+        Int(OCCTBRepGraphOccurrenceProduct(handle, Int32(occIndex)))
+    }
+
+    /// Parent product index of an occurrence.
+    public func occurrenceParentProduct(_ occIndex: Int) -> Int {
+        Int(OCCTBRepGraphOccurrenceParentProduct(handle, Int32(occIndex)))
+    }
+
+    /// Parent occurrence index of an occurrence, or nil if top-level.
+    public func occurrenceParentOccurrence(_ occIndex: Int) -> Int? {
+        let idx = Int(OCCTBRepGraphOccurrenceParentOccurrence(handle, Int32(occIndex)))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Number of root products.
+    public var rootProductCount: Int {
+        Int(OCCTBRepGraphRootProductCount(handle))
+    }
+
+    /// Indices of root products.
+    public var rootProductIndices: [Int] {
+        let count = rootProductCount
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphRootProductIndices(handle, buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    // MARK: - Reference Counts (v0.134.0)
+
+    /// Reference kind enumeration matching BRepGraph_RefId::Kind.
+    public enum RefKind: Int32, Sendable {
+        case shell = 0
+        case face = 1
+        case wire = 2
+        case coedge = 3
+        case vertex = 4
+        case solid = 5
+        case child = 6
+        case occurrence = 7
+    }
+
+    /// Number of shell reference entries.
+    public var shellRefCount: Int { Int(OCCTBRepGraphNbShellRefs(handle)) }
+
+    /// Number of face reference entries.
+    public var faceRefCount: Int { Int(OCCTBRepGraphNbFaceRefs(handle)) }
+
+    /// Number of wire reference entries.
+    public var wireRefCount: Int { Int(OCCTBRepGraphNbWireRefs(handle)) }
+
+    /// Number of coedge reference entries.
+    public var coedgeRefCount: Int { Int(OCCTBRepGraphNbCoEdgeRefs(handle)) }
+
+    /// Number of vertex reference entries.
+    public var vertexRefCount: Int { Int(OCCTBRepGraphNbVertexRefs(handle)) }
+
+    /// Number of solid reference entries.
+    public var solidRefCount: Int { Int(OCCTBRepGraphNbSolidRefs(handle)) }
+
+    /// Number of child reference entries.
+    public var childRefCount: Int { Int(OCCTBRepGraphNbChildRefs(handle)) }
+
+    /// Number of occurrence reference entries.
+    public var occurrenceRefCount: Int { Int(OCCTBRepGraphNbOccurrenceRefs(handle)) }
+
+    // MARK: - Reference Entry Queries (v0.134.0)
+
+    /// Child node kind from a reference entry.
+    public func refChildNodeKind(_ refKind: RefKind, refIndex: Int) -> NodeKind? {
+        let k = OCCTBRepGraphRefChildNodeKind(handle, refKind.rawValue, Int32(refIndex))
+        guard k >= 0 else { return nil }
+        return NodeKind(rawValue: k)
+    }
+
+    /// Child node index from a reference entry.
+    public func refChildNodeIndex(_ refKind: RefKind, refIndex: Int) -> Int {
+        Int(OCCTBRepGraphRefChildNodeIndex(handle, refKind.rawValue, Int32(refIndex)))
+    }
+
+    /// Whether a reference entry is removed.
+    public func isRefRemoved(_ refKind: RefKind, refIndex: Int) -> Bool {
+        OCCTBRepGraphRefIsRemoved(handle, refKind.rawValue, Int32(refIndex))
+    }
+
+    /// Orientation of a reference entry (TopAbs_Orientation as Int).
+    public func refOrientation(_ refKind: RefKind, refIndex: Int) -> Int {
+        Int(OCCTBRepGraphRefOrientation(handle, refKind.rawValue, Int32(refIndex)))
+    }
+
+    // MARK: - Face Definition Details (v0.134.0)
+
+    /// Number of wire refs on a face.
+    public func faceWireCount(_ faceIndex: Int) -> Int {
+        Int(OCCTBRepGraphFaceNbWires(handle, Int32(faceIndex)))
+    }
+
+    /// Number of isolated vertex refs on a face.
+    public func faceVertexRefCount(_ faceIndex: Int) -> Int {
+        Int(OCCTBRepGraphFaceNbVertexRefs(handle, Int32(faceIndex)))
+    }
+
+    // MARK: - Edge Definition Details (v0.134.0)
+
+    /// Start vertex definition index of an edge, or nil if invalid.
+    public func edgeStartVertex(_ edgeIndex: Int) -> Int? {
+        let idx = Int(OCCTBRepGraphEdgeStartVertex(handle, Int32(edgeIndex)))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// End vertex definition index of an edge, or nil if invalid.
+    public func edgeEndVertex(_ edgeIndex: Int) -> Int? {
+        let idx = Int(OCCTBRepGraphEdgeEndVertex(handle, Int32(edgeIndex)))
+        return idx >= 0 ? idx : nil
+    }
+
+    /// Whether an edge is topologically closed (start == end vertex).
+    public func isEdgeClosed(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeIsClosed(handle, Int32(edgeIndex))
+    }
+
+    // MARK: - Compound/CompSolid Queries (v0.134.0)
+
+    /// Number of parent compounds of a compound.
+    public func compoundParentCount(_ compoundIndex: Int) -> Int {
+        Int(OCCTBRepGraphCompoundParentCount(handle, Int32(compoundIndex)))
+    }
+
+    /// Number of child refs of a compound.
+    public func compoundChildCount(_ compoundIndex: Int) -> Int {
+        Int(OCCTBRepGraphCompoundChildCount(handle, Int32(compoundIndex)))
+    }
+
+    /// Number of solid refs in a comp-solid.
+    public func compSolidSolidCount(_ compSolidIndex: Int) -> Int {
+        Int(OCCTBRepGraphCompSolidSolidCount(handle, Int32(compSolidIndex)))
+    }
+
+    /// Number of parent compounds of a comp-solid.
+    public func compSolidCompoundCount(_ compSolidIndex: Int) -> Int {
+        Int(OCCTBRepGraphCompSolidCompoundCount(handle, Int32(compSolidIndex)))
+    }
+
+    // MARK: - Edge Additional Queries (v0.134.0)
+
+    /// Indices of wires an edge belongs to.
+    public func edgeWires(_ edgeIndex: Int) -> [Int] {
+        let count = Int(OCCTBRepGraphEdgeWireCount(handle, Int32(edgeIndex)))
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphEdgeWireIndices(handle, Int32(edgeIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    /// Indices of coedges of an edge.
+    public func edgeCoEdges(_ edgeIndex: Int) -> [Int] {
+        let count = Int(OCCTBRepGraphEdgeCoEdgeCount(handle, Int32(edgeIndex)))
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphEdgeCoEdgeIndices(handle, Int32(edgeIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    /// Find the coedge index for an (edge, face) pair, or nil if not found.
+    public func edgeFindCoEdge(edgeIndex: Int, faceIndex: Int) -> Int? {
+        let idx = Int(OCCTBRepGraphEdgeFindCoEdge(handle, Int32(edgeIndex), Int32(faceIndex)))
+        return idx >= 0 ? idx : nil
+    }
+
+    // MARK: - Face Additional Queries (v0.134.0)
+
+    /// Number of shells a face belongs to.
+    public func faceShellCount(_ faceIndex: Int) -> Int {
+        Int(OCCTBRepGraphFaceShellCount(handle, Int32(faceIndex)))
+    }
+
+    /// Indices of shells a face belongs to.
+    public func faceShells(_ faceIndex: Int) -> [Int] {
+        let count = faceShellCount(faceIndex)
+        if count == 0 { return [] }
+        var indices = [Int32](repeating: 0, count: count)
+        indices.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphFaceShellIndices(handle, Int32(faceIndex), buf.baseAddress!)
+        }
+        return indices.map { Int($0) }
+    }
+
+    /// Number of compounds a face belongs to.
+    public func faceCompoundCount(_ faceIndex: Int) -> Int {
+        Int(OCCTBRepGraphFaceCompoundCount(handle, Int32(faceIndex)))
+    }
+
+    // MARK: - Shell Additional Queries (v0.134.0)
+
+    /// Number of compounds a shell belongs to.
+    public func shellCompoundCount(_ shellIndex: Int) -> Int {
+        Int(OCCTBRepGraphShellCompoundCount(handle, Int32(shellIndex)))
+    }
+
+    /// Whether a shell is closed.
+    public func isShellClosed(_ shellIndex: Int) -> Bool {
+        OCCTBRepGraphShellIsClosed(handle, Int32(shellIndex))
+    }
+
+    // MARK: - Solid Additional Queries (v0.134.0)
+
+    /// Number of compounds a solid belongs to.
+    public func solidCompoundCount(_ solidIndex: Int) -> Int {
+        Int(OCCTBRepGraphSolidCompoundCount(handle, Int32(solidIndex)))
+    }
+
+    // MARK: - CompSolid Count (v0.134.0)
+
+    /// Number of comp-solids in the graph.
+    public var compSolidCount: Int { Int(OCCTBRepGraphNbCompSolids(handle)) }
 }

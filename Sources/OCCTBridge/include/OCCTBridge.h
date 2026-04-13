@@ -19499,6 +19499,176 @@ OCCTBRepGraphRef _Nullable OCCTBRepGraphTransformTranslation(OCCTBRepGraphRef _N
                                                               double dx, double dy, double dz,
                                                               bool copyGeom);
 
+// MARK: - BRepGraph Assembly & Refs (v0.134.0)
+
+// --- Product (Assembly) Queries ---
+
+/// Number of products in the graph.
+int32_t OCCTBRepGraphNbProducts(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of occurrences in the graph.
+int32_t OCCTBRepGraphNbOccurrences(OCCTBRepGraphRef _Nonnull graph);
+
+/// Whether product at index is an assembly (has child occurrences, no topology root).
+bool OCCTBRepGraphProductIsAssembly(OCCTBRepGraphRef _Nonnull graph, int32_t productIndex);
+
+/// Whether product at index is a part (has a valid topology root).
+bool OCCTBRepGraphProductIsPart(OCCTBRepGraphRef _Nonnull graph, int32_t productIndex);
+
+/// Number of active child occurrences of a product.
+int32_t OCCTBRepGraphProductNbComponents(OCCTBRepGraphRef _Nonnull graph, int32_t productIndex);
+
+/// Shape root node kind for a product (-1 if invalid/assembly).
+int32_t OCCTBRepGraphProductShapeRootKind(OCCTBRepGraphRef _Nonnull graph, int32_t productIndex);
+
+/// Shape root node index for a product (-1 if invalid/assembly).
+int32_t OCCTBRepGraphProductShapeRootIndex(OCCTBRepGraphRef _Nonnull graph, int32_t productIndex);
+
+/// Product index of an occurrence.
+int32_t OCCTBRepGraphOccurrenceProduct(OCCTBRepGraphRef _Nonnull graph, int32_t occIndex);
+
+/// Parent product index of an occurrence.
+int32_t OCCTBRepGraphOccurrenceParentProduct(OCCTBRepGraphRef _Nonnull graph, int32_t occIndex);
+
+/// Parent occurrence index of an occurrence (-1 if top-level).
+int32_t OCCTBRepGraphOccurrenceParentOccurrence(OCCTBRepGraphRef _Nonnull graph, int32_t occIndex);
+
+/// Number of root products (not referenced by an active occurrence).
+int32_t OCCTBRepGraphRootProductCount(OCCTBRepGraphRef _Nonnull graph);
+
+/// Get root product indices.
+void OCCTBRepGraphRootProductIndices(OCCTBRepGraphRef _Nonnull graph,
+                                     int32_t* _Nonnull outIndices);
+
+// --- RefsView Per-Kind Counts ---
+
+/// Number of shell reference entries.
+int32_t OCCTBRepGraphNbShellRefs(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of face reference entries.
+int32_t OCCTBRepGraphNbFaceRefs(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of wire reference entries.
+int32_t OCCTBRepGraphNbWireRefs(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of coedge reference entries.
+int32_t OCCTBRepGraphNbCoEdgeRefs(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of vertex reference entries.
+int32_t OCCTBRepGraphNbVertexRefs(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of solid reference entries.
+int32_t OCCTBRepGraphNbSolidRefs(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of child reference entries.
+int32_t OCCTBRepGraphNbChildRefs(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of occurrence reference entries.
+int32_t OCCTBRepGraphNbOccurrenceRefs(OCCTBRepGraphRef _Nonnull graph);
+
+// --- RefsView Global Methods ---
+
+/// Child node kind from a reference entry. refKind uses BRepGraph_RefId::Kind values.
+int32_t OCCTBRepGraphRefChildNodeKind(OCCTBRepGraphRef _Nonnull graph,
+                                       int32_t refKind, int32_t refIndex);
+
+/// Child node index from a reference entry.
+int32_t OCCTBRepGraphRefChildNodeIndex(OCCTBRepGraphRef _Nonnull graph,
+                                        int32_t refKind, int32_t refIndex);
+
+/// Whether a reference entry is removed.
+bool OCCTBRepGraphRefIsRemoved(OCCTBRepGraphRef _Nonnull graph,
+                                int32_t refKind, int32_t refIndex);
+
+/// Orientation of a reference entry (TopAbs_Orientation as int).
+int32_t OCCTBRepGraphRefOrientation(OCCTBRepGraphRef _Nonnull graph,
+                                     int32_t refKind, int32_t refIndex);
+
+// --- Face Definition Details ---
+
+/// Number of wire refs on a face.
+int32_t OCCTBRepGraphFaceNbWires(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+/// Number of isolated vertex refs on a face.
+int32_t OCCTBRepGraphFaceNbVertexRefs(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+// --- Edge Definition Details ---
+
+/// Start vertex definition index of an edge (-1 if invalid).
+int32_t OCCTBRepGraphEdgeStartVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// End vertex definition index of an edge (-1 if invalid).
+int32_t OCCTBRepGraphEdgeEndVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Whether an edge is topologically closed (start == end vertex).
+bool OCCTBRepGraphEdgeIsClosed(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+// --- Compound/CompSolid Queries ---
+
+/// Number of parent compounds of a compound.
+int32_t OCCTBRepGraphCompoundParentCount(OCCTBRepGraphRef _Nonnull graph, int32_t compoundIndex);
+
+/// Number of child refs of a compound.
+int32_t OCCTBRepGraphCompoundChildCount(OCCTBRepGraphRef _Nonnull graph, int32_t compoundIndex);
+
+/// Number of solid refs in a comp-solid.
+int32_t OCCTBRepGraphCompSolidSolidCount(OCCTBRepGraphRef _Nonnull graph, int32_t compSolidIndex);
+
+/// Number of parent compounds of a comp-solid.
+int32_t OCCTBRepGraphCompSolidCompoundCount(OCCTBRepGraphRef _Nonnull graph, int32_t compSolidIndex);
+
+// --- Edge Additional Queries ---
+
+/// Number of wires an edge belongs to.
+int32_t OCCTBRepGraphEdgeWireCount(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Get wire indices an edge belongs to.
+void OCCTBRepGraphEdgeWireIndices(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex,
+                                   int32_t* _Nonnull outIndices);
+
+/// Number of coedges of an edge.
+int32_t OCCTBRepGraphEdgeCoEdgeCount(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Get coedge indices of an edge.
+void OCCTBRepGraphEdgeCoEdgeIndices(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex,
+                                     int32_t* _Nonnull outIndices);
+
+// --- Face Additional Queries ---
+
+/// Number of shells a face belongs to.
+int32_t OCCTBRepGraphFaceShellCount(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+/// Get shell indices a face belongs to.
+void OCCTBRepGraphFaceShellIndices(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex,
+                                    int32_t* _Nonnull outIndices);
+
+/// Number of compounds a face belongs to.
+int32_t OCCTBRepGraphFaceCompoundCount(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+// --- Shell Additional Queries ---
+
+/// Number of compounds a shell belongs to.
+int32_t OCCTBRepGraphShellCompoundCount(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex);
+
+/// Whether a shell is closed.
+bool OCCTBRepGraphShellIsClosed(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex);
+
+// --- Solid Additional Queries ---
+
+/// Number of compounds a solid belongs to.
+int32_t OCCTBRepGraphSolidCompoundCount(OCCTBRepGraphRef _Nonnull graph, int32_t solidIndex);
+
+// --- CompSolid Count ---
+
+/// Number of comp-solids in the graph.
+int32_t OCCTBRepGraphNbCompSolids(OCCTBRepGraphRef _Nonnull graph);
+
+// --- Edge FindCoEdge ---
+
+/// Find the coedge index for an (edge, face) pair (-1 if not found).
+int32_t OCCTBRepGraphEdgeFindCoEdge(OCCTBRepGraphRef _Nonnull graph,
+                                     int32_t edgeIndex, int32_t faceIndex);
+
 #ifdef __cplusplus
 }
 #endif
