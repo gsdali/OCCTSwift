@@ -1,0 +1,53 @@
+name: Feature Request
+description: Request a new OCCT operation, API improvement, or integration
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        OCCTSwift wraps 3,333 OCCT operations. Check the [API Reference](docs/API_REFERENCE.md) to see if the operation you need is already available.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - New OCCT operation (not yet wrapped)
+        - Swift API improvement (better ergonomics for existing operation)
+        - Import/Export format
+        - Performance
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What do you want to do? What OCCT class or operation is involved?
+      placeholder: |
+        I need to compute the minimum distance between two surfaces.
+        OCCT class: BRepExtrema_DistShapeShape or Extrema_ExtSS
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use case
+      description: How would you use this in your application?
+      placeholder: |
+        I'm building a clearance checker that verifies minimum gaps
+        between parts in an assembly.
+
+  - type: textarea
+    id: api-suggestion
+    attributes:
+      label: Suggested API
+      description: If you have a preferred Swift API design, sketch it here.
+      render: swift
+      placeholder: |
+        let distance = shape1.minimumDistance(to: shape2)
+        // or
+        let result = Shape.distance(between: shape1, and: shape2)

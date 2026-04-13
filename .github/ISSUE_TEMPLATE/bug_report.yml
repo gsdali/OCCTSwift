@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a crash, incorrect result, or unexpected behavior
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in the details below so we can reproduce and fix it.
+
+  - type: input
+    id: version
+    attributes:
+      label: OCCTSwift version
+      description: Which version are you using? (e.g., 0.128.0)
+      placeholder: "0.128.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS (arm64)
+        - iOS (arm64)
+        - iOS Simulator
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened? What did you expect to happen?
+      placeholder: |
+        When I call Shape.box(...) followed by .filleted(radius:), the result is nil.
+        I expected a valid filleted box.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Minimal Swift code that demonstrates the issue.
+      render: swift
+      placeholder: |
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let filleted = box.filleted(radius: 6) // returns nil — radius too large?
+    validations:
+      required: true
+
+  - type: textarea
+    id: crash-log
+    attributes:
+      label: Crash log or error output
+      description: If applicable, paste the crash backtrace or error message.
+      render: text
+
+  - type: checkboxes
+    id: parallel
+    attributes:
+      label: Parallel execution
+      description: Does this only happen under parallel test execution?
+      options:
+        - label: Only crashes when running tests in parallel (see [thread safety docs](docs/thread-safety.md))
