@@ -25,6 +25,11 @@ jobs:
           git clone --depth 1 --branch V8_0_0_rc5 https://github.com/Open-Cascade-SAS/OCCT.git occt-src
           mkdir occt-build
           cd occt-build
+          # Use INSTALL_DIR (OCCT's own variable) with absolute path and Unix layout
+          # to get predictable lib/ and include/opencascade/ paths.
+          # The default Windows layout puts libs in win64/vc14/libi/ with a
+          # config-dependent suffix that is only resolved at install time via
+          # generator expressions, making paths hard to predict.
           cmake ..\occt-src -G "Visual Studio 17 2022" -A x64 `
             -DBUILD_LIBRARY_TYPE=Static `
             -DBUILD_MODULE_ApplicationFramework=OFF `
@@ -39,16 +44,36 @@ jobs:
             -DUSE_DRACO=OFF -DUSE_FFMPEG=OFF -DUSE_OPENVR=OFF `
             -DUSE_XLIB=OFF -DUSE_TCL=OFF -DUSE_RAPIDJSON=OFF `
             -DCMAKE_BUILD_TYPE=RelWithDebInfo `
-            -DCMAKE_INSTALL_PREFIX=..\occt-install
+            -DINSTALL_DIR="$env:GITHUB_WORKSPACE\occt-install" `
+            -DINSTALL_DIR_LAYOUT=Unix
           cmake --build . --config RelWithDebInfo --parallel $env:NUMBER_OF_PROCESSORS
           cmake --install . --config RelWithDebInfo
         shell: pwsh
         timeout-minutes: 60
 
+      - name: Debug install tree
+        run: |
+          echo "=== Install tree ==="
+          dir /s /b occt-install\*.lib 2>nul | head -20 || echo "No .lib files found"
+          dir /s /b occt-install\*.hxx 2>nul | head -5 || echo "No .hxx files found"
+          echo "=== Include dir ==="
+          if exist occt-install\include\opencascade dir occt-install\include\opencascade\*.hxx /b | find /c "." || echo "include\opencascade not found"
+          if exist occt-install\include dir occt-install\include\*.hxx /b 2>nul | find /c "." || echo "(no .hxx directly in include\)"
+          echo "=== Lib dir ==="
+          if exist occt-install\lib dir occt-install\lib\*.lib /b 2>nul || echo "No libs in lib\"
+        shell: cmd
+        continue-on-error: true
+
       - name: Compile reproducer
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-          cl /std:c++17 /EHsc /MT /I"occt-build\inc" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"occt-install\win64\vc14\libi" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib
+
+          @rem With Unix layout: headers in include/opencascade/, libs in lib/
+          set "OCCT_INC=occt-install\include\opencascade"
+          if not exist "%OCCT_INC%" set "OCCT_INC=occt-install\include"
+          set "OCCT_LIB=occt-install\lib"
+
+          cl /std:c++17 /EHsc /MT /I"%OCCT_INC%" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"%OCCT_LIB%" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib
         shell: cmd
 
       - name: Run reproducer
@@ -91,16 +116,16 @@ jobs:
             -DUSE_DRACO=OFF -DUSE_FFMPEG=OFF -DUSE_OPENVR=OFF \
             -DUSE_XLIB=OFF -DUSE_TCL=OFF -DUSE_RAPIDJSON=OFF \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-            -DCMAKE_INSTALL_PREFIX=../occt-install
-          cmake --build . --parallel $(sysctl -n hw.ncpu) || true
-          cmake --install . || true
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/occt-install
+          cmake --build . --parallel $(sysctl -n hw.ncpu)
+          cmake --install .
         timeout-minutes: 45
 
       - name: Compile and run reproducer
         run: |
           OCCT_INC=occt-install/include/opencascade
           [ ! -d "$OCCT_INC" ] && OCCT_INC=occt-install/include
-          libtool -static -o libocct-all.a occt-install/lib/*.a 2>/dev/null || true
+          libtool -static -o libocct-all.a occt-install/lib/*.a
           clang++ -std=c++17 -w -I"$OCCT_INC" Tests/occt_parallel_crash_portable.cpp libocct-all.a -lz -lc++ -o occt_test
 
           crashes=0; passes=0
