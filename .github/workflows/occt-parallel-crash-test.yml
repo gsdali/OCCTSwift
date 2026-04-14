@@ -2,9 +2,20 @@ name: OCCT Parallel Crash Reproducer
 
 on:
   workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Platform to test'
+        required: true
+        default: 'windows'
+        type: choice
+        options:
+          - windows
+          - macos
+          - both
 
 jobs:
   test-windows:
+    if: inputs.platform == 'windows' || inputs.platform == 'both'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,6 +70,7 @@ jobs:
         continue-on-error: true
 
   test-macos:
+    if: inputs.platform == 'macos' || inputs.platform == 'both'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
