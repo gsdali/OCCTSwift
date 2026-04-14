@@ -27,7 +27,7 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set OCCT=occt-dl\opencascade-8.0.0-rc3-vc14-64
-          cl /std:c++17 /EHsc /MD /I"%OCCT%\inc" tests\occt_parallel_crash_portable.cpp /link /LIBPATH:"%OCCT%\win64\vc14\lib" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib /out:occt_test.exe
+          cl /std:c++17 /EHsc /MD /I"%OCCT%\inc" Tests\occt_parallel_crash_portable.cpp /link /LIBPATH:"%OCCT%\win64\vc14\lib" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib /out:occt_test.exe
         shell: cmd
 
       - name: Run reproducer (5 attempts)
@@ -78,7 +78,7 @@ jobs:
           OCCT_INC=occt-install/include/opencascade
           [ ! -d "$OCCT_INC" ] && OCCT_INC=occt-install/include
           libtool -static -o libocct-all.a occt-install/lib/*.a 2>/dev/null || true
-          clang++ -std=c++17 -w -I"$OCCT_INC" tests/occt_parallel_crash_portable.cpp libocct-all.a -lz -lc++ -o occt_test
+          clang++ -std=c++17 -w -I"$OCCT_INC" Tests/occt_parallel_crash_portable.cpp libocct-all.a -lz -lc++ -o occt_test
 
           crashes=0; passes=0
           for i in 1 2 3 4 5; do
