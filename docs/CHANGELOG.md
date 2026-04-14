@@ -2,13 +2,29 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.128.0
+## Current: v0.136.0
 
-**3,333 wrapped operations | 2,907 tests | 1,007 suites | OCCT 8.0.0-rc5**
+**3,496 wrapped operations | 3,028 tests | 1,062 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.132.0 - v0.136.0 (Apr 2026) — BRepGraph Topology Graph
+
+Wraps OCCT's new BRepGraph API — graph-based B-Rep topology with cache-friendly traversal, O(1) upward navigation, and parallel geometry extraction. 163 operations across 5 releases.
+
+- **v0.136.0**: ML-friendly graph export (COO adjacency, node features, JSON), UV-grid face sampling (positions/normals/curvatures), edge curve sampling — for GNN/UV-Net/BRepNet pipelines
+- **v0.135.0**: Builder mutations — AddVertex/Shell/Solid, AddFaceToShell/ShellToSolid, AddCompound, RemoveNode/Subgraph, AppendShape, deferred invalidation, SplitEdge, ReplaceEdgeInWire
+- **v0.134.0**: Product/Occurrence assembly queries, RefsView per-kind counts and entry access, edge start/end vertices, shell closure, compound hierarchy
+- **v0.133.0**: Shape reconstruction from graph nodes, BRepGraph_Tool vertex/edge/face geometry access, CoEdge half-edge queries, history tracking, graph copy/transform, poly counts
+- **v0.132.0**: Core graph — build from shape, topology/geometry counts, face adjacency, shared edges, edge boundary/manifold, child/parent explorers, validate, compact, deduplicate, stats
+
+### v0.129.0 - v0.131.0 (Apr 2026) — RC5 New APIs
+
+- **v0.131.0**: Approx_BSplineApproxInterp, GeomEval TBezier/AHTBezier curves+surfaces, GeomAdaptor_TransformedCurve
+- **v0.130.0**: GeomEval analytical curves (helix, sine wave), analytical surfaces (ellipsoid, hyperboloid, paraboloid, helicoid), Geom2dEval spirals, GeomFill_Gordon, PointSetLib, ExtremaPC
+- **v0.129.0**: IGES mutex serialization (thread safety fix per OCCT #1179)
 
 ### v0.120.0 - v0.128.0 (Apr 2026) — Completion & Polish
 
