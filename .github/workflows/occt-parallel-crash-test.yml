@@ -20,16 +20,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build OCCT from source (minimal, static)
+      # Build OCCT from source as static libraries.
+      # Key settings:
+      #   - INSTALL_DIR (not CMAKE_INSTALL_PREFIX) is OCCT's own install path variable
+      #   - INSTALL_DIR_LAYOUT=Unix gives: include/opencascade/ and lib/ (no platform subdirs)
+      #   - RelWithDebInfo appends 'i' to lib dir name: libi/
+      #   - CMake default MSVC runtime is /MD (dynamic CRT) — our test must match
+      - name: Build OCCT from source
         run: |
           git clone --depth 1 --branch V8_0_0_rc5 https://github.com/Open-Cascade-SAS/OCCT.git occt-src
           mkdir occt-build
           cd occt-build
-          # Use INSTALL_DIR (OCCT's own variable) with absolute path and Unix layout
-          # to get predictable lib/ and include/opencascade/ paths.
-          # The default Windows layout puts libs in win64/vc14/libi/ with a
-          # config-dependent suffix that is only resolved at install time via
-          # generator expressions, making paths hard to predict.
           cmake ..\occt-src -G "Visual Studio 17 2022" -A x64 `
             -DBUILD_LIBRARY_TYPE=Static `
             -DBUILD_MODULE_ApplicationFramework=OFF `
@@ -51,30 +52,26 @@ jobs:
         shell: pwsh
         timeout-minutes: 60
 
-      - name: Debug install tree
+      # Verify the install tree has the expected files
+      - name: Verify install
         run: |
-          echo "=== Install tree ==="
-          dir /s /b occt-install\*.lib 2>nul | head -20 || echo "No .lib files found"
-          dir /s /b occt-install\*.hxx 2>nul | head -5 || echo "No .hxx files found"
-          echo "=== Include dir ==="
-          if exist occt-install\include\opencascade dir occt-install\include\opencascade\*.hxx /b | find /c "." || echo "include\opencascade not found"
-          if exist occt-install\include dir occt-install\include\*.hxx /b 2>nul | find /c "." || echo "(no .hxx directly in include\)"
-          echo "=== Lib dir ==="
-          if exist occt-install\lib dir occt-install\lib\*.lib /b 2>nul || echo "No libs in lib\"
-        shell: cmd
-        continue-on-error: true
+          $hxx = Get-ChildItem -Recurse occt-install -Filter "Extrema_ExtElCS.hxx" -ErrorAction SilentlyContinue
+          if ($hxx) { Write-Host "Headers OK: $($hxx.DirectoryName)" } else { Write-Error "Headers not found!" }
+          $lib = Get-ChildItem -Recurse occt-install -Filter "TKernel.lib" -ErrorAction SilentlyContinue
+          if ($lib) { Write-Host "Libs OK: $($lib.DirectoryName)" } else { Write-Error "Libs not found!" }
+          # Export paths for next steps
+          "OCCT_INC=$($hxx.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "OCCT_LIB=$($lib.DirectoryName)" | Out-File -FilePath $env:GITHUB_ENV -Append
+        shell: pwsh
 
+      # Compile with /MD to match OCCT's default dynamic CRT.
+      # OCCT does not set CMAKE_MSVC_RUNTIME_LIBRARY, so CMake uses /MD by default.
       - name: Compile reproducer
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-
-          @rem Unix layout: headers in include/opencascade/, libs in libi/ (i = RelWithDebInfo)
-          set "OCCT_INC=occt-install\include\opencascade"
-          if not exist "%OCCT_INC%" set "OCCT_INC=occt-install\include"
-          set "OCCT_LIB=occt-install\libi"
-          if not exist "%OCCT_LIB%" set "OCCT_LIB=occt-install\lib"
-
-          cl /std:c++17 /EHsc /MT /I"%OCCT_INC%" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"%OCCT_LIB%" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib
+          echo Include: %OCCT_INC%
+          echo Lib: %OCCT_LIB%
+          cl /std:c++17 /EHsc /MD /I"%OCCT_INC%" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"%OCCT_LIB%" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib
         shell: cmd
 
       - name: Run reproducer
