@@ -1,0 +1,91 @@
+name: OCCT Parallel Crash Reproducer
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download OCCT RC5 prebuilt (with debug)
+        run: |
+          gh release download V8_0_0_rc5 --repo Open-Cascade-SAS/OCCT --pattern "opencascade-with-debug-pch.zip" --dir occt-dl
+          gh release download V8_0_0_rc5 --repo Open-Cascade-SAS/OCCT --pattern "3rdparty-vc14-64.zip" --dir occt-dl
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Extract OCCT
+        run: |
+          cd occt-dl
+          7z x opencascade-with-debug-pch.zip
+          7z x opencascade-8.0.0-rc3-vc14-64-pch-with-debug.zip
+          7z x 3rdparty-vc14-64.zip
+
+      - name: Compile reproducer
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          set OCCT=occt-dl\opencascade-8.0.0-rc3-vc14-64
+          cl /std:c++17 /EHsc /MD /I"%OCCT%\inc" tests\occt_parallel_crash_portable.cpp /link /LIBPATH:"%OCCT%\win64\vc14\lib" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib /out:occt_test.exe
+        shell: cmd
+
+      - name: Run reproducer (5 attempts)
+        run: |
+          $env:PATH = "occt-dl\opencascade-8.0.0-rc3-vc14-64\win64\vc14\bin;occt-dl\3rdparty-vc14-64\bin;" + $env:PATH
+          $crashes = 0; $passes = 0
+          for ($i = 1; $i -le 5; $i++) {
+            Write-Host "=== Run $i/5 ==="
+            $proc = Start-Process -FilePath ".\occt_test.exe" -ArgumentList "300","10" -Wait -PassThru -NoNewWindow
+            if ($proc.ExitCode -ne 0) { Write-Host "CRASH (exit $($proc.ExitCode))"; $crashes++ }
+            else { Write-Host "PASS"; $passes++ }
+          }
+          Write-Host "`nResults: $passes passed, $crashes crashed out of 5 runs"
+          if ($crashes -gt 0) { Write-Host "::warning::$crashes/5 runs crashed on Windows x64" }
+          else { Write-Host "All passed on Windows x64" }
+        shell: pwsh
+
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build OCCT from source (minimal, static)
+        run: |
+          git clone --depth 1 --branch V8_0_0_rc5 https://github.com/Open-Cascade-SAS/OCCT.git occt-src
+          mkdir occt-build && cd occt-build
+          cmake ../occt-src \
+            -DBUILD_LIBRARY_TYPE=Static \
+            -DBUILD_MODULE_ApplicationFramework=OFF \
+            -DBUILD_MODULE_DataExchange=OFF \
+            -DBUILD_MODULE_Draw=OFF \
+            -DBUILD_MODULE_FoundationClasses=ON \
+            -DBUILD_MODULE_ModelingAlgorithms=ON \
+            -DBUILD_MODULE_ModelingData=ON \
+            -DBUILD_MODULE_Visualization=OFF \
+            -DUSE_FREETYPE=OFF -DUSE_FREEIMAGE=OFF -DUSE_TBB=OFF \
+            -DUSE_VTK=OFF -DUSE_OPENGL=OFF -DUSE_GLES2=OFF \
+            -DUSE_DRACO=OFF -DUSE_FFMPEG=OFF -DUSE_OPENVR=OFF \
+            -DUSE_XLIB=OFF -DUSE_TCL=OFF -DUSE_RAPIDJSON=OFF \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=../occt-install
+          cmake --build . --parallel $(sysctl -n hw.ncpu) || true
+          cmake --install . || true
+        timeout-minutes: 45
+
+      - name: Compile and run reproducer
+        run: |
+          OCCT_INC=occt-install/include/opencascade
+          [ ! -d "$OCCT_INC" ] && OCCT_INC=occt-install/include
+          libtool -static -o libocct-all.a occt-install/lib/*.a 2>/dev/null || true
+          clang++ -std=c++17 -w -I"$OCCT_INC" tests/occt_parallel_crash_portable.cpp libocct-all.a -lz -lc++ -o occt_test
+
+          crashes=0; passes=0
+          for i in 1 2 3 4 5; do
+            echo "=== Run $i/5 ==="
+            if ./occt_test 300 10; then passes=$((passes+1)); echo "PASS"
+            else crashes=$((crashes+1)); echo "CRASH (exit $?)"
+            fi
+          done
+          echo ""; echo "Results: $passes passed, $crashes crashed out of 5 runs"
+          [ $crashes -gt 0 ] && echo "::warning::$crashes/5 runs crashed on macOS arm64"
