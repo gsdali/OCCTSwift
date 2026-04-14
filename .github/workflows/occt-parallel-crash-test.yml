@@ -10,8 +10,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Download OCCT RC5 prebuilt
-        run: |
-          gh release download V8_0_0_rc5 --repo Open-Cascade-SAS/OCCT --pattern "opencascade-with-debug-pch.zip" --dir occt-dl
+        run: gh release download V8_0_0_rc5 --repo Open-Cascade-SAS/OCCT --pattern "opencascade-with-debug-pch.zip" --dir occt-dl
         env:
           GH_TOKEN: ${{ github.token }}
 
@@ -20,38 +19,43 @@ jobs:
           cd occt-dl
           7z x -y opencascade-with-debug-pch.zip
           7z x -y opencascade-8.0.0-rc3-vc14-64-pch-with-debug.zip
-          dir opencascade-8.0.0-rc3-vc14-64\inc\Extrema_ExtElCS.hxx
-          dir opencascade-8.0.0-rc3-vc14-64\win64\vc14\lib\TKernel.lib
         shell: cmd
 
       - name: Compile reproducer
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
           set OCCT=occt-dl\opencascade-8.0.0-rc3-vc14-64
-          cl /std:c++17 /EHsc /MD /I"%OCCT%\inc" Tests\occt_parallel_crash_portable.cpp /link /LIBPATH:"%OCCT%\win64\vc14\lib" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib /out:occt_test.exe
+          cl /std:c++17 /EHsc /MD /I"%OCCT%\inc" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"%OCCT%\win64\vc14\lib" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib
         shell: cmd
 
-      - name: Run reproducer (5 attempts)
+      - name: Copy DLLs next to exe
         run: |
-          $env:PATH = "occt-dl\opencascade-8.0.0-rc3-vc14-64\win64\vc14\bin;" + $env:PATH
-          $crashes = 0; $passes = 0
-          for ($i = 1; $i -le 5; $i++) {
-            Write-Host "=== Run $i/5 ==="
-            $proc = Start-Process -FilePath ".\occt_test.exe" -ArgumentList "300","10" -Wait -PassThru -NoNewWindow
-            if ($proc.ExitCode -ne 0) { Write-Host "CRASH (exit $($proc.ExitCode))"; $crashes++ }
-            else { Write-Host "PASS"; $passes++ }
-          }
-          Write-Host "`nResults: $passes passed, $crashes crashed out of 5 runs"
-          if ($crashes -gt 0) { Write-Host "::warning::$crashes/5 runs crashed on Windows x64" }
-          else { Write-Host "All passed on Windows x64" }
-        shell: pwsh
+          copy occt-dl\opencascade-8.0.0-rc3-vc14-64\win64\vc14\bin\TK*.dll .
+          dir *.dll | find /c ".dll"
+        shell: cmd
+
+      - name: Run reproducer
+        run: |
+          echo === Run 1/5 ===
+          occt_test.exe 300 10 && echo PASS || echo CRASH
+          echo === Run 2/5 ===
+          occt_test.exe 300 10 && echo PASS || echo CRASH
+          echo === Run 3/5 ===
+          occt_test.exe 300 10 && echo PASS || echo CRASH
+          echo === Run 4/5 ===
+          occt_test.exe 300 10 && echo PASS || echo CRASH
+          echo === Run 5/5 ===
+          occt_test.exe 300 10 && echo PASS || echo CRASH
+          echo Done
+        shell: cmd
+        continue-on-error: true
 
   test-macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build OCCT from source (minimal, static)
+      - name: Build OCCT from source
         run: |
           git clone --depth 1 --branch V8_0_0_rc5 https://github.com/Open-Cascade-SAS/OCCT.git occt-src
           mkdir occt-build && cd occt-build
