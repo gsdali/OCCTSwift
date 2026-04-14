@@ -48,7 +48,7 @@ jobs:
       - name: Compile reproducer
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-          cl /std:c++17 /EHsc /MT /I"occt-build\include\opencascade" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"occt-install\win64\vc14\libi" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib
+          cl /std:c++17 /EHsc /MT /I"occt-build\inc" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"occt-install\win64\vc14\libi" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib
         shell: cmd
 
       - name: Run reproducer
