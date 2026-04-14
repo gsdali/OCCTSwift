@@ -68,10 +68,11 @@ jobs:
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
 
-          @rem With Unix layout: headers in include/opencascade/, libs in lib/
+          @rem Unix layout: headers in include/opencascade/, libs in libi/ (i = RelWithDebInfo)
           set "OCCT_INC=occt-install\include\opencascade"
           if not exist "%OCCT_INC%" set "OCCT_INC=occt-install\include"
-          set "OCCT_LIB=occt-install\lib"
+          set "OCCT_LIB=occt-install\libi"
+          if not exist "%OCCT_LIB%" set "OCCT_LIB=occt-install\lib"
 
           cl /std:c++17 /EHsc /MT /I"%OCCT_INC%" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"%OCCT_LIB%" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib
         shell: cmd
