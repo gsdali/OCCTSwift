@@ -36,6 +36,29 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Create a box at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Corner point of the box.
+    ///   - direction: Axis direction for the box height (will be normalized).
+    ///   - width: Box width (X extent in local frame).
+    ///   - height: Box height (Y extent in local frame).
+    ///   - depth: Box depth (Z extent along direction).
+    public static func box(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        width: Double,
+        height: Double,
+        depth: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateBoxOriented(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            width, height, depth
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a cylinder along Z axis
     public static func cylinder(radius: Double, height: Double) -> Shape? {
         guard let handle = OCCTShapeCreateCylinder(radius, height) else { return nil }
@@ -74,6 +97,17 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Create a partial cylinder (angular segment) along Z axis.
+    ///
+    /// - Parameters:
+    ///   - radius: Cylinder radius.
+    ///   - height: Cylinder height.
+    ///   - angle: Angular extent in radians (0 < angle <= 2*pi).
+    public static func cylinder(radius: Double, height: Double, angle: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateCylinderPartial(radius, height, angle) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a tool sweep solid - the volume swept by a cylindrical tool moving between two points
     /// Used for CAM simulation to calculate material removal
     public static func toolSweep(
@@ -96,15 +130,100 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Create a sphere at a specific center point.
+    ///
+    /// - Parameters:
+    ///   - center: Center of the sphere.
+    ///   - radius: Sphere radius.
+    public static func sphere(center: SIMD3<Double>, radius: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateSphereAtCenter(
+            center.x, center.y, center.z, radius
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Create an oriented sphere at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the sphere.
+    ///   - direction: Axis direction (affects parameterization).
+    ///   - radius: Sphere radius.
+    public static func sphere(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        radius: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateSphereOriented(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            radius
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Create a partial sphere (angular segment).
+    ///
+    /// - Parameters:
+    ///   - radius: Sphere radius.
+    ///   - angle: Angular extent in radians (0 < angle <= 2*pi).
+    public static func sphere(radius: Double, angle: Double) -> Shape? {
+        guard let handle = OCCTShapeCreateSpherePartial(radius, angle) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a cone along Z axis
     public static func cone(bottomRadius: Double, topRadius: Double, height: Double) -> Shape? {
         guard let handle = OCCTShapeCreateCone(bottomRadius, topRadius, height) else { return nil }
         return Shape(handle: handle)
     }
 
+    /// Create a cone at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the base circle.
+    ///   - direction: Axis direction (will be normalized).
+    ///   - bottomRadius: Radius at the base.
+    ///   - topRadius: Radius at the top.
+    ///   - height: Cone height along the direction.
+    public static func cone(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        bottomRadius: Double,
+        topRadius: Double,
+        height: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateConeOriented(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            bottomRadius, topRadius, height
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a torus in XY plane
     public static func torus(majorRadius: Double, minorRadius: Double) -> Shape? {
         guard let handle = OCCTShapeCreateTorus(majorRadius, minorRadius) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Create a torus at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the torus.
+    ///   - direction: Axis direction (normal to the torus plane).
+    ///   - majorRadius: Distance from center to tube center.
+    ///   - minorRadius: Tube radius.
+    public static func torus(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        majorRadius: Double,
+        minorRadius: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateTorusOriented(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            majorRadius, minorRadius
+        ) else { return nil }
         return Shape(handle: handle)
     }
 
@@ -2862,6 +2981,28 @@ extension Shape {
         guard dx > 0, dy > 0, dz > 0 else { return nil }
         guard let h = OCCTShapeCreateWedgeAdvanced(dx, dy, dz, xmin, zmin, xmax, zmax)
         else { return nil }
+        return Shape(handle: h)
+    }
+    /// Create an oriented wedge at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Corner point of the wedge.
+    ///   - direction: Axis direction for the wedge height (will be normalized).
+    ///   - dx: Width in X (local frame).
+    ///   - dy: Height in Y (local frame).
+    ///   - dz: Depth in Z (local frame).
+    ///   - ltx: Width of top face in X (0 to dx).
+    public static func wedge(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        dx: Double, dy: Double, dz: Double,
+        ltx: Double
+    ) -> Shape? {
+        guard let h = OCCTShapeCreateWedgeOriented(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            dx, dy, dz, ltx
+        ) else { return nil }
         return Shape(handle: h)
     }
 }

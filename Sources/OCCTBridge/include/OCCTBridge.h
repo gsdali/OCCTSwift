@@ -538,6 +538,10 @@ typedef struct OCCTFace* OCCTFaceRef;
 
 OCCTShapeRef OCCTShapeCreateBox(double width, double height, double depth);
 OCCTShapeRef OCCTShapeCreateBoxAt(double x, double y, double z, double width, double height, double depth);
+OCCTShapeRef _Nullable OCCTShapeCreateBoxOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double width, double height, double depth);
 OCCTShapeRef OCCTShapeCreateCylinder(double radius, double height);
 OCCTShapeRef OCCTShapeCreateCylinderAt(double cx, double cy, double bottomZ, double radius, double height);
 /// Create a cylinder at an arbitrary origin along an arbitrary direction.
@@ -545,10 +549,25 @@ OCCTShapeRef _Nullable OCCTShapeCreateCylinderOriented(
     double originX, double originY, double originZ,
     double dirX, double dirY, double dirZ,
     double radius, double height);
+OCCTShapeRef _Nullable OCCTShapeCreateCylinderPartial(double radius, double height, double angle);
 OCCTShapeRef OCCTShapeCreateToolSweep(double radius, double height, double x1, double y1, double z1, double x2, double y2, double z2);
 OCCTShapeRef OCCTShapeCreateSphere(double radius);
+OCCTShapeRef _Nullable OCCTShapeCreateSphereAtCenter(double cx, double cy, double cz, double radius);
+OCCTShapeRef _Nullable OCCTShapeCreateSphereOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius);
+OCCTShapeRef _Nullable OCCTShapeCreateSpherePartial(double radius, double angle);
 OCCTShapeRef OCCTShapeCreateCone(double bottomRadius, double topRadius, double height);
+OCCTShapeRef _Nullable OCCTShapeCreateConeOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double bottomRadius, double topRadius, double height);
 OCCTShapeRef OCCTShapeCreateTorus(double majorRadius, double minorRadius);
+OCCTShapeRef _Nullable OCCTShapeCreateTorusOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double majorRadius, double minorRadius);
 
 // MARK: - Shape Creation (Sweeps)
 
@@ -3309,6 +3328,10 @@ OCCTShapeRef OCCTShapeCreateWedge(double dx, double dy, double dz, double ltx);
 /// @return Wedge shape, or NULL on failure
 OCCTShapeRef OCCTShapeCreateWedgeAdvanced(double dx, double dy, double dz,
                                            double xmin, double zmin, double xmax, double zmax);
+OCCTShapeRef _Nullable OCCTShapeCreateWedgeOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double dx, double dy, double dz, double ltx);
 
 
 // MARK: - NURBS Conversion (v0.29.0)

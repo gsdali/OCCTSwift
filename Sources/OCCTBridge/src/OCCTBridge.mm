@@ -432,6 +432,19 @@ OCCTShapeRef OCCTShapeCreateBoxAt(double x, double y, double z, double width, do
     }
 }
 
+OCCTShapeRef OCCTShapeCreateBoxOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double width, double height, double depth) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeBox maker(axis, width, height, depth);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 OCCTShapeRef OCCTShapeCreateCylinder(double radius, double height) {
     try {
         BRepPrimAPI_MakeCylinder maker(radius, height);
@@ -461,6 +474,15 @@ OCCTShapeRef OCCTShapeCreateCylinderOriented(
         gp_Dir direction(dirX, dirY, dirZ);
         gp_Ax2 axis(origin, direction);
         BRepPrimAPI_MakeCylinder maker(axis, radius, height);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateCylinderPartial(double radius, double height, double angle) {
+    try {
+        BRepPrimAPI_MakeCylinder maker(radius, height, angle);
         return new OCCTShape(maker.Shape());
     } catch (...) {
         return nullptr;
@@ -569,6 +591,38 @@ OCCTShapeRef OCCTShapeCreateSphere(double radius) {
     }
 }
 
+OCCTShapeRef OCCTShapeCreateSphereAtCenter(double cx, double cy, double cz, double radius) {
+    try {
+        gp_Pnt center(cx, cy, cz);
+        BRepPrimAPI_MakeSphere maker(center, radius);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateSphereOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeSphere maker(axis, radius);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateSpherePartial(double radius, double angle) {
+    try {
+        BRepPrimAPI_MakeSphere maker(radius, angle);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 OCCTShapeRef OCCTShapeCreateCone(double bottomRadius, double topRadius, double height) {
     try {
         BRepPrimAPI_MakeCone maker(bottomRadius, topRadius, height);
@@ -578,9 +632,35 @@ OCCTShapeRef OCCTShapeCreateCone(double bottomRadius, double topRadius, double h
     }
 }
 
+OCCTShapeRef OCCTShapeCreateConeOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double bottomRadius, double topRadius, double height) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeCone maker(axis, bottomRadius, topRadius, height);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 OCCTShapeRef OCCTShapeCreateTorus(double majorRadius, double minorRadius) {
     try {
         BRepPrimAPI_MakeTorus maker(majorRadius, minorRadius);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateTorusOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double majorRadius, double minorRadius) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeTorus maker(axis, majorRadius, minorRadius);
         return new OCCTShape(maker.Shape());
     } catch (...) {
         return nullptr;
@@ -12866,6 +12946,19 @@ OCCTShapeRef OCCTShapeCreateWedgeAdvanced(double dx, double dy, double dz,
                                            double xmin, double zmin, double xmax, double zmax) {
     try {
         BRepPrimAPI_MakeWedge maker(dx, dy, dz, xmin, zmin, xmax, zmax);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateWedgeOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double dx, double dy, double dz, double ltx) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeWedge maker(axis, dx, dy, dz, ltx);
         return new OCCTShape(maker.Shape());
     } catch (...) {
         return nullptr;
