@@ -9,19 +9,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download OCCT RC5 prebuilt (with debug)
+      - name: Download OCCT RC5 prebuilt
         run: |
           gh release download V8_0_0_rc5 --repo Open-Cascade-SAS/OCCT --pattern "opencascade-with-debug-pch.zip" --dir occt-dl
-          gh release download V8_0_0_rc5 --repo Open-Cascade-SAS/OCCT --pattern "3rdparty-vc14-64.zip" --dir occt-dl
         env:
           GH_TOKEN: ${{ github.token }}
 
       - name: Extract OCCT
         run: |
           cd occt-dl
-          7z x opencascade-with-debug-pch.zip
-          7z x opencascade-8.0.0-rc3-vc14-64-pch-with-debug.zip
-          7z x 3rdparty-vc14-64.zip
+          7z x -y opencascade-with-debug-pch.zip
+          7z x -y opencascade-8.0.0-rc3-vc14-64-pch-with-debug.zip
+          dir opencascade-8.0.0-rc3-vc14-64\inc\Extrema_ExtElCS.hxx
+          dir opencascade-8.0.0-rc3-vc14-64\win64\vc14\lib\TKernel.lib
+        shell: cmd
 
       - name: Compile reproducer
         run: |
@@ -32,7 +33,7 @@ jobs:
 
       - name: Run reproducer (5 attempts)
         run: |
-          $env:PATH = "occt-dl\opencascade-8.0.0-rc3-vc14-64\win64\vc14\bin;occt-dl\3rdparty-vc14-64\bin;" + $env:PATH
+          $env:PATH = "occt-dl\opencascade-8.0.0-rc3-vc14-64\win64\vc14\bin;" + $env:PATH
           $crashes = 0; $passes = 0
           for ($i = 1; $i -le 5; $i++) {
             Write-Host "=== Run $i/5 ==="
@@ -89,3 +90,4 @@ jobs:
           done
           echo ""; echo "Results: $passes passed, $crashes crashed out of 5 runs"
           [ $crashes -gt 0 ] && echo "::warning::$crashes/5 runs crashed on macOS arm64"
+          true
