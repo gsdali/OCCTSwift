@@ -9,29 +9,37 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download OCCT RC5 prebuilt
-        run: gh release download V8_0_0_rc5 --repo Open-Cascade-SAS/OCCT --pattern "opencascade-with-debug-pch.zip" --dir occt-dl
-        env:
-          GH_TOKEN: ${{ github.token }}
-
-      - name: Extract OCCT
+      - name: Build OCCT from source (minimal, static)
         run: |
-          cd occt-dl
-          7z x -y opencascade-with-debug-pch.zip
-          7z x -y opencascade-8.0.0-rc3-vc14-64-pch-with-debug.zip
-        shell: cmd
+          git clone --depth 1 --branch V8_0_0_rc5 https://github.com/Open-Cascade-SAS/OCCT.git occt-src
+          mkdir occt-build
+          cd occt-build
+          cmake ..\occt-src -G "Visual Studio 17 2022" -A x64 `
+            -DBUILD_LIBRARY_TYPE=Static `
+            -DBUILD_MODULE_ApplicationFramework=OFF `
+            -DBUILD_MODULE_DataExchange=OFF `
+            -DBUILD_MODULE_Draw=OFF `
+            -DBUILD_MODULE_FoundationClasses=ON `
+            -DBUILD_MODULE_ModelingAlgorithms=ON `
+            -DBUILD_MODULE_ModelingData=ON `
+            -DBUILD_MODULE_Visualization=OFF `
+            -DUSE_FREETYPE=OFF -DUSE_FREEIMAGE=OFF -DUSE_TBB=OFF `
+            -DUSE_VTK=OFF -DUSE_OPENGL=OFF -DUSE_GLES2=OFF `
+            -DUSE_DRACO=OFF -DUSE_FFMPEG=OFF -DUSE_OPENVR=OFF `
+            -DUSE_XLIB=OFF -DUSE_TCL=OFF -DUSE_RAPIDJSON=OFF `
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo `
+            -DCMAKE_INSTALL_PREFIX=..\occt-install
+          cmake --build . --config RelWithDebInfo --parallel $env:NUMBER_OF_PROCESSORS
+          cmake --install . --config RelWithDebInfo
+        shell: pwsh
+        timeout-minutes: 60
 
       - name: Compile reproducer
         run: |
           call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
-          set OCCT=occt-dl\opencascade-8.0.0-rc3-vc14-64
-          cl /std:c++17 /EHsc /MD /I"%OCCT%\inc" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"%OCCT%\win64\vc14\lib" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib
-        shell: cmd
-
-      - name: Copy DLLs next to exe
-        run: |
-          copy occt-dl\opencascade-8.0.0-rc3-vc14-64\win64\vc14\bin\TK*.dll .
-          dir *.dll | find /c ".dll"
+          set OCCT_INC=occt-install\include\opencascade
+          if not exist "%OCCT_INC%" set OCCT_INC=occt-install\include
+          cl /std:c++17 /EHsc /MT /I"%OCCT_INC%" Tests\occt_parallel_crash_portable.cpp /Fe:occt_test.exe /link /LIBPATH:"occt-install\lib" TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib
         shell: cmd
 
       - name: Run reproducer
