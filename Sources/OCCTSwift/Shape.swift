@@ -53,6 +53,27 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Create a cylinder at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the base circle.
+    ///   - direction: Axis direction (will be normalized).
+    ///   - radius: Cylinder radius.
+    ///   - height: Cylinder height along the direction.
+    public static func cylinder(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        radius: Double,
+        height: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateCylinderOriented(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            radius, height
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a tool sweep solid - the volume swept by a cylindrical tool moving between two points
     /// Used for CAM simulation to calculate material removal
     public static func toolSweep(

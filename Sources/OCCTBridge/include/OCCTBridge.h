@@ -540,6 +540,11 @@ OCCTShapeRef OCCTShapeCreateBox(double width, double height, double depth);
 OCCTShapeRef OCCTShapeCreateBoxAt(double x, double y, double z, double width, double height, double depth);
 OCCTShapeRef OCCTShapeCreateCylinder(double radius, double height);
 OCCTShapeRef OCCTShapeCreateCylinderAt(double cx, double cy, double bottomZ, double radius, double height);
+/// Create a cylinder at an arbitrary origin along an arbitrary direction.
+OCCTShapeRef _Nullable OCCTShapeCreateCylinderOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double height);
 OCCTShapeRef OCCTShapeCreateToolSweep(double radius, double height, double x1, double y1, double z1, double x2, double y2, double z2);
 OCCTShapeRef OCCTShapeCreateSphere(double radius);
 OCCTShapeRef OCCTShapeCreateCone(double bottomRadius, double topRadius, double height);

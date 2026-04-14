@@ -452,6 +452,21 @@ OCCTShapeRef OCCTShapeCreateCylinderAt(double cx, double cy, double bottomZ, dou
     }
 }
 
+OCCTShapeRef OCCTShapeCreateCylinderOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double height) {
+    try {
+        gp_Pnt origin(originX, originY, originZ);
+        gp_Dir direction(dirX, dirY, dirZ);
+        gp_Ax2 axis(origin, direction);
+        BRepPrimAPI_MakeCylinder maker(axis, radius, height);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // Note: This creates an approximation of the swept volume using
 // two cylinders connected by a box. For CAM purposes, this provides
 // a conservative (larger) estimate suitable for collision detection
