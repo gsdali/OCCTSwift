@@ -558,16 +558,40 @@ OCCTShapeRef _Nullable OCCTShapeCreateSphereOriented(
     double dirX, double dirY, double dirZ,
     double radius);
 OCCTShapeRef _Nullable OCCTShapeCreateSpherePartial(double radius, double angle);
+OCCTShapeRef _Nullable OCCTShapeCreateSphereOrientedPartial(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double angle);
+OCCTShapeRef _Nullable OCCTShapeCreateSphereOrientedSegment(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double angle1, double angle2);
 OCCTShapeRef OCCTShapeCreateCone(double bottomRadius, double topRadius, double height);
 OCCTShapeRef _Nullable OCCTShapeCreateConeOriented(
     double originX, double originY, double originZ,
     double dirX, double dirY, double dirZ,
     double bottomRadius, double topRadius, double height);
+OCCTShapeRef _Nullable OCCTShapeCreateConeOrientedPartial(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double bottomRadius, double topRadius, double height, double angle);
 OCCTShapeRef OCCTShapeCreateTorus(double majorRadius, double minorRadius);
 OCCTShapeRef _Nullable OCCTShapeCreateTorusOriented(
     double originX, double originY, double originZ,
     double dirX, double dirY, double dirZ,
     double majorRadius, double minorRadius);
+OCCTShapeRef _Nullable OCCTShapeCreateTorusOrientedPartial(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double majorRadius, double minorRadius, double angle);
+OCCTShapeRef _Nullable OCCTShapeCreateTorusOrientedSegment(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double majorRadius, double minorRadius, double angle1, double angle2);
+OCCTShapeRef _Nullable OCCTShapeCreateCylinderOrientedPartial(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double height, double angle);
 
 // MARK: - Shape Creation (Sweeps)
 

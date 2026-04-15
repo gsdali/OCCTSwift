@@ -667,6 +667,84 @@ OCCTShapeRef OCCTShapeCreateTorusOriented(
     }
 }
 
+OCCTShapeRef OCCTShapeCreateCylinderOrientedPartial(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double height, double angle) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeCylinder maker(axis, radius, height, angle);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateConeOrientedPartial(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double bottomRadius, double topRadius, double height, double angle) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeCone maker(axis, bottomRadius, topRadius, height, angle);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateTorusOrientedPartial(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double majorRadius, double minorRadius, double angle) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeTorus maker(axis, majorRadius, minorRadius, angle);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateTorusOrientedSegment(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double majorRadius, double minorRadius, double angle1, double angle2) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeTorus maker(axis, majorRadius, minorRadius, angle1, angle2);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateSphereOrientedPartial(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double angle) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeSphere maker(axis, radius, angle);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateSphereOrientedSegment(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double radius, double angle1, double angle2) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeSphere maker(axis, radius, angle1, angle2);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // MARK: - Shape Creation (Sweeps)
 
 OCCTShapeRef OCCTShapeCreatePipeSweep(OCCTWireRef profile, OCCTWireRef path) {

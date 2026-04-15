@@ -108,6 +108,29 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Create a partial cylinder (angular segment) at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the base circle.
+    ///   - direction: Axis direction (will be normalized).
+    ///   - radius: Cylinder radius.
+    ///   - height: Cylinder height along the direction.
+    ///   - angle: Angular extent in radians (0 < angle <= 2*pi).
+    public static func cylinder(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        radius: Double,
+        height: Double,
+        angle: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateCylinderOrientedPartial(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            radius, height, angle
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a tool sweep solid - the volume swept by a cylindrical tool moving between two points
     /// Used for CAM simulation to calculate material removal
     public static func toolSweep(
@@ -171,6 +194,50 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Create a partial sphere (angular segment) at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the sphere.
+    ///   - direction: Axis direction (affects parameterization).
+    ///   - radius: Sphere radius.
+    ///   - angle: Angular extent in radians (0 < angle <= 2*pi).
+    public static func sphere(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        radius: Double,
+        angle: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateSphereOrientedPartial(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            radius, angle
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Create a sphere latitude segment at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the sphere.
+    ///   - direction: Axis direction (affects parameterization).
+    ///   - radius: Sphere radius.
+    ///   - angle1: Lower latitude bound in radians (-pi/2 to pi/2).
+    ///   - angle2: Upper latitude bound in radians (-pi/2 to pi/2).
+    public static func sphere(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        radius: Double,
+        angle1: Double,
+        angle2: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateSphereOrientedSegment(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            radius, angle1, angle2
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a cone along Z axis
     public static func cone(bottomRadius: Double, topRadius: Double, height: Double) -> Shape? {
         guard let handle = OCCTShapeCreateCone(bottomRadius, topRadius, height) else { return nil }
@@ -200,6 +267,31 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Create a partial cone (angular segment) at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the base circle.
+    ///   - direction: Axis direction (will be normalized).
+    ///   - bottomRadius: Radius at the base.
+    ///   - topRadius: Radius at the top.
+    ///   - height: Cone height along the direction.
+    ///   - angle: Angular extent in radians (0 < angle <= 2*pi).
+    public static func cone(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        bottomRadius: Double,
+        topRadius: Double,
+        height: Double,
+        angle: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateConeOrientedPartial(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            bottomRadius, topRadius, height, angle
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
     /// Create a torus in XY plane
     public static func torus(majorRadius: Double, minorRadius: Double) -> Shape? {
         guard let handle = OCCTShapeCreateTorus(majorRadius, minorRadius) else { return nil }
@@ -223,6 +315,54 @@ public final class Shape: @unchecked Sendable {
             origin.x, origin.y, origin.z,
             direction.x, direction.y, direction.z,
             majorRadius, minorRadius
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Create a partial torus (angular segment) at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the torus.
+    ///   - direction: Axis direction (normal to the torus plane).
+    ///   - majorRadius: Distance from center to tube center.
+    ///   - minorRadius: Tube radius.
+    ///   - angle: Angular extent in radians (0 < angle <= 2*pi).
+    public static func torus(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        majorRadius: Double,
+        minorRadius: Double,
+        angle: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateTorusOrientedPartial(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            majorRadius, minorRadius, angle
+        ) else { return nil }
+        return Shape(handle: handle)
+    }
+
+    /// Create a torus tube segment at an arbitrary origin along an arbitrary direction.
+    ///
+    /// - Parameters:
+    ///   - origin: Center of the torus.
+    ///   - direction: Axis direction (normal to the torus plane).
+    ///   - majorRadius: Distance from center to tube center.
+    ///   - minorRadius: Tube radius.
+    ///   - angle1: Start angle of the tube section in radians.
+    ///   - angle2: End angle of the tube section in radians.
+    public static func torus(
+        at origin: SIMD3<Double>,
+        direction: SIMD3<Double>,
+        majorRadius: Double,
+        minorRadius: Double,
+        angle1: Double,
+        angle2: Double
+    ) -> Shape? {
+        guard let handle = OCCTShapeCreateTorusOrientedSegment(
+            origin.x, origin.y, origin.z,
+            direction.x, direction.y, direction.z,
+            majorRadius, minorRadius, angle1, angle2
         ) else { return nil }
         return Shape(handle: handle)
     }
