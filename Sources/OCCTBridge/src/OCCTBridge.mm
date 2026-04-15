@@ -796,6 +796,57 @@ OCCTShapeRef OCCTShapeCreateRevolution(OCCTWireRef profile, double axisX, double
     }
 }
 
+OCCTShapeRef OCCTShapeCreateExtrusionInfinite(OCCTShapeRef shape,
+    double dirX, double dirY, double dirZ, bool infinite) {
+    if (!shape) return nullptr;
+    try {
+        gp_Dir dir(dirX, dirY, dirZ);
+        BRepPrimAPI_MakePrism maker(shape->shape, dir, infinite);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeCreateExtrusionShape(OCCTShapeRef shape,
+    double dx, double dy, double dz) {
+    if (!shape) return nullptr;
+    try {
+        gp_Vec vec(dx, dy, dz);
+        BRepPrimAPI_MakePrism maker(shape->shape, vec);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeCreateRevolutionFull(OCCTShapeRef shape,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ) {
+    if (!shape) return nullptr;
+    try {
+        gp_Ax1 axis(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeRevol maker(shape->shape, axis);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeCreateRevolutionPartial(OCCTShapeRef shape,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double angle) {
+    if (!shape) return nullptr;
+    try {
+        gp_Ax1 axis(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeRevol maker(shape->shape, axis, angle);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) { return nullptr; }
+}
+
 OCCTShapeRef OCCTShapeCreateLoft(const OCCTWireRef* profiles, int32_t count, bool solid) {
     if (!profiles || count < 2) return nullptr;
     try {
@@ -16000,6 +16051,50 @@ int32_t OCCTShapeIsInnerDistance(OCCTShapeRef shape1, OCCTShapeRef shape2) {
     } catch (...) {
         return -1;
     }
+}
+
+bool OCCTShapeDistanceSolutionDetail(OCCTShapeRef shape1, OCCTShapeRef shape2,
+    int32_t solutionIndex, OCCTDistanceSolutionDetail* outDetail) {
+    if (!shape1 || !shape2 || !outDetail) return false;
+    try {
+        BRepExtrema_DistShapeShape dist(shape1->shape, shape2->shape);
+        if (!dist.IsDone()) return false;
+        int idx = solutionIndex + 1; // OCCT is 1-based
+        if (idx < 1 || idx > dist.NbSolution()) return false;
+
+        memset(outDetail, 0, sizeof(OCCTDistanceSolutionDetail));
+
+        // Support types: BRepExtrema_IsVertex=0, BRepExtrema_IsOnEdge=1, BRepExtrema_IsInFace=2
+        outDetail->supportType1 = (int32_t)dist.SupportTypeShape1(idx);
+        outDetail->supportType2 = (int32_t)dist.SupportTypeShape2(idx);
+
+        // Edge parameters
+        if (outDetail->supportType1 == 1) { // IsOnEdge
+            double t = 0;
+            dist.ParOnEdgeS1(idx, t);
+            outDetail->paramEdge1 = t;
+        }
+        if (outDetail->supportType2 == 1) {
+            double t = 0;
+            dist.ParOnEdgeS2(idx, t);
+            outDetail->paramEdge2 = t;
+        }
+
+        // Face parameters
+        if (outDetail->supportType1 == 2) { // IsInFace
+            double u = 0, v = 0;
+            dist.ParOnFaceS1(idx, u, v);
+            outDetail->paramFaceU1 = u;
+            outDetail->paramFaceV1 = v;
+        }
+        if (outDetail->supportType2 == 2) {
+            double u = 0, v = 0;
+            dist.ParOnFaceS2(idx, u, v);
+            outDetail->paramFaceU2 = u;
+            outDetail->paramFaceV2 = v;
+        }
+        return true;
+    } catch (...) { return false; }
 }
 
 int32_t OCCTSurfaceBSplineToBezierPatches(OCCTSurfaceRef surface,

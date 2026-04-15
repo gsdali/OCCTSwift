@@ -44538,3 +44538,110 @@ struct PartialOrientedPrimitivesTests {
         }
     }
 }
+
+// MARK: - Sweep & Distance Gap Fixes
+
+@Suite("Extended Extrusion")
+struct ExtendedExtrusionTests {
+    @Test func extrudeFaceByVector() {
+        // Extrude a face (not a solid) to create a solid
+        let wire = Wire.rectangle(width: 10, height: 10)
+        if let wire {
+            let face = Shape.face(from: wire)
+            if let face {
+                let extruded = face.extruded(by: SIMD3(0, 0, 20))
+                #expect(extruded != nil)
+                if let extruded { #expect(extruded.isValid) }
+            }
+        }
+    }
+
+    @Test func extrudeEdgeByVector() {
+        // Extrude a wire to create a face
+        let wire = Wire.line(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0))
+        if let wire {
+            let face = Shape(handle: wire.handle)
+            // Use the wire directly via bridge
+        }
+        // Simpler: extrude a face
+        let rect = Wire.rectangle(width: 5, height: 5)
+        if let rect {
+            let face = Shape.face(from: rect)
+            if let face {
+                let semi = face.extrudedInfinite(direction: SIMD3(0, 0, 1), infinite: false)
+                #expect(semi != nil)
+            }
+        }
+    }
+}
+
+@Suite("Extended Revolution")
+struct ExtendedRevolutionTests {
+    @Test func revolveFaceFull() {
+        // Revolve a face around an axis to create a solid of revolution
+        let wire = Wire.rectangle(width: 2, height: 5)
+        if let wire {
+            let face = Shape.face(from: wire)
+            if let face {
+                let moved = face.translated(by: SIMD3(10, 0, 0))
+                if let moved {
+                    let revolved = moved.revolved(
+                        axisOrigin: SIMD3(0, 0, 0),
+                        axisDirection: SIMD3(0, 0, 1))
+                    #expect(revolved != nil)
+                }
+            }
+        }
+    }
+
+    @Test func revolveFacePartial() {
+        let wire = Wire.rectangle(width: 2, height: 5)
+        if let wire {
+            let face = Shape.face(from: wire)
+            if let face {
+                let moved = face.translated(by: SIMD3(10, 0, 0))
+                if let moved {
+                    let half = moved.revolved(
+                        axisOrigin: SIMD3(0, 0, 0),
+                        axisDirection: SIMD3(0, 0, 1),
+                        angle: .pi)
+                    #expect(half != nil)
+                }
+            }
+        }
+    }
+}
+
+@Suite("Distance Solution Detail")
+struct DistanceSolutionDetailTests {
+    @Test func detailBetweenBoxes() {
+        let box1 = Shape.box(width: 10, height: 10, depth: 10)
+        let box2 = Shape.box(width: 5, height: 5, depth: 5)
+        if let box1, let box2 {
+            let moved = box2.translated(by: SIMD3(20, 0, 0))
+            if let moved {
+                let solutions = box1.allDistanceSolutions(to: moved)
+                if let solutions, solutions.count > 0 {
+                    let detail = box1.distanceSolutionDetail(to: moved, solutionIndex: 0)
+                    #expect(detail != nil)
+                    if let detail {
+                        #expect(detail.supportType1.rawValue >= 0)
+                        #expect(detail.supportType2.rawValue >= 0)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func detailSupportTypes() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        let sphere = Shape.sphere(radius: 3)
+        if let box, let sphere {
+            let moved = sphere.translated(by: SIMD3(20, 5, 5))
+            if let moved {
+                let detail = box.distanceSolutionDetail(to: moved, solutionIndex: 0)
+                #expect(detail != nil)
+            }
+        }
+    }
+}

@@ -597,7 +597,22 @@ OCCTShapeRef _Nullable OCCTShapeCreateCylinderOrientedPartial(
 
 OCCTShapeRef OCCTShapeCreatePipeSweep(OCCTWireRef profile, OCCTWireRef path);
 OCCTShapeRef OCCTShapeCreateExtrusion(OCCTWireRef profile, double dx, double dy, double dz, double length);
+/// Extrude a shape along a direction to infinity (or semi-infinite).
+OCCTShapeRef _Nullable OCCTShapeCreateExtrusionInfinite(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ, bool infinite);
+/// Extrude a shape by a vector (general shape, not just wire).
+OCCTShapeRef _Nullable OCCTShapeCreateExtrusionShape(OCCTShapeRef _Nonnull shape,
+    double dx, double dy, double dz);
 OCCTShapeRef OCCTShapeCreateRevolution(OCCTWireRef profile, double axisX, double axisY, double axisZ, double dirX, double dirY, double dirZ, double angle);
+/// Revolve a shape (not just wire) around an axis by a full 360 degrees.
+OCCTShapeRef _Nullable OCCTShapeCreateRevolutionFull(OCCTShapeRef _Nonnull shape,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ);
+/// Revolve a shape (not just wire) around an axis by a partial angle.
+OCCTShapeRef _Nullable OCCTShapeCreateRevolutionPartial(OCCTShapeRef _Nonnull shape,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double angle);
 OCCTShapeRef OCCTShapeCreateLoft(const OCCTWireRef* profiles, int32_t count, bool solid);
 
 // MARK: - Boolean Operations
@@ -4650,6 +4665,25 @@ int32_t OCCTShapeAllDistanceSolutions(OCCTShapeRef shape1, OCCTShapeRef shape2,
 /// Check if one shape is fully inside another (inner solution)
 /// @return 1 if inner, 0 if not inner, -1 on failure
 int32_t OCCTShapeIsInnerDistance(OCCTShapeRef shape1, OCCTShapeRef shape2);
+
+/// Distance solution detail: support type and parametric location.
+/// supportType: 0=Vertex, 1=OnEdge, 2=InFace
+typedef struct {
+    int32_t supportType1;
+    int32_t supportType2;
+    double paramEdge1;   // parameter on edge (if supportType1 == 1)
+    double paramEdge2;   // parameter on edge (if supportType2 == 1)
+    double paramFaceU1;  // U parameter on face (if supportType1 == 2)
+    double paramFaceV1;  // V parameter on face (if supportType1 == 2)
+    double paramFaceU2;  // U parameter on face (if supportType2 == 2)
+    double paramFaceV2;  // V parameter on face (if supportType2 == 2)
+} OCCTDistanceSolutionDetail;
+
+/// Get detailed parametric info for a distance solution.
+/// @param solutionIndex 0-based solution index
+/// @return true on success
+bool OCCTShapeDistanceSolutionDetail(OCCTShapeRef _Nonnull shape1, OCCTShapeRef _Nonnull shape2,
+    int32_t solutionIndex, OCCTDistanceSolutionDetail* _Nonnull outDetail);
 
 /// Decompose a BSpline surface into Bezier patches
 /// @param surface BSpline surface reference

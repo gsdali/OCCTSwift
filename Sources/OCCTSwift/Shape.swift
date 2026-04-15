@@ -401,6 +401,42 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
+    /// Extrude any shape along a vector.
+    public func extruded(by vector: SIMD3<Double>) -> Shape? {
+        guard let h = OCCTShapeCreateExtrusionShape(handle, vector.x, vector.y, vector.z) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Extrude any shape to infinity (or semi-infinity) along a direction.
+    public func extrudedInfinite(direction: SIMD3<Double>, infinite: Bool = true) -> Shape? {
+        guard let h = OCCTShapeCreateExtrusionInfinite(handle, direction.x, direction.y, direction.z, infinite) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Revolve any shape around an axis (full 360 degrees).
+    public func revolved(
+        axisOrigin: SIMD3<Double>,
+        axisDirection: SIMD3<Double>
+    ) -> Shape? {
+        guard let h = OCCTShapeCreateRevolutionFull(handle,
+            axisOrigin.x, axisOrigin.y, axisOrigin.z,
+            axisDirection.x, axisDirection.y, axisDirection.z) else { return nil }
+        return Shape(handle: h)
+    }
+
+    /// Revolve any shape around an axis by a partial angle.
+    public func revolved(
+        axisOrigin: SIMD3<Double>,
+        axisDirection: SIMD3<Double>,
+        angle: Double
+    ) -> Shape? {
+        guard let h = OCCTShapeCreateRevolutionPartial(handle,
+            axisOrigin.x, axisOrigin.y, axisOrigin.z,
+            axisDirection.x, axisDirection.y, axisDirection.z,
+            angle) else { return nil }
+        return Shape(handle: h)
+    }
+
     /// Loft through multiple profile wires
     public static func loft(profiles: [Wire], solid: Bool = true) -> Shape? {
         let handles: [OCCTWireRef?] = profiles.map { $0.handle }
@@ -4615,6 +4651,41 @@ extension Shape {
         let result = OCCTShapeIsInnerDistance(handle, container.handle)
         guard result >= 0 else { return nil }
         return result == 1
+    }
+
+    /// Support type for a distance solution point.
+    public enum DistanceSupportType: Int32, Sendable {
+        case vertex = 0
+        case onEdge = 1
+        case inFace = 2
+    }
+
+    /// Detailed parametric info for a distance solution.
+    public struct DistanceSolutionDetail: Sendable {
+        public let supportType1: DistanceSupportType
+        public let supportType2: DistanceSupportType
+        public let paramEdge1: Double
+        public let paramEdge2: Double
+        public let paramFaceUV1: (u: Double, v: Double)
+        public let paramFaceUV2: (u: Double, v: Double)
+    }
+
+    /// Get detailed parametric info for a specific distance solution.
+    ///
+    /// Returns the support type (vertex/edge/face) and parametric location
+    /// for each closest point. Use with `allDistanceSolutions(to:)` to get
+    /// the solution index.
+    public func distanceSolutionDetail(to other: Shape, solutionIndex: Int) -> DistanceSolutionDetail? {
+        var detail = OCCTDistanceSolutionDetail()
+        guard OCCTShapeDistanceSolutionDetail(handle, other.handle, Int32(solutionIndex), &detail) else { return nil }
+        return DistanceSolutionDetail(
+            supportType1: DistanceSupportType(rawValue: detail.supportType1) ?? .vertex,
+            supportType2: DistanceSupportType(rawValue: detail.supportType2) ?? .vertex,
+            paramEdge1: detail.paramEdge1,
+            paramEdge2: detail.paramEdge2,
+            paramFaceUV1: (u: detail.paramFaceU1, v: detail.paramFaceV1),
+            paramFaceUV2: (u: detail.paramFaceU2, v: detail.paramFaceV2)
+        )
     }
 
     // MARK: - Find Surface (v0.40.0)
