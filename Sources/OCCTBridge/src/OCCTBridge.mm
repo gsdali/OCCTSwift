@@ -47789,6 +47789,34 @@ double OCCTEdgeParameterAtFraction(OCCTShapeRef edge, double fraction) {
     } catch (...) { return 0; }
 }
 
+// --- Curve3D Arc Length (GCPnts_AbscissaPoint) ---
+
+double OCCTCurve3DParameterAtLength(OCCTCurve3DRef curve, double arcLength, double fromParam) {
+    if (!curve) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        GCPnts_AbscissaPoint ap(adaptor, arcLength, fromParam);
+        if (ap.IsDone()) return ap.Parameter();
+        return 0;
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve3DArcLength(OCCTCurve3DRef curve) {
+    if (!curve) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        return GCPnts_AbscissaPoint::Length(adaptor);
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve3DArcLengthBetween(OCCTCurve3DRef curve, double param1, double param2) {
+    if (!curve) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        return GCPnts_AbscissaPoint::Length(adaptor, param1, param2);
+    } catch (...) { return 0; }
+}
+
 // --- BRepAdaptor exposure ---
 
 void OCCTEdgeAdaptorDomain(OCCTShapeRef edge, double* first, double* last) {

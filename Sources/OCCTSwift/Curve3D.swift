@@ -1507,6 +1507,28 @@ extension Curve3D {
         OCCTCurve3DLength(handle, u1, u2)
     }
 
+    /// Find the parameter at a given arc length distance from a starting parameter.
+    ///
+    /// Uses `GCPnts_AbscissaPoint` for accurate arc-length parameterization.
+    /// - Parameters:
+    ///   - arcLength: Distance along the curve (positive = forward, negative = backward).
+    ///   - from: Starting parameter (defaults to curve start).
+    /// - Returns: The parameter value at the specified arc length.
+    public func parameterAtLength(_ arcLength: Double, from startParam: Double? = nil) -> Double {
+        let start = startParam ?? domain.lowerBound
+        return OCCTCurve3DParameterAtLength(handle, arcLength, start)
+    }
+
+    /// Total arc length of the curve within its domain.
+    public var totalArcLength: Double {
+        OCCTCurve3DArcLength(handle)
+    }
+
+    /// Arc length between two parameters.
+    public func arcLengthBetween(_ param1: Double, _ param2: Double) -> Double {
+        OCCTCurve3DArcLengthBetween(handle, param1, param2)
+    }
+
     /// Find the parameter of the closest point on this curve to a given point.
     public func closestParameter(to point: SIMD3<Double>) -> Double {
         OCCTCurve3DClosestParameter(handle, point.x, point.y, point.z)

@@ -16603,6 +16603,15 @@ double OCCTEdgeParameterAtArcLength(OCCTShapeRef _Nonnull edge, double arcLength
 /// Compute total arc length of an edge.
 double OCCTEdgeArcLength(OCCTShapeRef _Nonnull edge);
 
+/// Find parameter on a 3D curve at a given arc length from startParam.
+double OCCTCurve3DParameterAtLength(OCCTCurve3DRef _Nonnull curve, double arcLength, double fromParam);
+
+/// Compute total arc length of a 3D curve within its domain.
+double OCCTCurve3DArcLength(OCCTCurve3DRef _Nonnull curve);
+
+/// Compute arc length of a 3D curve between two parameters.
+double OCCTCurve3DArcLengthBetween(OCCTCurve3DRef _Nonnull curve, double param1, double param2);
+
 /// Compute arc length between two parameters on an edge.
 double OCCTEdgeArcLengthBetween(OCCTShapeRef _Nonnull edge, double u1, double u2);
 
