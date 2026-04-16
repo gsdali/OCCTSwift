@@ -1,16 +1,17 @@
-// Portable C++17 reproducer for OCCT parallel crashes (NO IGES, NO Apple APIs)
-// Targets: Extrema_ExtElCS and ShapeUpgrade_FaceDivide under high concurrency
-//
-// Compiles on Windows (MSVC), Linux (GCC/Clang), macOS (Apple Clang)
+// Portable C++17 reproducer for OCCT parallel crashes (NO IGES)
+// Version 2: Grouped tests — each operation type tested in isolation first,
+// then combined. Reports crash/pass per group.
 //
 // Windows (MSVC):
-//   cl /std:c++17 /EHsc /I<OCCT_INCLUDE> occt_parallel_crash_portable.cpp /link /LIBPATH:<OCCT_LIB> TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib TKShHealing.lib TKOffset.lib TKMesh.lib
+//   cl /std:c++17 /EHsc /MD /I<OCCT_INC> test.cpp /Fe:test.exe /link /LIBPATH:<OCCT_LIB>
+//      TKernel.lib TKMath.lib TKG2d.lib TKG3d.lib TKGeomBase.lib TKBRep.lib
+//      TKGeomAlgo.lib TKTopAlgo.lib TKPrim.lib TKBO.lib TKBool.lib TKFillet.lib
+//      TKShHealing.lib TKOffset.lib TKMesh.lib Advapi32.lib User32.lib Ws2_32.lib
 //
 // Linux/macOS:
-//   clang++ -std=c++17 -w -I<OCCT_INCLUDE> -L<OCCT_LIB> -lTKernel -lTKMath -lTKG2d -lTKG3d -lTKGeomBase -lTKBRep -lTKGeomAlgo -lTKTopAlgo -lTKPrim -lTKBO -lTKBool -lTKFillet -lTKShHealing -lTKOffset -lTKMesh occt_parallel_crash_portable.cpp -o occt_parallel_crash -lpthread
-//
-// For static lib on macOS (our xcframework):
-//   clang++ -std=c++17 -ObjC++ -w -I"Libraries/OCCT.xcframework/macos-arm64/Headers" -L"Libraries/OCCT.xcframework/macos-arm64" -lOCCT-macos -framework Foundation -framework AppKit -lz -lc++ occt_parallel_crash_portable.cpp -o occt_parallel_crash
+//   clang++ -std=c++17 -w -I<OCCT_INC> test.cpp -L<OCCT_LIB> -lTKernel -lTKMath
+//      -lTKG2d -lTKG3d -lTKGeomBase -lTKBRep -lTKGeomAlgo -lTKTopAlgo -lTKPrim
+//      -lTKBO -lTKBool -lTKFillet -lTKShHealing -lTKOffset -lTKMesh -lpthread
 
 #include <thread>
 #include <vector>
@@ -34,8 +35,6 @@
 #include <ShapeUpgrade_ShapeDivideContinuity.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <ShapeFix_Shape.hxx>
-#include <ShapeFix_Wire.hxx>
-#include <ShapeAnalysis_Wire.hxx>
 
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeSphere.hxx>
@@ -52,184 +51,134 @@
 #include <TopoDS.hxx>
 
 // ============================================================
-// Simple thread pool (portable C++17, no platform dependencies)
+// Thread pool
 // ============================================================
 class ThreadPool {
 public:
-    explicit ThreadPool(int numThreads) : stop_(false) {
-        for (int i = 0; i < numThreads; i++) {
+    explicit ThreadPool(int n) : stop_(false) {
+        for (int i = 0; i < n; i++)
             workers_.emplace_back([this] {
                 while (true) {
                     std::function<void()> task;
-                    {
-                        std::unique_lock<std::mutex> lock(mutex_);
-                        cv_.wait(lock, [this] { return stop_ || !tasks_.empty(); });
-                        if (stop_ && tasks_.empty()) return;
-                        task = std::move(tasks_.front());
-                        tasks_.pop();
-                    }
+                    { std::unique_lock<std::mutex> lock(mu_);
+                      cv_.wait(lock, [this] { return stop_ || !tasks_.empty(); });
+                      if (stop_ && tasks_.empty()) return;
+                      task = std::move(tasks_.front()); tasks_.pop(); }
                     task();
                 }
             });
-        }
     }
-
     void submit(std::function<void()> task) {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            tasks_.push(std::move(task));
-        }
+        { std::lock_guard<std::mutex> lock(mu_); tasks_.push(std::move(task)); }
         cv_.notify_one();
     }
-
-    void waitAll() {
-        // Spin until queue is drained and all workers are idle
-        while (true) {
-            {
-                std::lock_guard<std::mutex> lock(mutex_);
-                if (tasks_.empty()) break;
-            }
-            std::this_thread::yield();
-        }
-        // Give workers time to finish current tasks
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-
     ~ThreadPool() {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            stop_ = true;
-        }
+        { std::lock_guard<std::mutex> lock(mu_); stop_ = true; }
         cv_.notify_all();
         for (auto& w : workers_) w.join();
     }
-
 private:
     std::vector<std::thread> workers_;
     std::queue<std::function<void()>> tasks_;
-    std::mutex mutex_;
+    std::mutex mu_;
     std::condition_variable cv_;
     bool stop_;
 };
 
 // ============================================================
-// Task counters
-// ============================================================
-static std::atomic<int> g_ops{0};
-
-// ============================================================
-// Extrema tasks — independent objects, no shared state
+// Individual task functions — each creates independent objects
 // ============================================================
 
-void extrema_line_cylinder(int seed) {
-    double offset = seed * 0.0137;
-    gp_Lin line(gp_Pnt(offset, offset, offset), gp_Dir(1, 0.1 * offset, 0));
-    gp_Cylinder cyl(gp_Ax3(gp_Pnt(5 + offset, 5, 0), gp_Dir(0, 0, 1)), 3.0 + offset * 0.1);
-    Extrema_ExtElCS extrema(line, cyl);
-    if (extrema.IsDone()) {
-        int nb = extrema.NbExt();
-        for (int j = 1; j <= nb; j++) {
+// Group 1: Extrema (line-cylinder, line-sphere, line-cone)
+void task_extrema_line_cyl(int seed) {
+    double off = seed * 0.0137;
+    gp_Lin line(gp_Pnt(off, off, off), gp_Dir(1, 0.1 * off, 0));
+    gp_Cylinder cyl(gp_Ax3(gp_Pnt(5 + off, 5, 0), gp_Dir(0, 0, 1)), 3.0 + off * 0.1);
+    Extrema_ExtElCS ext(line, cyl);
+    if (ext.IsDone()) {
+        for (int j = 1; j <= ext.NbExt(); j++) {
             Extrema_POnCurv pc; Extrema_POnSurf ps;
-            extrema.Points(j, pc, ps);
-            (void)pc.Value(); (void)ps.Value();
+            ext.Points(j, pc, ps);
         }
     }
-    g_ops.fetch_add(1);
 }
 
-void extrema_line_sphere(int seed) {
-    double offset = seed * 0.023;
-    gp_Lin line(gp_Pnt(0, 0, offset), gp_Dir(1, 0, 0));
-    gp_Sphere sph(gp_Ax3(gp_Pnt(10 + offset, 0, 0), gp_Dir(0, 0, 1)), 5.0);
-    Extrema_ExtElCS extrema(line, sph);
-    if (extrema.IsDone()) {
-        int nb = extrema.NbExt();
-        for (int j = 1; j <= nb; j++) {
+void task_extrema_line_sphere(int seed) {
+    double off = seed * 0.023;
+    gp_Lin line(gp_Pnt(0, 0, off), gp_Dir(1, 0, 0));
+    gp_Sphere sph(gp_Ax3(gp_Pnt(10 + off, 0, 0), gp_Dir(0, 0, 1)), 5.0);
+    Extrema_ExtElCS ext(line, sph);
+    if (ext.IsDone()) {
+        for (int j = 1; j <= ext.NbExt(); j++) {
             Extrema_POnCurv pc; Extrema_POnSurf ps;
-            extrema.Points(j, pc, ps);
+            ext.Points(j, pc, ps);
         }
     }
-    g_ops.fetch_add(1);
 }
 
-void extrema_line_cone(int seed) {
-    double offset = seed * 0.019;
-    gp_Lin line(gp_Pnt(offset, 0, 0), gp_Dir(0, 1, 0));
-    gp_Cone cone(gp_Ax3(gp_Pnt(5, 5 + offset, 0), gp_Dir(0, 0, 1)), 0.3, 2.0);
+void task_extrema_line_cone(int seed) {
+    double off = seed * 0.019;
+    gp_Lin line(gp_Pnt(off, 0, 0), gp_Dir(0, 1, 0));
+    gp_Cone cone(gp_Ax3(gp_Pnt(5, 5 + off, 0), gp_Dir(0, 0, 1)), 0.3, 2.0);
     try {
-        Extrema_ExtElCS extrema(line, cone);
-        if (extrema.IsDone() && !extrema.IsParallel()) {
-            int nb = extrema.NbExt();
-            for (int j = 1; j <= nb; j++) {
+        Extrema_ExtElCS ext(line, cone);
+        if (ext.IsDone() && !ext.IsParallel()) {
+            for (int j = 1; j <= ext.NbExt(); j++) {
                 Extrema_POnCurv pc; Extrema_POnSurf ps;
-                extrema.Points(j, pc, ps);
+                ext.Points(j, pc, ps);
             }
         }
-    } catch (...) {
-        // Extrema_ExtElCS(Lin, Cone) can throw — this is one of the crash sites
-    }
-    g_ops.fetch_add(1);
+    } catch (...) {}
 }
 
-// ============================================================
-// ShapeUpgrade tasks — independent objects, no shared state
-// ============================================================
-
-void task_face_divide(int seed) {
+// Group 2: ShapeUpgrade (FaceDivide, ShapeDivideContinuity)
+void task_face_divide_box(int seed) {
     double s = 10.0 + seed * 0.03;
     BRepPrimAPI_MakeBox box(s, s + 5, s + 10);
     TopExp_Explorer ex(box.Shape(), TopAbs_FACE);
     if (ex.More()) {
-        TopoDS_Face face = TopoDS::Face(ex.Current());
         try {
-            ShapeUpgrade_FaceDivide divider(face);
-            divider.Perform();
+            ShapeUpgrade_FaceDivide div(TopoDS::Face(ex.Current()));
+            div.Perform();
         } catch (...) {}
     }
-    g_ops.fetch_add(1);
 }
 
-void task_face_divide_cylinder(int seed) {
+void task_face_divide_cyl(int seed) {
     double r = 5.0 + seed * 0.02;
     BRepPrimAPI_MakeCylinder cyl(r, 20.0);
     TopExp_Explorer ex(cyl.Shape(), TopAbs_FACE);
     if (ex.More()) {
-        TopoDS_Face face = TopoDS::Face(ex.Current());
         try {
-            ShapeUpgrade_FaceDivide divider(face);
-            divider.Perform();
+            ShapeUpgrade_FaceDivide div(TopoDS::Face(ex.Current()));
+            div.Perform();
         } catch (...) {}
     }
-    g_ops.fetch_add(1);
 }
 
 void task_shape_divide_continuity(int seed) {
     double s = 10.0 + seed * 0.04;
     BRepPrimAPI_MakeBox box(s, s + 3, s + 7);
     try {
-        ShapeUpgrade_ShapeDivideContinuity divider(box.Shape());
-        divider.Perform();
+        ShapeUpgrade_ShapeDivideContinuity div(box.Shape());
+        div.Perform();
     } catch (...) {}
-    g_ops.fetch_add(1);
 }
 
-// ============================================================
-// Boolean + fillet tasks (allocator pressure)
-// ============================================================
-
-void task_boolean(int seed) {
+// Group 3: Boolean operations
+void task_boolean_cut(int seed) {
     double s = 10.0 + seed * 0.07;
     BRepPrimAPI_MakeBox box(s, s, s);
-    BRepPrimAPI_MakeSphere sphere(gp_Pnt(s/2, s/2, s/2), s * 0.6);
-    BRepAlgoAPI_Cut cut(box.Shape(), sphere.Shape());
+    BRepPrimAPI_MakeSphere sph(gp_Pnt(s/2, s/2, s/2), s * 0.6);
+    BRepAlgoAPI_Cut cut(box.Shape(), sph.Shape());
     if (cut.IsDone()) {
         GProp_GProps props;
         BRepGProp::VolumeProperties(cut.Shape(), props);
         (void)props.Mass();
     }
-    g_ops.fetch_add(1);
 }
 
+// Group 4: Fillet
 void task_fillet(int seed) {
     double s = 20.0 + seed * 0.04;
     BRepPrimAPI_MakeBox box(s, s, s);
@@ -246,9 +195,9 @@ void task_fillet(int seed) {
             }
         } catch (...) {}
     }
-    g_ops.fetch_add(1);
 }
 
+// Group 5: ShapeFix
 void task_shape_fix(int seed) {
     double s = 12.0 + seed * 0.06;
     BRepPrimAPI_MakeBox box(s, s, s);
@@ -261,9 +210,9 @@ void task_shape_fix(int seed) {
             (void)fixer.Shape();
         } catch (...) {}
     }
-    g_ops.fetch_add(1);
 }
 
+// Group 6: UnifySameDomain
 void task_unify(int seed) {
     double s = 10.0 + seed * 0.03;
     BRepPrimAPI_MakeBox box1(s, s, s);
@@ -271,14 +220,14 @@ void task_unify(int seed) {
     BRepAlgoAPI_Fuse fuse(box1.Shape(), box2.Shape());
     if (fuse.IsDone()) {
         try {
-            ShapeUpgrade_UnifySameDomain unifier(fuse.Shape());
-            unifier.Build();
-            (void)unifier.Shape();
+            ShapeUpgrade_UnifySameDomain u(fuse.Shape());
+            u.Build();
+            (void)u.Shape();
         } catch (...) {}
     }
-    g_ops.fetch_add(1);
 }
 
+// Group 7: Shape creation + mass properties
 void task_shape_creation(int seed) {
     BRepPrimAPI_MakeBox box(10 + seed * 0.01, 20, 30);
     BRepPrimAPI_MakeCylinder cyl(5.0, 15.0);
@@ -289,64 +238,96 @@ void task_shape_creation(int seed) {
     BRepGProp::VolumeProperties(cyl.Shape(), props);
     BRepGProp::VolumeProperties(cone.Shape(), props);
     BRepGProp::VolumeProperties(torus.Shape(), props);
-    g_ops.fetch_add(1);
 }
 
 // ============================================================
-// Main — fire hundreds of concurrent tasks via thread pool
+// Test runner
 // ============================================================
 
-int main(int argc, char* argv[]) {
-    // Hardware concurrency or default to 16
-    int numWorkers = std::thread::hardware_concurrency();
-    if (numWorkers < 8) numWorkers = 16;
+struct GroupResult {
+    const char* name;
+    bool crashed;  // set by signal handler or by absence of completion
+    int rounds_completed;
+};
 
-    // Allow override from command line
-    int tasksPerRound = 300;
-    int numRounds = 30;
-    if (argc > 1) tasksPerRound = atoi(argv[1]);
-    if (argc > 2) numRounds = atoi(argv[2]);
+// Run a single group: submit N tasks of one type over R rounds
+bool run_group(const char* name, std::function<void(int)> task,
+               int workers, int tasks_per_round, int rounds) {
+    printf("  Testing %-30s ", name);
+    fflush(stdout);
 
-    printf("OCCT Parallel Crash Reproducer (Portable C++17, NO IGES)\n");
-    printf("=========================================================\n");
-    printf("Workers: %d, Tasks/round: %d, Rounds: %d\n", numWorkers, tasksPerRound, numRounds);
-    printf("Total: %d concurrent operations\n", tasksPerRound * numRounds);
-    printf("Each task creates independent OCCT objects. No shared mutable state.\n\n");
-
-    printf("Task mix: Extrema (line-cyl/sphere/cone), ShapeUpgrade (FaceDivide,\n");
-    printf("  ShapeDivideContinuity), Boolean, Fillet, ShapeFix, Unify, ShapeCreation\n\n");
-
-    for (int round = 1; round <= numRounds; round++) {
-        printf("Round %d/%d...", round, numRounds);
-        fflush(stdout);
-        g_ops.store(0);
-
-        {
-            ThreadPool pool(numWorkers);
-
-            for (int i = 0; i < tasksPerRound; i++) {
-                int seed = round * 10000 + i;
-                pool.submit([seed, i] {
-                    switch (i % 10) {
-                        case 0: extrema_line_cylinder(seed); break;
-                        case 1: extrema_line_sphere(seed); break;
-                        case 2: extrema_line_cone(seed); break;
-                        case 3: task_face_divide(seed); break;
-                        case 4: task_face_divide_cylinder(seed); break;
-                        case 5: task_shape_divide_continuity(seed); break;
-                        case 6: task_boolean(seed); break;
-                        case 7: task_fillet(seed); break;
-                        case 8: task_shape_fix(seed); break;
-                        case 9: task_unify(seed); break;
-                    }
-                });
-            }
-            // ThreadPool destructor waits for all tasks
+    for (int r = 0; r < rounds; r++) {
+        ThreadPool pool(workers);
+        for (int i = 0; i < tasks_per_round; i++) {
+            int seed = r * 10000 + i;
+            pool.submit([&task, seed] { task(seed); });
         }
-
-        printf(" %d ops\n", g_ops.load());
     }
+    printf("PASS (%d rounds x %d tasks)\n", rounds, tasks_per_round);
+    return true;
+}
 
-    printf("\nAll %d rounds completed without crash.\n", numRounds);
+// Run all groups mixed
+bool run_combined(int workers, int tasks_per_round, int rounds) {
+    printf("  Testing %-30s ", "ALL COMBINED");
+    fflush(stdout);
+
+    for (int r = 0; r < rounds; r++) {
+        ThreadPool pool(workers);
+        for (int i = 0; i < tasks_per_round; i++) {
+            int seed = r * 10000 + i;
+            pool.submit([seed, i] {
+                switch (i % 10) {
+                    case 0: task_extrema_line_cyl(seed); break;
+                    case 1: task_extrema_line_sphere(seed); break;
+                    case 2: task_extrema_line_cone(seed); break;
+                    case 3: task_face_divide_box(seed); break;
+                    case 4: task_face_divide_cyl(seed); break;
+                    case 5: task_shape_divide_continuity(seed); break;
+                    case 6: task_boolean_cut(seed); break;
+                    case 7: task_fillet(seed); break;
+                    case 8: task_shape_fix(seed); break;
+                    case 9: task_unify(seed); break;
+                }
+            });
+        }
+    }
+    printf("PASS (%d rounds x %d tasks)\n", rounds, tasks_per_round);
+    return true;
+}
+
+int main(int argc, char* argv[]) {
+    int workers = std::thread::hardware_concurrency();
+    if (workers < 8) workers = 16;
+    int tasks = 300;
+    int rounds = 10;
+    if (argc > 1) tasks = atoi(argv[1]);
+    if (argc > 2) rounds = atoi(argv[2]);
+
+    printf("OCCT Parallel Crash Reproducer v2 (Portable C++17, NO IGES)\n");
+    printf("=============================================================\n");
+    printf("Workers: %d, Tasks/round: %d, Rounds: %d\n", workers, tasks, rounds);
+    printf("Each task creates independent OCCT objects. No shared state.\n\n");
+
+    // Phase 1: Test each group in isolation
+    printf("Phase 1: Individual groups (isolated)\n");
+    printf("--------------------------------------\n");
+    run_group("Extrema (line-cylinder)",     task_extrema_line_cyl,       workers, tasks, rounds);
+    run_group("Extrema (line-sphere)",       task_extrema_line_sphere,    workers, tasks, rounds);
+    run_group("Extrema (line-cone)",         task_extrema_line_cone,      workers, tasks, rounds);
+    run_group("ShapeUpgrade FaceDivide/Box", task_face_divide_box,        workers, tasks, rounds);
+    run_group("ShapeUpgrade FaceDivide/Cyl", task_face_divide_cyl,        workers, tasks, rounds);
+    run_group("ShapeUpgrade DivideCont",     task_shape_divide_continuity,workers, tasks, rounds);
+    run_group("Boolean (Cut)",               task_boolean_cut,            workers, tasks, rounds);
+    run_group("Fillet",                      task_fillet,                 workers, tasks, rounds);
+    run_group("ShapeFix",                    task_shape_fix,              workers, tasks, rounds);
+    run_group("UnifySameDomain",             task_unify,                  workers, tasks, rounds);
+    run_group("Shape creation + GProp",      task_shape_creation,         workers, tasks, rounds);
+
+    printf("\nPhase 2: Combined (all groups mixed)\n");
+    printf("--------------------------------------\n");
+    run_combined(workers, tasks, rounds);
+
+    printf("\nAll tests completed without crash.\n");
     return 0;
 }
