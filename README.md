@@ -2,7 +2,7 @@
 
 A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0, providing B-Rep solid modeling for macOS and iOS.
 
-**3,555 wrapped operations** | **3,112 tests** | **1,111 suites** | macOS arm64 / iOS arm64
+**3,605 wrapped operations** | **3,127 tests** | **1,117 suites** | macOS arm64 / iOS arm64
 
 ## Quick Start
 
@@ -67,12 +67,13 @@ OCCTSwift provides method-level coverage of all user-facing OCCT classes. Key ar
 | Feature-Based | 36 | boss, pocket, drill, split, pattern, rib, revolution, draft prism |
 | Healing & Analysis | 69 | fix, unify, simplify, NURBS convert, sew, wire/face/shell repair |
 | Measurement | 38 | volume, area, distance, inertia, point classification, proximity, revolution/symmetry axes |
-| Import/Export | 17 | STEP, IGES, STL, OBJ, PLY, BREP, GLTF/GLB |
+| Import/Export | 19 | STEP, IGES, STL, OBJ, PLY, BREP, GLTF/GLB, DXF |
 | XDE/OCAF | 150+ | assembly, colors, materials, GD&T, annotations, transactions, undo/redo |
 | Math & Solvers | 50+ | root finding, BFGS, PSO, SVD, Gauss, Jacobi, constraint callbacks |
 | Colors & Materials | 63 | Quantity_Color, sRGB/Lab/HLS, PBR materials, named colors |
 | Geometry Factories | 90+ | GC/GCE2d/gce factories, convert to BSpline, analytical recognition |
-| Drawings & Dimensions | 30 | HLR projection, visible/hidden/outline edges, linear/radial/diameter/angular dimensions, centrelines, auto-centreline from revolution axes |
+| Drawings & Dimensions | 32 | HLR projection, visible/hidden/outline edges, linear/radial/diameter/angular dimensions, centrelines, auto-centreline from revolution axes, DXF R12 writer |
+| Thread Features | 15 | ThreadForm (ISO-68/Unified), ThreadSpec parser (M5x0.8, 1/4-20 UNC), Shape.threadedHole, Shape.threadedShaft |
 
 For the full operation-by-operation mapping to OCCT classes, see [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
 

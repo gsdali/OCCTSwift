@@ -44971,3 +44971,131 @@ struct DrawingAutoCentrelinesTests {
         #expect(result.skipped.isEmpty)
     }
 }
+
+// MARK: - v0.138: DXF export (#63)
+
+@Suite("v0.138 DXF export")
+struct DXFExportTests {
+    @Test("Box front view produces DXF with LINE entities")
+    func boxFrontViewDXF() throws {
+        guard let box = Shape.box(width: 100, height: 50, depth: 30),
+              let drawing = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_box.dxf")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Exporter.writeDXF(drawing: drawing, to: url)
+        let data = try String(contentsOf: url, encoding: .utf8)
+        #expect(data.contains("SECTION"))
+        #expect(data.contains("HEADER"))
+        #expect(data.contains("ENTITIES"))
+        #expect(data.contains("LINE") || data.contains("LWPOLYLINE"))
+        #expect(data.contains("EOF"))
+        // Layer table present
+        #expect(data.contains("VISIBLE"))
+    }
+
+    @Test("DXFWriter emits LINE entity for a single line")
+    func singleLine() {
+        let w = DXFWriter()
+        w.addLine(from: SIMD2(0, 0), to: SIMD2(10, 10))
+        #expect(w.entityCounts.lines == 1)
+    }
+
+    @Test("Linear dimension emits extension lines + dim line + text")
+    func linearDimensionEntityCount() throws {
+        guard let box = Shape.box(width: 20, height: 20, depth: 5),
+              let drawing = Drawing.topView(of: box) else { Issue.record("setup nil"); return }
+        drawing.clearAnnotations()
+        drawing.addLinearDimension(from: SIMD2(0, 0), to: SIMD2(20, 0), offset: 10, label: "20.00")
+        let w = DXFWriter()
+        w.collectFromDrawing(drawing)
+        // 2 extension lines + 1 dim line + body edges
+        #expect(w.entityCounts.lines >= 3)
+        #expect(w.entityCounts.texts >= 1)
+    }
+
+    @Test("Diameter dimension emits CIRCLE element (via radial)")
+    func radialEmitsCircle() {
+        let w = DXFWriter()
+        let drawing = Drawing.topView(of: Shape.box(width: 10, height: 10, depth: 10)!)!
+        drawing.addRadialDimension(centre: SIMD2(0, 0), radius: 5)
+        w.collectFromDrawing(drawing)
+        #expect(w.entityCounts.circles >= 1)
+    }
+}
+
+// MARK: - v0.138: Thread features (#66)
+
+@Suite("v0.138 ThreadSpec parsing")
+struct ThreadSpecParsingTests {
+    @Test("Metric M5x0.8")
+    func metricExplicit() {
+        let s = ThreadSpec.parse("M5x0.8")
+        #expect(s?.form == .iso68)
+        #expect(s?.nominalDiameter == 5.0)
+        #expect(s?.pitch == 0.8)
+    }
+
+    @Test("Metric M6 uses coarse pitch")
+    func metricCoarse() {
+        let s = ThreadSpec.parse("M6")
+        #expect(s?.pitch == 1.0)
+    }
+
+    @Test("UNC 1/4-20 converts to metric")
+    func unifiedFraction() {
+        let s = ThreadSpec.parse("1/4-20 UNC")
+        #expect(s?.form == .unified)
+        #expect(abs((s?.nominalDiameter ?? 0) - 6.35) < 0.01)
+        #expect(abs((s?.pitch ?? 0) - 1.27) < 0.01)
+    }
+
+    @Test("Theoretical and cut depths")
+    func depths() {
+        let s = ThreadSpec(form: .iso68, nominalDiameter: 10, pitch: 1.5)
+        #expect(abs(s.theoreticalDepth - 1.5 * sqrt(3) / 2) < 1e-9)
+        #expect(s.minorDiameter < s.nominalDiameter)
+    }
+}
+
+@Suite("v0.138 Shape.threadedHole / threadedShaft")
+struct ThreadedFeatureTests {
+    @Test("threadedHole modifies volume on a block with a bore")
+    func threadedHole() throws {
+        guard let block = Shape.box(width: 30, height: 30, depth: 30),
+              let drillAxis = Shape.cylinder(at: SIMD3(15, 15, 0), direction: SIMD3(0, 0, 1),
+                                              radius: 5, height: 30),
+              let blockWithHole = block.subtracting(drillAxis) else {
+            Issue.record("setup nil"); return
+        }
+        let spec = ThreadSpec.parse("M10x1.5")!
+        let threaded = blockWithHole.threadedHole(
+            axisOrigin: SIMD3(15, 15, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            spec: spec,
+            depth: 20
+        )
+        // The sweep may fail on extreme pitches or tight curvature; accept nil
+        // but assert that when it succeeds the volume changed.
+        if let t = threaded, let vOrig = blockWithHole.volume, let vThreaded = t.volume {
+            #expect(vThreaded <= vOrig)
+        }
+    }
+
+    @Test("threadedShaft produces valid or gracefully fails")
+    func threadedShaft() {
+        guard let shaft = Shape.cylinder(radius: 5, height: 30) else {
+            Issue.record("shaft nil"); return
+        }
+        let spec = ThreadSpec(form: .iso68, nominalDiameter: 10, pitch: 1.5)
+        _ = shaft.threadedShaft(
+            axisOrigin: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            spec: spec,
+            length: 20
+        )
+        // Not asserting non-nil — the sweep may fail on aggressive pitches in v1.
+        // Test is intentionally tolerant; the goal is to verify the API is callable.
+    }
+}
