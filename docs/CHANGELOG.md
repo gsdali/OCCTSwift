@@ -2,13 +2,23 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.147.0
+## Current: v0.148.0
 
-**4,020 wrapped operations | 3,267 tests | 1,152 suites | OCCT 8.0.0-rc5**
+**4,024 wrapped operations | 3,274 tests | 1,153 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.148.0 (Apr 2026) — Drawing.append(_:) unified dispatcher
+
+Small release closing #83 and #84 — both asked for the same thing: a public `Drawing.append(_:)` that dispatches every `DrawingAnnotation` case without the consumer-side switch blind spot.
+
+- **`Drawing.append(_ annotation: DrawingAnnotation)`** — appends any `DrawingAnnotation` case (centreline, centermark, textLabel, hatch, cuttingPlaneLine). When new cases land, the dispatcher updates in one place, not in every consumer.
+- **`Drawing.append(contentsOf: [DrawingAnnotation])`** — for factory output like `DrawingAnnotation.surfaceFinish(...)`, `.featureControlFrame(...)`, `.datumFeature(...)`, `.breakLine(...)`, `.cosmeticThreadSideView(...)` which all return arrays.
+- **`Drawing.append(_ dimension: DrawingDimension)`** / `append(contentsOf: [DrawingDimension])` — symmetric for dimensions.
+
+Downstream `replay(...)` helpers (OCCTSwiftScripts, OCCTSwiftPartsAgent) collapse to one-line `drawing.append(contentsOf: DrawingAnnotation.surfaceFinish(...))`. The existing `addCentreLine` / `addCentermark` / `addTextLabel` / `addHatch` / `addCuttingPlaneLine` typed factories continue to work unchanged; they're now a thin convenience over `append(_:)` conceptually (though the storage path is identical either way).
 
 ### v0.147.0 (Apr 2026) — Drawing + FeatureSpec consumer polish
 

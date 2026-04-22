@@ -193,6 +193,42 @@ public final class Drawing: @unchecked Sendable {
     /// Remove all dimensions and annotations from this drawing.
     public func clearAnnotations() { annotationStore.clear() }
 
+    // MARK: - Uniform append API (v0.148, #83, #84)
+
+    /// Append a pre-built annotation to this drawing. Usually used to install
+    /// the result of a static factory like `DrawingAnnotation.surfaceFinish(...)`
+    /// or `DrawingAnnotation.featureControlFrame(...)`.
+    ///
+    /// This dispatcher covers every `DrawingAnnotation` case (centreline,
+    /// centermark, textLabel, hatch, cuttingPlaneLine). When new cases are
+    /// added to the enum, the compiler will flag this method and consumers
+    /// pick them up automatically — no per-case switch in consumer code.
+    public func append(_ annotation: DrawingAnnotation) {
+        annotationStore.appendAnnotation(annotation)
+    }
+
+    /// Append a batch of pre-built annotations, typically the output of a
+    /// factory returning `[DrawingAnnotation]` (e.g. `.surfaceFinish(...)`,
+    /// `.featureControlFrame(...)`, `.datumFeature(...)`, `.breakLine(...)`,
+    /// `.cosmeticThreadSideView(...)`).
+    public func append(contentsOf annotations: [DrawingAnnotation]) {
+        for annotation in annotations {
+            annotationStore.appendAnnotation(annotation)
+        }
+    }
+
+    /// Append a pre-built dimension. Symmetric to `append(_:)` for annotations.
+    public func append(_ dimension: DrawingDimension) {
+        annotationStore.appendDimension(dimension)
+    }
+
+    /// Append a batch of pre-built dimensions.
+    public func append(contentsOf dimensions: [DrawingDimension]) {
+        for dimension in dimensions {
+            annotationStore.appendDimension(dimension)
+        }
+    }
+
     // MARK: - Creation
 
     /// Create a 2D projection of a 3D shape
