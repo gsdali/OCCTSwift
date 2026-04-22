@@ -137,17 +137,13 @@ extension TopologyGraph {
         case .success(let n): resolvedParent = n
         case .failure: return .failure(.ancestorMissing(parent))
         }
-        let total = childCount(rootKind: resolvedParent.kind,
-                               rootIndex: resolvedParent.index,
-                               targetKind: kind)
-        guard occurrence >= 0, occurrence < total else {
-            return .failure(.occurrenceOutOfRange(ref, available: total, requested: occurrence))
+        let indices = childIndices(rootKind: resolvedParent.kind,
+                                    rootIndex: resolvedParent.index,
+                                    targetKind: kind)
+        guard occurrence >= 0, occurrence < indices.count else {
+            return .failure(.occurrenceOutOfRange(ref, available: indices.count, requested: occurrence))
         }
-        // TODO: expose an indexed child-at accessor; for now walk the existing API.
-        // The current BRepGraph Swift wrapper doesn't expose child-at-index directly
-        // outside of certain specialised queries, so we fall back to decoding the
-        // shape-level children. This is a TODO to clean up when Phase 2 needs it.
-        return .failure(.noCurrentDescendant(ref))
+        return .success(NodeRef(kind: kind, index: indices[occurrence]))
     }
 
     private func resolveSplitOf(original: TopologyRef,

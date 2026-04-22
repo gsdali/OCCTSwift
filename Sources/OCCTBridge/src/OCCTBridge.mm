@@ -55084,6 +55084,26 @@ int32_t OCCTBRepGraphChildCount(OCCTBRepGraphRef g, int32_t rootKind, int32_t ro
     } catch (...) { return 0; }
 }
 
+int32_t OCCTBRepGraphChildIndices(OCCTBRepGraphRef g,
+                                    int32_t rootKind, int32_t rootIndex,
+                                    int32_t targetKind,
+                                    int32_t* outIndices, int32_t maxCount) {
+    if (!g || !outIndices) return 0;
+    try {
+        BRepGraph_NodeId root(kindFromInt(rootKind), rootIndex);
+        BRepGraph_ChildExplorer explorer(g->graph, root, kindFromInt(targetKind));
+        int32_t total = 0;
+        for (; explorer.More(); explorer.Next()) {
+            if (total < maxCount) {
+                BRepGraphInc::NodeUsage usage = explorer.Current();
+                outIndices[total] = static_cast<BRepGraph_NodeId>(usage.DefId).Index;
+            }
+            total++;
+        }
+        return total;
+    } catch (...) { return 0; }
+}
+
 // --- Parent Explorer ---
 
 int32_t OCCTBRepGraphParentCount(OCCTBRepGraphRef g, int32_t nodeKind, int32_t nodeIndex) {

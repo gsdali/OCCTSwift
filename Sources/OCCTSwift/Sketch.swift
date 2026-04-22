@@ -1,0 +1,122 @@
+import Foundation
+import simd
+
+// MARK: - Sketch (#72 Phase 4)
+//
+// A sketch is a collection of 2D curves hosted on a ConstructionPlane, plus a
+// `buildProfile` step that filters out construction elements and produces a
+// closed `Wire` in 3D (on the host plane).
+//
+// This is the filter site matching FreeCAD's `SketchObject::buildShape`: the
+// solver / editor sees all elements including construction, but `buildProfile`
+// excludes construction before any pad / pocket / revolve downstream.
+//
+// Constraint solving is explicitly out of scope (see #72 non-goals and the
+// SwiftGCS private package). Elements carry coordinates; they don't carry
+// constraints, and `buildProfile` does not attempt to satisfy any.
+
+public struct SketchElement: Sendable, Hashable {
+    public enum CurveKind: Sendable, Hashable {
+        case line(from: SIMD2<Double>, to: SIMD2<Double>)
+        case arc(center: SIMD2<Double>, radius: Double, startAngle: Double, endAngle: Double)
+        case circle(center: SIMD2<Double>, radius: Double)
+        case polyline([SIMD2<Double>])
+    }
+
+    public var curve: CurveKind
+    public var isConstruction: Bool
+    public var id: UUID
+
+    public init(curve: CurveKind, isConstruction: Bool = false, id: UUID = UUID()) {
+        self.curve = curve
+        self.isConstruction = isConstruction
+        self.id = id
+    }
+}
+
+public struct Sketch: Sendable, Hashable {
+    public var hostPlane: ConstructionContext.PlaneID
+    public var elements: [SketchElement]
+    public var name: String?
+
+    public init(hostPlane: ConstructionContext.PlaneID,
+                elements: [SketchElement] = [],
+                name: String? = nil) {
+        self.hostPlane = hostPlane
+        self.elements = elements
+        self.name = name
+    }
+
+    public mutating func add(_ element: SketchElement) {
+        elements.append(element)
+    }
+
+    /// Number of elements excluding construction geometry — i.e. the profile size.
+    public var profileElementCount: Int {
+        elements.lazy.filter { !$0.isConstruction }.count
+    }
+}
+
+extension Sketch {
+    /// Build a 3D closed profile wire from the sketch's non-construction elements,
+    /// placed on the host construction plane.
+    ///
+    /// Construction elements are filtered out at this single site — upstream uses
+    /// of the sketch (solver, constraint editor, agent-facing accessors) see the
+    /// full element set including construction.
+    ///
+    /// - Parameters:
+    ///   - context: The construction context that registered `hostPlane`.
+    ///   - graph: A TopologyGraph against which to resolve the host plane's recipe.
+    /// - Returns: A closed Wire on the resolved plane, or nil if the host plane
+    ///   fails to resolve or no profile elements exist.
+    public func buildProfile(in context: ConstructionContext,
+                             graph: TopologyGraph) -> Wire? {
+        let profileElements = elements.filter { !$0.isConstruction }
+        guard !profileElements.isEmpty else { return nil }
+
+        let placement: Placement
+        switch context.resolve(hostPlane, in: graph) {
+        case .success(let p): placement = p
+        case .failure: return nil
+        }
+
+        // Lift 2D elements into 3D using the placement's frame, then assemble a wire.
+        var points3D: [SIMD3<Double>] = []
+        for element in profileElements {
+            switch element.curve {
+            case .line(let from, let to):
+                let p0 = lift(from, with: placement)
+                let p1 = lift(to, with: placement)
+                if points3D.isEmpty || !approxEqual(points3D.last!, p0) {
+                    points3D.append(p0)
+                }
+                points3D.append(p1)
+            case .polyline(let pts):
+                for (i, pt) in pts.enumerated() {
+                    let p = lift(pt, with: placement)
+                    if i == 0 && !points3D.isEmpty && approxEqual(points3D.last!, p) { continue }
+                    points3D.append(p)
+                }
+            case .arc, .circle:
+                // Arcs/circles are not yet supported in buildProfile's polyline
+                // assembly path — they'd require tessellation or direct edge
+                // construction. Skipped for v1; added when consumers need it.
+                continue
+            }
+        }
+
+        guard points3D.count >= 2 else { return nil }
+        // Close the wire if not already closed.
+        let closed = approxEqual(points3D.first!, points3D.last!)
+        return Wire.polygon3D(points3D, closed: closed)
+    }
+
+    private func lift(_ p2: SIMD2<Double>, with placement: Placement) -> SIMD3<Double> {
+        placement.origin + p2.x * placement.xAxis + p2.y * placement.yAxis
+    }
+
+    private func approxEqual(_ a: SIMD3<Double>, _ b: SIMD3<Double>, tolerance: Double = 1e-9) -> Bool {
+        simd_length_squared(a - b) < tolerance * tolerance
+    }
+}

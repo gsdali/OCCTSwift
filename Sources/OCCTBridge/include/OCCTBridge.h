@@ -19420,6 +19420,15 @@ int32_t OCCTBRepGraphChildCount(OCCTBRepGraphRef _Nonnull graph,
                                  int32_t rootKind, int32_t rootIndex,
                                  int32_t targetKind);
 
+/// List descendant node indices of a given kind from a root node. Writes up to
+/// maxCount indices into outIndices; returns the actual count (may exceed maxCount).
+/// Used by TopologyRef.containedIn resolution and construction-geometry accessors.
+int32_t OCCTBRepGraphChildIndices(OCCTBRepGraphRef _Nonnull graph,
+                                    int32_t rootKind, int32_t rootIndex,
+                                    int32_t targetKind,
+                                    int32_t* _Nonnull outIndices,
+                                    int32_t maxCount);
+
 // --- Parent Explorer ---
 
 /// Count parent nodes of a given node.

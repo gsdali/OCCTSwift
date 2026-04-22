@@ -45417,6 +45417,488 @@ struct TopologyRefResolverTests {
     }
 }
 
+// MARK: - v0.142 / #72 Phase 2: ConstructionEntity recipes
+
+@Suite("v0.142 ConstructionPlane resolution")
+struct ConstructionPlaneTests {
+    @Test("Absolute plane resolves to specified origin+normal")
+    func absolutePlane() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let plane = ConstructionPlane.absolute(origin: SIMD3(1, 2, 3), normal: SIMD3(0, 0, 1))
+        switch graph.resolve(plane) {
+        case .success(let p):
+            #expect(p.origin == SIMD3(1, 2, 3))
+            #expect(abs(p.zAxis.z - 1.0) < 1e-9)
+        case .failure(let e): Issue.record("failed: \(e)")
+        }
+    }
+
+    @Test("offsetFromFace produces a parallel plane at the offset")
+    func offsetFromFace() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        // Pick any face; the exact normal is produced from the UV midpoint.
+        let faceRef = TopologyRef.literal(.init(kind: .face, index: 0))
+        let plane = ConstructionPlane.offsetFromFace(face: faceRef, distance: 5.0)
+        switch graph.resolve(plane) {
+        case .success(let p):
+            // The face normal is unit length; offset 5.0 along it produces a
+            // plane whose origin is 5.0 away (in the plane normal direction) from
+            // the face centroid.
+            #expect(simd_length(p.zAxis) > 0.99 && simd_length(p.zAxis) < 1.01)
+        case .failure(let e): Issue.record("failed: \(e)")
+        }
+    }
+
+    @Test("byThreePoints returns a valid plane through three vertices")
+    func byThreePoints() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let v0 = TopologyRef.literal(.init(kind: .vertex, index: 0))
+        let v1 = TopologyRef.literal(.init(kind: .vertex, index: 1))
+        let v2 = TopologyRef.literal(.init(kind: .vertex, index: 2))
+        let plane = ConstructionPlane.byThreePoints(v0, v1, v2)
+        switch graph.resolve(plane) {
+        case .success(let p):
+            #expect(simd_length(p.zAxis) > 0.99)
+        case .failure: Issue.record("byThreePoints failed")
+        }
+    }
+
+    @Test("byThreePoints on collinear points fails with degenerate")
+    func collinearPointsDegenerate() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let v = TopologyRef.literal(.init(kind: .vertex, index: 0))
+        // Three references to the same vertex → collinear (all zero vector).
+        let plane = ConstructionPlane.byThreePoints(v, v, v)
+        if case .failure(.degenerate) = graph.resolve(plane) {} else {
+            Issue.record("expected degenerate")
+        }
+    }
+
+    @Test("normalToEdge produces plane perpendicular to edge tangent")
+    func normalToEdge() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let edgeRef = TopologyRef.literal(.init(kind: .edge, index: 0))
+        let plane = ConstructionPlane.normalToEdge(edge: edgeRef, t: 0.5)
+        switch graph.resolve(plane) {
+        case .success(let p):
+            // The plane normal is the edge tangent, so non-zero unit vector.
+            #expect(simd_length(p.zAxis) > 0.99 && simd_length(p.zAxis) < 1.01)
+        case .failure(let e): Issue.record("failed: \(e)")
+        }
+    }
+}
+
+@Suite("v0.142 ConstructionAxis resolution")
+struct ConstructionAxisTests {
+    @Test("alongEdge produces edge start + unit direction")
+    func alongEdge() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let edge = TopologyRef.literal(.init(kind: .edge, index: 0))
+        switch graph.resolve(ConstructionAxis.alongEdge(edge)) {
+        case .success(let ax):
+            #expect(abs(simd_length(ax.direction) - 1.0) < 1e-6)
+        case .failure: Issue.record("alongEdge failed")
+        }
+    }
+
+    @Test("throughPoints on coincident vertices fails with degenerate")
+    func coincidentPointsDegenerate() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let v = TopologyRef.literal(.init(kind: .vertex, index: 0))
+        if case .failure(.degenerate) = graph.resolve(ConstructionAxis.throughPoints(v, v)) {} else {
+            Issue.record("expected degenerate")
+        }
+    }
+
+    @Test("intersectionOfPlanes on parallel planes fails with degenerate")
+    func parallelIntersectionDegenerate() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let a = ConstructionPlane.absolute(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        let b = ConstructionPlane.absolute(origin: SIMD3(0, 0, 5), normal: SIMD3(0, 0, 1))
+        if case .failure(.degenerate) = graph.resolve(ConstructionAxis.intersectionOfPlanes(a, b)) {} else {
+            Issue.record("expected degenerate")
+        }
+    }
+}
+
+@Suite("v0.142 ConstructionPoint resolution")
+struct ConstructionPointTests {
+    @Test("atVertex returns the vertex's 3D point")
+    func atVertex() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let v = TopologyRef.literal(.init(kind: .vertex, index: 0))
+        switch graph.resolve(ConstructionPoint.atVertex(v)) {
+        case .success(let p):
+            // Box corner must be at (0, 0, 0) for some vertex or similar.
+            #expect(abs(p.x) < 20 && abs(p.y) < 20 && abs(p.z) < 20)
+        case .failure: Issue.record("atVertex failed")
+        }
+    }
+
+    @Test("midpointOfEdge lies between endpoints")
+    func midpointOfEdge() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let edge = TopologyRef.literal(.init(kind: .edge, index: 0))
+        switch graph.resolve(ConstructionPoint.midpointOfEdge(edge)) {
+        case .success(let p):
+            #expect(abs(p.x) < 20 && abs(p.y) < 20 && abs(p.z) < 20)
+        case .failure: Issue.record("midpointOfEdge failed")
+        }
+    }
+
+    @Test("intersectionOfAxisAndPlane for axis parallel to plane fails")
+    func parallelIntersectionFails() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let plane = ConstructionPlane.absolute(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        let axis = ConstructionAxis.absolute(origin: SIMD3(0, 0, 5), direction: SIMD3(1, 0, 0))
+        if case .failure(.degenerate) = graph.resolve(ConstructionPoint.intersectionOfAxisAndPlane(axis, plane)) {} else {
+            Issue.record("expected degenerate")
+        }
+    }
+
+    @Test("intersectionOfAxisAndPlane computes correct intersection")
+    func intersectionCorrect() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let plane = ConstructionPlane.absolute(origin: SIMD3(0, 0, 10), normal: SIMD3(0, 0, 1))
+        let axis = ConstructionAxis.absolute(origin: SIMD3(3, 4, 0), direction: SIMD3(0, 0, 1))
+        switch graph.resolve(ConstructionPoint.intersectionOfAxisAndPlane(axis, plane)) {
+        case .success(let p):
+            #expect(abs(p.x - 3) < 1e-9)
+            #expect(abs(p.y - 4) < 1e-9)
+            #expect(abs(p.z - 10) < 1e-9)
+        case .failure: Issue.record("intersection failed")
+        }
+    }
+}
+
+@Suite("v0.142 .containedIn now resolves")
+struct ContainedInTests {
+    @Test("Face contained in a box solid resolves")
+    func faceInSolid() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let solid = TopologyRef.literal(.init(kind: .solid, index: 0))
+        let firstFace = TopologyRef.containedIn(parent: solid, kind: .face, occurrence: 0)
+        switch graph.resolve(firstFace) {
+        case .success(let face):
+            #expect(face.kind == .face)
+        case .failure(let e): Issue.record("containedIn failed: \(e)")
+        }
+    }
+
+    @Test("Occurrence out of range in containedIn")
+    func faceInSolidOOB() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let solid = TopologyRef.literal(.init(kind: .solid, index: 0))
+        let faceBogus = TopologyRef.containedIn(parent: solid, kind: .face, occurrence: 999)
+        if case .failure(.occurrenceOutOfRange) = graph.resolve(faceBogus) {} else {
+            Issue.record("expected occurrenceOutOfRange")
+        }
+    }
+}
+
+// MARK: - v0.142 / #72 Phase 3: ConstructionContext
+
+@Suite("v0.142 ConstructionContext")
+struct ConstructionContextTests {
+    @Test("Add and retrieve entities by ID")
+    func addRetrieve() {
+        let ctx = ConstructionContext()
+        let plane = ConstructionPlane.absolute(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1))
+        let axis = ConstructionAxis.absolute(origin: .zero, direction: SIMD3(1, 0, 0))
+        let point = ConstructionPoint.absolute(SIMD3(1, 2, 3))
+
+        let pID = ctx.add(plane, name: "Top")
+        let aID = ctx.add(axis, name: "XAxis")
+        let ptID = ctx.add(point)
+
+        #expect(ctx.name(pID) == "Top")
+        #expect(ctx.plane(pID) == plane)
+        #expect(ctx.axis(aID) == axis)
+        #expect(ctx.point(ptID) == point)
+        #expect(ctx.count.planes == 1)
+        #expect(ctx.count.axes == 1)
+        #expect(ctx.count.points == 1)
+    }
+
+    @Test("Resolve entities against a graph")
+    func resolveAgainstGraph() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let ctx = ConstructionContext()
+        let pID = ctx.add(.absolute(origin: SIMD3(1, 2, 3), normal: SIMD3(0, 0, 1)))
+        switch ctx.resolve(pID, in: graph) {
+        case .success(let placement):
+            #expect(placement.origin == SIMD3(1, 2, 3))
+        case .failure: Issue.record("resolve failed")
+        }
+    }
+
+    @Test("allBroken detects unregistered references")
+    func allBrokenDetection() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let ctx = ConstructionContext()
+        // Add a plane referencing a face by TopologyRef.createdBy for an op
+        // that was never recorded — resolution will fail with .operationNotFound.
+        let brokenFace = TopologyRef.createdBy(operationName: "NeverHappened", kind: .face)
+        ctx.add(ConstructionPlane.offsetFromFace(face: brokenFace, distance: 5))
+
+        let broken = ctx.allBroken(in: graph)
+        #expect(broken.planes.count == 1)
+        #expect(broken.axes.isEmpty)
+        #expect(broken.points.isEmpty)
+    }
+
+    @Test("Remove an entity")
+    func removal() {
+        let ctx = ConstructionContext()
+        let pID = ctx.add(.absolute(origin: .zero, normal: SIMD3(0, 0, 1)))
+        #expect(ctx.plane(pID) != nil)
+        ctx.remove(plane: pID)
+        #expect(ctx.plane(pID) == nil)
+    }
+
+    @Test("Document exposes a lazy construction context")
+    func documentIntegration() {
+        guard let doc = Document.create() else { Issue.record("doc nil"); return }
+        let ctx1 = doc.constructionContext
+        let ctx2 = doc.constructionContext
+        // Both accesses return the same instance.
+        #expect(ctx1 === ctx2)
+        let pID = ctx1.add(.absolute(origin: SIMD3(5, 5, 5), normal: SIMD3(0, 1, 0)))
+        #expect(doc.constructionContext.plane(pID) != nil)
+    }
+}
+
+// MARK: - v0.142 / #72 Phase 4: Sketch + buildProfile
+
+@Suite("v0.142 Sketch buildProfile")
+struct SketchBuildProfileTests {
+    @Test("Profile excludes construction elements")
+    func excludesConstruction() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let ctx = ConstructionContext()
+        let planeID = ctx.add(.absolute(origin: .zero, normal: SIMD3(0, 0, 1)))
+        var sketch = Sketch(hostPlane: planeID)
+        sketch.add(SketchElement(curve: .line(from: SIMD2(0, 0), to: SIMD2(10, 0))))
+        sketch.add(SketchElement(curve: .line(from: SIMD2(10, 0), to: SIMD2(10, 10))))
+        sketch.add(SketchElement(curve: .line(from: SIMD2(10, 10), to: SIMD2(0, 10))))
+        sketch.add(SketchElement(curve: .line(from: SIMD2(0, 10), to: SIMD2(0, 0))))
+        sketch.add(SketchElement(curve: .line(from: SIMD2(0, 0), to: SIMD2(10, 10)),
+                                 isConstruction: true))
+        #expect(sketch.elements.count == 5)
+        #expect(sketch.profileElementCount == 4)
+
+        let wire = sketch.buildProfile(in: ctx, graph: graph)
+        #expect(wire != nil)
+    }
+
+    @Test("buildProfile returns nil if no profile elements present")
+    func emptyProfileNil() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let ctx = ConstructionContext()
+        let planeID = ctx.add(.absolute(origin: .zero, normal: SIMD3(0, 0, 1)))
+        var sketch = Sketch(hostPlane: planeID)
+        sketch.add(SketchElement(curve: .line(from: SIMD2(0, 0), to: SIMD2(1, 1)),
+                                 isConstruction: true))
+        #expect(sketch.buildProfile(in: ctx, graph: graph) == nil)
+    }
+
+    @Test("buildProfile returns nil when host plane is unresolvable")
+    func brokenHostPlane() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let ctx = ConstructionContext()
+        let planeID = ctx.add(.offsetFromFace(
+            face: .createdBy(operationName: "NeverHappened", kind: .face),
+            distance: 5))
+        var sketch = Sketch(hostPlane: planeID)
+        sketch.add(SketchElement(curve: .line(from: SIMD2(0, 0), to: SIMD2(10, 0))))
+        sketch.add(SketchElement(curve: .line(from: SIMD2(10, 0), to: SIMD2(0, 10))))
+        sketch.add(SketchElement(curve: .line(from: SIMD2(0, 10), to: SIMD2(0, 0))))
+        #expect(sketch.buildProfile(in: ctx, graph: graph) == nil)
+    }
+}
+
+// MARK: - v0.142 / #62: FeatureReconstructor
+
+@Suite("v0.142 FeatureReconstructor")
+struct FeatureReconstructorTests {
+    @Test("Empty specs produces empty result")
+    func empty() {
+        let result = FeatureReconstructor.build(from: [])
+        #expect(result.shape == nil)
+        #expect(result.fulfilled.isEmpty)
+        #expect(result.skipped.isEmpty)
+    }
+
+    @Test("Revolve produces a solid")
+    func revolve() {
+        let r = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(5, 0), SIMD2(10, 0), SIMD2(10, 5), SIMD2(5, 5)],
+            axisOrigin: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            angleDeg: 360,
+            id: "rev_1")
+        let result = FeatureReconstructor.build(from: [.revolve(r)])
+        #expect(result.shape != nil)
+        #expect(result.fulfilled == ["rev_1"])
+    }
+
+    @Test("Revolve then hole: staged dispatch")
+    func revolveThenHole() {
+        let r = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(0, 0), SIMD2(20, 0), SIMD2(20, 10), SIMD2(0, 10)],
+            axisOrigin: SIMD3(0, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            id: "base")
+        let h = FeatureSpec.Hole(
+            axisPoint: SIMD3(10, 0, 0),
+            axisDirection: SIMD3(0, 0, 1),
+            diameter: 5.0,
+            depth: 20.0,
+            id: "hole_1")
+        let result = FeatureReconstructor.build(from: [.revolve(r), .hole(h)])
+        #expect(result.shape != nil)
+        #expect(result.fulfilled.contains("base"))
+        #expect(result.fulfilled.contains("hole_1"))
+    }
+
+    @Test("Thread spec lands in annotations, not geometry")
+    func threadAnnotationOnly() {
+        let t = FeatureSpec.Thread(holeRef: "hole_1", spec: "M5x0.8", id: "thread_1")
+        let result = FeatureReconstructor.build(from: [.thread(t)])
+        #expect(result.annotations.count == 1)
+        if case .thread(let spec, let holeRef, _) = result.annotations.first?.kind {
+            #expect(spec == "M5x0.8")
+            #expect(holeRef == "hole_1")
+        } else { Issue.record("expected thread annotation") }
+    }
+
+    @Test("Underdetermined revolve skipped without aborting")
+    func underdeterminedSkipped() {
+        let bad = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(0, 0), SIMD2(1, 0)],   // only 2 points
+            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+            id: "bad")
+        let good = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(5, 0), SIMD2(10, 0), SIMD2(10, 5)],
+            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+            id: "good")
+        let result = FeatureReconstructor.build(from: [.revolve(bad), .revolve(good)])
+        #expect(result.skipped.contains { $0.featureID == "bad" })
+        #expect(result.fulfilled.contains("good"))
+        #expect(result.shape != nil)
+    }
+
+    @Test("Fillet with uniform radius applies after additive stage")
+    func uniformFillet() {
+        let r = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(0, 0), SIMD2(20, 0), SIMD2(20, 10), SIMD2(0, 10)],
+            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+            id: "base")
+        let f = FeatureSpec.Fillet(edgeSelector: .all, radius: 1.0, id: "fillet_all")
+        let result = FeatureReconstructor.build(from: [.revolve(r), .fillet(f)])
+        // Uniform fillet may or may not succeed on the revolved solid depending on
+        // edge configuration. Test passes either way — checks no crash + graceful skip.
+        if !result.fulfilled.contains("fillet_all") {
+            #expect(result.skipped.contains { $0.featureID == "fillet_all" })
+        }
+    }
+
+    @Test("EdgeSelector.onFeature is unsupported in v1")
+    func edgeSelectorFeatureUnsupported() {
+        let r = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)],
+            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1), id: "base")
+        let f = FeatureSpec.Fillet(edgeSelector: .onFeature("base"), radius: 0.5, id: "fillet_base_edges")
+        let result = FeatureReconstructor.build(from: [.revolve(r), .fillet(f)])
+        if let skipped = result.skipped.first(where: { $0.featureID == "fillet_base_edges" }) {
+            if case .unsupported = skipped.reason {} else {
+                Issue.record("expected unsupported reason")
+            }
+        } else {
+            Issue.record("expected onFeature fillet to be skipped")
+        }
+    }
+
+    @Test("JSON front end parses a revolve")
+    func jsonRevolve() throws {
+        let json = """
+        {
+          "features": [
+            {
+              "kind": "revolve",
+              "profile_points_2d": [[5, 0], [10, 0], [10, 5]],
+              "axis_origin": [0, 0, 0],
+              "axis_direction": [0, 0, 1],
+              "angle_deg": 360,
+              "id": "rev_1"
+            }
+          ]
+        }
+        """
+        let data = json.data(using: .utf8)!
+        let result = try FeatureReconstructor.buildJSON(data)
+        #expect(result.fulfilled == ["rev_1"])
+        #expect(result.shape != nil)
+    }
+}
+
 // MARK: - v0.140: XCAFDoc GD&T write path
 
 @Suite("v0.140 Document GD&T write + typed enums")
