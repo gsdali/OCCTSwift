@@ -343,7 +343,7 @@ public final class DXFWriter: @unchecked Sendable {
         s += pair(0, "ENDTAB")
 
         // LAYER
-        s += pair(0, "TABLE") + pair(2, "LAYER") + pair(70, 9)
+        s += pair(0, "TABLE") + pair(2, "LAYER") + pair(70, 11)
         s += layer("0",         colour: 7, linetype: "CONTINUOUS")
         s += layer("VISIBLE",   colour: 7, linetype: "CONTINUOUS")
         s += layer("HIDDEN",    colour: 8, linetype: "DASHED")
@@ -353,6 +353,8 @@ public final class DXFWriter: @unchecked Sendable {
         s += layer("TEXT",      colour: 3, linetype: "CONTINUOUS")
         s += layer("HATCH",     colour: 9, linetype: "CONTINUOUS")
         s += layer("SECTION",   colour: 7, linetype: "CONTINUOUS")
+        s += layer("BORDER",    colour: 7, linetype: "CONTINUOUS")
+        s += layer("TITLE",     colour: 7, linetype: "CONTINUOUS")
         s += pair(0, "ENDTAB")
 
         // Required STYLE table (one default style)

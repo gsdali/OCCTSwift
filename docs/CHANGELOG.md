@@ -2,13 +2,25 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.144.0
+## Current: v0.145.0
 
-**3,925 wrapped operations | 3,234 tests | 1,144 suites | OCCT 8.0.0-rc5**
+**3,950 wrapped operations | 3,241 tests | 1,146 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.145.0 (Apr 2026) — ISO drawings II: sheet templates, title blocks, projection symbols
+
+Second release in the ISO drawings arc (#78). Closes #76 — adds ISO 5457 trimmed-sheet templates, ISO 7200 title blocks, and ISO 5456-2 projection symbols as first-class OCCTSwift API.
+
+- **`PaperSize`**: `A0` / `A1` / `A2` / `A3` / `A4` with `.size(in: .landscape)` / `.portrait` returning ISO 5457 trimmed dimensions in mm.
+- **`Orientation`**: `.landscape` / `.portrait`.
+- **`ProjectionAngle`**: `.first` (ISO / Europe) / `.third` (ANSI / USA).
+- **`TitleBlock`**: ISO 7200 mandatory + optional fields (title, drawingNumber, owner, creator, approver, documentType, dateOfIssue, revision, sheetNumber, language, material, weight, scale).
+- **`Sheet`**: ties PaperSize + Orientation + ProjectionAngle + TitleBlock together. `render(into: DXFWriter)` emits border + ISO 5457 inner frame with correct margins (20 mm binding left, 10 mm other edges on A0–A3), centring marks at edge midpoints, and the title block in the bottom-right. `innerFrame` property exposes the drawable rectangle for layout.
+- **`ProjectionSymbol`**: `ProjectionSymbol.render(.first, at:, into:)` emits the ISO 5456-2 truncated-cone + circle pair at the correct relative position for first / third angle.
+- DXFWriter gets two new layers: `BORDER` and `TITLE`.
 
 ### v0.144.0 (Apr 2026) — ISO drawings I: section views, hatch, multi-view, style foundations
 

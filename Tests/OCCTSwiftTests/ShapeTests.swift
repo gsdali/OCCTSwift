@@ -46445,6 +46445,86 @@ struct DrawingStyleTests {
     }
 }
 
+// MARK: - v0.145 #76: Sheet templates, title blocks, projection symbols
+
+@Suite("v0.145 ISO 5457 paper sizes")
+struct PaperSizeTests {
+    @Test("A0 landscape dimensions match ISO 5457")
+    func a0Landscape() {
+        let d = PaperSize.A0.size(in: .landscape)
+        #expect(d == SIMD2(1189, 841))
+    }
+
+    @Test("A4 portrait is 210 × 297")
+    func a4Portrait() {
+        let d = PaperSize.A4.size(in: .portrait)
+        #expect(d == SIMD2(210, 297))
+    }
+
+    @Test("Each paper size has half the area of the next size up")
+    func paperSeriesHalving() {
+        let a3 = PaperSize.A3.dimensions
+        let a4 = PaperSize.A4.dimensions
+        let a3Area = a3.x * a3.y
+        let a4Area = a4.x * a4.y
+        // A4 should be (approximately) half of A3.
+        #expect(abs(a3Area / a4Area - 2.0) < 0.01)
+    }
+}
+
+@Suite("v0.145 Sheet rendering")
+struct SheetRenderingTests {
+    @Test("Sheet render emits border + inner frame polylines")
+    func sheetEmitsBorders() {
+        let sheet = Sheet(size: .A3, orientation: .landscape, projection: .first,
+                          title: TitleBlock(title: "Test Drawing",
+                                            drawingNumber: "T-001",
+                                            owner: "ACME Co"))
+        let writer = DXFWriter()
+        sheet.render(into: writer)
+        // Should have at least 2 polylines (outer border + inner frame) plus some tick lines.
+        let counts = writer.entityCounts
+        #expect(counts.polylines >= 2)
+        #expect(counts.lines >= 4)   // centring ticks
+        #expect(counts.texts >= 1)   // title block field labels
+    }
+
+    @Test("Sheet innerFrame respects ISO 5457 margins")
+    func innerFrameInsets() {
+        let sheet = Sheet(size: .A3, orientation: .landscape)
+        let frame = sheet.innerFrame
+        #expect(frame.min.x == 20)          // 20 mm binding left
+        #expect(frame.min.y == 10)
+        #expect(frame.max.x == 420 - 10)    // 10 mm right
+        #expect(frame.max.y == 297 - 10)
+    }
+
+    @Test("Projection symbol renders two circles for both conventions")
+    func projectionSymbolCircles() {
+        let writer = DXFWriter()
+        ProjectionSymbol.render(.first, at: SIMD2(0, 0), into: writer)
+        let firstCount = writer.entityCounts.circles
+        #expect(firstCount == 2)
+
+        let writer2 = DXFWriter()
+        ProjectionSymbol.render(.third, at: SIMD2(0, 0), into: writer2)
+        #expect(writer2.entityCounts.circles == 2)
+    }
+
+    @Test("TitleBlock fields are emitted as text")
+    func titleBlockFields() {
+        let tb = TitleBlock(title: "Test Part",
+                            drawingNumber: "ABC-123",
+                            owner: "Widget Corp",
+                            creator: "Jane Engineer",
+                            dateOfIssue: "2026-04-22")
+        let sheet = Sheet(size: .A3, title: tb)
+        let writer = DXFWriter()
+        sheet.render(into: writer)
+        #expect(writer.entityCounts.texts >= 5)   // at least label/value pairs
+    }
+}
+
 // MARK: - v0.140: XCAFDoc GD&T write path
 
 @Suite("v0.140 Document GD&T write + typed enums")
