@@ -45158,6 +45158,101 @@ struct ThreadedFeatureTests {
     }
 }
 
+// MARK: - v0.140: XCAFDoc GD&T write path
+
+@Suite("v0.140 Document GD&T write + typed enums")
+struct DocumentGDTTests {
+    @Test("Create dimension on a box shape and read it back")
+    func createAndReadDimension() throws {
+        guard let doc = Document.create() else { Issue.record("doc nil"); return }
+        guard let box = Shape.box(width: 100, height: 50, depth: 25) else {
+            Issue.record("box nil"); return
+        }
+        let labelId = doc.addShape(box, makeAssembly: false)
+        #expect(labelId >= 0)
+
+        let idx = doc.createDimension(on: labelId,
+                                       type: .sizeRadius,
+                                       value: 25.0,
+                                       lowerTolerance: -0.1,
+                                       upperTolerance: 0.1)
+        #expect(idx == 0)
+        #expect(doc.dimensionCount == 1)
+
+        if let dim = doc.typedDimension(at: 0) {
+            #expect(dim.type == .sizeRadius)
+            #expect(abs(dim.value - 25.0) < 1e-9)
+            #expect(abs(dim.lowerTolerance - (-0.1)) < 1e-9)
+            #expect(abs(dim.upperTolerance - 0.1) < 1e-9)
+        } else {
+            Issue.record("typedDimension nil")
+        }
+    }
+
+    @Test("Create geometric tolerance (flatness) on a shape")
+    func createTolerance() throws {
+        guard let doc = Document.create() else { Issue.record("doc nil"); return }
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box nil"); return
+        }
+        let labelId = doc.addShape(box, makeAssembly: false)
+        let idx = doc.createGeomTolerance(on: labelId, type: .flatness, value: 0.01)
+        #expect(idx == 0)
+        if let tol = doc.typedGeomTolerance(at: 0) {
+            #expect(tol.type == .flatness)
+            #expect(abs(tol.value - 0.01) < 1e-9)
+        } else {
+            Issue.record("typedGeomTolerance nil")
+        }
+    }
+
+    @Test("Create datum A")
+    func createDatum() throws {
+        guard let doc = Document.create() else { Issue.record("doc nil"); return }
+        let idx = doc.createDatum(name: "A")
+        #expect(idx == 0)
+        if let datum = doc.typedDatum(at: 0) {
+            #expect(datum.name == "A")
+        } else {
+            Issue.record("typedDatum nil")
+        }
+    }
+
+    @Test("Full authoring: box + 3 dimensions + 2 tolerances + 2 datums")
+    func fullAuthoring() throws {
+        guard let doc = Document.create() else { Issue.record("doc nil"); return }
+        guard let box = Shape.box(width: 100, height: 50, depth: 25) else {
+            Issue.record("box nil"); return
+        }
+        let shapeId = doc.addShape(box, makeAssembly: false)
+        doc.createDimension(on: shapeId, type: .sizeDiameter, value: 10.0)
+        doc.createDimension(on: shapeId, type: .locationLinearDistance, value: 50.0)
+        doc.createDimension(on: shapeId, type: .sizeRadius, value: 5.0)
+        doc.createGeomTolerance(on: shapeId, type: .flatness, value: 0.01)
+        doc.createGeomTolerance(on: shapeId, type: .perpendicularity, value: 0.05)
+        doc.createDatum(name: "A")
+        doc.createDatum(name: "B")
+
+        #expect(doc.dimensionCount == 3)
+        #expect(doc.geomToleranceCount == 2)
+        #expect(doc.datumCount == 2)
+        #expect(doc.typedDimensions.count == 3)
+        #expect(doc.typedDimensions.map(\.type).contains(.sizeDiameter))
+        #expect(doc.typedGeomTolerances.map(\.type).contains(.perpendicularity))
+        #expect(doc.typedDatums.map(\.name).sorted() == ["A", "B"])
+    }
+
+    @Test("DimensionType enum covers all 32 cases")
+    func dimensionTypeEnumComplete() {
+        #expect(Document.DimensionType.allCases.count == 32)
+    }
+
+    @Test("GeomToleranceType enum covers all 16 cases")
+    func geomToleranceTypeEnumComplete() {
+        #expect(Document.GeomToleranceType.allCases.count == 16)
+    }
+}
+
 @Suite("v0.139 ThreadSpec truncation constants")
 struct ThreadSpecTruncationTests {
     @Test("ISO-68 crest flat = P/8")

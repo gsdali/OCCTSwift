@@ -2860,6 +2860,37 @@ typedef struct {
 /// Get datum info at index
 OCCTDatumInfo OCCTDocumentGetDatumInfo(OCCTDocumentRef doc, int32_t index);
 
+// MARK: - GD&T Write Path (v0.140)
+
+/// Create a dimension attribute on the document and attach it to a shape label.
+/// type: XCAFDimTolObjects_DimensionType enum
+/// value: primary measured value
+/// Returns -1 on failure, else the index of the new dimension (usable with
+/// OCCTDocumentGetDimensionInfo).
+int32_t OCCTDocumentCreateDimension(OCCTDocumentRef _Nonnull doc,
+                                     int64_t shapeLabelId,
+                                     int32_t type,
+                                     double value);
+
+/// Create a geometric tolerance attribute on the document and attach it to a shape.
+/// type: XCAFDimTolObjects_GeomToleranceType enum
+/// Returns -1 on failure, else the index of the new tolerance.
+int32_t OCCTDocumentCreateGeomTolerance(OCCTDocumentRef _Nonnull doc,
+                                         int64_t shapeLabelId,
+                                         int32_t type,
+                                         double value);
+
+/// Create a datum attribute on the document with the given identifier.
+/// Returns -1 on failure, else the index of the new datum.
+int32_t OCCTDocumentCreateDatum(OCCTDocumentRef _Nonnull doc,
+                                 const char* _Nonnull name);
+
+/// Set tolerance bounds (lower + upper, relative to the primary value) on an
+/// existing dimension. Returns true on success.
+bool OCCTDocumentSetDimensionTolerance(OCCTDocumentRef _Nonnull doc,
+                                        int32_t dimensionIndex,
+                                        double lowerTol, double upperTol);
+
 
 // MARK: - NLPlate: Advanced Plate Surfaces (v0.23.0)
 

@@ -2,7 +2,7 @@
 
 A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0, providing B-Rep solid modeling for macOS and iOS.
 
-**3,625 wrapped operations** | **3,137 tests** | **1,120 suites** | macOS arm64 / iOS arm64
+**3,680 wrapped operations** | **3,143 tests** | **1,121 suites** | macOS arm64 / iOS arm64
 
 ## Quick Start
 
@@ -68,7 +68,7 @@ OCCTSwift provides method-level coverage of all user-facing OCCT classes. Key ar
 | Healing & Analysis | 69 | fix, unify, simplify, NURBS convert, sew, wire/face/shell repair |
 | Measurement | 38 | volume, area, distance, inertia, point classification, proximity, revolution/symmetry axes |
 | Import/Export | 19 | STEP, IGES, STL, OBJ, PLY, BREP, GLTF/GLB, DXF |
-| XDE/OCAF | 150+ | assembly, colors, materials, GD&T, annotations, transactions, undo/redo |
+| XDE/OCAF | 200+ | assembly, colors, materials, GD&T (32 dimension types + 16 tolerance types, read + write), annotations, transactions, undo/redo, STEP AP242 round-trip |
 | Math & Solvers | 50+ | root finding, BFGS, PSO, SVD, Gauss, Jacobi, constraint callbacks |
 | Colors & Materials | 63 | Quantity_Color, sRGB/Lab/HLS, PBR materials, named colors |
 | Geometry Factories | 90+ | GC/GCE2d/gce factories, convert to BSpline, analytical recognition |

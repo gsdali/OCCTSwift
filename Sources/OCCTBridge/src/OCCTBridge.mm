@@ -11405,6 +11405,132 @@ OCCTDatumInfo OCCTDocumentGetDatumInfo(OCCTDocumentRef doc, int32_t index) {
     }
 }
 
+// MARK: - GD&T Write Path (v0.140)
+
+#include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <TDF_Tool.hxx>
+#include <TCollection_AsciiString.hxx>
+
+int32_t OCCTDocumentCreateDimension(OCCTDocumentRef doc,
+                                     int64_t shapeLabelId,
+                                     int32_t type,
+                                     double value) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        Handle(XCAFDoc_DimTolTool) dimTolTool =
+            XCAFDoc_DimTolTool::Set(doc->doc->Main());
+        TDF_Label shapeLabel = doc->getLabel(shapeLabelId);
+        if (shapeLabel.IsNull()) return -1;
+
+        TDF_Label dimLabel = dimTolTool->AddDimension();
+        TDF_LabelSequence shapeSeq;
+        shapeSeq.Append(shapeLabel);
+        dimTolTool->SetDimension(shapeSeq, shapeSeq, dimLabel);
+
+        Handle(XCAFDoc_Dimension) dimAttr;
+        if (!dimLabel.FindAttribute(XCAFDoc_Dimension::GetID(), dimAttr)) return -1;
+
+        Handle(XCAFDimTolObjects_DimensionObject) dimObj =
+            new XCAFDimTolObjects_DimensionObject();
+        dimObj->SetType((XCAFDimTolObjects_DimensionType)type);
+        Handle(TColStd_HArray1OfReal) vals = new TColStd_HArray1OfReal(1, 1);
+        vals->SetValue(1, value);
+        dimObj->SetValues(vals);
+        dimAttr->SetObject(dimObj);
+
+        // Return the index of the new dimension.
+        TDF_LabelSequence labels;
+        dimTolTool->GetDimensionLabels(labels);
+        return (int32_t)labels.Length() - 1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int32_t OCCTDocumentCreateGeomTolerance(OCCTDocumentRef doc,
+                                         int64_t shapeLabelId,
+                                         int32_t type,
+                                         double value) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        Handle(XCAFDoc_DimTolTool) dimTolTool =
+            XCAFDoc_DimTolTool::Set(doc->doc->Main());
+        TDF_Label shapeLabel = doc->getLabel(shapeLabelId);
+        if (shapeLabel.IsNull()) return -1;
+
+        TDF_Label tolLabel = dimTolTool->AddGeomTolerance();
+        TDF_LabelSequence shapeSeq;
+        shapeSeq.Append(shapeLabel);
+        dimTolTool->SetGeomTolerance(shapeSeq, tolLabel);
+
+        Handle(XCAFDoc_GeomTolerance) tolAttr;
+        if (!tolLabel.FindAttribute(XCAFDoc_GeomTolerance::GetID(), tolAttr)) return -1;
+
+        Handle(XCAFDimTolObjects_GeomToleranceObject) tolObj =
+            new XCAFDimTolObjects_GeomToleranceObject();
+        tolObj->SetType((XCAFDimTolObjects_GeomToleranceType)type);
+        tolObj->SetValue(value);
+        tolAttr->SetObject(tolObj);
+
+        TDF_LabelSequence labels;
+        dimTolTool->GetGeomToleranceLabels(labels);
+        return (int32_t)labels.Length() - 1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int32_t OCCTDocumentCreateDatum(OCCTDocumentRef doc, const char* name) {
+    if (!doc || doc->doc.IsNull() || !name) return -1;
+    try {
+        Handle(XCAFDoc_DimTolTool) dimTolTool =
+            XCAFDoc_DimTolTool::Set(doc->doc->Main());
+
+        TDF_Label datLabel = dimTolTool->AddDatum();
+        Handle(XCAFDoc_Datum) datAttr;
+        if (!datLabel.FindAttribute(XCAFDoc_Datum::GetID(), datAttr)) return -1;
+
+        Handle(XCAFDimTolObjects_DatumObject) datObj =
+            new XCAFDimTolObjects_DatumObject();
+        datObj->SetName(new TCollection_HAsciiString(name));
+        datAttr->SetObject(datObj);
+
+        TDF_LabelSequence labels;
+        dimTolTool->GetDatumLabels(labels);
+        return (int32_t)labels.Length() - 1;
+    } catch (...) {
+        return -1;
+    }
+}
+
+bool OCCTDocumentSetDimensionTolerance(OCCTDocumentRef doc,
+                                        int32_t dimensionIndex,
+                                        double lowerTol, double upperTol) {
+    if (!doc || doc->doc.IsNull() || dimensionIndex < 0) return false;
+    try {
+        Handle(XCAFDoc_DimTolTool) dimTolTool =
+            XCAFDoc_DimTolTool::Set(doc->doc->Main());
+        TDF_LabelSequence labels;
+        dimTolTool->GetDimensionLabels(labels);
+        if (dimensionIndex >= (int32_t)labels.Length()) return false;
+
+        TDF_Label label = labels.Value(dimensionIndex + 1);
+        Handle(XCAFDoc_Dimension) dimAttr;
+        if (!label.FindAttribute(XCAFDoc_Dimension::GetID(), dimAttr)) return false;
+
+        Handle(XCAFDimTolObjects_DimensionObject) dimObj = dimAttr->GetObject();
+        if (dimObj.IsNull()) return false;
+
+        dimObj->SetLowerTolValue(lowerTol);
+        dimObj->SetUpperTolValue(upperTol);
+        dimAttr->SetObject(dimObj);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 
 // MARK: - ProjLib: Curve Projection onto Surfaces (v0.22.0)
 
