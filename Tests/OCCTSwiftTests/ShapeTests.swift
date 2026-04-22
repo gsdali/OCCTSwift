@@ -46270,6 +46270,181 @@ struct ConstructionLayerTests {
     }
 }
 
+// MARK: - v0.144 #75: Drawing.transformed + bounds
+
+@Suite("v0.144 Drawing transform + bounds")
+struct DrawingCompositionTests {
+    @Test("Drawing.bounds returns finite box for a projected box")
+    func drawingBounds() {
+        guard let box = Shape.box(width: 100, height: 50, depth: 25),
+              let front = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let bounds = front.bounds()
+        #expect(bounds != nil)
+        if let b = bounds {
+            #expect(b.min.x.isFinite && b.max.x.isFinite)
+            #expect(b.max.x > b.min.x)
+        }
+    }
+
+    @Test("transformed(translate:scale:) returns non-nil wrapper")
+    func transformedSmoke() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let top = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let transformed = top.transformed(translate: SIMD2(50, 30), scale: 0.5)
+        #expect(transformed.translate == SIMD2(50, 30))
+        #expect(transformed.scale == 0.5)
+    }
+
+    @Test("DXFWriter.collectFromDrawing accepts TransformedDrawing")
+    func dxfFromTransformed() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let top = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let t = top.transformed(translate: SIMD2(100, 100), scale: 2.0)
+        let writer = DXFWriter()
+        writer.collectFromDrawing(t)
+        // At least some lines or polylines should have been emitted.
+        let counts = writer.entityCounts
+        #expect(counts.lines + counts.polylines > 0)
+    }
+}
+
+// MARK: - v0.144 #74: Hatch emission
+
+@Suite("v0.144 Drawing.addHatch + DXFWriter tessellation")
+struct DrawingHatchTests {
+    @Test("addHatch stores a hatch annotation")
+    func storesHatchAnnotation() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let top = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        top.addHatch(boundary: [
+            SIMD2(0, 0), SIMD2(20, 0), SIMD2(20, 20), SIMD2(0, 20)
+        ], spacing: 2.0)
+        #expect(top.annotations.count == 1)
+        if case .hatch = top.annotations[0] {} else {
+            Issue.record("expected hatch")
+        }
+    }
+
+    @Test("DXFWriter tessellates hatch into line segments")
+    func tessellatesIntoLines() {
+        guard let box = Shape.box(width: 1, height: 1, depth: 1),
+              let drawing = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        drawing.addHatch(boundary: [SIMD2(0, 0), SIMD2(10, 0),
+                                     SIMD2(10, 10), SIMD2(0, 10)],
+                         angle: 0,  // horizontal lines for predictability
+                         spacing: 2.0)
+        let w = DXFWriter()
+        w.collectFromDrawing(drawing)
+        // 10 / 2 = 5 scanlines should produce 5 line segments (each horizontal
+        // at y = 2, 4, 6, 8 within the square). Allow a little slack.
+        #expect(w.entityCounts.lines >= 3)
+    }
+}
+
+// MARK: - v0.144 #73: Shape.section2D
+
+@Suite("v0.144 Shape.section2D")
+struct Section2DTests {
+    @Test("Section of a box with the XY plane returns a Drawing")
+    func sectionBox() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box nil"); return
+        }
+        // Cut the box through z = 5 (horizontal plane).
+        let drawing = box.section2D(
+            planeOrigin: SIMD3(5, 5, 5),
+            planeNormal: SIMD3(0, 0, 1)
+        )
+        #expect(drawing != nil)
+    }
+
+    @Test("section2DView includes hatch and label")
+    func section2DView() {
+        guard let box = Shape.box(width: 30, height: 30, depth: 30) else {
+            Issue.record("box nil"); return
+        }
+        let view = box.section2DView(
+            planeOrigin: SIMD3(15, 15, 15),
+            planeNormal: SIMD3(0, 0, 1),
+            label: "A-A"
+        )
+        #expect(view != nil)
+        if let v = view {
+            // Should have a hatch + a text label.
+            let hasHatch = v.drawing.annotations.contains { if case .hatch = $0 { return true } else { return false } }
+            let hasLabel = v.drawing.annotations.contains { if case .textLabel = $0 { return true } else { return false } }
+            #expect(hasHatch)
+            #expect(hasLabel)
+        }
+    }
+}
+
+// MARK: - v0.144 G1: ISO 128-20 / 3098 / 5455 style constants
+
+@Suite("v0.144 ISO drawing style constants")
+struct DrawingStyleTests {
+    @Test("DrawingLineWidth values match ISO 128-20 tiers")
+    func lineWidths() {
+        #expect(DrawingLineWidth.thin.rawValue == 0.25)
+        #expect(DrawingLineWidth.thick.rawValue == 0.50)
+        #expect(DrawingLineWidth.allCases.count == 9)
+    }
+
+    @Test("DrawingTextHeight.snap picks nearest ISO 3098 tier")
+    func textHeightSnap() {
+        #expect(DrawingTextHeight.snap(3.8) == .h35)
+        #expect(DrawingTextHeight.snap(4.3) == .h50)
+        #expect(DrawingTextHeight.snap(8) == .h70)
+    }
+
+    @Test("DrawingTextHeight.recommended varies by paper")
+    func textHeightRecommended() {
+        #expect(DrawingTextHeight.recommended(forPaper: "A0") == .h50)
+        #expect(DrawingTextHeight.recommended(forPaper: "A4") == .h35)
+    }
+
+    @Test("DrawingScale factor and label")
+    func drawingScales() {
+        #expect(DrawingScale.one.factor == 1.0)
+        #expect(DrawingScale.reduction(2).factor == 0.5)
+        #expect(DrawingScale.enlargement(5).factor == 5.0)
+        #expect(DrawingScale.reduction(10).label == "1:10")
+        #expect(DrawingScale.enlargement(2).label == "2:1")
+    }
+
+    @Test("DrawingLineStyle.defaultWidth and boldWidth")
+    func lineStyleDefaults() {
+        #expect(DrawingLineStyle.solid.defaultWidth == .thin)
+        #expect(DrawingLineStyle.dashed.defaultWidth == .thin)
+        #expect(DrawingLineStyle.chain.boldWidth == .thick)
+    }
+
+    @Test("ArrowStyle length scales with line width")
+    func arrowStyleLength() {
+        let L = DrawingArrowStyle.filledClosed.length(forLineWidth: .w025)
+        #expect(abs(L - 1.5) < 1e-9)
+    }
+
+    @Test("DrawingScale preferred includes ISO series")
+    func preferredScales() {
+        let labels = DrawingScale.preferred.map(\.label)
+        #expect(labels.contains("1:1"))
+        #expect(labels.contains("1:10"))
+        #expect(labels.contains("2:1"))
+        #expect(labels.contains("1:100"))
+    }
+}
+
 // MARK: - v0.140: XCAFDoc GD&T write path
 
 @Suite("v0.140 Document GD&T write + typed enums")

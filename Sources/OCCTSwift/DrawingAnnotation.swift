@@ -148,11 +148,12 @@ public enum DrawingDimension: Sendable, Hashable {
 }
 
 /// Non-dimensional 2D annotations attached to a `Drawing` — centrelines, centremarks,
-/// construction points, free-form text labels.
+/// construction points, free-form text labels, hatch fills.
 public enum DrawingAnnotation: Sendable, Hashable {
     case centreline(Centreline)
     case centermark(Centermark)
     case textLabel(TextLabel)
+    case hatch(Hatch)
 
     public struct Centreline: Sendable, Hashable {
         public var from: SIMD2<Double>
@@ -194,6 +195,33 @@ public enum DrawingAnnotation: Sendable, Hashable {
                     id: String? = nil) {
             self.position = position; self.text = text
             self.height = height; self.rotation = rotation; self.id = id
+        }
+    }
+
+    /// ISO 128-50 section-view hatching — a closed outer boundary filled with
+    /// parallel lines at `angle` radians, spaced `spacing` drawing-units apart.
+    /// Optional `islands` are inner boundaries (holes) that are subtracted
+    /// from the hatched region.
+    public struct Hatch: Sendable, Hashable {
+        public var boundary: [SIMD2<Double>]     // closed polygon (first != last)
+        public var angle: Double                 // radians; ISO default π/4 = 45°
+        public var spacing: Double               // drawing units; ISO typical 2–4 mm
+        public var islands: [[SIMD2<Double>]]    // inner holes (each closed polygon)
+        public var layer: String                 // DXF layer, default "HATCH"
+        public var id: String?
+
+        public init(boundary: [SIMD2<Double>],
+                    angle: Double = .pi / 4,
+                    spacing: Double = 3.0,
+                    islands: [[SIMD2<Double>]] = [],
+                    layer: String = "HATCH",
+                    id: String? = nil) {
+            self.boundary = boundary
+            self.angle = angle
+            self.spacing = spacing
+            self.islands = islands
+            self.layer = layer
+            self.id = id
         }
     }
 }

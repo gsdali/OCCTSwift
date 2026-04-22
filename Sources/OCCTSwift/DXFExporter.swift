@@ -97,20 +97,35 @@ public final class DXFWriter: @unchecked Sendable {
 
     // MARK: - Collection from Drawing
 
-    public func collectFromDrawing(_ drawing: Drawing) {
-        collectProjectedEdges(drawing.visibleEdges, layer: "VISIBLE")
-        collectProjectedEdges(drawing.hiddenEdges,  layer: "HIDDEN")
-        collectProjectedEdges(drawing.outlineEdges, layer: "OUTLINE")
-        collectAnnotations(drawing.annotations)
-        collectDimensions(drawing.dimensions)
+    public func collectFromDrawing(_ drawing: Drawing,
+                                   translate: SIMD2<Double> = .zero,
+                                   scale: Double = 1.0) {
+        collectProjectedEdges(drawing.visibleEdges, layer: "VISIBLE",
+                              translate: translate, scale: scale)
+        collectProjectedEdges(drawing.hiddenEdges,  layer: "HIDDEN",
+                              translate: translate, scale: scale)
+        collectProjectedEdges(drawing.outlineEdges, layer: "OUTLINE",
+                              translate: translate, scale: scale)
+        collectAnnotations(drawing.annotations, translate: translate, scale: scale)
+        collectDimensions(drawing.dimensions, translate: translate, scale: scale)
     }
 
-    private func collectProjectedEdges(_ compound: Shape?, layer: String) {
+    /// Collect a `TransformedDrawing` onto this writer — convenience for
+    /// multi-view sheet composition.
+    public func collectFromDrawing(_ transformed: TransformedDrawing) {
+        collectFromDrawing(transformed.source,
+                           translate: transformed.translate,
+                           scale: transformed.scale)
+    }
+
+    private func collectProjectedEdges(_ compound: Shape?, layer: String,
+                                       translate: SIMD2<Double>, scale: Double) {
         guard let compound else { return }
         let polys = compound.allEdgePolylines(deflection: deflection)
+        func t(_ p: SIMD2<Double>) -> SIMD2<Double> { scale * p + translate }
         for poly in polys {
             guard poly.count >= 2 else { continue }
-            let points2D = poly.map { SIMD2($0.x, $0.y) }
+            let points2D = poly.map { t(SIMD2($0.x, $0.y)) }
             if points2D.count == 2 {
                 addLine(from: points2D[0], to: points2D[1], layer: layer)
             } else {
@@ -119,9 +134,12 @@ public final class DXFWriter: @unchecked Sendable {
         }
     }
 
-    private func collectAnnotations(_ anns: [DrawingAnnotation]) {
+    private func collectAnnotations(_ anns: [DrawingAnnotation],
+                                    translate: SIMD2<Double> = .zero,
+                                    scale: Double = 1.0) {
         for a in anns {
-            switch a {
+            let transformed = (translate == .zero && scale == 1.0) ? a : a.transformed(translate: translate, scale: scale)
+            switch transformed {
             case .centreline(let c):
                 addLine(from: c.from, to: c.to, layer: "CENTER")
             case .centermark(let m):
@@ -133,13 +151,82 @@ public final class DXFWriter: @unchecked Sendable {
             case .textLabel(let t):
                 addText(t.text, at: t.position, height: t.height,
                         rotationDeg: t.rotation * 180 / .pi, layer: "TEXT")
+            case .hatch(let h):
+                emitHatch(h)
             }
         }
     }
 
-    private func collectDimensions(_ dims: [DrawingDimension]) {
+    /// Tessellate a hatch pattern into individual line segments inside its
+    /// boundary. Algorithm: rotate boundary + islands into hatch-aligned coords
+    /// (so hatch lines become horizontal), scan horizontally at `spacing`
+    /// intervals, intersect with all boundary edges, pair intersections up
+    /// (even-odd rule), rotate each segment back into world coords.
+    private func emitHatch(_ h: DrawingAnnotation.Hatch) {
+        guard h.boundary.count >= 3, h.spacing > 0 else { return }
+        let cosA = cos(-h.angle), sinA = sin(-h.angle)
+        func rotateForward(_ p: SIMD2<Double>) -> SIMD2<Double> {
+            SIMD2(cosA * p.x - sinA * p.y, sinA * p.x + cosA * p.y)
+        }
+        let cosB = cos(h.angle), sinB = sin(h.angle)
+        func rotateBack(_ p: SIMD2<Double>) -> SIMD2<Double> {
+            SIMD2(cosB * p.x - sinB * p.y, sinB * p.x + cosB * p.y)
+        }
+        // Collect all boundary segments in rotated space.
+        var segments: [(SIMD2<Double>, SIMD2<Double>)] = []
+        func addPolygonSegments(_ poly: [SIMD2<Double>]) {
+            guard poly.count >= 2 else { return }
+            let rotated = poly.map(rotateForward)
+            for i in 0..<rotated.count {
+                let j = (i + 1) % rotated.count
+                segments.append((rotated[i], rotated[j]))
+            }
+        }
+        addPolygonSegments(h.boundary)
+        for island in h.islands { addPolygonSegments(island) }
+
+        // Find rotated bounding box.
+        var minY = Double.infinity, maxY = -Double.infinity
+        for s in segments {
+            minY = min(minY, s.0.y, s.1.y)
+            maxY = max(maxY, s.0.y, s.1.y)
+        }
+        guard minY.isFinite else { return }
+
+        // Scan horizontal lines from minY to maxY at h.spacing intervals.
+        var y = ceil(minY / h.spacing) * h.spacing
+        while y < maxY {
+            var xs: [Double] = []
+            for s in segments {
+                let (a, b) = s
+                // Ignore horizontal segments (they don't define crossings).
+                if abs(a.y - b.y) < 1e-12 { continue }
+                // Only consider segments that straddle y.
+                let minSeg = min(a.y, b.y), maxSeg = max(a.y, b.y)
+                if y < minSeg || y >= maxSeg { continue }
+                let t = (y - a.y) / (b.y - a.y)
+                xs.append(a.x + t * (b.x - a.x))
+            }
+            xs.sort()
+            // Pair up intersections (even-odd rule) and emit segments in
+            // world space.
+            var i = 0
+            while i + 1 < xs.count {
+                let p0 = rotateBack(SIMD2(xs[i], y))
+                let p1 = rotateBack(SIMD2(xs[i + 1], y))
+                addLine(from: p0, to: p1, layer: h.layer)
+                i += 2
+            }
+            y += h.spacing
+        }
+    }
+
+    private func collectDimensions(_ dims: [DrawingDimension],
+                                   translate: SIMD2<Double> = .zero,
+                                   scale: Double = 1.0) {
         for d in dims {
-            switch d {
+            let transformed = (translate == .zero && scale == 1.0) ? d : d.transformed(translate: translate, scale: scale)
+            switch transformed {
             case .linear(let lin):   emitLinear(lin)
             case .radial(let rad):   emitRadial(rad)
             case .diameter(let dia): emitDiameter(dia)
@@ -256,7 +343,7 @@ public final class DXFWriter: @unchecked Sendable {
         s += pair(0, "ENDTAB")
 
         // LAYER
-        s += pair(0, "TABLE") + pair(2, "LAYER") + pair(70, 6)
+        s += pair(0, "TABLE") + pair(2, "LAYER") + pair(70, 9)
         s += layer("0",         colour: 7, linetype: "CONTINUOUS")
         s += layer("VISIBLE",   colour: 7, linetype: "CONTINUOUS")
         s += layer("HIDDEN",    colour: 8, linetype: "DASHED")
@@ -264,6 +351,8 @@ public final class DXFWriter: @unchecked Sendable {
         s += layer("CENTER",    colour: 1, linetype: "CHAIN")
         s += layer("DIMENSION", colour: 5, linetype: "CONTINUOUS")
         s += layer("TEXT",      colour: 3, linetype: "CONTINUOUS")
+        s += layer("HATCH",     colour: 9, linetype: "CONTINUOUS")
+        s += layer("SECTION",   colour: 7, linetype: "CONTINUOUS")
         s += pair(0, "ENDTAB")
 
         // Required STYLE table (one default style)

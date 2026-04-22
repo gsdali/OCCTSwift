@@ -2,13 +2,23 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.143.0
+## Current: v0.144.0
 
-**3,860 wrapped operations | 3,220 tests | 1,140 suites | OCCT 8.0.0-rc5**
+**3,925 wrapped operations | 3,234 tests | 1,144 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.144.0 (Apr 2026) — ISO drawings I: section views, hatch, multi-view, style foundations
+
+First of a three-release ISO-drawings arc (tracked in #78). Closes #73, #74, #75 and adds the ISO 128-20 / 3098 / 5455 style primitives every downstream sheet producer needs.
+
+- **#75 `Drawing.transformed(translate:scale:)` + `Drawing.bounds`**: new `TransformedDrawing` wrapper and `DXFWriter.collectFromDrawing(_ transformed:)` overload. `Drawing.bounds(deflection:includeAnnotations:)` returns the drawing's 2D axis-aligned bounding box. Unblocks multi-view sheet composition: `writer.collectFromDrawing(view.transformed(translate: offset, scale: 0.5))`.
+- **#73 `Shape.section2D(planeOrigin:planeNormal:planeU:deflection:)`** + `Shape.section2DView(...)`: slice a shape with a plane, return a `Drawing` in the plane's own 2D frame (not world space). `section2DView` wraps the contour with automatic ISO 128-40 hatching at 45° and an optional "A-A" label.
+- **#74 `Drawing.addHatch(boundary:angle:spacing:islands:)`**: ISO 128-50 sectional-view fill. DXFWriter tessellates into line segments at the specified angle and spacing with island (hole) subtraction via even-odd rule scanlines. Adds `HATCH` + `SECTION` XCAF layers.
+- **G1 ISO 128-20 line widths + ISO 128-21 arrows + ISO 3098 text heights**: `DrawingLineWidth` enum (w013 → w200, ISO 1:1.4 series), `DrawingTextHeight` enum (h25 → h200) with `.recommended(forPaper:)` and `.snap(_:)`, `DrawingArrowStyle` (filledClosed / openClosed90 / openClosed30 / tick), `DrawingLineStyle.defaultWidth` / `.boldWidth` per style.
+- **G2 ISO 5455 `DrawingScale`**: enum cases `.one` / `.reduction(Int)` / `.enlargement(Int)` / `.custom(Double)` with `.factor` and `.label` accessors. `DrawingScale.preferred` returns the ISO-standard scale series (50:1 down to 1:1000).
 
 ### v0.143.0 (Apr 2026) — Measurement ergonomics + clearing v0.142 deferrals
 

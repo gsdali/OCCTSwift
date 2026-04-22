@@ -131,6 +131,23 @@ public final class Drawing: @unchecked Sendable {
         return a
     }
 
+    /// ISO 128-50 section-view hatching over a closed boundary polygon. Angle
+    /// defaults to 45° and spacing to 3 mm per ISO convention. `islands` are
+    /// optional inner boundaries excluded from the fill.
+    @discardableResult
+    public func addHatch(boundary: [SIMD2<Double>],
+                         angle: Double = .pi / 4,
+                         spacing: Double = 3.0,
+                         islands: [[SIMD2<Double>]] = [],
+                         layer: String = "HATCH",
+                         id: String? = nil) -> DrawingAnnotation {
+        let a = DrawingAnnotation.hatch(.init(boundary: boundary, angle: angle,
+                                              spacing: spacing, islands: islands,
+                                              layer: layer, id: id))
+        annotationStore.appendAnnotation(a)
+        return a
+    }
+
     /// Remove all dimensions and annotations from this drawing.
     public func clearAnnotations() { annotationStore.clear() }
 
