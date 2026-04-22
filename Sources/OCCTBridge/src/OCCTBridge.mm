@@ -55485,6 +55485,145 @@ void OCCTBRepGraphHistoryClear(OCCTBRepGraphRef g) {
     catch (...) {}
 }
 
+// --- History Record Readback (v0.141, #72 Phase 0) ---
+
+#include <BRepGraph_HistoryRecord.hxx>
+#include <BRepGraph_History.hxx>
+
+bool OCCTBRepGraphHistoryGetRecordInfo(OCCTBRepGraphRef g,
+                                        int32_t recordIdx,
+                                        char* outOpName,
+                                        int32_t outOpNameMax,
+                                        int32_t* outSequenceNumber) {
+    if (!g || !outOpName || !outSequenceNumber || outOpNameMax <= 0) return false;
+    try {
+        const auto& hist = g->graph.History();
+        if (recordIdx < 0 || recordIdx >= hist.NbRecords()) return false;
+        const auto& rec = hist.Record(recordIdx);
+        const char* src = rec.OperationName.ToCString();
+        int srcLen = rec.OperationName.Length();
+        int copy = std::min(srcLen, outOpNameMax - 1);
+        memcpy(outOpName, src, copy);
+        outOpName[copy] = '\0';
+        *outSequenceNumber = rec.SequenceNumber;
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphHistoryGetRecordOriginalsCount(OCCTBRepGraphRef g, int32_t recordIdx) {
+    if (!g) return 0;
+    try {
+        const auto& hist = g->graph.History();
+        if (recordIdx < 0 || recordIdx >= hist.NbRecords()) return 0;
+        const auto& rec = hist.Record(recordIdx);
+        return (int32_t)rec.Mapping.Extent();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphHistoryGetRecordOriginals(OCCTBRepGraphRef g,
+                                                int32_t recordIdx,
+                                                int32_t* outKinds,
+                                                int32_t* outIndices,
+                                                int32_t maxCount) {
+    if (!g || !outKinds || !outIndices) return 0;
+    try {
+        const auto& hist = g->graph.History();
+        if (recordIdx < 0 || recordIdx >= hist.NbRecords()) return 0;
+        const auto& rec = hist.Record(recordIdx);
+        int32_t total = 0;
+        typedef NCollection_DataMap<BRepGraph_NodeId, NCollection_Vector<BRepGraph_NodeId>> MapT;
+        for (MapT::Iterator it(rec.Mapping); it.More(); it.Next()) {
+            if (total < maxCount) {
+                outKinds[total] = (int32_t)it.Key().NodeKind;
+                outIndices[total] = it.Key().Index;
+            }
+            total++;
+        }
+        return total;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphHistoryGetRecordMapping(OCCTBRepGraphRef g,
+                                              int32_t recordIdx,
+                                              int32_t origKind,
+                                              int32_t origIndex,
+                                              int32_t* outKinds,
+                                              int32_t* outIndices,
+                                              int32_t maxCount) {
+    if (!g || !outKinds || !outIndices) return -1;
+    try {
+        const auto& hist = g->graph.History();
+        if (recordIdx < 0 || recordIdx >= hist.NbRecords()) return -1;
+        const auto& rec = hist.Record(recordIdx);
+        BRepGraph_NodeId key((BRepGraph_NodeId::Kind)origKind, origIndex);
+        if (!rec.Mapping.IsBound(key)) return -1;
+        const auto& repls = rec.Mapping.Find(key);
+        int32_t total = repls.Length();
+        int32_t copy = std::min(total, maxCount);
+        for (int32_t i = 0; i < copy; i++) {
+            outKinds[i] = (int32_t)repls.Value(i).NodeKind;
+            outIndices[i] = repls.Value(i).Index;
+        }
+        return total;
+    } catch (...) { return -1; }
+}
+
+bool OCCTBRepGraphHistoryFindOriginal(OCCTBRepGraphRef g,
+                                       int32_t derivedKind,
+                                       int32_t derivedIndex,
+                                       int32_t* outKind,
+                                       int32_t* outIndex) {
+    if (!g || !outKind || !outIndex) return false;
+    try {
+        const auto& hist = g->graph.History();
+        BRepGraph_NodeId derived((BRepGraph_NodeId::Kind)derivedKind, derivedIndex);
+        BRepGraph_NodeId orig = hist.FindOriginal(derived);
+        *outKind = (int32_t)orig.NodeKind;
+        *outIndex = orig.Index;
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphHistoryFindDerived(OCCTBRepGraphRef g,
+                                         int32_t origKind,
+                                         int32_t origIndex,
+                                         int32_t* outKinds,
+                                         int32_t* outIndices,
+                                         int32_t maxCount) {
+    if (!g || !outKinds || !outIndices) return 0;
+    try {
+        const auto& hist = g->graph.History();
+        BRepGraph_NodeId orig((BRepGraph_NodeId::Kind)origKind, origIndex);
+        auto derived = hist.FindDerived(orig);
+        int32_t total = derived.Length();
+        int32_t copy = std::min(total, maxCount);
+        for (int32_t i = 0; i < copy; i++) {
+            outKinds[i] = (int32_t)derived.Value(i).NodeKind;
+            outIndices[i] = derived.Value(i).Index;
+        }
+        return total;
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepGraphHistoryRecord(OCCTBRepGraphRef g,
+                                 const char* opName,
+                                 int32_t origKind,
+                                 int32_t origIndex,
+                                 const int32_t* replKinds,
+                                 const int32_t* replIndices,
+                                 int32_t replCount) {
+    if (!g || !opName) return;
+    try {
+        auto& hist = g->graph.History();
+        BRepGraph_NodeId orig((BRepGraph_NodeId::Kind)origKind, origIndex);
+        NCollection_Vector<BRepGraph_NodeId> repls;
+        for (int32_t i = 0; i < replCount; i++) {
+            repls.Append(BRepGraph_NodeId((BRepGraph_NodeId::Kind)replKinds[i], replIndices[i]));
+        }
+        hist.Record(TCollection_AsciiString(opName), orig, repls);
+    } catch (...) {}
+}
+
 // --- Poly Counts ---
 
 int32_t OCCTBRepGraphNbTriangulations(OCCTBRepGraphRef g) {

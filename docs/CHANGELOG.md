@@ -2,13 +2,23 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.140.0
+## Current: v0.141.0
 
-**3,680 wrapped operations | 3,143 tests | 1,121 suites | OCCT 8.0.0-rc5**
+**3,720 wrapped operations | 3,157 tests | 1,123 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.141.0 (Apr 2026) — Construction-geometry foundation: BRepGraph history readback + TopologyRef
+
+First release in the v0.141 → v0.143 "Construction Geometry" arc (tracked in #72). Builds the substrate for recipe-based topology references that survive mutations — the prerequisite for agent-driven CAD where construction planes / axes / points stay attached to model features through edits.
+
+- **BRepGraph history record readback (#72 Phase 0)**: Exposes the old→new node mappings that the OCCT kernel was already recording. `TopologyGraph.historyRecord(at:)`, `.historyRecords`, `.findOriginal(of:)`, `.findDerived(of:)`, `.recordHistory(operationName:original:replacements:)`. New `TopologyGraph.NodeRef` value type (kind + index) and `HistoryRecord` with full mapping.
+- **`TopologyRef` recipe type (#72 Phase 1)**: Indirect enum expressing topology references as *recipes evaluated against the current graph*, not as indices (Onshape FeatureScript-inspired). Cases: `.literal(NodeRef)`, `.createdBy(operationName:kind:occurrence:)`, `.containedIn(parent:kind:occurrence:)`, `.splitOf(original:occurrence:)`. Typed `TopologyResolutionError` enum for failure modes.
+- **`TopologyGraph.resolve(_:)`**: Evaluates recipes by walking history records, returns `Result<NodeRef, TopologyResolutionError>`. `.createdBy` picks up newly-introduced replacements by operation name and walks forward to the current form; `.splitOf` picks the Nth replacement of a split original; ancestor-resolution failures surface as `.ancestorMissing`.
+
+Scope: `.containedIn` returns `.noCurrentDescendant` until Phase 2 adds child-at-index accessors. `.createdBy` current-form walk picks the first leaf in deterministic order; multi-leaf disambiguation (useful when a single creation splits into many live descendants) comes in later phases.
 
 ### v0.140.0 (Apr 2026) — GD&T write path + typed dimension/tolerance enums
 

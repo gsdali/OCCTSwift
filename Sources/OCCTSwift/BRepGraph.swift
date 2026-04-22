@@ -520,6 +520,195 @@ public final class TopologyGraph: @unchecked Sendable {
         OCCTBRepGraphHistoryClear(handle)
     }
 
+    // MARK: - History Record Readback (v0.141, #72 Phase 0)
+
+    /// A (kind, index) pair identifying a node in a `TopologyGraph`.
+    ///
+    /// This is the Swift mirror of OCCT's `BRepGraph_NodeId`. Two pairs with the
+    /// same kind+index refer to the same node **within a given graph instance**;
+    /// across graph rebuilds you have to translate through the history records.
+    public struct NodeRef: Sendable, Hashable {
+        public let kind: NodeKind
+        public let index: Int
+
+        public init(kind: NodeKind, index: Int) {
+            self.kind = kind
+            self.index = index
+        }
+
+        public var isValid: Bool { index >= 0 }
+    }
+
+    /// A single atomic modification event in the graph's history log.
+    ///
+    /// The mapping captures the topological fate of each affected node:
+    /// - `original -> [one replacement]`: modified in place
+    /// - `original -> [multiple replacements]`: split (e.g. edge split by fillet)
+    /// - `original -> []`: deleted
+    public struct HistoryRecord: Sendable {
+        public let operationName: String
+        public let sequenceNumber: Int
+        public let mapping: [NodeRef: [NodeRef]]
+    }
+
+    /// Get a single history record by index.
+    ///
+    /// - Parameter index: 0-based index into the history log.
+    /// - Returns: The record, or nil if `index` is out of range.
+    public func historyRecord(at index: Int) -> HistoryRecord? {
+        guard index >= 0, index < historyRecordCount else { return nil }
+        var opNameBuffer = [CChar](repeating: 0, count: 128)
+        var sequence: Int32 = 0
+        let ok = opNameBuffer.withUnsafeMutableBufferPointer { buf in
+            OCCTBRepGraphHistoryGetRecordInfo(handle, Int32(index),
+                                              buf.baseAddress!, Int32(buf.count),
+                                              &sequence)
+        }
+        guard ok else { return nil }
+        let opName = String(cString: opNameBuffer)
+
+        // Collect originals.
+        let count = Int(OCCTBRepGraphHistoryGetRecordOriginalsCount(handle, Int32(index)))
+        guard count > 0 else {
+            return HistoryRecord(operationName: opName, sequenceNumber: Int(sequence), mapping: [:])
+        }
+        var origKinds = [Int32](repeating: 0, count: count)
+        var origIndices = [Int32](repeating: 0, count: count)
+        _ = origKinds.withUnsafeMutableBufferPointer { kindsBuf in
+            origIndices.withUnsafeMutableBufferPointer { indicesBuf in
+                OCCTBRepGraphHistoryGetRecordOriginals(handle, Int32(index),
+                                                       kindsBuf.baseAddress!,
+                                                       indicesBuf.baseAddress!,
+                                                       Int32(count))
+            }
+        }
+
+        // For each original, fetch its replacement list.
+        var mapping: [NodeRef: [NodeRef]] = [:]
+        for i in 0..<count {
+            guard let origKind = NodeKind(rawValue: origKinds[i]) else { continue }
+            let orig = NodeRef(kind: origKind, index: Int(origIndices[i]))
+
+            // Try modest buffer first; retry larger if needed.
+            var replCap = 8
+            var replKinds = [Int32](repeating: 0, count: replCap)
+            var replIndices = [Int32](repeating: 0, count: replCap)
+            var total: Int32 = 0
+            total = replKinds.withUnsafeMutableBufferPointer { kb in
+                replIndices.withUnsafeMutableBufferPointer { ib in
+                    OCCTBRepGraphHistoryGetRecordMapping(handle, Int32(index),
+                                                          origKind.rawValue, Int32(orig.index),
+                                                          kb.baseAddress!, ib.baseAddress!,
+                                                          Int32(replCap))
+                }
+            }
+            if total < 0 { continue }   // original not bound — skip
+            if Int(total) > replCap {
+                replCap = Int(total)
+                replKinds = [Int32](repeating: 0, count: replCap)
+                replIndices = [Int32](repeating: 0, count: replCap)
+                _ = replKinds.withUnsafeMutableBufferPointer { kb in
+                    replIndices.withUnsafeMutableBufferPointer { ib in
+                        OCCTBRepGraphHistoryGetRecordMapping(handle, Int32(index),
+                                                              origKind.rawValue, Int32(orig.index),
+                                                              kb.baseAddress!, ib.baseAddress!,
+                                                              Int32(replCap))
+                    }
+                }
+            }
+            var replacements: [NodeRef] = []
+            for j in 0..<Int(total) {
+                guard let k = NodeKind(rawValue: replKinds[j]) else { continue }
+                replacements.append(NodeRef(kind: k, index: Int(replIndices[j])))
+            }
+            mapping[orig] = replacements
+        }
+        return HistoryRecord(operationName: opName,
+                             sequenceNumber: Int(sequence),
+                             mapping: mapping)
+    }
+
+    /// All history records, in order.
+    public var historyRecords: [HistoryRecord] {
+        (0..<historyRecordCount).compactMap { historyRecord(at: $0) }
+    }
+
+    /// Walk backwards from a derived node to its root original via the reverse map.
+    /// Returns the node itself if it has no recorded history.
+    public func findOriginal(of derived: NodeRef) -> NodeRef {
+        var outKind: Int32 = 0
+        var outIndex: Int32 = 0
+        guard OCCTBRepGraphHistoryFindOriginal(handle,
+                                                derived.kind.rawValue, Int32(derived.index),
+                                                &outKind, &outIndex),
+              let kind = NodeKind(rawValue: outKind) else {
+            return derived
+        }
+        return NodeRef(kind: kind, index: Int(outIndex))
+    }
+
+    /// Walk forwards from an original node to all transitively derived nodes.
+    /// Returns empty if the node has no recorded descendants.
+    public func findDerived(of original: NodeRef) -> [NodeRef] {
+        var cap = 16
+        var kinds = [Int32](repeating: 0, count: cap)
+        var indices = [Int32](repeating: 0, count: cap)
+        var total = kinds.withUnsafeMutableBufferPointer { kb in
+            indices.withUnsafeMutableBufferPointer { ib in
+                OCCTBRepGraphHistoryFindDerived(handle,
+                                                 original.kind.rawValue, Int32(original.index),
+                                                 kb.baseAddress!, ib.baseAddress!,
+                                                 Int32(cap))
+            }
+        }
+        if Int(total) > cap {
+            cap = Int(total)
+            kinds = [Int32](repeating: 0, count: cap)
+            indices = [Int32](repeating: 0, count: cap)
+            total = kinds.withUnsafeMutableBufferPointer { kb in
+                indices.withUnsafeMutableBufferPointer { ib in
+                    OCCTBRepGraphHistoryFindDerived(handle,
+                                                     original.kind.rawValue, Int32(original.index),
+                                                     kb.baseAddress!, ib.baseAddress!,
+                                                     Int32(cap))
+                }
+            }
+        }
+        var result: [NodeRef] = []
+        for i in 0..<Int(total) {
+            guard let k = NodeKind(rawValue: kinds[i]) else { continue }
+            result.append(NodeRef(kind: k, index: Int(indices[i])))
+        }
+        return result
+    }
+
+    /// Record a 1-to-N modification event on the graph's history log.
+    ///
+    /// Use this when you mutate the graph outside BRepGraph's own builder API
+    /// and want your changes to participate in history queries.
+    ///
+    /// - Parameters:
+    ///   - operationName: Human-readable operation label.
+    ///   - original: The node that was modified.
+    ///   - replacements: The node(s) that replace it. Empty array = node was deleted.
+    public func recordHistory(operationName: String,
+                              original: NodeRef,
+                              replacements: [NodeRef]) {
+        let replKinds = replacements.map { $0.kind.rawValue }
+        let replIndices = replacements.map { Int32($0.index) }
+        operationName.withCString { namePtr in
+            replKinds.withUnsafeBufferPointer { kindsBuf in
+                replIndices.withUnsafeBufferPointer { indicesBuf in
+                    OCCTBRepGraphHistoryRecord(handle, namePtr,
+                                                original.kind.rawValue, Int32(original.index),
+                                                kindsBuf.baseAddress,
+                                                indicesBuf.baseAddress,
+                                                Int32(replacements.count))
+                }
+            }
+        }
+    }
+
     // MARK: - Poly Counts (v0.133.0)
 
     /// Number of triangulations in the graph.

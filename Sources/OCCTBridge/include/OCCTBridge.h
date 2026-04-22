@@ -19631,6 +19631,69 @@ void OCCTBRepGraphHistorySetEnabled(OCCTBRepGraphRef _Nonnull graph, bool enable
 /// Clear all history records.
 void OCCTBRepGraphHistoryClear(OCCTBRepGraphRef _Nonnull graph);
 
+// --- History Record Readback (v0.141, #72 Phase 0) ---
+
+/// Get operation name and sequence number of history record at index.
+/// outOpName is written with a NUL-terminated string up to outOpNameMax bytes.
+/// Returns false on invalid index.
+bool OCCTBRepGraphHistoryGetRecordInfo(OCCTBRepGraphRef _Nonnull graph,
+                                        int32_t recordIdx,
+                                        char* _Nonnull outOpName,
+                                        int32_t outOpNameMax,
+                                        int32_t* _Nonnull outSequenceNumber);
+
+/// Number of original (pre-mutation) nodes in record's mapping.
+int32_t OCCTBRepGraphHistoryGetRecordOriginalsCount(OCCTBRepGraphRef _Nonnull graph,
+                                                     int32_t recordIdx);
+
+/// List the original nodes of a history record. Writes up to maxCount pairs;
+/// returns actual count (may exceed maxCount if truncated).
+int32_t OCCTBRepGraphHistoryGetRecordOriginals(OCCTBRepGraphRef _Nonnull graph,
+                                                int32_t recordIdx,
+                                                int32_t* _Nonnull outKinds,
+                                                int32_t* _Nonnull outIndices,
+                                                int32_t maxCount);
+
+/// For a specific original node in a record, list the replacement nodes.
+/// Empty result = node was deleted. Single element = modified-in-place. Multiple = split.
+/// Returns -1 if the original is not in the record's mapping.
+int32_t OCCTBRepGraphHistoryGetRecordMapping(OCCTBRepGraphRef _Nonnull graph,
+                                              int32_t recordIdx,
+                                              int32_t origKind,
+                                              int32_t origIndex,
+                                              int32_t* _Nonnull outKinds,
+                                              int32_t* _Nonnull outIndices,
+                                              int32_t maxCount);
+
+/// Walk backwards from a derived node to its root original via the reverse map.
+/// Returns true if an original is found; outputs the original's (kind, index).
+/// If the node has no recorded history, returns true with the input node itself.
+bool OCCTBRepGraphHistoryFindOriginal(OCCTBRepGraphRef _Nonnull graph,
+                                       int32_t derivedKind,
+                                       int32_t derivedIndex,
+                                       int32_t* _Nonnull outKind,
+                                       int32_t* _Nonnull outIndex);
+
+/// Walk forward from an original node to all transitively derived nodes.
+/// Returns the total count; writes up to maxCount pairs.
+int32_t OCCTBRepGraphHistoryFindDerived(OCCTBRepGraphRef _Nonnull graph,
+                                         int32_t origKind,
+                                         int32_t origIndex,
+                                         int32_t* _Nonnull outKinds,
+                                         int32_t* _Nonnull outIndices,
+                                         int32_t maxCount);
+
+/// Record a 1-to-N modification event on the graph's history log.
+/// Useful for consumers that mutate the graph outside BRepGraph's own builder API
+/// and want their changes to participate in history queries.
+void OCCTBRepGraphHistoryRecord(OCCTBRepGraphRef _Nonnull graph,
+                                 const char* _Nonnull opName,
+                                 int32_t origKind,
+                                 int32_t origIndex,
+                                 const int32_t* _Nullable replKinds,
+                                 const int32_t* _Nullable replIndices,
+                                 int32_t replCount);
+
 // --- Poly Counts ---
 
 /// Number of triangulations.
