@@ -44690,3 +44690,284 @@ struct Curve3DArcLengthTests {
         }
     }
 }
+
+// MARK: - v0.137 Ch1: Surface axis extraction (#65)
+
+@Suite("v0.137 Face.primaryAxis")
+struct FacePrimaryAxisTests {
+    @Test("Cylinder face has cylinder-kind primary axis along Z")
+    func cylinderFacePrimaryAxis() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { Issue.record("cylinder nil"); return }
+        var foundCyl = false
+        for face in cyl.faces() where face.surfaceType == Face.SurfaceType.cylinder {
+            if let axis = face.primaryAxis {
+                #expect(axis.kind == ShapeAxis.Kind.cylinder)
+                #expect(abs(axis.direction.z - 1.0) < 1e-6 || abs(axis.direction.z + 1.0) < 1e-6)
+                foundCyl = true
+            }
+        }
+        #expect(foundCyl)
+    }
+
+    @Test("Torus face exposes axis")
+    func torusFacePrimaryAxis() {
+        guard let torus = Shape.torus(majorRadius: 20, minorRadius: 5) else { Issue.record("torus nil"); return }
+        var found = false
+        for face in torus.faces() where face.surfaceType == Face.SurfaceType.torus {
+            if let axis = face.primaryAxis {
+                #expect(axis.kind == ShapeAxis.Kind.torus)
+                found = true
+            }
+        }
+        #expect(found)
+    }
+
+    @Test("Plane face has no primary axis")
+    func planeFaceNoAxis() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { Issue.record("box nil"); return }
+        for face in box.faces() where face.surfaceType == Face.SurfaceType.plane {
+            #expect(face.primaryAxis == nil)
+        }
+    }
+}
+
+@Suite("v0.137 Shape.revolutionAxes")
+struct ShapeRevolutionAxesTests {
+    @Test("Cylinder yields exactly one axis")
+    func cylinderOneAxis() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else { Issue.record("cylinder nil"); return }
+        let axes = cyl.revolutionAxes()
+        #expect(axes.count == 1)
+        if let a = axes.first {
+            #expect(a.kind == ShapeAxis.Kind.cylinder)
+            #expect(abs(a.direction.z - 1.0) < 1e-6 || abs(a.direction.z + 1.0) < 1e-6)
+        }
+    }
+
+    @Test("Box yields no revolution axes")
+    func boxNoAxes() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { Issue.record("box nil"); return }
+        #expect(box.revolutionAxes().isEmpty)
+    }
+
+    @Test("Torus yields one deduplicated axis")
+    func torusDedupedAxis() {
+        guard let torus = Shape.torus(majorRadius: 20, minorRadius: 5) else { Issue.record("torus nil"); return }
+        let axes = torus.revolutionAxes()
+        #expect(axes.count >= 1)
+        #expect(axes.contains { $0.kind == .torus })
+    }
+
+    @Test("Coaxial cylinder + torus collapse to one axis")
+    func coaxialDedup() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let torus = Shape.torus(majorRadius: 10, minorRadius: 2),
+              let combined = cyl.union(with: torus) else { Issue.record("union nil"); return }
+        let axes = combined.revolutionAxes()
+        // Both share the Z axis at the origin → dedup to 1.
+        #expect(axes.count == 1)
+    }
+}
+
+@Suite("v0.137 Shape.symmetryAxes")
+struct ShapeSymmetryAxesTests {
+    @Test("Cylinder reports one rotational symmetry axis")
+    func cylinderSymmetry() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20) else { Issue.record("cylinder nil"); return }
+        let axes = cyl.symmetryAxes()
+        #expect(axes.count == 1)
+        if let a = axes.first {
+            #expect(a.kind == ShapeAxis.Kind.symmetry)
+        }
+    }
+
+    @Test("Sphere reports three symmetry axes (spherical symmetry)")
+    func sphereSymmetry() {
+        guard let sphere = Shape.sphere(radius: 10) else { Issue.record("sphere nil"); return }
+        let axes = sphere.symmetryAxes()
+        #expect(axes.count == 3)
+    }
+
+    @Test("Asymmetric box reports no symmetry axis")
+    func asymmetricBoxNoSymmetry() {
+        guard let box = Shape.box(width: 10, height: 7, depth: 3) else { Issue.record("box nil"); return }
+        #expect(box.symmetryAxes().isEmpty)
+    }
+}
+
+@Suite("v0.137 Surface.torusAxis / revolutionAxis")
+struct SurfaceAxisAccessorsTests {
+    @Test("Torus surface exposes axis")
+    func torusSurfaceAxis() {
+        let origin = SIMD3<Double>(1, 2, 3)
+        let normal = SIMD3<Double>(0, 0, 1)
+        guard let surf = Surface.torus(origin: origin, axis: normal,
+                                         majorRadius: 20, minorRadius: 5) else {
+            Issue.record("torus surface nil"); return
+        }
+        if let axis = surf.torusAxis {
+            #expect(abs(axis.origin.x - 1) < 1e-6)
+            #expect(abs(axis.origin.y - 2) < 1e-6)
+            #expect(abs(axis.origin.z - 3) < 1e-6)
+            #expect(abs(axis.direction.z - 1) < 1e-6)
+        } else {
+            Issue.record("torus surface has no axis")
+        }
+    }
+
+    @Test("Cylinder surface returns nil for torusAxis")
+    func cylinderSurfaceNoTorusAxis() {
+        guard let surf = Surface.cylinder(origin: SIMD3(0, 0, 0), axis: SIMD3(0, 0, 1), radius: 5) else {
+            Issue.record("cylinder surface nil"); return
+        }
+        #expect(surf.torusAxis == nil)
+        #expect(surf.revolutionAxis == nil)
+        #expect(surf.surfaceKind == .cylinder)
+    }
+}
+
+// MARK: - v0.137 Ch2: Surface type predicates + continuity class
+
+@Suite("v0.137 Surface type predicates")
+struct SurfaceTypePredicatesTests {
+    @Test("Cylinder predicates")
+    func cylinder() {
+        guard let s = Surface.cylinder(origin: SIMD3(0,0,0), axis: SIMD3(0,0,1), radius: 5) else {
+            Issue.record("cyl nil"); return
+        }
+        #expect(s.isCylinder)
+        #expect(!s.isPlane)
+        #expect(!s.isTorus)
+        #expect(!s.isSphere)
+    }
+
+    @Test("Torus predicates")
+    func torus() {
+        guard let s = Surface.torus(origin: SIMD3(0,0,0), axis: SIMD3(0,0,1),
+                                      majorRadius: 20, minorRadius: 5) else {
+            Issue.record("torus nil"); return
+        }
+        #expect(s.isTorus)
+        #expect(!s.isCylinder)
+    }
+
+    @Test("Analytic surfaces are at least C2 continuous")
+    func analyticContinuity() {
+        guard let s = Surface.cylinder(origin: SIMD3(0,0,0), axis: SIMD3(0,0,1), radius: 5) else {
+            Issue.record("cyl nil"); return
+        }
+        let c = s.continuityClass
+        #expect(c == .cN || c == .c3 || c == .c2)
+    }
+}
+
+// MARK: - v0.137 Ch4: Drawing 2D dimension API (#64)
+
+@Suite("v0.137 Drawing dimensions")
+struct DrawingDimensionsTests {
+    @Test("Add linear dimension stores measurable value")
+    func linear() {
+        guard let box = Shape.box(width: 100, height: 50, depth: 30),
+              let drawing = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let d = drawing.addLinearDimension(from: SIMD2(0, 0), to: SIMD2(100, 0), offset: 15)
+        #expect(drawing.dimensions.count == 1)
+        #expect(abs(d.value - 100) < 1e-9)
+        if case .linear(let lin) = d {
+            #expect(abs(lin.offset - 15) < 1e-9)
+        } else { Issue.record("not a linear case") }
+    }
+
+    @Test("Radial / diameter relate correctly")
+    func radialDiameter() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let drawing = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let r = drawing.addRadialDimension(centre: SIMD2(50, 50), radius: 10)
+        let d = drawing.addDiameterDimension(centre: SIMD2(50, 50), radius: 10)
+        #expect(abs(r.value - 10) < 1e-9)
+        #expect(abs(d.value - 20) < 1e-9)
+        #expect(drawing.dimensions.count == 2)
+    }
+
+    @Test("Angular dimension computes angle between rays")
+    func angular() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let drawing = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let d = drawing.addAngularDimension(vertex: SIMD2(0, 0),
+                                            ray1: SIMD2(10, 0),
+                                            ray2: SIMD2(0, 10))
+        #expect(abs(d.value - .pi / 2) < 1e-9)
+    }
+
+    @Test("Annotations separate from dimensions")
+    func annotations() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let drawing = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        drawing.addCentreLine(from: SIMD2(-10, 0), to: SIMD2(10, 0))
+        drawing.addCentermark(centre: SIMD2(0, 0))
+        drawing.addTextLabel("DETAIL A", at: SIMD2(5, 5))
+        #expect(drawing.annotations.count == 3)
+        #expect(drawing.dimensions.isEmpty)
+    }
+
+    @Test("clearAnnotations empties both collections")
+    func clear() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let drawing = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        drawing.addLinearDimension(from: SIMD2(0,0), to: SIMD2(5,0))
+        drawing.addCentreLine(from: SIMD2(0,0), to: SIMD2(5,0))
+        drawing.clearAnnotations()
+        #expect(drawing.dimensions.isEmpty)
+        #expect(drawing.annotations.isEmpty)
+    }
+}
+
+@Suite("v0.137 Drawing auto-centrelines (#64 ↔ #65)")
+struct DrawingAutoCentrelinesTests {
+    @Test("Cylinder top view produces no centreline (axis collapses to point)")
+    func cylinderTopViewCollapses() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let drawing = Drawing.topView(of: cyl) else {
+            Issue.record("setup nil"); return
+        }
+        let result = drawing.addAutoCentrelines(from: cyl, viewDirection: SIMD3(0, 0, 1))
+        // Axis is (0,0,1), top view looks along (0,0,1) → projects to a point → skipped.
+        #expect(result.added.isEmpty)
+        #expect(result.skipped.count == 1)
+    }
+
+    @Test("Cylinder side view draws one centreline along axis")
+    func cylinderSideViewCentreline() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let drawing = Drawing.frontView(of: cyl) else {
+            Issue.record("setup nil"); return
+        }
+        let result = drawing.addAutoCentrelines(from: cyl, viewDirection: SIMD3(0, 1, 0),
+                                                 bounds: (min: SIMD2(-50, -50), max: SIMD2(50, 50)))
+        #expect(result.added.count == 1)
+        #expect(drawing.annotations.count == 1)
+        if case .centreline(let line)? = result.added.first {
+            #expect(line.style == .chain)
+        } else { Issue.record("expected centreline") }
+    }
+
+    @Test("Box produces no centrelines (no revolution axes)")
+    func boxNoCentrelines() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let drawing = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let result = drawing.addAutoCentrelines(from: box, viewDirection: SIMD3(0, 1, 0))
+        #expect(result.added.isEmpty)
+        #expect(result.skipped.isEmpty)
+    }
+}

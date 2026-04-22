@@ -20,6 +20,40 @@ public final class Surface: @unchecked Sendable {
 
     // MARK: - Properties
 
+    /// Surface type classification (matches GeomAbs_SurfaceType).
+    public enum SurfaceType: Int32, Sendable {
+        case plane = 0, cylinder = 1, cone = 2, sphere = 3, torus = 4
+        case bezierSurface = 5, bsplineSurface = 6
+        case surfaceOfRevolution = 7, surfaceOfExtrusion = 8
+        case offsetSurface = 9, other = 10
+    }
+
+    /// The specific geometric kind of this surface (Geom subclass).
+    public var surfaceKind: SurfaceType {
+        SurfaceType(rawValue: OCCTSurfaceGetType(handle)) ?? .other
+    }
+
+    /// Surface continuity class, derived from GeomAbs_Shape.
+    public enum Continuity: Int32, Sendable, CaseIterable {
+        case c0 = 0, g1 = 1, c1 = 2, g2 = 3, c2 = 4, c3 = 5, cN = 6
+    }
+
+    /// Typed overall continuity of the surface (wraps the Int-returning `continuity`).
+    public var continuityClass: Continuity {
+        Continuity(rawValue: OCCTSurfaceGetContinuity(handle)) ?? .c0
+    }
+
+    public var isPlane:              Bool { surfaceKind == .plane }
+    public var isCylinder:           Bool { surfaceKind == .cylinder }
+    public var isCone:               Bool { surfaceKind == .cone }
+    public var isSphere:             Bool { surfaceKind == .sphere }
+    public var isTorus:              Bool { surfaceKind == .torus }
+    public var isBezier:             Bool { surfaceKind == .bezierSurface }
+    public var isBSpline:            Bool { surfaceKind == .bsplineSurface }
+    public var isSurfaceOfRevolution:Bool { surfaceKind == .surfaceOfRevolution }
+    public var isSurfaceOfExtrusion: Bool { surfaceKind == .surfaceOfExtrusion }
+    public var isOffsetSurface:      Bool { surfaceKind == .offsetSurface }
+
     /// Parameter domain (uMin, uMax, vMin, vMax)
     public var domain: (uMin: Double, uMax: Double, vMin: Double, vMax: Double) {
         var uMin: Double = 0, uMax: Double = 0, vMin: Double = 0, vMax: Double = 0

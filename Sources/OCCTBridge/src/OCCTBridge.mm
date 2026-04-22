@@ -9172,6 +9172,78 @@ double OCCTFaceGetArea(OCCTFaceRef face, double tolerance) {
     }
 }
 
+#include <Geom_SurfaceOfRevolution.hxx>
+#include <Geom_SurfaceOfLinearExtrusion.hxx>
+
+bool OCCTFaceGetPrimaryAxis(OCCTFaceRef face,
+                             double* ox, double* oy, double* oz,
+                             double* dx, double* dy, double* dz,
+                             int32_t* outKind) {
+    *ox = 0; *oy = 0; *oz = 0; *dx = 0; *dy = 0; *dz = 1; *outKind = 0;
+    if (!face) return false;
+    try {
+        BRepAdaptor_Surface adaptor(face->face);
+        gp_Ax1 axis;
+        int kind = 0;
+        switch (adaptor.GetType()) {
+            case GeomAbs_Cylinder: {
+                axis = adaptor.Cylinder().Axis();
+                kind = 1;
+                break;
+            }
+            case GeomAbs_Cone: {
+                axis = adaptor.Cone().Axis();
+                kind = 2;
+                break;
+            }
+            case GeomAbs_Sphere: {
+                gp_Sphere s = adaptor.Sphere();
+                axis = gp_Ax1(s.Location(), s.Position().Direction());
+                kind = 3;
+                break;
+            }
+            case GeomAbs_Torus: {
+                axis = adaptor.Torus().Axis();
+                kind = 4;
+                break;
+            }
+            case GeomAbs_SurfaceOfRevolution: {
+                Handle(Geom_Surface) surf = BRep_Tool::Surface(face->face);
+                Handle(Geom_SurfaceOfRevolution) rev = Handle(Geom_SurfaceOfRevolution)::DownCast(surf);
+                if (rev.IsNull()) return false;
+                axis = rev->Axis();
+                kind = 5;
+                break;
+            }
+            case GeomAbs_SurfaceOfExtrusion: {
+                Handle(Geom_Surface) surf = BRep_Tool::Surface(face->face);
+                Handle(Geom_SurfaceOfLinearExtrusion) ext = Handle(Geom_SurfaceOfLinearExtrusion)::DownCast(surf);
+                if (ext.IsNull()) return false;
+                gp_Dir dir = ext->Direction();
+                // Extrusion has no canonical origin — use basis curve start.
+                Handle(Geom_Curve) basis = ext->BasisCurve();
+                gp_Pnt origin(0, 0, 0);
+                if (!basis.IsNull()) {
+                    origin = basis->Value(basis->FirstParameter());
+                }
+                axis = gp_Ax1(origin, dir);
+                kind = 6;
+                break;
+            }
+            default:
+                return false;
+        }
+        const gp_Pnt& p = axis.Location();
+        const gp_Dir& d = axis.Direction();
+        *ox = p.X(); *oy = p.Y(); *oz = p.Z();
+        *dx = d.X(); *dy = d.Y(); *dz = d.Z();
+        *outKind = kind;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 
 // MARK: - Edge 3D Curve Properties (v0.18.0)
 
@@ -16012,6 +16084,132 @@ bool OCCTShapeSurfaceInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties
         return true;
     } catch (...) {
         return false;
+    }
+}
+
+// MARK: - Shape Axis Extraction (v0.137)
+
+static bool axesCoincide(const OCCTShapeAxis& a, double ox, double oy, double oz,
+                          double dx, double dy, double dz, double tol) {
+    gp_Dir d1(a.directionX, a.directionY, a.directionZ);
+    gp_Dir d2(dx, dy, dz);
+    // Direction parallel (either same or opposite)
+    if (fabs(fabs(d1.Dot(d2)) - 1.0) > tol) return false;
+    // Origin-to-origin vector parallel to direction (i.e. same line)
+    gp_Vec sep(ox - a.originX, oy - a.originY, oz - a.originZ);
+    if (sep.Magnitude() < tol) return true;
+    gp_Vec axisVec(d1.X(), d1.Y(), d1.Z());
+    gp_Vec cross = sep.Crossed(axisVec);
+    return cross.Magnitude() < tol;
+}
+
+int32_t OCCTShapeRevolutionAxes(OCCTShapeRef shape, double tolerance,
+                                 OCCTShapeAxis* outAxes, int32_t maxAxes) {
+    if (!shape || !outAxes || maxAxes <= 0) return -1;
+    try {
+        std::vector<OCCTShapeAxis> collected;
+        for (TopExp_Explorer ex(shape->shape, TopAbs_FACE); ex.More(); ex.Next()) {
+            TopoDS_Face face = TopoDS::Face(ex.Current());
+            BRepAdaptor_Surface adaptor(face);
+            gp_Ax1 axis;
+            int kind = 0;
+            try {
+                switch (adaptor.GetType()) {
+                    case GeomAbs_Cylinder: axis = adaptor.Cylinder().Axis(); kind = 1; break;
+                    case GeomAbs_Cone:     axis = adaptor.Cone().Axis();     kind = 2; break;
+                    case GeomAbs_Sphere: {
+                        gp_Sphere s = adaptor.Sphere();
+                        axis = gp_Ax1(s.Location(), s.Position().Direction());
+                        kind = 3;
+                        break;
+                    }
+                    case GeomAbs_Torus: axis = adaptor.Torus().Axis(); kind = 4; break;
+                    case GeomAbs_SurfaceOfRevolution: {
+                        Handle(Geom_Surface) surf = BRep_Tool::Surface(face);
+                        Handle(Geom_SurfaceOfRevolution) rev = Handle(Geom_SurfaceOfRevolution)::DownCast(surf);
+                        if (rev.IsNull()) continue;
+                        axis = rev->Axis();
+                        kind = 5;
+                        break;
+                    }
+                    default: continue;
+                }
+            } catch (...) { continue; }
+            const gp_Pnt& p = axis.Location();
+            const gp_Dir& d = axis.Direction();
+            bool dup = false;
+            for (const auto& existing : collected) {
+                if (axesCoincide(existing, p.X(), p.Y(), p.Z(), d.X(), d.Y(), d.Z(), tolerance)) {
+                    dup = true;
+                    break;
+                }
+            }
+            if (dup) continue;
+            OCCTShapeAxis a;
+            a.originX = p.X(); a.originY = p.Y(); a.originZ = p.Z();
+            a.directionX = d.X(); a.directionY = d.Y(); a.directionZ = d.Z();
+            a.extentMin = 0; a.extentMax = 0; a.hasExtent = false;
+            a.kind = kind;
+            collected.push_back(a);
+        }
+        int32_t count = std::min((int32_t)collected.size(), maxAxes);
+        for (int32_t i = 0; i < count; i++) outAxes[i] = collected[i];
+        return (int32_t)collected.size();
+    } catch (...) {
+        return -1;
+    }
+}
+
+int32_t OCCTShapeSymmetryAxes(OCCTShapeRef shape, double fractionalTolerance,
+                               OCCTShapeAxis* outAxes, int32_t maxAxes) {
+    if (!shape || !outAxes || maxAxes <= 0) return -1;
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+        gp_Pnt cm = props.CentreOfMass();
+        GProp_PrincipalProps pp = props.PrincipalProperties();
+        double Ix, Iy, Iz;
+        pp.Moments(Ix, Iy, Iz);
+        gp_Vec v1 = pp.FirstAxisOfInertia();
+        gp_Vec v2 = pp.SecondAxisOfInertia();
+        gp_Vec v3 = pp.ThirdAxisOfInertia();
+        double moments[3] = { Ix, Iy, Iz };
+        gp_Vec axes[3] = { v1, v2, v3 };
+        double maxM = std::max({ Ix, Iy, Iz });
+        std::vector<OCCTShapeAxis> collected;
+        if (pp.HasSymmetryPoint()) {
+            // Spherical — add all three principal axes (all equal).
+            for (int i = 0; i < 3; i++) {
+                OCCTShapeAxis a;
+                a.originX = cm.X(); a.originY = cm.Y(); a.originZ = cm.Z();
+                a.directionX = axes[i].X(); a.directionY = axes[i].Y(); a.directionZ = axes[i].Z();
+                a.extentMin = 0; a.extentMax = 0; a.hasExtent = false; a.kind = 7;
+                collected.push_back(a);
+            }
+        } else if (pp.HasSymmetryAxis()) {
+            // Rotational — the unique (different) moment's axis IS the symmetry axis.
+            int uniqueIdx = 0;
+            for (int i = 0; i < 3; i++) {
+                int j = (i + 1) % 3, k = (i + 2) % 3;
+                if (fabs(moments[j] - moments[k]) < fractionalTolerance * maxM &&
+                    fabs(moments[i] - moments[j]) > fractionalTolerance * maxM) {
+                    uniqueIdx = i;
+                    break;
+                }
+            }
+            OCCTShapeAxis a;
+            a.originX = cm.X(); a.originY = cm.Y(); a.originZ = cm.Z();
+            a.directionX = axes[uniqueIdx].X();
+            a.directionY = axes[uniqueIdx].Y();
+            a.directionZ = axes[uniqueIdx].Z();
+            a.extentMin = 0; a.extentMax = 0; a.hasExtent = false; a.kind = 7;
+            collected.push_back(a);
+        }
+        int32_t count = std::min((int32_t)collected.size(), maxAxes);
+        for (int32_t i = 0; i < count; i++) outAxes[i] = collected[i];
+        return (int32_t)collected.size();
+    } catch (...) {
+        return -1;
     }
 }
 
@@ -42623,6 +42821,47 @@ double OCCTSurfaceTorusVolume(OCCTSurfaceRef surface) {
         if (t.IsNull()) return 0;
         return t->Volume();
     } catch (...) { return 0; }
+}
+
+void OCCTSurfaceTorusAxis(OCCTSurfaceRef surface, double* px, double* py, double* pz, double* dx, double* dy, double* dz) {
+    *px = 0; *py = 0; *pz = 0; *dx = 0; *dy = 0; *dz = 1;
+    if (!surface) return;
+    try {
+        Handle(Geom_ToroidalSurface) t = Handle(Geom_ToroidalSurface)::DownCast(surface->surface);
+        if (t.IsNull()) return;
+        gp_Ax1 a = t->Axis();
+        const gp_Pnt& p = a.Location();
+        const gp_Dir& d = a.Direction();
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *dx = d.X(); *dy = d.Y(); *dz = d.Z();
+    } catch (...) {}
+}
+
+// MARK: - Geom_SurfaceOfRevolution Methods (v0.137)
+
+void OCCTSurfaceRevolutionAxis(OCCTSurfaceRef surface, double* px, double* py, double* pz, double* dx, double* dy, double* dz) {
+    *px = 0; *py = 0; *pz = 0; *dx = 0; *dy = 0; *dz = 1;
+    if (!surface) return;
+    try {
+        Handle(Geom_SurfaceOfRevolution) r = Handle(Geom_SurfaceOfRevolution)::DownCast(surface->surface);
+        if (r.IsNull()) return;
+        gp_Ax1 a = r->Axis();
+        const gp_Pnt& p = a.Location();
+        const gp_Dir& d = a.Direction();
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *dx = d.X(); *dy = d.Y(); *dz = d.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceRevolutionLocation(OCCTSurfaceRef surface, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_SurfaceOfRevolution) r = Handle(Geom_SurfaceOfRevolution)::DownCast(surface->surface);
+        if (r.IsNull()) return;
+        gp_Pnt p = r->Location();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
 }
 
 // MARK: - Geom_CylindricalSurface Methods (v0.108.0)

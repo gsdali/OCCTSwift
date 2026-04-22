@@ -32,6 +32,7 @@ public final class Drawing: @unchecked Sendable {
     }
 
     internal let handle: OCCTDrawingRef
+    internal let annotationStore = DrawingAnnotationStore()
 
     internal init(handle: OCCTDrawingRef) {
         self.handle = handle
@@ -40,6 +41,98 @@ public final class Drawing: @unchecked Sendable {
     deinit {
         OCCTDrawingRelease(handle)
     }
+
+    // MARK: - Dimensions and annotations (v0.137, #64)
+
+    /// All dimensions attached to this drawing.
+    public var dimensions: [DrawingDimension] { annotationStore.dimensions }
+
+    /// All non-dimensional annotations (centrelines, centremarks, text) attached to this drawing.
+    public var annotations: [DrawingAnnotation] { annotationStore.annotations }
+
+    @discardableResult
+    public func addLinearDimension(from: SIMD2<Double>, to: SIMD2<Double>,
+                                   offset: Double = 10,
+                                   label: String? = nil,
+                                   style: DrawingLineStyle = .solid,
+                                   id: String? = nil) -> DrawingDimension {
+        let d = DrawingDimension.linear(.init(from: from, to: to, offset: offset,
+                                              label: label, style: style, id: id))
+        annotationStore.appendDimension(d)
+        return d
+    }
+
+    @discardableResult
+    public func addRadialDimension(centre: SIMD2<Double>, radius: Double,
+                                   leaderAngle: Double = .pi / 4,
+                                   label: String? = nil,
+                                   style: DrawingLineStyle = .solid,
+                                   id: String? = nil) -> DrawingDimension {
+        let d = DrawingDimension.radial(.init(centre: centre, radius: radius,
+                                              leaderAngle: leaderAngle,
+                                              label: label, style: style, id: id))
+        annotationStore.appendDimension(d)
+        return d
+    }
+
+    @discardableResult
+    public func addDiameterDimension(centre: SIMD2<Double>, radius: Double,
+                                     leaderAngle: Double = .pi / 4,
+                                     label: String? = nil,
+                                     style: DrawingLineStyle = .solid,
+                                     id: String? = nil) -> DrawingDimension {
+        let d = DrawingDimension.diameter(.init(centre: centre, radius: radius,
+                                                leaderAngle: leaderAngle,
+                                                label: label, style: style, id: id))
+        annotationStore.appendDimension(d)
+        return d
+    }
+
+    @discardableResult
+    public func addAngularDimension(vertex: SIMD2<Double>,
+                                    ray1: SIMD2<Double>,
+                                    ray2: SIMD2<Double>,
+                                    arcRadius: Double = 20,
+                                    label: String? = nil,
+                                    style: DrawingLineStyle = .solid,
+                                    id: String? = nil) -> DrawingDimension {
+        let d = DrawingDimension.angular(.init(vertex: vertex, ray1: ray1, ray2: ray2,
+                                               arcRadius: arcRadius,
+                                               label: label, style: style, id: id))
+        annotationStore.appendDimension(d)
+        return d
+    }
+
+    @discardableResult
+    public func addCentreLine(from: SIMD2<Double>, to: SIMD2<Double>,
+                              style: DrawingLineStyle = .chain,
+                              id: String? = nil) -> DrawingAnnotation {
+        let a = DrawingAnnotation.centreline(.init(from: from, to: to, style: style, id: id))
+        annotationStore.appendAnnotation(a)
+        return a
+    }
+
+    @discardableResult
+    public func addCentermark(centre: SIMD2<Double>, extent: Double = 8,
+                              style: DrawingLineStyle = .chain,
+                              id: String? = nil) -> DrawingAnnotation {
+        let a = DrawingAnnotation.centermark(.init(centre: centre, extent: extent, style: style, id: id))
+        annotationStore.appendAnnotation(a)
+        return a
+    }
+
+    @discardableResult
+    public func addTextLabel(_ text: String, at position: SIMD2<Double>,
+                             height: Double = 3.5, rotation: Double = 0,
+                             id: String? = nil) -> DrawingAnnotation {
+        let a = DrawingAnnotation.textLabel(.init(position: position, text: text,
+                                                  height: height, rotation: rotation, id: id))
+        annotationStore.appendAnnotation(a)
+        return a
+    }
+
+    /// Remove all dimensions and annotations from this drawing.
+    public func clearAnnotations() { annotationStore.clear() }
 
     // MARK: - Creation
 

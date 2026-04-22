@@ -2417,6 +2417,14 @@ int32_t OCCTFaceGetSurfaceType(OCCTFaceRef face);
 /// Get surface area of a single face
 double OCCTFaceGetArea(OCCTFaceRef face, double tolerance);
 
+/// Get the primary axis of a face's underlying surface if cylindrical/conical/spherical/
+/// toroidal/surface-of-revolution/surface-of-extrusion. Returns false for non-axial surfaces. v0.137.
+/// outKind: 0=none, 1=cylinder, 2=cone, 3=sphere, 4=torus, 5=revolution, 6=extrusion.
+bool OCCTFaceGetPrimaryAxis(OCCTFaceRef _Nonnull face,
+                             double* _Nonnull ox, double* _Nonnull oy, double* _Nonnull oz,
+                             double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz,
+                             int32_t* _Nonnull outKind);
+
 
 // MARK: - Edge 3D Curve Properties (v0.18.0)
 
@@ -4647,6 +4655,35 @@ bool OCCTShapeInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outPr
 
 /// Compute surface-area-based inertia properties
 bool OCCTShapeSurfaceInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outProps);
+
+// MARK: - Shape Axis Extraction (v0.137)
+
+/// Axis record emitted by OCCTShapeRevolutionAxes / OCCTShapeSymmetryAxes.
+/// kind: 1=cylinder, 2=cone, 3=sphere, 4=torus, 5=revolution, 6=extrusion, 7=symmetry
+typedef struct {
+    double originX, originY, originZ;
+    double directionX, directionY, directionZ;
+    double extentMin;       // along direction from origin (-inf as -DBL_MAX)
+    double extentMax;       // +inf as DBL_MAX
+    bool   hasExtent;
+    int32_t kind;
+} OCCTShapeAxis;
+
+/// Collect revolution axes from all cylindrical/conical/toroidal/revolved faces in a shape.
+/// Axes are deduplicated by origin+direction within the given tolerance. Returns count,
+/// writes up to maxAxes entries into outAxes. Returns -1 on failure.
+int32_t OCCTShapeRevolutionAxes(OCCTShapeRef _Nonnull shape,
+                                 double tolerance,
+                                 OCCTShapeAxis* _Nonnull outAxes,
+                                 int32_t maxAxes);
+
+/// Detect symmetry axes from principal moments of inertia — when two moments are nearly
+/// equal (within fractionalTolerance of the larger), the third is a symmetry axis.
+/// Returns count (0 for none, 1 for rotational symmetry, 3 for spherical symmetry).
+int32_t OCCTShapeSymmetryAxes(OCCTShapeRef _Nonnull shape,
+                               double fractionalTolerance,
+                               OCCTShapeAxis* _Nonnull outAxes,
+                               int32_t maxAxes);
 
 /// Distance solution entry
 typedef struct {
@@ -14737,6 +14774,17 @@ double OCCTSurfaceTorusArea(OCCTSurfaceRef _Nonnull surface);
 
 /// Get the volume of a Geom_ToroidalSurface.
 double OCCTSurfaceTorusVolume(OCCTSurfaceRef _Nonnull surface);
+
+/// Get the axis of a Geom_ToroidalSurface (origin + direction of rotation axis). v0.137.
+void OCCTSurfaceTorusAxis(OCCTSurfaceRef _Nonnull surface, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+// MARK: - Geom_SurfaceOfRevolution Methods (v0.137)
+
+/// Get the axis of revolution (origin + direction). Valid only when surface type == Revolution.
+void OCCTSurfaceRevolutionAxis(OCCTSurfaceRef _Nonnull surface, double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz, double* _Nonnull dx, double* _Nonnull dy, double* _Nonnull dz);
+
+/// Get the location (anchor point on the axis) of a Geom_SurfaceOfRevolution.
+void OCCTSurfaceRevolutionLocation(OCCTSurfaceRef _Nonnull surface, double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
 
 // MARK: - Geom_CylindricalSurface Methods (v0.108.0)
 
