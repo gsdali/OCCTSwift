@@ -2522,6 +2522,12 @@ typedef struct OCCTCurve3D* OCCTCurve3DRef;
 
 void OCCTCurve3DRelease(OCCTCurve3DRef curve);
 
+/// Get the 3D curve underlying an edge as a standalone Curve3D handle.
+/// Returns nil if the edge has no 3D curve representation.
+/// Ensures the 3D curve is built via BRepLib::BuildCurves3d for edges that
+/// may only carry a pcurve (lofted / swept shapes). v0.147.
+OCCTCurve3DRef _Nullable OCCTEdgeGetCurve3D(OCCTEdgeRef _Nonnull edge);
+
 // Properties
 void   OCCTCurve3DGetDomain(OCCTCurve3DRef curve, double* first, double* last);
 bool   OCCTCurve3DIsClosed(OCCTCurve3DRef curve);

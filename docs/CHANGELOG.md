@@ -2,13 +2,22 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.146.0
+## Current: v0.147.0
 
-**3,995 wrapped operations | 3,252 tests | 1,148 suites | OCCT 8.0.0-rc5**
+**4,020 wrapped operations | 3,267 tests | 1,152 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.147.0 (Apr 2026) — Drawing + FeatureSpec consumer polish
+
+Closes four small follow-up issues (#79, #80, #81, #82) that downstream consumers (OCCTSwiftScripts, OCCTDesignLoop, MCP tooling) asked for to remove boilerplate and unblock JSON-driven workflows.
+
+- **#80 `Edge.curve3D`**: Direct `Edge → Curve3D` bridge. Ensures the 3D curve is built via `BRepLib::BuildCurves3d` for pcurve-only edges. Returns the raw `Geom_Curve` so consumers can call `curve.circleProperties` / `lineProperties` / etc. without DownCast gymnastics.
+- **#79 `Drawing.addAutoCentermarks(from:viewDirection:extent:minRadius:bounds:)`**: symmetric to `addAutoCentrelines`. Walks circular edges, projects each centre into the view plane, adds `.centermark` annotations. Skips edges whose circle plane is parallel to the view (edge-on). `minRadius` filters small holes; `bounds` filters centermarks outside the view.
+- **#81 `DrawingAnnotation.CuttingPlaneLine` + `Drawing.addCuttingPlaneLine`**: typed ISO 128-40 cutting-plane line. Computes trace in view 2D from cutting plane normal × view direction. DXFWriter renders heavy-chain ends, thin-chain middle, perpendicular arrows, and label letters at both ends.
+- **#82 `FeatureSpec` Codable conformance**: `FeatureSpec` + all nested types (`Revolve`, `Extrude`, `Hole`, `Thread`, `EdgeSelector`, `Fillet`, `Chamfer`, `Boolean`) now `Codable`. Unblocks `FeatureReconstructor.buildJSON` + Python / MCP driven reconstruction pipelines without each consumer mirroring the types in their own schema.
 
 ### v0.146.0 (Apr 2026) — ISO drawings III: cosmetic threads, surface finish, GD&T symbols, detail views
 

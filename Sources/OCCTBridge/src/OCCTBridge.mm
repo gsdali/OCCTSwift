@@ -9525,7 +9525,6 @@ OCCTCurveProjectionResult OCCTEdgeProjectPoint(OCCTEdgeRef edge,
     }
 }
 
-
 // MARK: - Shape Proximity (v0.18.0)
 
 #include <BRepExtrema_ShapeProximity.hxx>
@@ -9651,6 +9650,22 @@ struct OCCTCurve3D {
 
 void OCCTCurve3DRelease(OCCTCurve3DRef c) {
     delete c;
+}
+
+OCCTCurve3DRef OCCTEdgeGetCurve3D(OCCTEdgeRef edge) {
+    if (!edge) return nullptr;
+    try {
+        BRepLib::BuildCurves3d(edge->edge);
+        Standard_Real first, last;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge->edge, first, last);
+        if (curve.IsNull()) return nullptr;
+        // Return the raw curve so consumers can DownCast to Geom_Circle /
+        // Geom_Line / etc. for typed-property extraction. The edge's
+        // parameter range stays available via Edge.parameterBounds.
+        return new OCCTCurve3D(curve);
+    } catch (...) {
+        return nullptr;
+    }
 }
 
 // Properties

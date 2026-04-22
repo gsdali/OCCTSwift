@@ -154,6 +154,7 @@ public enum DrawingAnnotation: Sendable, Hashable {
     case centermark(Centermark)
     case textLabel(TextLabel)
     case hatch(Hatch)
+    case cuttingPlaneLine(CuttingPlaneLine)
 
     public struct Centreline: Sendable, Hashable {
         public var from: SIMD2<Double>
@@ -195,6 +196,33 @@ public enum DrawingAnnotation: Sendable, Hashable {
                     id: String? = nil) {
             self.position = position; self.text = text
             self.height = height; self.rotation = rotation; self.id = id
+        }
+    }
+
+    /// ISO 128-40 cutting-plane line — the section mark on the parent view
+    /// indicating where a section view was cut. Renders as:
+    /// - heavy-chain segments at each endpoint (~10 mm long)
+    /// - thin-chain segment joining the heavy ends across the view
+    /// - perpendicular arrows at each end pointing in the section's view
+    ///   direction
+    /// - label letter at each arrow (typically capital "A", "B", ...)
+    public struct CuttingPlaneLine: Sendable, Hashable {
+        public var label: String
+        public var traceStart: SIMD2<Double>
+        public var traceEnd: SIMD2<Double>
+        public var arrowDirection: SIMD2<Double>   // perpendicular to trace, in view 2D
+        public var id: String?
+
+        public init(label: String,
+                    traceStart: SIMD2<Double>,
+                    traceEnd: SIMD2<Double>,
+                    arrowDirection: SIMD2<Double>,
+                    id: String? = nil) {
+            self.label = label
+            self.traceStart = traceStart
+            self.traceEnd = traceEnd
+            self.arrowDirection = simd_normalize(arrowDirection)
+            self.id = id
         }
     }
 

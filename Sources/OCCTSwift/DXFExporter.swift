@@ -153,8 +153,53 @@ public final class DXFWriter: @unchecked Sendable {
                         rotationDeg: t.rotation * 180 / .pi, layer: "TEXT")
             case .hatch(let h):
                 emitHatch(h)
+            case .cuttingPlaneLine(let cpl):
+                emitCuttingPlaneLine(cpl)
             }
         }
+    }
+
+    /// Render an ISO 128-40 cutting-plane line: heavy-chain ends, thin-chain
+    /// middle, perpendicular arrows, and a label at each end.
+    private func emitCuttingPlaneLine(_ cpl: DrawingAnnotation.CuttingPlaneLine) {
+        let start = cpl.traceStart
+        let end = cpl.traceEnd
+        let traceDir = end - start
+        let traceLen = simd_length(traceDir)
+        guard traceLen > 1e-6 else { return }
+        let u = traceDir / traceLen
+        let heavyLen = min(10.0, traceLen * 0.2)
+
+        let heavyEndA = start + u * heavyLen
+        let heavyEndB = end - u * heavyLen
+
+        // Heavy chain at each end (rendered on CENTER layer — consumers can
+        // reassign to a bolder layer if they maintain thin/thick linetype sep).
+        addLine(from: start, to: heavyEndA, layer: "CENTER")
+        addLine(from: heavyEndB, to: end, layer: "CENTER")
+        // Thin chain middle
+        addLine(from: heavyEndA, to: heavyEndB, layer: "CENTER")
+
+        // Arrows perpendicular at each trace endpoint.
+        let a = cpl.arrowDirection
+        let arrowLen = 8.0
+        let arrowWidth = 3.0
+        let perp = SIMD2(-a.y, a.x)
+        func arrow(at p: SIMD2<Double>) {
+            let tip = p + a * arrowLen
+            let base1 = tip - a * arrowLen * 0.4 + perp * arrowWidth / 2
+            let base2 = tip - a * arrowLen * 0.4 - perp * arrowWidth / 2
+            addLine(from: p, to: tip, layer: "TEXT")
+            addLine(from: tip, to: base1, layer: "TEXT")
+            addLine(from: tip, to: base2, layer: "TEXT")
+        }
+        arrow(at: start)
+        arrow(at: end)
+
+        // Labels slightly beyond each arrow tip.
+        let labelOffset = arrowLen + 4.0
+        addText(cpl.label, at: start + a * labelOffset, height: 5.0, layer: "TEXT")
+        addText(cpl.label, at: end + a * labelOffset, height: 5.0, layer: "TEXT")
     }
 
     /// Tessellate a hatch pattern into individual line segments inside its

@@ -46655,6 +46655,198 @@ struct DrawingSymbolsTests {
     }
 }
 
+// MARK: - v0.147 #80: Edge.curve3D
+
+@Suite("v0.147 Edge.curve3D accessor")
+struct EdgeCurve3DTests {
+    @Test("Linear edge returns a Curve3D")
+    func linearEdgeCurve3D() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box nil"); return
+        }
+        let edges = box.edges()
+        #expect(edges.count > 0)
+        if let c = edges.first?.curve3D {
+            #expect(c.domain.lowerBound <= c.domain.upperBound)
+        } else {
+            Issue.record("curve3D nil")
+        }
+    }
+
+    @Test("Cylindrical face's circular edge yields circleProperties")
+    func circularEdgeCircleProps() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else {
+            Issue.record("cyl nil"); return
+        }
+        var foundCircle = false
+        for edge in cyl.edges() where edge.curveType == .circle {
+            if let curve = edge.curve3D {
+                let props = curve.circleProperties
+                #expect(abs(props.radius - 5.0) < 1e-6)
+                foundCircle = true
+            }
+        }
+        #expect(foundCircle)
+    }
+}
+
+// MARK: - v0.147 #79: Drawing.addAutoCentermarks
+
+@Suite("v0.147 Drawing.addAutoCentermarks")
+struct AutoCentermarksTests {
+    @Test("Cylinder top view produces one centermark")
+    func cylinderTopViewMark() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let top = Drawing.topView(of: cyl) else {
+            Issue.record("setup nil"); return
+        }
+        let result = top.addAutoCentermarks(from: cyl, viewDirection: SIMD3(0, 0, 1))
+        // Top view has two circular edges (top + bottom); both face the view,
+        // so both should produce centermarks.
+        #expect(result.added.count == 2)
+    }
+
+    @Test("Cylinder side view skips edge-on circles")
+    func cylinderSideViewSkipped() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let front = Drawing.frontView(of: cyl) else {
+            Issue.record("setup nil"); return
+        }
+        let result = front.addAutoCentermarks(from: cyl, viewDirection: SIMD3(0, 1, 0))
+        // Side view: both circular edges are edge-on → both skipped.
+        #expect(result.added.isEmpty)
+        #expect(result.skipped.count >= 1)
+    }
+
+    @Test("minRadius filters small holes")
+    func minRadiusFilter() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let top = Drawing.topView(of: cyl) else {
+            Issue.record("setup nil"); return
+        }
+        let result = top.addAutoCentermarks(from: cyl, viewDirection: SIMD3(0, 0, 1),
+                                             minRadius: 100)
+        #expect(result.added.isEmpty)
+    }
+}
+
+// MARK: - v0.147 #81: cuttingPlaneLine
+
+@Suite("v0.147 DrawingAnnotation.cuttingPlaneLine")
+struct CuttingPlaneLineTests {
+    @Test("addCuttingPlaneLine stores a cutting-plane annotation")
+    func addStoresAnnotation() {
+        guard let box = Shape.box(width: 100, height: 50, depth: 30),
+              let front = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let ann = front.addCuttingPlaneLine(
+            label: "A",
+            cuttingPlaneOrigin: SIMD3(50, 25, 15),
+            cuttingPlaneNormal: SIMD3(1, 0, 0),
+            sectionViewDirection: SIMD3(1, 0, 0),
+            viewDirection: SIMD3(0, 1, 0))
+        #expect(ann != nil)
+        if case .cuttingPlaneLine(let cpl)? = ann {
+            #expect(cpl.label == "A")
+        }
+    }
+
+    @Test("Cutting plane parallel to view plane returns nil")
+    func parallelToViewReturnsNil() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let top = Drawing.topView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let ann = top.addCuttingPlaneLine(
+            label: "A",
+            cuttingPlaneOrigin: .zero,
+            cuttingPlaneNormal: SIMD3(0, 0, 1),   // parallel to top-view direction
+            sectionViewDirection: SIMD3(0, 0, -1),
+            viewDirection: SIMD3(0, 0, 1))
+        #expect(ann == nil)
+    }
+
+    @Test("DXFWriter emits cutting plane line geometry")
+    func dxfEmitsGeometry() {
+        guard let box = Shape.box(width: 100, height: 50, depth: 30),
+              let front = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        front.addCuttingPlaneLine(
+            label: "A",
+            cuttingPlaneOrigin: SIMD3(50, 25, 15),
+            cuttingPlaneNormal: SIMD3(1, 0, 0),
+            sectionViewDirection: SIMD3(1, 0, 0),
+            viewDirection: SIMD3(0, 1, 0))
+        let writer = DXFWriter()
+        writer.collectFromDrawing(front)
+        // Expect at least: 3 chain segments + 2 arrows (3 lines each) + 2 text labels
+        let counts = writer.entityCounts
+        #expect(counts.lines >= 9)   // 3 chain + 6 arrow
+        #expect(counts.texts >= 2)
+    }
+}
+
+// MARK: - v0.147 #82: FeatureSpec Codable
+
+@Suite("v0.147 FeatureSpec Codable")
+struct FeatureSpecCodableTests {
+    @Test("Encode/decode roundtrip of a revolve")
+    func revolveRoundtrip() throws {
+        let r = FeatureSpec.revolve(.init(
+            profilePoints2D: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 5)],
+            axisOrigin: .zero,
+            axisDirection: SIMD3(0, 0, 1),
+            angleDeg: 360,
+            id: "rev"))
+        let enc = try JSONEncoder().encode(r)
+        let dec = try JSONDecoder().decode(FeatureSpec.self, from: enc)
+        #expect(dec == r)
+    }
+
+    @Test("Encode/decode roundtrip of a boolean")
+    func booleanRoundtrip() throws {
+        let b = FeatureSpec.boolean(.init(op: .subtract, leftID: "a", rightID: "b", id: "sub1"))
+        let enc = try JSONEncoder().encode(b)
+        let dec = try JSONDecoder().decode(FeatureSpec.self, from: enc)
+        #expect(dec == b)
+    }
+
+    @Test("Encode/decode an array of mixed specs")
+    func mixedArray() throws {
+        let specs: [FeatureSpec] = [
+            .revolve(.init(profilePoints2D: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 5)],
+                           axisOrigin: .zero,
+                           axisDirection: SIMD3(0, 0, 1),
+                           id: "base")),
+            .hole(.init(axisPoint: SIMD3(5, 0, 0),
+                        axisDirection: SIMD3(0, 0, 1),
+                        diameter: 2.0, depth: 5.0, id: "h1")),
+            .fillet(.init(edgeSelector: .all, radius: 0.5, id: "f")),
+            .boolean(.init(op: .union, leftID: "base", rightID: "h1", id: "u"))
+        ]
+        let enc = try JSONEncoder().encode(specs)
+        let dec = try JSONDecoder().decode([FeatureSpec].self, from: enc)
+        #expect(dec.count == specs.count)
+        #expect(dec == specs)
+    }
+
+    @Test("EdgeSelector variants round-trip")
+    func edgeSelectorRoundtrip() throws {
+        let selectors: [FeatureSpec.EdgeSelector] = [
+            .all,
+            .nearPoint(SIMD3(1, 2, 3), tolerance: 0.5),
+            .onFeature("base")
+        ]
+        for s in selectors {
+            let enc = try JSONEncoder().encode(s)
+            let dec = try JSONDecoder().decode(FeatureSpec.EdgeSelector.self, from: enc)
+            #expect(dec == s)
+        }
+    }
+}
+
 // MARK: - v0.140: XCAFDoc GD&T write path
 
 @Suite("v0.140 Document GD&T write + typed enums")

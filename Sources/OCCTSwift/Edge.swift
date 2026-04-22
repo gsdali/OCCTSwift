@@ -153,6 +153,23 @@ public final class Edge: @unchecked Sendable {
         project(point: point)?.distance
     }
 
+    /// The 3D curve underlying this edge as a standalone `Curve3D`.
+    ///
+    /// Returns nil for edges with no 3D curve representation (rare — typically
+    /// pcurve-only edges from lofted / swept shapes before `BuildCurves3d`).
+    /// Internally the returned curve is a `Geom_TrimmedCurve` over the edge's
+    /// parameter range, so consumers get a finite handle even when the
+    /// underlying geometry is an unbounded line or circle.
+    ///
+    /// Use cases:
+    /// - Extract `CircleProperties` from a circular edge via `curve3D?.circleProperties`
+    /// - Emit native DXF `CIRCLE` / `LINE` entities instead of tessellated polylines
+    /// - Feed edge geometry into parametric sampling / analysis pipelines
+    public var curve3D: Curve3D? {
+        guard let ref = OCCTEdgeGetCurve3D(handle) else { return nil }
+        return Curve3D(handle: ref)
+    }
+
     // MARK: - Sampling
 
     /// Get points along the edge curve

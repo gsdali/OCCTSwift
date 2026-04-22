@@ -57,6 +57,69 @@ extension Drawing {
     }
 }
 
+// MARK: - Auto centermark generation (#79, v0.147)
+
+extension Drawing {
+    public struct AutoCentermarkResult: Sendable {
+        public let added: [DrawingAnnotation]
+        public let skipped: [Edge]              // edges whose circle projects edge-on
+    }
+
+    /// Walk `shape`'s circular edges, project each circle's centre into this
+    /// drawing's view plane, and add a `.centermark` annotation when the
+    /// circle is visible (its plane normal is not parallel to the view
+    /// direction). Complements `addAutoCentrelines` which handles revolution
+    /// axes.
+    @discardableResult
+    public func addAutoCentermarks(from shape: Shape,
+                                    viewDirection: SIMD3<Double>,
+                                    extent: Double = 8,
+                                    minRadius: Double = 0,
+                                    bounds: (min: SIMD2<Double>, max: SIMD2<Double>)? = nil) -> AutoCentermarkResult {
+        let viewZ = simd_normalize(viewDirection)
+        var added: [DrawingAnnotation] = []
+        var skipped: [Edge] = []
+        for edge in shape.edges() where edge.curveType == .circle {
+            guard let curve = edge.curve3D else { continue }
+            let props = curve.circleProperties
+            guard props.radius >= minRadius else { continue }
+            // Circle normal = X axis × Y axis of the circle's local frame.
+            let normal = simd_cross(props.xAxis.direction, props.yAxis.direction)
+            // If the circle's plane is parallel to the view direction, the
+            // circle projects to a line segment (edge-on). Skip.
+            let dot = abs(simd_dot(simd_normalize(normal), viewZ))
+            if dot < 0.1 {
+                skipped.append(edge)
+                continue
+            }
+            let centre2D = projectPointToPlane(props.center, viewDirection: viewZ)
+            if let bb = bounds, (centre2D.x < bb.min.x || centre2D.x > bb.max.x ||
+                                  centre2D.y < bb.min.y || centre2D.y > bb.max.y) {
+                continue
+            }
+            let ann = addCentermark(centre: centre2D, extent: extent,
+                                     id: "auto-mark-\(added.count)")
+            added.append(ann)
+        }
+        return AutoCentermarkResult(added: added, skipped: skipped)
+    }
+}
+
+/// Project a 3D point onto the 2D plane perpendicular to `viewDirection` using
+/// the OCCTSwift HLR convention: `right = cross(worldUp, viewDirection)`,
+/// `up = cross(viewDirection, right)`.
+internal func projectPointToPlane(_ p: SIMD3<Double>,
+                                   viewDirection: SIMD3<Double>) -> SIMD2<Double> {
+    let worldUp = SIMD3<Double>(0, 0, 1)
+    var rightRaw = simd_cross(worldUp, viewDirection)
+    if simd_length(rightRaw) < 1e-9 {
+        rightRaw = simd_cross(SIMD3(0, 1, 0), viewDirection)
+    }
+    let right = simd_normalize(rightRaw)
+    let up = simd_normalize(simd_cross(viewDirection, right))
+    return SIMD2(simd_dot(p, right), simd_dot(p, up))
+}
+
 /// Project a 3D axis (origin + direction) into the 2D plane perpendicular to
 /// `viewDirection` and clip to the given bounds. Returns nil if the axis projects
 /// to a point (i.e. it is parallel to the view direction).

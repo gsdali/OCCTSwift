@@ -27,7 +27,7 @@ import simd
 //     Shape.threadedHole / threadedShaft path from v0.139 can be invoked by
 //     the caller if real thread geometry is wanted.
 
-public enum FeatureSpec: Sendable, Hashable {
+public enum FeatureSpec: Sendable, Hashable, Codable {
     case revolve(Revolve)
     case extrude(Extrude)
     case hole(Hole)
@@ -48,7 +48,7 @@ public enum FeatureSpec: Sendable, Hashable {
         }
     }
 
-    public struct Revolve: Sendable, Hashable {
+    public struct Revolve: Sendable, Hashable, Codable {
         public var profilePoints2D: [SIMD2<Double>]
         public var axisOrigin: SIMD3<Double>
         public var axisDirection: SIMD3<Double>
@@ -68,7 +68,7 @@ public enum FeatureSpec: Sendable, Hashable {
         }
     }
 
-    public struct Extrude: Sendable, Hashable {
+    public struct Extrude: Sendable, Hashable, Codable {
         public var profilePoints2D: [SIMD2<Double>]
         public var planeOrigin: SIMD3<Double>
         public var planeNormal: SIMD3<Double>
@@ -88,7 +88,7 @@ public enum FeatureSpec: Sendable, Hashable {
         }
     }
 
-    public struct Hole: Sendable, Hashable {
+    public struct Hole: Sendable, Hashable, Codable {
         public var axisPoint: SIMD3<Double>
         public var axisDirection: SIMD3<Double>
         public var diameter: Double
@@ -108,7 +108,7 @@ public enum FeatureSpec: Sendable, Hashable {
         }
     }
 
-    public struct Thread: Sendable, Hashable {
+    public struct Thread: Sendable, Hashable, Codable {
         public var holeRef: String
         public var spec: String    // "M5x0.8", "1/4-20 UNC"
         public var length: Double?
@@ -122,13 +122,13 @@ public enum FeatureSpec: Sendable, Hashable {
         }
     }
 
-    public enum EdgeSelector: Sendable, Hashable {
+    public enum EdgeSelector: Sendable, Hashable, Codable {
         case all
         case nearPoint(SIMD3<Double>, tolerance: Double)
         case onFeature(String)                // feature id; maps to TopologyRef.createdBy
     }
 
-    public struct Fillet: Sendable, Hashable {
+    public struct Fillet: Sendable, Hashable, Codable {
         public var edgeSelector: EdgeSelector
         public var radius: Double
         public var id: String?
@@ -140,7 +140,7 @@ public enum FeatureSpec: Sendable, Hashable {
         }
     }
 
-    public struct Chamfer: Sendable, Hashable {
+    public struct Chamfer: Sendable, Hashable, Codable {
         public var edgeSelector: EdgeSelector
         public var distance: Double
         public var id: String?
@@ -152,7 +152,7 @@ public enum FeatureSpec: Sendable, Hashable {
         }
     }
 
-    public struct Boolean: Sendable, Hashable {
+    public struct Boolean: Sendable, Hashable, Codable {
         public enum Op: String, Sendable, Codable { case union, subtract, intersect }
         public var op: Op
         public var leftID: String

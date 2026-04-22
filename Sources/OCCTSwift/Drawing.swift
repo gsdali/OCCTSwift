@@ -131,6 +131,48 @@ public final class Drawing: @unchecked Sendable {
         return a
     }
 
+    /// ISO 128-40 cutting-plane line marking where a section was cut on the
+    /// parent view. Projects the cutting plane's trace into this drawing's 2D
+    /// frame and adds a typed `.cuttingPlaneLine` annotation. `viewDirection`
+    /// is the direction this parent drawing was projected along.
+    @discardableResult
+    public func addCuttingPlaneLine(label: String,
+                                     cuttingPlaneOrigin: SIMD3<Double>,
+                                     cuttingPlaneNormal: SIMD3<Double>,
+                                     sectionViewDirection: SIMD3<Double>,
+                                     viewDirection: SIMD3<Double>,
+                                     traceLength: Double = 60) -> DrawingAnnotation? {
+        // Trace direction in 3D = cross(cuttingPlaneNormal, viewDirection). If
+        // the cutting plane is parallel to the view plane, the trace is a
+        // single point — return nil.
+        let traceDir3D = simd_cross(simd_normalize(cuttingPlaneNormal),
+                                     simd_normalize(viewDirection))
+        if simd_length(traceDir3D) < 1e-9 { return nil }
+        let traceDirUnit = simd_normalize(traceDir3D)
+        let originInView = projectPointToPlane(cuttingPlaneOrigin, viewDirection: viewDirection)
+        let traceDir2D = projectPointToPlane(traceDirUnit, viewDirection: viewDirection) -
+                          projectPointToPlane(.zero, viewDirection: viewDirection)
+        let traceDir2Dn = simd_length(traceDir2D) > 1e-9
+            ? simd_normalize(traceDir2D) : SIMD2(1, 0)
+        let half = traceLength / 2
+        let start = originInView - half * traceDir2Dn
+        let end = originInView + half * traceDir2Dn
+        // Arrow direction in the view 2D — project section view direction.
+        let arrowDir3D = simd_normalize(sectionViewDirection)
+        let arrowDir2D = projectPointToPlane(arrowDir3D, viewDirection: viewDirection) -
+                          projectPointToPlane(.zero, viewDirection: viewDirection)
+        let arrowDir2Dn = simd_length(arrowDir2D) > 1e-9
+            ? simd_normalize(arrowDir2D) : SIMD2(0, 1)
+        let cpl = DrawingAnnotation.CuttingPlaneLine(
+            label: label,
+            traceStart: start,
+            traceEnd: end,
+            arrowDirection: arrowDir2Dn)
+        let ann = DrawingAnnotation.cuttingPlaneLine(cpl)
+        annotationStore.appendAnnotation(ann)
+        return ann
+    }
+
     /// ISO 128-50 section-view hatching over a closed boundary polygon. Angle
     /// defaults to 45° and spacing to 3 mm per ISO convention. `islands` are
     /// optional inner boundaries excluded from the fill.

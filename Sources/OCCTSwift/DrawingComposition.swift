@@ -130,15 +130,21 @@ extension DrawingAnnotation {
             h.islands = h.islands.map { $0.map(t) }
             h.spacing *= scale
             return .hatch(h)
+        case .cuttingPlaneLine(var cpl):
+            cpl.traceStart = t(cpl.traceStart)
+            cpl.traceEnd = t(cpl.traceEnd)
+            // Arrow direction is a unit vector; uniform scale preserves direction.
+            return .cuttingPlaneLine(cpl)
         }
     }
 
     internal var keyPoints: [SIMD2<Double>] {
         switch self {
-        case .centreline(let c):  return [c.from, c.to]
-        case .centermark(let m):  return [m.centre]
-        case .textLabel(let t):   return [t.position]
-        case .hatch(let h):       return h.boundary
+        case .centreline(let c):        return [c.from, c.to]
+        case .centermark(let m):        return [m.centre]
+        case .textLabel(let t):         return [t.position]
+        case .hatch(let h):             return h.boundary
+        case .cuttingPlaneLine(let c):  return [c.traceStart, c.traceEnd]
         }
     }
 }
