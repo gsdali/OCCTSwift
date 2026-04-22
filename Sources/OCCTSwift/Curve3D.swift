@@ -1661,7 +1661,7 @@ extension Curve3D {
     }
 }
 
-// MARK: - v0.128.0: Curve3D Transform
+// MARK: - Curve3D Transform (v0.128.0)
 
 extension Curve3D {
 
@@ -1721,7 +1721,7 @@ extension Curve3D {
     }
 }
 
-// MARK: - v0.130.0: GeomEval Analytical Curve Factories
+// MARK: - GeomEval Analytical Curve Factories (v0.130.0)
 
 extension Curve3D {
 
@@ -1749,7 +1749,7 @@ extension Curve3D {
     }
 }
 
-// MARK: - v0.130.0: ExtremaPC (Point-Curve Distance)
+// MARK: - ExtremaPC (Point-Curve Distance) (v0.130.0)
 
 extension Curve3D {
 
@@ -1814,7 +1814,7 @@ extension Curve3D {
     }
 }
 
-// MARK: - v0.131.0: GeomEval TBezier / AHTBezier Curves, TransformedCurve
+// MARK: - GeomEval TBezier / AHTBezier Curves, TransformedCurve (v0.131.0)
 
 extension Curve3D {
 

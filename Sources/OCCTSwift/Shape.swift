@@ -472,23 +472,31 @@ public final class Shape: @unchecked Sendable {
 
     // MARK: - Boolean Operations
 
-    /// Union (add) two shapes together
-    public func union(with other: Shape) -> Shape? {
+    /// Union (add) two shapes together.
+    public func union(_ other: Shape) -> Shape? {
         guard let handle = OCCTShapeUnion(self.handle, other.handle) else { return nil }
         return Shape(handle: handle)
     }
 
-    /// Subtract another shape from this one
+    @available(*, deprecated, renamed: "union(_:)",
+               message: "Use union(_:) to match subtracting(_:) and Set.union(_:)")
+    public func union(with other: Shape) -> Shape? { union(other) }
+
+    /// Subtract another shape from this one.
     public func subtracting(_ other: Shape) -> Shape? {
         guard let handle = OCCTShapeSubtract(self.handle, other.handle) else { return nil }
         return Shape(handle: handle)
     }
 
-    /// Intersection of two shapes
-    public func intersection(with other: Shape) -> Shape? {
+    /// Intersection of two shapes.
+    public func intersection(_ other: Shape) -> Shape? {
         guard let handle = OCCTShapeIntersect(self.handle, other.handle) else { return nil }
         return Shape(handle: handle)
     }
+
+    @available(*, deprecated, renamed: "intersection(_:)",
+               message: "Use intersection(_:) to match subtracting(_:) and Set.intersection(_:)")
+    public func intersection(with other: Shape) -> Shape? { intersection(other) }
 
     // MARK: - Modifications
 
@@ -1733,7 +1741,7 @@ public struct ImportResult: Sendable {
 
 extension Shape {
     public static func + (lhs: Shape, rhs: Shape) -> Shape? {
-        lhs.union(with: rhs)
+        lhs.union(rhs)
     }
 
     public static func - (lhs: Shape, rhs: Shape) -> Shape? {
@@ -1741,7 +1749,7 @@ extension Shape {
     }
 
     public static func & (lhs: Shape, rhs: Shape) -> Shape? {
-        lhs.intersection(with: rhs)
+        lhs.intersection(rhs)
     }
 }
 
@@ -3888,10 +3896,14 @@ extension Shape {
     ///
     /// - Parameter other: The second shape to intersect with
     /// - Returns: Shape containing intersection edges, or nil on failure
-    public func section(with other: Shape) -> Shape? {
+    public func section(_ other: Shape) -> Shape? {
         guard let h = OCCTShapeSection(handle, other.handle) else { return nil }
         return Shape(handle: h)
     }
+
+    @available(*, deprecated, renamed: "section(_:)",
+               message: "Use section(_:) to match subtracting(_:) and Set convention")
+    public func section(with other: Shape) -> Shape? { section(other) }
 }
 
 // MARK: - Boolean Pre-Validation (v0.34.0)
@@ -4154,7 +4166,7 @@ extension Shape {
         }
         guard count >= 0 else { return nil }
         // The fuse result is the union
-        guard let fused = self.union(with: other) else { return nil }
+        guard let fused = self.union(other) else { return nil }
         let modified = (0..<Int(count)).compactMap { i -> Shape? in
             guard let ref = modRefs[i] else { return nil }
             return Shape(handle: ref)
@@ -5515,7 +5527,7 @@ extension Face {
     }
 }
 
-// MARK: - v0.48.0: Comprehensive Local Operations, Validation, Fixing, Extrema
+// MARK: - Local Operations, Validation, Fixing, Extrema (v0.48.0)
 
 extension Shape {
     // MARK: - LocOpe_Pipe
@@ -6561,7 +6573,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.52.0: BRepFill, LocOpe, Healing Utilities
+// MARK: - BRepFill, LocOpe, Healing (v0.52.0)
 
 extension Shape {
 
@@ -7130,7 +7142,7 @@ public final class CellsBuilder: @unchecked Sendable {
     }
 }
 
-// MARK: - v0.62.0: BRepLib, LocOpe completion, ShapeUpgrade/ShapeCustom, CPnts, IntCurvesFace
+// MARK: - BRepLib, LocOpe, ShapeUpgrade, ShapeCustom, CPnts, IntCurvesFace (v0.62.0)
 
 extension Shape {
 
@@ -7498,7 +7510,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.63.0: GeomLProp, BRepOffset_SimpleOffset, Approx, GeomInt, Contap, BRepFeat, GeomFill
+// MARK: - GeomLProp, SimpleOffset, Approx, GeomInt, Contap, BRepFeat, GeomFill (v0.63.0)
 
 /// Curve local properties at a parameter point
 public struct CurveLocalProperties: Sendable {
@@ -7832,7 +7844,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.64.0: ProjLib, BRepOffset_Offset, Adaptor3d_IsoCurve, ShapeAnalysis_TransferParametersProj
+// MARK: - ProjLib, BRepOffset_Offset, Adaptor3d IsoCurve, ShapeAnalysis Param Transfer (v0.64.0)
 
 extension Shape {
 
@@ -10108,7 +10120,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.76.0: Geom 3D Entities, ShapeConstruct_Curve, Bisector utilities
+// MARK: - Geom 3D Entities, ShapeConstruct_Curve, Bisector (v0.76.0)
 
 // MARK: - GeomPoint3D (Geom_CartesianPoint)
 
@@ -10692,7 +10704,7 @@ extension Curve2D {
     }
 }
 
-// MARK: - v0.78.0: Shape Modifications, Surface Recognition & Polygon Data
+// MARK: - Shape Modifications, Surface Recognition, Polygon Data (v0.78.0)
 
 // MARK: - Shape Modifications
 
@@ -11112,7 +11124,7 @@ public func mergedMeshNodes(from shape: Shape,
                             triangleCount: nt, vertexCount: nv)
 }
 
-// MARK: - v0.79.0: Poly_CoherentTriangulation, BRepFill, BRepExtrema, BRepGProp, GeomFill, ShapeFix
+// MARK: - Poly_CoherentTriangulation, BRepFill, BRepExtrema, BRepGProp, GeomFill, ShapeFix (v0.79.0)
 
 /// Mutable coherent triangulation for mesh editing operations.
 public final class CoherentTriangulation: @unchecked Sendable {
@@ -11622,7 +11634,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.115.0: Transform expansion, Boolean expansion, Shape queries
+// MARK: - Transform, Boolean, Shape Query expansions (v0.115.0)
 
 extension Shape {
     /// Apply a general affine transformation (3x3 rotation + translation).
@@ -11858,7 +11870,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.115.0: ThruSections builder
+// MARK: - ThruSections builder (v0.115.0)
 
 /// Builder for lofted shapes through multiple wire sections.
 public final class ThruSectionsBuilder: @unchecked Sendable {
@@ -11915,7 +11927,7 @@ public final class ThruSectionsBuilder: @unchecked Sendable {
     }
 }
 
-// MARK: - v0.115.0: ShapeFixer builder
+// MARK: - ShapeFixer builder (v0.115.0)
 
 /// Configurable shape repair using ShapeFix_Shape.
 public final class ShapeFixer: @unchecked Sendable {
@@ -12037,7 +12049,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.127.0: Section with plane/surface, BRep_Tool Polygon queries
+// MARK: - Section with plane/surface, BRep_Tool Polygon queries (v0.127.0)
 
 extension Shape {
 
@@ -12109,7 +12121,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.128.0: BRep_Tool completions
+// MARK: - BRep_Tool completions (v0.128.0)
 
 extension Shape {
 

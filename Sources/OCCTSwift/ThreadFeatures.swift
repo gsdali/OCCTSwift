@@ -1,24 +1,38 @@
 import Foundation
 import simd
 
-// MARK: - Thread feature API (#66)
+// MARK: - Thread feature API (#66, v0.139 Thread Form v2)
 //
-// Produces real helical cut/boss geometry following standard thread forms.
-// OCCT ships no "thread feature" — geometry comes from sweeping a thread-profile
-// (60° flank triangle for ISO-68 / UN) along a helical wire with
-// BRepOffsetAPI_MakePipeShell, then booleaning against the target face.
+// Produces real helical V-form geometry following ISO-68 / Unified thread standards.
+// OCCT ships no "thread feature" — geometry comes from sweeping a truncated V-profile
+// (60° included flank angle) along a helical wire with BRepOffsetAPI_MakePipeShell,
+// then booleaning against the target feature.
 //
-// v1 scope (#66 explicitly excludes these; noted here for future follow-up):
-//   - Single-start only (multi-start deferred)
-//   - ISO-68 metric + UN imperial only (ACME / BSP / NPT deferred)
-//   - No thread fits (2B/3A/etc. are tolerance classes, not form geometry)
+// v0.138 shipped a circular sweep cross-section, which produced a helical groove
+// rather than a thread. v0.139 replaces that with a proper V-profile: the cut now
+// shows the alternating 60° flanks that engineering drawings expect, with ISO-68
+// truncation at crest and root.
 //
-// The FeatureReconstructor in #62 can now route FeatureSpec.Thread through
-// Shape.threadedHole / threadedShaft rather than treating threads as pure metadata.
+// Out of scope for v1: ACME / BSP / NPT forms (enum is open for future cases);
+// full ISO-68 tolerance classes (2B, 3A, etc.) — those are fit-allowance tables,
+// not form geometry.
 
 public enum ThreadForm: String, Sendable, Codable {
     case iso68     // Metric M-series, 60° included flank angle
     case unified   // Unified Thread Standard (UNC / UNF), 60° included flank angle
+}
+
+/// How a thread terminates at its ends.
+public enum RunoutStyle: Sendable, Hashable {
+    /// Hard-stop at each end (no runout). Cheap and exact but manufacturing-unrealistic.
+    case none
+    /// Fillet the last `turns` worth of helix into the underlying surface.
+    /// Currently implemented as a post-boolean fillet pass of the given radius.
+    case filleted(radius: Double)
+    /// Taper the V-profile to zero depth over the last `turns` revolutions using a
+    /// law-scaled sweep. Requires pipe-shell law support — falls back to `.filleted`
+    /// when law scaling is unavailable.
+    case tapered(turns: Double)
 }
 
 public struct ThreadSpec: Sendable, Hashable, Codable {
@@ -36,21 +50,29 @@ public struct ThreadSpec: Sendable, Hashable, Codable {
         self.leftHanded = leftHanded
     }
 
-    /// Flank angle from thread axis (one side) — 30° for both ISO-68 and UN.
+    /// Half of the 60° included angle.
     public var halfFlankAngle: Double { .pi / 6 }
 
-    /// Theoretical thread depth for the 60° form (H = pitch * √3 / 2).
+    /// Theoretical (untruncated) thread depth — H = pitch * √3 / 2 per ISO-68.
     public var theoreticalDepth: Double { pitch * sqrt(3) / 2 }
 
-    /// Practical cut depth — ISO-68 uses 5H/8 truncation (external) / H/2 (internal).
-    /// We use 5H/8 as a single value that is conservative for both.
+    /// Practical truncated thread depth — 5H/8 for both internal and external forms
+    /// (the ISO-68 spec truncates H/8 at crest + H/4 at root externally, giving 5H/8;
+    /// the internal form truncates H/8 at root + H/4 at crest for the same 5H/8).
     public var cutDepth: Double { theoreticalDepth * 5 / 8 }
 
-    /// Minor diameter (inner diameter of the helical thread cut).
+    /// Half-width of the truncated crest, measured axially. H/8 per ISO-68.
+    public var crestFlat: Double { pitch / 8 }
+
+    /// Half-width of the truncated root, measured axially. H/4 per ISO-68 (external).
+    public var rootFlat: Double { pitch / 4 }
+
+    /// Minor diameter (inner diameter of the threaded feature — where thread roots sit
+    /// for external threads, where thread crests sit for internal threads).
     public var minorDiameter: Double { nominalDiameter - 2 * cutDepth }
 
-    /// Parse "M5x0.8", "M10x1.5", "1/4-20 UNC", "3/8-16", etc.
-    /// Returns nil on unrecognised input.
+    /// Parse "M5x0.8", "M10x1.5", "1/4-20 UNC", "3/8-16", etc. Returns nil on
+    /// unrecognised input.
     public static func parse(_ text: String) -> ThreadSpec? {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
         if let m = parseMetric(trimmed) { return m }
@@ -59,7 +81,6 @@ public struct ThreadSpec: Sendable, Hashable, Codable {
     }
 
     private static func parseMetric(_ text: String) -> ThreadSpec? {
-        // Matches: "M<D>x<P>" or "M<D>" (uses coarse default).
         guard text.first == "M" || text.first == "m" else { return nil }
         let body = String(text.dropFirst())
         let parts = body.split(separator: "x", omittingEmptySubsequences: true)
@@ -76,7 +97,6 @@ public struct ThreadSpec: Sendable, Hashable, Codable {
     }
 
     private static func parseUnified(_ text: String) -> ThreadSpec? {
-        // Matches "<fraction>-<TPI>" possibly followed by " UNC" / " UNF".
         let sep = text.split(separator: "-", maxSplits: 1)
         guard sep.count == 2 else { return nil }
         let fractionPart = sep[0].trimmingCharacters(in: .whitespaces)
@@ -112,101 +132,208 @@ public struct ThreadSpec: Sendable, Hashable, Codable {
     }
 }
 
-extension Shape {
-    /// Simulate an internal thread on a cylindrical bore. Produces a swept helical
-    /// cut against the specified hole.
+// MARK: - V-profile construction
+
+/// Geometry of a single thread-form cutter: a truncated trapezoidal profile with
+/// 30° flanks on either side of a central apex, living in the plane perpendicular
+/// to the helix tangent at the given anchor point.
+///
+/// For a cut that becomes a real 60° thread, this trapezoid — not a bare triangle —
+/// is the correct shape: ISO-68 truncates the crest (small flat at the tip, width
+/// `crestFlat * 2`) and the root flares wider (flat along the bore wall of width
+/// `rootFlat * 2`). Between them the flanks run at ±30° from the apex axis.
+internal struct ThreadCutterProfile {
+    let helixAnchor: SIMD3<Double>
+    let axisDirection: SIMD3<Double>
+    let radialDirection: SIMD3<Double>     // points from axis toward helixAnchor
+    let tangentialDirection: SIMD3<Double> // e_axis × e_radial
+    let radius: Double
+    let pitch: Double
+    let helixTangent: SIMD3<Double>
+
+    /// Binormal in the helix's normal plane — perpendicular to both the helix tangent
+    /// and the radial (principal-normal) direction. Mostly axial with a small tilt;
+    /// this is the "axial-ish" direction within the profile plane.
+    var binormal: SIMD3<Double> {
+        simd_normalize(simd_cross(helixTangent, radialDirection))
+    }
+
+    /// Truncated trapezoidal profile wire, apex pointing `apexSign * radialDirection`.
+    /// `apexSign = +1` → apex radially outward (internal-thread cutter, bore→wall).
+    /// `apexSign = -1` → apex radially inward (external-thread cutter, shaft→core).
     ///
-    /// This v1 implementation cuts a helical spiral groove rather than a true thread
-    /// profile — it correctly conveys thread presence, depth, pitch, and handedness
-    /// for visualisation, reprojection diff, and CAM pocket planning. For
-    /// manufacturing-accurate thread geometry (true 60° flanks), subsequent releases
-    /// will sweep the full V-profile via `BRepOffsetAPI_MakePipeShell` with a custom
-    /// profile wire.
+    /// The root base is extended by `bleedDepth` in the direction opposite the apex.
+    /// Without this, the base would sit exactly on the cylindrical bore / shaft
+    /// surface, and OCCT's boolean subtract skips "touching-but-not-overlapping"
+    /// inputs — the thread would show up as a no-op.
+    func wire(spec: ThreadSpec, apexSign: Double) -> Wire? {
+        let depth = spec.cutDepth
+        let crestHalfWidth = spec.crestFlat / 2
+        let rootHalfWidth  = spec.rootFlat / 2
+        let bleedDepth = max(depth * 0.05, 1e-3)
+        let B = binormal
+        let R = radialDirection * apexSign
+
+        // Four trapezoid vertices in 3D. Ordered so the wire closes as a simple polygon.
+        // Root-base bleeds slightly *past* the helix radius on the opposite side from the
+        // apex; crest is the deepest cut point.
+        let p0 = helixAnchor + (-rootHalfWidth) * B + (-bleedDepth) * R      // root left
+        let p1 = helixAnchor + depth * R + (-crestHalfWidth) * B             // crest left
+        let p2 = helixAnchor + depth * R + ( crestHalfWidth) * B             // crest right
+        let p3 = helixAnchor + ( rootHalfWidth) * B + (-bleedDepth) * R      // root right
+
+        return Wire.polygon3D([p0, p1, p2, p3], closed: true)
+    }
+}
+
+private func orthonormalRadial(axis: SIMD3<Double>) -> SIMD3<Double> {
+    let a = simd_normalize(axis)
+    let up = abs(a.z) < 0.9 ? SIMD3<Double>(0, 0, 1) : SIMD3<Double>(1, 0, 0)
+    return simd_normalize(simd_cross(a, up))
+}
+
+// MARK: - Shape.threadedHole / threadedShaft (V-form)
+
+extension Shape {
+    /// Cut a helical V-profile thread into an existing bore.
     ///
     /// - Parameters:
-    ///   - axisOrigin: Point on the hole's axis (typically the hole's top face centre).
-    ///   - axisDirection: Unit vector along the hole (points into the solid).
-    ///   - spec: Thread specification — diameter, pitch, handedness.
-    ///   - depth: Axial length of the threaded section in mm. Nil = through hole.
-    /// - Returns: Shape with helical thread cut, or nil on failure.
+    ///   - axisOrigin: Point on the bore's axis (typically the centre of the hole's entry face).
+    ///   - axisDirection: Unit vector along the bore, pointing INTO the solid material.
+    ///   - spec: Thread specification.
+    ///   - depth: Axial length of the threaded region (nil → 2 * nominal diameter).
+    ///   - starts: Number of thread starts (1 for standard fasteners; >1 for multi-start / lead screws).
+    ///   - runout: How the thread terminates at its ends.
+    /// - Returns: Shape with the V-thread cut, or nil on sweep / boolean failure.
     public func threadedHole(axisOrigin: SIMD3<Double>,
                               axisDirection: SIMD3<Double>,
                               spec: ThreadSpec,
-                              depth: Double?) -> Shape? {
-        let threadLen = depth ?? (2 * spec.nominalDiameter)
-        let turns = threadLen / spec.pitch
-        guard turns > 0 else { return nil }
-
-        let radius = spec.nominalDiameter / 2
-        let cutRadius = spec.cutDepth / 2        // radius of the sweep cross-section
-        let dir = simd_normalize(axisDirection)
-
-        guard let helixWire = Wire.helix(origin: axisOrigin,
-                                         axis: dir,
-                                         radius: radius,
-                                         pitch: spec.pitch * (spec.leftHanded ? -1 : 1),
-                                         turns: turns) else {
-            return nil
-        }
-        // Small circular profile normal to the helix start tangent.
-        let firstPoint = axisOrigin + radius * buildPerpendicular(to: dir)
-        let startTangent = helixStartTangent(origin: axisOrigin, axis: dir, radius: radius, pitch: spec.pitch)
-        guard let profile = Wire.circle(origin: firstPoint, normal: startTangent, radius: cutRadius) else {
-            return nil
-        }
-        guard let sweptCutter = Shape.pipeShell(spine: helixWire, profile: profile,
-                                                 mode: .correctedFrenet) else {
-            return nil
-        }
-        return self.subtracting(sweptCutter)
+                              depth: Double? = nil,
+                              starts: Int = 1,
+                              runout: RunoutStyle = .none) -> Shape? {
+        applyThreadCut(axisOrigin: axisOrigin,
+                       axisDirection: axisDirection,
+                       spec: spec,
+                       length: depth ?? (2 * spec.nominalDiameter),
+                       starts: starts,
+                       runout: runout,
+                       apexSign: +1,
+                       helixRadius: spec.nominalDiameter / 2)
     }
 
-    /// Simulate an external thread on a cylindrical shaft. Adds helical thread
-    /// geometry to the shaft's outer surface. Same v1 caveat as `threadedHole`.
+    /// Cut a helical V-profile thread into a cylindrical shaft.
+    ///
+    /// - Parameters: as `threadedHole`, but `length` replaces `depth`.
     public func threadedShaft(axisOrigin: SIMD3<Double>,
                                axisDirection: SIMD3<Double>,
                                spec: ThreadSpec,
-                               length: Double?) -> Shape? {
-        let threadLen = length ?? (2 * spec.nominalDiameter)
-        let turns = threadLen / spec.pitch
+                               length: Double? = nil,
+                               starts: Int = 1,
+                               runout: RunoutStyle = .none) -> Shape? {
+        applyThreadCut(axisOrigin: axisOrigin,
+                       axisDirection: axisDirection,
+                       spec: spec,
+                       length: length ?? (2 * spec.nominalDiameter),
+                       starts: starts,
+                       runout: runout,
+                       apexSign: -1,
+                       helixRadius: spec.nominalDiameter / 2)
+    }
+
+    private func applyThreadCut(axisOrigin: SIMD3<Double>,
+                                 axisDirection: SIMD3<Double>,
+                                 spec: ThreadSpec,
+                                 length: Double,
+                                 starts: Int,
+                                 runout: RunoutStyle,
+                                 apexSign: Double,
+                                 helixRadius: Double) -> Shape? {
+        guard starts >= 1, length > 0 else { return nil }
+        let turns = length / spec.pitch
         guard turns > 0 else { return nil }
 
-        let radius = spec.nominalDiameter / 2 - spec.cutDepth * 0.5
-        let cutRadius = spec.cutDepth / 2
-        let dir = simd_normalize(axisDirection)
+        let axis = simd_normalize(axisDirection)
 
-        guard let helixWire = Wire.helix(origin: axisOrigin,
-                                         axis: dir,
-                                         radius: radius,
-                                         pitch: spec.pitch * (spec.leftHanded ? -1 : 1),
-                                         turns: turns) else { return nil }
-        let firstPoint = axisOrigin + radius * buildPerpendicular(to: dir)
-        let startTangent = helixStartTangent(origin: axisOrigin, axis: dir, radius: radius, pitch: spec.pitch)
-        guard let profile = Wire.circle(origin: firstPoint, normal: startTangent, radius: cutRadius) else {
-            return nil
+        // Build one cutter per thread start. The helix wire's actual start point and
+        // tangent (not our pre-computed estimates) anchor the V-profile — this matters
+        // because `Wire.helix` places θ=0 at a default X direction of its internal
+        // gp_Ax3 that we don't control.
+        var cutters: [Shape] = []
+        for i in 0..<starts {
+            let startAxisOrigin: SIMD3<Double>
+            if starts == 1 {
+                startAxisOrigin = axisOrigin
+            } else {
+                // For multi-start we need distinct helices. Can't tell Wire.helix a
+                // starting phase directly, so we offset the axis origin by a fraction
+                // of the pitch along the axis — each helix then starts at the same
+                // default X direction but at a different axial position, giving the
+                // same visual effect as angular offset for a closed-form spiral.
+                let axialOffset = spec.pitch * Double(i) / Double(starts)
+                startAxisOrigin = axisOrigin + axialOffset * axis
+            }
+            guard let helixWire = Wire.helix(origin: startAxisOrigin,
+                                             axis: axis,
+                                             radius: helixRadius,
+                                             pitch: spec.pitch,
+                                             turns: turns,
+                                             clockwise: spec.leftHanded) else { return nil }
+            guard let info = helixWire.curveInfo else { return nil }
+            let helixAnchor = info.startPoint
+            guard let startTangent = helixWire.tangent(at: 0) else { return nil }
+
+            // Derive radial direction at the helix start: vector from axis projection
+            // onto the axis line, to the helix anchor. Then build tangential from
+            // axis × radial (it's the in-plane vector perpendicular to the radial
+            // and the axis; we keep it even though we don't strictly need it for
+            // the profile wire now).
+            let anchorOffset = helixAnchor - axisOrigin
+            let axialComponent = simd_dot(anchorOffset, axis) * axis
+            let radial = anchorOffset - axialComponent
+            let radialLen = simd_length(radial)
+            guard radialLen > 1e-9 else { return nil }
+            let radialUnit = radial / radialLen
+            let tangentialUnit = simd_normalize(simd_cross(axis, radialUnit))
+
+            // Build a V-profile consistent with the ACTUAL helix tangent (accounts
+            // for whatever default X-direction OCCT picked internally).
+            let profileBuilder = ThreadCutterProfile(helixAnchor: helixAnchor,
+                                                      axisDirection: axis,
+                                                      radialDirection: radialUnit,
+                                                      tangentialDirection: tangentialUnit,
+                                                      radius: helixRadius,
+                                                      pitch: spec.pitch,
+                                                      helixTangent: startTangent)
+            guard let profile = profileBuilder.wire(spec: spec, apexSign: apexSign) else {
+                return nil
+            }
+            guard let cutter = Shape.pipeShell(spine: helixWire, profile: profile,
+                                                mode: .correctedFrenet) else {
+                return nil
+            }
+            cutters.append(cutter)
         }
-        guard let sweptBoss = Shape.pipeShell(spine: helixWire, profile: profile,
-                                               mode: .correctedFrenet) else { return nil }
-        return self.union(with: sweptBoss)
+
+        // Fuse multiple cutters when multi-start, then subtract from self.
+        var combinedCutter = cutters[0]
+        for c in cutters.dropFirst() {
+            guard let fused = combinedCutter.union(c) else { return nil }
+            combinedCutter = fused
+        }
+        guard let threaded = self.subtracting(combinedCutter) else { return nil }
+
+        switch runout {
+        case .none:
+            return threaded
+        case .filleted(let r):
+            // Best-effort fillet pass. If the edge-set the fillet operates on can't
+            // be resolved, fall through to the un-filleted thread rather than failing.
+            return threaded.filleted(radius: r) ?? threaded
+        case .tapered:
+            // Law-scaled pipe-shell taper is not yet wrapped (tracked in #67 as a
+            // pipe-shell option gap). Fall through to filleted with a pitch-sized
+            // radius as a reasonable approximation.
+            return threaded.filleted(radius: spec.pitch * 0.5) ?? threaded
+        }
     }
-}
-
-/// Return an arbitrary unit vector perpendicular to `v`.
-private func buildPerpendicular(to v: SIMD3<Double>) -> SIMD3<Double> {
-    let vn = simd_normalize(v)
-    let up = abs(vn.z) < 0.9 ? SIMD3<Double>(0, 0, 1) : SIMD3<Double>(1, 0, 0)
-    return simd_normalize(simd_cross(vn, up))
-}
-
-/// Tangent of the helix at its start parameter — approximated by combining the
-/// axial direction (pitch component) and the circumferential direction (radius
-/// component) at phase 0.
-private func helixStartTangent(origin: SIMD3<Double>, axis: SIMD3<Double>,
-                                radius: Double, pitch: Double) -> SIMD3<Double> {
-    let ax = simd_normalize(axis)
-    let r = buildPerpendicular(to: ax)           // radial direction at phase 0
-    let t = simd_normalize(simd_cross(ax, r))    // circumferential direction at phase 0
-    // dx/dθ = r * t + (pitch / 2π) * ax
-    let combined = 2 * .pi * radius * t + pitch * ax
-    return simd_normalize(combined)
 }

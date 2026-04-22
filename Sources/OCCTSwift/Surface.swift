@@ -1488,7 +1488,7 @@ extension Surface {
     }
 }
 
-// MARK: - v0.69.0: NLPlate G2/G3, IncrementalSolve, GeomFill_Generator
+// MARK: - NLPlate G2/G3, IncrementalSolve, GeomFill_Generator (v0.69.0)
 
 extension Surface {
 
@@ -2565,7 +2565,7 @@ extension Surface {
     }
 }
 
-// MARK: - v0.128.0: Surface Transform
+// MARK: - Surface Transform (v0.128.0)
 
 extension Surface {
 
@@ -2612,7 +2612,7 @@ extension Surface {
     }
 }
 
-// MARK: - v0.130.0: GeomEval Surface Factories
+// MARK: - GeomEval Surface Factories (v0.130.0)
 
 extension Surface {
 
@@ -2685,7 +2685,7 @@ extension Surface {
     }
 }
 
-// MARK: - v0.131.0: GeomEval TBezier / AHTBezier Surfaces
+// MARK: - GeomEval TBezier / AHTBezier Surfaces (v0.131.0)
 
 extension Surface {
 

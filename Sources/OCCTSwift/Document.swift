@@ -2844,7 +2844,7 @@ public struct VisMaterialPBR: Sendable {
 }
 
 // =============================================================================
-// MARK: - v0.84.0: VrmlAPI, Directory, Variable, Expression, XLink, DimTol, DriverTable, TObj
+// MARK: - VrmlAPI, Directory, Variable, Expression, XLink, DimTol, DriverTable, TObj (v0.84.0)
 // =============================================================================
 
 // MARK: - VrmlAPI_Writer
@@ -3131,7 +3131,7 @@ public final class TObjApplication: @unchecked Sendable {
 }
 
 // =============================================================================
-// MARK: - v0.85.0: UnitsAPI, BinTools, Message, CoordSystem, IDFilter
+// MARK: - UnitsAPI, BinTools, Message, CoordSystem, IDFilter (v0.85.0)
 // =============================================================================
 
 // MARK: - UnitsAPI
@@ -6393,7 +6393,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.100.0: RWStl, ShapeAnalysis_Curve statics, BRepExtrema_SelfIntersection pairs,
+// MARK: - RWStl, ShapeAnalysis_Curve statics, BRepExtrema_SelfIntersection pairs, (v0.100.0)
 //                    Geom_OffsetCurve basis, APIHeaderSection_MakeHeader, ShapeAnalysis_FreeBounds simplified
 
 // --- RWStl direct binary/ASCII STL I/O ---
@@ -11034,7 +11034,7 @@ extension MathSolver {
     }
 }
 
-// MARK: - v0.112.0: RWMesh iterators, Intf_Tool, BRepAlgo_AsDes, BiTgte, Shape extras, Extrema
+// MARK: - RWMesh iterators, Intf_Tool, BRepAlgo_AsDes, BiTgte, Shape extras, Extrema (v0.112.0)
 
 // --- RWMesh_FaceIterator ---
 
@@ -11425,7 +11425,7 @@ extension Surface {
     }
 }
 
-// MARK: - v0.113.0: MakeEdge completions, ProjOnCurve/Surf, DistShapeShape, ShapeFix_Wire/Face,
+// MARK: - MakeEdge completions, ProjOnCurve/Surf, DistShapeShape, ShapeFix_Wire/Face, (v0.113.0)
 //                    MakeFace extras, IntCS, BSplineCurve/Surface mutations
 
 // --- BRepBuilderAPI_MakeEdge completions ---
@@ -11975,7 +11975,7 @@ extension Surface {
     }
 }
 
-// MARK: - v0.114.0: TopoDS_Builder, ShapeContents expanded, FreeBoundsProperties, WireBuilder,
+// MARK: - TopoDS_Builder, ShapeContents expanded, FreeBoundsProperties, WireBuilder, (v0.114.0)
 //                    Boolean tolerances, Offset wire/face, ThickSolid, BRepLib, Mass properties, isBounded
 
 // --- TopoDS_Builder ---
@@ -12501,7 +12501,7 @@ extension Surface {
     }
 }
 
-// MARK: - v0.116.0: HelixGeom, gp_Ax3, gp_GTrsf2d, gp_Mat2d, Quaternion Interpolation, XY/XYZ, Math Solvers
+// MARK: - HelixGeom, gp_Ax3, gp_GTrsf2d, gp_Mat2d, Quaternion Interpolation, XY/XYZ, Math Solvers (v0.116.0)
 
 // MARK: - HelixGeom (v0.116.0)
 
@@ -13834,7 +13834,7 @@ extension SewingBuilder {
     }
 }
 
-// MARK: - v0.119.0: BREP serialization, gp distance/contains, BezierSurface, Curve2D extras, BSplineSurface extras
+// MARK: - BREP serialization, gp distance/contains, BezierSurface, Curve2D extras, BSplineSurface extras (v0.119.0)
 
 // --- BREP string serialization ---
 
@@ -14070,7 +14070,7 @@ extension Curve2D {
     }
 }
 
-// MARK: - v0.120.0: Final cleanup — IsCN, ReversedParameter, ParametricTransformation,
+// MARK: - Final cleanup — IsCN, ReversedParameter, ParametricTransformation, (v0.120.0)
 //                    gp extras, surface reversed copies, BSpline/Bezier MaxDegree/Resolution
 
 // --- Curve3D continuity and parameter extras ---
@@ -14218,7 +14218,7 @@ extension Shape {
 }
 
 // =============================================================================
-// MARK: - v0.121.0: BSpline completions, FilletBuilder, ChamferBuilder
+// MARK: - BSpline completions, FilletBuilder, ChamferBuilder (v0.121.0)
 // =============================================================================
 
 // --- BSplineSurface completions ---
@@ -14579,7 +14579,7 @@ public final class ChamferBuilder: @unchecked Sendable {
     }
 }
 
-// MARK: - v0.124.0: ChamferBuilder completions, FilletBuilder completions, WireAnalyzer
+// MARK: - ChamferBuilder completions, FilletBuilder completions, WireAnalyzer (v0.124.0)
 
 // --- ChamferBuilder completions ---
 
@@ -14971,7 +14971,7 @@ extension Document {
     }
 }
 
-// MARK: - v0.122.0: WireFixer extended, ShapeFix_Edge, BRepTools/BRepLib statics, History extended, Sewing extended
+// MARK: - WireFixer extended, ShapeFix_Edge, BRepTools/BRepLib statics, History extended, Sewing extended (v0.122.0)
 
 // --- WireFixer extended ---
 
@@ -15232,7 +15232,7 @@ extension SewingBuilder {
     }
 }
 
-// MARK: - v0.123.0: Builder extensions, Section ops, Curve/Surface queries
+// MARK: - Builder extensions, Section ops, Curve/Surface queries (v0.123.0)
 
 // --- ThruSections extensions ---
 
@@ -15491,7 +15491,7 @@ extension Shape {
     }
 }
 
-// MARK: - v0.126.0: XCAFDoc_ColorTool and ShapeTool completions
+// MARK: - XCAFDoc_ColorTool and ShapeTool completions (v0.126.0)
 
 extension Document {
     /// Add a color to the document color table. Returns label tag or -1 on failure.
@@ -15621,7 +15621,7 @@ extension Document {
     }
 }
 
-// MARK: - v0.127.0: FilletBuilder history queries
+// MARK: - FilletBuilder history queries (v0.127.0)
 
 extension FilletBuilder {
 
@@ -15703,7 +15703,7 @@ extension FilletBuilder {
     }
 }
 
-// MARK: - v0.128.0: ChamferBuilder history & extras
+// MARK: - ChamferBuilder history & extras (v0.128.0)
 
 extension ChamferBuilder {
 
@@ -15764,7 +15764,7 @@ extension ChamferBuilder {
     }
 }
 
-// MARK: - v0.128.0: SectionBuilder (BRepAlgoAPI_Section)
+// MARK: - SectionBuilder (BRepAlgoAPI_Section) (v0.128.0)
 
 /// A builder for computing sections (intersections) between shapes, planes, and surfaces.
 /// Allows fine-grained control over approximation and PCurve computation.
@@ -15849,7 +15849,7 @@ public final class SectionBuilder: @unchecked Sendable {
     }
 }
 
-// MARK: - v0.130.0: GeomEval Standalone Evaluators
+// MARK: - GeomEval Standalone Evaluators (v0.130.0)
 
 /// Standalone evaluators for analytical curves and surfaces.
 /// These evaluate mathematical functions without creating persistent Curve3D/Surface objects.
@@ -15935,7 +15935,7 @@ public enum GeomEval {
     }
 }
 
-// MARK: - v0.130.0: Geom2dEval Standalone Evaluators
+// MARK: - Geom2dEval Standalone Evaluators (v0.130.0)
 
 /// Standalone evaluators for analytical 2D curves.
 public enum Geom2dEval {
@@ -16001,7 +16001,7 @@ public enum Geom2dEval {
     }
 }
 
-// MARK: - v0.130.0: PointSetLib
+// MARK: - PointSetLib (v0.130.0)
 
 /// Point cloud analysis utilities backed by PointSetLib.
 public enum PointSetLib {

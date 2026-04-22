@@ -1043,7 +1043,7 @@ extension Curve2D {
     }
 }
 
-// MARK: - v0.52.0: ShapeCustom_Curve2d & Approx_Curve2d
+// MARK: - ShapeCustom_Curve2d & Approx_Curve2d (v0.52.0)
 
 extension Curve2D {
 
@@ -1112,7 +1112,7 @@ extension Curve2D {
 }
 
 // ============================================================================
-// MARK: - v0.53.0: 2D Geometry Completions
+// MARK: - 2D Geometry Completions (v0.53.0)
 // ============================================================================
 
 // MARK: - GccAna Bisectors
@@ -2395,7 +2395,7 @@ extension Curve2D {
     }
 }
 
-// MARK: - v0.128.0: Curve2D Transform
+// MARK: - Curve2D Transform (v0.128.0)
 
 extension Curve2D {
 
@@ -2440,7 +2440,7 @@ extension Curve2D {
     }
 }
 
-// MARK: - v0.131.0: Geom2dEval TBezier / AHTBezier Curves
+// MARK: - Geom2dEval TBezier / AHTBezier Curves (v0.131.0)
 
 extension Curve2D {
 
