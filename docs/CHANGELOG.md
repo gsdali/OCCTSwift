@@ -2,13 +2,23 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.145.0
+## Current: v0.146.0
 
-**3,950 wrapped operations | 3,241 tests | 1,146 suites | OCCT 8.0.0-rc5**
+**3,995 wrapped operations | 3,252 tests | 1,148 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.146.0 (Apr 2026) — ISO drawings III: cosmetic threads, surface finish, GD&T symbols, detail views
+
+Closes the ISO drawings arc (#78). Final release ships cosmetic threads (#77), ISO 1302 surface finish, ISO 1101 GD&T symbols, and compressed-view conventions (detail + break lines).
+
+- **#77 `DrawingAnnotation.cosmeticThreadSideView` / `cosmeticThreadEndView`**: ISO 6410 cosmetic thread representation. Side view: two parallel lines at minor diameter spanning the thread length, optional callout text. End view: 3/4 broken arc set (0–90° / 90–180° / 180–315° with a 45° gap). `Drawing.addCosmeticThreadSide(...)` and `DXFWriter.addCosmeticThreadEndView(...)` convenience wrappers.
+- **ISO 1302 surface finish**: `SurfaceFinishSymbol` enum (`.any` / `.machiningRequired` / `.machiningProhibited`). `DrawingAnnotation.surfaceFinish(at:leaderTo:ra:symbol:method:)` produces the check-mark geometry with Ra value label, horizontal bar for machiningRequired, optional production-method text, and leader line to the target feature.
+- **ISO 1101 GD&T symbols**: `GDTSymbol` enum covering all 15 ASME/ISO geometric characteristics (straightness, flatness, circularity, cylindricity, profile of line/surface, perpendicularity, parallelism, angularity, position, concentricity, symmetry, coaxiality, circular runout, total runout). `DrawingAnnotation.featureControlFrame(at:symbol:tolerance:datums:leaderTo:)` emits the classic `[⌖] [0.1] [A] [B] [C]` rectangular frame. `DrawingAnnotation.datumFeature(label:at:pointingTo:)` emits the boxed letter + triangle pointer.
+- **Detail views**: `Drawing.detailView(at:scale:)` returns a `TransformedDrawing` suitable for placing a scaled-up region of the parent drawing at a specific sheet location.
+- **Break lines**: `DrawingAnnotation.breakLine(from:to:amplitude:)` emits ISO 128-30 compressed-length zigzag marker as 5 line segments.
 
 ### v0.145.0 (Apr 2026) — ISO drawings II: sheet templates, title blocks, projection symbols
 

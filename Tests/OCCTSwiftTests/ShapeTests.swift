@@ -46525,6 +46525,136 @@ struct SheetRenderingTests {
     }
 }
 
+// MARK: - v0.146 #77: Cosmetic threads
+
+@Suite("v0.146 Cosmetic thread annotations")
+struct CosmeticThreadTests {
+    @Test("Side view produces two parallel centrelines")
+    func sideViewProducesTwoLines() {
+        let anns = DrawingAnnotation.cosmeticThreadSideView(
+            axisStart: SIMD2(0, 0),
+            axisEnd: SIMD2(30, 0),
+            majorDiameter: 10,
+            pitch: 1.5)
+        #expect(anns.count == 2)
+        for a in anns {
+            if case .centreline = a {} else { Issue.record("expected centreline") }
+        }
+    }
+
+    @Test("End view returns three arc segments (ISO 6410 3/4 broken arc)")
+    func endViewThreeArcs() {
+        let arcs = DrawingAnnotation.cosmeticThreadEndView(
+            centre: SIMD2(0, 0),
+            majorDiameter: 10,
+            pitch: 1.5)
+        #expect(arcs.count == 3)
+        // Total sweep should be ~270° (0→90, 90→180, 180→315).
+        let totalSweep = arcs.reduce(0) { $0 + ($1.endAngle - $1.startAngle) }
+        #expect(abs(totalSweep - 7 * .pi / 4) < 1e-9)
+    }
+
+    @Test("Drawing.addCosmeticThreadSide with callout adds 3 annotations")
+    func addSideWithCallout() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let drawing = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let anns = drawing.addCosmeticThreadSide(
+            axisStart: SIMD2(0, 0),
+            axisEnd: SIMD2(20, 0),
+            majorDiameter: 10,
+            pitch: 1.5,
+            callout: "M10×1.5")
+        // 2 centrelines + 1 callout label
+        #expect(anns.count == 3)
+    }
+
+    @Test("DXFWriter.addCosmeticThreadEndView emits three arcs")
+    func dxfWriterEndView() {
+        let writer = DXFWriter()
+        writer.addCosmeticThreadEndView(centre: SIMD2(0, 0),
+                                         majorDiameter: 10,
+                                         pitch: 1.5)
+        #expect(writer.entityCounts.arcs == 3)
+    }
+}
+
+// MARK: - v0.146: Surface finish, GD&T, detail, break lines
+
+@Suite("v0.146 Surface finish + GD&T symbols")
+struct DrawingSymbolsTests {
+    @Test("Surface finish symbol produces check-mark + bar + Ra text + leader")
+    func surfaceFinishMachiningRequired() {
+        let anns = DrawingAnnotation.surfaceFinish(
+            at: SIMD2(10, 10),
+            leaderTo: SIMD2(20, 5),
+            ra: 1.6,
+            symbol: .machiningRequired)
+        // 2 arms + 1 bar + Ra text + leader = 5 annotations.
+        #expect(anns.count == 5)
+    }
+
+    @Test("Surface finish .any has no horizontal bar")
+    func surfaceFinishAny() {
+        let required = DrawingAnnotation.surfaceFinish(
+            at: .zero, leaderTo: SIMD2(10, 0), ra: 1.0, symbol: .machiningRequired)
+        let any = DrawingAnnotation.surfaceFinish(
+            at: .zero, leaderTo: SIMD2(10, 0), ra: 1.0, symbol: .any)
+        #expect(required.count > any.count)
+    }
+
+    @Test("Feature control frame produces rectangle + dividers + symbol + tolerance")
+    func featureControlFrame() {
+        let anns = DrawingAnnotation.featureControlFrame(
+            at: SIMD2(0, 0),
+            symbol: .position,
+            tolerance: "0.1",
+            datums: ["A", "B", "C"])
+        // 4 box edges + 2 dividers + 2 datum dividers + glyph + tolerance + 3 datum letters = 12
+        let lineCount = anns.filter { if case .centreline = $0 { return true } else { return false } }.count
+        #expect(lineCount >= 6)  // box + internal dividers
+        let textCount = anns.filter { if case .textLabel = $0 { return true } else { return false } }.count
+        #expect(textCount == 5)  // symbol + tolerance + 3 datums
+    }
+
+    @Test("Datum feature symbol has box + triangle pointer")
+    func datumFeature() {
+        let anns = DrawingAnnotation.datumFeature(
+            label: "A",
+            at: SIMD2(10, 10),
+            pointingTo: SIMD2(30, 10))
+        // 4 box edges + letter + 3 triangle edges + leader = 9
+        let lineCount = anns.filter { if case .centreline = $0 { return true } else { return false } }.count
+        #expect(lineCount == 8)
+    }
+
+    @Test("GDT symbol glyphs are non-empty")
+    func gdtGlyphs() {
+        for s in [GDTSymbol.flatness, .position, .perpendicularity, .concentricity] {
+            #expect(!s.glyph.isEmpty)
+        }
+    }
+
+    @Test("Break line is a zigzag of 5 segments")
+    func breakLine() {
+        let anns = DrawingAnnotation.breakLine(
+            from: SIMD2(0, 0), to: SIMD2(100, 0), amplitude: 2)
+        #expect(anns.count == 5)
+    }
+
+    @Test("Detail view returns a TransformedDrawing with expected scale")
+    func detailView() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let drawing = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let detail = drawing.detailView(at: SIMD2(200, 100), scale: 2.0)
+        #expect(detail.scale == 2.0)
+        #expect(detail.translate == SIMD2(200, 100))
+    }
+}
+
 // MARK: - v0.140: XCAFDoc GD&T write path
 
 @Suite("v0.140 Document GD&T write + typed enums")
