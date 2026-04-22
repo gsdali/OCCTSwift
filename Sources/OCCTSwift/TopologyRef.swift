@@ -24,9 +24,16 @@ public indirect enum TopologyRef: Sendable, Hashable {
     /// The Nth node of `kind` that appears as a replacement in a history record
     /// tagged with `operationName`. Deterministic order: (sequenceNumber,
     /// original (kind, index), position within replacements vector).
+    ///
+    /// When a single creation splits into multiple live descendants over
+    /// subsequent mutations, `leafOccurrence` picks among them; defaults to 0
+    /// (the first leaf in deterministic order). Use `leafOccurrence: nil` to
+    /// disable forward-walk entirely and get the node as originally created —
+    /// rarely what you want, but useful for history inspection.
     case createdBy(operationName: String,
                    kind: TopologyGraph.NodeKind,
-                   occurrence: Int = 0)
+                   occurrence: Int = 0,
+                   leafOccurrence: Int? = 0)
 
     /// The Nth descendant of `kind` contained within `parent`.
     ///
@@ -71,9 +78,11 @@ extension TopologyGraph {
                 ? .success(node)
                 : .failure(.invalid(ref))
 
-        case .createdBy(let opName, let kind, let occurrence):
+        case .createdBy(let opName, let kind, let occurrence, let leafOccurrence):
             return resolveCreatedBy(opName: opName, kind: kind,
-                                    occurrence: occurrence, ref: ref)
+                                    occurrence: occurrence,
+                                    leafOccurrence: leafOccurrence,
+                                    ref: ref)
 
         case .containedIn(let parent, let kind, let occurrence):
             return resolveContainedIn(parent: parent, kind: kind,
@@ -89,6 +98,7 @@ extension TopologyGraph {
     private func resolveCreatedBy(opName: String,
                                   kind: NodeKind,
                                   occurrence: Int,
+                                  leafOccurrence: Int? = 0,
                                   ref: TopologyRef) -> Result<NodeRef, TopologyResolutionError> {
         // Collect all replacement nodes of the target kind across matching records,
         // in deterministic order.
@@ -124,8 +134,20 @@ extension TopologyGraph {
         guard occurrence >= 0, occurrence < candidates.count else {
             return .failure(.occurrenceOutOfRange(ref, available: candidates.count, requested: occurrence))
         }
-        // Walk history forward from the initial creation to the current state.
-        return .success(currentForm(of: candidates[occurrence].node))
+        let seed = candidates[occurrence].node
+        // leafOccurrence == nil disables forward-walk; return the node as created.
+        guard let leafOcc = leafOccurrence else {
+            return .success(seed)
+        }
+        let leaves = currentForms(of: seed)
+        // Empty leaves means the node has no descendants — return itself.
+        if leaves.isEmpty {
+            return .success(seed)
+        }
+        guard leafOcc >= 0, leafOcc < leaves.count else {
+            return .failure(.occurrenceOutOfRange(ref, available: leaves.count, requested: leafOcc))
+        }
+        return .success(leaves[leafOcc])
     }
 
     private func resolveContainedIn(parent: TopologyRef,
@@ -168,19 +190,27 @@ extension TopologyGraph {
     /// Walk history forward from `node` to its current form. If `node` has
     /// derived descendants, return the first leaf in deterministic order.
     private func currentForm(of node: NodeRef) -> NodeRef {
+        let leaves = currentForms(of: node)
+        return leaves.first ?? node
+    }
+
+    /// All current (live-leaf) descendants of `node`, in deterministic order.
+    ///
+    /// A descendant is "live" when it doesn't appear as an original in any
+    /// subsequent history record — i.e. it's the final form of that branch.
+    /// Useful when a single creation has split into multiple live children
+    /// (e.g., a face created by an extrude, then split by a subsequent fillet).
+    public func currentForms(of node: NodeRef) -> [NodeRef] {
         let derived = findDerived(of: node)
-        // findDerived returns all transitively derived nodes. If there's an
-        // obvious "leaf" (node not itself an original in any later record),
-        // pick it. Otherwise pass-through.
-        if derived.isEmpty { return node }
-        // Check which derived nodes are still "live" — i.e. don't appear as
-        // originals in any subsequent history record.
+        if derived.isEmpty { return [] }
         let allOriginals: Set<NodeRef> = historyRecords.reduce(into: []) { acc, rec in
             for key in rec.mapping.keys { acc.insert(key) }
         }
+        // Deterministic sort: by kind, then index — stable across runs.
         let leaves = derived.filter { !allOriginals.contains($0) }
-        if let leaf = leaves.first { return leaf }
-        // Fall back to the last derived node.
-        return derived.last ?? node
+        return leaves.sorted { lhs, rhs in
+            if lhs.kind != rhs.kind { return lhs.kind.rawValue < rhs.kind.rawValue }
+            return lhs.index < rhs.index
+        }
     }
 }

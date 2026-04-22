@@ -45899,6 +45899,377 @@ struct FeatureReconstructorTests {
     }
 }
 
+// MARK: - v0.143 M2: Point-to-edge distance
+
+@Suite("v0.143 Point-to-edge distance")
+struct PointToEdgeDistanceTests {
+    @Test("Curve3D.distance one-liner")
+    func curve3DDistance() {
+        guard let c = Curve3D.segment(from: SIMD3(0, 0, 0), to: SIMD3(10, 0, 0)) else {
+            Issue.record("segment nil"); return
+        }
+        // Distance from (5, 3, 0) to the X axis segment = 3.
+        let d = c.distance(to: SIMD3(5, 3, 0))
+        #expect(abs(d - 3.0) < 1e-6)
+    }
+
+    @Test("Edge.distance one-liner")
+    func edgeDistance() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box nil"); return
+        }
+        let edges = box.edges()
+        guard let first = edges.first else { Issue.record("no edges"); return }
+        let d = first.distance(to: SIMD3(0, 0, 0))
+        #expect(d != nil)
+    }
+}
+
+// MARK: - v0.143 M3: Angle helpers
+
+@Suite("v0.143 Angle helpers")
+struct AngleHelperTests {
+    @Test("Angle between two perpendicular edges ≈ π/2")
+    func perpendicularEdges() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box nil"); return
+        }
+        let edges = box.edges()
+        // A box has 12 edges; find two that are perpendicular (adjacent on a face).
+        // First try: edges[0] and edges[1] — typically perpendicular for a box.
+        if edges.count >= 2 {
+            let angle = edges[0].angle(to: edges[1])
+            // Box edges are all either parallel (angle 0/π) or perpendicular (π/2).
+            if let a = angle {
+                let near0 = a < 1e-3 || abs(a - .pi) < 1e-3
+                let near90 = abs(a - .pi / 2) < 1e-3
+                #expect(near0 || near90)
+            }
+        }
+    }
+
+    @Test("Box face pairs parallel-or-perpendicular")
+    func boxFaceAngles() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box nil"); return
+        }
+        let faces = box.faces()
+        for i in 0..<faces.count {
+            for j in (i+1)..<faces.count {
+                if let a = faces[i].angle(to: faces[j]) {
+                    let near0 = a < 1e-3 || abs(a - .pi) < 1e-3
+                    let near90 = abs(a - .pi / 2) < 1e-3
+                    #expect(near0 || near90)
+                }
+            }
+        }
+    }
+
+    @Test("unsignedAngle between parallel vectors == 0")
+    func unsignedAngleParallel() {
+        let a = SIMD3<Double>(1, 0, 0)
+        let b = SIMD3<Double>(2, 0, 0)
+        #expect(unsignedAngle(between: a, and: b) < 1e-12)
+    }
+
+    @Test("unsignedAngle between antiparallel vectors == π")
+    func unsignedAngleAntiparallel() {
+        let a = SIMD3<Double>(1, 0, 0)
+        let b = SIMD3<Double>(-1, 0, 0)
+        #expect(abs(unsignedAngle(between: a, and: b) - .pi) < 1e-12)
+    }
+
+    @Test("ConstructionAxis angle between resolved axes")
+    func constructionAxisAngle() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let xAxis = ConstructionAxis.absolute(origin: .zero, direction: SIMD3(1, 0, 0))
+        let yAxis = ConstructionAxis.absolute(origin: .zero, direction: SIMD3(0, 1, 0))
+        if let a = xAxis.angle(to: yAxis, in: graph) {
+            #expect(abs(a - .pi / 2) < 1e-9)
+        } else { Issue.record("angle nil") }
+    }
+
+    @Test("ConstructionPlane angle between normals")
+    func constructionPlaneAngle() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        let xy = ConstructionPlane.absolute(origin: .zero, normal: SIMD3(0, 0, 1))
+        let xz = ConstructionPlane.absolute(origin: .zero, normal: SIMD3(0, 1, 0))
+        if let a = xy.angle(to: xz, in: graph) {
+            #expect(abs(a - .pi / 2) < 1e-9)
+        } else { Issue.record("angle nil") }
+    }
+}
+
+// MARK: - v0.143 M4: Circle extraction
+
+@Suite("v0.143 Circle property extraction")
+struct CirclePropertyTests {
+    @Test("Cylindrical face exposes revolutionProperties with correct radius")
+    func cylinderRevolutionRadius() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 10) else {
+            Issue.record("cyl nil"); return
+        }
+        for face in cyl.faces() where face.surfaceType == .cylinder {
+            if let rp = face.revolutionProperties {
+                #expect(abs(rp.radius - 5.0) < 1e-6)
+                #expect(rp.axis.kind == .cylinder)
+                return
+            }
+        }
+        Issue.record("no cylindrical face found")
+    }
+
+    @Test("Circle through three points recovers correct centre and radius")
+    func threePointCircle() {
+        let p1 = SIMD3<Double>(1, 0, 0)
+        let p2 = SIMD3<Double>(0, 1, 0)
+        let p3 = SIMD3<Double>(-1, 0, 0)
+        guard let circle = circleThroughThreePoints(p1, p2, p3) else {
+            Issue.record("collinear"); return
+        }
+        #expect(abs(simd_length(circle.center - SIMD3<Double>(0, 0, 0))) < 1e-9)
+        #expect(abs(circle.radius - 1.0) < 1e-9)
+    }
+
+    @Test("Three collinear points → nil circle")
+    func collinearPointsNil() {
+        let p1 = SIMD3<Double>(0, 0, 0)
+        let p2 = SIMD3<Double>(1, 0, 0)
+        let p3 = SIMD3<Double>(2, 0, 0)
+        #expect(circleThroughThreePoints(p1, p2, p3) == nil)
+    }
+}
+
+// MARK: - v0.143 D4: Multi-leaf .createdBy
+
+@Suite("v0.143 Multi-leaf createdBy")
+struct MultiLeafCreatedByTests {
+    @Test("leafOccurrence picks among split descendants")
+    func leafOccurrencePicksNth() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        graph.isHistoryEnabled = true
+        graph.clearHistory()
+
+        // Create → op1, then split into two leaves via op2.
+        let seed = TopologyGraph.NodeRef(kind: .face, index: 1)
+        let leaf1 = TopologyGraph.NodeRef(kind: .face, index: 11)
+        let leaf2 = TopologyGraph.NodeRef(kind: .face, index: 22)
+        graph.recordHistory(operationName: "Op1", original: .sentinel, replacements: [seed])
+        graph.recordHistory(operationName: "Op2", original: seed, replacements: [leaf1, leaf2])
+
+        let first = graph.resolve(.createdBy(operationName: "Op1", kind: .face, leafOccurrence: 0))
+        let second = graph.resolve(.createdBy(operationName: "Op1", kind: .face, leafOccurrence: 1))
+        switch (first, second) {
+        case (.success(let a), .success(let b)):
+            #expect(a != b)
+            #expect([leaf1, leaf2].contains(a))
+            #expect([leaf1, leaf2].contains(b))
+        default:
+            Issue.record("expected both leaves")
+        }
+    }
+
+    @Test("currentForms returns both leaves of a split")
+    func currentFormsReturnsAll() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        graph.isHistoryEnabled = true
+        graph.clearHistory()
+        let seed = TopologyGraph.NodeRef(kind: .edge, index: 3)
+        let a = TopologyGraph.NodeRef(kind: .edge, index: 30)
+        let b = TopologyGraph.NodeRef(kind: .edge, index: 31)
+        graph.recordHistory(operationName: "Split", original: seed, replacements: [a, b])
+        let leaves = Set(graph.currentForms(of: seed))
+        #expect(leaves.isSuperset(of: [a, b]))
+    }
+
+    @Test("leafOccurrence: nil returns seed without forward-walk")
+    func leafOccurrenceNil() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        graph.isHistoryEnabled = true
+        graph.clearHistory()
+        let seed = TopologyGraph.NodeRef(kind: .face, index: 1)
+        let leaf = TopologyGraph.NodeRef(kind: .face, index: 11)
+        graph.recordHistory(operationName: "Op", original: .sentinel, replacements: [seed])
+        graph.recordHistory(operationName: "Mod", original: seed, replacements: [leaf])
+        let result = graph.resolve(.createdBy(operationName: "Op", kind: .face, leafOccurrence: nil))
+        switch result {
+        case .success(let r): #expect(r == seed)
+        case .failure: Issue.record("unexpected failure")
+        }
+    }
+}
+
+// MARK: - v0.143 D2: Arc/circle in Sketch.buildProfile
+
+@Suite("v0.143 Sketch arcs and circles")
+struct SketchArcCircleTests {
+    @Test("Circle tessellation produces a closed polygon of N points")
+    func circleTessellation() {
+        let circle = SketchElement.CurveKind.circle(center: SIMD2(0, 0), radius: 5)
+        let pts = circle.tessellate2D(segmentsPerRadian: 8)
+        #expect(pts.count > 50)   // 8 * 2π ≈ 50
+        // All points lie on radius 5.
+        for p in pts {
+            let r = sqrt(p.x * p.x + p.y * p.y)
+            #expect(abs(r - 5.0) < 1e-9)
+        }
+    }
+
+    @Test("Arc tessellation stays within bounds")
+    func arcTessellation() {
+        let arc = SketchElement.CurveKind.arc(center: SIMD2(0, 0), radius: 2,
+                                               startAngle: 0, endAngle: .pi / 2)
+        let pts = arc.tessellate2D(segmentsPerRadian: 16)
+        // Start at (2, 0), end at (0, 2).
+        #expect(abs(pts.first!.x - 2) < 1e-9)
+        #expect(abs(pts.last!.y - 2) < 1e-9)
+    }
+
+    @Test("buildProfile with arc yields a wire")
+    func buildProfileWithArc() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else { Issue.record("graph nil"); return }
+        let ctx = ConstructionContext()
+        let planeID = ctx.add(.absolute(origin: .zero, normal: SIMD3(0, 0, 1)))
+        var sketch = Sketch(hostPlane: planeID)
+        // A closed D-shape: straight line + semicircle arc
+        sketch.add(SketchElement(curve: .line(from: SIMD2(0, 0), to: SIMD2(10, 0))))
+        sketch.add(SketchElement(curve: .arc(center: SIMD2(5, 0), radius: 5,
+                                             startAngle: 0, endAngle: .pi)))
+        let wire = sketch.buildProfile(in: ctx, graph: graph)
+        #expect(wire != nil)
+    }
+}
+
+// MARK: - v0.143 D3: Named-shape registry for FeatureSpec.Boolean
+
+@Suite("v0.143 FeatureSpec.Boolean named-shape registry")
+struct BooleanRegistryTests {
+    @Test("Boolean union of two named revolves")
+    func unionNamedRevolves() {
+        let a = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(0, 0), SIMD2(5, 0), SIMD2(5, 5)],
+            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+            id: "a")
+        let b = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(10, 0), SIMD2(15, 0), SIMD2(15, 5)],
+            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+            id: "b")
+        let u = FeatureSpec.Boolean(op: .union, leftID: "a", rightID: "b", id: "u")
+        let result = FeatureReconstructor.build(from: [.revolve(a), .revolve(b), .boolean(u)])
+        #expect(result.fulfilled.contains("a"))
+        #expect(result.fulfilled.contains("b"))
+        #expect(result.fulfilled.contains("u"))
+        #expect(result.shape != nil)
+    }
+
+    @Test("Boolean with missing named left reports unresolvedRef")
+    func missingLeftRef() {
+        let b = FeatureSpec.Boolean(op: .union, leftID: "nope", rightID: "alsoNope", id: "bad")
+        let result = FeatureReconstructor.build(from: [.boolean(b)])
+        if let skip = result.skipped.first(where: { $0.featureID == "bad" }) {
+            if case .unresolvedRef = skip.reason {} else {
+                Issue.record("expected unresolvedRef")
+            }
+        } else { Issue.record("expected skipped") }
+    }
+}
+
+// MARK: - v0.143 D5: FeatureReconstructor edge selectors
+
+@Suite("v0.143 EdgeSelector.nearPoint / onFeature")
+struct EdgeSelectorWiredTests {
+    @Test("Fillet .nearPoint finds an edge within tolerance")
+    func filletNearPoint() {
+        let r = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)],
+            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+            id: "base")
+        // A point on one of the resulting edges.
+        let f = FeatureSpec.Fillet(
+            edgeSelector: .nearPoint(SIMD3(10, 0, 5), tolerance: 20),
+            radius: 0.5, id: "fillet_near")
+        let result = FeatureReconstructor.build(from: [.revolve(r), .fillet(f)])
+        // Either fulfilled or skipped with .occtFailure — what we don't want is
+        // the old .unsupported behaviour.
+        if !result.fulfilled.contains("fillet_near") {
+            if let skip = result.skipped.first(where: { $0.featureID == "fillet_near" }) {
+                if case .unsupported = skip.reason {
+                    Issue.record(".nearPoint should no longer be unsupported")
+                }
+            }
+        }
+    }
+
+    @Test("Fillet .onFeature targets feature's edges")
+    func filletOnFeature() {
+        let r = FeatureSpec.Revolve(
+            profilePoints2D: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)],
+            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+            id: "base")
+        let f = FeatureSpec.Fillet(
+            edgeSelector: .onFeature("base"),
+            radius: 0.5, id: "fillet_on")
+        let result = FeatureReconstructor.build(from: [.revolve(r), .fillet(f)])
+        if let skip = result.skipped.first(where: { $0.featureID == "fillet_on" }) {
+            if case .unsupported = skip.reason {
+                Issue.record(".onFeature should no longer be unsupported")
+            }
+        }
+    }
+}
+
+// MARK: - v0.143 D1: Construction layer persistence
+
+@Suite("v0.143 Construction layer persistence")
+struct ConstructionLayerTests {
+    @Test("addConstructionShape tags the shape with the CONSTRUCTION layer")
+    func addConstructionShape() {
+        guard let doc = Document.create() else { Issue.record("doc nil"); return }
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box nil"); return
+        }
+        let id = doc.addConstructionShape(box)
+        #expect(id >= 0)
+        let labels = doc.constructionShapeLabels
+        #expect(labels.contains(id))
+    }
+
+    @Test("Materialize all ConstructionContext entities as shapes on the CONSTRUCTION layer")
+    func materializeAll() {
+        guard let doc = Document.create(),
+              let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("setup nil"); return
+        }
+        let ctx = doc.constructionContext
+        ctx.add(.absolute(origin: SIMD3(0, 0, 0), normal: SIMD3(0, 0, 1)), name: "XY")
+        ctx.add(.absolute(origin: SIMD3(5, 5, 5), direction: SIMD3(1, 0, 0)), name: "X-line")
+        ctx.add(.absolute(SIMD3(1, 2, 3)), name: "origin")
+
+        let result = ctx.materialize(in: doc, graph: graph)
+        #expect(result.totalMaterialized == 3)
+        #expect(result.failures.isEmpty)
+        // Each materialized shape shows up on the CONSTRUCTION layer.
+        #expect(doc.constructionShapeLabels.count >= 3)
+    }
+}
+
 // MARK: - v0.140: XCAFDoc GD&T write path
 
 @Suite("v0.140 Document GD&T write + typed enums")

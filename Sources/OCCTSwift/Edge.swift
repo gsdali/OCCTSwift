@@ -147,6 +147,12 @@ public final class Edge: @unchecked Sendable {
         )
     }
 
+    /// Shortest distance from a 3D point to this edge. Returns nil if the
+    /// projection fails (e.g. degenerate edge).
+    public func distance(to point: SIMD3<Double>) -> Double? {
+        project(point: point)?.distance
+    }
+
     // MARK: - Sampling
 
     /// Get points along the edge curve

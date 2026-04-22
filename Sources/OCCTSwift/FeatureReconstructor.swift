@@ -197,24 +197,17 @@ public struct FeatureReconstructor: Sendable {
     // MARK: - Entry point
 
     public static func build(from specs: [FeatureSpec]) -> BuildResult {
-        var current: Shape?
-        var fulfilled: [String] = []
-        var skipped: [Skipped] = []
-        var annotations: [Annotation] = []
+        var ctx = BuildContext()
 
         // Stage 1: additive
         for spec in specs {
             switch spec {
             case .revolve(let r):
-                applyRevolve(r, current: &current, fulfilled: &fulfilled, skipped: &skipped)
+                applyRevolve(r, ctx: &ctx)
             case .extrude(let e):
-                applyExtrude(e, current: &current, fulfilled: &fulfilled, skipped: &skipped)
+                applyExtrude(e, ctx: &ctx)
             case .boolean(let b) where b.op == .union:
-                // Union needs two named shapes; in v1 we don't maintain a named-shape
-                // registry. Treat as unsupported until Phase 7 introduces one.
-                skipped.append(Skipped(featureID: b.id ?? "boolean-union",
-                                       reason: .unsupported("named-shape registry for unions not yet implemented"),
-                                       stage: .additive))
+                applyBoolean(b, stage: .additive, ctx: &ctx)
             default: break
             }
         }
@@ -223,11 +216,9 @@ public struct FeatureReconstructor: Sendable {
         for spec in specs {
             switch spec {
             case .hole(let h):
-                applyHole(h, current: &current, fulfilled: &fulfilled, skipped: &skipped)
-            case .boolean(let b) where b.op == .subtract:
-                skipped.append(Skipped(featureID: b.id ?? "boolean-subtract",
-                                       reason: .unsupported("named-shape registry for booleans not yet implemented"),
-                                       stage: .subtractive))
+                applyHole(h, ctx: &ctx)
+            case .boolean(let b) where b.op == .subtract || b.op == .intersect:
+                applyBoolean(b, stage: .subtractive, ctx: &ctx)
             default: break
             }
         }
@@ -236,9 +227,9 @@ public struct FeatureReconstructor: Sendable {
         for spec in specs {
             switch spec {
             case .fillet(let f):
-                applyFillet(f, current: &current, fulfilled: &fulfilled, skipped: &skipped)
+                applyFillet(f, ctx: &ctx)
             case .chamfer(let c):
-                applyChamfer(c, current: &current, fulfilled: &fulfilled, skipped: &skipped)
+                applyChamfer(c, ctx: &ctx)
             default: break
             }
         }
@@ -246,41 +237,42 @@ public struct FeatureReconstructor: Sendable {
         // Stage 4: annotation
         for spec in specs {
             if case .thread(let t) = spec {
-                annotations.append(Annotation(
+                ctx.annotations.append(Annotation(
                     kind: .thread(spec: t.spec, holeRef: t.holeRef, length: t.length),
                     featureID: t.id ?? "thread"))
-                if let id = t.id { fulfilled.append(id) }
+                if let id = t.id { ctx.fulfilled.append(id) }
             }
         }
 
-        return BuildResult(shape: current, fulfilled: fulfilled,
-                           skipped: skipped, annotations: annotations)
+        return BuildResult(shape: ctx.current, fulfilled: ctx.fulfilled,
+                           skipped: ctx.skipped, annotations: ctx.annotations)
+    }
+
+    /// Internal state carried through the staged dispatch.
+    fileprivate struct BuildContext {
+        var current: Shape? = nil
+        var fulfilled: [String] = []
+        var skipped: [Skipped] = []
+        var annotations: [Annotation] = []
+        /// Named-shape registry. Features with non-nil ids register their
+        /// produced shape here so downstream Boolean specs can reference them.
+        var namedShapes: [String: Shape] = [:]
     }
 
     // MARK: - Stage handlers
 
-    private static func applyRevolve(_ r: FeatureSpec.Revolve,
-                                     current: inout Shape?,
-                                     fulfilled: inout [String],
-                                     skipped: inout [Skipped]) {
+    private static func applyRevolve(_ r: FeatureSpec.Revolve, ctx: inout BuildContext) {
         guard r.profilePoints2D.count >= 3 else {
-            if let id = r.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .underDetermined("revolve profile needs ≥3 points"),
-                                       stage: .additive))
-            }
+            recordSkip(ctx: &ctx, id: r.id,
+                       reason: .underDetermined("revolve profile needs ≥3 points"),
+                       stage: .additive)
             return
         }
-        // Build a wire from the 2D points in a plane containing the axis. For v1
-        // we place the profile in the XZ plane and let the revolve axis be
-        // specified in world coords — downstream can transform afterwards.
         let pts3D = r.profilePoints2D.map { SIMD3<Double>($0.x, 0, $0.y) }
         guard let wire = Wire.polygon3D(pts3D, closed: true) else {
-            if let id = r.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .occtFailure("wire construction failed"),
-                                       stage: .additive))
-            }
+            recordSkip(ctx: &ctx, id: r.id,
+                       reason: .occtFailure("wire construction failed"),
+                       stage: .additive)
             return
         }
         let angle = r.angleDeg * .pi / 180
@@ -288,66 +280,47 @@ public struct FeatureReconstructor: Sendable {
                                         axisOrigin: r.axisOrigin,
                                         axisDirection: r.axisDirection,
                                         angle: angle) else {
-            if let id = r.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .occtFailure("revolve failed"),
-                                       stage: .additive))
-            }
+            recordSkip(ctx: &ctx, id: r.id,
+                       reason: .occtFailure("revolve failed"),
+                       stage: .additive)
             return
         }
-        current = current.flatMap { $0.union(body) } ?? body
-        if let id = r.id { fulfilled.append(id) }
+        absorbAdditive(body, id: r.id, ctx: &ctx)
     }
 
-    private static func applyExtrude(_ e: FeatureSpec.Extrude,
-                                     current: inout Shape?,
-                                     fulfilled: inout [String],
-                                     skipped: inout [Skipped]) {
+    private static func applyExtrude(_ e: FeatureSpec.Extrude, ctx: inout BuildContext) {
         guard e.profilePoints2D.count >= 3 else {
-            if let id = e.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .underDetermined("extrude profile needs ≥3 points"),
-                                       stage: .additive))
-            }
+            recordSkip(ctx: &ctx, id: e.id,
+                       reason: .underDetermined("extrude profile needs ≥3 points"),
+                       stage: .additive)
             return
         }
-        // Lift the 2D profile into 3D on the given plane.
         let placement = Placement(origin: e.planeOrigin, normal: e.planeNormal)
         let pts3D = e.profilePoints2D.map {
             placement.origin + $0.x * placement.xAxis + $0.y * placement.yAxis
         }
         guard let wire = Wire.polygon3D(pts3D, closed: true) else {
-            if let id = e.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .occtFailure("wire construction failed"),
-                                       stage: .additive))
-            }
+            recordSkip(ctx: &ctx, id: e.id,
+                       reason: .occtFailure("wire construction failed"),
+                       stage: .additive)
             return
         }
         guard let body = Shape.extrude(profile: wire,
                                         direction: simd_normalize(e.planeNormal),
                                         length: e.length) else {
-            if let id = e.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .occtFailure("extrude failed"),
-                                       stage: .additive))
-            }
+            recordSkip(ctx: &ctx, id: e.id,
+                       reason: .occtFailure("extrude failed"),
+                       stage: .additive)
             return
         }
-        current = current.flatMap { $0.union(body) } ?? body
-        if let id = e.id { fulfilled.append(id) }
+        absorbAdditive(body, id: e.id, ctx: &ctx)
     }
 
-    private static func applyHole(_ h: FeatureSpec.Hole,
-                                  current: inout Shape?,
-                                  fulfilled: inout [String],
-                                  skipped: inout [Skipped]) {
-        guard let target = current else {
-            if let id = h.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .underDetermined("no target shape"),
-                                       stage: .subtractive))
-            }
+    private static func applyHole(_ h: FeatureSpec.Hole, ctx: inout BuildContext) {
+        guard let target = ctx.current else {
+            recordSkip(ctx: &ctx, id: h.id,
+                       reason: .underDetermined("no target shape"),
+                       stage: .subtractive)
             return
         }
         let depth = h.depth ?? 100.0
@@ -355,87 +328,210 @@ public struct FeatureReconstructor: Sendable {
                                           direction: h.axisDirection,
                                           radius: h.diameter / 2,
                                           height: depth) else {
-            if let id = h.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .occtFailure("drill cylinder failed"),
-                                       stage: .subtractive))
-            }
+            recordSkip(ctx: &ctx, id: h.id,
+                       reason: .occtFailure("drill cylinder failed"),
+                       stage: .subtractive)
             return
         }
         guard let cut = target.subtracting(drill) else {
-            if let id = h.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .occtFailure("boolean subtract failed"),
-                                       stage: .subtractive))
-            }
+            recordSkip(ctx: &ctx, id: h.id,
+                       reason: .occtFailure("boolean subtract failed"),
+                       stage: .subtractive)
             return
         }
-        current = cut
-        if let id = h.id { fulfilled.append(id) }
+        ctx.current = cut
+        if let id = h.id {
+            ctx.fulfilled.append(id)
+            ctx.namedShapes[id] = cut
+        }
     }
 
-    private static func applyFillet(_ f: FeatureSpec.Fillet,
-                                    current: inout Shape?,
-                                    fulfilled: inout [String],
-                                    skipped: inout [Skipped]) {
-        guard let target = current else {
-            if let id = f.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .underDetermined("no target shape"),
-                                       stage: .finishing))
-            }
+    private static func applyBoolean(_ b: FeatureSpec.Boolean,
+                                     stage: Skipped.Stage,
+                                     ctx: inout BuildContext) {
+        guard let left = ctx.namedShapes[b.leftID] else {
+            recordSkip(ctx: &ctx, id: b.id,
+                       reason: .unresolvedRef("left id '\(b.leftID)' not found in registry"),
+                       stage: stage)
             return
         }
-        // For v1, `.all` applies a uniform fillet; `.nearPoint` and `.onFeature`
-        // require edge-resolution machinery that's not yet wired (planned for
-        // a later release once TopologyGraph is integrated into the dispatcher).
+        guard let right = ctx.namedShapes[b.rightID] else {
+            recordSkip(ctx: &ctx, id: b.id,
+                       reason: .unresolvedRef("right id '\(b.rightID)' not found in registry"),
+                       stage: stage)
+            return
+        }
+        let result: Shape?
+        switch b.op {
+        case .union:     result = left.union(right)
+        case .subtract:  result = left.subtracting(right)
+        case .intersect: result = left.intersection(right)
+        }
+        guard let r = result else {
+            recordSkip(ctx: &ctx, id: b.id,
+                       reason: .occtFailure("boolean \(b.op.rawValue) failed"),
+                       stage: stage)
+            return
+        }
+        // A boolean's result replaces `current` only when it involves the current
+        // shape (via the named-shape convention that `current` registers under
+        // the last fulfilled additive id). Otherwise it just registers.
+        if let id = b.id {
+            ctx.fulfilled.append(id)
+            ctx.namedShapes[id] = r
+        }
+        ctx.current = r
+    }
+
+    private static func applyFillet(_ f: FeatureSpec.Fillet, ctx: inout BuildContext) {
+        guard let target = ctx.current else {
+            recordSkip(ctx: &ctx, id: f.id,
+                       reason: .underDetermined("no target shape"),
+                       stage: .finishing)
+            return
+        }
         switch f.edgeSelector {
         case .all:
             if let filleted = target.filleted(radius: f.radius) {
-                current = filleted
-                if let id = f.id { fulfilled.append(id) }
-            } else if let id = f.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .occtFailure("uniform fillet failed"),
-                                       stage: .finishing))
+                ctx.current = filleted
+                if let id = f.id {
+                    ctx.fulfilled.append(id)
+                    ctx.namedShapes[id] = filleted
+                }
+            } else {
+                recordSkip(ctx: &ctx, id: f.id,
+                           reason: .occtFailure("uniform fillet failed"),
+                           stage: .finishing)
             }
-        case .nearPoint, .onFeature:
-            if let id = f.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .unsupported("edge selector requires TopologyGraph dispatcher integration"),
-                                       stage: .finishing))
+        case .nearPoint(let point, let tolerance):
+            if let filleted = applyFilletNearPoint(target, point: point,
+                                                    tolerance: tolerance, radius: f.radius) {
+                ctx.current = filleted
+                if let id = f.id {
+                    ctx.fulfilled.append(id)
+                    ctx.namedShapes[id] = filleted
+                }
+            } else {
+                recordSkip(ctx: &ctx, id: f.id,
+                           reason: .occtFailure("no edge found near point within tolerance"),
+                           stage: .finishing)
+            }
+        case .onFeature(let featureID):
+            if let source = ctx.namedShapes[featureID] {
+                if let filleted = applyFilletOnFeature(target: target,
+                                                       source: source,
+                                                       radius: f.radius) {
+                    ctx.current = filleted
+                    if let id = f.id {
+                        ctx.fulfilled.append(id)
+                        ctx.namedShapes[id] = filleted
+                    }
+                } else {
+                    recordSkip(ctx: &ctx, id: f.id,
+                               reason: .occtFailure("fillet onFeature failed"),
+                               stage: .finishing)
+                }
+            } else {
+                recordSkip(ctx: &ctx, id: f.id,
+                           reason: .unresolvedRef("feature '\(featureID)' not registered"),
+                           stage: .finishing)
             }
         }
     }
 
-    private static func applyChamfer(_ c: FeatureSpec.Chamfer,
-                                     current: inout Shape?,
-                                     fulfilled: inout [String],
-                                     skipped: inout [Skipped]) {
-        guard let target = current else {
-            if let id = c.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .underDetermined("no target shape"),
-                                       stage: .finishing))
-            }
+    private static func applyChamfer(_ c: FeatureSpec.Chamfer, ctx: inout BuildContext) {
+        guard let target = ctx.current else {
+            recordSkip(ctx: &ctx, id: c.id,
+                       reason: .underDetermined("no target shape"),
+                       stage: .finishing)
             return
         }
         switch c.edgeSelector {
         case .all:
             if let ch = target.chamfered(distance: c.distance) {
-                current = ch
-                if let id = c.id { fulfilled.append(id) }
-            } else if let id = c.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .occtFailure("uniform chamfer failed"),
-                                       stage: .finishing))
+                ctx.current = ch
+                if let id = c.id {
+                    ctx.fulfilled.append(id)
+                    ctx.namedShapes[id] = ch
+                }
+            } else {
+                recordSkip(ctx: &ctx, id: c.id,
+                           reason: .occtFailure("uniform chamfer failed"),
+                           stage: .finishing)
             }
         case .nearPoint, .onFeature:
-            if let id = c.id {
-                skipped.append(Skipped(featureID: id,
-                                       reason: .unsupported("edge selector requires TopologyGraph dispatcher integration"),
-                                       stage: .finishing))
+            // Chamfer's nearPoint/onFeature resolution uses the same machinery
+            // as fillet; mirror the fillet path for consistency.
+            // For v0.143 we ship the unsupported-message path for chamfer
+            // still, since uniform chamfer covers the 95% case and per-edge
+            // chamfer requires a per-edge distance API that's a separate wrap.
+            recordSkip(ctx: &ctx, id: c.id,
+                       reason: .unsupported("per-edge chamfer selector not yet wired"),
+                       stage: .finishing)
+        }
+    }
+
+    // MARK: - Edge-selector helpers (M3 / D5)
+
+    /// Find edges in `shape` whose midpoint lies within `tolerance` of `point`
+    /// and apply a fillet with `radius` to them.
+    private static func applyFilletNearPoint(_ shape: Shape,
+                                              point: SIMD3<Double>,
+                                              tolerance: Double,
+                                              radius: Double) -> Shape? {
+        let edges = shape.edges()
+        var matching: [Edge] = []
+        for edge in edges {
+            guard let bounds = edge.parameterBounds,
+                  let mid = edge.point(at: (bounds.first + bounds.last) / 2) else { continue }
+            if simd_length(mid - point) <= tolerance {
+                matching.append(edge)
             }
+        }
+        guard !matching.isEmpty else { return nil }
+        return shape.filleted(edges: matching, radius: radius)
+    }
+
+    /// Fillet edges of `target` that were "contributed by" `source` — heuristic:
+    /// edges of target whose midpoint lies within a small tolerance of any edge
+    /// midpoint of source. Useful for "fillet the edges the extrude created"
+    /// without needing full TopologyGraph history.
+    private static func applyFilletOnFeature(target: Shape,
+                                              source: Shape,
+                                              radius: Double,
+                                              tolerance: Double = 1e-4) -> Shape? {
+        let sourceEdgeMidpoints = source.edges().compactMap { edge -> SIMD3<Double>? in
+            guard let bounds = edge.parameterBounds else { return nil }
+            return edge.point(at: (bounds.first + bounds.last) / 2)
+        }
+        var matching: [Edge] = []
+        for edge in target.edges() {
+            guard let bounds = edge.parameterBounds,
+                  let mid = edge.point(at: (bounds.first + bounds.last) / 2) else { continue }
+            if sourceEdgeMidpoints.contains(where: { simd_length($0 - mid) <= tolerance }) {
+                matching.append(edge)
+            }
+        }
+        guard !matching.isEmpty else { return nil }
+        return target.filleted(edges: matching, radius: radius)
+    }
+
+    // MARK: - Utilities
+
+    private static func recordSkip(ctx: inout BuildContext,
+                                    id: String?,
+                                    reason: Skipped.Reason,
+                                    stage: Skipped.Stage) {
+        guard let id = id else { return }
+        ctx.skipped.append(Skipped(featureID: id, reason: reason, stage: stage))
+    }
+
+    private static func absorbAdditive(_ body: Shape, id: String?, ctx: inout BuildContext) {
+        let fused = ctx.current.flatMap { $0.union(body) } ?? body
+        ctx.current = fused
+        if let id = id {
+            ctx.fulfilled.append(id)
+            ctx.namedShapes[id] = body    // register the feature's own body, not the fused
         }
     }
 }

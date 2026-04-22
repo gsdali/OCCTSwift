@@ -21,6 +21,38 @@ public struct SketchElement: Sendable, Hashable {
         case arc(center: SIMD2<Double>, radius: Double, startAngle: Double, endAngle: Double)
         case circle(center: SIMD2<Double>, radius: Double)
         case polyline([SIMD2<Double>])
+
+        /// Ordered 2D sample points along this curve. Lines and polylines are exact;
+        /// arcs and circles are tessellated using the given `segmentsPerRadian` density.
+        public func tessellate2D(segmentsPerRadian: Int = 16) -> [SIMD2<Double>] {
+            switch self {
+            case .line(let from, let to):
+                return [from, to]
+            case .polyline(let pts):
+                return pts
+            case .circle(let center, let radius):
+                let segments = max(8, Int(Double(segmentsPerRadian) * 2 * .pi))
+                var pts: [SIMD2<Double>] = []
+                pts.reserveCapacity(segments + 1)
+                for i in 0...segments {
+                    let t = Double(i) / Double(segments) * 2 * .pi
+                    pts.append(SIMD2(center.x + radius * cos(t),
+                                     center.y + radius * sin(t)))
+                }
+                return pts
+            case .arc(let center, let radius, let start, let end):
+                let sweep = end - start
+                let segments = max(2, Int(Double(segmentsPerRadian) * abs(sweep)))
+                var pts: [SIMD2<Double>] = []
+                pts.reserveCapacity(segments + 1)
+                for i in 0...segments {
+                    let t = start + sweep * Double(i) / Double(segments)
+                    pts.append(SIMD2(center.x + radius * cos(t),
+                                     center.y + radius * sin(t)))
+                }
+                return pts
+            }
+        }
     }
 
     public var curve: CurveKind
@@ -84,25 +116,11 @@ extension Sketch {
         // Lift 2D elements into 3D using the placement's frame, then assemble a wire.
         var points3D: [SIMD3<Double>] = []
         for element in profileElements {
-            switch element.curve {
-            case .line(let from, let to):
-                let p0 = lift(from, with: placement)
-                let p1 = lift(to, with: placement)
-                if points3D.isEmpty || !approxEqual(points3D.last!, p0) {
-                    points3D.append(p0)
-                }
-                points3D.append(p1)
-            case .polyline(let pts):
-                for (i, pt) in pts.enumerated() {
-                    let p = lift(pt, with: placement)
-                    if i == 0 && !points3D.isEmpty && approxEqual(points3D.last!, p) { continue }
-                    points3D.append(p)
-                }
-            case .arc, .circle:
-                // Arcs/circles are not yet supported in buildProfile's polyline
-                // assembly path — they'd require tessellation or direct edge
-                // construction. Skipped for v1; added when consumers need it.
-                continue
+            let elementPoints = element.curve.tessellate2D(segmentsPerRadian: 16)
+            for (i, pt) in elementPoints.enumerated() {
+                let p = lift(pt, with: placement)
+                if i == 0 && !points3D.isEmpty && approxEqual(points3D.last!, p) { continue }
+                points3D.append(p)
             }
         }
 

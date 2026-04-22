@@ -758,6 +758,14 @@ extension Curve3D {
         )
     }
 
+    /// Shortest distance from a 3D point to this curve.
+    ///
+    /// Convenience one-liner around `projectPoint(_:)` when you only need the
+    /// scalar distance and don't care about the projected point or parameter.
+    public func distance(to point: SIMD3<Double>, precision: Double = 1e-6) -> Double {
+        projectPoint(point, precision: precision).distance
+    }
+
     /// Result of validating a curve parameter range
     public struct ValidatedRange: Sendable {
         /// Validated first parameter
