@@ -20,6 +20,32 @@ public enum DrawingLineStyle: String, Sendable, Hashable, Codable {
     case dotted
 }
 
+/// Typed tolerance carried on a `DrawingDimension`. Rendered inline for
+/// symmetric / fit-class cases, or as stacked TEXT (upper + lower) for
+/// bilateral / unilateral / explicit-limits cases in DXF/PDF/SVG output.
+///
+/// The enum is the typed replacement for the old `label: "⌀10 ±0.05"` escape
+/// hatch: a caller that wants structured tolerance data can set
+/// `tolerance = .symmetric(0.05)` and keep `label` nil, letting the writer
+/// compose the full text from `value` + `tolerance`.
+public enum DrawingTolerance: Sendable, Hashable, Codable {
+    /// No tolerance displayed.
+    case none
+    /// Symmetric ± tolerance: `20 ±0.05`.
+    case symmetric(Double)
+    /// Bilateral: `20 +0.10 / -0.05`. Both values are magnitudes; the
+    /// writer adds the signs.
+    case bilateral(plus: Double, minus: Double)
+    /// Unilateral (single-sided): `20 +0.10 / 0` or `20 0 / -0.10`
+    /// depending on sign of the value.
+    case unilateral(Double)
+    /// ISO 286 fit class appended as a suffix: `H7`, `g6`, `h7/H8`.
+    case fitClass(String)
+    /// Explicit upper / lower limits stacked over the nominal:
+    /// `20 upper / lower` rendered on two lines.
+    case limits(lower: Double, upper: Double)
+}
+
 /// A dimension attached to a `Drawing`. Each case carries just the geometric
 /// definition needed to render it; there's no OCCT handle inside.
 public enum DrawingDimension: Sendable, Hashable {
@@ -27,6 +53,7 @@ public enum DrawingDimension: Sendable, Hashable {
     case radial(Radial)
     case diameter(Diameter)
     case angular(Angular)
+    case ordinate(Ordinate)
 
     public struct Linear: Sendable, Hashable {
         public var from: SIMD2<Double>
@@ -37,13 +64,16 @@ public enum DrawingDimension: Sendable, Hashable {
         public var label: String?
         public var style: DrawingLineStyle
         public var id: String?
+        public var tolerance: DrawingTolerance
 
         public init(from: SIMD2<Double>, to: SIMD2<Double>,
                     offset: Double = 10, label: String? = nil,
-                    style: DrawingLineStyle = .solid, id: String? = nil) {
+                    style: DrawingLineStyle = .solid, id: String? = nil,
+                    tolerance: DrawingTolerance = .none) {
             self.from = from; self.to = to
             self.offset = offset; self.label = label
             self.style = style; self.id = id
+            self.tolerance = tolerance
         }
 
         /// Measured 2D distance between `from` and `to`.
@@ -58,14 +88,17 @@ public enum DrawingDimension: Sendable, Hashable {
         public var label: String?
         public var style: DrawingLineStyle
         public var id: String?
+        public var tolerance: DrawingTolerance
 
         public init(centre: SIMD2<Double>, radius: Double,
                     leaderAngle: Double = .pi / 4,
                     label: String? = nil,
-                    style: DrawingLineStyle = .solid, id: String? = nil) {
+                    style: DrawingLineStyle = .solid, id: String? = nil,
+                    tolerance: DrawingTolerance = .none) {
             self.centre = centre; self.radius = radius
             self.leaderAngle = leaderAngle
             self.label = label; self.style = style; self.id = id
+            self.tolerance = tolerance
         }
 
         public var value: Double { radius }
@@ -78,14 +111,17 @@ public enum DrawingDimension: Sendable, Hashable {
         public var label: String?
         public var style: DrawingLineStyle
         public var id: String?
+        public var tolerance: DrawingTolerance
 
         public init(centre: SIMD2<Double>, radius: Double,
                     leaderAngle: Double = .pi / 4,
                     label: String? = nil,
-                    style: DrawingLineStyle = .solid, id: String? = nil) {
+                    style: DrawingLineStyle = .solid, id: String? = nil,
+                    tolerance: DrawingTolerance = .none) {
             self.centre = centre; self.radius = radius
             self.leaderAngle = leaderAngle
             self.label = label; self.style = style; self.id = id
+            self.tolerance = tolerance
         }
 
         public var value: Double { 2 * radius }
@@ -101,14 +137,17 @@ public enum DrawingDimension: Sendable, Hashable {
         public var label: String?
         public var style: DrawingLineStyle
         public var id: String?
+        public var tolerance: DrawingTolerance
 
         public init(vertex: SIMD2<Double>, ray1: SIMD2<Double>, ray2: SIMD2<Double>,
                     arcRadius: Double = 20,
                     label: String? = nil,
-                    style: DrawingLineStyle = .solid, id: String? = nil) {
+                    style: DrawingLineStyle = .solid, id: String? = nil,
+                    tolerance: DrawingTolerance = .none) {
             self.vertex = vertex; self.ray1 = ray1; self.ray2 = ray2
             self.arcRadius = arcRadius
             self.label = label; self.style = style; self.id = id
+            self.tolerance = tolerance
         }
 
         /// Measured angle between the two rays, in radians (0 ≤ θ ≤ π).
@@ -119,12 +158,42 @@ public enum DrawingDimension: Sendable, Hashable {
         }
     }
 
+    /// ISO 129-1 §9.3 ordinate dimensions: a shared origin plus N features,
+    /// each shown as an X-offset (along the bottom of the view) and Y-offset
+    /// (along the side) measured from the origin. Used for CNC-style
+    /// reference-datum dimensioning where chains of linear dimensions would
+    /// clutter the view.
+    public struct Ordinate: Sendable, Hashable, Codable {
+        public var origin: SIMD2<Double>
+        public var features: [Feature]
+        public var id: String?
+        public var tolerance: DrawingTolerance
+
+        public struct Feature: Sendable, Hashable, Codable {
+            public var position: SIMD2<Double>
+            /// Custom label text; nil means auto-format the (x, y) offset.
+            public var label: String?
+            public var id: String?
+
+            public init(position: SIMD2<Double>, label: String? = nil, id: String? = nil) {
+                self.position = position; self.label = label; self.id = id
+            }
+        }
+
+        public init(origin: SIMD2<Double>, features: [Feature],
+                    tolerance: DrawingTolerance = .none, id: String? = nil) {
+            self.origin = origin; self.features = features
+            self.tolerance = tolerance; self.id = id
+        }
+    }
+
     public var id: String? {
         switch self {
         case .linear(let d):    return d.id
         case .radial(let d):    return d.id
         case .diameter(let d):  return d.id
         case .angular(let d):   return d.id
+        case .ordinate(let d):  return d.id
         }
     }
 
@@ -134,6 +203,8 @@ public enum DrawingDimension: Sendable, Hashable {
         case .radial(let d):    return d.label
         case .diameter(let d):  return d.label
         case .angular(let d):   return d.label
+        // Ordinate has per-feature labels; no single dimension-level label.
+        case .ordinate:         return nil
         }
     }
 
@@ -143,6 +214,9 @@ public enum DrawingDimension: Sendable, Hashable {
         case .radial(let d):    return d.value
         case .diameter(let d):  return d.value
         case .angular(let d):   return d.value
+        // Ordinate has no single scalar measurement; callers should read
+        // `features` instead.
+        case .ordinate:         return 0
         }
     }
 }

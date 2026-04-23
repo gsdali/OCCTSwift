@@ -103,6 +103,25 @@ public final class Drawing: @unchecked Sendable {
         return d
     }
 
+    /// ISO 129-1 §9.3 ordinate dimensioning: a shared origin plus N features,
+    /// each shown as an X and Y offset measured from the origin. Features are
+    /// supplied as tuples of `(position, optional custom label)`; when the
+    /// label is nil the writer auto-formats the offset value.
+    @discardableResult
+    public func addOrdinateDimensions(origin: SIMD2<Double>,
+                                       features: [(position: SIMD2<Double>, label: String?)],
+                                       tolerance: DrawingTolerance = .none,
+                                       id: String? = nil) -> DrawingDimension {
+        let featureStructs = features.map { DrawingDimension.Ordinate.Feature(position: $0.position,
+                                                                               label: $0.label) }
+        let d = DrawingDimension.ordinate(.init(origin: origin,
+                                                 features: featureStructs,
+                                                 tolerance: tolerance,
+                                                 id: id))
+        annotationStore.appendDimension(d)
+        return d
+    }
+
     @discardableResult
     public func addCentreLine(from: SIMD2<Double>, to: SIMD2<Double>,
                               style: DrawingLineStyle = .chain,

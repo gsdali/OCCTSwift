@@ -2,13 +2,23 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.148.0
+## Current: v0.149.0
 
-**4,024 wrapped operations | 3,274 tests | 1,153 suites | OCCT 8.0.0-rc5**
+**4,079 wrapped operations | 3,294 tests | 1,157 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.149.0 (Apr 2026) — Sheet automation + tolerance + ordinate dimensioning
+
+First of a two-release arc closing the last substantive drawing-automation gaps: one-call multi-view layout, typed tolerance data on every dimension, and ISO 129-1 §9.3 ordinate dimensioning.
+
+- **`Sheet.standardLayout(of:scale:margin:includeIso:)`** — composes front / top / side / optional isometric views of a `Shape` onto the sheet's inner frame as a 2x2 grid. Arrangement follows the sheet's `ProjectionAngle`: first-angle places top below front, third-angle places top above. Uniform scale is computed to fit the widest projected view; callers can pass a smaller `DrawingScale` to override. Returns a `StandardLayout` whose `PlacedView`s hold the original Drawings (attach dimensions per view before calling `render(into:)`).
+- **`Drawing.addAutoDimensions(from:viewDirection:minRadius:dimensionOffset:bounds:)`** — heuristic dimensioner: adds a linear dimension for the projected X and Y extents of the shape's bounding box, plus a diameter dimension on every visible circular edge. Edge-on circles are skipped (mirrors the `addAutoCentermarks` detection); `minRadius` filters noise holes.
+- **`DrawingTolerance`** — typed, `Codable` enum carried as `tolerance: DrawingTolerance` on every `DrawingDimension` payload (Linear, Radial, Diameter, Angular, Ordinate). Cases: `.none`, `.symmetric(Double)`, `.bilateral(plus:minus:)`, `.unilateral(Double)`, `.fitClass(String)`, `.limits(lower:upper:)`. Inline cases fold into the nominal label; multi-value cases render as stacked upper/lower TEXT in DXF at ~55% height, placed perpendicular to each dimension's text baseline.
+- **`DrawingDimension.ordinate(Ordinate)`** — shared-origin X+Y dimensioning for CNC reference-datum workflows. Each feature carries its own position plus optional custom label; a single `tolerance` applies across all features. DXF emit draws a small origin cross, per-feature extension lines with ticks at the origin baseline, and offset labels perpendicular to each line. `Drawing.addOrdinateDimensions(origin:features:tolerance:id:)` is the convenience entry point. `DrawingDimension.Ordinate` + `Feature` are `Codable` for JSON-driven pipelines.
+- **`DXFWriter.addDimension(_:)`** — public single-entity dispatch over every `DrawingDimension` case; useful for tests and for scripts that compose DXFs from dimension values without going through a `Drawing`.
 
 ### v0.148.0 (Apr 2026) — Drawing.append(_:) unified dispatcher
 

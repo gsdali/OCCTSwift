@@ -95,6 +95,19 @@ public final class DXFWriter: @unchecked Sendable {
         texts.append((position, text, height, rotationDeg, layer))
     }
 
+    /// Emit a single pre-built dimension as exploded LINE + TEXT entities.
+    /// Useful for tests and for scripts that compose drawings from
+    /// dimension values without going through a `Drawing`.
+    public func addDimension(_ d: DrawingDimension) {
+        switch d {
+        case .linear(let lin):   emitLinear(lin)
+        case .radial(let rad):   emitRadial(rad)
+        case .diameter(let dia): emitDiameter(dia)
+        case .angular(let ang):  emitAngular(ang)
+        case .ordinate(let ord): emitOrdinate(ord)
+        }
+    }
+
     // MARK: - Collection from Drawing
 
     public func collectFromDrawing(_ drawing: Drawing,
@@ -276,7 +289,73 @@ public final class DXFWriter: @unchecked Sendable {
             case .radial(let rad):   emitRadial(rad)
             case .diameter(let dia): emitDiameter(dia)
             case .angular(let ang):  emitAngular(ang)
+            case .ordinate(let ord): emitOrdinate(ord)
             }
+        }
+    }
+
+    // MARK: - Tolerance formatting
+    //
+    // Every dimension emitter runs the (nominal-label, tolerance) pair
+    // through `formatTolerance` to get a `main` line plus optional `upper`
+    // and `lower` stacked lines. Inline cases (.symmetric, .fitClass) fold
+    // the tolerance into `main`; multi-value cases (.bilateral, .unilateral,
+    // .limits) return stacked lines that each emitter places perpendicular
+    // to the text baseline at ~55% height.
+
+    private struct TolerancedLabel {
+        let main: String
+        let upper: String?
+        let lower: String?
+    }
+
+    private func formatTolerance(base: String, tolerance: DrawingTolerance) -> TolerancedLabel {
+        switch tolerance {
+        case .none:
+            return TolerancedLabel(main: base, upper: nil, lower: nil)
+        case .symmetric(let v):
+            return TolerancedLabel(main: base + " ±" + String(format: "%.3f", v),
+                                   upper: nil, lower: nil)
+        case .fitClass(let s):
+            return TolerancedLabel(main: base + " " + s, upper: nil, lower: nil)
+        case .bilateral(let plus, let minus):
+            return TolerancedLabel(main: base,
+                                   upper: "+" + String(format: "%.3f", plus),
+                                   lower: "-" + String(format: "%.3f", minus))
+        case .unilateral(let v):
+            if v >= 0 {
+                return TolerancedLabel(main: base,
+                                       upper: "+" + String(format: "%.3f", v),
+                                       lower: "0")
+            } else {
+                return TolerancedLabel(main: base,
+                                       upper: "0",
+                                       lower: String(format: "%.3f", v))
+            }
+        case .limits(let lower, let upper):
+            return TolerancedLabel(main: base,
+                                   upper: String(format: "%.3f", upper),
+                                   lower: String(format: "%.3f", lower))
+        }
+    }
+
+    /// Emit `parts.main` at `position`, then any stacked upper/lower lines
+    /// at ±`stackOffset`. `stackOffset` must already be oriented along the
+    /// perpendicular to the text baseline.
+    private func emitTolerancedText(_ parts: TolerancedLabel,
+                                     at position: SIMD2<Double>,
+                                     height: Double,
+                                     rotationDeg: Double,
+                                     stackOffset: SIMD2<Double>) {
+        addText(parts.main, at: position, height: height, rotationDeg: rotationDeg, layer: "TEXT")
+        let smallHeight = height * 0.55
+        if let u = parts.upper {
+            addText(u, at: position + stackOffset, height: smallHeight,
+                    rotationDeg: rotationDeg, layer: "TEXT")
+        }
+        if let l = parts.lower {
+            addText(l, at: position - stackOffset, height: smallHeight,
+                    rotationDeg: rotationDeg, layer: "TEXT")
         }
     }
 
@@ -294,9 +373,11 @@ public final class DXFWriter: @unchecked Sendable {
         addLine(from: from2, to: to2, layer: "DIMENSION")
         // Label
         let mid = (from2 + to2) / 2
-        let label = d.label ?? String(format: "%.2f", d.value)
+        let base = d.label ?? String(format: "%.2f", d.value)
         let rotDeg = atan2(dir.y, dir.x) * 180 / .pi
-        addText(label, at: mid + perp * 2, height: 3.5, rotationDeg: rotDeg, layer: "TEXT")
+        let parts = formatTolerance(base: base, tolerance: d.tolerance)
+        emitTolerancedText(parts, at: mid + perp * 2, height: 3.5,
+                           rotationDeg: rotDeg, stackOffset: perp * 2.0)
     }
 
     private func emitRadial(_ d: DrawingDimension.Radial) {
@@ -306,8 +387,12 @@ public final class DXFWriter: @unchecked Sendable {
                                d.centre.y + (d.radius + 10) * sin(d.leaderAngle))
         addCircle(centre: d.centre, radius: d.radius, layer: "DIMENSION")
         addLine(from: endOnCircle, to: leaderTip, layer: "DIMENSION")
-        let label = d.label ?? String(format: "R%.2f", d.value)
-        addText(label, at: leaderTip, height: 3.5, layer: "TEXT")
+        let base = d.label ?? String(format: "R%.2f", d.value)
+        let parts = formatTolerance(base: base, tolerance: d.tolerance)
+        // Stack perpendicular to the leader direction.
+        let perp = SIMD2(-sin(d.leaderAngle), cos(d.leaderAngle))
+        emitTolerancedText(parts, at: leaderTip, height: 3.5,
+                           rotationDeg: 0, stackOffset: perp * 2.0)
     }
 
     private func emitDiameter(_ d: DrawingDimension.Diameter) {
@@ -317,8 +402,11 @@ public final class DXFWriter: @unchecked Sendable {
         let pB = SIMD2(d.centre.x + d.radius * cos_, d.centre.y + d.radius * sin_)
         addLine(from: pA, to: pB, layer: "DIMENSION")
         let tip = SIMD2(pB.x + 5 * cos_, pB.y + 5 * sin_)
-        let label = d.label ?? String(format: "⌀%.2f", d.value)
-        addText(label, at: tip, height: 3.5, layer: "TEXT")
+        let base = d.label ?? String(format: "⌀%.2f", d.value)
+        let parts = formatTolerance(base: base, tolerance: d.tolerance)
+        let perp = SIMD2(-sin_, cos_)
+        emitTolerancedText(parts, at: tip, height: 3.5,
+                           rotationDeg: 0, stackOffset: perp * 2.0)
     }
 
     private func emitAngular(_ d: DrawingDimension.Angular) {
@@ -335,8 +423,73 @@ public final class DXFWriter: @unchecked Sendable {
         let midAngle = (start + end) / 2
         let textPos = SIMD2(d.vertex.x + (d.arcRadius + 3) * cos(midAngle),
                              d.vertex.y + (d.arcRadius + 3) * sin(midAngle))
-        let label = d.label ?? String(format: "%.1f°", d.value * 180 / .pi)
-        addText(label, at: textPos, height: 3.5, layer: "TEXT")
+        let base = d.label ?? String(format: "%.1f°", d.value * 180 / .pi)
+        let parts = formatTolerance(base: base, tolerance: d.tolerance)
+        // Stack along the radial direction.
+        let radial = SIMD2(cos(midAngle), sin(midAngle))
+        emitTolerancedText(parts, at: textPos, height: 3.5,
+                           rotationDeg: 0, stackOffset: radial * 2.0)
+    }
+
+    // MARK: - Ordinate dimensions (ISO 129-1 §9.3)
+    //
+    // Renders a small "+" origin mark at `origin`, then for each feature
+    // emits an X extension line (origin.y → feature.y, at feature.x) and a
+    // Y extension line (origin.x → feature.x, at feature.y), with the
+    // numeric offset text placed at the outboard end of each extension.
+    // The same `tolerance` is applied to every feature label.
+
+    private func emitOrdinate(_ d: DrawingDimension.Ordinate) {
+        // Origin mark: a small cross.
+        let crossExtent = 3.0
+        addLine(from: SIMD2(d.origin.x - crossExtent, d.origin.y),
+                to:   SIMD2(d.origin.x + crossExtent, d.origin.y), layer: "DIMENSION")
+        addLine(from: SIMD2(d.origin.x, d.origin.y - crossExtent),
+                to:   SIMD2(d.origin.x, d.origin.y + crossExtent), layer: "DIMENSION")
+
+        let tickLen = 2.0
+        for feature in d.features {
+            let dx = feature.position.x - d.origin.x
+            let dy = feature.position.y - d.origin.y
+
+            // X ordinate: vertical extension line from origin.y down-or-up to feature.y at feature.x,
+            // text above with the X offset. Place the extension line running from the feature's
+            // X on the origin baseline down to the feature's Y.
+            if dx != 0 {
+                let xTop = SIMD2(feature.position.x, d.origin.y)
+                let xBottom = SIMD2(feature.position.x, feature.position.y)
+                addLine(from: xTop, to: xBottom, layer: "DIMENSION")
+                // Short perpendicular tick at the origin baseline end.
+                addLine(from: SIMD2(feature.position.x, d.origin.y - tickLen),
+                        to:   SIMD2(feature.position.x, d.origin.y + tickLen),
+                        layer: "DIMENSION")
+                let xBase = feature.label ?? String(format: "%.2f", dx)
+                let xParts = formatTolerance(base: xBase, tolerance: d.tolerance)
+                emitTolerancedText(xParts,
+                                    at: SIMD2(feature.position.x, d.origin.y - 5),
+                                    height: 3.5,
+                                    rotationDeg: 90,
+                                    stackOffset: SIMD2(2.0, 0))
+            }
+
+            // Y ordinate: horizontal extension line from origin.x across to feature.x at feature.y.
+            if dy != 0 {
+                let yLeft = SIMD2(d.origin.x, feature.position.y)
+                let yRight = SIMD2(feature.position.x, feature.position.y)
+                addLine(from: yLeft, to: yRight, layer: "DIMENSION")
+                // Short perpendicular tick at the origin baseline end.
+                addLine(from: SIMD2(d.origin.x - tickLen, feature.position.y),
+                        to:   SIMD2(d.origin.x + tickLen, feature.position.y),
+                        layer: "DIMENSION")
+                let yBase = feature.label ?? String(format: "%.2f", dy)
+                let yParts = formatTolerance(base: yBase, tolerance: d.tolerance)
+                emitTolerancedText(yParts,
+                                    at: SIMD2(d.origin.x - 5, feature.position.y),
+                                    height: 3.5,
+                                    rotationDeg: 0,
+                                    stackOffset: SIMD2(0, 2.0))
+            }
+        }
     }
 
     // MARK: - Serialization

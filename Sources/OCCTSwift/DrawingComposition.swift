@@ -95,6 +95,14 @@ extension DrawingDimension {
         case .angular(var d):
             d.vertex = t(d.vertex); d.ray1 = t(d.ray1); d.ray2 = t(d.ray2); d.arcRadius *= scale
             return .angular(d)
+        case .ordinate(var d):
+            d.origin = t(d.origin)
+            d.features = d.features.map { feature in
+                var f = feature
+                f.position = t(f.position)
+                return f
+            }
+            return .ordinate(d)
         }
     }
 
@@ -108,6 +116,7 @@ extension DrawingDimension {
                                         SIMD2(d.centre.x + d.radius, d.centre.y),
                                         SIMD2(d.centre.x - d.radius, d.centre.y)]
         case .angular(let d):   return [d.vertex, d.ray1, d.ray2]
+        case .ordinate(let d):  return [d.origin] + d.features.map { $0.position }
         }
     }
 }

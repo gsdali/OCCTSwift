@@ -47066,3 +47066,284 @@ struct ThreadSpecTruncationTests {
         #expect(abs(s.minorDiameter - (10 - 2 * s.cutDepth)) < 1e-9)
     }
 }
+
+// MARK: - v0.149 #83: DrawingTolerance
+
+@Suite("v0.149 DrawingTolerance")
+struct ToleranceTests {
+    @Test("Symmetric tolerance rendered inline on the nominal label")
+    func symmetricInline() {
+        let writer = DXFWriter()
+        writer.addDimension(.linear(.init(from: SIMD2(0, 0), to: SIMD2(10, 0),
+                                           tolerance: .symmetric(0.05))))
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("tol_sym.dxf")
+        try? writer.write(to: url)
+        let content = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        #expect(content.contains("±0.050"))
+        #expect(writer.entityCounts.texts == 1)
+    }
+
+    @Test("Bilateral tolerance produces stacked upper + lower TEXT entries")
+    func bilateralStacked() {
+        let baseline = DXFWriter()
+        baseline.addDimension(.linear(.init(from: SIMD2(0, 0), to: SIMD2(10, 0))))
+        let baselineTexts = baseline.entityCounts.texts
+
+        let withTol = DXFWriter()
+        withTol.addDimension(.linear(.init(from: SIMD2(0, 0), to: SIMD2(10, 0),
+                                            tolerance: .bilateral(plus: 0.1, minus: 0.05))))
+        #expect(withTol.entityCounts.texts == baselineTexts + 2)
+    }
+
+    @Test("Unilateral tolerance stacks signed value against a 0")
+    func unilateralStacked() {
+        let writer = DXFWriter()
+        writer.addDimension(.diameter(.init(centre: .zero, radius: 5,
+                                             tolerance: .unilateral(0.1))))
+        #expect(writer.entityCounts.texts == 3)
+    }
+
+    @Test("Fit class appended inline with space")
+    func fitClassInline() {
+        let writer = DXFWriter()
+        writer.addDimension(.linear(.init(from: SIMD2(0, 0), to: SIMD2(10, 0),
+                                           tolerance: .fitClass("H7"))))
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("tol_fit.dxf")
+        try? writer.write(to: url)
+        let content = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        #expect(content.contains(" H7"))
+        #expect(writer.entityCounts.texts == 1)
+    }
+
+    @Test("Limits tolerance stacks upper over lower")
+    func limitsStacked() {
+        let writer = DXFWriter()
+        writer.addDimension(.linear(.init(from: SIMD2(0, 0), to: SIMD2(10, 0),
+                                           tolerance: .limits(lower: 9.95, upper: 10.05))))
+        #expect(writer.entityCounts.texts == 3)
+    }
+
+    @Test("DrawingTolerance Codable round-trip")
+    func codableRoundTrip() throws {
+        let cases: [DrawingTolerance] = [
+            .none,
+            .symmetric(0.05),
+            .bilateral(plus: 0.1, minus: 0.05),
+            .unilateral(-0.1),
+            .fitClass("g6"),
+            .limits(lower: 9.95, upper: 10.05)
+        ]
+        let encoder = JSONEncoder()
+        let decoder = JSONDecoder()
+        for t in cases {
+            let data = try encoder.encode(t)
+            let back = try decoder.decode(DrawingTolerance.self, from: data)
+            #expect(back == t)
+        }
+    }
+}
+
+// MARK: - v0.149 #83: Ordinate dimensioning
+
+@Suite("v0.149 DrawingDimension.ordinate")
+struct OrdinateDimensionTests {
+    @Test("3-feature ordinate emits origin cross + X + Y extensions per feature")
+    func threeFeatureEmits() {
+        let writer = DXFWriter()
+        writer.addDimension(.ordinate(.init(
+            origin: .zero,
+            features: [.init(position: SIMD2(10, 0)),
+                       .init(position: SIMD2(25, 5)),
+                       .init(position: SIMD2(40, 15), label: "hole 3")]
+        )))
+        // Origin cross = 2 lines.
+        // Feature 1 (10, 0): dx only -> 2 lines (ext + tick), 1 text
+        // Feature 2 (25, 5): dx + dy -> 4 lines, 2 texts
+        // Feature 3 (40,15): dx + dy -> 4 lines, 2 texts
+        // Total: 12 lines, 5 texts.
+        #expect(writer.entityCounts.lines == 12)
+        #expect(writer.entityCounts.texts == 5)
+    }
+
+    @Test("Empty features list emits only the origin cross")
+    func emptyFeatures() {
+        let writer = DXFWriter()
+        writer.addDimension(.ordinate(.init(origin: SIMD2(5, 5), features: [])))
+        #expect(writer.entityCounts.lines == 2)
+        #expect(writer.entityCounts.texts == 0)
+    }
+
+    @Test("Ordinate applies tolerance to every feature label")
+    func toleranceFlowsToFeatures() {
+        let writer = DXFWriter()
+        writer.addDimension(.ordinate(.init(
+            origin: .zero,
+            features: [.init(position: SIMD2(10, 0))],
+            tolerance: .symmetric(0.02)
+        )))
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("ord_tol.dxf")
+        try? writer.write(to: url)
+        let content = (try? String(contentsOf: url, encoding: .utf8)) ?? ""
+        #expect(content.contains("±0.020"))
+    }
+
+    @Test("Ordinate transforms translate origin and every feature position")
+    func transformedCase() {
+        let d = DrawingDimension.ordinate(.init(
+            origin: SIMD2(0, 0),
+            features: [.init(position: SIMD2(10, 5))]
+        ))
+        let t = d.transformed(translate: SIMD2(100, 200), scale: 2)
+        if case .ordinate(let ord) = t {
+            #expect(ord.origin == SIMD2(100, 200))
+            #expect(ord.features.first?.position == SIMD2(120, 210))
+        } else {
+            Issue.record("expected .ordinate case")
+        }
+    }
+
+    @Test("Ordinate Codable round-trip")
+    func codableRoundTrip() throws {
+        let ord = DrawingDimension.Ordinate(
+            origin: SIMD2(1, 2),
+            features: [.init(position: SIMD2(10, 0), label: "x-only"),
+                       .init(position: SIMD2(25, 15), id: "f2")],
+            tolerance: .bilateral(plus: 0.1, minus: 0.05),
+            id: "ord-1"
+        )
+        let data = try JSONEncoder().encode(ord)
+        let back = try JSONDecoder().decode(DrawingDimension.Ordinate.self, from: data)
+        #expect(back == ord)
+    }
+}
+
+// MARK: - v0.149 #83: Drawing.addAutoDimensions
+
+@Suite("v0.149 Drawing.addAutoDimensions")
+struct AutoDimensionTests {
+    @Test("Box front view produces two linear dimensions")
+    func boxLinearExtents() {
+        guard let box = Shape.box(width: 10, height: 5, depth: 3),
+              let front = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let result = front.addAutoDimensions(from: box, viewDirection: SIMD3(0, 1, 0))
+        let linearCount = result.added.filter {
+            if case .linear = $0 { return true } else { return false }
+        }.count
+        #expect(linearCount == 2)
+    }
+
+    @Test("Cylinder top view produces diameter + linear extents")
+    func cylinderTopViewHasDiameters() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let top = Drawing.topView(of: cyl) else {
+            Issue.record("setup nil"); return
+        }
+        let result = top.addAutoDimensions(from: cyl, viewDirection: SIMD3(0, 0, 1))
+        let diaCount = result.added.filter {
+            if case .diameter = $0 { return true } else { return false }
+        }.count
+        let linearCount = result.added.filter {
+            if case .linear = $0 { return true } else { return false }
+        }.count
+        #expect(diaCount >= 1)
+        #expect(linearCount == 2)
+    }
+
+    @Test("Cylinder side view skips edge-on circles")
+    func cylinderSideViewEdgeOn() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let front = Drawing.frontView(of: cyl) else {
+            Issue.record("setup nil"); return
+        }
+        let result = front.addAutoDimensions(from: cyl, viewDirection: SIMD3(0, 1, 0))
+        let diaCount = result.added.filter {
+            if case .diameter = $0 { return true } else { return false }
+        }.count
+        #expect(diaCount == 0)
+    }
+
+    @Test("minRadius filters small circles")
+    func minRadiusFilters() {
+        guard let cyl = Shape.cylinder(radius: 5, height: 20),
+              let top = Drawing.topView(of: cyl) else {
+            Issue.record("setup nil"); return
+        }
+        let result = top.addAutoDimensions(from: cyl,
+                                            viewDirection: SIMD3(0, 0, 1),
+                                            minRadius: 100)
+        let diaCount = result.added.filter {
+            if case .diameter = $0 { return true } else { return false }
+        }.count
+        #expect(diaCount == 0)
+    }
+}
+
+// MARK: - v0.149 #84: Sheet.standardLayout
+
+@Suite("v0.149 Sheet.standardLayout")
+struct SheetStandardLayoutTests {
+    @Test("First-angle layout places top below front")
+    func firstAngleTopBelow() {
+        let sheet = Sheet(size: .A3, orientation: .landscape, projection: .first)
+        guard let box = Shape.box(width: 20, height: 15, depth: 10),
+              let layout = sheet.standardLayout(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        #expect(layout.top.offset.y < layout.front.offset.y)
+    }
+
+    @Test("Third-angle layout places top above front")
+    func thirdAngleTopAbove() {
+        let sheet = Sheet(size: .A3, orientation: .landscape, projection: .third)
+        guard let box = Shape.box(width: 20, height: 15, depth: 10),
+              let layout = sheet.standardLayout(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        #expect(layout.top.offset.y > layout.front.offset.y)
+    }
+
+    @Test("All four placed views fall inside the inner frame")
+    func viewsFitInsideInnerFrame() {
+        let sheet = Sheet(size: .A3, orientation: .landscape, projection: .first)
+        guard let box = Shape.box(width: 20, height: 15, depth: 10),
+              let layout = sheet.standardLayout(of: box, margin: 20) else {
+            Issue.record("setup nil"); return
+        }
+        let frame = sheet.innerFrame
+        for placed in layout.placed {
+            #expect(placed.offset.x >= frame.min.x)
+            #expect(placed.offset.x <= frame.max.x)
+            #expect(placed.offset.y >= frame.min.y)
+            #expect(placed.offset.y <= frame.max.y)
+        }
+    }
+
+    @Test("includeIso: false omits the isometric view")
+    func includeIsoFalseOmits() {
+        let sheet = Sheet(size: .A3)
+        guard let box = Shape.box(width: 20, height: 15, depth: 10),
+              let layout = sheet.standardLayout(of: box, includeIso: false) else {
+            Issue.record("setup nil"); return
+        }
+        #expect(layout.iso == nil)
+        #expect(layout.placed.count == 3)
+    }
+
+    @Test("render(into:) emits geometry for every placed view")
+    func renderEmitsEveryView() {
+        let sheet = Sheet(size: .A3)
+        guard let box = Shape.box(width: 20, height: 15, depth: 10),
+              let layout = sheet.standardLayout(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let writer = DXFWriter()
+        layout.render(into: writer)
+        let counts = writer.entityCounts
+        #expect(counts.lines + counts.polylines > 0)
+    }
+}
