@@ -144,6 +144,10 @@ extension DrawingAnnotation {
             cpl.traceEnd = t(cpl.traceEnd)
             // Arrow direction is a unit vector; uniform scale preserves direction.
             return .cuttingPlaneLine(cpl)
+        case .balloon(var b):
+            b.centre = t(b.centre); b.radius *= scale
+            if let leader = b.leaderTo { b.leaderTo = t(leader) }
+            return .balloon(b)
         }
     }
 
@@ -154,6 +158,10 @@ extension DrawingAnnotation {
         case .textLabel(let t):         return [t.position]
         case .hatch(let h):             return h.boundary
         case .cuttingPlaneLine(let c):  return [c.traceStart, c.traceEnd]
+        case .balloon(let b):
+            var pts = [b.centre]
+            if let leader = b.leaderTo { pts.append(leader) }
+            return pts
         }
     }
 }

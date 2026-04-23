@@ -47347,3 +47347,297 @@ struct SheetStandardLayoutTests {
         #expect(counts.lines + counts.polylines > 0)
     }
 }
+
+// MARK: - v0.150 #85: PDFWriter
+
+@Suite("v0.150 PDFWriter")
+struct PDFWriterTests {
+    @Test("Empty PDF writes a minimum-valid PDF 1.4 file")
+    func emptyPDF() throws {
+        let writer = PDFWriter()
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("empty.pdf")
+        try writer.write(to: url)
+        let content = try String(contentsOf: url, encoding: .isoLatin1)
+        #expect(content.hasPrefix("%PDF-1.4"))
+        #expect(content.contains("xref"))
+        #expect(content.contains("%%EOF"))
+    }
+
+    @Test("Box front view PDF contains the expected polyline count")
+    func boxFrontPDF() {
+        guard let box = Shape.box(width: 10, height: 5, depth: 3),
+              let front = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let writer = PDFWriter()
+        writer.collectFromDrawing(front)
+        let counts = writer.entityCounts
+        #expect(counts.lines + counts.polylines > 0)
+    }
+
+    @Test("Hidden-layer content emits a dash pattern")
+    func hiddenDashPattern() throws {
+        let writer = PDFWriter()
+        writer.addLine(from: SIMD2(0, 0), to: SIMD2(10, 0), layer: "HIDDEN")
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("hidden.pdf")
+        try writer.write(to: url)
+        let content = try String(contentsOf: url, encoding: .isoLatin1)
+        #expect(content.contains("[3 2] 0 d"))
+    }
+
+    @Test("Tolerance symbol survives into PDF content stream")
+    func toleranceInPDF() throws {
+        let writer = PDFWriter()
+        writer.addDimension(.linear(.init(from: SIMD2(0, 0), to: SIMD2(10, 0),
+                                           tolerance: .symmetric(0.05))))
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("tol.pdf")
+        try writer.write(to: url)
+        let data = try Data(contentsOf: url)
+        // PDF files mix ASCII and binary; decode with a single-byte encoding
+        // that can round-trip every byte.
+        let content = String(data: data, encoding: .isoLatin1) ?? ""
+        // Our escape function passes ± through as UTF-8 bytes (0xC2 0xB1).
+        // In isoLatin1 decoding those map to "Â±" — check for that instead.
+        #expect(content.contains("0.050"))
+        // ± is a UTF-8 2-byte sequence; its isoLatin1 decoding is "Â±".
+        #expect(content.contains("\u{00C2}\u{00B1}"))
+    }
+
+    @Test("Sheet + standardLayout round-trips through writePDF")
+    func sheetWritePDF() throws {
+        let sheet = Sheet(size: .A4, orientation: .landscape)
+        guard let box = Shape.box(width: 20, height: 10, depth: 5),
+              let layout = sheet.standardLayout(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("sheet.pdf")
+        try Exporter.writePDF(sheet: sheet, body: { pdf in
+            for placed in layout.placed {
+                pdf.collectFromDrawing(placed.drawing,
+                                        translate: placed.offset, scale: placed.scale)
+            }
+        }, to: url)
+        let size = try FileManager.default.attributesOfItem(atPath: url.path)[.size] as? Int ?? 0
+        #expect(size > 400)   // header + xref + at least one object
+    }
+}
+
+// MARK: - v0.150 #86: SVGWriter
+
+@Suite("v0.150 SVGWriter")
+struct SVGWriterTests {
+    @Test("Empty SVG writes valid <svg> with viewBox")
+    func emptySVG() throws {
+        let writer = SVGWriter()
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("empty.svg")
+        try writer.write(to: url)
+        let content = try String(contentsOf: url, encoding: .utf8)
+        #expect(content.hasPrefix("<?xml"))
+        #expect(content.contains("<svg"))
+        #expect(content.contains("viewBox="))
+        #expect(content.contains("</svg>"))
+    }
+
+    @Test("Box front view SVG contains line elements")
+    func boxFrontSVG() throws {
+        guard let box = Shape.box(width: 10, height: 5, depth: 3),
+              let front = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        let writer = SVGWriter()
+        writer.collectFromDrawing(front)
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("box_front.svg")
+        try writer.write(to: url)
+        let content = try String(contentsOf: url, encoding: .utf8)
+        #expect(content.contains("<line") || content.contains("<polyline") || content.contains("<polygon"))
+    }
+
+    @Test("Hidden layer carries stroke-dasharray attribute")
+    func hiddenDashArray() throws {
+        let writer = SVGWriter()
+        writer.addLine(from: SIMD2(0, 0), to: SIMD2(10, 0), layer: "HIDDEN")
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("hidden.svg")
+        try writer.write(to: url)
+        let content = try String(contentsOf: url, encoding: .utf8)
+        #expect(content.contains("stroke-dasharray=\"3,2\""))
+    }
+
+    @Test("Arc emits native SVG A path command")
+    func arcEmitsPath() throws {
+        let writer = SVGWriter()
+        writer.addArc(centre: .zero, radius: 5, startAngleDeg: 0, endAngleDeg: 90)
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("arc.svg")
+        try writer.write(to: url)
+        let content = try String(contentsOf: url, encoding: .utf8)
+        #expect(content.contains("<path"))
+        #expect(content.contains(" A "))
+    }
+
+    @Test("Circle emits native <circle> element")
+    func circleEmits() throws {
+        let writer = SVGWriter()
+        writer.addCircle(centre: SIMD2(10, 20), radius: 5)
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("circle.svg")
+        try writer.write(to: url)
+        let content = try String(contentsOf: url, encoding: .utf8)
+        #expect(content.contains("<circle"))
+        #expect(content.contains("r=\"5"))
+    }
+
+    @Test("ViewBox respects caller override when supplied")
+    func explicitViewBox() throws {
+        let writer = SVGWriter(viewBox: (min: SIMD2(0, 0), size: SIMD2(420, 297)))
+        writer.addLine(from: SIMD2(10, 10), to: SIMD2(20, 10))
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("vb.svg")
+        try writer.write(to: url)
+        let content = try String(contentsOf: url, encoding: .utf8)
+        #expect(content.contains("420"))
+        #expect(content.contains("297"))
+    }
+}
+
+// MARK: - v0.150 #87: DrawingAnnotation.balloon
+
+@Suite("v0.150 DrawingAnnotation.balloon")
+struct BalloonTests {
+    @Test("Balloon with leader emits circle + text + leader line")
+    func withLeader() {
+        guard let box = Shape.box(width: 1, height: 1, depth: 1),
+              let withBalloon = Drawing.frontView(of: box),
+              let baseline = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        withBalloon.append(.balloon(.init(itemNumber: 1,
+                                           centre: SIMD2(50, 50),
+                                           radius: 5,
+                                           leaderTo: SIMD2(30, 30))))
+        let wBalloon = DXFWriter()
+        wBalloon.collectFromDrawing(withBalloon)
+        let wBase = DXFWriter()
+        wBase.collectFromDrawing(baseline)
+        // Adds: 1 circle + 1 text + 1 leader line.
+        #expect(wBalloon.entityCounts.circles == wBase.entityCounts.circles + 1)
+        #expect(wBalloon.entityCounts.texts   == wBase.entityCounts.texts   + 1)
+        #expect(wBalloon.entityCounts.lines   == wBase.entityCounts.lines   + 1)
+    }
+
+    @Test("Balloon without leader emits circle + text only")
+    func withoutLeader() {
+        guard let box = Shape.box(width: 1, height: 1, depth: 1),
+              let front = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        front.append(.balloon(.init(itemNumber: 2,
+                                     centre: SIMD2(10, 10),
+                                     radius: 4)))
+        let writerWith = DXFWriter()
+        writerWith.collectFromDrawing(front)
+
+        // Compare against a baseline drawing without the balloon.
+        guard let baseline = Drawing.frontView(of: box) else {
+            Issue.record("baseline nil"); return
+        }
+        let writerBase = DXFWriter()
+        writerBase.collectFromDrawing(baseline)
+
+        // Circle adds 1, text adds 1, lines add 0 (no leader).
+        #expect(writerWith.entityCounts.circles == writerBase.entityCounts.circles + 1)
+        #expect(writerWith.entityCounts.texts   == writerBase.entityCounts.texts   + 1)
+        #expect(writerWith.entityCounts.lines   == writerBase.entityCounts.lines)
+    }
+
+    @Test("Drawing.addBalloon adds a .balloon annotation")
+    func addBalloonConvenience() {
+        guard let box = Shape.box(width: 1, height: 1, depth: 1),
+              let front = Drawing.frontView(of: box) else {
+            Issue.record("setup nil"); return
+        }
+        front.addBalloon(itemNumber: 3, at: SIMD2(5, 5))
+        let balloonCount = front.annotations.filter {
+            if case .balloon = $0 { return true } else { return false }
+        }.count
+        #expect(balloonCount == 1)
+    }
+
+    @Test("Balloon transforms translate centre, scale radius, and translate leader")
+    func balloonTransformed() {
+        let ann = DrawingAnnotation.balloon(.init(itemNumber: 4,
+                                                   centre: SIMD2(10, 10),
+                                                   radius: 5,
+                                                   leaderTo: SIMD2(20, 20)))
+        let t = ann.transformed(translate: SIMD2(100, 200), scale: 2)
+        if case .balloon(let b) = t {
+            #expect(b.centre == SIMD2(120, 220))
+            #expect(b.radius == 10)
+            #expect(b.leaderTo == SIMD2(140, 240))
+        } else {
+            Issue.record("expected .balloon case")
+        }
+    }
+}
+
+// MARK: - v0.150 #87: BillOfMaterials
+
+@Suite("v0.150 BillOfMaterials")
+struct BillOfMaterialsTests {
+    @Test("Empty BOM renders header row only")
+    func emptyBOMHeader() {
+        let writer = DXFWriter()
+        let bom = BillOfMaterials(items: [])
+        bom.render(into: writer, at: SIMD2(200, 100))
+        // 7 columns → 7 header text entries.
+        #expect(writer.entityCounts.texts == 7)
+        // 2 horizontal separators (top + bottom of 1 header row) + 8 vertical
+        // separators (left + 7 column dividers).
+        #expect(writer.entityCounts.lines == 10)
+    }
+
+    @Test("3-item BOM emits header + 3 data rows")
+    func threeItemBOM() {
+        let bom = BillOfMaterials(items: [
+            .init(number: 1, description: "Plate", quantity: 2),
+            .init(number: 2, description: "Bolt",  quantity: 8, material: "Steel"),
+            .init(number: 3, description: "Nut",   quantity: 8, material: "Steel")
+        ])
+        let writer = DXFWriter()
+        bom.render(into: writer, at: SIMD2(200, 100))
+        // 4 rows (1 header + 3 data) × 7 columns = 28 text entries.
+        #expect(writer.entityCounts.texts == 28)
+        // 5 horizontal lines + 8 vertical lines = 13.
+        #expect(writer.entityCounts.lines == 13)
+    }
+
+    @Test("BillOfMaterials Codable round-trip")
+    func codableRoundTrip() throws {
+        let bom = BillOfMaterials(items: [
+            .init(number: 1, partNumber: "P-001", description: "Frame",
+                  quantity: 1, material: "6061-T6", mass: 2.4, notes: "heat-treated")
+        ], title: "Assembly Rev A")
+        let data = try JSONEncoder().encode(bom)
+        let back = try JSONDecoder().decode(BillOfMaterials.self, from: data)
+        #expect(back == bom)
+    }
+
+    @Test("Sheet.renderBOM places the BOM inside the inner frame")
+    func sheetRenderBOM() {
+        let sheet = Sheet(size: .A3, orientation: .landscape)
+        let bom = BillOfMaterials(items: [
+            .init(number: 1, description: "Part 1")
+        ])
+        let writer = DXFWriter()
+        let topRight = sheet.renderBOM(bom, into: writer)
+        let frame = sheet.innerFrame
+        #expect(topRight.x <= frame.max.x + 0.001)
+        #expect(topRight.y <= frame.max.y + 0.001)
+    }
+}

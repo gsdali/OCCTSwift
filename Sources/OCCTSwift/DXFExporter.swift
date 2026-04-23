@@ -168,6 +168,22 @@ public final class DXFWriter: @unchecked Sendable {
                 emitHatch(h)
             case .cuttingPlaneLine(let cpl):
                 emitCuttingPlaneLine(cpl)
+            case .balloon(let b):
+                emitBalloon(b)
+            }
+        }
+    }
+
+    private func emitBalloon(_ b: DrawingAnnotation.Balloon) {
+        addCircle(centre: b.centre, radius: b.radius, layer: "DIMENSION")
+        addText(String(b.itemNumber), at: b.centre, height: b.radius * 0.9, layer: "TEXT")
+        if let target = b.leaderTo {
+            // Leader exits the balloon at the point on the circle nearest the target.
+            let dir = target - b.centre
+            let len = simd_length(dir)
+            if len > 1e-9 {
+                let exit = b.centre + (dir / len) * b.radius
+                addLine(from: exit, to: target, layer: "DIMENSION")
             }
         }
     }

@@ -222,13 +222,14 @@ public enum DrawingDimension: Sendable, Hashable {
 }
 
 /// Non-dimensional 2D annotations attached to a `Drawing` — centrelines, centremarks,
-/// construction points, free-form text labels, hatch fills.
+/// construction points, free-form text labels, hatch fills, assembly balloons.
 public enum DrawingAnnotation: Sendable, Hashable {
     case centreline(Centreline)
     case centermark(Centermark)
     case textLabel(TextLabel)
     case hatch(Hatch)
     case cuttingPlaneLine(CuttingPlaneLine)
+    case balloon(Balloon)
 
     public struct Centreline: Sendable, Hashable {
         public var from: SIMD2<Double>
@@ -323,6 +324,30 @@ public enum DrawingAnnotation: Sendable, Hashable {
             self.spacing = spacing
             self.islands = islands
             self.layer = layer
+            self.id = id
+        }
+    }
+
+    /// Assembly-drawing balloon callout: a numbered circle placed near a
+    /// part, with an optional leader line to the balloon target. Balloon
+    /// `itemNumber` is expected to match a row in the drawing's
+    /// `BillOfMaterials`.
+    public struct Balloon: Sendable, Hashable {
+        public var itemNumber: Int
+        public var centre: SIMD2<Double>
+        public var radius: Double
+        public var leaderTo: SIMD2<Double>?
+        public var id: String?
+
+        public init(itemNumber: Int,
+                    centre: SIMD2<Double>,
+                    radius: Double = 5,
+                    leaderTo: SIMD2<Double>? = nil,
+                    id: String? = nil) {
+            self.itemNumber = itemNumber
+            self.centre = centre
+            self.radius = radius
+            self.leaderTo = leaderTo
             self.id = id
         }
     }

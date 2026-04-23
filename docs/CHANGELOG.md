@@ -2,13 +2,26 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.149.0
+## Current: v0.150.0
 
-**4,079 wrapped operations | 3,294 tests | 1,157 suites | OCCT 8.0.0-rc5**
+**4,139 wrapped operations | 3,314 tests | 1,162 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.150.0 (Apr 2026) — Pure-Swift PDF + SVG export + BOM + balloons
+
+Second half of the v0.149 → v0.150 drawing-automation arc. Drawings now have three readable output formats (DXF for engineering tools, PDF for humans, SVG for the web) plus the assembly-drawing primitives that make BOM-driven output a one-call operation.
+
+- **`PDFWriter` + `Exporter.writePDF(drawing:to:pageSize:)` / `writePDF(sheet:body:to:)`** — pure-Swift PDF 1.4 writer. No UIKit / AppKit / Core Graphics dependency; works on macOS, iOS, and Linux. Helvetica font, one page per file, content stream installs a mm→pts CTM so staged geometry stays in drawing units. Per-layer ISO 128-20 stroke weights (0.5 mm VISIBLE / OUTLINE, 0.25 mm HIDDEN / CENTER / DIMENSION / TEXT, 0.18 mm HATCH) with dashed / chain patterns on HIDDEN / CENTER. Circles rendered as four cubic Bézier segments; arcs split into ≤90° Bézier chunks.
+- **`SVGWriter` + `Exporter.writeSVG(drawing:to:)` / `writeSVG(sheet:body:to:)`** — pure-Swift SVG 1.1 writer. One `<g>` group per layer with stroke / stroke-width / stroke-dasharray attributes. Arcs emitted as native SVG `<path d="M… A …"/>`. ViewBox explicit or computed from content bounds. Drawing's mathematical Y (up) mapped to SVG's screen Y (down) via a group-level `scale(1,-1)`; each `<text>` carries its own counter-transform so glyphs read right-side up.
+- **`DrawingAnnotation.balloon(Balloon)`** — new case carrying `itemNumber` + `centre` + `radius` + optional `leaderTo`. Rendered in every writer (DXF / PDF / SVG) as a circle + number text + optional leader line that exits the circle at the point nearest the target. `Drawing.addBalloon(itemNumber:at:leaderTo:radius:id:)` is the convenience entry point.
+- **`BillOfMaterials`** — pure-Swift `Codable` value type. Seven-column table (ITEM / PART NO / DESCRIPTION / QTY / MAT / MASS / NOTES) with per-column default widths; caller populates `[Item]` and calls `render(into: DXFWriter, at:)`. Origin is the **bottom-right** anchor so the table grows up and to the left (idiomatic placement above a title block). `Sheet.renderBOM(_:into:at:)` convenience places the BOM right-aligned to the inner frame's top edge.
+- **`DrawingDispatch.swift`** — shared internal annotation + dimension dispatcher used by `PDFWriter` and `SVGWriter`. `DrawingPrimitiveOps` struct bundles the five drawing primitives (addLine / addPolyline / addCircle / addArc / addText) as closures; a single dispatch path handles every `DrawingAnnotation` case (centreline, centermark, textLabel, hatch, cuttingPlaneLine, balloon) and every `DrawingDimension` case including tolerance rendering. `DXFWriter` continues to use its own inline logic — not because it couldn't be ported, but to keep its test coverage load-bearing and avoid regression risk.
+- **`Exporter.pdfA3Landscape` / `pdfA4Landscape`** — named pts-space page-size constants. Also `PDFWriter.addDimension(_:)` / `SVGWriter.addDimension(_:)` mirror the DXF-side method added in v0.149 for ad-hoc dimension staging without a `Drawing`.
+
+After v0.150, the only substantive drawing-layer gap is native DXF `DIMENSION` entities (still exploded LINE+TEXT), which remains demand-gated.
 
 ### v0.149.0 (Apr 2026) — Sheet automation + tolerance + ordinate dimensioning
 

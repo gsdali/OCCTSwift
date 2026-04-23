@@ -150,6 +150,23 @@ public final class Drawing: @unchecked Sendable {
         return a
     }
 
+    /// Assembly-drawing balloon callout: a numbered circle keyed to a
+    /// `BillOfMaterials` row, optionally with a leader line to the part.
+    @discardableResult
+    public func addBalloon(itemNumber: Int,
+                           at position: SIMD2<Double>,
+                           leaderTo target: SIMD2<Double>? = nil,
+                           radius: Double = 5,
+                           id: String? = nil) -> DrawingAnnotation {
+        let a = DrawingAnnotation.balloon(.init(itemNumber: itemNumber,
+                                                 centre: position,
+                                                 radius: radius,
+                                                 leaderTo: target,
+                                                 id: id))
+        annotationStore.appendAnnotation(a)
+        return a
+    }
+
     /// ISO 128-40 cutting-plane line marking where a section was cut on the
     /// parent view. Projects the cutting plane's trace into this drawing's 2D
     /// frame and adds a typed `.cuttingPlaneLine` annotation. `viewDirection`
