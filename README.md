@@ -2,7 +2,7 @@
 
 A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0, providing B-Rep solid modeling for macOS and iOS.
 
-**4,139 wrapped operations** | **3,314 tests** | **1,162 suites** | macOS arm64 / iOS arm64
+**4,142 wrapped operations** | **3,326 tests** | **1,163 suites** | macOS arm64 / iOS arm64
 
 ## Quick Start
 
@@ -74,6 +74,7 @@ OCCTSwift provides method-level coverage of all user-facing OCCT classes. Key ar
 | Geometry Factories | 90+ | GC/GCE2d/gce factories, convert to BSpline, analytical recognition |
 | Drawings & Dimensions | 32 | HLR projection, visible/hidden/outline edges, linear/radial/diameter/angular dimensions, centrelines, auto-centreline from revolution axes, DXF R12 writer |
 | Thread Features | 22 | ThreadForm (ISO-68/Unified), ThreadSpec parser (M5x0.8, 1/4-20 UNC), truncated 60° V-profile, multi-start, runout styles, Shape.threadedHole, Shape.threadedShaft |
+| Sheet Metal | 3 | `SheetMetal.Flange` + `Bend` + `Builder.build` — declarative flange-and-bend composition via extrude + union + fillet |
 
 For the full operation-by-operation mapping to OCCT classes, see [docs/API_REFERENCE.md](docs/API_REFERENCE.md).
 

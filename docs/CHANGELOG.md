@@ -2,13 +2,24 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.150.0
+## Current: v0.151.0
 
-**4,139 wrapped operations | 3,314 tests | 1,162 suites | OCCT 8.0.0-rc5**
+**4,142 wrapped operations | 3,326 tests | 1,163 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.151.0 (Apr 2026) — Sheet-metal composition API (issue #85)
+
+OCCT has no sheet-metal bend primitive and is not expected to grow one — CATIA / SolidWorks / FreeCAD all compose bends from extrude + union + fillet. v0.151 adds the canonical Swift-level composition so downstream consumers (OCCTDesignLoop's VLM reconstructor, scripts, MCP tooling) do not each reinvent it.
+
+- **`SheetMetal.Flange`** — a closed 2D profile positioned in world space by explicit `(origin, uAxis, vAxis, normal)`. All three axes are independent so left-handed world placements (e.g. a flange normal along +Y with the profile reading +X / +Z) are expressible without handedness surprises. `vAxis` defaults to `cross(normal, uAxis)` when omitted.
+- **`SheetMetal.Bend`** — names two flanges + an inside radius. No geometric data; the builder resolves the seam edge from the flange placements.
+- **`SheetMetal.Builder.build(flanges:bends:)`** — extrudes each flange along its normal by `thickness`, fuses the bodies in order, then for each bend finds the seam edge(s) and applies `Shape.filleted(edges:radius:)`. Seam finding walks the fused shape's edges, keeps only those parallel to `cross(nA, nB)`, and selects the one whose midpoint lies on each flange's face that points *toward* the other flange — which uniquely identifies the bend and rejects the coincidental convex back corner.
+- **`SheetMetal.BuildError`** — named cases for invalid thickness, empty flange list, duplicate/unknown IDs, invalid profile, extrusion/union/fillet failures, parallel flanges (no seam direction), and missing seam edge. `CustomStringConvertible` for direct logging.
+
+**Known limitation:** stepped seams (flanges meeting along less than their full seam-direction extent, e.g. a narrow upright on a wider base) surface as `BuildError.filletFailed`. OCCT cannot cleanly round an edge that terminates at a free-face boundary; downstream callers should match flange widths along the seam or split the wider flange. Reverse-direction unwrap (bent BRep → flat cutting pattern) is the planned next addition to this namespace.
 
 ### v0.150.0 (Apr 2026) — Pure-Swift PDF + SVG export + BOM + balloons
 

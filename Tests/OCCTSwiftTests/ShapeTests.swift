@@ -47641,3 +47641,275 @@ struct BillOfMaterialsTests {
         #expect(topRight.y <= frame.max.y + 0.001)
     }
 }
+
+// MARK: - v0.151 SheetMetal composition API (issue #85)
+
+@Suite("v0.151 SheetMetal — flange + bend composition")
+struct SheetMetalTests {
+
+    /// L-bracket: horizontal base flange + vertical upright, one bend between them.
+    ///
+    /// The upright spans the full base width so the seam edge runs cleanly
+    /// across both flanges without a step — a step would require a
+    /// variable-radius fillet to close off, which is beyond this first cut.
+    @Test("L-bracket: two orthogonal flanges with one bend")
+    func lBracket() throws {
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(65, 0), SIMD2(65, 28), SIMD2(0, 28)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let upright = SheetMetal.Flange(
+            id: "upright",
+            profile: [SIMD2(0, 0), SIMD2(65, 0), SIMD2(65, 40), SIMD2(0, 40)],
+            origin: SIMD3<Double>(0, 28, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+
+        let builder = SheetMetal.Builder(thickness: 3)
+        let shape = try builder.build(
+            flanges: [base, upright],
+            bends: [SheetMetal.Bend(from: "base", to: "upright", radius: 2.0)])
+
+        #expect(shape.isValid)
+        if let v = shape.volume { #expect(v > 0) }
+    }
+
+    /// U-channel: three flanges (bottom + two uprights) with two bends.
+    ///
+    /// Walls sit *outside* the bottom's footprint (x<0 and x>40) so they
+    /// touch bottom edge-to-face rather than overlapping with it. This
+    /// gives a clean seam edge along each bend.
+    @Test("U-channel: three flanges, two bends")
+    func uChannel() throws {
+        let bottom = SheetMetal.Flange(
+            id: "bottom",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 20), SIMD2(0, 20)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let left = SheetMetal.Flange(
+            id: "left",
+            profile: [SIMD2(0, 0), SIMD2(20, 0), SIMD2(20, 15), SIMD2(0, 15)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(-1, 0, 0),
+            uAxis: SIMD3<Double>(0, 1, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let right = SheetMetal.Flange(
+            id: "right",
+            profile: [SIMD2(0, 0), SIMD2(20, 0), SIMD2(20, 15), SIMD2(0, 15)],
+            origin: SIMD3<Double>(40, 0, 0),
+            normal: SIMD3<Double>(1, 0, 0),
+            uAxis: SIMD3<Double>(0, 1, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+
+        let builder = SheetMetal.Builder(thickness: 2)
+        let shape = try builder.build(
+            flanges: [bottom, left, right],
+            bends: [
+                SheetMetal.Bend(from: "bottom", to: "left", radius: 1.5),
+                SheetMetal.Bend(from: "bottom", to: "right", radius: 1.5)
+            ])
+
+        #expect(shape.isValid)
+        if let v = shape.volume { #expect(v > 0) }
+    }
+
+    /// Bendless composition — builder should still fuse flanges if no bends are given.
+    @Test("Flanges-only (no bends) still produces a fused solid")
+    func flangesOnlyNoBends() throws {
+        let a = SheetMetal.Flange(
+            id: "a",
+            profile: [SIMD2(0, 0), SIMD2(20, 0), SIMD2(20, 10), SIMD2(0, 10)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let b = SheetMetal.Flange(
+            id: "b",
+            profile: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)],
+            origin: SIMD3<Double>(0, 10, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+
+        let shape = try SheetMetal.Builder(thickness: 2).build(flanges: [a, b])
+        #expect(shape.isValid)
+    }
+
+    @Test("Single flange with no bends returns a plain extrusion")
+    func singleFlange() throws {
+        let only = SheetMetal.Flange(
+            id: "plate",
+            profile: [SIMD2(0, 0), SIMD2(50, 0), SIMD2(50, 25), SIMD2(0, 25)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let shape = try SheetMetal.Builder(thickness: 3).build(flanges: [only])
+        #expect(shape.isValid)
+        if let v = shape.volume {
+            // 50 × 25 × 3 = 3750
+            #expect(abs(v - 3750.0) < 1.0)
+        }
+    }
+
+    @Test("Zero thickness is rejected")
+    func zeroThicknessRejected() {
+        let f = SheetMetal.Flange(
+            id: "x", profile: [SIMD2(0, 0), SIMD2(1, 0), SIMD2(1, 1)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        #expect(throws: SheetMetal.BuildError.self) {
+            try SheetMetal.Builder(thickness: 0).build(flanges: [f])
+        }
+    }
+
+    @Test("Empty flange list is rejected")
+    func emptyFlangesRejected() {
+        #expect(throws: SheetMetal.BuildError.self) {
+            try SheetMetal.Builder(thickness: 3).build(flanges: [])
+        }
+    }
+
+    @Test("Duplicate flange id is rejected")
+    func duplicateFlangeIDRejected() {
+        let f1 = SheetMetal.Flange(
+            id: "same", profile: [SIMD2(0, 0), SIMD2(1, 0), SIMD2(1, 1)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let f2 = SheetMetal.Flange(
+            id: "same", profile: [SIMD2(0, 0), SIMD2(1, 0), SIMD2(1, 1)],
+            origin: SIMD3<Double>(10, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        #expect(throws: SheetMetal.BuildError.self) {
+            try SheetMetal.Builder(thickness: 3).build(flanges: [f1, f2])
+        }
+    }
+
+    @Test("Bend referencing unknown flange id is rejected")
+    func unknownFlangeIDInBendRejected() {
+        let f = SheetMetal.Flange(
+            id: "a", profile: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        #expect(throws: SheetMetal.BuildError.self) {
+            try SheetMetal.Builder(thickness: 2).build(
+                flanges: [f],
+                bends: [SheetMetal.Bend(from: "a", to: "ghost", radius: 1.0)])
+        }
+    }
+
+    /// Single-flange volume is thickness × profile area exactly.
+    @Test("Single-flange volume matches thickness × profile area")
+    func singleFlangeVolumeSanity() throws {
+        let plate = SheetMetal.Flange(
+            id: "plate",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 20), SIMD2(0, 20)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let shape = try SheetMetal.Builder(thickness: 2.5).build(flanges: [plate])
+        if let v = shape.volume {
+            // 40 × 20 × 2.5 = 2000
+            #expect(abs(v - 2000.0) < 0.5)
+        } else {
+            Issue.record("volume nil")
+        }
+    }
+
+    /// Two-flange fused volume is base + upright minus shared overlap.
+    @Test("Fused two-flange volume subtracts the overlap")
+    func fusedTwoFlangeVolume() throws {
+        // base body x∈[0,65], y∈[0,28], z∈[0,3]  → 65·28·3 = 5460
+        // upright body x∈[0,65], y∈[28,31], z∈[0,40] → 65·3·40 = 7800
+        // overlap: none (they touch on the y=28 face, zero-volume intersection)
+        // fused volume = 5460 + 7800 = 13260
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(65, 0), SIMD2(65, 28), SIMD2(0, 28)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let upright = SheetMetal.Flange(
+            id: "upright",
+            profile: [SIMD2(0, 0), SIMD2(65, 0), SIMD2(65, 40), SIMD2(0, 40)],
+            origin: SIMD3<Double>(0, 28, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let fused = try SheetMetal.Builder(thickness: 3).build(flanges: [base, upright])
+        if let v = fused.volume {
+            #expect(abs(v - 13260.0) < 1.0)
+        } else {
+            Issue.record("volume nil")
+        }
+    }
+
+    /// Stepped seam (flanges meet on a shorter span than either flange's full
+    /// extent) — the fillet fails because OCCT can't cleanly round an edge
+    /// that terminates at a free-face boundary. The builder reports this as
+    /// a `filletFailed` error rather than crashing.
+    ///
+    /// Downstream consumers hitting this case should either match flange
+    /// widths along the seam direction, or wait for a future variable-radius
+    /// step-aware bend in this namespace.
+    @Test("Stepped seam (narrow upright over wider base) surfaces as filletFailed")
+    func narrowUprightStepThrows() {
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(65, 0), SIMD2(65, 28), SIMD2(0, 28)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let upright = SheetMetal.Flange(
+            id: "vertical",
+            profile: [SIMD2(0, 0), SIMD2(28, 0), SIMD2(28, 40), SIMD2(0, 40)],
+            origin: SIMD3<Double>(0, 28, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        #expect(throws: SheetMetal.BuildError.self) {
+            try SheetMetal.Builder(thickness: 3).build(
+                flanges: [base, upright],
+                bends: [SheetMetal.Bend(from: "base", to: "vertical", radius: 1.5)])
+        }
+    }
+
+    @Test("Parallel flanges cannot form a bend")
+    func parallelFlangesRejected() {
+        // Two coplanar flanges stacked in Z — same normal, so no seam direction.
+        let a = SheetMetal.Flange(
+            id: "a", profile: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let b = SheetMetal.Flange(
+            id: "b", profile: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)],
+            origin: SIMD3<Double>(0, 0, 10),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        #expect(throws: SheetMetal.BuildError.self) {
+            try SheetMetal.Builder(thickness: 2).build(
+                flanges: [a, b],
+                bends: [SheetMetal.Bend(from: "a", to: "b", radius: 1.0)])
+        }
+    }
+}
