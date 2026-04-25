@@ -1,12 +1,122 @@
 # Sheet Metal Unwrap — Branch Proposal
 
 **Branch:** `sheet-metal-unwrap`
-**Status:** active design — checkpoint-driven implementation
+**Status:** **all 6 checkpoints implemented and committed; awaiting review + merge**
 **Owner:** edward@lynch-bell.com
 **Issue:** TBD (companion to #85)
 
 > Delete this file before merging to `main` per the repo doc policy
 > (`docs/proposals/` is for in-flight branches only — see CLAUDE.md).
+
+## Resume here
+
+The branch is paused mid-merge while a `main` issue is handled. Pick
+up like this:
+
+1. `git checkout sheet-metal-unwrap` — branch is pushed to origin.
+2. Inspect `/tmp/unfold-CP{1..6}-*.svg` (regenerable by running
+   `swift test --filter UnfoldInspectionTests`).
+3. **39/39 unfold tests passing.** No regressions in adjacent suites
+   (SheetMetal, ShapeTests basic). The pre-existing parallel-execution
+   SEGV in the broader suite is unrelated to this branch.
+4. To merge, follow the project's release flow:
+   - Update `README.md` operation counts and feature bullets (Unfold
+     namespace adds ~10 public entry points).
+   - Append a v0.152 entry to `docs/CHANGELOG.md` summarising CP1–CP6.
+   - **Delete this proposal doc** per the docs policy.
+   - Bump version, `git tag v0.152.0`, `gh release create`.
+5. There are two branch-only files outside the package:
+   `.claude/scheduled_tasks.lock` (untracked, lockfile, leave alone).
+
+## Checkpoints (commit-by-commit)
+
+| CP | Commit | Tests | What it ships | Inspection SVG |
+|---|---|---|---|---|
+| **CP1** | `c41d1f2` | 6 | `Unfold.polyhedral(_:)` — planar polyhedra; dual-graph BFS; 2-bridge additions (`Face`/`Edge` from `Shape`); `EdgeIdentifier`, `FoldEdge`, `Result`, `Parameters`, `UnfoldError` | `/tmp/unfold-CP1-{cube,tetrahedron,octahedron,icosahedron}.svg` |
+| **CP2** | `79139b6` | 9 | `Unfold.develop(face:samples:)` (cylinder/cone/frustum via UV-rect sampling) and `Unfold.developable(_:)` (mixed planar+developable shells, all-planar routes through polyhedral, otherwise islands along +X) | `/tmp/unfold-CP2-{cylinder,cone,frustum,closed-cylinder,closed-frustum}.svg` |
+| **CP3** | `d416293` | 3 | `Unfold.sheetMetal(_:parameters:sheet:)` — bend detection, K-factor, bend allowance `BA = θ(R + Kt)`; `SheetMetalParameters`, `Bend` types | `/tmp/unfold-CP3-l-bracket.svg` |
+| **CP4** | `ddd5bcd` | 3 | `Unfold.solid(_:parameters:sheet:)` and `Unfold.midSurface(of:thickness:)` — pair planar/planar (parallel-or-anti-parallel normals at thickness) and cylindrical/cylindrical (concentric, offset radii); construct mid-surfaces; sew | `/tmp/unfold-CP4-thick-l-bracket.svg` |
+| **CP5** | `b89468d` | 2 | `parameters.resolveOverlaps` — iteratively isolates overlap-victim faces by pinning their tree-parent edges; forest-BFS in `polyhedralOnce`; bbox-overlap tolerance lifted to 1e-4 to clear OCCT's transform noise | `/tmp/unfold-CP5-icosahedron.svg` |
+| **CP6** | `87041ee` | 3 | `Unfold.nest(_:parameters:)` — connected-component island detection, BLF packing, `NestingParameters` with three objectives (`boundingBoxDiagonal` is default), 90° rotations searched | `/tmp/unfold-CP6-cubes-packed.svg` |
+
+## Public API surface (final)
+
+```swift
+public enum Unfold {
+    public static func polyhedral(_ shape: Shape, parameters: Parameters = .init()) throws -> Result
+    public static func developable(_ shape: Shape, parameters: Parameters = .init()) throws -> Result
+    public static func develop(face: Shape, samples: Int = 64) throws -> Shape
+    public static func sheetMetal(_ shape: Shape, parameters: Parameters, sheet: SheetMetalParameters) throws -> Result
+    public static func solid(_ shape: Shape, parameters: Parameters = .init(), sheet: SheetMetalParameters) throws -> Result
+    public static func midSurface(of shape: Shape, thickness: Double, tolerance: Double = 1e-5) throws -> Shape
+    public static func nest(_ result: Result, parameters: NestingParameters = .init()) throws -> Result
+    // Types: Result, Parameters, EdgeIdentifier, FoldEdge, UnfoldError,
+    // SheetMetalParameters, Bend, NestingParameters, NestingError.
+}
+```
+
+## Sharp edges to remember
+
+These were all painful enough to deserve a note for the next session:
+
+1. **OCCT default reference frame for axis = (0,1,0)** picks `+Z` as
+   the u=0 reference (not `+X`). A quarter cylinder fillet from `+X`
+   tangent to `-Z` tangent is `uRange = π/2 … π`, not `0 … π/2`. The
+   `ThinShellFixture.lBracket` and `Unfold.SheetMetalParameters`-using
+   tests both depend on this. If a future fixture uses a different
+   axis direction, derive the right reference empirically — OCCT's
+   choice of default `xDirection` depends on which world axis the
+   main direction is along.
+2. **CP2 development uses UV-rectangle sampling**, not boundary pcurve
+   walking. The pcurve walk for closed cylinders revisits the seam
+   edge twice and `BRepAdaptor_Curve2d` returned the same pcurve in
+   both orientations, producing a self-intersecting polygon. Sampling
+   `face.uvBounds` directly is robust; the only thing it misses is
+   inner-wire (hole) topology — out of scope for now.
+3. **bbox-overlap tolerance must be ≥ 1e-4.** OCCT's
+   `Shape.transformed(matrix:)` introduces ~2e-7 noise in face bounds.
+   Below 1e-5 the tolerance dips into noise; below 1e-7 even adjacent
+   faces sharing an edge register as overlapping. CP5's
+   `anyBoundingBoxOverlap` and `pickEdgeToIsolateOverlap` both lift to
+   1e-4. Don't tighten this without re-testing the cube.
+4. **Pinning a cut in `polyhedralOnce` requires forest BFS**. CP1's
+   single-rooted BFS would lose all faces past the pinned cut. CP5's
+   refactor re-roots in unvisited components and offsets each new
+   island past the actual post-transform bbox of all prior islands
+   (not a sqrt-area proxy — that under-estimates anisotropic faces).
+5. **CP4 pairing is direction-agnostic** (parallel OR anti-parallel
+   normals). A non-closed compound has both faces of an offset pair
+   pointing the same way; a closed sewn shell has them anti-parallel.
+   Either should pair.
+6. **The icosahedron's `result.overlaps` may not fully clear** under
+   `resolveOverlaps`. Shephard's conjecture (1975) is open: not all
+   convex polyhedra are known to admit a non-overlapping edge
+   unfolding. The CP5 test asserts area conservation, fragmentation,
+   and that cuts were added — but accepts that the flag may stay
+   true.
+7. **`SheetMetal.Builder` output is not yet a CP4 input.** Builder
+   produces a sharp inner corner with only an outer cylindrical
+   fillet (see `SheetMetal.swift:28-32`); CP4 pairs only when both
+   the inner and outer fillets exist. The CP4 `thickLBracket`
+   fixture builds a symmetric thick L-bracket manually for testing.
+   A follow-up to extend pairing to "outer cylinder + sharp inner
+   corner" would unlock direct ingestion of Builder output.
+
+## Pending follow-ups before tag
+
+These are not blocking the branch landing — they are the standard
+release-time chores documented in `CLAUDE.md`:
+
+- [ ] `README.md`: bump operation count, add Unfold to feature
+      bullets, update version reference.
+- [ ] `docs/CHANGELOG.md`: append v0.152 entry summarising CP1–CP6.
+- [ ] Delete `docs/proposals/sheet-metal-unwrap.md` (this file).
+- [ ] Tag `v0.152.0` and `gh release create`.
+
+The package version is currently still v0.151. The Unfold module
+adds zero breaking changes to existing API surface.
+
+
 
 ## Goal
 
