@@ -1,7 +1,7 @@
-# Sheet Metal Unwrap — Branch Proposal
+# Sheet Metal Unwrap — Branch Status
 
 **Branch:** `sheet-metal-unwrap`
-**Status:** **all 6 checkpoints implemented and committed; awaiting review + merge**
+**Status:** **CP1–CP6 + 5 follow-up commits landed; not yet shipped.** Real-CAD ingest works end-to-end on a synthetic Builder bracket and on a 93-face industrial STEP. Cones, BSplines, and auto-thickness detection are the open gaps before merge.
 **Owner:** edward@lynch-bell.com
 **Issue:** TBD (companion to #85)
 
@@ -10,50 +10,195 @@
 
 ## Resume here
 
-The branch is paused mid-merge while a `main` issue is handled. Pick
-up like this:
-
 1. `git checkout sheet-metal-unwrap` — branch is pushed to origin.
-2. Inspect `/tmp/unfold-CP{1..6}-*.svg` (regenerable by running
-   `swift test --filter UnfoldInspectionTests`).
-3. **39/39 unfold tests passing.** No regressions in adjacent suites
-   (SheetMetal, ShapeTests basic). The pre-existing parallel-execution
-   SEGV in the broader suite is unrelated to this branch.
-4. To merge, follow the project's release flow:
-   - Update `README.md` operation counts and feature bullets (Unfold
-     namespace adds ~10 public entry points).
-   - Append a v0.152 entry to `docs/CHANGELOG.md` summarising CP1–CP6.
-   - **Delete this proposal doc** per the docs policy.
-   - Bump version, `git tag v0.152.0`, `gh release create`.
-5. There are two branch-only files outside the package:
+2. **56/56 unfold tests passing.** Pre-existing parallel-execution
+   SEGV in the broader suite is documented in CLAUDE.md and unrelated.
+3. Inspection artefacts (regenerable):
+   - `swift test --filter UnfoldInspectionTests` writes
+     `/tmp/unfold-CP{1..6}-*.svg`.
+   - `swift test --filter "fromSolid|flatBlank"` writes DXF and STEP
+     samples to `/tmp/unfold-fromSolid-*.{dxf,step}` and
+     `/tmp/unfold-flatBlank-*.step`.
+   - Drop a STEP at `/tmp/unfold-input.step` (or STL at
+     `/tmp/unfold-input.stl`); `swift test --filter UnfoldDropInTests`
+     prints a topology diagnostic and writes the flat pattern + 3D
+     blank to `/tmp/unfold-input-step-*.{dxf,step}`. Override unit
+     with `OCCTSWIFT_STEP_UNIT_M` and thickness with
+     `OCCTSWIFT_SHEET_THICKNESS`.
+4. There are branch-only files outside the package:
    `.claude/scheduled_tasks.lock` (untracked, lockfile, leave alone).
 
-## Checkpoints (commit-by-commit)
+## Commits since branching from main
 
-| CP | Commit | Tests | What it ships | Inspection SVG |
-|---|---|---|---|---|
-| **CP1** | `c41d1f2` | 6 | `Unfold.polyhedral(_:)` — planar polyhedra; dual-graph BFS; 2-bridge additions (`Face`/`Edge` from `Shape`); `EdgeIdentifier`, `FoldEdge`, `Result`, `Parameters`, `UnfoldError` | `/tmp/unfold-CP1-{cube,tetrahedron,octahedron,icosahedron}.svg` |
-| **CP2** | `79139b6` | 9 | `Unfold.develop(face:samples:)` (cylinder/cone/frustum via UV-rect sampling) and `Unfold.developable(_:)` (mixed planar+developable shells, all-planar routes through polyhedral, otherwise islands along +X) | `/tmp/unfold-CP2-{cylinder,cone,frustum,closed-cylinder,closed-frustum}.svg` |
-| **CP3** | `d416293` | 3 | `Unfold.sheetMetal(_:parameters:sheet:)` — bend detection, K-factor, bend allowance `BA = θ(R + Kt)`; `SheetMetalParameters`, `Bend` types | `/tmp/unfold-CP3-l-bracket.svg` |
-| **CP4** | `ddd5bcd` | 3 | `Unfold.solid(_:parameters:sheet:)` and `Unfold.midSurface(of:thickness:)` — pair planar/planar (parallel-or-anti-parallel normals at thickness) and cylindrical/cylindrical (concentric, offset radii); construct mid-surfaces; sew | `/tmp/unfold-CP4-thick-l-bracket.svg` |
-| **CP5** | `b89468d` | 2 | `parameters.resolveOverlaps` — iteratively isolates overlap-victim faces by pinning their tree-parent edges; forest-BFS in `polyhedralOnce`; bbox-overlap tolerance lifted to 1e-4 to clear OCCT's transform noise | `/tmp/unfold-CP5-icosahedron.svg` |
-| **CP6** | `87041ee` | 3 | `Unfold.nest(_:parameters:)` — connected-component island detection, BLF packing, `NestingParameters` with three objectives (`boundingBoxDiagonal` is default), 90° rotations searched | `/tmp/unfold-CP6-cubes-packed.svg` |
+| Commit | What it ships |
+|---|---|
+| `a27a34d` | **CP1** `Unfold.polyhedral(_:)` — planar polyhedra; dual-graph BFS; 2-bridge additions (`Face`/`Edge` from `Shape`); `EdgeIdentifier`, `FoldEdge`, `Result`, `Parameters`, `UnfoldError` |
+| `2f53c60` | **CP2** `Unfold.develop(face:samples:)` (cylinder/cone/frustum via UV-rect sampling) + `Unfold.developable(_:)` (mixed planar+developable shells, all-planar routes through polyhedral, otherwise islands along +X) |
+| `1fa2977` | **CP3** `Unfold.sheetMetal(_:parameters:sheet:)` — bend detection, K-factor, bend allowance `BA = θ(R + Kt)`; `SheetMetalParameters`, `Bend` types |
+| `121a3d5` | **CP4** `Unfold.solid(_:parameters:sheet:)` + `Unfold.midSurface(of:thickness:)` — planar/planar pair (anti-parallel normals at thickness), cylindrical/cylindrical pair (concentric, offset radii), mid-surfaces sewn into a thin shell |
+| `7aa94d7` | **CP5** `parameters.resolveOverlaps` — iteratively isolates overlap-victim faces by pinning their tree-parent edges; forest-BFS; bbox-overlap tolerance ≥ 1e-4 to clear OCCT transform noise |
+| `c361b1d` | **CP6** `Unfold.nest(_:parameters:)` — connected-component island detection, BLF packing, `NestingParameters` with three objectives (`boundingBoxDiagonal` default), 90° rotations searched |
+| `943457a` | docs handoff (this file's prior incarnation) |
+| `e8c43d3` | DXF export for flat patterns — `Exporter.writeDXF(unfoldResult:to:panelLayer:bendLayer:)` routes panels onto VISIBLE layer and bend strips (synthetic indices ≥ 10 000) onto BEND. Used by the harness and the inspection suites |
+| `1be15a5` | Polygon-SAT overlap replaces bbox-only — fixes false positives for triangulated polyhedra (icosahedron's natural BFS unfold was already non-overlapping; the bbox check was wrong). Adds connected-net search prioritising every-root × {BFS,DFS} × shuffle before fragmentation cuts |
+| `58b6a0b` | Dodecahedron support; multi-bend U-channel test; `Unfold.solid` ingests `SheetMetal.Builder` output (asymmetric mid-surface extraction — Builder fills only the inside concave corner with a single cylinder) |
+| `c7e846c` | `Unfold.fromSolid(_:parameters:sheet:)` — single entry point that dispatches on topology: cylindrical fillets → `solid` (mid-surface + bend allowance); sharp-edged → `polyhedral` |
+| `896ab3f` | STEP round-trip test (Builder L-bracket → write STEP → re-import → unfold) + `UnfoldDropInTests` harness for `/tmp/unfold-input.{step,stl}` with surface-type histogram diagnostics |
+| `650df1d` | Sharp-fold bend allowance in `polyhedral` — optional `sheet:` parameter inserts `BA = θ·K·t` strips at every spanning-tree fold (R = 0 special case of `θ·(R+K·t)`); `fromSolid` propagates `sheet` to the polyhedral branch |
+| `2a5ebab` | `Unfold.flatBlank(_:sheet:outputMode:parameters:)` — 3D thick flat-blank output via face extrusion. Compound mode (per-block solids, multi-bend vertex relief emerges naturally as a triangular gap); fused mode (single welded plate via sequential boolean union); inner wires (holes) ride along through extrusion as through-features |
 
-## Public API surface (final)
+## Public API surface (current)
 
 ```swift
 public enum Unfold {
-    public static func polyhedral(_ shape: Shape, parameters: Parameters = .init()) throws -> Result
-    public static func developable(_ shape: Shape, parameters: Parameters = .init()) throws -> Result
+    // ── Tier 1: planar polyhedra ───────────────────────────────────────
+    /// Sharp-edged polyhedra. Optional `sheet:` inserts BA strips at
+    /// every fold (`BA = θ · K · t`, R = 0 sharp-fold case).
+    public static func polyhedral(
+        _ shape: Shape,
+        parameters: Parameters = .init(),
+        sheet: SheetMetalParameters? = nil) throws -> Result
+
+    // ── Tier 2: analytic developables ──────────────────────────────────
     public static func develop(face: Shape, samples: Int = 64) throws -> Shape
-    public static func sheetMetal(_ shape: Shape, parameters: Parameters, sheet: SheetMetalParameters) throws -> Result
-    public static func solid(_ shape: Shape, parameters: Parameters = .init(), sheet: SheetMetalParameters) throws -> Result
-    public static func midSurface(of shape: Shape, thickness: Double, tolerance: Double = 1e-5) throws -> Shape
-    public static func nest(_ result: Result, parameters: NestingParameters = .init()) throws -> Result
+    public static func developable(
+        _ shape: Shape,
+        parameters: Parameters = .init()) throws -> Result
+
+    // ── Tier 3: sheet-metal composite (cylindrical-fillet bends) ───────
+    public static func sheetMetal(
+        _ shape: Shape,
+        parameters: Parameters,
+        sheet: SheetMetalParameters) throws -> Result
+
+    // ── Solid input: mid-surface + sheetMetal ──────────────────────────
+    public static func solid(
+        _ shape: Shape,
+        parameters: Parameters = .init(),
+        sheet: SheetMetalParameters) throws -> Result
+    public static func midSurface(
+        of shape: Shape,
+        thickness: Double,
+        tolerance: Double = 1e-5) throws -> Shape
+
+    // ── Single entry point with topology dispatch ──────────────────────
+    /// Cylindrical features → `solid`. Sharp-edged → `polyhedral`.
+    /// `sheet` is required and threads to both branches.
+    public static func fromSolid(
+        _ shape: Shape,
+        parameters: Parameters = .init(),
+        sheet: SheetMetalParameters) throws -> Result
+
+    // ── Stock nesting ──────────────────────────────────────────────────
+    public static func nest(
+        _ result: Result,
+        parameters: NestingParameters = .init()) throws -> Result
+
+    // ── 3D flat blank ──────────────────────────────────────────────────
+    /// Extrude the 2D flat pattern by `sheet.thickness` into a thick
+    /// plate. Inner wires of the input's panel faces (holes) ride
+    /// along as through-features — no projection or feature detection.
+    public static func flatBlank(
+        _ shape: Shape,
+        sheet: SheetMetalParameters,
+        outputMode: FlatBlankOutputMode = .compound,
+        parameters: Parameters = .init()) throws -> FlatBlankResult
+
     // Types: Result, Parameters, EdgeIdentifier, FoldEdge, UnfoldError,
-    // SheetMetalParameters, Bend, NestingParameters, NestingError.
+    //        SheetMetalParameters, Bend, NestingParameters, NestingError,
+    //        FlatBlankOutputMode (compound | fused), FlatBlankResult.
 }
 ```
+
+## Real-CAD ingest workflow
+
+The drop-in harness exists so a user can iterate on real STEP/STL
+files without writing test code.
+
+1. Drop a STEP at `/tmp/unfold-input.step` (or STL at
+   `/tmp/unfold-input.stl`).
+2. Optional env vars:
+   - `OCCTSWIFT_STEP_UNIT_M` — STEP unit in meters (default 0.001 = mm).
+   - `OCCTSWIFT_SHEET_THICKNESS` — sheet thickness in model units. If
+     unset, the harness picks 5 % of the smallest bbox dimension,
+     floor 0.5. **This auto-pick is wrong when the bracket's third
+     dimension is its depth rather than its sheet thickness** —
+     override for accurate output.
+3. `swift test --filter UnfoldDropInTests`.
+4. Outputs:
+   - `/tmp/unfold-input-step.dxf` — 2D flat pattern.
+   - `/tmp/unfold-input-step-blank-compound.step` — 3D blank, separate
+     panel + strip blocks (bend lines visible as edge-touches).
+   - `/tmp/unfold-input-step-blank-fused.step` — 3D blank, single
+     welded solid (bend lines as internal edges).
+   - stderr: surface-type histogram, panel/strip counts, blank volume.
+
+The harness silently no-ops when no input file is present, so it's
+safe in CI.
+
+## Current limitations / open follow-ups
+
+These are the gaps between "works on the synthetic Builder L-bracket"
+and "works on every CAD-exported sheet-metal STEP we throw at it":
+
+1. **Cones (countersinks) and BSpline surfaces are dropped by
+   `midSurface`.** Pairing rules currently cover only plane↔plane
+   (anti-parallel normals at distance = thickness) and cylinder↔
+   cylinder (concentric, radii differing by thickness). Real CAD
+   sheet metal has countersunk holes (cone + cylinder concentric
+   pairs) and embosses / swaged edges (BSplines) that we silently
+   discard. Fix: extend `makeMidFaceIfPair` to detect cone+cylinder
+   coaxial pairs (output a cone-on-mid-plane preserving inner-wire
+   diameters) and BSpline-pair tessellation. Visible in the bracket
+   STEP output as ~32 missing features.
+
+2. **Auto-thickness detection.** `midSurface` already finds the
+   planar-pair distance during pairing — surfacing it as
+   `Unfold.detectThickness(_:)` would let the harness pick the right
+   thickness automatically instead of guessing from the bbox.
+
+3. **Hole projection on the polyhedral path.** When `fromSolid`
+   dispatches to `polyhedral` (no cylindrical features), holes drilled
+   through panels need to be detected and projected. The B-Rep
+   inner-wire path doesn't apply because `polyhedral` lays out faces
+   one-by-one (preserving inner wires of each face *individually*); a
+   sharp-edged solid with a hole probably has the hole as a separate
+   cylindrical bore face that's not adjacent to a panel through a
+   fold. This needs cylinder-bore + adjacent-panel detection like
+   case (b) in the earlier discussion. Not blocking the bracket
+   workflow because real sheet-metal brackets always route through
+   `solid` (the bend cylinders trip the dispatch).
+
+4. **3D-blank fused-mode performance.** Sequential `Shape.union` is
+   robust for ≤ 20 blocks; for larger panels it slows. Replace with a
+   single multi-fuse call when this matters.
+
+5. **Multi-bend at a single vertex** (gusseted brackets like the
+   real-CAD test file). Topologically handled correctly — each flange
+   only connects to the gusset via its own bend strip, so the natural
+   triangular gap between flanges *is* the bend relief. Confirmed on
+   the 93-face inside-corner-reinforcing-bracket STEP. No code
+   changes needed; documented for posterity.
+
+6. **Variable K-factor / non-90° bends.** `SheetMetalParameters`
+   takes a single `kFactor`. Real material data sometimes varies K
+   with bend angle. Out of scope; document and revisit.
+
+## Pending follow-ups before tag
+
+These are the standard release-time chores from `CLAUDE.md`:
+
+- [ ] Settle on the cone/BSpline pairing scope before tagging — either
+      extend `midSurface` or document the gap clearly in the README.
+- [ ] `README.md`: bump operation count, add Unfold to feature
+      bullets, update version reference.
+- [ ] `docs/CHANGELOG.md`: append next-version entry summarising
+      everything in the commit table above.
+- [ ] Delete `docs/proposals/sheet-metal-unwrap.md` (this file).
+- [ ] Tag and `gh release create`.
+
+The package version is currently still v0.151. Unfold adds zero
+breaking changes to existing API surface.
 
 ## Sharp edges to remember
 
@@ -94,29 +239,56 @@ These were all painful enough to deserve a note for the next session:
    unfolding. The CP5 test asserts area conservation, fragmentation,
    and that cuts were added — but accepts that the flag may stay
    true.
-7. **`SheetMetal.Builder` output is not yet a CP4 input.** Builder
+7. **`SheetMetal.Builder` output is not yet a CP4 input.** ~~Builder
    produces a sharp inner corner with only an outer cylindrical
    fillet (see `SheetMetal.swift:28-32`); CP4 pairs only when both
-   the inner and outer fillets exist. The CP4 `thickLBracket`
-   fixture builds a symmetric thick L-bracket manually for testing.
-   A follow-up to extend pairing to "outer cylinder + sharp inner
-   corner" would unlock direct ingestion of Builder output.
-
-## Pending follow-ups before tag
-
-These are not blocking the branch landing — they are the standard
-release-time chores documented in `CLAUDE.md`:
-
-- [ ] `README.md`: bump operation count, add Unfold to feature
-      bullets, update version reference.
-- [ ] `docs/CHANGELOG.md`: append v0.152 entry summarising CP1–CP6.
-- [ ] Delete `docs/proposals/sheet-metal-unwrap.md` (this file).
-- [ ] Tag `v0.152.0` and `gh release create`.
-
-The package version is currently still v0.151. The Unfold module
-adds zero breaking changes to existing API surface.
-
-
+   the inner and outer fillets exist.~~ **Resolved in `58b6a0b`** —
+   `midSurface` now has an asymmetric-Builder phase: when a
+   cylindrical face has no concentric partner at distance = thickness,
+   emit it as-is at the inside bend radius (which is what CP3 reads
+   from `cylinder.radius` for the BA formula), and treat the planar
+   neighbours connected by straight-generator edges as "tangent" —
+   their inside-of-sheet face survives, their offset partner drops.
+   The geometric mid-surface isn't preserved here, but unfolding
+   only depends on topology, lengths, and curvature radii, not the
+   absolute 3D position of the mid-surface, so flat-pattern output
+   is correct.
+8. **bbox-overlap reports false positives for triangle meshes.**
+   Two triangles sharing a corner can have overlapping bboxes even
+   though their interiors are disjoint. `1be15a5` switched
+   `anyBoundingBoxOverlap` to a polygon-SAT confirmation step after
+   the bbox cheap test. Caused by this: the icosahedron's natural
+   BFS unfold was already non-overlapping; the bbox check was the
+   reason CP5 fragmented it. The CP1 test for icosahedron now asserts
+   `!result.overlaps` instead of the prior `result.overlaps`.
+9. **`face.origin` is a corner, not a centroid.** `anyPointOnFace`
+   returns the start of the first edge of the outer wire — for an
+   axis-aligned cube face, that's a corner *on the shared edge* with
+   any neighbour, which degenerates `dot(outward, centre - edgeMid)`
+   to zero and picks an arbitrary sign. Sharp-fold BA in `polyhedral`
+   uses `faces[parent].shape.center` (bbox centre, always interior)
+   to disambiguate the outward direction. Bit me hard during
+   `650df1d`'s implementation; the BA strips ended up *inside* the
+   parent panel.
+10. **3D-blank tolerance against OCCT transform noise.** Extruding
+    a face whose laydown transform compounds 1e-7 noise gives a
+    block whose z bounds drift by ~1e-5. Tests assert `z > -1e-4`
+    and `z < t + 1e-4` rather than tighter bands.
+11. **STEP round-trip preserves cylindrical fillet topology.**
+    `Shape.loadSTEP(from:unitInMeters:)` returns a Shape whose face
+    types match the writer's output: a Builder L-bracket's fillet
+    survives as an OCCT cylinder face after STEP export and re-import,
+    so `fromSolid`'s topology dispatch picks the right branch.
+    Non-trivial — some STEP writers convert cylinders to BSplines.
+    The synthetic round-trip test pins this contract.
+12. **Multi-bend vertex relief is a free property of the compound
+    flat-blank assembly**, not a separate feature. Two flanges that
+    share only a corner in 3D never share a face in 2D after
+    unfolding (each is connected to the root through a different
+    fold edge). When extruded into the compound 3D blank, the two
+    flange-blocks are spatially distinct with a triangular gap
+    between them — exactly the bend relief that would be punched
+    from flat stock. Confirmed on the 93-face gusseted-bracket STEP.
 
 ## Goal
 
