@@ -49409,6 +49409,108 @@ struct UnfoldSolidTests {
                                to: URL(fileURLWithPath: "/tmp/unfold-tetrahedron-thick.dxf"))
     }
 
+    /// `Unfold.flatBlank` on a `Shape.box` cube. The 2D pattern is 6
+    /// panels + 5 strips; extruded by `t`, the compound blank should
+    /// have 11 thick blocks and a total volume equal to the 2D pattern
+    /// area times `t`.
+    @Test("flatBlank: cube compound mode produces 11 thick blocks")
+    func flatBlankCubeCompound() throws {
+        let cube = Shape.box(width: 100, height: 100, depth: 100)!
+        let sheet = Unfold.SheetMetalParameters(thickness: 2.0, kFactor: 0.44)
+        let result = try Unfold.flatBlank(
+            cube, sheet: sheet, outputMode: .compound)
+
+        #expect(result.outputMode == .compound)
+        #expect(result.thickness == 2.0)
+        // 6 panels + 5 BA strips
+        #expect(result.blocks.count == 11)
+        #expect(result.flatPattern.faces.count == 11)
+        // Each panel block: 100 × 100 × 2 = 20_000 mm³
+        // Each strip: 100 × BA × 2 where BA = (π/2)·0.44·2 ≈ 1.382
+        let expectedPanelVolume = 100.0 * 100.0 * 2.0
+        let expectedStripVolume = 100.0 * (Double.pi / 2 * 0.44 * 2.0) * 2.0
+        let expectedTotal = 6 * expectedPanelVolume + 5 * expectedStripVolume
+        let actualTotal = result.blocks.values
+            .reduce(0.0) { $0 + ($1.volume ?? 0) }
+        #expect(abs(actualTotal - expectedTotal) < 1e-3 * expectedTotal,
+                 "blank volume \(actualTotal) vs expected \(expectedTotal)")
+        // The compound blank should bound a flat plate in z ∈ [0, 2].
+        let b = result.blank.bounds
+        #expect(abs(b.min.z) < 1e-6, "blank should sit at z ≥ 0")
+        #expect(abs(b.max.z - 2.0) < 1e-6, "blank top at z = thickness")
+    }
+
+    /// `Unfold.flatBlank` fused mode: the same cube is welded into a
+    /// single solid with the same volume.
+    @Test("flatBlank: cube fused mode produces a single welded plate")
+    func flatBlankCubeFused() throws {
+        let cube = Shape.box(width: 100, height: 100, depth: 100)!
+        let sheet = Unfold.SheetMetalParameters(thickness: 2.0, kFactor: 0.44)
+        let result = try Unfold.flatBlank(
+            cube, sheet: sheet, outputMode: .fused)
+
+        #expect(result.outputMode == .fused)
+        #expect(result.blocks.isEmpty,
+                 "fused mode merges blocks; per-block dict should be empty")
+        // Fused volume should match the compound total.
+        let expectedPanelVolume = 100.0 * 100.0 * 2.0
+        let expectedStripVolume = 100.0 * (Double.pi / 2 * 0.44 * 2.0) * 2.0
+        let expectedTotal = 6 * expectedPanelVolume + 5 * expectedStripVolume
+        let fusedVolume = result.blank.volume ?? 0
+        #expect(abs(fusedVolume - expectedTotal) < 1e-3 * expectedTotal,
+                 "fused volume \(fusedVolume) vs expected \(expectedTotal)")
+        // Single solid topology: the fused blank should report exactly 1
+        // shell (or solid). Bend lines become internal edges, not seams.
+        #expect(result.blank.subShapes(ofType: .solid).count == 1,
+                 "fused blank should be a single solid")
+    }
+
+    /// `Unfold.flatBlank` on a `SheetMetal.Builder` L-bracket. The 2D
+    /// pattern is 2 panels + 1 strip; extruded blank has 3 thick blocks.
+    /// Volume should equal `(panel_a + panel_b + strip) × t`.
+    @Test("flatBlank: Builder L-bracket compound mode produces 3 thick blocks")
+    func flatBlankBuilderLBracket() throws {
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 30), SIMD2(0, 30)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let upright = SheetMetal.Flange(
+            id: "upright",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 25), SIMD2(0, 25)],
+            origin: SIMD3<Double>(0, 30, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let bracket = try SheetMetal.Builder(thickness: 2.0).build(
+            flanges: [base, upright],
+            bends: [SheetMetal.Bend(from: "base", to: "upright", radius: 1.5)])
+
+        let sheet = Unfold.SheetMetalParameters(thickness: 2.0, kFactor: 0.44)
+        let result = try Unfold.flatBlank(
+            bracket, sheet: sheet, outputMode: .compound)
+
+        // ≥3 blocks: 2 panel mid-surfaces + ≥1 bend strip.
+        #expect(result.blocks.count >= 3)
+        // Each block should be a non-degenerate solid in the [0, t] band
+        // (modulo OCCT's accumulated transform noise — empirically up to
+        // ~1e-5 after midSurface + transform + prism).
+        for (_, block) in result.blocks {
+            let v = block.volume ?? 0
+            #expect(v > 0, "every block should have positive volume")
+            let b = block.bounds
+            #expect(b.min.z > -1e-4 && b.max.z < 2.0 + 1e-4,
+                     "block z=[\(b.min.z), \(b.max.z)] should be in [0, t]")
+        }
+
+        // Write a STEP for visual inspection in CAD.
+        try Exporter.writeSTEP(
+            shape: result.blank,
+            to: URL(fileURLWithPath: "/tmp/unfold-flatBlank-bracket.step"))
+    }
+
     /// `Unfold.fromSolid` on a `SheetMetal.Builder` L-bracket (has a
     /// cylindrical fillet) routes through `solid` — exercises the
     /// asymmetric mid-surface path and bend-allowance machinery.
@@ -49626,10 +49728,31 @@ struct UnfoldDropInTests {
 
         do {
             let result = try Unfold.fromSolid(shape, parameters: .init(), sheet: sheet)
-            print("[unfold harness] flat pattern: faces=\(result.faces.count) folds=\(result.folds.count) overlaps=\(result.overlaps)")
+            print("[unfold harness] flat pattern: faces=\(result.faces.count) folds=\(result.folds.count) overlaps=\(result.overlaps) thickness=\(thickness)")
             try Exporter.writeDXF(unfoldResult: result,
                                    to: URL(fileURLWithPath: "\(outputStem).dxf"))
             print("[unfold harness] wrote \(outputStem).dxf")
+
+            // 3D flat blank — both modes, written to STEP for CAD viewing.
+            let blankCompound = try Unfold.flatBlank(
+                shape, sheet: sheet, outputMode: .compound)
+            print("[unfold harness] 3D blank (compound): \(blankCompound.blocks.count) blocks, volume=\(blankCompound.blank.volume ?? 0)")
+            try Exporter.writeSTEP(
+                shape: blankCompound.blank,
+                to: URL(fileURLWithPath: "\(outputStem)-blank-compound.step"))
+            print("[unfold harness] wrote \(outputStem)-blank-compound.step")
+
+            do {
+                let blankFused = try Unfold.flatBlank(
+                    shape, sheet: sheet, outputMode: .fused)
+                print("[unfold harness] 3D blank (fused): volume=\(blankFused.blank.volume ?? 0), solids=\(blankFused.blank.subShapes(ofType: .solid).count)")
+                try Exporter.writeSTEP(
+                    shape: blankFused.blank,
+                    to: URL(fileURLWithPath: "\(outputStem)-blank-fused.step"))
+                print("[unfold harness] wrote \(outputStem)-blank-fused.step")
+            } catch {
+                print("[unfold harness] fused-mode blank failed: \(error)")
+            }
         } catch {
             print("[unfold harness] fromSolid failed: \(error)")
             // Don't fail the test — the harness is for inspection, not

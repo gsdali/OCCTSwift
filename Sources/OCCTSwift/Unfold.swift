@@ -670,6 +670,141 @@ extension Unfold {
         return try polyhedral(shape, parameters: parameters, sheet: sheet)
     }
 
+    /// How to assemble the 3D flat blank produced by `flatBlank(_:sheet:
+    /// outputMode:parameters:)`.
+    public enum FlatBlankOutputMode: Sendable {
+        /// Each panel-block and bend-strip is an independent solid in a
+        /// `Shape.compound`. Bend lines appear as gaps between the
+        /// panels and their adjacent strip blocks (one continuous outline
+        /// is preserved through edge-touching). Useful for visualisation
+        /// and for downstream tools that want to lift individual blocks.
+        case compound
+        /// All panels and strips are sequentially boolean-united into a
+        /// single welded solid. Bend lines become internal edges of the
+        /// resulting plate. Slower for large face counts but produces a
+        /// CAM-friendly single-solid blank.
+        case fused
+    }
+
+    /// 3D flat-blank result. The blank is the sheet you would cut from
+    /// stock before bending — same outline as the 2D flat pattern from
+    /// `fromSolid`, thickened to material thickness `t`. Holes pierce
+    /// the blank as through-features (they originate from inner wires of
+    /// the input solid's panel faces and ride along through extrusion).
+    public struct FlatBlankResult: Sendable {
+        /// The 3D blank. A solid (when fused) or a compound of solids
+        /// (when split into panel-blocks and bend-strip blocks).
+        public let blank: Shape
+        /// Per-face thick block, keyed by the underlying 2D flat-pattern
+        /// face index. Indices < 10_000 are panel blocks; ≥ 10_000 are
+        /// bend-strip blocks. Empty when `outputMode == .fused` since
+        /// individual blocks are merged.
+        public let blocks: [Int: Shape]
+        /// The underlying 2D flat-pattern result, useful for callers that
+        /// also want the DXF outline / fold metadata.
+        public let flatPattern: Result
+        public let outputMode: FlatBlankOutputMode
+        public let thickness: Double
+    }
+
+    /// Build a 3D flat blank from a folded sheet-metal solid.
+    ///
+    /// Pipeline:
+    /// 1. Run `fromSolid` to produce the 2D flat pattern (panels +
+    ///    bend strips) in the XY plane, with the input solid's hole
+    ///    inner-wires preserved on the panel mid-faces.
+    /// 2. Extrude every laid-out face by `sheet.thickness` along `+Z`.
+    ///    Panels become thick plate blocks with through-holes (from the
+    ///    inner wires); strips become flat `length × BA × t` bend-region
+    ///    blocks.
+    /// 3. Assemble per `outputMode`: either a compound of independent
+    ///    blocks or a sequentially-fused single solid.
+    ///
+    /// **Why this is robust.** Each laid-out 2D face is a `TopoDS_Face`
+    /// that carries its own inner wires. `BRepPrimAPI_MakePrism` of such
+    /// a face produces a solid whose perimeter is the outer wire and
+    /// whose voids are the inner wires extruded straight through. So
+    /// holes originating in the source CAD's panel faces appear in the
+    /// flat blank without any explicit "feature detection" step.
+    ///
+    /// **Multi-bend vertex relief.** When two bends meet at a single
+    /// vertex (e.g. a gusseted bracket where two flanges fold off the
+    /// same triangular gusset), the two flange blocks share no boundary
+    /// near the corner — each is connected only to its own bend strip,
+    /// which is connected only to the gusset. The natural triangular gap
+    /// between them in the compound IS the bend relief that would be
+    /// punched or laser-cut from the flat stock before bending.
+    ///
+    /// **Limitations** (inherited from `fromSolid` / `midSurface`):
+    /// - Cones (countersinks) and BSpline surfaces in the input are
+    ///   currently dropped by `midSurface`'s pairing. The blank will be
+    ///   feature-incomplete for inputs with those features until the
+    ///   pairing rules are extended.
+    public static func flatBlank(
+        _ shape: Shape,
+        sheet: SheetMetalParameters,
+        outputMode: FlatBlankOutputMode = .compound,
+        parameters: Parameters = .init()
+    ) throws -> FlatBlankResult {
+        let flat = try fromSolid(shape, parameters: parameters, sheet: sheet)
+        guard !flat.faces.isEmpty else {
+            throw UnfoldError.noFaces
+        }
+        // Extrude every laid-out face by `+t·Z`. The flat pattern lies in
+        // z = 0 with face normals = +Z, so this puts the blank in
+        // z ∈ [0, t]. Inner wires on panel faces extrude into through-
+        // holes automatically.
+        let extrusion = SIMD3<Double>(0, 0, sheet.thickness)
+        var blocks: [Int: Shape] = [:]
+        var blockArray: [Shape] = []
+        for (faceIdx, face) in flat.faces {
+            guard let block = face.extruded(by: extrusion) else {
+                throw UnfoldError.bridgeFailed(
+                    stage: "extrude flat-pattern face \(faceIdx) by thickness")
+            }
+            blocks[faceIdx] = block
+            blockArray.append(block)
+        }
+        let blank: Shape
+        switch outputMode {
+        case .compound:
+            if blockArray.count == 1 {
+                blank = blockArray[0]
+            } else if let c = Shape.compound(blockArray) {
+                blank = c
+            } else {
+                throw UnfoldError.bridgeFailed(
+                    stage: "compound flat-blank blocks")
+            }
+        case .fused:
+            // Sequential boolean fuse. Robust for the small block counts
+            // produced by `fromSolid` (typically ≤ 20). For sheet metal
+            // with many panels this could be replaced by a single
+            // multi-fuse later if performance matters.
+            guard var fused = blockArray.first else {
+                throw UnfoldError.bridgeFailed(stage: "no blocks to fuse")
+            }
+            for next in blockArray.dropFirst() {
+                guard let merged = fused.union(next) else {
+                    throw UnfoldError.bridgeFailed(
+                        stage: "fuse flat-blank block")
+                }
+                fused = merged
+            }
+            blank = fused
+        }
+        // For fused mode, the per-block dictionary is meaningless (the
+        // blocks have been merged); leave it empty so callers can't be
+        // misled into thinking the keys still resolve to separate shapes.
+        let exposedBlocks: [Int: Shape] = (outputMode == .compound) ? blocks : [:]
+        return FlatBlankResult(
+            blank: blank,
+            blocks: exposedBlocks,
+            flatPattern: flat,
+            outputMode: outputMode,
+            thickness: sheet.thickness)
+    }
+
     /// Extract the mid-surface thin-shell from a thick shape.
     ///
     /// Returns a compound (or sewn shell) of the mid-surface faces. The
