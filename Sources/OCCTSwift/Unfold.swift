@@ -303,6 +303,177 @@ public enum Unfold {
     }
 }
 
+// MARK: - Mid-surface extraction + closed-solid input (CP4)
+
+extension Unfold {
+
+    /// Tier 4 — unfold a closed thick sheet-metal solid by first extracting a
+    /// mid-surface thin-shell, then routing through `sheetMetal(_:)`.
+    ///
+    /// Pair every face with another face at distance `sheet.thickness` whose
+    /// normal is anti-parallel (planar pair) or whose axis is coincident with
+    /// radii differing by `sheet.thickness` (cylindrical pair). For each
+    /// pair, emit a mid-surface face — the average position. Side faces
+    /// that have no pair within tolerance are dropped (they're the swept
+    /// thickness perimeter, not part of the developable shell).
+    ///
+    /// Limitations:
+    /// - Only **planar/planar** and **cylindrical/cylindrical** pairs are
+    ///   detected. Pairs across surface types (e.g. a planar inner corner
+    ///   meeting an outer cylindrical fillet) throw `bendDetectionFailed`.
+    /// - Pairing tolerance is `parameters.tolerance` (default 1e-7),
+    ///   loosened internally by 100× for the offset-distance check because
+    ///   tessellated input isn't always geometrically exact.
+    public static func solid(
+        _ shape: Shape,
+        parameters: Parameters = .init(),
+        sheet: SheetMetalParameters
+    ) throws -> Result {
+        let thinShell = try midSurface(
+            of: shape,
+            thickness: sheet.thickness,
+            tolerance: max(parameters.tolerance, 1e-5))
+        return try sheetMetal(thinShell, parameters: parameters, sheet: sheet)
+    }
+
+    /// Extract the mid-surface thin-shell from a thick shape.
+    ///
+    /// Returns a compound (or sewn shell) of the mid-surface faces. The
+    /// caller can pass it to `sheetMetal(_:)` or `developable(_:)`.
+    public static func midSurface(
+        of shape: Shape,
+        thickness t: Double,
+        tolerance: Double = 1e-5
+    ) throws -> Shape {
+        let faceShapes = shape.subShapes(ofType: .face)
+        guard !faceShapes.isEmpty else { throw UnfoldError.noFaces }
+
+        // Cache surface info per face for pairing.
+        var infos: [MidPairFaceInfo?] = Array(repeating: nil, count: faceShapes.count)
+        for (i, fs) in faceShapes.enumerated() {
+            guard let face = Face(fs) else { continue }
+            switch face.surfaceType {
+            case .plane:
+                guard let n = face.normal else { continue }
+                let centroid = fs.center
+                infos[i] = MidPairFaceInfo(
+                    shape: fs, face: face,
+                    kind: .plane(normal: simd_normalize(n), centroid: centroid))
+            case .cylinder:
+                guard let surf = fs.faceSurfaceGeom() else { continue }
+                let cyl = surf.cylinderProperties
+                let axis = cyl.axis
+                infos[i] = MidPairFaceInfo(
+                    shape: fs, face: face,
+                    kind: .cylinder(
+                        radius: cyl.radius,
+                        axisOrigin: axis.position,
+                        axisDirection: simd_normalize(axis.direction)))
+            default:
+                infos[i] = nil // ignored — no pairing possible
+            }
+        }
+
+        var paired: Set<Int> = []
+        var midFaces: [Shape] = []
+        let distTol = max(tolerance * 100, 1e-4)
+
+        for i in 0..<faceShapes.count {
+            if paired.contains(i) { continue }
+            guard let infoA = infos[i] else { continue }
+            for j in (i + 1)..<faceShapes.count {
+                if paired.contains(j) { continue }
+                guard let infoB = infos[j] else { continue }
+                if let mid = try makeMidFaceIfPair(
+                    infoA, infoB, thickness: t, tolerance: distTol)
+                {
+                    midFaces.append(mid)
+                    paired.insert(i); paired.insert(j)
+                    break
+                }
+            }
+        }
+
+        guard !midFaces.isEmpty else {
+            throw UnfoldError.bendDetectionFailed(
+                faceIndex: -1,
+                reason: "no offset face pairs found at distance \(t)")
+        }
+
+        // Sew if multiple faces, else return the single face.
+        if midFaces.count == 1 { return midFaces[0] }
+        if let sewn = Shape.sew(shapes: midFaces, tolerance: distTol) {
+            return sewn
+        }
+        // Fall back to compound if sewing fails.
+        return Shape.compound(midFaces) ?? midFaces[0]
+    }
+}
+
+// MARK: - CP4 internal helpers
+
+private struct MidPairFaceInfo {
+    let shape: Shape
+    let face: Face
+    let kind: Kind
+
+    enum Kind {
+        case plane(normal: SIMD3<Double>, centroid: SIMD3<Double>)
+        case cylinder(radius: Double, axisOrigin: SIMD3<Double>, axisDirection: SIMD3<Double>)
+    }
+}
+
+private func makeMidFaceIfPair(
+    _ a: MidPairFaceInfo,
+    _ b: MidPairFaceInfo,
+    thickness t: Double,
+    tolerance: Double
+) throws -> Shape? {
+    switch (a.kind, b.kind) {
+    case let (.plane(nA, cA), .plane(nB, cB)):
+        // Parallel or anti-parallel normals (covers both oriented closed
+        // shells and unoriented compounds).
+        let dot = abs(simd_dot(nA, nB))
+        guard dot > 1.0 - tolerance else { return nil }
+        // Distance between planes ≈ thickness, measured along nB.
+        let d = simd_dot(cA - cB, nB)
+        guard abs(abs(d) - t) < tolerance else { return nil }
+        // Mid-plane is the geometric midpoint of the two centroids;
+        // translate face A by half the centroid difference.
+        let delta = (cB - cA) * 0.5
+        guard let translated = a.shape.translated(by: delta) else { return nil }
+        return translated
+
+    case let (.cylinder(rA, oA, dA), .cylinder(rB, oB, dB)):
+        // Same axis: directions parallel (or anti-parallel) and the line
+        // through `oA, dA` passes within tolerance of `oB`.
+        let dirDot = abs(simd_dot(dA, dB))
+        guard dirDot > 1.0 - tolerance else { return nil }
+        // Distance from oB to axis line of (oA, dA).
+        let v = oB - oA
+        let along = simd_dot(v, dA) * dA
+        let perp = v - along
+        guard simd_length(perp) < tolerance else { return nil }
+        // Radii differ by thickness.
+        guard abs(abs(rA - rB) - t) < tolerance else { return nil }
+        // Build mid-cylinder at average radius. Use face A's UV bounds —
+        // both should match for a true offset pair.
+        guard let uvA = a.face.uvBounds else { return nil }
+        let midRadius = (rA + rB) / 2
+        guard let mid = Shape.faceFromCylinder(
+            origin: oA,
+            axis: dA,
+            radius: midRadius,
+            uRange: uvA.uMin...uvA.uMax,
+            vRange: uvA.vMin...uvA.vMax
+        ) else { return nil }
+        return mid
+
+    default:
+        return nil
+    }
+}
+
 // MARK: - Sheet-metal composite (CP3)
 
 extension Unfold {

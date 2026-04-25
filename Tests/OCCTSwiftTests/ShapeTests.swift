@@ -48784,6 +48784,78 @@ private enum ThinShellFixture {
 
         return Shape.sew(shapes: [planeA, cyl, planeB], tolerance: 1e-4)
     }
+
+    /// Symmetric thick L-bracket: paired offset faces at ±t/2 from the
+    /// nominal mid-surface. Six faces total — two planar pairs (top/bottom of
+    /// each flange) and one cylindrical pair (inner radius R - t/2 and outer
+    /// R + t/2 around the same bend axis). No closing side faces; this is a
+    /// non-closed shell intended exactly as a CP4 mid-surface fixture, where
+    /// the lack of perimeter caps doesn't matter — pairing only cares about
+    /// the surface offsets.
+    static func thickLBracket(
+        aLength: Double = 10,
+        bLength: Double = 8,
+        width: Double = 20,
+        bendRadius R: Double = 2,
+        thickness t: Double = 1
+    ) -> Shape? {
+        let half = t / 2
+        // Plane A "outer" (above mid-plane, normal +Z) at z = +half.
+        let aOuterVerts: [SIMD3<Double>] = [
+            SIMD3(0, 0, half),
+            SIMD3(aLength, 0, half),
+            SIMD3(aLength, width, half),
+            SIMD3(0, width, half),
+        ]
+        // Plane A "inner" at z = -half.
+        let aInnerVerts: [SIMD3<Double>] = aOuterVerts.map {
+            SIMD3($0.x, $0.y, -half)
+        }
+        guard let aOuterW = Wire.polygon3D(aOuterVerts, closed: true),
+              let aOuter = Shape.face(from: aOuterW, planar: true),
+              let aInnerW = Wire.polygon3D(aInnerVerts, closed: true),
+              let aInner = Shape.face(from: aInnerW, planar: true) else { return nil }
+
+        // Cylindrical fillet pair around bend axis at (aLength, *, R).
+        let cylOuterRadius = R + half
+        let cylInnerRadius = R - half
+        guard let cylOuter = Shape.faceFromCylinder(
+                  origin: SIMD3(aLength, 0, R),
+                  axis: SIMD3(0, 1, 0),
+                  radius: cylOuterRadius,
+                  uRange: (.pi / 2)...(.pi),
+                  vRange: 0...width),
+              let cylInner = Shape.faceFromCylinder(
+                  origin: SIMD3(aLength, 0, R),
+                  axis: SIMD3(0, 1, 0),
+                  radius: cylInnerRadius,
+                  uRange: (.pi / 2)...(.pi),
+                  vRange: 0...width) else { return nil }
+
+        // Plane B pair: outer at x = aLength + R + half, inner at x =
+        // aLength + R - half. Z range matches the thin-shell plane B but
+        // shifted half along the plane normal (+X for outer, -X for inner).
+        let bxOuter = aLength + R + half
+        let bxInner = aLength + R - half
+        let bOuterVerts: [SIMD3<Double>] = [
+            SIMD3(bxOuter, 0, R),
+            SIMD3(bxOuter, width, R),
+            SIMD3(bxOuter, width, R + bLength),
+            SIMD3(bxOuter, 0, R + bLength),
+        ]
+        let bInnerVerts: [SIMD3<Double>] = [
+            SIMD3(bxInner, 0, R),
+            SIMD3(bxInner, width, R),
+            SIMD3(bxInner, width, R + bLength),
+            SIMD3(bxInner, 0, R + bLength),
+        ]
+        guard let bOuterW = Wire.polygon3D(bOuterVerts, closed: true),
+              let bOuter = Shape.face(from: bOuterW, planar: true),
+              let bInnerW = Wire.polygon3D(bInnerVerts, closed: true),
+              let bInner = Shape.face(from: bInnerW, planar: true) else { return nil }
+
+        return Shape.compound([aOuter, aInner, cylOuter, cylInner, bOuter, bInner])
+    }
 }
 
 @Suite("Thin-shell L-bracket fixture (CP3 prep)")
@@ -48897,6 +48969,70 @@ struct UnfoldSheetMetalTests {
     }
 }
 
+// MARK: - Unfold solid via mid-surface (CP4)
+
+@Suite("Unfold solid via mid-surface (CP4)")
+struct UnfoldSolidTests {
+
+    @Test("Mid-surface of thick L-bracket recovers the thin-shell L-bracket flat pattern")
+    func solidLBracketMatchesThinShell() throws {
+        let aLength = 10.0, bLength = 8.0, width = 20.0, R = 2.0, t = 1.0
+        let thick = try #require(ThinShellFixture.thickLBracket(
+            aLength: aLength, bLength: bLength, width: width,
+            bendRadius: R, thickness: t))
+
+        let sheet = Unfold.SheetMetalParameters(thickness: t, kFactor: 0.44)
+        let solidResult = try Unfold.solid(thick,
+                                            parameters: .init(),
+                                            sheet: sheet)
+
+        // Compare to direct CP3 on the equivalent thin-shell.
+        let thin = try #require(ThinShellFixture.lBracket(
+            aLength: aLength, bLength: bLength, width: width, bendRadius: R))
+        let thinResult = try Unfold.sheetMetal(thin,
+                                                parameters: .init(),
+                                                sheet: sheet)
+
+        // Same number of laid-out faces (panels + bend strip).
+        #expect(solidResult.faces.count == thinResult.faces.count)
+        #expect(solidResult.folds.count == thinResult.folds.count)
+        // Total area should match within numerical tolerance.
+        let solidArea = solidResult.faces.values.reduce(0.0) { acc, f in
+            acc + (Face(f)?.area() ?? 0)
+        }
+        let thinArea = thinResult.faces.values.reduce(0.0) { acc, f in
+            acc + (Face(f)?.area() ?? 0)
+        }
+        #expect(abs(solidArea - thinArea) < 1e-2 * thinArea,
+                 "solid area \(solidArea) differs from thin-shell \(thinArea)")
+        // Bounding box dimensions should match (length × width of the strip).
+        let solidB = solidResult.flat.bounds
+        let thinB = thinResult.flat.bounds
+        let solidLen = max(solidB.max.x - solidB.min.x, solidB.max.y - solidB.min.y)
+        let thinLen = max(thinB.max.x - thinB.min.x, thinB.max.y - thinB.min.y)
+        #expect(abs(solidLen - thinLen) < 1e-2 * thinLen,
+                 "solid length \(solidLen) differs from thin \(thinLen)")
+    }
+
+    @Test("midSurface(of:thickness:) extracts 3 face pairs from thick L-bracket")
+    func midSurfaceExtractsThreePairs() throws {
+        let thick = try #require(ThinShellFixture.thickLBracket(
+            aLength: 10, bLength: 8, width: 20, bendRadius: 2, thickness: 1))
+        let mid = try Unfold.midSurface(of: thick, thickness: 1.0)
+        let midFaces = mid.subShapes(ofType: .face)
+        #expect(midFaces.count == 3, "expected 3 mid-surface faces, got \(midFaces.count)")
+    }
+
+    @Test("midSurface throws when no pairs at the given thickness")
+    func midSurfaceWrongThicknessThrows() throws {
+        let thick = try #require(ThinShellFixture.thickLBracket(thickness: 1.0))
+        // Look for pairs at thickness=0.5 — there are none.
+        #expect(throws: Unfold.UnfoldError.self) {
+            _ = try Unfold.midSurface(of: thick, thickness: 0.5)
+        }
+    }
+}
+
 // MARK: - Unfold inspection (writes SVG to /tmp for visual review)
 
 @Suite("Unfold inspection (CP1)")
@@ -48989,6 +49125,15 @@ struct UnfoldInspectionTests {
                                             parameters: .init(),
                                             sheet: sheet)
         try writeUnfoldSVG(result, name: "CP3-l-bracket")
+    }
+
+    @Test("Export thick L-bracket via mid-surface to /tmp/unfold-CP4-thick-l-bracket.svg")
+    func exportThickLBracketFlat() throws {
+        let thick = try #require(ThinShellFixture.thickLBracket(
+            aLength: 10, bLength: 8, width: 20, bendRadius: 2, thickness: 1))
+        let sheet = Unfold.SheetMetalParameters(thickness: 1.0, kFactor: 0.44)
+        let result = try Unfold.solid(thick, parameters: .init(), sheet: sheet)
+        try writeUnfoldSVG(result, name: "CP4-thick-l-bracket")
     }
 }
 
