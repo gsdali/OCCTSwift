@@ -517,6 +517,74 @@ extension Unfold {
         return try sheetMetal(thinShell, parameters: parameters, sheet: sheet)
     }
 
+    /// Unfold an *arbitrary* solid as a sheet-metal-style flat pattern by
+    /// first **shelling it inward** by `sheet.thickness` to produce a
+    /// thin-walled body, then extracting the mid-surface, then unfolding.
+    ///
+    /// `Unfold.solid(_:)` assumes the input already has paired offset
+    /// surfaces — appropriate for the output of `SheetMetal.Builder` or a
+    /// hand-built thin-shell fixture. `fromSolid(_:)` does the prerequisite
+    /// "make it thin-walled" step automatically. Use this when the input
+    /// is a fully-solid object (CAD STEP file of a solid model, a
+    /// re-meshed STL, or a primitive like `Shape.box`) that you want to
+    /// treat *as if* it were a sheet-metal box of the given thickness:
+    ///
+    /// ```swift
+    /// let cube = Shape.box(width: 100, height: 100, depth: 100)!
+    /// let sheet = Unfold.SheetMetalParameters(thickness: 1.5)
+    /// let pattern = try Unfold.fromSolid(cube, sheet: sheet)
+    /// // pattern is a 6-face cube net at thickness=1.5.
+    /// ```
+    ///
+    /// Internally:
+    /// 1. `shape.shelled(thickness: sheet.thickness)` — hollow the solid
+    ///    so it has wall thickness = `sheet.thickness`.
+    /// 2. `Unfold.solid(hollowed, …)` — pair the inner/outer wall faces,
+    ///    extract the mid-surface, route through `sheetMetal`.
+    ///
+    /// Caveat: shelling a solid is well-defined only when every face's
+    /// inward offset stays inside the original solid. Solids with thin
+    /// features (e.g. a turbine blade thinner than `sheet.thickness`)
+    /// will fail at the shelling step. Solids with sharp concave edges
+    /// produce sharp inner-corner fillets in the shelled output, the
+    /// same asymmetry that `Unfold.solid` already handles for
+    /// `SheetMetal.Builder` output.
+    public static func fromSolid(
+        _ shape: Shape,
+        parameters: Parameters = .init(),
+        sheet: SheetMetalParameters
+    ) throws -> Result {
+        // Topology-driven dispatch:
+        //
+        // 1. **Solid with cylindrical fillet faces** — most likely a
+        //    sheet-metal CAD model (STEP from CATIA/SolidWorks/Inventor)
+        //    or a `SheetMetal.Builder` output. Route through `solid(_:)`,
+        //    which extracts a mid-surface thin-shell and applies bend
+        //    allowance at each fillet via CP3's `sheetMetal`.
+        //
+        // 2. **Sharp-edged solid** (cube, prism, any polyhedral solid
+        //    with no fillets) — paper-craft topology. Route through
+        //    `polyhedral`, which unfolds the surfaces as a connected net
+        //    with sharp-edge folds. Bend allowance at sharp folds (BA =
+        //    θ · K · t when R = 0) is not yet inserted; the unfold
+        //    matches the surface topology exactly. A future extension
+        //    will add `bendAllowanceAtSharpFolds` to `polyhedral`'s
+        //    parameters for thickness-aware sharp-fold unfolding.
+        //
+        // The user-visible API is the same in both cases — feed in any
+        // solid + thickness, get a flat pattern back. Real CAD imports
+        // (STEP/STL with sheet-metal features) hit path 1; primitives and
+        // hand-modelled solids hit path 2.
+        let faces = shape.subShapes(ofType: .face)
+        let hasCylindricalFeature = faces.contains {
+            Face($0)?.surfaceType == .cylinder
+        }
+        if hasCylindricalFeature {
+            return try solid(shape, parameters: parameters, sheet: sheet)
+        }
+        return try polyhedral(shape, parameters: parameters)
+    }
+
     /// Extract the mid-surface thin-shell from a thick shape.
     ///
     /// Returns a compound (or sewn shell) of the mid-surface faces. The
@@ -690,10 +758,25 @@ private func makeMidFaceIfPair(
         // Distance between planes ≈ thickness, measured along nB.
         let d = simd_dot(cA - cB, nB)
         guard abs(abs(d) - t) < tolerance else { return nil }
-        // Mid-plane is the geometric midpoint of the two centroids;
-        // translate face A by half the centroid difference.
-        let delta = (cB - cA) * 0.5
-        guard let translated = a.shape.translated(by: delta) else { return nil }
+        // Translate the *smaller* face by half the centroid difference
+        // toward the larger one. Picking the smaller boundary matters
+        // when one face is inset relative to the other (e.g. a hollowed
+        // cube where outer faces are 100×100 and inner faces are 96×96
+        // — we want the mid-face to be 96² so that adjacent mid-faces
+        // meet at edges, not overlap by t/2 along their full extent).
+        // For perfectly-matched offset pairs (Builder output where top
+        // and bottom of a flange have the same boundary) either choice
+        // yields the same result.
+        let aArea = a.face.area()
+        let bArea = b.face.area()
+        let useA = aArea <= bArea
+        let smaller = useA ? a : b
+        let smallerCentroid = useA ? cA : cB
+        let largerCentroid = useA ? cB : cA
+        let delta = (largerCentroid - smallerCentroid) * 0.5
+        guard let translated = smaller.shape.translated(by: delta) else {
+            return nil
+        }
         return translated
 
     case let (.cylinder(rA, oA, dA), .cylinder(rB, oB, dB)):

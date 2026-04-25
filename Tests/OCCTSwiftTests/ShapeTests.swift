@@ -49320,6 +49320,59 @@ struct UnfoldSolidTests {
         }
     }
 
+    /// `Unfold.fromSolid` should accept a regular `Shape.box` cube
+    /// (fully solid, no walls) and treat it as a sheet-metal box: shell
+    /// inward by the given thickness, extract mid-surface, unfold to a
+    /// connected 6-face net.
+    /// `Unfold.fromSolid` dispatches by topology. Sharp-edged solids
+    /// (no cylindrical features) route to `polyhedral` for a connected
+    /// paper-craft-style net.
+    @Test("fromSolid: cube → connected 6-face polyhedral net")
+    func fromSolidCube() throws {
+        let cube = Shape.box(width: 100, height: 100, depth: 100)!
+        let sheet = Unfold.SheetMetalParameters(thickness: 2.0, kFactor: 0.44)
+        let result = try Unfold.fromSolid(cube, parameters: .init(), sheet: sheet)
+
+        #expect(result.faces.count == 6,
+                 "expected exactly 6 panels, got \(result.faces.count)")
+        #expect(result.folds.count == 5,
+                 "expected 5 folds in cube spanning tree, got \(result.folds.count)")
+        #expect(!result.overlaps)
+        #expect(result.flat.isValid)
+
+        try Exporter.writeDXF(unfoldResult: result,
+                               to: URL(fileURLWithPath: "/tmp/unfold-fromSolid-cube.dxf"))
+    }
+
+    /// `Unfold.fromSolid` on a `SheetMetal.Builder` L-bracket (has a
+    /// cylindrical fillet) routes through `solid` — exercises the
+    /// asymmetric mid-surface path and bend-allowance machinery.
+    @Test("fromSolid: SheetMetal.Builder L-bracket routes through CP4+CP3")
+    func fromSolidBuilderLBracket() throws {
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 30), SIMD2(0, 30)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let upright = SheetMetal.Flange(
+            id: "upright",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 25), SIMD2(0, 25)],
+            origin: SIMD3<Double>(0, 30, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let bracket = try SheetMetal.Builder(thickness: 2.0).build(
+            flanges: [base, upright],
+            bends: [SheetMetal.Bend(from: "base", to: "upright", radius: 1.5)])
+
+        let sheet = Unfold.SheetMetalParameters(thickness: 2.0, kFactor: 0.44)
+        let result = try Unfold.fromSolid(bracket, parameters: .init(), sheet: sheet)
+        #expect(result.faces.count >= 3)
+        #expect(result.flat.isValid)
+    }
+
     /// SheetMetal.Builder produces an *asymmetric* thick L-bracket: the
     /// outside corner is filleted (one cylindrical face at radius R) but
     /// the inside corner stays sharp (no inner cylindrical partner). CP4
