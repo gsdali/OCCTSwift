@@ -13,8 +13,9 @@ import Foundation
 /// from a declarative description (see issue #85).
 ///
 /// The reverse direction — unwrapping a bent sheet-metal solid to a flat
-/// cutting pattern — is intended to live in this namespace as well; it is not
-/// yet implemented.
+/// cutting pattern — lives in the top-level `Unfold` namespace. Tier 1
+/// (planar polyhedra) is implemented; cylindrical-bend unfolding with
+/// K-factor / bend allowance is on the way.
 ///
 /// ## Limitations
 ///

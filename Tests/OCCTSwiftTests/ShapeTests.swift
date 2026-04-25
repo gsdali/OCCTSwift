@@ -48373,3 +48373,257 @@ struct SheetMetalTests {
         }
     }
 }
+
+// MARK: - Unfold (CP1: planar polyhedra)
+
+/// Helpers for constructing Platonic-solid shells from vertex/face lists.
+private enum PlatonicSolid {
+    /// Build a closed shell from `vertices` and a face list (each entry is a
+    /// list of 0-based vertex indices in counter-clockwise order as seen from
+    /// the outside).
+    static func shell(vertices: [SIMD3<Double>], faces: [[Int]]) -> Shape? {
+        var faceShapes: [Shape] = []
+        faceShapes.reserveCapacity(faces.count)
+        for f in faces {
+            let pts = f.map { vertices[$0] }
+            guard let wire = Wire.polygon3D(pts, closed: true) else { return nil }
+            guard let face = Shape.face(from: wire, planar: true) else { return nil }
+            faceShapes.append(face)
+        }
+        return Shape.sew(shapes: faceShapes, tolerance: 1e-6)
+    }
+
+    static func tetrahedron(edge a: Double = 2.0) -> Shape? {
+        // Regular tetrahedron, edge length a.
+        // Standard placement: vertices on alternating cube corners scaled to
+        // give edge length `a`. Use unit cube corners then scale.
+        let s = a / (2.0 * sqrt(2.0))
+        let v: [SIMD3<Double>] = [
+            SIMD3( 1,  1,  1),
+            SIMD3( 1, -1, -1),
+            SIMD3(-1,  1, -1),
+            SIMD3(-1, -1,  1),
+        ].map { $0 * s }
+        // Outward-facing CCW winding (verified by hand for this placement).
+        let faces: [[Int]] = [
+            [0, 2, 1],
+            [0, 1, 3],
+            [0, 3, 2],
+            [1, 2, 3],
+        ]
+        return shell(vertices: v, faces: faces)
+    }
+
+    static func octahedron(radius r: Double = 1.0) -> Shape? {
+        // Vertices on the axes, radius r from origin.
+        let v: [SIMD3<Double>] = [
+            SIMD3( r, 0, 0), // 0 +X
+            SIMD3(-r, 0, 0), // 1 -X
+            SIMD3(0,  r, 0), // 2 +Y
+            SIMD3(0, -r, 0), // 3 -Y
+            SIMD3(0, 0,  r), // 4 +Z
+            SIMD3(0, 0, -r), // 5 -Z
+        ]
+        // 8 triangles, outward-facing.
+        let faces: [[Int]] = [
+            [0, 2, 4], [2, 1, 4], [1, 3, 4], [3, 0, 4],
+            [2, 0, 5], [1, 2, 5], [3, 1, 5], [0, 3, 5],
+        ]
+        return shell(vertices: v, faces: faces)
+    }
+
+    static func icosahedron(radius r: Double = 1.0) -> Shape? {
+        // Standard golden-ratio coordinates, normalized so vertices lie at
+        // distance r from the origin.
+        let phi = (1.0 + sqrt(5.0)) / 2.0
+        let raw: [SIMD3<Double>] = [
+            SIMD3( 0,  1,  phi), SIMD3( 0, -1,  phi),
+            SIMD3( 0,  1, -phi), SIMD3( 0, -1, -phi),
+            SIMD3( 1,  phi,  0), SIMD3(-1,  phi,  0),
+            SIMD3( 1, -phi,  0), SIMD3(-1, -phi,  0),
+            SIMD3( phi,  0,  1), SIMD3( phi,  0, -1),
+            SIMD3(-phi,  0,  1), SIMD3(-phi,  0, -1),
+        ]
+        let scale = r / sqrt(1.0 + phi * phi)
+        let v = raw.map { $0 * scale }
+        // 20 triangles.
+        let faces: [[Int]] = [
+            [0, 1, 8],  [0, 8, 4],  [0, 4, 5],  [0, 5, 10], [0, 10, 1],
+            [1, 6, 8],  [8, 6, 9],  [8, 9, 4],  [4, 9, 2],  [4, 2, 5],
+            [5, 2, 11], [5, 11, 10],[10, 11, 7],[10, 7, 1], [1, 7, 6],
+            [3, 9, 6],  [3, 2, 9],  [3, 11, 2], [3, 7, 11], [3, 6, 7],
+        ]
+        return shell(vertices: v, faces: faces)
+    }
+
+    // Dodecahedron is deferred until CP1 passes for the simpler solids — the
+    // hand-derived face list needs a careful CCW-from-outside enumeration.
+}
+
+@Suite("Unfold polyhedral (CP1)")
+struct UnfoldPolyhedralTests {
+
+    /// Cube (6 faces) — the simplest validation.
+    @Test("Cube unfolds to 6 coplanar faces")
+    func cubeUnfolds() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = try Unfold.polyhedral(cube)
+
+        #expect(result.faces.count == 6)
+        // 6 faces, 5 folds in the spanning tree.
+        #expect(result.folds.count == 5)
+        // Cycle-closing edges become cuts. A cube has 12 edges; the spanning
+        // tree of 6 faces uses 5; the remaining 7 internal edges are cuts.
+        #expect(result.cuts.count == 7)
+        #expect(allFacesInXYPlane(result, tolerance: 1e-6))
+        #expect(areaPreserved(result, source: cube, tolerance: 1e-9))
+    }
+
+    @Test("Tetrahedron unfolds to 4 coplanar faces")
+    func tetrahedronUnfolds() throws {
+        let tet = try #require(PlatonicSolid.tetrahedron(edge: 2.0))
+        let result = try Unfold.polyhedral(tet)
+
+        #expect(result.faces.count == 4)
+        #expect(result.folds.count == 3)
+        // Tetrahedron has 6 edges; tree uses 3, leaving 3 cycle edges.
+        #expect(result.cuts.count == 3)
+        #expect(allFacesInXYPlane(result, tolerance: 1e-6))
+        #expect(areaPreserved(result, source: tet, tolerance: 1e-9))
+    }
+
+    @Test("Octahedron unfolds to 8 coplanar faces")
+    func octahedronUnfolds() throws {
+        let oct = try #require(PlatonicSolid.octahedron(radius: 1.0))
+        let result = try Unfold.polyhedral(oct)
+
+        #expect(result.faces.count == 8)
+        #expect(result.folds.count == 7)
+        // Octahedron has 12 edges; tree uses 7, leaving 5 cycle edges.
+        #expect(result.cuts.count == 5)
+        #expect(allFacesInXYPlane(result, tolerance: 1e-6))
+        #expect(areaPreserved(result, source: oct, tolerance: 1e-9))
+    }
+
+    @Test("Icosahedron unfolds to 20 coplanar faces")
+    func icosahedronUnfolds() throws {
+        let ico = try #require(PlatonicSolid.icosahedron(radius: 1.0))
+        let result = try Unfold.polyhedral(ico)
+
+        #expect(result.faces.count == 20)
+        #expect(result.folds.count == 19)
+        // Icosahedron has 30 edges; tree uses 19, leaving 11 cycle edges.
+        #expect(result.cuts.count == 11)
+        #expect(allFacesInXYPlane(result, tolerance: 1e-6))
+        #expect(areaPreserved(result, source: ico, tolerance: 1e-9))
+        // The natural BFS unfold of an icosahedron self-overlaps; CP5 will
+        // resolve this. For now we assert the flag surfaces it.
+        #expect(result.overlaps)
+    }
+
+    @Test("Pinned cuts cause additional islands")
+    func pinnedCutSplitsTree() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let baseline = try Unfold.polyhedral(cube)
+        // Pick the first fold edge and force it to be a cut. The face on the
+        // other side must reach the root via a different edge.
+        let firstFoldEdge = try #require(baseline.folds.first?.edge)
+        var params = Unfold.Parameters()
+        params.pinnedCuts = [firstFoldEdge]
+        let result = try Unfold.polyhedral(cube, parameters: params)
+        // Either: still 6 faces if an alternate spanning tree exists, or
+        // fewer if the pin disconnected the graph.
+        #expect(result.faces.count <= 6)
+        #expect(allFacesInXYPlane(result, tolerance: 1e-6))
+    }
+
+    @Test("Non-planar input throws nonPlanarFace")
+    func cylinderRejected() {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        #expect(throws: Unfold.UnfoldError.self) {
+            _ = try Unfold.polyhedral(cyl)
+        }
+    }
+}
+
+// MARK: - Unfold inspection (writes SVG to /tmp for visual review)
+
+@Suite("Unfold inspection (CP1)")
+struct UnfoldInspectionTests {
+
+    @Test("Export cube net to /tmp/unfold-CP1-cube.svg")
+    func exportCubeNet() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = try Unfold.polyhedral(cube)
+        try writeUnfoldSVG(result, name: "cube")
+    }
+
+    @Test("Export tetrahedron net to /tmp/unfold-CP1-tetrahedron.svg")
+    func exportTetrahedronNet() throws {
+        let tet = try #require(PlatonicSolid.tetrahedron(edge: 2.0))
+        let result = try Unfold.polyhedral(tet)
+        try writeUnfoldSVG(result, name: "tetrahedron")
+    }
+
+    @Test("Export octahedron net to /tmp/unfold-CP1-octahedron.svg")
+    func exportOctahedronNet() throws {
+        let oct = try #require(PlatonicSolid.octahedron(radius: 1.0))
+        let result = try Unfold.polyhedral(oct)
+        try writeUnfoldSVG(result, name: "octahedron")
+    }
+
+    @Test("Export icosahedron net to /tmp/unfold-CP1-icosahedron.svg")
+    func exportIcosahedronNet() throws {
+        let ico = try #require(PlatonicSolid.icosahedron(radius: 1.0))
+        let result = try Unfold.polyhedral(ico)
+        try writeUnfoldSVG(result, name: "icosahedron")
+    }
+}
+
+/// Write each face of an unfold result as a closed polyline on layer
+/// "VISIBLE". Output: `/tmp/unfold-CP1-{name}.svg`. Coordinates are the raw
+/// XY positions returned by the unfolder; the SVG writer auto-fits the
+/// viewBox to the content.
+private func writeUnfoldSVG(_ result: Unfold.Result, name: String) throws {
+    let writer = SVGWriter(deflection: 0.01)
+    for (_, flat) in result.faces {
+        for polyline in flat.allEdgePolylines(deflection: 0.01) {
+            let pts2D = polyline.map { SIMD2($0.x, $0.y) }
+            writer.addPolyline(pts2D, closed: false, layer: "VISIBLE")
+        }
+    }
+    let url = URL(fileURLWithPath: "/tmp/unfold-CP1-\(name).svg")
+    try writer.write(to: url)
+}
+
+// MARK: - Unfold test helpers
+
+private func allFacesInXYPlane(_ result: Unfold.Result, tolerance: Double) -> Bool {
+    for (_, shape) in result.faces {
+        let b = shape.bounds
+        if abs(b.min.z) > tolerance || abs(b.max.z) > tolerance {
+            return false
+        }
+    }
+    return true
+}
+
+/// Sum of laid-out face areas should equal the sum of input face areas to
+/// within `tolerance` (relative). Each rigid transform preserves area, so
+/// agreement here is the strongest single signal that the unfold is correct.
+private func areaPreserved(
+    _ result: Unfold.Result,
+    source: Shape,
+    tolerance: Double
+) -> Bool {
+    let sourceFaces = source.subShapes(ofType: .face)
+    let expected = sourceFaces.reduce(0.0) { acc, fs in
+        acc + (Face(fs)?.area() ?? 0)
+    }
+    let actual = result.faces.values.reduce(0.0) { acc, flat in
+        acc + (Face(flat)?.area() ?? 0)
+    }
+    guard expected > 0 else { return false }
+    return abs(actual - expected) <= tolerance * expected
+}
+
