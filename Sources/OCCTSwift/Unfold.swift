@@ -155,12 +155,27 @@ public enum Unfold {
     /// Throws `nonPlanarFace` if any face is not planar; for cylinders, cones,
     /// and other developables, see `developable(_:)` (future checkpoint).
     ///
-    /// CP5: when `parameters.resolveOverlaps` is true, the unfolder
-    /// iteratively cuts the middle edge of the spanning-tree path between
-    /// overlapping face pairs and re-runs the BFS, splitting the result into
-    /// non-overlapping islands. Up to `parameters.maxOverlapIterations`
-    /// cuts are added before giving up; if iteration exits with overlaps
-    /// still present, the result still has `overlaps == true`.
+    /// When `parameters.resolveOverlaps` is true, the unfolder prefers a
+    /// **connected non-overlapping net**:
+    ///
+    /// 1. **Try every face as root.** Different roots produce different
+    ///    spanning trees and different 2D layouts. Schlickenrieder (1997)
+    ///    showed empirically that essentially every convex polyhedron has
+    ///    a non-overlapping edge unfolding from at least one root, even
+    ///    though it's an open conjecture in general (Shephard 1975).
+    ///    This phase is cheap — N BFS attempts on N-face shapes — and
+    ///    almost always finds a connected solution for the Platonic
+    ///    solids and ordinary CAD polyhedra.
+    /// 2. **Fall back to fragmentation cuts.** If no rooting gives a
+    ///    connected non-overlapping unfold, iteratively pin each
+    ///    overlap-victim face's tree-parent edge so it becomes a fresh
+    ///    island root. Up to `parameters.maxOverlapIterations` cuts are
+    ///    added before giving up. The result has `overlaps == true`
+    ///    if even fragmentation can't clear the bbox-overlap test.
+    ///
+    /// `parameters.rootFaceIndex` is honoured even when
+    /// `resolveOverlaps` is true: if the caller pinned a root, that root
+    /// is the only one tried in phase 1.
     public static func polyhedral(
         _ shape: Shape,
         parameters: Parameters = .init()
@@ -168,10 +183,51 @@ public enum Unfold {
         if !parameters.resolveOverlaps {
             return try polyhedralOnce(shape, parameters: parameters)
         }
-        // Iterate, growing pinnedCuts until overlap clears or the cut budget
-        // is exhausted. The strategy is "pin B's tree-parent edge" — when a
-        // pair (A, B) overlaps, we promote B to its own island next round
-        // by cutting the edge that brought it into A's tree.
+        // Phase 1: try every face as root × {BFS, DFS} traversals, looking
+        // for a connected non-overlapping unfold. BFS produces balanced
+        // (compact-fan) layouts; DFS produces strip-like ones. Different
+        // shapes prefer different orderings — the icosahedron, for
+        // example, almost always overlaps under BFS but unfolds cleanly
+        // under DFS from many roots.
+        let faceCount = shape.subShapes(ofType: .face).count
+        var rootedParams = parameters
+        rootedParams.resolveOverlaps = false
+        let rootsToTry: [Int]
+        if let pinned = parameters.rootFaceIndex {
+            rootsToTry = [pinned]
+        } else if faceCount > 0 {
+            rootsToTry = Array(0..<faceCount)
+        } else {
+            rootsToTry = []
+        }
+        // Try natural ordering first (deterministic), then random shuffles.
+        // Seed 0 = natural; seeds 1…N = random permutations of each
+        // node's adjacency list. For 30 edges the spanning-tree count is
+        // huge; sampling a few hundred random orderings reliably finds a
+        // non-overlapping unfold for any Platonic solid.
+        let shuffleSeeds: [UInt64] = [0] + (1...32).map { UInt64($0) }
+        for seed in shuffleSeeds {
+            for traversal in [TraversalOrder.bfs, .dfs] {
+                for r in rootsToTry {
+                    rootedParams.rootFaceIndex = r
+                    if let result = try? polyhedralOnce(
+                        shape,
+                        parameters: rootedParams,
+                        traversal: traversal,
+                        childShuffleSeed: seed
+                    ), !result.overlaps {
+                        return result
+                    }
+                }
+            }
+        }
+        rootedParams.rootFaceIndex = parameters.rootFaceIndex
+
+        // Phase 2: no single connected non-overlapping unfold found. Fall
+        // back to iterative fragmentation cuts. The strategy is "pin B's
+        // tree-parent edge" — when a pair (A, B) overlaps, we promote B
+        // to its own island next round by cutting the edge that brought
+        // it into A's tree.
         var params = parameters
         params.resolveOverlaps = false
         var lastResult: Result?
@@ -206,10 +262,26 @@ public enum Unfold {
         return final
     }
 
+    /// Tree traversal order for `polyhedralOnce`. Different orders produce
+    /// different spanning trees and different 2D layouts. Some shapes (the
+    /// icosahedron, in particular) self-overlap under BFS but unfold
+    /// cleanly under DFS, which produces strip-like rather than balanced
+    /// layouts.
+    fileprivate enum TraversalOrder { case bfs, dfs }
+
     /// Single-pass polyhedral unfold (no overlap iteration).
-    private static func polyhedralOnce(
+    ///
+    /// `childShuffleSeed`: when non-zero, deterministically permutes the
+    /// child-visit order at each node. Used by `polyhedral`'s connected-
+    /// net search to explore many spanning trees from each root: 20
+    /// roots × 2 traversals × ~10 shuffle seeds = 400 candidate trees,
+    /// which reliably finds a non-overlapping unfold for the Platonic
+    /// solids and almost all convex polyhedra encountered in practice.
+    fileprivate static func polyhedralOnce(
         _ shape: Shape,
-        parameters: Parameters
+        parameters: Parameters,
+        traversal: TraversalOrder = .bfs,
+        childShuffleSeed: UInt64 = 0
     ) throws -> Result {
         let faceShapes = shape.subShapes(ofType: .face)
         guard !faceShapes.isEmpty else { throw UnfoldError.noFaces }
@@ -269,6 +341,13 @@ public enum Unfold {
             adjacency[b].append((a, e.index))
         }
 
+        if childShuffleSeed != 0 {
+            var rng = SplitMix64(seed: childShuffleSeed)
+            for i in adjacency.indices {
+                adjacency[i].shuffle(using: &rng)
+            }
+        }
+
         let rootIdx: Int
         if let pinned = parameters.rootFaceIndex {
             guard faces.indices.contains(pinned) else {
@@ -313,10 +392,13 @@ public enum Unfold {
             visited.insert(root)
             firstRoot = root // last seed (used to set rootFaceIndex on result)
 
-            var queue: [Int] = [root]
-            var head = 0
-            while head < queue.count {
-                let parent = queue[head]; head += 1
+            var pending: [Int] = [root]
+            while !pending.isEmpty {
+                let parent: Int
+                switch traversal {
+                case .bfs: parent = pending.removeFirst()
+                case .dfs: parent = pending.removeLast()
+                }
                 let parentT = transform[parent]!
                 let parentNormalLaid = transformNormal(parentT, faces[parent].normal)
                 for (child, edgeIdx) in adjacency[parent] {
@@ -346,7 +428,7 @@ public enum Unfold {
                         childFaceIndex: child,
                         dihedralAngle: unfoldRot.angle
                     ))
-                    queue.append(child)
+                    pending.append(child)
                 }
             }
 
@@ -1792,6 +1874,22 @@ private func matrix12(from m: simd_double4x4) -> [Double] {
     ]
 }
 
+/// SplitMix64 — a small, deterministic, statistically-decent PRNG used to
+/// shuffle child-visit order during the connected-net search. Reproducible
+/// across runs from the same seed; not cryptographically secure (we only
+/// need a varied permutation of small lists).
+fileprivate struct SplitMix64: RandomNumberGenerator {
+    private var state: UInt64
+    init(seed: UInt64) { self.state = seed }
+    mutating func next() -> UInt64 {
+        state &+= 0x9E37_79B9_7F4A_7C15
+        var z = state
+        z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+        z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+        return z ^ (z >> 31)
+    }
+}
+
 private func anyBoundingBoxOverlap(in shapes: [Shape], tolerance: Double) -> Bool {
     guard shapes.count > 1 else { return false }
     // OCCT's `Shape.transformed(matrix:)` introduces ~1e-7 numerical noise
@@ -1799,16 +1897,96 @@ private func anyBoundingBoxOverlap(in shapes: [Shape], tolerance: Double) -> Boo
     // floor so that adjacent faces sharing an edge don't register as
     // overlapping.
     let eps = max(tolerance, 1e-4)
+
+    // Pre-compute boxes and 2D polygon outlines once per face. Bbox overlap
+    // is a cheap necessary test but reports false positives for
+    // non-axis-aligned faces (two triangles sharing only a corner can have
+    // overlapping bboxes even though their interiors are disjoint), which
+    // matters a lot for triangulated polyhedra like the icosahedron. When
+    // bboxes overlap we confirm with a polygon-polygon separating-axis
+    // test on the actual face outlines.
     let boxes = shapes.map { $0.bounds }
+    var polygons: [[SIMD2<Double>]?] = Array(repeating: nil, count: shapes.count)
+    func polygon(at index: Int) -> [SIMD2<Double>]? {
+        if let cached = polygons[index] { return cached }
+        let pts = facePolygon2D(shapes[index])
+        polygons[index] = pts
+        return pts.isEmpty ? nil : pts
+    }
+
     for i in 0..<boxes.count {
         for j in (i + 1)..<boxes.count {
             let a = boxes[i], b = boxes[j]
             let xOverlap = a.min.x <= b.max.x - eps && b.min.x <= a.max.x - eps
             let yOverlap = a.min.y <= b.max.y - eps && b.min.y <= a.max.y - eps
-            if xOverlap && yOverlap {
+            if !(xOverlap && yOverlap) { continue }
+            // Bboxes overlap — confirm with polygon-SAT.
+            guard let pa = polygon(at: i), let pb = polygon(at: j) else {
+                // Couldn't extract a polygon — fall back to bbox result.
+                return true
+            }
+            if convexPolygonsOverlap(pa, pb, tolerance: eps) {
                 return true
             }
         }
     }
     return false
+}
+
+/// Extract a 2D polygon outline (XY only) from a face Shape lying in z = 0.
+/// Returns the vertex sequence of the outer wire — for triangle/quad/
+/// pentagon faces this is the natural face boundary. Used for polygon-SAT
+/// overlap testing.
+private func facePolygon2D(_ face: Shape) -> [SIMD2<Double>] {
+    guard let f = Face(face), let outer = f.outerWire else { return [] }
+    var pts: [SIMD2<Double>] = []
+    for edge in outer.edges() {
+        let endpoints = edge.endpoints
+        let p = SIMD2(endpoints.start.x, endpoints.start.y)
+        if let last = pts.last, simd_length(p - last) < 1e-9 { continue }
+        pts.append(p)
+    }
+    if let first = pts.first, let last = pts.last,
+       pts.count > 1, simd_length(first - last) < 1e-9 {
+        pts.removeLast()
+    }
+    return pts
+}
+
+/// Separating-axis-theorem test for convex polygons. Returns `true` if the
+/// polygons' interiors penetrate by more than `tolerance` along every
+/// candidate axis (the edge normals of both polygons). Edge-sharing or
+/// corner-touching at the tolerance scale registers as not-overlapping.
+///
+/// Concave polygons may produce false positives — for the unfold use case
+/// (Platonic solids and rectangular flanges) all faces are convex.
+private func convexPolygonsOverlap(
+    _ a: [SIMD2<Double>],
+    _ b: [SIMD2<Double>],
+    tolerance: Double
+) -> Bool {
+    guard a.count >= 3, b.count >= 3 else { return false }
+    func axes(of p: [SIMD2<Double>]) -> [SIMD2<Double>] {
+        var out: [SIMD2<Double>] = []
+        out.reserveCapacity(p.count)
+        for i in 0..<p.count {
+            let edge = p[(i + 1) % p.count] - p[i]
+            let n = SIMD2(-edge.y, edge.x)
+            let len = simd_length(n)
+            if len > 1e-12 { out.append(n / len) }
+        }
+        return out
+    }
+    for axis in axes(of: a) + axes(of: b) {
+        let projA = a.map { simd_dot($0, axis) }
+        let projB = b.map { simd_dot($0, axis) }
+        let aMin = projA.min()!, aMax = projA.max()!
+        let bMin = projB.min()!, bMax = projB.max()!
+        // Separated along this axis (with tolerance) → polygons don't
+        // overlap. Edge-shared / corner-touching pairs hit this branch.
+        if aMax < bMin + tolerance || bMax < aMin + tolerance {
+            return false
+        }
+    }
+    return true
 }

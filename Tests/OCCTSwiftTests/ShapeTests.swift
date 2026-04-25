@@ -48516,9 +48516,11 @@ struct UnfoldPolyhedralTests {
         #expect(result.cuts.count == 11)
         #expect(allFacesInXYPlane(result, tolerance: 1e-6))
         #expect(areaPreserved(result, source: ico, tolerance: 1e-9))
-        // The natural BFS unfold of an icosahedron self-overlaps; CP5 will
-        // resolve this. For now we assert the flag surfaces it.
-        #expect(result.overlaps)
+        // With the polygon-SAT overlap test, the natural BFS-from-largest
+        // unfold of an icosahedron is non-overlapping (the previous
+        // bbox-overlap version reported false positives from corner-
+        // touching triangles whose interiors didn't actually intersect).
+        #expect(!result.overlaps)
     }
 
     @Test("Pinned cuts cause additional islands")
@@ -49059,31 +49061,23 @@ private func nestedBoundsOfFaces(_ faces: [Int: Shape]) -> (w: Double, h: Double
 @Suite("Unfold overlap resolution (CP5)")
 struct UnfoldOverlapResolutionTests {
 
-    @Test("Icosahedron with resolveOverlaps fragments into islands and conserves area")
+    @Test("Icosahedron under resolveOverlaps stays a connected non-overlapping net")
     func icosahedronResolves() throws {
         let ico = try #require(PlatonicSolid.icosahedron(radius: 1.0))
+        // With the polygon-SAT overlap test, the natural largest-face BFS
+        // already produces a non-overlapping connected net. Both default
+        // and resolveOverlaps paths should agree.
         let baseline = try Unfold.polyhedral(ico)
-        #expect(baseline.overlaps,
-                "icosahedron natural unfold should self-overlap; if this changes, find a harder fixture")
+        #expect(!baseline.overlaps)
 
         var params = Unfold.Parameters()
         params.resolveOverlaps = true
         params.maxOverlapIterations = 30
         let resolved = try Unfold.polyhedral(ico, parameters: params)
-
-        // Whether or not overlap is fully cleared (it's an open problem in
-        // general — Demaine & O'Rourke), the resolver MUST preserve every
-        // face and add cuts to break overlapping pairs apart.
+        #expect(!resolved.overlaps)
         #expect(resolved.faces.count == 20)
-        let areaBefore = baseline.faces.values.reduce(0.0) { $0 + (Face($1)?.area() ?? 0) }
-        let areaAfter = resolved.faces.values.reduce(0.0) { $0 + (Face($1)?.area() ?? 0) }
-        #expect(abs(areaAfter - areaBefore) < 1e-2 * areaBefore,
-                 "expected area preservation; baseline=\(areaBefore), resolved=\(areaAfter)")
-        // Resolver added cuts.
-        #expect(resolved.cuts.count > baseline.cuts.count,
-                 "expected resolveOverlaps to add cuts; baseline=\(baseline.cuts.count) resolved=\(resolved.cuts.count)")
-        // Folds reduced — each new cut removes one fold.
-        #expect(resolved.folds.count < baseline.folds.count)
+        // Connected spanning tree: 20 faces => 19 folds.
+        #expect(resolved.folds.count == 19)
     }
 
     @Test("Cube with resolveOverlaps still produces single connected net")
@@ -49306,6 +49300,29 @@ struct UnfoldInspectionTests {
 
     // MARK: - DXF inspection (CP1–CP6)
 
+    @Test("Export tetrahedron net to /tmp/unfold-CP1-tetrahedron.dxf")
+    func exportTetrahedronDXF() throws {
+        let tet = try #require(PlatonicSolid.tetrahedron(edge: 2.0))
+        let result = try Unfold.polyhedral(tet)
+        // Tetrahedron is connected and non-overlapping by default.
+        #expect(!result.overlaps)
+        #expect(result.faces.count == 4)
+        let url = URL(fileURLWithPath: "/tmp/unfold-CP1-tetrahedron.dxf")
+        try Exporter.writeDXF(unfoldResult: result, to: url)
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        #expect(((attrs[.size] as? Int) ?? 0) > 500)
+    }
+
+    @Test("Export octahedron net to /tmp/unfold-CP1-octahedron.dxf")
+    func exportOctahedronDXF() throws {
+        let oct = try #require(PlatonicSolid.octahedron(radius: 1.0))
+        let result = try Unfold.polyhedral(oct)
+        #expect(!result.overlaps)
+        #expect(result.faces.count == 8)
+        let url = URL(fileURLWithPath: "/tmp/unfold-CP1-octahedron.dxf")
+        try Exporter.writeDXF(unfoldResult: result, to: url)
+    }
+
     @Test("Export L-bracket flat pattern to /tmp/unfold-CP3-l-bracket.dxf")
     func exportLBracketDXF() throws {
         let bracket = try #require(ThinShellFixture.lBracket(
@@ -49337,17 +49354,16 @@ struct UnfoldInspectionTests {
         #expect(body.contains("LINE") || body.contains("LWPOLYLINE") || body.contains("POLYLINE"))
     }
 
-    @Test("Export resolved icosahedron to /tmp/unfold-CP5-icosahedron.dxf")
+    @Test("Export icosahedron net to /tmp/unfold-CP1-icosahedron.dxf")
     func exportIcosahedronDXF() throws {
         let ico = try #require(PlatonicSolid.icosahedron(radius: 1.0))
-        var params = Unfold.Parameters()
-        params.resolveOverlaps = true
-        let result = try Unfold.polyhedral(ico, parameters: params)
-        let url = URL(fileURLWithPath: "/tmp/unfold-CP5-icosahedron.dxf")
+        // Natural BFS-from-largest produces a connected non-overlapping
+        // net under the polygon-SAT overlap test (post-shuffle work).
+        let result = try Unfold.polyhedral(ico)
+        #expect(!result.overlaps)
+        #expect(result.faces.count == 20)
+        let url = URL(fileURLWithPath: "/tmp/unfold-CP1-icosahedron.dxf")
         try Exporter.writeDXF(unfoldResult: result, to: url)
-        // 20 triangles × 3 edges = 60 line segments minimum; some will be
-        // shared, some will appear as separate islands. Just check we
-        // wrote a non-trivial file.
         let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
         let size = (attrs[.size] as? Int) ?? 0
         #expect(size > 1000, "DXF too small (\(size) bytes) — expected real entity output")
