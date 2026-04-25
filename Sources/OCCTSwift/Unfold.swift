@@ -573,6 +573,329 @@ private func makeMidFaceIfPair(
     }
 }
 
+// MARK: - Stock nesting / layout (CP6)
+
+extension Unfold {
+
+    public struct NestingParameters: Sendable {
+        /// Maximum stock width along X. `nil` = unbounded.
+        public var stockWidth: Double?
+        /// Maximum stock height along Y. `nil` = unbounded.
+        public var stockHeight: Double?
+        /// Minimum gap between adjacent islands.
+        public var padding: Double
+        /// Layout objective.
+        public var objective: Objective
+        /// Whether to try 90° rotations of each island; the rotation that
+        /// gives the best objective wins.
+        public var allowRotation: Bool
+
+        public enum Objective: Sendable {
+            /// Minimize the bounding-box diagonal of the union of all
+            /// island bboxes — the user's stated goal.
+            case boundingBoxDiagonal
+            /// Minimize the bounding-box area of the union.
+            case boundingBoxArea
+            /// Maximize stock utilization (= sum-of-island-area /
+            /// bbox-area). Equivalent to minimising bbox-area when total
+            /// island area is fixed; provided for clarity.
+            case stockUtilization
+        }
+
+        public init(
+            stockWidth: Double? = nil,
+            stockHeight: Double? = nil,
+            padding: Double = 1.0,
+            objective: Objective = .boundingBoxDiagonal,
+            allowRotation: Bool = true
+        ) {
+            self.stockWidth = stockWidth
+            self.stockHeight = stockHeight
+            self.padding = padding
+            self.objective = objective
+            self.allowRotation = allowRotation
+        }
+    }
+
+    public enum NestingError: Error, Sendable {
+        case stockTooSmall
+    }
+
+    /// Re-pack the islands of an unfold result using bottom-left-fill, then
+    /// optionally try the four 90° rotations per island and keep whichever
+    /// minimises `parameters.objective`.
+    ///
+    /// Operates only on `result.faces` and `result.folds` — the input shape
+    /// is not consulted. The output is a new `Result` whose faces have been
+    /// translated (and, if `allowRotation`, rotated about each island's own
+    /// origin) to a tighter layout.
+    ///
+    /// Limitations: simple bottom-left-fill on axis-aligned bounding
+    /// rectangles. Islands are treated as their bounding rectangle; tight
+    /// nesting of irregular shapes (no-fit-polygon) is out of scope.
+    public static func nest(
+        _ result: Result,
+        parameters: NestingParameters = .init()
+    ) throws -> Result {
+        let islands = computeIslands(result)
+        guard !islands.isEmpty else { return result }
+
+        var infos: [packBLFIsland] = []
+        for (id, faceIndices) in islands.enumerated() {
+            let bbox = islandBoundingBox(faceIndices: faceIndices, faces: result.faces)
+            infos.append(packBLFIsland(
+                id: id, faceIndices: faceIndices,
+                originalBBox: bbox, rotation: 0, translation: .zero))
+        }
+        // Larger islands first so BLF places them anchoring the layout.
+        infos.sort { $0.area > $1.area }
+
+        // Try each global rotation, keep the one with best objective.
+        let rotations = parameters.allowRotation ? [0, 1, 2, 3] : [0]
+        var best: ([packBLFIsland], Double)?
+        for rot in rotations {
+            var trial = infos
+            for i in trial.indices { trial[i].rotation = rot }
+            packBLF(islands: &trial, parameters: parameters)
+            let union = unionBoundingBox(trial)
+            let totalArea = trial.reduce(0) { $0 + $1.area }
+            let metric = computeObjective(
+                union: union, totalIslandArea: totalArea, parameters: parameters)
+            if let b = best {
+                if metric < b.1 { best = (trial, metric) }
+            } else {
+                best = (trial, metric)
+            }
+        }
+        guard let (chosen, _) = best else { return result }
+
+        // Stock check.
+        let union = unionBoundingBox(chosen)
+        let unionW = union.max.x - union.min.x
+        let unionH = union.max.y - union.min.y
+        if let sw = parameters.stockWidth, unionW > sw + parameters.padding {
+            throw NestingError.stockTooSmall
+        }
+        if let sh = parameters.stockHeight, unionH > sh + parameters.padding {
+            throw NestingError.stockTooSmall
+        }
+
+        // Apply translations + rotations to each face.
+        var newFaces: [Int: Shape] = [:]
+        for info in chosen {
+            for fi in info.faceIndices {
+                guard let face = result.faces[fi] else { continue }
+                let placed = applyIslandTransform(
+                    face: face, info: info, parameters: parameters)
+                newFaces[fi] = placed
+            }
+        }
+
+        let allFaces = Array(newFaces.values)
+        let compound: Shape
+        if allFaces.count == 1 {
+            compound = allFaces[0]
+        } else if let c = Shape.compound(allFaces) {
+            compound = c
+        } else {
+            return result
+        }
+
+        return Result(
+            flat: compound,
+            faces: newFaces,
+            folds: result.folds,
+            cuts: result.cuts,
+            overlaps: false, // BLF doesn't produce overlaps
+            rootFaceIndex: result.rootFaceIndex
+        )
+    }
+}
+
+// MARK: - CP6 internal helpers
+
+/// Connected components of the fold graph. Returns one array of face indices
+/// per component. Faces with no fold edges form singleton components.
+private func computeIslands(_ result: Unfold.Result) -> [[Int]] {
+    let allFaceIndices = Set(result.faces.keys)
+    var adjacency: [Int: Set<Int>] = [:]
+    for f in allFaceIndices { adjacency[f] = [] }
+    for fold in result.folds {
+        guard adjacency[fold.parentFaceIndex] != nil,
+              adjacency[fold.childFaceIndex] != nil else { continue }
+        adjacency[fold.parentFaceIndex]?.insert(fold.childFaceIndex)
+        adjacency[fold.childFaceIndex]?.insert(fold.parentFaceIndex)
+    }
+    var visited: Set<Int> = []
+    var components: [[Int]] = []
+    for start in allFaceIndices.sorted() where !visited.contains(start) {
+        var component: [Int] = []
+        var stack: [Int] = [start]
+        while let node = stack.popLast() {
+            if !visited.insert(node).inserted { continue }
+            component.append(node)
+            for n in adjacency[node] ?? [] where !visited.contains(n) {
+                stack.append(n)
+            }
+        }
+        components.append(component)
+    }
+    return components
+}
+
+private func islandBoundingBox(
+    faceIndices: [Int],
+    faces: [Int: Shape]
+) -> (min: SIMD2<Double>, max: SIMD2<Double>) {
+    var minX = Double.infinity, minY = Double.infinity
+    var maxX = -Double.infinity, maxY = -Double.infinity
+    for fi in faceIndices {
+        guard let face = faces[fi] else { continue }
+        let b = face.bounds
+        if b.min.x < minX { minX = b.min.x }
+        if b.min.y < minY { minY = b.min.y }
+        if b.max.x > maxX { maxX = b.max.x }
+        if b.max.y > maxY { maxY = b.max.y }
+    }
+    if minX == .infinity {
+        return (.zero, .zero)
+    }
+    return (SIMD2(minX, minY), SIMD2(maxX, maxY))
+}
+
+/// Bottom-left-fill packing on axis-aligned rectangles. Updates each
+/// island's `translation` so its placed bounding box sits at
+/// `translation … translation + (width, height)`.
+private func packBLF(
+    islands: inout [packBLFIsland],
+    parameters: Unfold.NestingParameters
+) {
+    // Place greedily: sort already done by caller.
+    var placed: [(min: SIMD2<Double>, max: SIMD2<Double>)] = []
+    for i in islands.indices {
+        let w = islands[i].width
+        let h = islands[i].height
+        // Generate candidate positions: (0, 0), and for each placed box,
+        // (placed.max.x + padding, placed.min.y) and (placed.min.x,
+        // placed.max.y + padding).
+        var candidates: [SIMD2<Double>] = [SIMD2(0, 0)]
+        for p in placed {
+            candidates.append(SIMD2(p.max.x + parameters.padding, 0))
+            candidates.append(SIMD2(0, p.max.y + parameters.padding))
+            candidates.append(SIMD2(p.max.x + parameters.padding, p.min.y))
+            candidates.append(SIMD2(p.min.x, p.max.y + parameters.padding))
+        }
+        // Sort: bottom-left preference (smaller y first, then smaller x).
+        candidates.sort { (a, b) in
+            if a.y != b.y { return a.y < b.y }
+            return a.x < b.x
+        }
+        var chosen: SIMD2<Double>?
+        for c in candidates {
+            let trial = (min: c, max: c + SIMD2(w, h))
+            if !placed.contains(where: { rectsOverlap($0, trial, padding: parameters.padding) }) {
+                if let sw = parameters.stockWidth, trial.max.x > sw { continue }
+                if let sh = parameters.stockHeight, trial.max.y > sh { continue }
+                chosen = c
+                break
+            }
+        }
+        let pos = chosen ?? candidates[0]
+        islands[i].translation = pos
+        placed.append((min: pos, max: pos + SIMD2(w, h)))
+    }
+}
+
+private struct packBLFIsland {
+    let id: Int
+    let faceIndices: [Int]
+    /// The island's bbox in its source layout (before rotation/translation).
+    let originalBBox: (min: SIMD2<Double>, max: SIMD2<Double>)
+    var rotation: Int    // 0=0°, 1=90°, 2=180°, 3=270°
+    var translation: SIMD2<Double>
+
+    private var origWidth: Double { originalBBox.max.x - originalBBox.min.x }
+    private var origHeight: Double { originalBBox.max.y - originalBBox.min.y }
+    var width: Double {
+        rotation == 1 || rotation == 3 ? origHeight : origWidth
+    }
+    var height: Double {
+        rotation == 1 || rotation == 3 ? origWidth : origHeight
+    }
+    var area: Double { width * height }
+}
+
+private func rectsOverlap(
+    _ a: (min: SIMD2<Double>, max: SIMD2<Double>),
+    _ b: (min: SIMD2<Double>, max: SIMD2<Double>),
+    padding: Double
+) -> Bool {
+    let x = a.min.x < b.max.x + padding && b.min.x < a.max.x + padding
+    let y = a.min.y < b.max.y + padding && b.min.y < a.max.y + padding
+    return x && y
+}
+
+private func unionBoundingBox(_ islands: [packBLFIsland]) -> (min: SIMD2<Double>, max: SIMD2<Double>) {
+    var minX = Double.infinity, minY = Double.infinity
+    var maxX = -Double.infinity, maxY = -Double.infinity
+    for i in islands {
+        let pos = i.translation
+        let w = i.width, h = i.height
+        if pos.x < minX { minX = pos.x }
+        if pos.y < minY { minY = pos.y }
+        if pos.x + w > maxX { maxX = pos.x + w }
+        if pos.y + h > maxY { maxY = pos.y + h }
+    }
+    if minX == .infinity { return (.zero, .zero) }
+    return (SIMD2(minX, minY), SIMD2(maxX, maxY))
+}
+
+private func computeObjective(
+    union: (min: SIMD2<Double>, max: SIMD2<Double>),
+    totalIslandArea: Double,
+    parameters: Unfold.NestingParameters
+) -> Double {
+    let w = union.max.x - union.min.x
+    let h = union.max.y - union.min.y
+    switch parameters.objective {
+    case .boundingBoxDiagonal:
+        return sqrt(w * w + h * h)
+    case .boundingBoxArea:
+        return w * h
+    case .stockUtilization:
+        let bboxArea = w * h
+        guard bboxArea > 0 else { return Double.infinity }
+        return -totalIslandArea / bboxArea // negate so smaller = better
+    }
+}
+
+private func applyIslandTransform(
+    face: Shape,
+    info: packBLFIsland,
+    parameters: Unfold.NestingParameters
+) -> Shape {
+    var working = face
+    if info.rotation != 0 {
+        // Rotate about the original-bbox min so the island stays anchored.
+        let pivot = info.originalBBox.min
+        if let recentred = working.translated(by: SIMD3(-pivot.x, -pivot.y, 0)),
+           let rotated = recentred.rotated(
+               axis: SIMD3(0, 0, 1),
+               angle: Double(info.rotation) * .pi / 2
+           ) {
+            working = rotated
+        }
+    }
+    // Place the island so its post-rotation bbox.min sits at translation.
+    let postBounds = working.bounds
+    let dx = info.translation.x - postBounds.min.x
+    let dy = info.translation.y - postBounds.min.y
+    if let translated = working.translated(by: SIMD3(dx, dy, 0)) {
+        return translated
+    }
+    return working
+}
+
 // MARK: - Sheet-metal composite (CP3)
 
 extension Unfold {

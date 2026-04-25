@@ -48969,6 +48969,91 @@ struct UnfoldSheetMetalTests {
     }
 }
 
+// MARK: - Unfold nest (CP6)
+
+@Suite("Unfold nest (CP6)")
+struct UnfoldNestTests {
+
+    @Test("Cube net nesting reduces or preserves bounding-box diagonal")
+    func cubeNestReducesDiagonal() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let baseline = try Unfold.polyhedral(cube)
+        let nested = try Unfold.nest(baseline)
+        // Cube unfold is a single connected island; nesting can only rotate.
+        // Either way, the diagonal should not increase.
+        let baselineB = baseline.flat.bounds
+        let nestedB = nested.flat.bounds
+        let baselineDiag = sqrt(pow(baselineB.max.x - baselineB.min.x, 2)
+                                  + pow(baselineB.max.y - baselineB.min.y, 2))
+        let nestedDiag = sqrt(pow(nestedB.max.x - nestedB.min.x, 2)
+                                + pow(nestedB.max.y - nestedB.min.y, 2))
+        #expect(nestedDiag <= baselineDiag * 1.001,
+                 "nested diag \(nestedDiag) should not exceed baseline \(baselineDiag)")
+    }
+
+    @Test("Multiple cubes pack into smaller bounding box than naive concatenation")
+    func multipleCubesPack() throws {
+        // Build a Result with three cube nets as separate islands.
+        let cube1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let cube2 = Shape.box(width: 6, height: 6, depth: 6)!
+        let cube3 = Shape.box(width: 4, height: 4, depth: 4)!
+        let r1 = try Unfold.polyhedral(cube1)
+        let r2 = try Unfold.polyhedral(cube2)
+        let r3 = try Unfold.polyhedral(cube3)
+        // Combine into a single Result: shift r2 and r3 way over so they're
+        // disjoint islands. Re-key faces.
+        var combinedFaces: [Int: Shape] = [:]
+        for (i, f) in r1.faces { combinedFaces[i] = f }
+        let off2 = SIMD3<Double>(60, 0, 0)
+        for (i, f) in r2.faces {
+            if let t = f.translated(by: off2) { combinedFaces[i + 100] = t }
+        }
+        let off3 = SIMD3<Double>(120, 0, 0)
+        for (i, f) in r3.faces {
+            if let t = f.translated(by: off3) { combinedFaces[i + 200] = t }
+        }
+        // No folds across islands — empty fold list keeps each as its own
+        // island under computeIslands.
+        let combined = Unfold.Result(
+            flat: r1.flat,  // unused for nesting
+            faces: combinedFaces,
+            folds: [], cuts: [], overlaps: false, rootFaceIndex: 0)
+        let beforeBounds = nestedBoundsOfFaces(combinedFaces)
+        let beforeDiag = sqrt(pow(beforeBounds.w, 2) + pow(beforeBounds.h, 2))
+
+        let packed = try Unfold.nest(combined)
+        let afterBounds = nestedBoundsOfFaces(packed.faces)
+        let afterDiag = sqrt(pow(afterBounds.w, 2) + pow(afterBounds.h, 2))
+        #expect(afterDiag < beforeDiag,
+                 "expected packed diag \(afterDiag) < before \(beforeDiag)")
+    }
+
+    @Test("Stock-bounded nesting throws when parts don't fit")
+    func stockBoundedRejection() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = try Unfold.polyhedral(cube)
+        var params = Unfold.NestingParameters(
+            stockWidth: 5, stockHeight: 5, padding: 0.1)
+        params.allowRotation = false
+        #expect(throws: Unfold.NestingError.self) {
+            _ = try Unfold.nest(result, parameters: params)
+        }
+    }
+}
+
+private func nestedBoundsOfFaces(_ faces: [Int: Shape]) -> (w: Double, h: Double) {
+    var minX = Double.infinity, minY = Double.infinity
+    var maxX = -Double.infinity, maxY = -Double.infinity
+    for (_, f) in faces {
+        let b = f.bounds
+        if b.min.x < minX { minX = b.min.x }
+        if b.min.y < minY { minY = b.min.y }
+        if b.max.x > maxX { maxX = b.max.x }
+        if b.max.y > maxY { maxY = b.max.y }
+    }
+    return (maxX - minX, maxY - minY)
+}
+
 // MARK: - Unfold overlap resolution (CP5)
 
 @Suite("Unfold overlap resolution (CP5)")
@@ -49192,6 +49277,31 @@ struct UnfoldInspectionTests {
         params.resolveOverlaps = true
         let result = try Unfold.polyhedral(ico, parameters: params)
         try writeUnfoldSVG(result, name: "CP5-icosahedron")
+    }
+
+    @Test("Export nested 3-cube layout to /tmp/unfold-CP6-cubes-packed.svg")
+    func exportNestedCubes() throws {
+        let cube1 = Shape.box(width: 10, height: 10, depth: 10)!
+        let cube2 = Shape.box(width: 6, height: 6, depth: 6)!
+        let cube3 = Shape.box(width: 4, height: 4, depth: 4)!
+        let r1 = try Unfold.polyhedral(cube1)
+        let r2 = try Unfold.polyhedral(cube2)
+        let r3 = try Unfold.polyhedral(cube3)
+        var combined: [Int: Shape] = [:]
+        for (i, f) in r1.faces { combined[i] = f }
+        let off2 = SIMD3<Double>(60, 0, 0)
+        for (i, f) in r2.faces {
+            if let t = f.translated(by: off2) { combined[i + 100] = t }
+        }
+        let off3 = SIMD3<Double>(120, 0, 0)
+        for (i, f) in r3.faces {
+            if let t = f.translated(by: off3) { combined[i + 200] = t }
+        }
+        let result = Unfold.Result(
+            flat: r1.flat, faces: combined, folds: [], cuts: [],
+            overlaps: false, rootFaceIndex: 0)
+        let nested = try Unfold.nest(result)
+        try writeUnfoldSVG(nested, name: "CP6-cubes-packed")
     }
 }
 
