@@ -2,13 +2,28 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.151.0
+## Current: v0.152.0
 
-**4,142 wrapped operations | 3,326 tests | 1,163 suites | OCCT 8.0.0-rc5**
+**4,142 wrapped operations | 3,334 tests | 1,164 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.152.0 (Apr 2026) — `FeatureReconstructor.inputBody` for chained composition (issue #87)
+
+`FeatureReconstructor.build(from:)` previously always started from an empty `BuildContext.current`, with the in-progress shape grown purely from additive feature entries. That blocks **chaining** — composing a body via one kernel API (e.g. `SheetMetal.Builder` from v0.151) and then cutting / finishing into it via the reconstructor. v0.152 makes the kernel itself accept a starting body.
+
+- **Optional `inputBody` parameter on both build entry points:** `FeatureReconstructor.build(from: specs, inputBody: Shape? = nil)` and `FeatureReconstructor.buildJSON(_:inputBody:)`. When non-nil, `BuildContext.current` is seeded with the input and the input is registered in `namedShapes` under the sentinel id `@input`. When nil, behaviour is byte-for-byte identical to v0.151.
+- **`FeatureReconstructor.inputBodySentinel`** — the literal string `@input`, exposed as a public constant so JSON envelopes and Swift callers share one source of truth. Boolean `leftID` / `rightID`, `Fillet.edgeSelector.onFeature`, and `Chamfer.edgeSelector.onFeature` all resolve `@input` via the standard `namedShapes` lookup — no separate code path. Last-write-wins semantics: a feature with `id == "@input"` shadows the seed, which is the obvious behaviour.
+- **No JSON schema change.** Downstream callers using `buildJSON` pass `inputBody:` from Swift; the JSON envelope itself is unchanged. Within the envelope, references to `@input` are just regular id strings.
+- **Stage ordering preserved.** Additive features still union onto whatever `current` is at the start of stage 1 (input or empty). Subtractive / finishing / annotation stages run with the same dispatch as v0.151. The existing `Skipped` reporting (under-determined / OCCT failure / unresolved-ref / unsupported) is unchanged.
+
+The immediate driver is the sheet-metal → reconstructor chain referenced by [OCCTSwiftScripts#13](https://github.com/gsdali/OCCTSwiftScripts/issues/13): build a bent bracket via `SheetMetal.Builder`, then drill mounting holes into it with the reconstructor's hole-placement and `Skipped` machinery. The verb-side wiring downstream is one line — `FeatureReconstructor.buildJSON(envelope, inputBody: try GraphIO.loadBREP(at: path))`.
+
+This is also the primitive the planned `Skipped` resume-from-last-good-shape behaviour will need: "given a partially-built shape, continue applying remaining specs" reduces to an `inputBody`-aware build.
+
+**Out of scope:** multi-body input lists (use `Shape.compound` upstream), round-tripping face / edge tags from prior history (gone after BREP serialisation), reverse decomposition (`Shape → [FeatureSpec]`).
 
 ### v0.151.0 (Apr 2026) — Sheet-metal composition API (issue #85)
 

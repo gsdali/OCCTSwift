@@ -196,8 +196,30 @@ public struct FeatureReconstructor: Sendable {
 
     // MARK: - Entry point
 
-    public static func build(from specs: [FeatureSpec]) -> BuildResult {
+    /// Sentinel id under which a non-nil `inputBody` is registered in
+    /// `namedShapes`. Boolean operands, fillet/chamfer `.onFeature`
+    /// selectors, and any other feature spec that references a named shape
+    /// can use this key to address the starting body. JSON envelopes can
+    /// emit it as a literal string. The leading `@` keeps it disjoint from
+    /// any feature id a caller is likely to supply; if a feature does
+    /// register an id of `"@input"`, it shadows the input under standard
+    /// last-write-wins semantics for `namedShapes`.
+    public static let inputBodySentinel = "@input"
+
+    public static func build(
+        from specs: [FeatureSpec],
+        inputBody: Shape? = nil
+    ) -> BuildResult {
         var ctx = BuildContext()
+
+        if let inputBody {
+            // Seed the in-progress shape and register the input under the
+            // sentinel id so additive (union), subtractive (cut/intersect),
+            // and finishing (fillet/chamfer .onFeature) stages can address
+            // it the same way they address any other feature output.
+            ctx.current = inputBody
+            ctx.namedShapes[inputBodySentinel] = inputBody
+        }
 
         // Stage 1: additive
         for spec in specs {
@@ -543,12 +565,17 @@ extension FeatureReconstructor {
     /// with `kind`-discriminated entries. The full schema mirrors the OCCTDesignLoop
     /// part_graph.py contract; this is a starting surface for JSON-driven
     /// dispatch, to be extended as the schema stabilises.
-    public static func buildJSON(_ data: Data) throws -> BuildResult {
+    public static func buildJSON(
+        _ data: Data,
+        inputBody: Shape? = nil
+    ) throws -> BuildResult {
         struct Envelope: Decodable {
             var features: [FeatureEntry]
         }
         let env = try JSONDecoder().decode(Envelope.self, from: data)
-        return build(from: env.features.compactMap { $0.spec })
+        return build(
+            from: env.features.compactMap { $0.spec },
+            inputBody: inputBody)
     }
 }
 
