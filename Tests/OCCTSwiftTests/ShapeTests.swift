@@ -48969,6 +48969,55 @@ struct UnfoldSheetMetalTests {
     }
 }
 
+// MARK: - Unfold overlap resolution (CP5)
+
+@Suite("Unfold overlap resolution (CP5)")
+struct UnfoldOverlapResolutionTests {
+
+    @Test("Icosahedron with resolveOverlaps fragments into islands and conserves area")
+    func icosahedronResolves() throws {
+        let ico = try #require(PlatonicSolid.icosahedron(radius: 1.0))
+        let baseline = try Unfold.polyhedral(ico)
+        #expect(baseline.overlaps,
+                "icosahedron natural unfold should self-overlap; if this changes, find a harder fixture")
+
+        var params = Unfold.Parameters()
+        params.resolveOverlaps = true
+        params.maxOverlapIterations = 30
+        let resolved = try Unfold.polyhedral(ico, parameters: params)
+
+        // Whether or not overlap is fully cleared (it's an open problem in
+        // general — Demaine & O'Rourke), the resolver MUST preserve every
+        // face and add cuts to break overlapping pairs apart.
+        #expect(resolved.faces.count == 20)
+        let areaBefore = baseline.faces.values.reduce(0.0) { $0 + (Face($1)?.area() ?? 0) }
+        let areaAfter = resolved.faces.values.reduce(0.0) { $0 + (Face($1)?.area() ?? 0) }
+        #expect(abs(areaAfter - areaBefore) < 1e-2 * areaBefore,
+                 "expected area preservation; baseline=\(areaBefore), resolved=\(areaAfter)")
+        // Resolver added cuts.
+        #expect(resolved.cuts.count > baseline.cuts.count,
+                 "expected resolveOverlaps to add cuts; baseline=\(baseline.cuts.count) resolved=\(resolved.cuts.count)")
+        // Folds reduced — each new cut removes one fold.
+        #expect(resolved.folds.count < baseline.folds.count)
+    }
+
+    @Test("Cube with resolveOverlaps still produces single connected net")
+    func cubeNoChangeUnderResolve() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let baseline = try Unfold.polyhedral(cube)
+        // Cube's natural unfold doesn't overlap.
+        #expect(!baseline.overlaps)
+
+        var params = Unfold.Parameters()
+        params.resolveOverlaps = true
+        let resolved = try Unfold.polyhedral(cube, parameters: params)
+        // Should be identical (no extra cuts added).
+        #expect(resolved.faces.count == 6)
+        #expect(resolved.folds.count == 5)
+        #expect(resolved.cuts.count == baseline.cuts.count)
+    }
+}
+
 // MARK: - Unfold solid via mid-surface (CP4)
 
 @Suite("Unfold solid via mid-surface (CP4)")
@@ -49134,6 +49183,15 @@ struct UnfoldInspectionTests {
         let sheet = Unfold.SheetMetalParameters(thickness: 1.0, kFactor: 0.44)
         let result = try Unfold.solid(thick, parameters: .init(), sheet: sheet)
         try writeUnfoldSVG(result, name: "CP4-thick-l-bracket")
+    }
+
+    @Test("Export resolved icosahedron net to /tmp/unfold-CP5-icosahedron.svg")
+    func exportResolvedIcosahedron() throws {
+        let ico = try #require(PlatonicSolid.icosahedron(radius: 1.0))
+        var params = Unfold.Parameters()
+        params.resolveOverlaps = true
+        let result = try Unfold.polyhedral(ico, parameters: params)
+        try writeUnfoldSVG(result, name: "CP5-icosahedron")
     }
 }
 

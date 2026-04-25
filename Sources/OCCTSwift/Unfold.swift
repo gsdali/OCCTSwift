@@ -78,17 +78,26 @@ public enum Unfold {
         /// CP5's overlap-resolution will respect this hint.
         public var pinnedFolds: Set<EdgeIdentifier>
         public var tolerance: Double
+        /// CP5: when true, `polyhedral(_:)` iteratively cuts edges to
+        /// resolve self-overlaps. Each iteration adds one cut; up to
+        /// `maxOverlapIterations` iterations are performed before giving up.
+        public var resolveOverlaps: Bool
+        public var maxOverlapIterations: Int
 
         public init(
             rootFaceIndex: Int? = nil,
             pinnedCuts: Set<EdgeIdentifier> = [],
             pinnedFolds: Set<EdgeIdentifier> = [],
-            tolerance: Double = 1e-7
+            tolerance: Double = 1e-7,
+            resolveOverlaps: Bool = false,
+            maxOverlapIterations: Int = 30
         ) {
             self.rootFaceIndex = rootFaceIndex
             self.pinnedCuts = pinnedCuts
             self.pinnedFolds = pinnedFolds
             self.tolerance = tolerance
+            self.resolveOverlaps = resolveOverlaps
+            self.maxOverlapIterations = maxOverlapIterations
         }
     }
 
@@ -145,9 +154,62 @@ public enum Unfold {
     ///
     /// Throws `nonPlanarFace` if any face is not planar; for cylinders, cones,
     /// and other developables, see `developable(_:)` (future checkpoint).
+    ///
+    /// CP5: when `parameters.resolveOverlaps` is true, the unfolder
+    /// iteratively cuts the middle edge of the spanning-tree path between
+    /// overlapping face pairs and re-runs the BFS, splitting the result into
+    /// non-overlapping islands. Up to `parameters.maxOverlapIterations`
+    /// cuts are added before giving up; if iteration exits with overlaps
+    /// still present, the result still has `overlaps == true`.
     public static func polyhedral(
         _ shape: Shape,
         parameters: Parameters = .init()
+    ) throws -> Result {
+        if !parameters.resolveOverlaps {
+            return try polyhedralOnce(shape, parameters: parameters)
+        }
+        // Iterate, growing pinnedCuts until overlap clears or the cut budget
+        // is exhausted. The strategy is "pin B's tree-parent edge" — when a
+        // pair (A, B) overlaps, we promote B to its own island next round
+        // by cutting the edge that brought it into A's tree.
+        var params = parameters
+        params.resolveOverlaps = false
+        var lastResult: Result?
+        var addedCuts: Set<EdgeIdentifier> = []
+        for _ in 0..<parameters.maxOverlapIterations {
+            let result = try polyhedralOnce(shape, parameters: params)
+            lastResult = result
+            if !result.overlaps { break }
+            guard let edgeToCut = pickEdgeToIsolateOverlap(result) else { break }
+            if !params.pinnedCuts.insert(edgeToCut).inserted { break }
+            addedCuts.insert(edgeToCut)
+        }
+        // Merge added cuts into the final result so callers can see them.
+        guard var final = lastResult else {
+            return try polyhedralOnce(shape, parameters: params)
+        }
+        if !addedCuts.isEmpty {
+            var combined = final.cuts
+            let existing = Set(final.cuts)
+            for c in addedCuts where !existing.contains(c) {
+                combined.append(c)
+            }
+            final = Result(
+                flat: final.flat,
+                faces: final.faces,
+                folds: final.folds,
+                cuts: combined,
+                overlaps: final.overlaps,
+                rootFaceIndex: final.rootFaceIndex
+            )
+        }
+        return final
+    }
+
+    /// Single-pass polyhedral unfold (no overlap iteration).
+    private static func polyhedralOnce(
+        _ shape: Shape,
+        parameters: Parameters
     ) throws -> Result {
         let faceShapes = shape.subShapes(ofType: .face)
         guard !faceShapes.isEmpty else { throw UnfoldError.noFaces }
@@ -218,55 +280,92 @@ public enum Unfold {
         }
 
         var transform: [simd_double4x4?] = Array(repeating: nil, count: faces.count)
-        transform[rootIdx] = laydownTransform(face: faces[rootIdx])
-
         var folds: [FoldEdge] = []
         var foldEdges: Set<EdgeIdentifier> = []
         var cuts: [EdgeIdentifier] = []
         var cutSet: Set<EdgeIdentifier> = []
-        var visited: Set<Int> = [rootIdx]
-        var queue: [Int] = [rootIdx]
-        var head = 0
-
-        while head < queue.count {
-            let parent = queue[head]
-            head += 1
-            let parentT = transform[parent]!
-            let parentNormalLaid = transformNormal(parentT, faces[parent].normal)
-
-            for (child, edgeIdx) in adjacency[parent] {
-                let id = EdgeIdentifier(shapeHash: shapeHash, edgeIndex: edgeIdx)
-                if foldEdges.contains(id) { continue }
-                if visited.contains(child) {
-                    if cutSet.insert(id).inserted {
-                        cuts.append(id)
-                    }
-                    continue
-                }
-                visited.insert(child)
-
-                let edge = edges[edgeIdx]
-                let edgeStartLaid = transformPoint(parentT, edge.endpoints.start)
-                let edgeEndLaid = transformPoint(parentT, edge.endpoints.end)
-                let childNormalLaid = transformNormal(parentT, faces[child].normal)
-
-                let unfoldRot = rotationMatrix(
-                    axisStart: edgeStartLaid,
-                    axisEnd: edgeEndLaid,
-                    fromNormal: childNormalLaid,
-                    toNormal: parentNormalLaid
-                )
-                let childT = unfoldRot.matrix * parentT
-                transform[child] = childT
-                foldEdges.insert(id)
-                folds.append(FoldEdge(
-                    edge: id,
-                    parentFaceIndex: parent,
-                    childFaceIndex: child,
-                    dihedralAngle: unfoldRot.angle
-                ))
-                queue.append(child)
+        var visited: Set<Int> = []
+        // Forest BFS: when pinned cuts disconnect the dual graph into
+        // multiple components, lay each as its own island. The first
+        // component starts at `rootIdx`; subsequent components pick the
+        // largest unvisited face as their root and offset its laydown
+        // along +X past the prior islands' bounding boxes.
+        var nextIslandX: Double = 0
+        let islandPadding: Double = 1.0
+        var firstRoot = rootIdx
+        while true {
+            let root: Int
+            if visited.isEmpty {
+                root = firstRoot
+            } else if let r = faces.indices
+                .filter({ !visited.contains($0) })
+                .max(by: { faces[$0].area < faces[$1].area }) {
+                root = r
+            } else {
+                break
             }
+            // Lay this island's root at (nextIslandX, 0) plus its laydown.
+            var rootT = laydownTransform(face: faces[root])
+            if !visited.isEmpty {
+                rootT = translation(SIMD3(nextIslandX, 0, 0)) * rootT
+            }
+            transform[root] = rootT
+            visited.insert(root)
+            firstRoot = root // last seed (used to set rootFaceIndex on result)
+
+            var queue: [Int] = [root]
+            var head = 0
+            while head < queue.count {
+                let parent = queue[head]; head += 1
+                let parentT = transform[parent]!
+                let parentNormalLaid = transformNormal(parentT, faces[parent].normal)
+                for (child, edgeIdx) in adjacency[parent] {
+                    let id = EdgeIdentifier(shapeHash: shapeHash, edgeIndex: edgeIdx)
+                    if foldEdges.contains(id) { continue }
+                    if visited.contains(child) {
+                        if cutSet.insert(id).inserted { cuts.append(id) }
+                        continue
+                    }
+                    visited.insert(child)
+                    let edge = edges[edgeIdx]
+                    let edgeStartLaid = transformPoint(parentT, edge.endpoints.start)
+                    let edgeEndLaid = transformPoint(parentT, edge.endpoints.end)
+                    let childNormalLaid = transformNormal(parentT, faces[child].normal)
+                    let unfoldRot = rotationMatrix(
+                        axisStart: edgeStartLaid,
+                        axisEnd: edgeEndLaid,
+                        fromNormal: childNormalLaid,
+                        toNormal: parentNormalLaid
+                    )
+                    let childT = unfoldRot.matrix * parentT
+                    transform[child] = childT
+                    foldEdges.insert(id)
+                    folds.append(FoldEdge(
+                        edge: id,
+                        parentFaceIndex: parent,
+                        childFaceIndex: child,
+                        dihedralAngle: unfoldRot.angle
+                    ))
+                    queue.append(child)
+                }
+            }
+
+            // Advance island cursor past the laid components' actual bbox
+            // (in 2D). Use the exact post-transform bounds rather than a
+            // radius-of-area proxy — for highly anisotropic faces (long
+            // strips) the proxy under-estimates extent.
+            var maxX = -Double.infinity
+            for i in faces.indices {
+                guard let t = transform[i] else { continue }
+                let mat = matrix12(from: t)
+                guard let laid = faces[i].shape.transformed(matrix: mat) else { continue }
+                let b = laid.bounds
+                if b.max.x > maxX { maxX = b.max.x }
+            }
+            if maxX.isFinite {
+                nextIslandX = maxX + islandPadding
+            }
+            if visited.count == faces.count { break }
         }
 
         var laidShapes: [Int: Shape] = [:]
@@ -1129,6 +1228,104 @@ private func buildPlanarFace(from points2D: [SIMD2<Double>]) throws -> Shape {
     return face
 }
 
+// MARK: - CP5 overlap-resolution helpers
+
+/// Pick an edge to cut to **isolate** one of the overlapping faces from its
+/// tree parent — that face becomes a new island root next iteration. This
+/// is more aggressive than `pickEdgeToCutForOverlap` and converges faster
+/// on highly-connected dual graphs (e.g. the icosahedron) where cutting
+/// arbitrary middle edges of A→B paths just reroutes the same overlap.
+private func pickEdgeToIsolateOverlap(
+    _ result: Unfold.Result
+) -> Unfold.EdgeIdentifier? {
+    let eps: Double = 1e-4
+    let entries = result.faces.map { (index: $0.key, shape: $0.value) }
+    var parentEdge: [Int: Unfold.EdgeIdentifier] = [:]
+    for fold in result.folds {
+        parentEdge[fold.childFaceIndex] = fold.edge
+    }
+    for i in 0..<entries.count {
+        for j in (i + 1)..<entries.count {
+            let a = entries[i].shape.bounds
+            let b = entries[j].shape.bounds
+            let xOverlap = a.min.x <= b.max.x - eps && b.min.x <= a.max.x - eps
+            let yOverlap = a.min.y <= b.max.y - eps && b.min.y <= a.max.y - eps
+            if xOverlap && yOverlap {
+                // Prefer to isolate the face that has a parent edge (i.e.,
+                // is not itself a root). Try j first, fall back to i.
+                if let edge = parentEdge[entries[j].index] { return edge }
+                if let edge = parentEdge[entries[i].index] { return edge }
+            }
+        }
+    }
+    return nil
+}
+
+/// Pick an edge to cut to resolve a face-pair overlap. Returns the middle
+/// edge of the spanning-tree path between the first overlapping pair.
+private func pickEdgeToCutForOverlap(
+    _ result: Unfold.Result
+) -> Unfold.EdgeIdentifier? {
+    let eps: Double = 1e-4 // match anyBoundingBoxOverlap's threshold
+    let entries = result.faces.map { (index: $0.key, shape: $0.value) }
+    for i in 0..<entries.count {
+        for j in (i + 1)..<entries.count {
+            let a = entries[i].shape.bounds
+            let b = entries[j].shape.bounds
+            let xOverlap = a.min.x <= b.max.x - eps && b.min.x <= a.max.x - eps
+            let yOverlap = a.min.y <= b.max.y - eps && b.min.y <= a.max.y - eps
+            if xOverlap && yOverlap {
+                let path = treePath(
+                    from: entries[i].index,
+                    to: entries[j].index,
+                    folds: result.folds
+                )
+                guard !path.isEmpty else { continue }
+                return path[path.count / 2]
+            }
+        }
+    }
+    return nil
+}
+
+/// Walk the BFS spanning tree (encoded by `folds`) to find the edge path
+/// from face `a` to face `b`. Returns the edges on that path in order.
+private func treePath(
+    from a: Int,
+    to b: Int,
+    folds: [Unfold.FoldEdge]
+) -> [Unfold.EdgeIdentifier] {
+    var parent: [Int: (parent: Int, edge: Unfold.EdgeIdentifier)] = [:]
+    for fold in folds {
+        parent[fold.childFaceIndex] = (fold.parentFaceIndex, fold.edge)
+    }
+    // Ancestors of a, including a itself.
+    var ancestorsA: Set<Int> = [a]
+    var node = a
+    while let p = parent[node]?.parent {
+        ancestorsA.insert(p); node = p
+    }
+    // Walk up from b until hitting an ancestor of a — that's the LCA.
+    var lca = b
+    while !ancestorsA.contains(lca) {
+        guard let p = parent[lca]?.parent else { return [] }
+        lca = p
+    }
+    // Path a → LCA.
+    var aPath: [Unfold.EdgeIdentifier] = []
+    node = a
+    while node != lca, let pe = parent[node] {
+        aPath.append(pe.edge); node = pe.parent
+    }
+    // Path b → LCA.
+    var bPath: [Unfold.EdgeIdentifier] = []
+    node = b
+    while node != lca, let pe = parent[node] {
+        bPath.append(pe.edge); node = pe.parent
+    }
+    return aPath + bPath
+}
+
 // MARK: - Internal types
 
 private struct FaceInfo {
@@ -1274,12 +1471,17 @@ private func matrix12(from m: simd_double4x4) -> [Double] {
 
 private func anyBoundingBoxOverlap(in shapes: [Shape], tolerance: Double) -> Bool {
     guard shapes.count > 1 else { return false }
+    // OCCT's `Shape.transformed(matrix:)` introduces ~1e-7 numerical noise
+    // in face bounds. Use an effective overlap threshold above that noise
+    // floor so that adjacent faces sharing an edge don't register as
+    // overlapping.
+    let eps = max(tolerance, 1e-4)
     let boxes = shapes.map { $0.bounds }
     for i in 0..<boxes.count {
         for j in (i + 1)..<boxes.count {
             let a = boxes[i], b = boxes[j]
-            let xOverlap = a.min.x <= b.max.x - tolerance && b.min.x <= a.max.x - tolerance
-            let yOverlap = a.min.y <= b.max.y - tolerance && b.min.y <= a.max.y - tolerance
+            let xOverlap = a.min.x <= b.max.x - eps && b.min.x <= a.max.x - eps
+            let yOverlap = a.min.y <= b.max.y - eps && b.min.y <= a.max.y - eps
             if xOverlap && yOverlap {
                 return true
             }
