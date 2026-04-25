@@ -95,6 +95,7 @@ public enum Unfold {
     public enum UnfoldError: Error, Sendable {
         case noFaces
         case nonPlanarFace(faceIndex: Int)
+        case nonDevelopableFace(faceIndex: Int)
         case missingNormal(faceIndex: Int)
         case bridgeFailed(stage: String)
         case rootIndexOutOfRange(Int, faceCount: Int)
@@ -260,6 +261,246 @@ public enum Unfold {
             rootFaceIndex: rootIdx
         )
     }
+}
+
+// MARK: - Multi-face developable shells (CP2)
+
+extension Unfold {
+    /// Tier 2 — unfold a shell that may contain planar, cylindrical, and
+    /// conical faces.
+    ///
+    /// Behaviour:
+    /// - **All faces planar** — equivalent to `polyhedral(_:)`. Returns a
+    ///   single connected net.
+    /// - **Mixed planar + developable** — every face is developed
+    ///   independently using `develop(face:)`, then laid out as disjoint
+    ///   islands along the X axis with `parameters.tolerance` padding.
+    ///   Shared edges between developable and planar faces are not folded
+    ///   in this checkpoint; that's CP3's job (sheet-metal composite, where
+    ///   the bend allowance and K-factor turn cylindrical fillets into
+    ///   correctly-attached planar strips).
+    /// - **Any non-developable face** (sphere, torus, generic BSpline, …) —
+    ///   throws `nonDevelopableFace`.
+    ///
+    /// For a closed cylinder (1 cylindrical side + 2 planar caps) this
+    /// returns 3 islands: a `2πR × h` rectangle and two disks. For a closed
+    /// cone, 2 islands. For a hex prism, 8 connected planar faces (via the
+    /// polyhedral path).
+    public static func developable(
+        _ shape: Shape,
+        parameters: Parameters = .init()
+    ) throws -> Result {
+        let faceShapes = shape.subShapes(ofType: .face)
+        guard !faceShapes.isEmpty else { throw UnfoldError.noFaces }
+
+        var allPlanar = true
+        for (i, fs) in faceShapes.enumerated() {
+            guard let f = Face(fs) else {
+                throw UnfoldError.bridgeFailed(stage: "Face from shape #\(i)")
+            }
+            switch f.surfaceType {
+            case .plane:
+                break
+            case .cylinder, .cone:
+                allPlanar = false
+            default:
+                throw UnfoldError.nonDevelopableFace(faceIndex: i)
+            }
+        }
+
+        if allPlanar {
+            return try polyhedral(shape, parameters: parameters)
+        }
+
+        // Mixed shell: develop each face, lay out as side-by-side islands.
+        let padding: Double = max(parameters.tolerance, 1.0)
+        var laid: [Int: Shape] = [:]
+        var laidArray: [Shape] = []
+        var cursorX = 0.0
+        for (i, fs) in faceShapes.enumerated() {
+            let dev = try develop(face: fs, samples: 64)
+            let b = dev.bounds
+            let dx = cursorX - b.min.x
+            let dy = -b.min.y
+            guard let placed = dev.translated(by: SIMD3(dx, dy, 0)) else {
+                throw UnfoldError.bridgeFailed(stage: "place island #\(i)")
+            }
+            laid[i] = placed
+            laidArray.append(placed)
+            cursorX = placed.bounds.max.x + padding
+        }
+
+        let compound: Shape
+        if laidArray.count == 1 {
+            compound = laidArray[0]
+        } else if let c = Shape.compound(laidArray) {
+            compound = c
+        } else {
+            throw UnfoldError.bridgeFailed(stage: "compound islands")
+        }
+
+        return Result(
+            flat: compound,
+            faces: laid,
+            folds: [],
+            cuts: [],
+            overlaps: false,
+            rootFaceIndex: 0
+        )
+    }
+}
+
+// MARK: - Single-face development (CP2)
+
+extension Unfold {
+    /// Develop a single face into a 2D face on the XY plane.
+    ///
+    /// Supported surface types:
+    /// - **Plane** — laid flat using the same rigid transform as `polyhedral`.
+    /// - **Cylinder** — boundary is sampled along its `(u, v)` parametric
+    ///   curves and mapped to `(R · u, v)`.
+    /// - **Cone** — boundary points map to polar coordinates around the apex:
+    ///   slant length `s = |P − apex|` becomes the 2D radius and the angular
+    ///   position `u` is multiplied by `sin(α)` to get the developed angle.
+    ///   Frusta and full cones use the same code path.
+    ///
+    /// Other developable types (`SurfaceOfExtrusion` along a line,
+    /// `SurfaceOfRevolution` of a line, ruled tangent-plane developables) are
+    /// not yet supported; they throw `nonDevelopableFace`.
+    ///
+    /// `samples` controls how many points are sampled along each curved
+    /// boundary edge. Straight edges always use 2 points.
+    public static func develop(face faceShape: Shape, samples: Int = 64) throws -> Shape {
+        guard let face = Face(faceShape) else {
+            throw UnfoldError.bridgeFailed(stage: "Face from shape")
+        }
+        switch face.surfaceType {
+        case .plane:
+            return try developPlane(faceShape: faceShape, face: face)
+        case .cylinder:
+            return try developCylinder(faceShape: faceShape, face: face, samples: samples)
+        case .cone:
+            return try developCone(faceShape: faceShape, face: face, samples: samples)
+        default:
+            throw UnfoldError.nonDevelopableFace(faceIndex: face.index)
+        }
+    }
+}
+
+// MARK: - Per-surface development helpers (CP2)
+
+private func developPlane(faceShape: Shape, face: Face) throws -> Shape {
+    guard let n = face.normal else {
+        throw Unfold.UnfoldError.missingNormal(faceIndex: face.index)
+    }
+    let origin = face.outerWire?.edges().first?.endpoints.start ?? faceShape.center
+    let info = FaceInfo(shape: faceShape, normal: simd_normalize(n), origin: origin, area: face.area())
+    let m = matrix12(from: laydownTransform(face: info))
+    guard let flat = faceShape.transformed(matrix: m) else {
+        throw Unfold.UnfoldError.bridgeFailed(stage: "transform planar face")
+    }
+    return flat
+}
+
+private func developCylinder(faceShape: Shape, face: Face, samples: Int) throws -> Shape {
+    guard let surface = faceShape.faceSurfaceGeom() else {
+        throw Unfold.UnfoldError.bridgeFailed(stage: "cylinder surface")
+    }
+    let R = surface.cylinderProperties.radius
+    let pts = try sampledUVRectBoundary(face: face, samples: samples) { uv in
+        SIMD2(R * uv.x, uv.y)
+    }
+    return try buildPlanarFace(from: pts)
+}
+
+private func developCone(faceShape: Shape, face: Face, samples: Int) throws -> Shape {
+    guard let surface = faceShape.faceSurfaceGeom() else {
+        throw Unfold.UnfoldError.bridgeFailed(stage: "cone surface")
+    }
+    let cone = surface.coneProperties
+    let apex = cone.apex
+    let sinHalf = sin(cone.semiAngle)
+    let pts = try sampledUVRectBoundary(face: face, samples: samples) { uv in
+        guard let p3 = face.point(atU: uv.x, v: uv.y) else { return nil }
+        let s = simd_length(p3 - apex)
+        let theta = uv.x * sinHalf
+        return SIMD2(s * cos(theta), s * sin(theta))
+    }
+    return try buildPlanarFace(from: pts)
+}
+
+/// Sample the boundary of the face's `(u, v)` parameter-space rectangle and
+/// map each sample through `map`. Robust against seam edges (where the same
+/// `TopoDS_Edge` would appear twice in the wire walk with different
+/// orientations) because we never look at the topology — we walk the
+/// parameter rectangle `[uMin, uMax] × [vMin, vMax]` directly.
+///
+/// Side order: bottom (vMin, u increasing) → right (uMax, v increasing) →
+/// top (vMax, u decreasing) → left (uMin, v decreasing). Counter-clockwise
+/// in `(u, v)` space; the mapping function determines the resulting 2D
+/// winding.
+///
+/// Caveat: works for primitives whose boundary is exactly the parameter
+/// rectangle (full cylinders, cones, frusta, partial sections). Faces with
+/// trimmed inner wires (holes) or non-rectangular parameter-domain
+/// boundaries need pcurve-based walking — out of scope for CP2.
+private func sampledUVRectBoundary(
+    face: Face,
+    samples: Int,
+    map: (SIMD2<Double>) -> SIMD2<Double>?
+) throws -> [SIMD2<Double>] {
+    guard let bounds = face.uvBounds else {
+        throw Unfold.UnfoldError.bridgeFailed(stage: "face uvBounds")
+    }
+    let uMin = bounds.uMin, uMax = bounds.uMax
+    let vMin = bounds.vMin, vMax = bounds.vMax
+    let n = max(2, samples)
+
+    var points: [SIMD2<Double>] = []
+    func append(_ uv: SIMD2<Double>) {
+        guard let p = map(uv) else { return }
+        if let last = points.last, simd_length(p - last) < 1e-9 { return }
+        points.append(p)
+    }
+    // Bottom: u from uMin to uMax at v = vMin.
+    for i in 0..<n {
+        let t = Double(i) / Double(n - 1)
+        append(SIMD2(uMin + (uMax - uMin) * t, vMin))
+    }
+    // Right: v from vMin to vMax at u = uMax.
+    for i in 1..<n {
+        let t = Double(i) / Double(n - 1)
+        append(SIMD2(uMax, vMin + (vMax - vMin) * t))
+    }
+    // Top: u from uMax to uMin at v = vMax.
+    for i in 1..<n {
+        let t = Double(i) / Double(n - 1)
+        append(SIMD2(uMax - (uMax - uMin) * t, vMax))
+    }
+    // Left: v from vMax to vMin at u = uMin.
+    for i in 1..<n {
+        let t = Double(i) / Double(n - 1)
+        append(SIMD2(uMin, vMax - (vMax - vMin) * t))
+    }
+    if let first = points.first, let last = points.last,
+       points.count > 1, simd_length(last - first) < 1e-9 {
+        points.removeLast()
+    }
+    return points
+}
+
+private func buildPlanarFace(from points2D: [SIMD2<Double>]) throws -> Shape {
+    guard points2D.count >= 3 else {
+        throw Unfold.UnfoldError.bridgeFailed(stage: "develop boundary too short")
+    }
+    let pts3D = points2D.map { SIMD3<Double>($0.x, $0.y, 0) }
+    guard let wire = Wire.polygon3D(pts3D, closed: true) else {
+        throw Unfold.UnfoldError.bridgeFailed(stage: "develop wire")
+    }
+    guard let face = Shape.face(from: wire, planar: true) else {
+        throw Unfold.UnfoldError.bridgeFailed(stage: "develop face")
+    }
+    return face
 }
 
 // MARK: - Internal types

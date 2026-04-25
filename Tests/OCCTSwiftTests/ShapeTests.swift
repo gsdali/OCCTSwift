@@ -48546,6 +48546,194 @@ struct UnfoldPolyhedralTests {
     }
 }
 
+// MARK: - Unfold develop (CP2: single-face analytic development)
+
+@Suite("Unfold develop (CP2)")
+struct UnfoldDevelopTests {
+
+    /// Find the first face matching `surfaceType` in a shape.
+    private func face(of type: Face.SurfaceType, in shape: Shape) -> Shape? {
+        for fs in shape.subShapes(ofType: .face) {
+            if let f = Face(fs), f.surfaceType == type { return fs }
+        }
+        return nil
+    }
+
+    @Test("Cylindrical face develops to rectangle of 2πR × h")
+    func cylinderDevelops() throws {
+        let R = 5.0, h = 10.0
+        let cyl = Shape.cylinder(radius: R, height: h)!
+        let cylFace = try #require(face(of: .cylinder, in: cyl))
+        let flat = try Unfold.develop(face: cylFace)
+
+        let b = flat.bounds
+        let width = b.max.x - b.min.x
+        let height = b.max.y - b.min.y
+        #expect(abs(b.min.z) < 1e-6 && abs(b.max.z) < 1e-6)
+        #expect(abs(width - 2 * .pi * R) < 1e-3, "expected 2πR width, got \(width)")
+        #expect(abs(height - h) < 1e-3, "expected height \(h), got \(height)")
+        // Area conservation: 3D cylindrical surface area = 2πRh.
+        if let face2D = Face(flat) {
+            let expected = 2 * .pi * R * h
+            #expect(abs(face2D.area() - expected) < 1e-2 * expected,
+                     "expected area \(expected), got \(face2D.area())")
+        }
+    }
+
+    @Test("Conical face develops to annular sector with correct apex distance")
+    func coneDevelops() throws {
+        // Build a closed cone: radius1 at bottom, radius2 at top, height h.
+        // Use Shape.cone(...) if available; otherwise revolve.
+        let R = 4.0, h = 6.0
+        // Closed cone with apex at top (radius 0), base radius R.
+        let cone = Shape.cone(bottomRadius: R, topRadius: 0, height: h)!
+        let coneFace = try #require(face(of: .cone, in: cone))
+        let flat = try Unfold.develop(face: coneFace)
+
+        let b = flat.bounds
+        #expect(abs(b.min.z) < 1e-6 && abs(b.max.z) < 1e-6)
+        // Expected: an annular sector with outer radius = slant length = √(R² + h²)
+        // and angular extent 2π · sinα where α is the cone half-angle = atan(R/h).
+        let slant = sqrt(R * R + h * h)
+        let alpha = atan2(R, h)
+        let theta = 2 * .pi * sin(alpha)
+        // Bounding box width upper bound: 2 * slant. The actual bounds depend
+        // on where the sector starts. We at least expect it to fit in
+        // 2*slant × 2*slant.
+        #expect(b.max.x - b.min.x <= 2 * slant + 1e-3)
+        #expect(b.max.y - b.min.y <= 2 * slant + 1e-3)
+        // Area conservation: 3D cone lateral area = π · R · slant.
+        if let face2D = Face(flat) {
+            let expected = .pi * R * slant
+            #expect(abs(face2D.area() - expected) < 1e-2 * expected,
+                     "expected cone area \(expected), got \(face2D.area())")
+        }
+        _ = theta // Used in commentary; kept to document intent.
+    }
+
+    @Test("Frustum face develops to annular sector with hole")
+    func frustumDevelops() throws {
+        let R1 = 4.0, R2 = 2.0, h = 5.0
+        let frustum = Shape.cone(bottomRadius: R1, topRadius: R2, height: h)!
+        let coneFace = try #require(face(of: .cone, in: frustum))
+        let flat = try Unfold.develop(face: coneFace)
+
+        // Lateral area of frustum = π · (R1 + R2) · slant where slant =
+        // √((R1−R2)² + h²).
+        let slant = sqrt((R1 - R2) * (R1 - R2) + h * h)
+        let expected = .pi * (R1 + R2) * slant
+        if let face2D = Face(flat) {
+            #expect(abs(face2D.area() - expected) < 1e-2 * expected,
+                     "expected frustum area \(expected), got \(face2D.area())")
+        }
+    }
+
+    @Test("Planar face develops to itself (rigid transform)")
+    func planarDevelops() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let topFace = try #require(face(of: .plane, in: cube))
+        let flat = try Unfold.develop(face: topFace)
+        let b = flat.bounds
+        #expect(abs(b.min.z) < 1e-6 && abs(b.max.z) < 1e-6)
+        let width = b.max.x - b.min.x
+        let height = b.max.y - b.min.y
+        #expect(abs(width - 10) < 1e-6)
+        #expect(abs(height - 10) < 1e-6)
+    }
+
+    @Test("Closed cylinder develops to 3 islands (rectangle + 2 disks)")
+    func closedCylinderIslands() throws {
+        let R = 5.0, h = 10.0
+        let cyl = Shape.cylinder(radius: R, height: h)!
+        let result = try Unfold.developable(cyl)
+        // 3 faces in, 3 islands out.
+        #expect(result.faces.count == 3)
+        // No folds (all shared edges are circles, forced cuts).
+        #expect(result.folds.isEmpty)
+        // Total 2D area = lateral 2πRh + 2·πR².
+        var totalArea = 0.0
+        for (_, flat) in result.faces {
+            if let f = Face(flat) { totalArea += f.area() }
+        }
+        let expected = 2 * .pi * R * h + 2 * .pi * R * R
+        #expect(abs(totalArea - expected) < 1e-2 * expected,
+                 "expected \(expected), got \(totalArea)")
+    }
+
+    @Test("Closed frustum develops to 3 islands (annular + 2 disks)")
+    func closedFrustumIslands() throws {
+        let R1 = 4.0, R2 = 2.0, h = 5.0
+        let frustum = Shape.cone(bottomRadius: R1, topRadius: R2, height: h)!
+        let result = try Unfold.developable(frustum)
+        #expect(result.faces.count == 3)
+        let slant = sqrt((R1 - R2) * (R1 - R2) + h * h)
+        let lateral = .pi * (R1 + R2) * slant
+        let bottom = .pi * R1 * R1
+        let top = .pi * R2 * R2
+        let expected = lateral + bottom + top
+        var totalArea = 0.0
+        for (_, flat) in result.faces {
+            if let f = Face(flat) { totalArea += f.area() }
+        }
+        #expect(abs(totalArea - expected) < 1e-2 * expected,
+                 "expected \(expected), got \(totalArea)")
+    }
+
+    @Test("Hex prism (all-planar) routes through polyhedral")
+    func hexPrismRoutesToPolyhedral() throws {
+        // Build a regular hexagonal prism via 6 rectangular sides + 2 hexagons.
+        let R = 5.0, h = 8.0
+        var topVerts: [SIMD3<Double>] = []
+        var botVerts: [SIMD3<Double>] = []
+        for i in 0..<6 {
+            let a = Double(i) * .pi / 3.0
+            topVerts.append(SIMD3(R * cos(a), R * sin(a), h))
+            botVerts.append(SIMD3(R * cos(a), R * sin(a), 0))
+        }
+        var faces: [Shape] = []
+        // Side rectangles
+        for i in 0..<6 {
+            let j = (i + 1) % 6
+            let pts = [botVerts[i], botVerts[j], topVerts[j], topVerts[i]]
+            guard let wire = Wire.polygon3D(pts, closed: true),
+                  let face = Shape.face(from: wire) else {
+                throw Unfold.UnfoldError.bridgeFailed(stage: "hex side #\(i)")
+            }
+            faces.append(face)
+        }
+        // Top + bottom hexagons (CCW from outside)
+        guard let topWire = Wire.polygon3D(topVerts, closed: true),
+              let topFace = Shape.face(from: topWire),
+              let botWire = Wire.polygon3D(botVerts.reversed(), closed: true),
+              let botFace = Shape.face(from: botWire) else {
+            throw Unfold.UnfoldError.bridgeFailed(stage: "hex caps")
+        }
+        faces.append(topFace)
+        faces.append(botFace)
+        let prism = try #require(Shape.sew(shapes: faces, tolerance: 1e-6))
+
+        let result = try Unfold.developable(prism)
+        #expect(result.faces.count == 8)
+        // Connected via polyhedral → folds = 7 (8 faces, spanning tree).
+        #expect(result.folds.count == 7)
+    }
+
+    @Test("Sphere is rejected as non-developable")
+    func sphereRejected() {
+        let sphere = Shape.sphere(radius: 5)!
+        // Sphere has a single face with surfaceType == .sphere
+        for fs in sphere.subShapes(ofType: .face) {
+            if let f = Face(fs), f.surfaceType == .sphere {
+                #expect(throws: Unfold.UnfoldError.self) {
+                    _ = try Unfold.develop(face: fs)
+                }
+                return
+            }
+        }
+        Issue.record("Could not find sphere face")
+    }
+}
+
 // MARK: - Unfold inspection (writes SVG to /tmp for visual review)
 
 @Suite("Unfold inspection (CP1)")
@@ -48555,33 +48743,93 @@ struct UnfoldInspectionTests {
     func exportCubeNet() throws {
         let cube = Shape.box(width: 10, height: 10, depth: 10)!
         let result = try Unfold.polyhedral(cube)
-        try writeUnfoldSVG(result, name: "cube")
+        try writeUnfoldSVG(result, name: "CP1-cube")
     }
 
     @Test("Export tetrahedron net to /tmp/unfold-CP1-tetrahedron.svg")
     func exportTetrahedronNet() throws {
         let tet = try #require(PlatonicSolid.tetrahedron(edge: 2.0))
         let result = try Unfold.polyhedral(tet)
-        try writeUnfoldSVG(result, name: "tetrahedron")
+        try writeUnfoldSVG(result, name: "CP1-tetrahedron")
     }
 
     @Test("Export octahedron net to /tmp/unfold-CP1-octahedron.svg")
     func exportOctahedronNet() throws {
         let oct = try #require(PlatonicSolid.octahedron(radius: 1.0))
         let result = try Unfold.polyhedral(oct)
-        try writeUnfoldSVG(result, name: "octahedron")
+        try writeUnfoldSVG(result, name: "CP1-octahedron")
     }
 
     @Test("Export icosahedron net to /tmp/unfold-CP1-icosahedron.svg")
     func exportIcosahedronNet() throws {
         let ico = try #require(PlatonicSolid.icosahedron(radius: 1.0))
         let result = try Unfold.polyhedral(ico)
-        try writeUnfoldSVG(result, name: "icosahedron")
+        try writeUnfoldSVG(result, name: "CP1-icosahedron")
+    }
+
+    @Test("Export developed cylinder to /tmp/unfold-CP2-cylinder.svg")
+    func exportCylinderDevelop() throws {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        for fs in cyl.subShapes(ofType: .face) {
+            if let f = Face(fs), f.surfaceType == .cylinder {
+                let flat = try Unfold.develop(face: fs)
+                try writeSingleFaceSVG(flat, name: "CP2-cylinder")
+                return
+            }
+        }
+    }
+
+    @Test("Export developed cone to /tmp/unfold-CP2-cone.svg")
+    func exportConeDevelop() throws {
+        let cone = Shape.cone(bottomRadius: 4, topRadius: 0, height: 6)!
+        for fs in cone.subShapes(ofType: .face) {
+            if let f = Face(fs), f.surfaceType == .cone {
+                let flat = try Unfold.develop(face: fs)
+                try writeSingleFaceSVG(flat, name: "CP2-cone")
+                return
+            }
+        }
+    }
+
+    @Test("Export developed frustum to /tmp/unfold-CP2-frustum.svg")
+    func exportFrustumDevelop() throws {
+        let frustum = Shape.cone(bottomRadius: 4, topRadius: 2, height: 5)!
+        for fs in frustum.subShapes(ofType: .face) {
+            if let f = Face(fs), f.surfaceType == .cone {
+                let flat = try Unfold.develop(face: fs)
+                try writeSingleFaceSVG(flat, name: "CP2-frustum")
+                return
+            }
+        }
+    }
+
+    @Test("Export closed cylinder islands to /tmp/unfold-CP2-closed-cylinder.svg")
+    func exportClosedCylinderIslands() throws {
+        let cyl = Shape.cylinder(radius: 5, height: 10)!
+        let result = try Unfold.developable(cyl)
+        try writeUnfoldSVG(result, name: "CP2-closed-cylinder")
+    }
+
+    @Test("Export closed frustum islands to /tmp/unfold-CP2-closed-frustum.svg")
+    func exportClosedFrustumIslands() throws {
+        let frustum = Shape.cone(bottomRadius: 4, topRadius: 2, height: 5)!
+        let result = try Unfold.developable(frustum)
+        try writeUnfoldSVG(result, name: "CP2-closed-frustum")
     }
 }
 
+private func writeSingleFaceSVG(_ flat: Shape, name: String) throws {
+    let writer = SVGWriter(deflection: 0.01)
+    for polyline in flat.allEdgePolylines(deflection: 0.01) {
+        let pts2D = polyline.map { SIMD2($0.x, $0.y) }
+        writer.addPolyline(pts2D, closed: false, layer: "VISIBLE")
+    }
+    let url = URL(fileURLWithPath: "/tmp/unfold-\(name).svg")
+    try writer.write(to: url)
+}
+
 /// Write each face of an unfold result as a closed polyline on layer
-/// "VISIBLE". Output: `/tmp/unfold-CP1-{name}.svg`. Coordinates are the raw
+/// "VISIBLE". Output: `/tmp/unfold-{name}.svg`. Coordinates are the raw
 /// XY positions returned by the unfolder; the SVG writer auto-fits the
 /// viewBox to the content.
 private func writeUnfoldSVG(_ result: Unfold.Result, name: String) throws {
@@ -48592,7 +48840,7 @@ private func writeUnfoldSVG(_ result: Unfold.Result, name: String) throws {
             writer.addPolyline(pts2D, closed: false, layer: "VISIBLE")
         }
     }
-    let url = URL(fileURLWithPath: "/tmp/unfold-CP1-\(name).svg")
+    let url = URL(fileURLWithPath: "/tmp/unfold-\(name).svg")
     try writer.write(to: url)
 }
 
