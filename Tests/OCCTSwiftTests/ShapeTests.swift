@@ -48186,16 +48186,12 @@ struct SheetMetalTests {
         }
     }
 
-    /// Stepped seam (flanges meet on a shorter span than either flange's full
-    /// extent) — the fillet fails because OCCT can't cleanly round an edge
-    /// that terminates at a free-face boundary. The builder reports this as
-    /// a `filletFailed` error rather than crashing.
-    ///
-    /// Downstream consumers hitting this case should either match flange
-    /// widths along the seam direction, or wait for a future variable-radius
-    /// step-aware bend in this namespace.
-    @Test("Stepped seam (narrow upright over wider base) surfaces as filletFailed")
-    func narrowUprightStepThrows() {
+    /// Stepped seam (v0.151: throws filletFailed; v0.153: succeeds via
+    /// flange splitting). #86. The builder splits the wider base at the
+    /// upright's seam-extent endpoints; the matched-extent middle piece
+    /// carries the bend, and the outer pieces stay flat.
+    @Test("Stepped seam (narrow upright over wider base) succeeds in v0.153")
+    func narrowUprightStepSucceeds() throws {
         let base = SheetMetal.Flange(
             id: "base",
             profile: [SIMD2(0, 0), SIMD2(65, 0), SIMD2(65, 28), SIMD2(0, 28)],
@@ -48210,11 +48206,114 @@ struct SheetMetalTests {
             normal: SIMD3<Double>(0, 1, 0),
             uAxis: SIMD3<Double>(1, 0, 0),
             vAxis: SIMD3<Double>(0, 0, 1))
-        #expect(throws: SheetMetal.BuildError.self) {
-            try SheetMetal.Builder(thickness: 3).build(
-                flanges: [base, upright],
-                bends: [SheetMetal.Bend(from: "base", to: "vertical", radius: 1.5)])
-        }
+        let shape = try SheetMetal.Builder(thickness: 3).build(
+            flanges: [base, upright],
+            bends: [SheetMetal.Bend(from: "base", to: "vertical", radius: 1.5)])
+        #expect(shape.isValid)
+        if let v = shape.volume { #expect(v > 0) }
+    }
+
+    /// L-bracket from issue #86: 80×40 base, 20×30 vertical mounting tab
+    /// centred on the base's back edge. v0.151 threw; v0.153 succeeds.
+    @Test("L-bracket: 80×40 base, 20×30 centred mounting tab")
+    func lBracketStepSeamCentredTab() throws {
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(80, 0), SIMD2(80, 40), SIMD2(0, 40)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let tab = SheetMetal.Flange(
+            id: "tab",
+            profile: [SIMD2(0, 0), SIMD2(20, 0), SIMD2(20, 30), SIMD2(0, 30)],
+            origin: SIMD3<Double>(30, 40, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let shape = try SheetMetal.Builder(thickness: 2).build(
+            flanges: [base, tab],
+            bends: [SheetMetal.Bend(from: "base", to: "tab", radius: 1.5)])
+        #expect(shape.isValid)
+        if let v = shape.volume { #expect(v > 0) }
+    }
+
+    /// Z-bracket from issue #86: 50×30 base, 50×30 mid (full seam),
+    /// 20×30 top tab (stepped seam). Two bends.
+    @Test("Z-bracket: full + stepped seams")
+    func zBracket() throws {
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(50, 0), SIMD2(50, 30), SIMD2(0, 30)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        // Mid is a vertical riser of full width, sharing the base's back
+        // edge.
+        let mid = SheetMetal.Flange(
+            id: "mid",
+            profile: [SIMD2(0, 0), SIMD2(50, 0), SIMD2(50, 20), SIMD2(0, 20)],
+            origin: SIMD3<Double>(0, 30, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        // Top tab (20×30) sits on top of the mid, stepped width.
+        let top = SheetMetal.Flange(
+            id: "top",
+            profile: [SIMD2(0, 0), SIMD2(20, 0), SIMD2(20, 30), SIMD2(0, 30)],
+            origin: SIMD3<Double>(15, 30, 20),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let shape = try SheetMetal.Builder(thickness: 2).build(
+            flanges: [base, mid, top],
+            bends: [
+                SheetMetal.Bend(from: "base", to: "mid", radius: 1.5),
+                SheetMetal.Bend(from: "mid", to: "top", radius: 1.5)
+            ])
+        #expect(shape.isValid)
+        if let v = shape.volume { #expect(v > 0) }
+    }
+
+    /// U-channel with narrower flanges (issue #86): 100×25 spine,
+    /// 100×15 sides — the sides are NARROWER than the spine in the seam-
+    /// direction (along Y), making them stepped.
+    ///
+    /// Concretely: spine along Y has 100 long edge; left/right side flanges
+    /// only span Y ∈ [0, 80] of the spine (centred), so the seam is stepped
+    /// at both ends.
+    @Test("U-channel with stepped narrower side flanges")
+    func uChannelStepped() throws {
+        let spine = SheetMetal.Flange(
+            id: "spine",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 100), SIMD2(0, 100)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let left = SheetMetal.Flange(
+            id: "left",
+            profile: [SIMD2(0, 0), SIMD2(80, 0), SIMD2(80, 15), SIMD2(0, 15)],
+            origin: SIMD3<Double>(0, 10, 0),
+            normal: SIMD3<Double>(-1, 0, 0),
+            uAxis: SIMD3<Double>(0, 1, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let right = SheetMetal.Flange(
+            id: "right",
+            profile: [SIMD2(0, 0), SIMD2(80, 0), SIMD2(80, 15), SIMD2(0, 15)],
+            origin: SIMD3<Double>(40, 10, 0),
+            normal: SIMD3<Double>(1, 0, 0),
+            uAxis: SIMD3<Double>(0, 1, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let shape = try SheetMetal.Builder(thickness: 2).build(
+            flanges: [spine, left, right],
+            bends: [
+                SheetMetal.Bend(from: "spine", to: "left", radius: 1.5),
+                SheetMetal.Bend(from: "spine", to: "right", radius: 1.5)
+            ])
+        #expect(shape.isValid)
+        if let v = shape.volume { #expect(v > 0) }
     }
 
     @Test("Parallel flanges cannot form a bend")

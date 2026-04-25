@@ -2,13 +2,33 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.152.1
+## Current: v0.153.0
 
-**4,142 wrapped operations | 3,339 tests | 1,165 suites | OCCT 8.0.0-rc5**
+**4,142 wrapped operations | 3,342 tests | 1,165 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.153.0 (Apr 2026) — `SheetMetal.Builder` step-aware bends (issue #86)
+
+The v0.151 `SheetMetal.Builder` implementation extruded each flange at its full profile, fused them, then filleted the seam edge. That works when both flanges have matching extents along the seam direction, but fails on **stepped seams** — flanges that meet along less than their full extent (a narrow tab on a wider base, a U-channel with sides narrower than the spine). OCCT can't cleanly fillet an edge that terminates at a free-face boundary, so the v0.151 builder reported `BuildError.filletFailed` and the downstream `OCCTDesignLoop` pipeline padded the narrower flange to match — both expensive and incorrect.
+
+v0.153 lifts that limitation:
+
+- `SheetMetal.Builder.build(flanges:bends:)` now computes the seam intersection between each pair of flanges in a bend and **splits the wider flange** at the intersection endpoints before extruding. The matched-extent middle piece carries the bend; the outer pieces stay flat. The fillet machinery from v0.151 runs unchanged on the matched-extent piece, where it's always well-formed.
+- For matched-extent inputs (where v0.151 already worked), the result is identical: the splitting step is a no-op.
+- Two new error cases: `BuildError.seamsDoNotOverlap(fromID:toID:)` if the two flanges' seam edges don't actually intersect along the seam line; `BuildError.nonRectangularStepFlange(id:)` if a flange would need to be split but its profile isn't axis-aligned-rectangular (rectangular profiles cover the issue's three test fixtures and the common cases; non-rectangular stepped seams are deferred).
+
+The three reference fixtures from issue #86 all build cleanly:
+
+- **L-bracket** with 80×40 base + 20×30 centred mounting tab.
+- **Z-bracket** with 50×30 base + full-seam mid + 20×30 stepped top tab.
+- **U-channel** with 100×40 spine + 80×15 stepped side flanges (narrower than the spine in the seam direction).
+
+OCCTDesignLoop's `eval/describer_to_features.py` can drop its seam-padding workaround and emit actual described flange dimensions; the existing typed `SheetMetal.Flange` / `SheetMetal.Bend` API and the JSON envelope are unchanged.
+
+The unrelated v0.151 limitation about the bend axis being on the *outside* corner (sharp inner corner, filleted outer corner) still applies — that's a different construction (real inside-radius + outside-radius bend) and is filed separately.
 
 ### v0.152.1 (Apr 2026) — `FeatureReconstructor.buildJSON` decodes `boolean` (issue #88)
 
