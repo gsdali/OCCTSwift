@@ -176,12 +176,27 @@ public enum Unfold {
     /// `parameters.rootFaceIndex` is honoured even when
     /// `resolveOverlaps` is true: if the caller pinned a root, that root
     /// is the only one tried in phase 1.
+    ///
+    /// **Sharp-fold bend allowance.** When `sheet` is non-nil, every fold
+    /// in the spanning tree is treated as a sharp 0-radius bend and the
+    /// flat pattern includes a developed bend-allowance strip between
+    /// parent and child of width `BA = θ · K · t` (the standard
+    /// `θ · (R + K·t)` formula evaluated at `R = 0`). The child face and
+    /// all its descendants in the spanning tree are translated outward by
+    /// `BA` perpendicular to the shared edge so the strip occupies the
+    /// gap. Strips are encoded in `result.faces` with synthetic indices
+    /// `10_000 + i` to match `sheetMetal`'s convention. Convention: the
+    /// input polyhedron models the *outside* surface of the sheet —
+    /// material thickness is on the inside. Pass `sheet: nil` (the
+    /// default) for paper-craft / pure-topology unfolding without
+    /// thickness compensation.
     public static func polyhedral(
         _ shape: Shape,
-        parameters: Parameters = .init()
+        parameters: Parameters = .init(),
+        sheet: SheetMetalParameters? = nil
     ) throws -> Result {
         if !parameters.resolveOverlaps {
-            return try polyhedralOnce(shape, parameters: parameters)
+            return try polyhedralOnce(shape, parameters: parameters, sheet: sheet)
         }
         // Phase 1: try every face as root × {BFS, DFS} traversals, looking
         // for a connected non-overlapping unfold. BFS produces balanced
@@ -214,7 +229,8 @@ public enum Unfold {
                         shape,
                         parameters: rootedParams,
                         traversal: traversal,
-                        childShuffleSeed: seed
+                        childShuffleSeed: seed,
+                        sheet: sheet
                     ), !result.overlaps {
                         return result
                     }
@@ -233,7 +249,7 @@ public enum Unfold {
         var lastResult: Result?
         var addedCuts: Set<EdgeIdentifier> = []
         for _ in 0..<parameters.maxOverlapIterations {
-            let result = try polyhedralOnce(shape, parameters: params)
+            let result = try polyhedralOnce(shape, parameters: params, sheet: sheet)
             lastResult = result
             if !result.overlaps { break }
             guard let edgeToCut = pickEdgeToIsolateOverlap(result) else { break }
@@ -242,7 +258,7 @@ public enum Unfold {
         }
         // Merge added cuts into the final result so callers can see them.
         guard var final = lastResult else {
-            return try polyhedralOnce(shape, parameters: params)
+            return try polyhedralOnce(shape, parameters: params, sheet: sheet)
         }
         if !addedCuts.isEmpty {
             var combined = final.cuts
@@ -281,7 +297,8 @@ public enum Unfold {
         _ shape: Shape,
         parameters: Parameters,
         traversal: TraversalOrder = .bfs,
-        childShuffleSeed: UInt64 = 0
+        childShuffleSeed: UInt64 = 0,
+        sheet: SheetMetalParameters? = nil
     ) throws -> Result {
         let faceShapes = shape.subShapes(ofType: .face)
         guard !faceShapes.isEmpty else { throw UnfoldError.noFaces }
@@ -364,6 +381,11 @@ public enum Unfold {
         var cuts: [EdgeIdentifier] = []
         var cutSet: Set<EdgeIdentifier> = []
         var visited: Set<Int> = []
+        // Sharp-fold bend allowance strips. Populated only when `sheet`
+        // is non-nil; one strip per fold edge with width
+        // `BA = θ · K · t` (R = 0). The child face and all its descendants
+        // are translated outward by BA so the strip occupies the gap.
+        var bendStrips: [BendStrip] = []
         // Forest BFS: when pinned cuts disconnect the dual graph into
         // multiple components, lay each as its own island. The first
         // component starts at `rootIdx`; subsequent components pick the
@@ -419,7 +441,54 @@ public enum Unfold {
                         fromNormal: childNormalLaid,
                         toNormal: parentNormalLaid
                     )
-                    let childT = unfoldRot.matrix * parentT
+                    var childT = unfoldRot.matrix * parentT
+
+                    // Sharp-fold bend allowance: when the caller passed a
+                    // `SheetMetalParameters`, every fold becomes a virtual
+                    // R=0 cylindrical bend. The neutral fiber of the sheet
+                    // (located K·t from the inside surface) bends through
+                    // angle θ around the modelled edge with arc length
+                    // BA = θ·(0 + K·t) = θ·K·t. Insert a rectangular strip
+                    // of width BA between parent and child, and translate
+                    // the child outward by the same amount so its near
+                    // edge lands on the strip's far edge. Descendants
+                    // inherit the translation through their accumulating
+                    // transforms.
+                    if let sheet = sheet, abs(unfoldRot.angle) > 1e-9 {
+                        let edgeDirLaid = simd_normalize(edgeEndLaid - edgeStartLaid)
+                        var outward = simd_cross(parentNormalLaid, edgeDirLaid)
+                        // Project to parent's laid plane (z = 0) and pick
+                        // the sign that points away from parent's bbox
+                        // centre. `faces[parent].origin` is a vertex (from
+                        // `anyPointOnFace`), which can lie on the shared
+                        // edge — it's the wrong reference. The face's bbox
+                        // centre always lies in the interior.
+                        outward.z = 0
+                        let outLen = simd_length(outward)
+                        if outLen > 1e-12 {
+                            outward = outward / outLen
+                            let parentCentreLaid =
+                                transformPoint(parentT, faces[parent].shape.center)
+                            let edgeMidLaid = (edgeStartLaid + edgeEndLaid) * 0.5
+                            if simd_dot(outward, parentCentreLaid - edgeMidLaid) > 0 {
+                                outward = -outward
+                            }
+                            let BA = sheet.bendAllowance(
+                                radius: 0, angle: abs(unfoldRot.angle))
+                            let translateOutward = translation(BA * outward)
+                            childT = translateOutward * childT
+                            let farStart = edgeStartLaid + BA * outward
+                            let farEnd = edgeEndLaid + BA * outward
+                            bendStrips.append(BendStrip(
+                                bendIndex: bendStrips.count,
+                                nearStart: SIMD2(edgeStartLaid.x, edgeStartLaid.y),
+                                nearEnd: SIMD2(edgeEndLaid.x, edgeEndLaid.y),
+                                farStart: SIMD2(farStart.x, farStart.y),
+                                farEnd: SIMD2(farEnd.x, farEnd.y)
+                            ))
+                        }
+                    }
+
                     transform[child] = childT
                     foldEdges.insert(id)
                     folds.append(FoldEdge(
@@ -460,6 +529,22 @@ public enum Unfold {
             }
             laidShapes[i] = flat
             laidArray.append(flat)
+        }
+        // Sharp-fold bend strips. Synthetic indices `10_000 + i` match
+        // `sheetMetal`'s convention so DXF export routes them onto the
+        // BEND layer.
+        for (idx, strip) in bendStrips.enumerated() {
+            let pts: [SIMD3<Double>] = [
+                SIMD3(strip.nearStart.x, strip.nearStart.y, 0),
+                SIMD3(strip.nearEnd.x, strip.nearEnd.y, 0),
+                SIMD3(strip.farEnd.x, strip.farEnd.y, 0),
+                SIMD3(strip.farStart.x, strip.farStart.y, 0),
+            ]
+            if let wire = Wire.polygon3D(pts, closed: true),
+               let face = Shape.face(from: wire, planar: true) {
+                laidShapes[10_000 + idx] = face
+                laidArray.append(face)
+            }
         }
 
         let compound: Shape
@@ -564,12 +649,12 @@ extension Unfold {
         //
         // 2. **Sharp-edged solid** (cube, prism, any polyhedral solid
         //    with no fillets) — paper-craft topology. Route through
-        //    `polyhedral`, which unfolds the surfaces as a connected net
-        //    with sharp-edge folds. Bend allowance at sharp folds (BA =
-        //    θ · K · t when R = 0) is not yet inserted; the unfold
-        //    matches the surface topology exactly. A future extension
-        //    will add `bendAllowanceAtSharpFolds` to `polyhedral`'s
-        //    parameters for thickness-aware sharp-fold unfolding.
+        //    `polyhedral` with the supplied `sheet` so every fold becomes
+        //    a virtual R=0 cylindrical bend with allowance
+        //    `BA = θ · K · t` baked in as a strip between adjacent
+        //    panels. The polyhedron is interpreted as the *outside*
+        //    surface of the sheet metal, so material thickness extends
+        //    inward; this matches the standard sheet-metal convention.
         //
         // The user-visible API is the same in both cases — feed in any
         // solid + thickness, get a flat pattern back. Real CAD imports
@@ -582,7 +667,7 @@ extension Unfold {
         if hasCylindricalFeature {
             return try solid(shape, parameters: parameters, sheet: sheet)
         }
-        return try polyhedral(shape, parameters: parameters)
+        return try polyhedral(shape, parameters: parameters, sheet: sheet)
     }
 
     /// Extract the mid-surface thin-shell from a thick shape.

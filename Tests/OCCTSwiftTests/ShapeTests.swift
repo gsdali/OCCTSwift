@@ -49320,28 +49320,93 @@ struct UnfoldSolidTests {
         }
     }
 
-    /// `Unfold.fromSolid` should accept a regular `Shape.box` cube
-    /// (fully solid, no walls) and treat it as a sheet-metal box: shell
-    /// inward by the given thickness, extract mid-surface, unfold to a
-    /// connected 6-face net.
     /// `Unfold.fromSolid` dispatches by topology. Sharp-edged solids
-    /// (no cylindrical features) route to `polyhedral` for a connected
-    /// paper-craft-style net.
-    @Test("fromSolid: cube → connected 6-face polyhedral net")
+    /// (no cylindrical features) route to `polyhedral`. With a non-nil
+    /// `sheet`, every fold becomes a virtual R=0 bend with allowance
+    /// `BA = θ · K · t` baked in as a strip between adjacent panels.
+    /// For a cube each fold is 90°, so each strip is 100 mm × (π/2·K·t).
+    @Test("fromSolid: cube → 6-face net with sharp-fold BA strips")
     func fromSolidCube() throws {
         let cube = Shape.box(width: 100, height: 100, depth: 100)!
         let sheet = Unfold.SheetMetalParameters(thickness: 2.0, kFactor: 0.44)
         let result = try Unfold.fromSolid(cube, parameters: .init(), sheet: sheet)
 
-        #expect(result.faces.count == 6,
-                 "expected exactly 6 panels, got \(result.faces.count)")
+        let panels = result.faces.filter { $0.key < 10_000 }
+        let strips = result.faces.filter { $0.key >= 10_000 }
+        #expect(panels.count == 6,
+                 "expected 6 panels, got \(panels.count)")
+        #expect(strips.count == 5,
+                 "expected 5 BA strips (one per fold edge), got \(strips.count)")
         #expect(result.folds.count == 5,
                  "expected 5 folds in cube spanning tree, got \(result.folds.count)")
         #expect(!result.overlaps)
         #expect(result.flat.isValid)
 
+        // Each strip is 100 × BA where BA = θ · K · t (R = 0). For a 90°
+        // fold and the (K=0.44, t=2) sheet, BA ≈ 1.382 mm.
+        let expectedBA = (Double.pi / 2) * 0.44 * 2.0
+        let expectedArea = 100.0 * expectedBA
+        for (_, strip) in strips {
+            let area = Face(strip)?.area() ?? 0
+            #expect(abs(area - expectedArea) < 1e-3 * expectedArea,
+                     "strip area \(area) vs expected \(expectedArea)")
+        }
+
         try Exporter.writeDXF(unfoldResult: result,
                                to: URL(fileURLWithPath: "/tmp/unfold-fromSolid-cube.dxf"))
+    }
+
+    /// Paper-craft (no-thickness) mode: callers reach this by invoking
+    /// `polyhedral` directly without `sheet`. No BA strips, panels touch
+    /// at the fold edges. This asserts the v0.151 contract is preserved
+    /// after sharp-fold BA support was added to `polyhedral`.
+    @Test("polyhedral without sheet is paper-craft (6 panels, no strips)")
+    func polyhedralCubeWithoutSheetIsPaperCraft() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = try Unfold.polyhedral(cube)
+        #expect(result.faces.count == 6, "no strips when sheet is omitted")
+        #expect(result.folds.count == 5)
+    }
+
+    /// Tetrahedron sharp-fold BA: the regular tetrahedron's interior
+    /// dihedral angle is `arccos(1/3) ≈ 70.53°`, so the bend angle from
+    /// flat is `θ = π − arccos(1/3) ≈ 109.47° ≈ 1.911 rad`. This is a
+    /// non-90° fold, so it stresses the formula `BA = θ · K · t` on a
+    /// non-axis-aligned bend axis. 4 faces → spanning tree has 3 folds
+    /// → 3 BA strips.
+    @Test("polyhedral with sheet emits BA strips for tetrahedron's non-90° folds")
+    func polyhedralTetrahedronWithThickness() throws {
+        let edge = 50.0
+        let tet = try #require(PlatonicSolid.tetrahedron(edge: edge))
+        let sheet = Unfold.SheetMetalParameters(thickness: 1.0, kFactor: 0.44)
+        let result = try Unfold.polyhedral(tet, parameters: .init(), sheet: sheet)
+
+        let panels = result.faces.filter { $0.key < 10_000 }
+        let strips = result.faces.filter { $0.key >= 10_000 }
+        #expect(panels.count == 4)
+        #expect(strips.count == 3)
+        #expect(result.folds.count == 3)
+        #expect(result.flat.isValid)
+
+        // Each fold's straightening angle = π − arccos(1/3). BA = θ · K · t.
+        let expectedTheta = Double.pi - acos(1.0 / 3.0)
+        let expectedBA = expectedTheta * 0.44 * 1.0
+        // Triangle edge length = `edge` (50). Strip is a parallelogram
+        // (rotation around a triangle edge); area = edge · BA.
+        let expectedArea = edge * expectedBA
+        for (_, strip) in strips {
+            let area = Face(strip)?.area() ?? 0
+            #expect(abs(area - expectedArea) < 1e-2 * expectedArea,
+                     "tet strip area \(area) vs expected \(expectedArea)")
+        }
+        // Verify the fold's recorded `dihedralAngle` matches the bend
+        // angle (sign may vary, magnitude must match).
+        for fold in result.folds {
+            #expect(abs(abs(fold.dihedralAngle) - expectedTheta) < 1e-9)
+        }
+
+        try Exporter.writeDXF(unfoldResult: result,
+                               to: URL(fileURLWithPath: "/tmp/unfold-tetrahedron-thick.dxf"))
     }
 
     /// `Unfold.fromSolid` on a `SheetMetal.Builder` L-bracket (has a
