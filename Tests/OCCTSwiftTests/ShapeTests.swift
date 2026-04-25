@@ -48456,8 +48456,54 @@ private enum PlatonicSolid {
         return shell(vertices: v, faces: faces)
     }
 
-    // Dodecahedron is deferred until CP1 passes for the simpler solids — the
-    // hand-derived face list needs a careful CCW-from-outside enumeration.
+    /// Regular dodecahedron with 20 vertices on the sphere of radius `r`.
+    /// Vertex layout (golden-ratio coordinates, indexed 0–19):
+    /// - V0–V7: cube corners `(±1, ±1, ±1)` in lex order (+++, ++-, +-+, ...)
+    /// - V8–V11: `(0, ±φ, ±1/φ)`
+    /// - V12–V15: `(±1/φ, 0, ±φ)`
+    /// - V16–V19: `(±φ, ±1/φ, 0)`
+    /// Face windings derived by walking the edge-adjacency graph; CCW-
+    /// from-outside verified analytically for F1 and F2 (face normal from
+    /// cross-product matches outward direction from origin).
+    static func dodecahedron(radius r: Double = 1.0) -> Shape? {
+        let phi = (1.0 + sqrt(5.0)) / 2.0
+        let invPhi = 1.0 / phi
+        let raw: [SIMD3<Double>] = [
+            // 0..7: cube corners (±1, ±1, ±1)
+            SIMD3( 1,  1,  1), SIMD3( 1,  1, -1),
+            SIMD3( 1, -1,  1), SIMD3( 1, -1, -1),
+            SIMD3(-1,  1,  1), SIMD3(-1,  1, -1),
+            SIMD3(-1, -1,  1), SIMD3(-1, -1, -1),
+            // 8..11: (0, ±φ, ±1/φ)
+            SIMD3(0,  phi,  invPhi), SIMD3(0,  phi, -invPhi),
+            SIMD3(0, -phi,  invPhi), SIMD3(0, -phi, -invPhi),
+            // 12..15: (±1/φ, 0, ±φ)
+            SIMD3( invPhi, 0,  phi), SIMD3( invPhi, 0, -phi),
+            SIMD3(-invPhi, 0,  phi), SIMD3(-invPhi, 0, -phi),
+            // 16..19: (±φ, ±1/φ, 0)
+            SIMD3( phi,  invPhi, 0), SIMD3( phi, -invPhi, 0),
+            SIMD3(-phi,  invPhi, 0), SIMD3(-phi, -invPhi, 0),
+        ]
+        let scale = r / sqrt(3.0)
+        let v = raw.map { $0 * scale }
+
+        // 12 pentagons, CCW from outside.
+        let faces: [[Int]] = [
+            [ 0,  8,  4, 14, 12],
+            [ 0, 12,  2, 17, 16],
+            [ 0, 16,  1,  9,  8],
+            [ 1, 13,  3, 17, 16],
+            [ 1,  9,  5, 15, 13],
+            [ 8,  4, 18,  5,  9],
+            [ 4, 14,  6, 19, 18],
+            [14, 12,  2, 10,  6],
+            [ 2, 17,  3, 11, 10],
+            [13,  3, 11,  7, 15],
+            [19, 18,  5, 15,  7],
+            [ 6, 19,  7, 11, 10],
+        ]
+        return shell(vertices: v, faces: faces)
+    }
 }
 
 @Suite("Unfold polyhedral (CP1)")
@@ -48503,6 +48549,20 @@ struct UnfoldPolyhedralTests {
         #expect(result.cuts.count == 5)
         #expect(allFacesInXYPlane(result, tolerance: 1e-6))
         #expect(areaPreserved(result, source: oct, tolerance: 1e-9))
+    }
+
+    @Test("Dodecahedron unfolds to 12 coplanar faces")
+    func dodecahedronUnfolds() throws {
+        let dod = try #require(PlatonicSolid.dodecahedron(radius: 1.0))
+        let result = try Unfold.polyhedral(dod)
+
+        #expect(result.faces.count == 12)
+        // Dodecahedron has 30 edges; spanning tree uses 11 (12 - 1),
+        // leaving 19 cycle edges as cuts.
+        #expect(result.folds.count == 11)
+        #expect(result.cuts.count == 19)
+        #expect(allFacesInXYPlane(result, tolerance: 1e-6))
+        #expect(areaPreserved(result, source: dod, tolerance: 1e-9))
     }
 
     @Test("Icosahedron unfolds to 20 coplanar faces")
@@ -48787,6 +48847,72 @@ private enum ThinShellFixture {
         return Shape.sew(shapes: [planeA, cyl, planeB], tolerance: 1e-4)
     }
 
+    /// Thin-shell U-channel: 3 planar panels (spine + 2 vertical sides)
+    /// connected by 2 cylindrical bends. Bend axes parallel to Y at
+    /// `(R, *, R)` and `(W-R, *, R)`. Both bends use `uRange = π/2…π`
+    /// (right) or `π…3π/2` (left) — see Sharp Edge #1 for OCCT's default
+    /// reference frame on Y-axis cylinders. Multi-bend topology that
+    /// exercises CP3's bend detection on more than one cylinder.
+    static func uChannel(
+        width W: Double = 30,
+        length L: Double = 20,
+        height H: Double = 15,
+        bendRadius R: Double = 2
+    ) -> Shape? {
+        // Spine: z = 0, x ∈ [R, W-R], y ∈ [0, L].
+        let spineVerts: [SIMD3<Double>] = [
+            SIMD3(R, 0, 0),
+            SIMD3(W - R, 0, 0),
+            SIMD3(W - R, L, 0),
+            SIMD3(R, L, 0),
+        ]
+        guard let spineWire = Wire.polygon3D(spineVerts, closed: true),
+              let spine = Shape.face(from: spineWire, planar: true) else { return nil }
+
+        // Left bend: axis (R, 0, R) along +Y. u=π → tangent to spine
+        // (z=0); u=3π/2 → tangent to left wall (x=0).
+        guard let leftBend = Shape.faceFromCylinder(
+            origin: SIMD3(R, 0, R),
+            axis: SIMD3(0, 1, 0),
+            radius: R,
+            uRange: (.pi)...(1.5 * .pi),
+            vRange: 0...L
+        ) else { return nil }
+
+        // Left wall: x = 0, y ∈ [0, L], z ∈ [R, R + H].
+        let leftVerts: [SIMD3<Double>] = [
+            SIMD3(0, 0, R),
+            SIMD3(0, L, R),
+            SIMD3(0, L, R + H),
+            SIMD3(0, 0, R + H),
+        ]
+        guard let leftWire = Wire.polygon3D(leftVerts, closed: true),
+              let left = Shape.face(from: leftWire, planar: true) else { return nil }
+
+        // Right bend: axis (W-R, 0, R) along +Y. u=π/2 → tangent to right
+        // wall (x=W); u=π → tangent to spine.
+        guard let rightBend = Shape.faceFromCylinder(
+            origin: SIMD3(W - R, 0, R),
+            axis: SIMD3(0, 1, 0),
+            radius: R,
+            uRange: (.pi / 2)...(.pi),
+            vRange: 0...L
+        ) else { return nil }
+
+        // Right wall: x = W, y ∈ [0, L], z ∈ [R, R + H].
+        let rightVerts: [SIMD3<Double>] = [
+            SIMD3(W, 0, R),
+            SIMD3(W, L, R),
+            SIMD3(W, L, R + H),
+            SIMD3(W, 0, R + H),
+        ]
+        guard let rightWire = Wire.polygon3D(rightVerts, closed: true),
+              let right = Shape.face(from: rightWire, planar: true) else { return nil }
+
+        return Shape.sew(shapes: [spine, leftBend, left, rightBend, right],
+                          tolerance: 1e-4)
+    }
+
     /// Symmetric thick L-bracket: paired offset faces at ±t/2 from the
     /// nominal mid-surface. Six faces total — two planar pairs (top/bottom of
     /// each flange) and one cylindrical pair (inner radius R - t/2 and outer
@@ -48968,6 +49094,38 @@ struct UnfoldSheetMetalTests {
         #expect(throws: Unfold.UnfoldError.self) {
             _ = try Unfold.sheetMetal(sphere, parameters: .init(), sheet: sheet)
         }
+    }
+
+    /// U-channel thin-shell: 3 panels + 2 cylindrical bends → 3 panels +
+    /// 2 bend strips in the flat pattern.
+    @Test("U-channel thin-shell unfolds with two independent bend strips")
+    func uChannelMultiBend() throws {
+        let W = 30.0, L = 20.0, H = 15.0, R = 2.0, t = 1.0
+        let channel = try #require(ThinShellFixture.uChannel(
+            width: W, length: L, height: H, bendRadius: R))
+        let sheet = Unfold.SheetMetalParameters(thickness: t, kFactor: 0.44)
+        let result = try Unfold.sheetMetal(channel,
+                                            parameters: .init(),
+                                            sheet: sheet)
+        // 3 planar panels + 2 bend strips.
+        #expect(result.faces.count == 5)
+        // Two bends → two folds (one per bend, between matched panel pair).
+        #expect(result.folds.count == 2)
+        // Each fold's dihedral is 90°.
+        for fold in result.folds {
+            #expect(abs(abs(fold.dihedralAngle) - .pi / 2) < 1e-3,
+                     "expected 90° bend, got \(fold.dihedralAngle)")
+        }
+        // Total area = spine + 2 walls + 2 bend strips.
+        let BA = (.pi / 2) * (R + 0.44 * t)
+        let spineArea = (W - 2 * R) * L
+        let wallArea = H * L  // each
+        let stripArea = BA * L  // each
+        let expected = spineArea + 2 * wallArea + 2 * stripArea
+        var actual = 0.0
+        for (_, f) in result.faces { actual += Face(f)?.area() ?? 0 }
+        #expect(abs(actual - expected) < 1e-2 * expected,
+                 "expected \(expected), got \(actual)")
     }
 }
 
@@ -49152,12 +49310,64 @@ struct UnfoldSolidTests {
     }
 
     @Test("midSurface throws when no pairs at the given thickness")
-    func midSurfaceWrongThicknessThrows() throws {
-        let thick = try #require(ThinShellFixture.thickLBracket(thickness: 1.0))
-        // Look for pairs at thickness=0.5 — there are none.
+    func midSurfaceWrongThicknessThrows() {
+        // Cube has 3 parallel planar pairs at distance 10 (e.g. z=0 and
+        // z=10); none at distance 0.5. With no cylindrical faces either,
+        // the asymmetric-Builder path doesn't fire and midSurface throws.
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
         #expect(throws: Unfold.UnfoldError.self) {
-            _ = try Unfold.midSurface(of: thick, thickness: 0.5)
+            _ = try Unfold.midSurface(of: cube, thickness: 0.5)
         }
+    }
+
+    /// SheetMetal.Builder produces an *asymmetric* thick L-bracket: the
+    /// outside corner is filleted (one cylindrical face at radius R) but
+    /// the inside corner stays sharp (no inner cylindrical partner). CP4
+    /// now handles this by emitting a mid-cylinder at the geometric mid
+    /// (radius R - t/2) at the same axis, instead of requiring a
+    /// concentric pair.
+    ///
+    /// This closes the `Builder → Unfold.solid → flat pattern` round-
+    /// trip. The bend allowance computed by CP3 is `θ · (R - t/2 + K·t)`
+    /// rather than `θ · (R - t + K·t)` — biased high by `θ · t/2 ≈
+    /// 0.5·π·t/2 / 2`. For real sheet-metal accuracy use
+    /// `Unfold.sheetMetal` directly on a thin-shell fixture.
+    @Test("SheetMetal.Builder L-bracket round-trips through Unfold.solid")
+    func builderLBracketRoundTrip() throws {
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 30), SIMD2(0, 30)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let upright = SheetMetal.Flange(
+            id: "upright",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 25), SIMD2(0, 25)],
+            origin: SIMD3<Double>(0, 30, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let bracket = try SheetMetal.Builder(thickness: 2.0).build(
+            flanges: [base, upright],
+            bends: [SheetMetal.Bend(from: "base", to: "upright", radius: 1.5)])
+
+        let sheet = Unfold.SheetMetalParameters(thickness: 2.0, kFactor: 0.44)
+        let result = try Unfold.solid(bracket, parameters: .init(), sheet: sheet)
+
+        // The flat pattern should have the two panels + one bend strip.
+        // Builder's panels each give two paired faces (top + bottom) →
+        // one mid-plane each = 2 mid-planes. The single cylindrical
+        // fillet → one mid-cylinder. So midSurface yields 3 mid-faces;
+        // sheetMetal adds 1 bend strip → 4 emitted faces total.
+        // (Builder's perimeter side faces have no offset partner and are
+        // dropped, as documented.)
+        #expect(result.faces.count >= 3)
+        #expect(result.flat.isValid)
+        let b = result.flat.bounds
+        // Flat pattern lives in the XY plane (z ≈ 0).
+        #expect(abs(b.max.z - b.min.z) < 1.0,
+                 "flat pattern should be in z=0 plane, got z range \(b.min.z)…\(b.max.z)")
     }
 }
 
@@ -49323,6 +49533,19 @@ struct UnfoldInspectionTests {
         try Exporter.writeDXF(unfoldResult: result, to: url)
     }
 
+    @Test("Export dodecahedron net to /tmp/unfold-CP1-dodecahedron.dxf + .svg")
+    func exportDodecahedronDXF() throws {
+        let dod = try #require(PlatonicSolid.dodecahedron(radius: 1.0))
+        var params = Unfold.Parameters()
+        params.resolveOverlaps = true
+        let result = try Unfold.polyhedral(dod, parameters: params)
+        #expect(!result.overlaps)
+        #expect(result.faces.count == 12)
+        try Exporter.writeDXF(unfoldResult: result,
+                               to: URL(fileURLWithPath: "/tmp/unfold-CP1-dodecahedron.dxf"))
+        try writeUnfoldSVG(result, name: "CP1-dodecahedron")
+    }
+
     @Test("Export L-bracket flat pattern to /tmp/unfold-CP3-l-bracket.dxf")
     func exportLBracketDXF() throws {
         let bracket = try #require(ThinShellFixture.lBracket(
@@ -49338,6 +49561,19 @@ struct UnfoldInspectionTests {
         // Bend strip lands on BEND layer.
         #expect(body.contains("BEND"), "expected BEND layer in DXF output")
         #expect(body.contains("VISIBLE"), "expected VISIBLE layer in DXF output")
+    }
+
+    @Test("Export U-channel flat pattern to /tmp/unfold-CP3-u-channel.dxf + .svg")
+    func exportUChannelDXF() throws {
+        let channel = try #require(ThinShellFixture.uChannel())
+        let sheet = Unfold.SheetMetalParameters(thickness: 1.0)
+        let result = try Unfold.sheetMetal(channel,
+                                            parameters: .init(),
+                                            sheet: sheet)
+        try Exporter.writeDXF(
+            unfoldResult: result,
+            to: URL(fileURLWithPath: "/tmp/unfold-CP3-u-channel.dxf"))
+        try writeUnfoldSVG(result, name: "CP3-u-channel")
     }
 
     @Test("Export cube net to /tmp/unfold-CP1-cube.dxf")

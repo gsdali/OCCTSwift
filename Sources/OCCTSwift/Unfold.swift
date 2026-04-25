@@ -559,6 +559,77 @@ extension Unfold {
         var midFaces: [Shape] = []
         let distTol = max(tolerance * 100, 1e-4)
 
+        // Phase 1: concentric cylinder pairs (e.g. the symmetric
+        // thickLBracket fixture has both inner and outer cylindrical
+        // fillets) → mid-cylinder at average radius.
+        let cylindricalIndices: [Int] = (0..<faceShapes.count).filter {
+            if let i = infos[$0], case .cylinder = i.kind { return true }
+            return false
+        }
+        for i in cylindricalIndices {
+            if paired.contains(i) { continue }
+            guard let infoA = infos[i] else { continue }
+            for j in cylindricalIndices where j > i && !paired.contains(j) {
+                guard let infoB = infos[j] else { continue }
+                if let mid = try makeMidFaceIfPair(
+                    infoA, infoB, thickness: t, tolerance: distTol)
+                {
+                    midFaces.append(mid)
+                    paired.insert(i); paired.insert(j)
+                    break
+                }
+            }
+        }
+
+        // Phase 2: asymmetric Builder topology — `SheetMetal.Builder` fills
+        // the inside concave corner of an L-bracket with a single
+        // cylindrical face (the inside surface of the bend at radius R).
+        // No outer cylindrical partner exists. Emit the cylinder *as is*
+        // (it already sits at the inside bend radius — exactly what CP3
+        // reads as `cylinder.radius` for the bend-allowance formula
+        // BA = θ(R + Kt)). Mark its planar neighbours connected by
+        // straight-generator edges as "tangent" — those are the
+        // inside-of-sheet planar surfaces and become the thin-shell's
+        // panels in the next phase, instead of an averaged mid-plane.
+        let edgeShapes = shape.subShapes(ofType: .edge)
+        var tangentPlanars: Set<Int> = []
+        for i in cylindricalIndices where !paired.contains(i) {
+            midFaces.append(faceShapes[i])
+            paired.insert(i)
+            for edgeShape in edgeShapes {
+                let adj = shape.adjacentFaces(forEdge: edgeShape).map { $0 - 1 }
+                guard adj.contains(i) else { continue }
+                guard let edge = Edge(edgeShape), edge.isLine else { continue }
+                for other in adj where other != i {
+                    if let info = infos[other], case .plane = info.kind {
+                        tangentPlanars.insert(other)
+                    }
+                }
+            }
+        }
+
+        // Phase 3: emit tangent planars as-is and mark their offset
+        // partners as handled. The geometric "mid-surface" of the partner
+        // pair would be at the average position, but that wouldn't
+        // tangent the cylinder we just emitted — the inside-tangent
+        // planar does.
+        for i in tangentPlanars where !paired.contains(i) {
+            midFaces.append(faceShapes[i])
+            paired.insert(i)
+            guard let infoA = infos[i] else { continue }
+            for j in 0..<faceShapes.count where j != i && !paired.contains(j) {
+                guard let infoB = infos[j] else { continue }
+                if (try? makeMidFaceIfPair(
+                    infoA, infoB, thickness: t, tolerance: distTol)) != nil {
+                    paired.insert(j)
+                    break
+                }
+            }
+        }
+
+        // Phase 4: standard planar/planar mid-plane pairing for any
+        // remaining planar faces (e.g. flat plates with no bends, or
+        // symmetric thick fixtures).
         for i in 0..<faceShapes.count {
             if paired.contains(i) { continue }
             guard let infoA = infos[i] else { continue }
