@@ -2,13 +2,23 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.152.0
+## Current: v0.152.1
 
-**4,142 wrapped operations | 3,334 tests | 1,164 suites | OCCT 8.0.0-rc5**
+**4,142 wrapped operations | 3,339 tests | 1,165 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.152.1 (Apr 2026) — `FeatureReconstructor.buildJSON` decodes `boolean` (issue #88)
+
+`FeatureSpec.boolean` (with `op` ∈ `union | subtract | intersect`, `leftID`, `rightID`) has been wired through `applyBoolean` since the typed Swift API landed, and v0.152's `inputBody` makes it useful for cuts that reference the seeded body via `@input`. But the JSON decoder never picked it up — `FeatureEntry.init(from:)` had no `case "boolean":` branch, so JSON entries with `"kind": "boolean"` fell into the `default:` clause and were silently dropped.
+
+- **Adds the `case "boolean":` decoder branch.** Reads `op` (string), `left`, `right`, optional `id`. Coding keys for these were already declared.
+- **Bad `op` rawValue surfaces as a recordable skip** with reason `unsupported("boolean(op:smush)")` rather than throwing — matches the rest of the reconstructor's "graceful degradation" policy.
+- **Unknown `kind` strings now also surface as `Skipped` entries** when the JSON entry carries an `id`. Reason: `unsupported("unknown JSON kind: …")`. Stage: `additive`. Without this, typos in `kind` and version-drift schemas were silently swallowed; now they're visible. Entries without an id continue to be silently ignored, matching the rest of `FeatureReconstructor` (the kernel only records skips when there's an id to attach them to).
+
+Together these mean the `inputBody → boolean(@input, slot)` chain that v0.152 implies should work, actually does work end-to-end from JSON.
 
 ### v0.152.0 (Apr 2026) — `FeatureReconstructor.inputBody` for chained composition (issue #87)
 

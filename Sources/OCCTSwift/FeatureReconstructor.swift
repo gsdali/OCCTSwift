@@ -573,9 +573,27 @@ extension FeatureReconstructor {
             var features: [FeatureEntry]
         }
         let env = try JSONDecoder().decode(Envelope.self, from: data)
-        return build(
+        let result = build(
             from: env.features.compactMap { $0.spec },
             inputBody: inputBody)
+
+        // Surface unknown JSON `kind` values as `Skipped` entries so a typo
+        // or a version-drift schema doesn't silently lose features.
+        var augmentedSkipped = result.skipped
+        for entry in env.features {
+            guard let kind = entry.unknownKind, let id = entry.unknownID else {
+                continue
+            }
+            augmentedSkipped.append(Skipped(
+                featureID: id,
+                reason: .unsupported("unknown JSON kind: \(kind)"),
+                stage: .additive))
+        }
+        return BuildResult(
+            shape: result.shape,
+            fulfilled: result.fulfilled,
+            skipped: augmentedSkipped,
+            annotations: result.annotations)
     }
 }
 
@@ -583,6 +601,11 @@ extension FeatureReconstructor {
 
 private struct FeatureEntry: Decodable {
     let spec: FeatureSpec?
+    /// Set when `kind` did not match any recognised case. `buildJSON` reads
+    /// this to emit an `unsupported` skip so callers can detect typos /
+    /// schema drift instead of features silently disappearing.
+    let unknownKind: String?
+    let unknownID: String?
 
     enum CodingKeys: String, CodingKey {
         case kind
@@ -654,8 +677,25 @@ private struct FeatureEntry: Decodable {
         case "chamfer":
             let distance = try c.decode(Double.self, forKey: .distance)
             self.spec = .chamfer(.init(edgeSelector: .all, distance: distance, id: id))
+        case "boolean":
+            let opStr = try c.decode(String.self, forKey: .op)
+            guard let op = FeatureSpec.Boolean.Op(rawValue: opStr) else {
+                self.spec = nil
+                self.unknownKind = "boolean(op:\(opStr))"
+                self.unknownID = id
+                return
+            }
+            let leftID = try c.decode(String.self, forKey: .leftID)
+            let rightID = try c.decode(String.self, forKey: .rightID)
+            self.spec = .boolean(.init(
+                op: op, leftID: leftID, rightID: rightID, id: id))
         default:
             self.spec = nil
+            self.unknownKind = kind
+            self.unknownID = id
+            return
         }
+        self.unknownKind = nil
+        self.unknownID = nil
     }
 }
