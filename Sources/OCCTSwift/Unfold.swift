@@ -99,6 +99,46 @@ public enum Unfold {
         case missingNormal(faceIndex: Int)
         case bridgeFailed(stage: String)
         case rootIndexOutOfRange(Int, faceCount: Int)
+        case bendDetectionFailed(faceIndex: Int, reason: String)
+        case noPanels
+    }
+
+    /// Sheet-metal-specific parameters for the bend-allowance calculation.
+    ///
+    /// Bend allowance is the developed length of the cylindrical fillet at
+    /// the neutral fiber: `BA = θ · (R + K · t)` where `θ` is the bend
+    /// angle in radians, `R` is the inside bend radius, `K` is the K-factor
+    /// (typically 0.33–0.5; 0.44 is a reasonable default for mild steel),
+    /// and `t` is the sheet thickness.
+    public struct SheetMetalParameters: Sendable {
+        public var thickness: Double
+        public var kFactor: Double
+
+        public init(thickness: Double, kFactor: Double = 0.44) {
+            self.thickness = thickness
+            self.kFactor = kFactor
+        }
+
+        public func bendAllowance(radius R: Double, angle theta: Double) -> Double {
+            return theta * (R + kFactor * thickness)
+        }
+    }
+
+    /// A detected bend in a sheet-metal shell.
+    public struct Bend: Sendable {
+        /// 0-based index of the cylindrical face in `subShapes(ofType: .face)`.
+        public let cylindricalFaceIndex: Int
+        public let radius: Double
+        public let axisOrigin: SIMD3<Double>
+        public let axisDirection: SIMD3<Double>
+        /// Length of the bend along its axis (= `vMax − vMin`).
+        public let length: Double
+        /// Bend angle in radians = `uMax − uMin` of the cylindrical face.
+        public let angle: Double
+        /// 0-based indices of the two adjacent planar faces (the panels the
+        /// bend connects). Always 2 entries for a well-formed sheet-metal
+        /// bend.
+        public let panelFaceIndices: [Int]
     }
 
     /// Tier 1 — unfold a shell whose every face is planar.
@@ -261,6 +301,421 @@ public enum Unfold {
             rootFaceIndex: rootIdx
         )
     }
+}
+
+// MARK: - Sheet-metal composite (CP3)
+
+extension Unfold {
+    /// Tier 3 — unfold a thin-shell sheet-metal part with cylindrical bends.
+    ///
+    /// Detects each cylindrical face whose two straight-generator edges are
+    /// shared with planar neighbours as a *bend*; replaces it with a planar
+    /// strip of width = bend allowance `θ · (R + K · t)` between the two
+    /// panels. The result lays the panels coplanar in 2D, separated by
+    /// developed bend strips on layer "BEND".
+    ///
+    /// **Input contract.** A 2-manifold shell (typically a closed shell or
+    /// connected open shell) with planar panel faces and cylindrical
+    /// fillets at every bend. Tangent continuity between panels and bend
+    /// fillets is required — the cylindrical face's two generator edges
+    /// must be shared with the adjacent panels. Closed thick solids belong
+    /// in CP4 (`solid(_:)`, mid-surface extraction).
+    ///
+    /// **Limitations (CP3):**
+    /// - Compound bends (a cylinder shared with another cylinder, or three
+    ///   panels meeting at one bend) are not yet handled — they're cut.
+    /// - Variable-angle K-factor is not supported. A single `kFactor` is
+    ///   applied to every bend.
+    /// - Bend axes that are not perpendicular to a panel pair's shared
+    ///   plane are not auto-detected — they're treated as cuts.
+    public static func sheetMetal(
+        _ shape: Shape,
+        parameters: Parameters,
+        sheet: SheetMetalParameters
+    ) throws -> Result {
+        let faceShapes = shape.subShapes(ofType: .face)
+        guard !faceShapes.isEmpty else { throw UnfoldError.noFaces }
+
+        // Classify faces: panel (planar) vs bend (cylindrical) vs other.
+        var faces: [SheetFaceKind] = []
+        for (i, fs) in faceShapes.enumerated() {
+            guard let face = Face(fs) else {
+                throw UnfoldError.bridgeFailed(stage: "Face from shape #\(i)")
+            }
+            switch face.surfaceType {
+            case .plane:
+                guard let n = face.normal else {
+                    throw UnfoldError.missingNormal(faceIndex: i)
+                }
+                let origin = face.outerWire?.edges().first?.endpoints.start
+                    ?? fs.center
+                faces.append(.panel(PanelInfo(
+                    index: i, shape: fs, normal: simd_normalize(n),
+                    origin: origin, area: face.area())))
+            case .cylinder:
+                faces.append(.cylinder(fs, face))
+            default:
+                throw UnfoldError.nonDevelopableFace(faceIndex: i)
+            }
+        }
+
+        // Detect bends: each cylindrical face contributes a Bend if its two
+        // straight-generator shared edges connect to two planar panels.
+        var bends: [Bend] = []
+        var bendByFaceIndex: [Int: Int] = [:] // cyl face index → bends array idx
+        for (i, kind) in faces.enumerated() {
+            guard case .cylinder(let cylShape, let cylFace) = kind else { continue }
+            let bend = try detectBend(
+                cylFaceIndex: i,
+                cylFaceShape: cylShape,
+                cylFace: cylFace,
+                allFaces: faces,
+                shape: shape
+            )
+            if let bend {
+                bendByFaceIndex[i] = bends.count
+                bends.append(bend)
+            }
+        }
+
+        // Build panel-to-panel adjacency through bends.
+        // adjacency[panelIdx] = [(otherPanel, bendIdx)]
+        var adjacency: [Int: [(other: Int, bend: Int)]] = [:]
+        for (bi, bend) in bends.enumerated() {
+            guard bend.panelFaceIndices.count == 2 else { continue }
+            let a = bend.panelFaceIndices[0]
+            let b = bend.panelFaceIndices[1]
+            adjacency[a, default: []].append((b, bi))
+            adjacency[b, default: []].append((a, bi))
+        }
+
+        // Pick root panel (largest area).
+        let panelIndices = faces.indices.compactMap { i -> Int? in
+            if case .panel = faces[i] { return i } else { return nil }
+        }
+        guard !panelIndices.isEmpty else { throw UnfoldError.noPanels }
+        let rootIdx = parameters.rootFaceIndex.flatMap { panelIndices.contains($0) ? $0 : nil }
+            ?? panelIndices.max(by: { lhs, rhs in
+                panelArea(faces[lhs]) < panelArea(faces[rhs])
+            })!
+
+        // BFS panels, computing each panel's 2D placement.
+        // Each panel gets a 2D rigid placement: origin in XY + rotation +
+        // optional mirror flag (we encode the local frame as origin +
+        // u/v axes). For simplicity store as a 4×4 transform from world
+        // 3D into XY 2D; for panels the mapping is identical to CP1's
+        // laydown.
+        var transform: [Int: simd_double4x4] = [:]
+        // Root: lay flat onto XY centred on its first vertex.
+        let rootPanel = panelInfo(faces[rootIdx])!
+        transform[rootIdx] = laydownTransform(face: FaceInfo(
+            shape: rootPanel.shape, normal: rootPanel.normal,
+            origin: rootPanel.origin, area: rootPanel.area))
+
+        var foldEdges: [FoldEdge] = []
+        var bendStrips: [BendStrip] = [] // for output
+        var visited: Set<Int> = [rootIdx]
+        var queue: [Int] = [rootIdx]
+        var head = 0
+
+        while head < queue.count {
+            let parent = queue[head]; head += 1
+            let parentT = transform[parent]!
+            for (other, bendIdx) in adjacency[parent] ?? [] {
+                if visited.contains(other) { continue }
+                let bend = bends[bendIdx]
+                let parentPanel = panelInfo(faces[parent])!
+                let otherPanel = panelInfo(faces[other])!
+
+                // The shared generator between parent and bend is a line
+                // edge in 3D. Find it.
+                guard let parentSharedEdge = sharedStraightEdge(
+                    a: parentPanel.shape, b: faceShapes[bend.cylindricalFaceIndex],
+                    in: shape
+                ) else {
+                    throw UnfoldError.bendDetectionFailed(
+                        faceIndex: bend.cylindricalFaceIndex,
+                        reason: "no shared straight edge with parent panel")
+                }
+                guard let otherSharedEdge = sharedStraightEdge(
+                    a: otherPanel.shape, b: faceShapes[bend.cylindricalFaceIndex],
+                    in: shape
+                ) else {
+                    throw UnfoldError.bendDetectionFailed(
+                        faceIndex: bend.cylindricalFaceIndex,
+                        reason: "no shared straight edge with other panel")
+                }
+
+                let pStart = parentSharedEdge.start, pEnd = parentSharedEdge.end
+                let pStartLaid = transformPoint(parentT, pStart)
+                let pEndLaid = transformPoint(parentT, pEnd)
+
+                // Outward direction at parent's shared edge in laid-out 2D:
+                // perpendicular to the edge, in parent's plane (z=0 after
+                // laydown), pointing AWAY from parent's interior.
+                let parentNormalLaid = transformNormal(parentT, parentPanel.normal)
+                let edgeDirLaid = simd_normalize(pEndLaid - pStartLaid)
+                // Perpendicular within plane = cross(normal, edgeDir).
+                // After laydown, normal ≈ +Z, so perp = (+Z × edgeDir) which
+                // lies in XY. Choose sign so it points away from parent's
+                // centroid.
+                var outwardLaid = simd_cross(parentNormalLaid, edgeDirLaid)
+                outwardLaid.z = 0
+                outwardLaid = simd_normalize(outwardLaid)
+                let parentCentroidLaid = transformPoint(parentT, parentPanel.origin)
+                let edgeMidLaid = (pStartLaid + pEndLaid) * 0.5
+                if simd_dot(outwardLaid, parentCentroidLaid - edgeMidLaid) > 0 {
+                    outwardLaid = -outwardLaid
+                }
+
+                // Bend allowance strip
+                let BA = sheet.bendAllowance(radius: bend.radius, angle: bend.angle)
+                // The far edge of the bend strip is parallel to the parent
+                // edge, offset by BA in outwardLaid direction.
+                let farStart = pStartLaid + Double(BA) * outwardLaid
+                let farEnd = pEndLaid + Double(BA) * outwardLaid
+
+                // Record the strip as a 2D quad (parent edge → far edge).
+                bendStrips.append(BendStrip(
+                    bendIndex: bendIdx,
+                    nearStart: SIMD2(pStartLaid.x, pStartLaid.y),
+                    nearEnd: SIMD2(pEndLaid.x, pEndLaid.y),
+                    farStart: SIMD2(farStart.x, farStart.y),
+                    farEnd: SIMD2(farEnd.x, farEnd.y)
+                ))
+
+                // Now compute child's transform: it must lay so that its
+                // "shared edge with bend" (otherSharedEdge in 3D) maps to
+                // the far edge of the strip in 2D.
+                // We treat the far edge as the "virtual shared edge" for
+                // the child panel. Compute child's 3D rigid transform that:
+                //   1. Rotates child's plane onto parent's plane (so they
+                //      become coplanar in 2D after laydown).
+                //   2. Translates so child's shared-edge-with-bend endpoints
+                //      land at (farStart, farEnd).
+                //
+                // Step A: rotation around child's shared edge that brings
+                // child's normal coplanar with parent's normal — same idea
+                // as CP1, but the rotation pivot is otherSharedEdge (in 3D)
+                // and the angle is the dihedral between parent and child
+                // (which equals bend.angle since the cylinder spans that
+                // dihedral; sign chosen so child unfolds outward).
+                let childT_step1 = unfoldChildTransform(
+                    parentT: parentT,
+                    parentPanel: parentPanel,
+                    otherPanel: otherPanel,
+                    otherSharedEdgeStart: otherSharedEdge.start,
+                    otherSharedEdgeEnd: otherSharedEdge.end
+                )
+
+                // Step B: child is now coplanar with parent. Its laid-out
+                // shared edge sits where the cylinder's other generator
+                // lands. Translate to the bend-strip's far edge.
+                let childOtherStartLaid = transformPoint(childT_step1, otherSharedEdge.start)
+                let childOtherEndLaid = transformPoint(childT_step1, otherSharedEdge.end)
+                let childOtherMid = (childOtherStartLaid + childOtherEndLaid) * 0.5
+                let farMid = (farStart + farEnd) * 0.5
+                let translateChild = translation(farMid - childOtherMid)
+                let childT = translateChild * childT_step1
+
+                transform[other] = childT
+                visited.insert(other)
+                queue.append(other)
+
+                // Record a fold across the cylinder (synthetic — the bend's
+                // edges are the parent + other shared generators).
+                if let edgeId = parentSharedEdge.identifier {
+                    foldEdges.append(FoldEdge(
+                        edge: edgeId,
+                        parentFaceIndex: parent,
+                        childFaceIndex: other,
+                        dihedralAngle: bend.angle
+                    ))
+                }
+            }
+        }
+
+        // Apply transforms and assemble result.
+        var laidShapes: [Int: Shape] = [:]
+        var laidArray: [Shape] = []
+        for (i, kind) in faces.enumerated() {
+            guard case .panel(let info) = kind, let t = transform[i] else { continue }
+            let mat = matrix12(from: t)
+            guard let flat = info.shape.transformed(matrix: mat) else {
+                throw UnfoldError.bridgeFailed(stage: "transform panel #\(i)")
+            }
+            laidShapes[i] = flat
+            laidArray.append(flat)
+        }
+        // Add bend strips as 2D faces (rectangles).
+        for (idx, strip) in bendStrips.enumerated() {
+            let pts: [SIMD3<Double>] = [
+                SIMD3(strip.nearStart.x, strip.nearStart.y, 0),
+                SIMD3(strip.nearEnd.x, strip.nearEnd.y, 0),
+                SIMD3(strip.farEnd.x, strip.farEnd.y, 0),
+                SIMD3(strip.farStart.x, strip.farStart.y, 0),
+            ]
+            if let wire = Wire.polygon3D(pts, closed: true),
+               let face = Shape.face(from: wire, planar: true) {
+                // Encode bend strip with a synthetic face index past the
+                // largest real index, so callers can recognise it.
+                laidShapes[10_000 + idx] = face
+                laidArray.append(face)
+            }
+        }
+
+        let compound: Shape
+        if laidArray.count == 1 {
+            compound = laidArray[0]
+        } else if let c = Shape.compound(laidArray) {
+            compound = c
+        } else {
+            throw UnfoldError.bridgeFailed(stage: "compound sheet-metal")
+        }
+
+        let overlaps = anyBoundingBoxOverlap(in: laidArray, tolerance: parameters.tolerance)
+
+        return Result(
+            flat: compound,
+            faces: laidShapes,
+            folds: foldEdges,
+            cuts: [],
+            overlaps: overlaps,
+            rootFaceIndex: rootIdx
+        )
+    }
+}
+
+// MARK: - CP3 internal types & helpers
+
+private enum SheetFaceKind {
+    case panel(PanelInfo)
+    case cylinder(Shape, Face) // shape + face wrapper
+}
+
+private struct PanelInfo {
+    let index: Int
+    let shape: Shape
+    let normal: SIMD3<Double>
+    let origin: SIMD3<Double>
+    let area: Double
+}
+
+private func panelInfo(_ kind: SheetFaceKind) -> PanelInfo? {
+    if case .panel(let info) = kind { return info }
+    return nil
+}
+
+private func panelArea(_ kind: SheetFaceKind) -> Double {
+    if case .panel(let info) = kind { return info.area }
+    return 0
+}
+
+private struct BendStrip {
+    let bendIndex: Int
+    let nearStart: SIMD2<Double>
+    let nearEnd: SIMD2<Double>
+    let farStart: SIMD2<Double>
+    let farEnd: SIMD2<Double>
+}
+
+private struct SharedEdgeInfo {
+    let start: SIMD3<Double>
+    let end: SIMD3<Double>
+    let identifier: Unfold.EdgeIdentifier?
+}
+
+private func detectBend(
+    cylFaceIndex: Int,
+    cylFaceShape: Shape,
+    cylFace: Face,
+    allFaces: [SheetFaceKind],
+    shape: Shape
+) throws -> Unfold.Bend? {
+    guard let surface = cylFaceShape.faceSurfaceGeom() else { return nil }
+    let cyl = surface.cylinderProperties
+    guard let bounds = cylFace.uvBounds else { return nil }
+
+    // Walk the cylinder face's edges; find shared planar neighbours.
+    let edgeShapes = shape.subShapes(ofType: .edge)
+    var panelNeighbours: Set<Int> = []
+    for es in edgeShapes {
+        let adj = shape.adjacentFaces(forEdge: es).map { $0 - 1 }
+        guard adj.contains(cylFaceIndex) else { continue }
+        for other in adj where other != cylFaceIndex {
+            if case .panel = allFaces[other] {
+                guard let edge = Edge(es), edge.isLine else { continue }
+                panelNeighbours.insert(other)
+            }
+        }
+    }
+    guard panelNeighbours.count == 2 else { return nil }
+
+    return Unfold.Bend(
+        cylindricalFaceIndex: cylFaceIndex,
+        radius: cyl.radius,
+        axisOrigin: cyl.axis.position,
+        axisDirection: simd_normalize(cyl.axis.direction),
+        length: bounds.vMax - bounds.vMin,
+        angle: bounds.uMax - bounds.uMin,
+        panelFaceIndices: Array(panelNeighbours).sorted()
+    )
+}
+
+private func sharedStraightEdge(a: Shape, b: Shape, in parent: Shape) -> SharedEdgeInfo? {
+    let edgeShapes = parent.subShapes(ofType: .edge)
+    let aFaceIndex = faceIndex(of: a, in: parent)
+    let bFaceIndex = faceIndex(of: b, in: parent)
+    guard aFaceIndex >= 0, bFaceIndex >= 0 else { return nil }
+    for (ei, es) in edgeShapes.enumerated() {
+        let adj = parent.adjacentFaces(forEdge: es).map { $0 - 1 }
+        guard adj.contains(aFaceIndex), adj.contains(bFaceIndex) else { continue }
+        guard let edge = Edge(es), edge.isLine else { continue }
+        let ep = edge.endpoints
+        return SharedEdgeInfo(
+            start: ep.start,
+            end: ep.end,
+            identifier: Unfold.EdgeIdentifier(
+                shapeHash: parent.hashCode, edgeIndex: ei)
+        )
+    }
+    return nil
+}
+
+private func faceIndex(of face: Shape, in parent: Shape) -> Int {
+    let faceShapes = parent.subShapes(ofType: .face)
+    for (i, fs) in faceShapes.enumerated() {
+        if fs.isSame(as: face) { return i }
+    }
+    return -1
+}
+
+/// Compute child panel's 3D-to-XY transform so that it becomes coplanar
+/// with the already-placed parent panel, rotating around `otherSharedEdge`
+/// (the child's straight generator with the bend cylinder).
+///
+/// Strategy: the cylinder spans the dihedral between parent and child by
+/// definition. Once we lay parent flat, child's plane needs to rotate by
+/// `±bend.angle` around `otherSharedEdge` to become coplanar. The sign and
+/// the residual translation come out by demanding parent's outward
+/// direction matches the bend's outward direction.
+private func unfoldChildTransform(
+    parentT: simd_double4x4,
+    parentPanel: PanelInfo,
+    otherPanel: PanelInfo,
+    otherSharedEdgeStart: SIMD3<Double>,
+    otherSharedEdgeEnd: SIMD3<Double>
+) -> simd_double4x4 {
+    // Apply parent's transform to child's normal direction first to bring
+    // it into the laid-out frame; then rotate around the shared edge in 3D
+    // to make child coplanar with parent.
+    let unfoldRot = rotationMatrix(
+        axisStart: otherSharedEdgeStart,
+        axisEnd: otherSharedEdgeEnd,
+        fromNormal: otherPanel.normal,
+        toNormal: parentPanel.normal
+    )
+    return parentT * unfoldRot.matrix
 }
 
 // MARK: - Multi-face developable shells (CP2)

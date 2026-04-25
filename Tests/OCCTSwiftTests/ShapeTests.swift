@@ -48734,6 +48734,169 @@ struct UnfoldDevelopTests {
     }
 }
 
+// MARK: - Thin-shell sheet-metal fixtures (CP3)
+
+/// Build a thin-shell L-bracket: two planar rectangles connected by a
+/// quarter-cylinder fillet. The bend axis runs along Y; flange A lies in the
+/// XY plane (z = 0), flange B is vertical at `x = aLength + R`. Tangent
+/// continuity is enforced — the cylinder is tangent to both flanges at the
+/// shared generators.
+private enum ThinShellFixture {
+    static func lBracket(
+        aLength: Double = 10,
+        bLength: Double = 8,
+        width: Double = 20,
+        bendRadius R: Double = 2
+    ) -> Shape? {
+        let aVerts: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0),
+            SIMD3(aLength, 0, 0),
+            SIMD3(aLength, width, 0),
+            SIMD3(0, width, 0),
+        ]
+        guard let aWire = Wire.polygon3D(aVerts, closed: true),
+              let planeA = Shape.face(from: aWire, planar: true) else { return nil }
+
+        // Cylindrical fillet: bend axis along +Y at (aLength, *, R), radius R.
+        // OCCT's default reference frame for axis = (0,1,0) picks +Z as the
+        // u=0 reference (because the main axis points along Y, the default
+        // xDirection falls back to +Z). So u=π/2 → +X (world) → (aLength+R,
+        // *, R), tangent to plane B's bottom edge; u=π → -Z (world) →
+        // (aLength, *, 0), tangent to plane A's right edge. The quarter
+        // fillet wants uRange = π/2 … π.
+        guard let cyl = Shape.faceFromCylinder(
+            origin: SIMD3(aLength, 0, R),
+            axis: SIMD3(0, 1, 0),
+            radius: R,
+            uRange: (.pi / 2)...(.pi),
+            vRange: 0...width
+        ) else { return nil }
+
+        let bX = aLength + R
+        let bVerts: [SIMD3<Double>] = [
+            SIMD3(bX, 0, R),
+            SIMD3(bX, width, R),
+            SIMD3(bX, width, R + bLength),
+            SIMD3(bX, 0, R + bLength),
+        ]
+        guard let bWire = Wire.polygon3D(bVerts, closed: true),
+              let planeB = Shape.face(from: bWire, planar: true) else { return nil }
+
+        return Shape.sew(shapes: [planeA, cyl, planeB], tolerance: 1e-4)
+    }
+}
+
+@Suite("Thin-shell L-bracket fixture (CP3 prep)")
+struct ThinShellFixtureTests {
+
+    @Test("L-bracket thin-shell sews to 3 connected faces with shared edges")
+    func lBracketTopology() throws {
+        let bracket = try #require(ThinShellFixture.lBracket())
+        let faces = bracket.subShapes(ofType: .face)
+        #expect(faces.count == 3)
+        var planar = 0, cylindrical = 0
+        for f in faces {
+            guard let face = Face(f) else { continue }
+            switch face.surfaceType {
+            case .plane: planar += 1
+            case .cylinder: cylindrical += 1
+            default: break
+            }
+        }
+        #expect(planar == 2)
+        #expect(cylindrical == 1)
+        let edges = bracket.subShapes(ofType: .edge)
+        var sharedEdges = 0
+        for e in edges {
+            if bracket.adjacentFaces(forEdge: e).count == 2 { sharedEdges += 1 }
+        }
+        #expect(sharedEdges >= 2,
+                 "expected at least 2 shared (sewn) edges, got \(sharedEdges)")
+    }
+
+}
+
+// MARK: - Unfold sheetMetal (CP3)
+
+@Suite("Unfold sheetMetal (CP3)")
+struct UnfoldSheetMetalTests {
+
+    @Test("L-bracket: 90° bend, total flat length = A + BA + B")
+    func lBracketUnfolds() throws {
+        let aLength = 10.0, bLength = 8.0, R = 2.0, width = 20.0
+        let bracket = try #require(ThinShellFixture.lBracket(
+            aLength: aLength, bLength: bLength, width: width, bendRadius: R))
+
+        let sheet = Unfold.SheetMetalParameters(thickness: 1.0, kFactor: 0.44)
+        let result = try Unfold.sheetMetal(bracket,
+                                            parameters: .init(),
+                                            sheet: sheet)
+
+        // Two panels + one bend strip = 3 emitted faces.
+        #expect(result.faces.count == 3)
+        // One fold (the bend).
+        #expect(result.folds.count == 1)
+        // Fold dihedral should equal the bend angle (90°).
+        if let fold = result.folds.first {
+            #expect(abs(abs(fold.dihedralAngle) - .pi / 2) < 1e-3,
+                     "expected 90° bend, got \(fold.dihedralAngle)")
+        }
+
+        // Total area: A_panel + bend strip + B_panel.
+        // A_panel area = aLength × width = 200.
+        // B_panel area = bLength × width = 160.
+        // Bend strip area = BA × width = π/2 · (R + 0.44 · 1.0) · width
+        //                              = π/2 · 2.44 · 20.
+        let BA = (.pi / 2) * (R + 0.44 * 1.0)
+        let expectedArea = aLength * width + bLength * width + BA * width
+        var totalArea = 0.0
+        for (_, flat) in result.faces {
+            if let f = Face(flat) { totalArea += f.area() }
+        }
+        #expect(abs(totalArea - expectedArea) < 1e-2 * expectedArea,
+                 "expected \(expectedArea), got \(totalArea)")
+
+        // Flat pattern should be a contiguous strip in 2D — bounding box
+        // length ≈ aLength + BA + bLength, width = `width`.
+        let b = result.flat.bounds
+        let flatLength = b.max.x - b.min.x + (b.max.y - b.min.y) // pick larger
+        let expectedLength = aLength + BA + bLength
+        // Either x or y axis carries the length.
+        let xExtent = b.max.x - b.min.x
+        let yExtent = b.max.y - b.min.y
+        let actualLength = max(xExtent, yExtent)
+        let actualWidth = min(xExtent, yExtent)
+        #expect(abs(actualLength - expectedLength) < 1e-2 * expectedLength,
+                 "expected length \(expectedLength), got \(actualLength)")
+        #expect(abs(actualWidth - width) < 1e-2 * width,
+                 "expected width \(width), got \(actualWidth)")
+        _ = flatLength
+    }
+
+    @Test("L-bracket detects exactly 1 bend with correct radius and angle")
+    func lBracketBendDetection() throws {
+        let R = 2.5
+        let bracket = try #require(ThinShellFixture.lBracket(
+            aLength: 12, bLength: 6, width: 15, bendRadius: R))
+        let sheet = Unfold.SheetMetalParameters(thickness: 0.8)
+        let result = try Unfold.sheetMetal(bracket, parameters: .init(), sheet: sheet)
+        // Expect 1 fold (1 bend).
+        #expect(result.folds.count == 1)
+        if let fold = result.folds.first {
+            #expect(abs(abs(fold.dihedralAngle) - .pi / 2) < 1e-3)
+        }
+    }
+
+    @Test("Non-developable input is rejected")
+    func sphereInSheetMetalRejected() {
+        let sphere = Shape.sphere(radius: 5)!
+        let sheet = Unfold.SheetMetalParameters(thickness: 1.0)
+        #expect(throws: Unfold.UnfoldError.self) {
+            _ = try Unfold.sheetMetal(sphere, parameters: .init(), sheet: sheet)
+        }
+    }
+}
+
 // MARK: - Unfold inspection (writes SVG to /tmp for visual review)
 
 @Suite("Unfold inspection (CP1)")
@@ -48815,6 +48978,17 @@ struct UnfoldInspectionTests {
         let frustum = Shape.cone(bottomRadius: 4, topRadius: 2, height: 5)!
         let result = try Unfold.developable(frustum)
         try writeUnfoldSVG(result, name: "CP2-closed-frustum")
+    }
+
+    @Test("Export L-bracket flat pattern to /tmp/unfold-CP3-l-bracket.svg")
+    func exportLBracketFlat() throws {
+        let bracket = try #require(ThinShellFixture.lBracket(
+            aLength: 10, bLength: 8, width: 20, bendRadius: 2))
+        let sheet = Unfold.SheetMetalParameters(thickness: 1.0, kFactor: 0.44)
+        let result = try Unfold.sheetMetal(bracket,
+                                            parameters: .init(),
+                                            sheet: sheet)
+        try writeUnfoldSVG(result, name: "CP3-l-bracket")
     }
 }
 
