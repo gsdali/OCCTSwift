@@ -49303,6 +49303,78 @@ struct UnfoldInspectionTests {
         let nested = try Unfold.nest(result)
         try writeUnfoldSVG(nested, name: "CP6-cubes-packed")
     }
+
+    // MARK: - DXF inspection (CP1–CP6)
+
+    @Test("Export L-bracket flat pattern to /tmp/unfold-CP3-l-bracket.dxf")
+    func exportLBracketDXF() throws {
+        let bracket = try #require(ThinShellFixture.lBracket(
+            aLength: 10, bLength: 8, width: 20, bendRadius: 2))
+        let sheet = Unfold.SheetMetalParameters(thickness: 1.0, kFactor: 0.44)
+        let result = try Unfold.sheetMetal(bracket,
+                                            parameters: .init(),
+                                            sheet: sheet)
+        let url = URL(fileURLWithPath: "/tmp/unfold-CP3-l-bracket.dxf")
+        try Exporter.writeDXF(unfoldResult: result, to: url)
+        let body = try String(contentsOf: url, encoding: .utf8)
+        // L-bracket emits 3 faces: panel A, bend strip, panel B.
+        // Bend strip lands on BEND layer.
+        #expect(body.contains("BEND"), "expected BEND layer in DXF output")
+        #expect(body.contains("VISIBLE"), "expected VISIBLE layer in DXF output")
+    }
+
+    @Test("Export cube net to /tmp/unfold-CP1-cube.dxf")
+    func exportCubeDXF() throws {
+        let cube = Shape.box(width: 10, height: 10, depth: 10)!
+        let result = try Unfold.polyhedral(cube)
+        let url = URL(fileURLWithPath: "/tmp/unfold-CP1-cube.dxf")
+        try Exporter.writeDXF(unfoldResult: result, to: url)
+        let body = try String(contentsOf: url, encoding: .utf8)
+        // Cube net has only panels — no bend strips. Should NOT contain BEND
+        // unless a layer header is always emitted; but at minimum it must
+        // contain the VISIBLE layer with line/polyline entities.
+        #expect(body.contains("VISIBLE"))
+        #expect(body.contains("LINE") || body.contains("LWPOLYLINE") || body.contains("POLYLINE"))
+    }
+
+    @Test("Export resolved icosahedron to /tmp/unfold-CP5-icosahedron.dxf")
+    func exportIcosahedronDXF() throws {
+        let ico = try #require(PlatonicSolid.icosahedron(radius: 1.0))
+        var params = Unfold.Parameters()
+        params.resolveOverlaps = true
+        let result = try Unfold.polyhedral(ico, parameters: params)
+        let url = URL(fileURLWithPath: "/tmp/unfold-CP5-icosahedron.dxf")
+        try Exporter.writeDXF(unfoldResult: result, to: url)
+        // 20 triangles × 3 edges = 60 line segments minimum; some will be
+        // shared, some will appear as separate islands. Just check we
+        // wrote a non-trivial file.
+        let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
+        let size = (attrs[.size] as? Int) ?? 0
+        #expect(size > 1000, "DXF too small (\(size) bytes) — expected real entity output")
+    }
+
+    @Test("DXF export separates bend strips onto BEND layer, panels onto VISIBLE")
+    func dxfLayerSeparation() throws {
+        let bracket = try #require(ThinShellFixture.lBracket())
+        let sheet = Unfold.SheetMetalParameters(thickness: 1.0)
+        let result = try Unfold.sheetMetal(bracket,
+                                            parameters: .init(),
+                                            sheet: sheet)
+        let url = URL(fileURLWithPath: "/tmp/unfold-CP3-l-bracket-layers.dxf")
+        try Exporter.writeDXF(unfoldResult: result, to: url,
+                               panelLayer: "PANELS", bendLayer: "FOLDS")
+        let body = try String(contentsOf: url, encoding: .utf8)
+        #expect(body.contains("PANELS"))
+        #expect(body.contains("FOLDS"))
+        // Default layer names should NOT appear when overrides are passed
+        // (other than as standard DXF boilerplate which uses 0/DEFPOINTS).
+        // Check the entity-section layer assignments.
+        let entitiesStart = body.range(of: "ENTITIES")?.upperBound
+            ?? body.startIndex
+        let entitiesBody = String(body[entitiesStart...])
+        #expect(!entitiesBody.contains("\nVISIBLE\n"))
+        #expect(!entitiesBody.contains("\nBEND\n"))
+    }
 }
 
 private func writeSingleFaceSVG(_ flat: Shape, name: String) throws {
