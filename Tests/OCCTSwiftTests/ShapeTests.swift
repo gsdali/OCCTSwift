@@ -49422,6 +49422,155 @@ struct UnfoldSolidTests {
         #expect(abs(b.max.z - b.min.z) < 1.0,
                  "flat pattern should be in z=0 plane, got z range \(b.min.z)…\(b.max.z)")
     }
+
+    /// End-to-end CAD round-trip: build a `SheetMetal.Builder` L-bracket,
+    /// export to STEP, re-import via `Shape.loadSTEP`, then unfold via
+    /// `Unfold.fromSolid`. This is the closest synthetic analogue of the
+    /// real-CAD path — STEP serialisation strips the in-memory `Shape`
+    /// down to its B-Rep, so the importer reconstructs faces, edges, and
+    /// surface types from scratch. If `fromSolid` works on a STEP-roundtripped
+    /// bracket, it should work on a freshly-imported sheet-metal STEP from
+    /// CATIA / SolidWorks / Inventor as well.
+    @Test("fromSolid: STEP round-trip of Builder L-bracket")
+    func fromSolidStepRoundTrip() throws {
+        let base = SheetMetal.Flange(
+            id: "base",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 30), SIMD2(0, 30)],
+            origin: SIMD3<Double>(0, 0, 0),
+            normal: SIMD3<Double>(0, 0, 1),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 1, 0))
+        let upright = SheetMetal.Flange(
+            id: "upright",
+            profile: [SIMD2(0, 0), SIMD2(40, 0), SIMD2(40, 25), SIMD2(0, 25)],
+            origin: SIMD3<Double>(0, 30, 0),
+            normal: SIMD3<Double>(0, 1, 0),
+            uAxis: SIMD3<Double>(1, 0, 0),
+            vAxis: SIMD3<Double>(0, 0, 1))
+        let bracket = try SheetMetal.Builder(thickness: 2.0).build(
+            flanges: [base, upright],
+            bends: [SheetMetal.Bend(from: "base", to: "upright", radius: 1.5)])
+
+        let stepURL = URL(fileURLWithPath: "/tmp/unfold-roundtrip-bracket.step")
+        try Exporter.writeSTEP(shape: bracket, to: stepURL)
+
+        // Re-import in mm (Builder works in mm).
+        let imported = try Shape.loadSTEP(from: stepURL, unitInMeters: 0.001)
+        #expect(imported.isValid, "imported STEP shape should be valid")
+
+        // The cylindrical bend face must survive the STEP round-trip for
+        // `fromSolid` to dispatch to the `solid` path (mid-surface + bend
+        // allowance).
+        let importedFaces = imported.subShapes(ofType: .face)
+        let cylinderCount = importedFaces.filter {
+            Face($0)?.surfaceType == .cylinder
+        }.count
+        #expect(cylinderCount >= 1,
+                 "STEP round-trip should preserve at least one cylindrical fillet face, got \(cylinderCount)")
+
+        let sheet = Unfold.SheetMetalParameters(thickness: 2.0, kFactor: 0.44)
+        let result = try Unfold.fromSolid(imported, parameters: .init(), sheet: sheet)
+        #expect(result.faces.count >= 3,
+                 "expected ≥3 emitted faces (2 panels + ≥1 bend strip), got \(result.faces.count)")
+        #expect(result.flat.isValid)
+
+        try Exporter.writeDXF(unfoldResult: result,
+                               to: URL(fileURLWithPath: "/tmp/unfold-roundtrip-bracket.dxf"))
+    }
+}
+
+// MARK: - Unfold drop-in file harness
+//
+// These tests look for a user-supplied STEP/STL at a fixed `/tmp` path,
+// dump topology diagnostics, and run the file through `Unfold.fromSolid`,
+// writing the resulting flat pattern out as DXF. They no-op cleanly when
+// no input file is present, so CI doesn't fail on machines without test
+// data. The point is to give a one-line drop point for working with real
+// CAD files: drop your file, rerun the suite, inspect `/tmp/unfold-input-*`.
+
+@Suite("Unfold drop-in file harness")
+struct UnfoldDropInTests {
+
+    /// Drop a STEP file at `/tmp/unfold-input.step` to exercise this path.
+    /// Override the unit by setting `OCCTSWIFT_STEP_UNIT_M` (meters per
+    /// model unit, e.g. `0.001` for mm, `0.0254` for inches). Defaults to
+    /// `0.001` (mm) which matches Builder/SolidWorks/CATIA defaults.
+    @Test("Unfold user-supplied STEP at /tmp/unfold-input.step")
+    func unfoldUserSuppliedSTEP() throws {
+        let inputURL = URL(fileURLWithPath: "/tmp/unfold-input.step")
+        guard FileManager.default.fileExists(atPath: inputURL.path) else {
+            // No input file present — silent no-op so this test is safe in
+            // CI. Drop a STEP at /tmp/unfold-input.step and re-run.
+            return
+        }
+        let unit = ProcessInfo.processInfo
+            .environment["OCCTSWIFT_STEP_UNIT_M"]
+            .flatMap(Double.init) ?? 0.001
+        let shape = try Shape.loadSTEP(from: inputURL, unitInMeters: unit)
+        try diagnose(shape, label: "STEP \(inputURL.lastPathComponent) (unit=\(unit) m)")
+        try unfoldAndExport(shape, outputStem: "/tmp/unfold-input-step")
+    }
+
+    /// Drop an STL file at `/tmp/unfold-input.stl` to exercise this path.
+    /// Uses `loadSTLRobust` (sew + heal) since STL is tessellated and
+    /// `fromSolid`'s topology dispatch needs a real B-Rep.
+    @Test("Unfold user-supplied STL at /tmp/unfold-input.stl")
+    func unfoldUserSuppliedSTL() throws {
+        let inputURL = URL(fileURLWithPath: "/tmp/unfold-input.stl")
+        guard FileManager.default.fileExists(atPath: inputURL.path) else {
+            return
+        }
+        let shape = try Shape.loadSTLRobust(from: inputURL)
+        try diagnose(shape, label: "STL \(inputURL.lastPathComponent)")
+        try unfoldAndExport(shape, outputStem: "/tmp/unfold-input-stl")
+    }
+
+    /// Print a topology summary so the user can see what the importer
+    /// produced before the unfold runs. Useful when an input fails — the
+    /// surface-type histogram tells you whether the dispatch is going to
+    /// pick `solid` (any cylinders) or `polyhedral` (sharp-edged only).
+    private func diagnose(_ shape: Shape, label: String) throws {
+        let faces = shape.subShapes(ofType: .face)
+        let edges = shape.subShapes(ofType: .edge)
+        let b = shape.bounds
+        var typeHistogram: [Face.SurfaceType: Int] = [:]
+        for f in faces {
+            if let face = Face(f) {
+                typeHistogram[face.surfaceType, default: 0] += 1
+            }
+        }
+        print("[unfold harness] \(label)")
+        print("  faces=\(faces.count) edges=\(edges.count)")
+        print("  bounds=[\(b.min) … \(b.max)]")
+        print("  surface types: \(typeHistogram)")
+    }
+
+    /// Run `Unfold.fromSolid` and write a DXF flat pattern. Picks a
+    /// thickness from the bounding box's smallest dimension if not
+    /// overridden via `OCCTSWIFT_SHEET_THICKNESS`. Catches the unfold
+    /// error so a bad input doesn't kill the whole test run — the diagnostic
+    /// print above already told the user what's in the file.
+    private func unfoldAndExport(_ shape: Shape, outputStem: String) throws {
+        let envT = ProcessInfo.processInfo
+            .environment["OCCTSWIFT_SHEET_THICKNESS"]
+            .flatMap(Double.init)
+        let size = shape.size
+        let inferredT = max(min(size.x, size.y, size.z) * 0.05, 0.5)
+        let thickness = envT ?? inferredT
+        let sheet = Unfold.SheetMetalParameters(thickness: thickness, kFactor: 0.44)
+
+        do {
+            let result = try Unfold.fromSolid(shape, parameters: .init(), sheet: sheet)
+            print("[unfold harness] flat pattern: faces=\(result.faces.count) folds=\(result.folds.count) overlaps=\(result.overlaps)")
+            try Exporter.writeDXF(unfoldResult: result,
+                                   to: URL(fileURLWithPath: "\(outputStem).dxf"))
+            print("[unfold harness] wrote \(outputStem).dxf")
+        } catch {
+            print("[unfold harness] fromSolid failed: \(error)")
+            // Don't fail the test — the harness is for inspection, not
+            // strict validation. The user can read stderr to debug.
+        }
+    }
 }
 
 // MARK: - Unfold inspection (writes SVG to /tmp for visual review)
