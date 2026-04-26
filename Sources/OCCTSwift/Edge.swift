@@ -13,7 +13,14 @@ public final class Edge: @unchecked Sendable {
         self.handle = handle
         self.index = index
     }
-    
+
+    /// Construct an Edge from a Shape that wraps a TopoDS_Edge. Returns nil
+    /// if `shape` is null or wraps a non-edge topology type.
+    public convenience init?(_ shape: Shape) {
+        guard let h = OCCTEdgeFromShape(shape.handle) else { return nil }
+        self.init(handle: h)
+    }
+
     deinit {
         OCCTEdgeRelease(handle)
     }

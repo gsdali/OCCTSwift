@@ -2,13 +2,27 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.153.0
+## Current: v0.154.0
 
-**4,142 wrapped operations | 3,342 tests | 1,165 suites | OCCT 8.0.0-rc5**
+**4,144 wrapped operations | 3,344 tests | 1,166 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.154.0 (Apr 2026) — `Face(_:Shape)` and `Edge(_:Shape)` convenience initializers
+
+Two tiny additive bridge symbols and their Swift conveniences. Recovers a typed `Face` or `Edge` from a generic `Shape` that wraps a `TopoDS_Face` / `TopoDS_Edge` (returns nil on type mismatch). Useful when a method gives back a `Shape` (e.g. `subShapes(ofType: .face)`) and you want the typed wrapper to call methods like `area()`, `outerWire`, `length`, etc., directly.
+
+```swift
+let box = Shape.box(width: 10, height: 10, depth: 10)!
+let faceShapes = box.subShapes(ofType: .face)
+if let face = Face(faceShapes[0]) {
+    print(face.area())   // 100
+}
+```
+
+Bridge: `OCCTFaceFromShape(OCCTShapeRef) -> OCCTFaceRef?` and `OCCTEdgeFromShape(OCCTShapeRef) -> OCCTEdgeRef?`. Both return NULL when the shape's `ShapeType()` doesn't match. Unblocks the upcoming `UnfoldEngine` package, which builds on these.
 
 ### v0.153.0 (Apr 2026) — `SheetMetal.Builder` step-aware bends (issue #86)
 

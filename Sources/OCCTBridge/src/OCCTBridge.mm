@@ -1767,6 +1767,15 @@ OCCTShapeRef OCCTShapeFromFace(OCCTFaceRef faceRef) {
     return new OCCTShape(faceRef->face);
 }
 
+OCCTFaceRef OCCTFaceFromShape(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        if (shape->shape.IsNull()) return nullptr;
+        if (shape->shape.ShapeType() != TopAbs_FACE) return nullptr;
+        return new OCCTFace(TopoDS::Face(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
 void OCCTShapeRelease(OCCTShapeRef shape) {
     delete shape;
 }
@@ -2859,6 +2868,15 @@ struct OCCTEdge {
     OCCTEdge() {}
     OCCTEdge(const TopoDS_Edge& e) : edge(e) {}
 };
+
+OCCTEdgeRef OCCTEdgeFromShape(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        if (shape->shape.IsNull()) return nullptr;
+        if (shape->shape.ShapeType() != TopAbs_EDGE) return nullptr;
+        return new OCCTEdge(TopoDS::Edge(shape->shape));
+    } catch (...) { return nullptr; }
+}
 
 OCCTShapeRef OCCTShapeFromEdge(OCCTEdgeRef edgeRef) {
     if (!edgeRef) return nullptr;

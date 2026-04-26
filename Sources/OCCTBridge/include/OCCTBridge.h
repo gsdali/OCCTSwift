@@ -801,6 +801,11 @@ OCCTMeshRef OCCTMeshIntersect(OCCTMeshRef mesh1, OCCTMeshRef mesh2, double defle
 OCCTShapeRef OCCTShapeFromWire(OCCTWireRef wireRef);
 OCCTShapeRef OCCTShapeFromFace(OCCTFaceRef faceRef);
 
+/// Construct a Face reference from a Shape that wraps a TopoDS_Face.
+/// Returns NULL if the shape is null or its topology type is not TopAbs_FACE.
+/// Caller owns the returned reference and must release it.
+OCCTFaceRef OCCTFaceFromShape(OCCTShapeRef shape);
+
 // MARK: - Memory Management
 
 void OCCTShapeRelease(OCCTShapeRef shape);
@@ -1056,6 +1061,11 @@ void OCCTEdgeRelease(OCCTEdgeRef edge);
 
 /// Convert an edge to a shape
 OCCTShapeRef OCCTShapeFromEdge(OCCTEdgeRef edgeRef);
+
+/// Construct an Edge reference from a Shape that wraps a TopoDS_Edge.
+/// Returns NULL if the shape is null or its topology type is not TopAbs_EDGE.
+/// Caller owns the returned reference and must release it.
+OCCTEdgeRef OCCTEdgeFromShape(OCCTShapeRef shape);
 
 /// Get edge length
 double OCCTEdgeGetLength(OCCTEdgeRef edge);

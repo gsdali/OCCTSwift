@@ -14,6 +14,13 @@ public final class Face: @unchecked Sendable {
         self.index = index
     }
 
+    /// Construct a Face from a Shape that wraps a TopoDS_Face. Returns nil
+    /// if `shape` is null or wraps a non-face topology type.
+    public convenience init?(_ shape: Shape) {
+        guard let h = OCCTFaceFromShape(shape.handle) else { return nil }
+        self.init(handle: h)
+    }
+
     deinit {
         OCCTFaceRelease(handle)
     }

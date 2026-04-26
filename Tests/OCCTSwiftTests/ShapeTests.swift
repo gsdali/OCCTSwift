@@ -8133,6 +8133,41 @@ struct FacePropertyTests {
         #expect(wire != nil)
     }
 
+    @Test("Face(_:Shape) recovers a Face from a face-shape; rejects non-faces")
+    func faceFromShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let faceShapes = box.subShapes(ofType: .face)
+        guard let fs = faceShapes.first else {
+            Issue.record("Box should have face subshapes")
+            return
+        }
+        // A face subshape converts to a Face whose area is 100 (10×10).
+        let face = Face(fs)
+        #expect(face != nil)
+        if let f = face {
+            #expect(abs(f.area() - 100) < 1e-6)
+        }
+        // The whole box is a TopoDS_Solid, not a Face — must reject.
+        #expect(Face(box) == nil)
+    }
+
+    @Test("Edge(_:Shape) recovers an Edge from an edge-shape; rejects non-edges")
+    func edgeFromShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let edgeShapes = box.subShapes(ofType: .edge)
+        guard let es = edgeShapes.first else {
+            Issue.record("Box should have edge subshapes")
+            return
+        }
+        let edge = Edge(es)
+        #expect(edge != nil)
+        if let e = edge {
+            #expect(abs(e.length - 10) < 1e-6)
+        }
+        // The whole box is a TopoDS_Solid, not an Edge — must reject.
+        #expect(Edge(box) == nil)
+    }
+
     @Test("Horizontal face zLevel")
     func horizontalFaceZLevel() {
         let box = Shape.box(width: 10, height: 10, depth: 10)!
