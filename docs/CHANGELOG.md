@@ -2,13 +2,36 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.154.0
+## Current: v0.155.0
 
-**4,144 wrapped operations | 3,344 tests | 1,166 suites | OCCT 8.0.0-rc5**
+**4,145 wrapped operations | 3,349 tests | 1,167 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.155.0 (Apr 2026) — `SheetMetal.Builder`: convex bends (issue #89)
+
+The v0.151–v0.153 builder only supported **concave** bends (L-bracket-style, where the two flanges' bodies overlap in volume around the seam). **Convex** bends — Z-section middle bends, offset brackets, gusseted brackets where one flange folds back on the opposite side — failed with `BuildError.filletFailed` because the seam edge is non-manifold (a kiss point with four boundary faces meeting at one line, which `BRepFilletAPI_MakeFillet` rejects).
+
+v0.155 adds first-class convex bend support:
+
+- **Auto-detected direction.** Each bend is classified concave or convex from the relative position of the two flanges' body centroids. No caller change needed; the existing v0.151–v0.153 fixtures (L, U, stepped Z) continue to build identically because they're all concave.
+
+- **Convex bend material.** Convex bends build a **curved-triangle prism** that bridges the two flanges' outer-corner edges with a cylindrical fillet on the outside surface, then boolean-fuses with the flanges. The "kiss point" stays sharp on the inside (which is the natural CAD interpretation when the user's flange placements don't leave room for an inside cylinder); the outside is rounded to the bend radius.
+
+- **`Bend` struct expanded** with optional explicit controls:
+  - `angle: Double?` — bend angle in radians, signed (positive = concave, negative = convex). Nil means auto-infer from flange positions. Sign convention follows OCCT's right-hand rule: angles are CCW-positive about the bend axis derived from `cross(fromFlange.normal, toFlange.normal)`, with concave-positive matching how a CAD designer thinks about bends.
+  - `insideRadius: Double` — replaces the legacy single `radius` (which still works as a convenience init).
+  - `outsideRadius: Double?` — independent control of the outside fillet radius. Defaults to nil = match insideRadius for convex builds.
+  - `materialThicknessAtBend: Double?` — allow thinner material in the bend region than the flange thickness, common in etched parts where a thinned bend line allows tighter folds without cracking.
+  - `direction: BendDirection` — `.auto` (default), `.concave`, or `.convex` for explicit override.
+
+- **The legacy `Bend(from:to:radius:)` initializer is unchanged.** All v0.151–v0.153 callers continue to work without modification.
+
+The 93-face inside-corner-reinforcing-bracket from #89 (Z-section with both same-direction and convex bends) now builds cleanly. Test fixtures from the issue: symmetric Z, offset L with very short web, channel-with-flange, all pass.
+
+Bridge: one new symbol `OCCTWireCreateArcThroughPoints(s, m, e)` for 3-point arc-wire construction (avoids the `gp_Ax2` X-direction ambiguity of the angle-based arc API). Exposed as `Wire.arc(start:midpoint:end:)`.
 
 ### v0.154.0 (Apr 2026) — `Face(_:Shape)` and `Edge(_:Shape)` convenience initializers
 

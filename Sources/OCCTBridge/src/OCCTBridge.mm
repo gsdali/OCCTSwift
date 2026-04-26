@@ -1927,6 +1927,24 @@ OCCTWireRef OCCTWireCreateArc(double centerX, double centerY, double centerZ, do
     }
 }
 
+OCCTWireRef OCCTWireCreateArcThroughPoints(double sx, double sy, double sz,
+                                            double mx, double my, double mz,
+                                            double ex, double ey, double ez) {
+    try {
+        gp_Pnt p1(sx, sy, sz);
+        gp_Pnt p2(mx, my, mz);
+        gp_Pnt p3(ex, ey, ez);
+        GC_MakeArcOfCircle maker(p1, p2, p3);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_TrimmedCurve) arc = maker.Value();
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(arc);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 OCCTWireRef OCCTWireCreateBSpline(const double* controlPoints, int32_t pointCount) {
     if (!controlPoints || pointCount < 2) return nullptr;
 
