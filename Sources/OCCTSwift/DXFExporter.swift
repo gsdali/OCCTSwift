@@ -53,58 +53,6 @@ extension Exporter {
         try writeDXF(drawing: drawing, to: url, deflection: deflection)
     }
 
-    /// Export an `Unfold.Result` flat pattern to DXF R12.
-    ///
-    /// The result's faces are already laid out in the XY plane (z = 0) — no
-    /// projection is needed. Each face's boundary edges are walked via
-    /// `allEdgePolylines` and emitted as DXF `LINE` / `LWPOLYLINE` entities.
-    /// Bend-strip faces (whose synthetic face indices come from
-    /// `Unfold.sheetMetal(_:parameters:sheet:)` and start at 10_000) land on
-    /// the `bendLayer`; everything else lands on the `panelLayer`. The
-    /// default layer names (`VISIBLE` and `BEND`) match the rest of the
-    /// drawing pipeline's conventions, so a downstream CAM tool sees panel
-    /// cuts and bend lines on the layers it expects.
-    ///
-    /// `deflection` controls the chord tolerance used when discretising
-    /// curved edges (cone/frustum boundaries from CP2). Defaults to 0.1mm.
-    public static func writeDXF(
-        unfoldResult result: Unfold.Result,
-        to url: URL,
-        deflection: Double = 0.1,
-        panelLayer: String = "VISIBLE",
-        bendLayer: String = "BEND"
-    ) throws {
-        let writer = DXFWriter(deflection: deflection)
-        Self.collectUnfoldEntities(
-            result, into: writer,
-            deflection: deflection,
-            panelLayer: panelLayer, bendLayer: bendLayer)
-        try writer.write(to: url)
-    }
-
-    /// Stage an `Unfold.Result` onto an existing `DXFWriter`. Useful when a
-    /// caller wants to compose the flat pattern with extra annotations
-    /// (BOMs, balloons, title-block content) before writing.
-    static func collectUnfoldEntities(
-        _ result: Unfold.Result,
-        into writer: DXFWriter,
-        deflection: Double = 0.1,
-        panelLayer: String = "VISIBLE",
-        bendLayer: String = "BEND"
-    ) {
-        for (faceIndex, face) in result.faces {
-            let layer = faceIndex >= 10_000 ? bendLayer : panelLayer
-            for poly in face.allEdgePolylines(deflection: deflection) {
-                guard poly.count >= 2 else { continue }
-                let pts = poly.map { SIMD2($0.x, $0.y) }
-                if pts.count == 2 {
-                    writer.addLine(from: pts[0], to: pts[1], layer: layer)
-                } else {
-                    writer.addPolyline(pts, closed: false, layer: layer)
-                }
-            }
-        }
-    }
 }
 
 /// Pure-Swift DXF R12 ASCII writer. Public so callers can stage entities manually

@@ -13,9 +13,10 @@ import Foundation
 /// from a declarative description (see issue #85).
 ///
 /// The reverse direction — unwrapping a bent sheet-metal solid to a flat
-/// cutting pattern — lives in the top-level `Unfold` namespace. Tier 1
-/// (planar polyhedra) is implemented; cylindrical-bend unfolding with
-/// K-factor / bend allowance is on the way.
+/// cutting pattern — lives in the separate `UnfoldEngine` package, which
+/// depends on this one. Importing `UnfoldEngine` exposes
+/// `Unfold.fromSolid(_:sheet:)` and friends; `SheetMetal.Builder` output
+/// round-trips through it cleanly.
 ///
 /// ## Limitations
 ///
