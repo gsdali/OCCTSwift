@@ -826,6 +826,12 @@ OCCTWireRef OCCTWireCreateFromPoints3D(const double* points, int32_t pointCount,
 
 OCCTWireRef OCCTWireCreateLine(double x1, double y1, double z1, double x2, double y2, double z2);
 OCCTWireRef OCCTWireCreateArc(double centerX, double centerY, double centerZ, double radius, double startAngle, double endAngle, double normalX, double normalY, double normalZ);
+/// Build an arc-wire from three points (start, midpoint on the arc, end).
+/// Avoids the gp_Ax2 X-direction ambiguity that the angle-based arc API has.
+/// Returns NULL if the three points are collinear or the arc cannot be built.
+OCCTWireRef OCCTWireCreateArcThroughPoints(double sx, double sy, double sz,
+                                            double mx, double my, double mz,
+                                            double ex, double ey, double ez);
 OCCTWireRef OCCTWireCreateBSpline(const double* controlPoints, int32_t pointCount);
 OCCTWireRef OCCTWireJoin(const OCCTWireRef* wires, int32_t count);
 

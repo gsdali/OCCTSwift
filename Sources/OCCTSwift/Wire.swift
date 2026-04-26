@@ -224,6 +224,25 @@ public final class Wire: @unchecked Sendable {
         return Wire(handle: handle)
     }
 
+    /// Build an arc-wire passing through three points (start, midpoint
+    /// on the arc, end). Uses OCCT's `GC_MakeArcOfCircle` so the centre
+    /// and radius are derived from the points; the midpoint resolves
+    /// the curvature direction. Avoids the X-direction ambiguity of the
+    /// angle-based `arc(center:radius:startAngle:endAngle:normal:)`
+    /// constructor when the bend axis isn't a canonical world axis.
+    public static func arc(
+        start: SIMD3<Double>,
+        midpoint: SIMD3<Double>,
+        end: SIMD3<Double>
+    ) -> Wire? {
+        guard let handle = OCCTWireCreateArcThroughPoints(
+            start.x, start.y, start.z,
+            midpoint.x, midpoint.y, midpoint.z,
+            end.x, end.y, end.z
+        ) else { return nil }
+        return Wire(handle: handle)
+    }
+
     /// Create a 3D path from points in 3D space.
     ///
     /// - Parameters:

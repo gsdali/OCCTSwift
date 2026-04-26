@@ -48373,3 +48373,162 @@ struct SheetMetalTests {
         }
     }
 }
+
+@Suite("Issue #89: convex bends")
+struct ConvexBendIssue89 {
+    /// The issue's repro: Z-section with two opposite-direction 90° bends.
+    /// v0.153 threw `filletFailed` for the second (convex) bend.
+    @Test("Z-section with two opposite-direction 90° bends builds cleanly")
+    func zBracketRepro() throws {
+        let top = SheetMetal.Flange(
+            id: "top",
+            profile: [SIMD2(0,0), SIMD2(18,0), SIMD2(18,45), SIMD2(0,45)],
+            origin: SIMD3(0,0,0),
+            normal: SIMD3(0,0,1),
+            uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+        let web = SheetMetal.Flange(
+            id: "web",
+            profile: [SIMD2(0,0), SIMD2(25,0), SIMD2(25,45), SIMD2(0,45)],
+            origin: SIMD3(18,0,0),
+            normal: SIMD3(-1,0,0),
+            uAxis: SIMD3(0,0,1), vAxis: SIMD3(0,1,0))
+        let bottom = SheetMetal.Flange(
+            id: "bottom",
+            profile: [SIMD2(0,0), SIMD2(45,0), SIMD2(45,45), SIMD2(0,45)],
+            origin: SIMD3(18,0,25),
+            normal: SIMD3(0,0,1),
+            uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+        let s = try SheetMetal.Builder(thickness: 3.2).build(
+            flanges: [top, web, bottom],
+            bends: [SheetMetal.Bend(from: "top", to: "web", radius: 3.2),
+                    SheetMetal.Bend(from: "web", to: "bottom", radius: 3.2)])
+        #expect(s.isValid)
+        #expect((s.volume ?? 0) > 0)
+        #expect(s.subShapes(ofType: .solid).count == 1, "Z-bracket should be a single solid")
+        try Exporter.writeSTEP(shape: s, to: URL(fileURLWithPath: "/tmp/issue89-z-bracket.step"))
+    }
+
+    /// Symmetric Z-section: matched-width flanges, both bends 90° opposite.
+    @Test("Symmetric Z-section (top 30, web 20, bottom 30, R=3)")
+    func symmetricZ() throws {
+        let top = SheetMetal.Flange(
+            id: "top",
+            profile: [SIMD2(0,0), SIMD2(30,0), SIMD2(30,45), SIMD2(0,45)],
+            origin: SIMD3(0,0,0), normal: SIMD3(0,0,1),
+            uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+        let web = SheetMetal.Flange(
+            id: "web",
+            profile: [SIMD2(0,0), SIMD2(20,0), SIMD2(20,45), SIMD2(0,45)],
+            origin: SIMD3(30,0,0), normal: SIMD3(-1,0,0),
+            uAxis: SIMD3(0,0,1), vAxis: SIMD3(0,1,0))
+        let bottom = SheetMetal.Flange(
+            id: "bottom",
+            profile: [SIMD2(0,0), SIMD2(30,0), SIMD2(30,45), SIMD2(0,45)],
+            origin: SIMD3(30,0,20), normal: SIMD3(0,0,1),
+            uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+        let s = try SheetMetal.Builder(thickness: 2).build(
+            flanges: [top, web, bottom],
+            bends: [SheetMetal.Bend(from: "top", to: "web", radius: 3),
+                    SheetMetal.Bend(from: "web", to: "bottom", radius: 3)])
+        #expect(s.isValid)
+        #expect(s.subShapes(ofType: .solid).count == 1)
+    }
+
+    /// Offset L with a very short web (5mm). Stresses the radius-vs-web-
+    /// length corner case for convex bends.
+    @Test("Offset L with very short web (5mm) and 90° opposite bends")
+    func offsetLShortWeb() throws {
+        let top = SheetMetal.Flange(
+            id: "top",
+            profile: [SIMD2(0,0), SIMD2(50,0), SIMD2(50,60), SIMD2(0,60)],
+            origin: SIMD3(0,0,0), normal: SIMD3(0,0,1),
+            uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+        let web = SheetMetal.Flange(
+            id: "web",
+            profile: [SIMD2(0,0), SIMD2(5,0), SIMD2(5,60), SIMD2(0,60)],
+            origin: SIMD3(50,0,0), normal: SIMD3(-1,0,0),
+            uAxis: SIMD3(0,0,1), vAxis: SIMD3(0,1,0))
+        let bottom = SheetMetal.Flange(
+            id: "bottom",
+            profile: [SIMD2(0,0), SIMD2(50,0), SIMD2(50,60), SIMD2(0,60)],
+            origin: SIMD3(50,0,5), normal: SIMD3(0,0,1),
+            uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+        let s = try SheetMetal.Builder(thickness: 2).build(
+            flanges: [top, web, bottom],
+            bends: [SheetMetal.Bend(from: "top", to: "web", radius: 1.5),
+                    SheetMetal.Bend(from: "web", to: "bottom", radius: 1.5)])
+        #expect(s.isValid)
+    }
+
+    /// Mixed concave + convex chain. Spine 100×40, two walls 30×40 fold up
+    /// (concave from spine), tab 20×40 folds back convex from one wall.
+    @Test("Channel with flange — mixed concave + convex bends")
+    func channelWithFlange() throws {
+        let spine = SheetMetal.Flange(
+            id: "spine",
+            profile: [SIMD2(0,0), SIMD2(100,0), SIMD2(100,40), SIMD2(0,40)],
+            origin: SIMD3(0,0,0), normal: SIMD3(0,0,1),
+            uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+        let leftWall = SheetMetal.Flange(
+            id: "left",
+            profile: [SIMD2(0,0), SIMD2(30,0), SIMD2(30,40), SIMD2(0,40)],
+            origin: SIMD3(0,0,0), normal: SIMD3(1,0,0),
+            uAxis: SIMD3(0,0,1), vAxis: SIMD3(0,1,0))
+        let rightWall = SheetMetal.Flange(
+            id: "right",
+            profile: [SIMD2(0,0), SIMD2(30,0), SIMD2(30,40), SIMD2(0,40)],
+            origin: SIMD3(100,0,0), normal: SIMD3(-1,0,0),
+            uAxis: SIMD3(0,0,1), vAxis: SIMD3(0,1,0))
+        let tab = SheetMetal.Flange(
+            id: "tab",
+            profile: [SIMD2(0,0), SIMD2(20,0), SIMD2(20,40), SIMD2(0,40)],
+            origin: SIMD3(100,0,30), normal: SIMD3(0,0,1),
+            uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+        let s = try SheetMetal.Builder(thickness: 1.5).build(
+            flanges: [spine, leftWall, rightWall, tab],
+            bends: [
+                SheetMetal.Bend(from: "spine", to: "left", radius: 2),
+                SheetMetal.Bend(from: "spine", to: "right", radius: 2),
+                SheetMetal.Bend(from: "right", to: "tab", radius: 2),
+            ])
+        #expect(s.isValid)
+        #expect(s.subShapes(ofType: .solid).count == 1)
+    }
+
+    /// Auto-detection sanity: the same Z built with `direction: .auto`
+    /// (default) and with explicit `direction: .convex` for the second
+    /// bend should produce identical-volume solids. If auto-detection
+    /// were broken, the explicit override would change behaviour.
+    @Test("Explicit `.convex` matches auto-detected convex behaviour")
+    func explicitDirectionMatchesAuto() throws {
+        let make = { (direction: SheetMetal.BendDirection) throws -> Shape in
+            let top = SheetMetal.Flange(
+                id: "top", profile: [SIMD2(0,0), SIMD2(20,0), SIMD2(20,30), SIMD2(0,30)],
+                origin: SIMD3(0,0,0), normal: SIMD3(0,0,1),
+                uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+            let web = SheetMetal.Flange(
+                id: "web", profile: [SIMD2(0,0), SIMD2(20,0), SIMD2(20,30), SIMD2(0,30)],
+                origin: SIMD3(20,0,0), normal: SIMD3(-1,0,0),
+                uAxis: SIMD3(0,0,1), vAxis: SIMD3(0,1,0))
+            let bottom = SheetMetal.Flange(
+                id: "bottom", profile: [SIMD2(0,0), SIMD2(20,0), SIMD2(20,30), SIMD2(0,30)],
+                origin: SIMD3(20,0,20), normal: SIMD3(0,0,1),
+                uAxis: SIMD3(1,0,0), vAxis: SIMD3(0,1,0))
+            return try SheetMetal.Builder(thickness: 2).build(
+                flanges: [top, web, bottom],
+                bends: [
+                    SheetMetal.Bend(from: "top", to: "web", radius: 2),
+                    SheetMetal.Bend(
+                        from: "web", to: "bottom",
+                        insideRadius: 2, direction: direction),
+                ])
+        }
+        let auto = try make(.auto)
+        let explicit = try make(.convex)
+        #expect(auto.isValid && explicit.isValid)
+        let vAuto = auto.volume ?? 0
+        let vExplicit = explicit.volume ?? 0
+        #expect(abs(vAuto - vExplicit) < 1e-3 * max(vAuto, vExplicit),
+                 "auto vol=\(vAuto), explicit vol=\(vExplicit)")
+    }
+}

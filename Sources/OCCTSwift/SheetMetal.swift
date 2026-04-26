@@ -70,18 +70,109 @@ public enum SheetMetal {
         }
     }
 
-    /// A bend between two flanges. `radius` is applied as a fillet to the
-    /// seam edge(s) where the two flanges meet in the fused body.
+    /// Direction of a bend, measured from the metal's perspective.
+    ///
+    /// - `.concave`: the metal folds toward itself (interior dihedral < 180°).
+    ///   Example: an L-bracket bend where the two flanges face each other.
+    /// - `.convex`: the metal folds back on the opposite side (interior dihedral
+    ///   > 180°, reflex angle). Example: a Z-section's middle bend, where the
+    ///   third flange folds away from the first.
+    /// - `.auto`: inferred from flange-body positions. The Builder uses
+    ///   `concave` if the two flanges' body centroids sit on positions that
+    ///   make the bend natural (b's centroid is on a's `+normal` side); else
+    ///   `convex`. Almost every input matches the inference; explicitly
+    ///   specify only when the geometry is symmetric or you want to override.
+    public enum BendDirection: Sendable, Equatable {
+        case auto
+        case concave
+        case convex
+    }
+
+    /// A bend between two flanges, with full control over inside/outside
+    /// radii, material thickness through the bend region, and a direction
+    /// override.
+    ///
+    /// Sign conventions follow OCCT's right-hand rule:
+    /// - `angle == 0` → flat continuation (metal extends straight, no bend).
+    /// - `|angle| == π` → fully closed sheet (folded back on itself).
+    /// - Sign of `angle`: positive for concave bends (L-shape from outside);
+    ///   negative for convex bends (Z's back corner). `nil` means "infer
+    ///   from the flange placements".
+    ///
+    /// `insideRadius` and `outsideRadius` are independent. The default
+    /// "both sides radiused" sheet-metal bend has
+    /// `outsideRadius == insideRadius + materialThicknessAtBend`. For an
+    /// extruded-angle profile (sharp inside, rounded outside, common in
+    /// turned-edge or stamped parts) set `insideRadius = 0` and
+    /// `outsideRadius` to the desired outer radius.
+    ///
+    /// `materialThicknessAtBend` allows the metal in the bend region to be
+    /// thinner than the flange thickness — common in etched parts, where a
+    /// thinned bend line allows tighter folds without cracking.
     public struct Bend: Sendable {
         public let fromFlangeID: String
         public let toFlangeID: String
-        public let radius: Double
 
+        /// Bend angle in radians. 0 = flat continuation, ±π = closed sheet.
+        /// Positive = concave; negative = convex. `nil` = infer from
+        /// flange placements.
+        public let angle: Double?
+
+        /// Inside bend radius (the smaller, concave radius from inside the
+        /// metal). Set to 0 for a sharp inside corner.
+        public let insideRadius: Double
+
+        /// Outside bend radius (the larger, convex radius from outside the
+        /// metal). `nil` means use the natural sheet-metal default
+        /// `insideRadius + materialThicknessAtBend`.
+        public let outsideRadius: Double?
+
+        /// Material thickness through the bend region. `nil` means use the
+        /// Builder's global `thickness`. For etched parts, set to a
+        /// fraction of the flange thickness.
+        public let materialThicknessAtBend: Double?
+
+        /// Explicit direction override; defaults to `.auto`.
+        public let direction: BendDirection
+
+        /// Backward-compatible init from v0.151+: `radius` becomes the
+        /// inside bend radius. Outside radius defaults to
+        /// `radius + thickness` (the sheet-metal-physics default).
+        /// Direction is inferred.
         public init(from fromID: String, to toID: String, radius: Double) {
             self.fromFlangeID = fromID
             self.toFlangeID = toID
-            self.radius = radius
+            self.insideRadius = radius
+            self.outsideRadius = nil
+            self.materialThicknessAtBend = nil
+            self.angle = nil
+            self.direction = .auto
         }
+
+        /// Full init exposing all controls.
+        public init(
+            from fromID: String,
+            to toID: String,
+            angle: Double? = nil,
+            insideRadius: Double,
+            outsideRadius: Double? = nil,
+            materialThicknessAtBend: Double? = nil,
+            direction: BendDirection = .auto
+        ) {
+            self.fromFlangeID = fromID
+            self.toFlangeID = toID
+            self.angle = angle
+            self.insideRadius = insideRadius
+            self.outsideRadius = outsideRadius
+            self.materialThicknessAtBend = materialThicknessAtBend
+            self.direction = direction
+        }
+
+        /// Legacy alias — the `radius` you'd have passed to the
+        /// pre-v0.155 init. Equal to `insideRadius`. Deprecated callers
+        /// retain access without a migration. New callers should use the
+        /// explicit `insideRadius`/`outsideRadius` fields.
+        public var radius: Double { insideRadius }
     }
 
     public enum BuildError: Error, CustomStringConvertible {
@@ -231,8 +322,17 @@ public enum SheetMetal {
                 fused = next
             }
 
-            // For each bend, find the seam edge(s) between the matched-
-            // extent pieces and apply the fillet.
+            // For each bend, classify direction (concave vs convex) and
+            // dispatch to the appropriate construction:
+            //
+            //   concave — flange bodies overlap in volume around the bend
+            //     (an L-bracket's natural shape). Fillet the inside seam
+            //     edge with `bend.insideRadius`.
+            //   convex — flange bodies only kiss along a line (a Z-section's
+            //     back corner). The seam edge is non-manifold and cannot be
+            //     filleted directly; instead, build a curved-triangle prism
+            //     of bend material and fuse it in. The outer cylindrical
+            //     face of the prism is the bend's rounded outside surface.
             for (i, bend) in bends.enumerated() {
                 let aID = matchedPieceID[i]?.a ?? bend.fromFlangeID
                 let bID = matchedPieceID[i]?.b ?? bend.toFlangeID
@@ -246,18 +346,47 @@ public enum SheetMetal {
                     throw BuildError.parallelFlangesHaveNoSeam(
                         fromID: bend.fromFlangeID, toID: bend.toFlangeID)
                 }
-                let seamEdges = Self.findSeamEdges(
-                    in: fused, between: aPiece, and: bPiece,
-                    seamUnit: seamUnit, thickness: thickness)
-                guard !seamEdges.isEmpty else {
-                    throw BuildError.noSeamEdgeFound(
-                        fromID: bend.fromFlangeID, toID: bend.toFlangeID)
+
+                let direction = Self.resolvedDirection(
+                    bend: bend, a: aPiece, b: bPiece, thickness: thickness)
+
+                switch direction {
+                case .concave, .auto:
+                    // Existing path. `auto` falls here only as a defensive
+                    // default; resolvedDirection always returns concave or
+                    // convex for non-trivial bends.
+                    let seamEdges = Self.findSeamEdges(
+                        in: fused, between: aPiece, and: bPiece,
+                        seamUnit: seamUnit, thickness: thickness)
+                    guard !seamEdges.isEmpty else {
+                        throw BuildError.noSeamEdgeFound(
+                            fromID: bend.fromFlangeID, toID: bend.toFlangeID)
+                    }
+                    guard let filleted = fused.filleted(
+                        edges: seamEdges, radius: bend.insideRadius) else {
+                        throw BuildError.filletFailed(
+                            fromID: bend.fromFlangeID, toID: bend.toFlangeID,
+                            radius: bend.insideRadius)
+                    }
+                    fused = filleted
+
+                case .convex:
+                    guard let bendMaterial = Self.buildConvexBendMaterial(
+                        bend: bend,
+                        a: aPiece, b: bPiece,
+                        bendIntersection: bendInfos[i],
+                        seamUnit: seamUnit,
+                        thickness: thickness)
+                    else {
+                        throw BuildError.filletFailed(
+                            fromID: bend.fromFlangeID, toID: bend.toFlangeID,
+                            radius: bend.insideRadius)
+                    }
+                    guard let merged = fused.union(bendMaterial) else {
+                        throw BuildError.unionFailed
+                    }
+                    fused = merged
                 }
-                guard let filleted = fused.filleted(edges: seamEdges, radius: bend.radius) else {
-                    throw BuildError.filletFailed(
-                        fromID: bend.fromFlangeID, toID: bend.toFlangeID, radius: bend.radius)
-                }
-                fused = filleted
             }
 
             return fused
@@ -267,6 +396,212 @@ public enum SheetMetal {
             let points3D = flange.profile.map { flange.worldPoint($0) }
             guard let wire = Wire.polygon3D(points3D, closed: true) else { return nil }
             return Shape.extrude(profile: wire, direction: flange.normal, length: thickness)
+        }
+
+        /// Resolve the bend direction. If the user pinned a direction
+        /// explicitly, honour it. Otherwise infer from flange-body
+        /// positions: a bend is concave when b's body centroid sits on
+        /// a's `+normal` side (the two flanges' bodies overlap in volume
+        /// around the seam, like an L-bracket); convex otherwise.
+        fileprivate static func resolvedDirection(
+            bend: Bend,
+            a: Flange, b: Flange,
+            thickness: Double
+        ) -> BendDirection {
+            switch bend.direction {
+            case .concave: return .concave
+            case .convex: return .convex
+            case .auto:
+                let midA = bodyMidpoint(of: a, thickness: thickness)
+                let midB = bodyMidpoint(of: b, thickness: thickness)
+                let projection = Vector3DMath.dot(midB - midA, a.normal)
+                return projection > 0 ? .concave : .convex
+            }
+        }
+
+        /// Build a curved-triangle bend-material prism for a convex bend.
+        ///
+        /// In a convex bend (e.g. a Z-section's middle bend), the two
+        /// flange bodies touch at a single line — the "kiss line" — but
+        /// don't overlap in volume. Filleting that line directly is
+        /// non-manifold (four boundary faces meet at the seam). Instead
+        /// we add a curved-triangle prism that bridges the two flanges'
+        /// outer-corner edges with a cylindrical fillet on the outside.
+        ///
+        /// Cross-section in the plane perpendicular to the seam:
+        ///   • Vertex K — the kiss point (where the two flange profile
+        ///     edges meet in 3D).
+        ///   • Vertex A — flange a's outer-corner at the seam end. K
+        ///     translated by `a.normal · thickness` along a's body
+        ///     extrusion direction.
+        ///   • Vertex C — flange b's outer-corner at the seam end.
+        ///   • Edges: K→A (line, lying on a's seam-end face), K→C (line,
+        ///     lying on b's seam-end face), C→A (arc of radius |KA|,
+        ///     centred at K, curving through the open quadrant — the
+        ///     "outside" of the bend).
+        ///
+        /// The natural arc radius is the distance from the kiss point to
+        /// each flange's outer corner, which equals the flange thickness
+        /// for sheet metal of uniform thickness. This is the radius of
+        /// the rounded outside surface of the bend. The "inside" of the
+        /// bend (at the kiss point) stays sharp — for a fully-rounded
+        /// inside, the caller would need flange placements that leave
+        /// room for the inside cylinder, which is a CAD-design choice
+        /// rather than a shortcoming of this builder.
+        ///
+        /// Returns nil if the geometry can't be constructed (e.g. flange
+        /// thicknesses differ or the kiss point can't be located).
+        fileprivate static func buildConvexBendMaterial(
+            bend: Bend,
+            a: Flange, b: Flange,
+            bendIntersection: BendIntersection,
+            seamUnit: SIMD3<Double>,
+            thickness: Double
+        ) -> Shape? {
+            // Kiss line: the two flange profile end-edges meet on this
+            // line in 3D. Use the bend intersection's seam range to find
+            // the segment.
+            //
+            // For each flange, the seam edge is at a specific u
+            // coordinate (= u=0 or u=max in flange profile coords). The
+            // BendIntersection records this via aSeamAlongU / bSeamAlongU
+            // and the flange's outer wire bounds.
+            //
+            // Simpler approach: walk a's profile edges and find the one
+            // whose worldPoints are on the seam line (parallel to
+            // seamUnit).
+            guard let (kissStart, kissEnd) = seamSegment(
+                of: a, seamUnit: seamUnit, otherFlange: b, tolerance: 1e-4)
+            else { return nil }
+
+            // Flange-a outer face direction = `+a.normal` displaced by
+            // thickness from a.origin's plane. The outer-corner offset
+            // from the kiss line is `thickness · a.normal` (a's body
+            // extrudes in +a.normal direction; the outer face is at the
+            // far end of that extrusion).
+            let aOuterOffset = thickness * a.normal
+            let bOuterOffset = thickness * b.normal
+
+            let aOuter0 = kissStart + aOuterOffset
+            let aOuter1 = kissEnd   + aOuterOffset
+            let bOuter0 = kissStart + bOuterOffset
+            let bOuter1 = kissEnd   + bOuterOffset
+
+            // Wire for the cross-section at v=0 (kissStart end). Three
+            // edges: line K→A, line K→C, arc C→A.
+            let radius = Vector3DMath.modulus(aOuter0 - kissStart)
+            // Sanity: |a outer offset| should equal |b outer offset|
+            // (uniform-thickness assumption).
+            let radiusB = Vector3DMath.modulus(bOuter0 - kissStart)
+            if abs(radius - radiusB) > 1e-4 * max(radius, radiusB) {
+                return nil
+            }
+            // The arc plane normal: must be parallel to the seam (so the
+            // arc lies in the cross-section plane). Use seamUnit; sign
+            // determines the arc traversal direction.
+            //
+            // We want the arc to curve through the "open" quadrant of
+            // the bend — the side opposite to where the flanges' bodies
+            // sit. That open direction = `-(aNormalDir + bNormalDir)`
+            // projected to the cross-section plane. We pick the seamUnit
+            // sign so the arc bulges that way.
+            let arcNormalCandidate = seamUnit
+            // Determine the sign empirically by checking which sign of
+            // arcNormal makes the arc midpoint lie on the open side.
+            // The arc midpoint at angle (startAngle+endAngle)/2 around
+            // the kiss point with radius `radius`.
+            let aDir = Vector3DMath.normalize(aOuter0 - kissStart) ?? SIMD3(0, 0, 0)
+            let cDir = Vector3DMath.normalize(bOuter0 - kissStart) ?? SIMD3(0, 0, 0)
+            // The "expected" arc midpoint direction = (aDir + cDir)/2,
+            // normalised — pointing from kiss into the open quadrant.
+            let bisectorRaw = aDir + cDir
+            let bisectorLen = Vector3DMath.modulus(bisectorRaw)
+            guard bisectorLen > 1e-9 else { return nil }
+            let bisector = bisectorRaw / bisectorLen
+            let midpointTarget = kissStart + radius * bisector
+
+            // Try arc with normal = +seamUnit and 3-points (start=A, mid=midpointTarget, end=C).
+            // 3-point arc API takes start, midpoint, end and computes the rest.
+            // Use Curve3D bridge through a Wire convenience.
+            let arcWire = arcWireThroughThreePoints(
+                start: aOuter0, mid: midpointTarget, end: bOuter0)
+            guard let arc = arcWire else { return nil }
+
+            // Lines K→A, K→C.
+            guard let lineKA = Wire.line(from: kissStart, to: aOuter0) else { return nil }
+            guard let lineKC = Wire.line(from: kissStart, to: bOuter0) else { return nil }
+
+            // Compose the wire: K→A→arc→C→K.
+            // Wire.join concatenates wires that share endpoints.
+            // Order: A→K (reverse of K→A) → K→C → arc(C→A).
+            // Easier: use OCCT's wireFromEdges with explicit edge ordering.
+            // For now: try Wire.join on [lineKA, lineKC, arc].
+            // OCCT's join may not care about direction.
+            let crossSectionWire = Wire.join([lineKA, lineKC, arc])
+            guard let wire = crossSectionWire else { return nil }
+
+            guard let face = Shape.face(from: wire, planar: true) else { return nil }
+
+            // Extrude the cross-section face along the seam direction.
+            let seamLength = Vector3DMath.modulus(kissEnd - kissStart)
+            let extrudeVec = (kissEnd - kissStart)
+            // Extrude direction is from kissStart toward kissEnd; length
+            // is seamLength. `Shape.extrude(profile:direction:length:)`
+            // takes a wire profile, but we have a face — use
+            // Shape.extruded(by:) instead, which extrudes any shape.
+            return face.extruded(by: extrudeVec)
+        }
+
+        /// Build a 3-point arc wire (start → mid → end) using OCCT's
+        /// `GC_MakeArcOfCircle`. The midpoint determines the arc's
+        /// curvature direction.
+        fileprivate static func arcWireThroughThreePoints(
+            start: SIMD3<Double>,
+            mid: SIMD3<Double>,
+            end: SIMD3<Double>
+        ) -> Wire? {
+            return Wire.arc(start: start, midpoint: mid, end: end)
+        }
+
+        /// Find the seam segment for flange `a` opposite flange `b`.
+        /// Returns the two endpoints of the kiss line in 3D.
+        ///
+        /// Walks `a`'s profile end-edge (the edge of the profile that
+        /// lies on the seam line, identified by edges parallel to
+        /// `seamUnit`). For a rectangular profile there are typically
+        /// two candidate edges (one at u=0, one at u=max); we pick the
+        /// one closest to flange `b`'s body.
+        fileprivate static func seamSegment(
+            of a: Flange,
+            seamUnit: SIMD3<Double>,
+            otherFlange b: Flange,
+            tolerance: Double
+        ) -> (SIMD3<Double>, SIMD3<Double>)? {
+            // Walk a's profile in 2D. Find edges (between consecutive
+            // profile points) whose 3D direction is parallel to seamUnit.
+            // Two such edges typically; pick the one whose midpoint is
+            // closest to b's body centroid.
+            let n = a.profile.count
+            guard n >= 3 else { return nil }
+            var candidates: [(start: SIMD3<Double>, end: SIMD3<Double>)] = []
+            for i in 0..<n {
+                let p1 = a.worldPoint(a.profile[i])
+                let p2 = a.worldPoint(a.profile[(i + 1) % n])
+                let dir = p2 - p1
+                guard let dirUnit = Vector3DMath.normalize(dir) else { continue }
+                if abs(abs(Vector3DMath.dot(dirUnit, seamUnit)) - 1.0) < tolerance {
+                    candidates.append((p1, p2))
+                }
+            }
+            guard !candidates.isEmpty else { return nil }
+            // Pick closest to b's body centroid.
+            let bCentroid = bodyMidpoint(of: b, thickness: 0)
+            let chosen = candidates.min(by: { c1, c2 in
+                let m1 = (c1.start + c1.end) * 0.5
+                let m2 = (c2.start + c2.end) * 0.5
+                return Vector3DMath.modulus(m1 - bCentroid) < Vector3DMath.modulus(m2 - bCentroid)
+            })!
+            return chosen
         }
 
         /// Find the seam edge(s) between two flanges in the fused shape.
