@@ -806,6 +806,11 @@ OCCTShapeRef OCCTShapeFromFace(OCCTFaceRef faceRef);
 /// Caller owns the returned reference and must release it.
 OCCTFaceRef OCCTFaceFromShape(OCCTShapeRef shape);
 
+/// Construct a Wire reference from a Shape that wraps a TopoDS_Wire.
+/// Returns NULL if the shape is null or its topology type is not TopAbs_WIRE.
+/// Caller owns the returned reference and must release it.
+OCCTWireRef OCCTWireFromShape(OCCTShapeRef shape);
+
 // MARK: - Memory Management
 
 void OCCTShapeRelease(OCCTShapeRef shape);

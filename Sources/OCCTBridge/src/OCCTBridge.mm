@@ -1776,6 +1776,15 @@ OCCTFaceRef OCCTFaceFromShape(OCCTShapeRef shape) {
     } catch (...) { return nullptr; }
 }
 
+OCCTWireRef OCCTWireFromShape(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        if (shape->shape.IsNull()) return nullptr;
+        if (shape->shape.ShapeType() != TopAbs_WIRE) return nullptr;
+        return new OCCTWire(TopoDS::Wire(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
 void OCCTShapeRelease(OCCTShapeRef shape) {
     delete shape;
 }

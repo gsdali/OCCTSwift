@@ -51,6 +51,16 @@ public final class Wire: @unchecked Sendable {
         self.handle = handle
     }
 
+    /// Construct a Wire from a Shape that wraps a TopoDS_Wire. Returns nil
+    /// if `shape` is null or wraps a non-wire topology type.
+    ///
+    /// Inverse of getting a wire-typed `Shape` (e.g. via `Shape.wires` or
+    /// `Shape.subShapes(ofType: .wire)`). Round-trips with `Shape.fromWire(_:)`.
+    public convenience init?(_ shape: Shape) {
+        guard let h = OCCTWireFromShape(shape.handle) else { return nil }
+        self.init(handle: h)
+    }
+
     deinit {
         OCCTWireRelease(handle)
     }

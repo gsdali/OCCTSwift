@@ -8168,6 +8168,45 @@ struct FacePropertyTests {
         #expect(Edge(box) == nil)
     }
 
+    @Test("Wire(_:Shape) recovers a Wire from a wire-shape; rejects non-wires")
+    func wireFromShape() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let wireShapes = box.subShapes(ofType: .wire)
+        guard let ws = wireShapes.first else {
+            Issue.record("Box should have wire subshapes")
+            return
+        }
+        let wire = Wire(ws)
+        #expect(wire != nil)
+        // The whole box is a TopoDS_Solid, not a Wire — must reject.
+        #expect(Wire(box) == nil)
+
+        // Round-trip: Wire → Shape → Wire produces a wire that builds the
+        // same face as the original.
+        guard let original = Wire.rectangle(width: 4, height: 6) else {
+            Issue.record("rectangle wire creation failed")
+            return
+        }
+        guard let asShape = Shape.fromWire(original),
+              let recovered = Wire(asShape) else {
+            Issue.record("Wire round-trip via Shape failed")
+            return
+        }
+        let originalFace = Shape.face(from: original)
+        let recoveredFace = Shape.face(from: recovered)
+        if let a = originalFace, let b = recoveredFace {
+            // Same rectangle area.
+            let fa = Face(a)
+            let fb = Face(b)
+            if let fa, let fb {
+                #expect(abs(fa.area() - fb.area()) < 1e-6)
+                #expect(abs(fa.area() - 24) < 1e-6)
+            }
+        } else {
+            Issue.record("Face construction from wires failed")
+        }
+    }
+
     @Test("Horizontal face zLevel")
     func horizontalFaceZLevel() {
         let box = Shape.box(width: 10, height: 10, depth: 10)!

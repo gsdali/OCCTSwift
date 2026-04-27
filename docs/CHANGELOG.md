@@ -2,13 +2,29 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.155.0
+## Current: v0.155.1
 
-**4,145 wrapped operations | 3,349 tests | 1,167 suites | OCCT 8.0.0-rc5**
+**4,146 wrapped operations | 3,350 tests | 1,167 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.155.1 (Apr 2026) — `Wire(_:Shape)` convenience initializer (issue #91)
+
+Completes the v0.154.0 trio. Recovers a typed `Wire` from a generic `Shape` that wraps a `TopoDS_Wire`, returning nil on type mismatch. Mirrors `Face(_:Shape)` and `Edge(_:Shape)`.
+
+```swift
+let box = Shape.box(width: 10, height: 10, depth: 10)!
+let wireShapes = box.subShapes(ofType: .wire)
+if let wire = Wire(wireShapes[0]) {
+    // typed Wire recovered from a wire-typed Shape
+}
+```
+
+Unblocks face-rebuild flows where existing inner wires (returned as `[Shape]` from `Shape.wires` or `subShapes(ofType: .wire)`) need to be passed back into `Shape.face(outer:holes:)` — previously those wires were stuck as `Shape` because the `Wire(handle:)` initializer was internal. Concrete motivating case: preserving both bore and chamfer outlines on the same mid-face when extracting countersink mid-surfaces in [UnfoldEngine](https://github.com/gsdali/UnfoldEngine).
+
+Bridge: one new symbol `OCCTWireFromShape(OCCTShapeRef) -> OCCTWireRef?`.
 
 ### v0.155.0 (Apr 2026) — `SheetMetal.Builder`: convex bends (issue #89)
 
