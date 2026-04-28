@@ -2,13 +2,40 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.155.1
+## Current: v0.156.0
 
 **4,146 wrapped operations | 3,350 tests | 1,167 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.156.0 (Apr 2026) — Quality release: drop deprecated `GCE2d_*` symbols
+
+OCCT 8.0.0 deprecated the entire `GCE2d_Make*` family of 2D geometry constructors in favour of the canonical `GC_Make*2d` names — each old class is now literally a `using GCE2d_X = GC_X2d` typedef alias. This release migrates all internal C++ uses inside `OCCTBridge.mm` to the canonical names so we're no longer building against deprecated identifiers.
+
+```
+GCE2d_MakeArcOfCircle   → GC_MakeArcOfCircle2d
+GCE2d_MakeArcOfEllipse  → GC_MakeArcOfEllipse2d
+GCE2d_MakeArcOfHyperbola → GC_MakeArcOfHyperbola2d
+GCE2d_MakeArcOfParabola → GC_MakeArcOfParabola2d
+GCE2d_MakeCircle        → GC_MakeCircle2d
+GCE2d_MakeEllipse       → GC_MakeEllipse2d
+GCE2d_MakeHyperbola     → GC_MakeHyperbola2d
+GCE2d_MakeLine          → GC_MakeLine2d
+GCE2d_MakeMirror        → GC_MakeMirror2d
+GCE2d_MakeParabola      → GC_MakeParabola2d
+GCE2d_MakeRotation      → GC_MakeRotation2d
+GCE2d_MakeScale         → GC_MakeScale2d
+GCE2d_MakeSegment       → GC_MakeSegment2d
+GCE2d_MakeTranslation   → GC_MakeTranslation2d
+```
+
+14 `#include` directives + ~30 internal symbol uses migrated. Bridge ABI unchanged: the bridge's own C function names (`OCTGCE2dMake*`) are preserved so Swift wrappers continue to call them by their existing names — this is a **non-breaking** internal hygiene release.
+
+Operation count, test count, and suite count are unchanged — same OCCT objects, just constructed via canonical names. The `@Suite("GCE2d_MakeLine")` test label was renamed to `@Suite("GC_MakeLine2d")` for consistency. Source comments and `// MARK:` headers in `Sources/OCCTSwift/Curve2D.swift` and `Sources/OCCTSwift/Document.swift` were updated similarly.
+
+This was the cleanup-half of a rescoped v0.156.0 plan. The OCAF/Message data introspection scope originally pencilled in for v0.156.0 was abandoned after a full audit revealed the project is at the asymptote of useful OCCT public surface — most flagged "missing" classes were already wrapped via the established `OCCTDocumentRef` + `int64_t labelId` pattern, and the genuinely unwrapped classes (~25 ops total: `gp_Vec2f/3f`, `GeomConvert_FuncCone/Cylinder/SphereLSDist`) are too small to justify a 100-op release on their own.
 
 ### v0.155.1 (Apr 2026) — `Wire(_:Shape)` convenience initializer (issue #91)
 

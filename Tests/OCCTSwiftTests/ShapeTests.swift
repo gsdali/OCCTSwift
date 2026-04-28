@@ -14217,7 +14217,7 @@ struct HyperbolaThreePointsTests {
     }
 }
 
-@Suite("GCE2d_MakeLine")
+@Suite("GC_MakeLine2d")
 struct Curve2DLineTests {
     @Test("Create 2D line through two points")
     func lineThroughPoints() {

@@ -1011,7 +1011,7 @@ extension Curve2D {
         }
     }
 
-    // MARK: - v0.51.0: GCE2d_MakeLine variants
+    // MARK: - v0.51.0: GC_MakeLine2d variants
 
     /// Create a 2D infinite line passing through two points.
     ///

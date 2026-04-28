@@ -205,8 +205,8 @@
 // GC_MakeSegment                      → OCCTWireCreateLine
 // GC_MakeTranslation                  → OCCTGCMakeTranslation
 //
-// --- GCE2d ---
-// GCE2d_MakeLine                      → OCCTGCE2dMakeLine*
+// --- GC 2D ---
+// GC_MakeLine2d                       → OCCTGCE2dMakeLine* (bridge symbols retain GCE2d historical name)
 //
 // --- GCPnts ---
 // GCPnts_AbscissaPoint                → OCCTCurve2DParameterAtLength
@@ -6289,7 +6289,7 @@ OCCTShapeRef _Nullable OCCTShapeScaleAboutPoint(OCCTShapeRef shape,
 OCCTShapeRef _Nullable OCCTShapeTranslateByPoints(OCCTShapeRef shape,
     double p1x, double p1y, double p1z, double p2x, double p2y, double p2z);
 
-// --- GCE2d_MakeLine ---
+// --- GC_MakeLine2d ---
 
 /// Create a 2D infinite line through two points.
 /// @param p1x,p1y First point
@@ -13655,7 +13655,7 @@ OCCTCurve3DRef _Nullable OCCTGCMakeHyperbola3Points(double x1, double y1, double
                                                       double x2, double y2, double z2,
                                                       double x3, double y3, double z3);
 
-// MARK: - GCE2d_MakeCircle (v0.105.0)
+// MARK: - GC_MakeCircle2d (v0.105.0)
 
 /// Create a 2D circle from center and radius.
 OCCTCurve2DRef _Nullable OCTGCE2dMakeCircleCenterRadius(double cx, double cy, double radius);
@@ -13678,7 +13678,7 @@ OCCTCurve2DRef _Nullable OCTGCE2dMakeCircleAxis(double cx, double cy,
                                                   double dx, double dy,
                                                   double radius);
 
-// MARK: - GCE2d_MakeEllipse (v0.105.0)
+// MARK: - GC_MakeEllipse2d (v0.105.0)
 
 /// Create a 2D ellipse from axis and radii.
 OCCTCurve2DRef _Nullable OCTGCE2dMakeEllipse(double cx, double cy,
@@ -13696,7 +13696,7 @@ OCCTCurve2DRef _Nullable OCTGCE2dMakeEllipseAxis22d(double cx, double cy,
                                                       double ydx, double ydy,
                                                       double major, double minor);
 
-// MARK: - GCE2d_MakeHyperbola (v0.105.0)
+// MARK: - GC_MakeHyperbola2d (v0.105.0)
 
 /// Create a 2D hyperbola from axis and radii.
 OCCTCurve2DRef _Nullable OCTGCE2dMakeHyperbola(double cx, double cy,
@@ -13708,7 +13708,7 @@ OCCTCurve2DRef _Nullable OCTGCE2dMakeHyperbola3Points(double x1, double y1,
                                                         double x2, double y2,
                                                         double x3, double y3);
 
-// MARK: - GCE2d_MakeParabola (v0.105.0)
+// MARK: - GC_MakeParabola2d (v0.105.0)
 
 /// Create a 2D parabola from axis and focal distance.
 OCCTCurve2DRef _Nullable OCTGCE2dMakeParabola(double cx, double cy,

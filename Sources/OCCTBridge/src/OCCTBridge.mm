@@ -7171,13 +7171,13 @@ void OCCTZLayerSettingsGetOrigin(OCCTZLayerSettingsRef s, double* x, double* y, 
 #include <Geom2d_BSplineCurve.hxx>
 #include <Geom2d_BezierCurve.hxx>
 #include <Geom2d_OffsetCurve.hxx>
-#include <GCE2d_MakeSegment.hxx>
-#include <GCE2d_MakeCircle.hxx>
-#include <GCE2d_MakeArcOfCircle.hxx>
-#include <GCE2d_MakeEllipse.hxx>
-#include <GCE2d_MakeArcOfEllipse.hxx>
-#include <GCE2d_MakeParabola.hxx>
-#include <GCE2d_MakeHyperbola.hxx>
+#include <GC_MakeSegment2d.hxx>
+#include <GC_MakeCircle2d.hxx>
+#include <GC_MakeArcOfCircle2d.hxx>
+#include <GC_MakeEllipse2d.hxx>
+#include <GC_MakeArcOfEllipse2d.hxx>
+#include <GC_MakeParabola2d.hxx>
+#include <GC_MakeHyperbola2d.hxx>
 #include <Geom2dAdaptor_Curve.hxx>
 #include <GCPnts_TangentialDeflection.hxx>
 #include <GCPnts_UniformAbscissa.hxx>
@@ -7286,7 +7286,7 @@ OCCTCurve2DRef OCCTCurve2DCreateSegment(double p1x, double p1y, double p2x, doub
     try {
         gp_Pnt2d p1(p1x, p1y);
         gp_Pnt2d p2(p2x, p2y);
-        GCE2d_MakeSegment maker(p1, p2);
+        GC_MakeSegment2d maker(p1, p2);
         if (maker.Status() != gce_Done) return nullptr;
         return new OCCTCurve2D(maker.Value());
     } catch (...) {
@@ -7327,7 +7327,7 @@ OCCTCurve2DRef OCCTCurve2DCreateArcThrough(double p1x, double p1y,
         gp_Pnt2d p1(p1x, p1y);
         gp_Pnt2d p2(p2x, p2y);
         gp_Pnt2d p3(p3x, p3y);
-        GCE2d_MakeArcOfCircle maker(p1, p2, p3);
+        GC_MakeArcOfCircle2d maker(p1, p2, p3);
         if (maker.Status() != gce_Done) return nullptr;
         return new OCCTCurve2D(maker.Value());
     } catch (...) {
@@ -7944,8 +7944,8 @@ OCCTCurve2DRef OCCTCurve2DJoinToBSpline(const OCCTCurve2DRef* curves, int32_t co
 #include <LProp_CIType.hxx>
 #include <Bnd_Box2d.hxx>
 #include <BndLib_Add2dCurve.hxx>
-#include <GCE2d_MakeArcOfHyperbola.hxx>
-#include <GCE2d_MakeArcOfParabola.hxx>
+#include <GC_MakeArcOfHyperbola2d.hxx>
+#include <GC_MakeArcOfParabola2d.hxx>
 #include <Geom2dConvert_ApproxCurve.hxx>
 #include <Geom2dConvert_BSplineCurveKnotSplitting.hxx>
 #include <Geom2dConvert_ApproxArcsSegments.hxx>
@@ -19584,11 +19584,11 @@ OCCTSurfaceContinuitySplitResult OCCTSurfaceSplitByContinuity(OCCTSurfaceRef sur
 #include <GC_MakeRotation.hxx>
 #include <GC_MakeScale.hxx>
 #include <GC_MakeTranslation.hxx>
-#include <GCE2d_MakeLine.hxx>
-#include <GCE2d_MakeMirror.hxx>
-#include <GCE2d_MakeRotation.hxx>
-#include <GCE2d_MakeScale.hxx>
-#include <GCE2d_MakeTranslation.hxx>
+#include <GC_MakeLine2d.hxx>
+#include <GC_MakeMirror2d.hxx>
+#include <GC_MakeRotation2d.hxx>
+#include <GC_MakeScale2d.hxx>
+#include <GC_MakeTranslation2d.hxx>
 #include <Geom_Ellipse.hxx>
 #include <Geom_Hyperbola.hxx>
 #include <Geom_Transformation.hxx>
@@ -19819,12 +19819,12 @@ OCCTShapeRef _Nullable OCCTShapeTranslateByPoints(OCCTShapeRef shape,
     }
 }
 
-// --- GCE2d_MakeLine ---
+// --- GC_MakeLine2d ---
 
 OCCTCurve2DRef _Nullable OCCTCurve2DMakeLineThroughPoints(double p1x, double p1y,
     double p2x, double p2y) {
     try {
-        GCE2d_MakeLine ml(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y));
+        GC_MakeLine2d ml(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y));
         if (!ml.IsDone()) return nullptr;
         auto* curve = new OCCTCurve2D();
         curve->curve = ml.Value();
@@ -19838,7 +19838,7 @@ OCCTCurve2DRef _Nullable OCCTCurve2DMakeLineParallel(double px, double py,
     double dx, double dy, double distance) {
     try {
         gp_Lin2d lin(gp_Pnt2d(px, py), gp_Dir2d(dx, dy));
-        GCE2d_MakeLine ml(lin, distance);
+        GC_MakeLine2d ml(lin, distance);
         if (!ml.IsDone()) return nullptr;
         auto* curve = new OCCTCurve2D();
         curve->curve = ml.Value();
@@ -39743,12 +39743,12 @@ OCCTCurve3DRef OCCTGCMakeHyperbola3Points(double x1, double y1, double z1,
     } catch (...) { return nullptr; }
 }
 
-// MARK: - GCE2d_MakeCircle (v0.105.0)
+// MARK: - GC_MakeCircle2d (v0.105.0)
 
-#include <GCE2d_MakeCircle.hxx>
-#include <GCE2d_MakeEllipse.hxx>
-#include <GCE2d_MakeHyperbola.hxx>
-#include <GCE2d_MakeParabola.hxx>
+#include <GC_MakeCircle2d.hxx>
+#include <GC_MakeEllipse2d.hxx>
+#include <GC_MakeHyperbola2d.hxx>
+#include <GC_MakeParabola2d.hxx>
 #include <Geom2d_Circle.hxx>
 #include <Geom2d_Ellipse.hxx>
 #include <Geom2d_Hyperbola.hxx>
@@ -39759,7 +39759,7 @@ OCCTCurve3DRef OCCTGCMakeHyperbola3Points(double x1, double y1, double z1,
 
 OCCTCurve2DRef OCTGCE2dMakeCircleCenterRadius(double cx, double cy, double radius) {
     try {
-        GCE2d_MakeCircle mc(gp_Pnt2d(cx, cy), radius);
+        GC_MakeCircle2d mc(gp_Pnt2d(cx, cy), radius);
         if (!mc.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mc.Value();
@@ -39771,7 +39771,7 @@ OCCTCurve2DRef OCTGCE2dMakeCircle3Points(double x1, double y1,
                                            double x2, double y2,
                                            double x3, double y3) {
     try {
-        GCE2d_MakeCircle mc(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2), gp_Pnt2d(x3, y3));
+        GC_MakeCircle2d mc(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2), gp_Pnt2d(x3, y3));
         if (!mc.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mc.Value();
@@ -39781,7 +39781,7 @@ OCCTCurve2DRef OCTGCE2dMakeCircle3Points(double x1, double y1,
 
 OCCTCurve2DRef OCTGCE2dMakeCircleCenterPoint(double cx, double cy, double px, double py) {
     try {
-        GCE2d_MakeCircle mc(gp_Pnt2d(cx, cy), gp_Pnt2d(px, py));
+        GC_MakeCircle2d mc(gp_Pnt2d(cx, cy), gp_Pnt2d(px, py));
         if (!mc.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mc.Value();
@@ -39794,7 +39794,7 @@ OCCTCurve2DRef OCTGCE2dMakeCircleParallel(double cx, double cy,
                                             double radius, double dist) {
     try {
         gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy)), radius);
-        GCE2d_MakeCircle mc(circ, dist);
+        GC_MakeCircle2d mc(circ, dist);
         if (!mc.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mc.Value();
@@ -39807,7 +39807,7 @@ OCCTCurve2DRef OCTGCE2dMakeCircleAxis(double cx, double cy,
                                         double radius) {
     try {
         gp_Ax2d ax(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy));
-        GCE2d_MakeCircle mc(ax, radius);
+        GC_MakeCircle2d mc(ax, radius);
         if (!mc.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mc.Value();
@@ -39815,14 +39815,14 @@ OCCTCurve2DRef OCTGCE2dMakeCircleAxis(double cx, double cy,
     } catch (...) { return nullptr; }
 }
 
-// MARK: - GCE2d_MakeEllipse (v0.105.0)
+// MARK: - GC_MakeEllipse2d (v0.105.0)
 
 OCCTCurve2DRef OCTGCE2dMakeEllipse(double cx, double cy,
                                      double dx, double dy,
                                      double major, double minor) {
     try {
         gp_Ax2d ax(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy));
-        GCE2d_MakeEllipse me(ax, major, minor);
+        GC_MakeEllipse2d me(ax, major, minor);
         if (!me.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = me.Value();
@@ -39834,7 +39834,7 @@ OCCTCurve2DRef OCTGCE2dMakeEllipse3Points(double x1, double y1,
                                             double x2, double y2,
                                             double x3, double y3) {
     try {
-        GCE2d_MakeEllipse me(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2), gp_Pnt2d(x3, y3));
+        GC_MakeEllipse2d me(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2), gp_Pnt2d(x3, y3));
         if (!me.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = me.Value();
@@ -39848,7 +39848,7 @@ OCCTCurve2DRef OCTGCE2dMakeEllipseAxis22d(double cx, double cy,
                                             double major, double minor) {
     try {
         gp_Ax22d ax(gp_Pnt2d(cx, cy), gp_Dir2d(xdx, xdy), gp_Dir2d(ydx, ydy));
-        GCE2d_MakeEllipse me(ax, major, minor);
+        GC_MakeEllipse2d me(ax, major, minor);
         if (!me.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = me.Value();
@@ -39856,14 +39856,14 @@ OCCTCurve2DRef OCTGCE2dMakeEllipseAxis22d(double cx, double cy,
     } catch (...) { return nullptr; }
 }
 
-// MARK: - GCE2d_MakeHyperbola (v0.105.0)
+// MARK: - GC_MakeHyperbola2d (v0.105.0)
 
 OCCTCurve2DRef OCTGCE2dMakeHyperbola(double cx, double cy,
                                        double dx, double dy,
                                        double major, double minor) {
     try {
         gp_Ax2d ax(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy));
-        GCE2d_MakeHyperbola mh(ax, major, minor);
+        GC_MakeHyperbola2d mh(ax, major, minor);
         if (!mh.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mh.Value();
@@ -39875,7 +39875,7 @@ OCCTCurve2DRef OCTGCE2dMakeHyperbola3Points(double x1, double y1,
                                               double x2, double y2,
                                               double x3, double y3) {
     try {
-        GCE2d_MakeHyperbola mh(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2), gp_Pnt2d(x3, y3));
+        GC_MakeHyperbola2d mh(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2), gp_Pnt2d(x3, y3));
         if (!mh.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mh.Value();
@@ -39883,14 +39883,14 @@ OCCTCurve2DRef OCTGCE2dMakeHyperbola3Points(double x1, double y1,
     } catch (...) { return nullptr; }
 }
 
-// MARK: - GCE2d_MakeParabola (v0.105.0)
+// MARK: - GC_MakeParabola2d (v0.105.0)
 
 OCCTCurve2DRef OCTGCE2dMakeParabola(double cx, double cy,
                                       double dx, double dy,
                                       double focal) {
     try {
         gp_Ax2d ax(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy));
-        GCE2d_MakeParabola mp(ax, focal, true);
+        GC_MakeParabola2d mp(ax, focal, true);
         if (!mp.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mp.Value();
@@ -39903,7 +39903,7 @@ OCCTCurve2DRef OCTGCE2dMakeParabolaDirectrixFocus(double dx, double dy,
                                                     double fx, double fy) {
     try {
         gp_Ax2d directrix(gp_Pnt2d(dx, dy), gp_Dir2d(ddx, ddy));
-        GCE2d_MakeParabola mp(directrix, gp_Pnt2d(fx, fy));
+        GC_MakeParabola2d mp(directrix, gp_Pnt2d(fx, fy));
         if (!mp.IsDone()) return nullptr;
         auto result = new OCCTCurve2D();
         result->curve = mp.Value();

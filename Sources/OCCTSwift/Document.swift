@@ -7453,7 +7453,7 @@ extension Curve3D {
     }
 }
 
-// MARK: - GCE2d_MakeCircle (v0.105.0)
+// MARK: - GC_MakeCircle2d (v0.105.0)
 
 extension Curve2D {
     /// Create a 2D circle from center and radius.
@@ -7493,7 +7493,7 @@ extension Curve2D {
     }
 }
 
-// MARK: - GCE2d_MakeEllipse (v0.105.0)
+// MARK: - GC_MakeEllipse2d (v0.105.0)
 
 extension Curve2D {
     /// Create a 2D ellipse from axis and radii.
@@ -7524,7 +7524,7 @@ extension Curve2D {
     }
 }
 
-// MARK: - GCE2d_MakeHyperbola (v0.105.0)
+// MARK: - GC_MakeHyperbola2d (v0.105.0)
 
 extension Curve2D {
     /// Create a 2D hyperbola from axis and radii.
@@ -7544,7 +7544,7 @@ extension Curve2D {
     }
 }
 
-// MARK: - GCE2d_MakeParabola (v0.105.0)
+// MARK: - GC_MakeParabola2d (v0.105.0)
 
 extension Curve2D {
     /// Create a 2D parabola from axis and focal distance.
