@@ -2,13 +2,31 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.156.0
+## Current: v0.156.1
 
-**4,146 wrapped operations | 3,350 tests | 1,167 suites | OCCT 8.0.0-rc5**
+**4,146 wrapped operations | 3,352 tests | 1,168 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.156.1 (Apr 2026) — Public `AssemblyNode.labelId` + `Document.node(at:)` lookup (issue #93)
+
+`AssemblyNode.labelId` was `internal` even though every other `Document` API works in terms of `Int64` labelIds (`removeShape(labelId:)`, `componentLabelId(...)`, `expandShape(labelId:)`, etc.). Consumers walking the assembly via `Document.rootNodes → AssemblyNode.children` couldn't read each node's `labelId` to identify it across calls. Driver: [OCCTSwiftScripts#23](https://github.com/gsdali/OCCTSwiftScripts/issues/23) (`occtkit inspect-assembly` / `set-metadata`) needs stable IDs that round-trip.
+
+Two tiny additive changes:
+
+```swift
+// 1. labelId is now public
+public let labelId: Int64
+
+// 2. New lookup on Document
+public func node(at labelId: Int64) -> AssemblyNode?
+```
+
+`node(at:)` validates the labelId via `OCCTDocumentLabelIsNull` (O(1), consistent with the rest of the int64-based Document API) and returns `nil` for unknown labelIds. LabelIds are stable within a single `Document` instance — round-trips with `rootNodes` traversal in the same session.
+
+No bridge changes. Two new tests covering the round-trip and rejection of nonexistent labelIds.
 
 ### v0.156.0 (Apr 2026) — Quality release: drop deprecated `GCE2d_*` symbols
 

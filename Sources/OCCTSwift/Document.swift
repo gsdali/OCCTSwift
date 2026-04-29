@@ -62,6 +62,17 @@ public final class Document: @unchecked Sendable {
         return nodes
     }
 
+    /// Look up an `AssemblyNode` by its XCAF labelId.
+    ///
+    /// Returns `nil` if `labelId` does not refer to a label in this document.
+    /// LabelIds are stable within a single `Document` instance — a labelId
+    /// obtained from `rootNodes` traversal can be passed back here later in
+    /// the same session to recover the corresponding node.
+    public func node(at labelId: Int64) -> AssemblyNode? {
+        guard !OCCTDocumentLabelIsNull(handle, labelId) else { return nil }
+        return AssemblyNode(document: self, labelId: labelId)
+    }
+
     // MARK: - Convenience Methods
 
     /// Get all shapes from the document as a flat list
@@ -138,7 +149,10 @@ public final class Document: @unchecked Sendable {
 /// - Shape (for parts)
 public final class AssemblyNode: @unchecked Sendable {
     unowned let document: Document
-    internal let labelId: Int64
+
+    /// The XCAF label identifier for this node. Stable across calls within a
+    /// single `Document` instance; round-trips with `Document.node(at:)`.
+    public let labelId: Int64
 
     internal init(document: Document, labelId: Int64) {
         self.document = document
