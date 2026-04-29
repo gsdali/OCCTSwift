@@ -2,13 +2,36 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.156.2
+## Current: v0.156.3
 
-**4,147 wrapped operations | 3,360 tests | 1,169 suites | OCCT 8.0.0-rc5**
+**4,147 wrapped operations | 3,361 tests | 1,169 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.156.3 (Apr 2026) — `Document.node(at:)` warms up the labelId registry (issue #95)
+
+The `Document.node(at:)` lookup added in v0.156.1 returned `nil` on a freshly-loaded STEP document if `rootNodes` hadn't been walked first. Cause: the bridge's labelId-to-`TDF_Label` registry is populated lazily via `registerLabel(...)` calls — `OCCTDocumentLabelIsNull(0)` reports null because `labels[0]` doesn't exist yet. `rootNodes` warms it up because `OCCTDocumentGetRootLabelId(handle, i)` calls `registerLabel`, but `OCCTDocumentGetRootCount` alone doesn't.
+
+`node(at:)` now eagerly iterates root indices to register top-level labels before the IsNull check:
+
+```swift
+public func node(at labelId: Int64) -> AssemblyNode? {
+    let rootCount = OCCTDocumentGetRootCount(handle)
+    for i in 0..<rootCount { _ = OCCTDocumentGetRootLabelId(handle, i) }
+    guard !OCCTDocumentLabelIsNull(handle, labelId) else { return nil }
+    return AssemblyNode(document: self, labelId: labelId)
+}
+```
+
+Deep-child labelIds aren't registered by this warmup — those are expected to have been registered earlier by an explicit traversal (e.g. via `node.children`). The contract docstring spells this out.
+
+`mainLabel` was checked for the same lazy-init quirk and is fine as-is — `OCCTDocumentGetMainLabel` calls `registerLabel(main)` itself.
+
+Driver: [OCCTSwiftScripts#23](https://github.com/gsdali/OCCTSwiftScripts/issues/23)'s `set-metadata` verb. The downstream workaround (`_ = document.rootNodes.count` before `node(at:)`) can be removed.
+
+One new regression test: load a STEP doc, look up `node(at: 0)` *without* touching `rootNodes` first, expect a non-nil node with `labelId == 0`.
 
 ### v0.156.2 (Apr 2026) — Public `Mesh(vertices:normals:indices:)` constructor (issue #94)
 

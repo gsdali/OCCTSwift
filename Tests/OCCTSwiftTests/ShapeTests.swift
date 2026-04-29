@@ -12531,6 +12531,29 @@ struct AssemblyNodeIdentityTests {
         // Int64.max is guaranteed not to be a real label in a fresh document.
         #expect(doc.node(at: .max) == nil)
     }
+
+    @Test("Document.node(at:) resolves root labelIds without a prior rootNodes walk (issue #95)")
+    func nodeAtFreshDocumentDoesNotRequireWarmup() throws {
+        let box = Shape.box(width: 10, height: 10, depth: 10)!
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("node_at_warmup_test.step")
+        defer { try? FileManager.default.removeItem(at: tempURL) }
+
+        try box.writeSTEP(to: tempURL)
+
+        // Freshly-loaded document — do NOT touch `rootNodes` before the lookup.
+        let doc = try Document.load(from: tempURL)
+
+        // Pre-fix this returned nil because the labelId registry was empty
+        // until rootNodes had been walked. The fix eagerly registers root
+        // labels inside node(at:), so labelId 0 (the first registered root)
+        // resolves on a fresh doc.
+        let node = doc.node(at: 0)
+        #expect(node != nil)
+        if let node {
+            #expect(node.labelId == 0)
+        }
+    }
 }
 
 @Suite("Document Color/Material Setter Tests")

@@ -69,6 +69,17 @@ public final class Document: @unchecked Sendable {
     /// obtained from `rootNodes` traversal can be passed back here later in
     /// the same session to recover the corresponding node.
     public func node(at labelId: Int64) -> AssemblyNode? {
+        // Warm up the labelId registry. On a freshly-loaded document the
+        // table is empty until something walks the assembly — iterating the
+        // roots here registers the top-level labels so callers don't have
+        // to know to touch `rootNodes` first. Deep child labelIds are
+        // expected to have been registered earlier by an explicit traversal
+        // (e.g. via `node.children`); this method only guarantees that
+        // labelIds reachable from the roots resolve correctly.
+        let rootCount = OCCTDocumentGetRootCount(handle)
+        for i in 0..<rootCount {
+            _ = OCCTDocumentGetRootLabelId(handle, i)
+        }
         guard !OCCTDocumentLabelIsNull(handle, labelId) else { return nil }
         return AssemblyNode(document: self, labelId: labelId)
     }
