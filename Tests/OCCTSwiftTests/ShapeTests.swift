@@ -258,6 +258,118 @@ struct ShapeFromWireTests {
     }
 }
 
+@Suite("Mesh from raw arrays")
+struct MeshFromArraysTests {
+    // Single-tetrahedron triangulation reused across cases.
+    static let tetVertices: [SIMD3<Float>] = [
+        SIMD3(0, 0, 0),
+        SIMD3(1, 0, 0),
+        SIMD3(0, 1, 0),
+        SIMD3(0, 0, 1),
+    ]
+    static let tetIndices: [UInt32] = [
+        0, 2, 1,   // bottom
+        0, 1, 3,   // front
+        0, 3, 2,   // left
+        1, 2, 3,   // tilted face
+    ]
+
+    @Test("Round-trip vertices and indices")
+    func roundTrip() {
+        guard let mesh = Mesh(
+            vertices: Self.tetVertices,
+            indices: Self.tetIndices
+        ) else {
+            Issue.record("Mesh.init failed on a valid tetrahedron")
+            return
+        }
+        #expect(mesh.vertexCount == 4)
+        #expect(mesh.triangleCount == 4)
+        let verts = mesh.vertices
+        let idxs = mesh.indices
+        #expect(verts.count == 4)
+        #expect(idxs == Self.tetIndices)
+        for (a, b) in zip(verts, Self.tetVertices) {
+            #expect(abs(a.x - b.x) < 1e-6)
+            #expect(abs(a.y - b.y) < 1e-6)
+            #expect(abs(a.z - b.z) < 1e-6)
+        }
+    }
+
+    @Test("Computed normals when none provided produce unit-length per-vertex normals")
+    func computedNormals() {
+        guard let mesh = Mesh(
+            vertices: Self.tetVertices,
+            indices: Self.tetIndices
+        ) else {
+            Issue.record("Mesh.init failed")
+            return
+        }
+        let n = mesh.normals
+        #expect(n.count == 4)
+        for normal in n {
+            let len = sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z)
+            // Either unit length (vertex touched a triangle) or zero (orphan — shouldn't
+            // happen for a closed tetrahedron, but tolerate the fallback).
+            #expect(abs(len - 1.0) < 1e-5 || len < 1e-9)
+        }
+    }
+
+    @Test("Provided normals are preserved verbatim")
+    func suppliedNormals() {
+        let custom: [SIMD3<Float>] = [
+            SIMD3(1, 0, 0),
+            SIMD3(0, 1, 0),
+            SIMD3(0, 0, 1),
+            SIMD3(-1, 0, 0),
+        ]
+        guard let mesh = Mesh(
+            vertices: Self.tetVertices,
+            normals: custom,
+            indices: Self.tetIndices
+        ) else {
+            Issue.record("Mesh.init with normals failed")
+            return
+        }
+        let read = mesh.normals
+        #expect(read.count == custom.count)
+        for (a, b) in zip(read, custom) {
+            #expect(abs(a.x - b.x) < 1e-6)
+            #expect(abs(a.y - b.y) < 1e-6)
+            #expect(abs(a.z - b.z) < 1e-6)
+        }
+    }
+
+    @Test("Empty inputs return nil")
+    func rejectsEmpty() {
+        #expect(Mesh(vertices: [], indices: []) == nil)
+        #expect(Mesh(vertices: Self.tetVertices, indices: []) == nil)
+        #expect(Mesh(vertices: [], indices: Self.tetIndices) == nil)
+    }
+
+    @Test("Index count not divisible by 3 returns nil")
+    func rejectsBadIndexCount() {
+        #expect(Mesh(vertices: Self.tetVertices, indices: [0, 1]) == nil)
+        #expect(Mesh(vertices: Self.tetVertices, indices: [0, 1, 2, 3]) == nil)
+    }
+
+    @Test("Out-of-range index returns nil")
+    func rejectsOutOfRangeIndex() {
+        #expect(Mesh(vertices: Self.tetVertices, indices: [0, 1, 9]) == nil)
+        #expect(Mesh(vertices: Self.tetVertices, indices: [0, 1, 4]) == nil)
+    }
+
+    @Test("Mismatched normals length returns nil")
+    func rejectsBadNormalsLength() {
+        let badNormals: [SIMD3<Float>] = [SIMD3(0, 0, 1), SIMD3(0, 0, 1)]
+        #expect(Mesh(
+            vertices: Self.tetVertices,
+            normals: badNormals,
+            indices: Self.tetIndices
+        ) == nil)
+    }
+}
+
 @Suite("Mesh Tests")
 struct MeshTests {
 

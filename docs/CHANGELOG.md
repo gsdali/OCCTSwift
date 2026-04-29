@@ -2,13 +2,32 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.156.1
+## Current: v0.156.2
 
-**4,146 wrapped operations | 3,352 tests | 1,168 suites | OCCT 8.0.0-rc5**
+**4,147 wrapped operations | 3,360 tests | 1,169 suites | OCCT 8.0.0-rc5**
 
 ---
 
 ## Release History
+
+### v0.156.2 (Apr 2026) — Public `Mesh(vertices:normals:indices:)` constructor (issue #94)
+
+`Mesh` had `internal init(handle:)` and no public way to construct from raw vertex/index arrays. This blocked sibling packages (notably [OCCTSwiftMesh](https://github.com/gsdali/OCCTSwiftMesh)) from returning `Mesh` instances produced by mesh-domain algorithms (decimation, smoothing, repair, remeshing) that operate purely on vertex/index buffers and have no B-Rep state.
+
+```swift
+let mesh = Mesh(
+    vertices: [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0)],
+    indices: [0, 1, 2]
+)
+```
+
+Optional `normals: [SIMD3<Float>]?` parameter — when nil, per-vertex normals are computed by averaging the face normals of adjacent triangles (smooth shading default). Per-triangle normals are always computed from the geometry. `faceIndices` is set to `-1` for every triangle (no B-Rep source).
+
+Failable initializer rejects: empty inputs, index count not divisible by 3, indices out of range, mismatched normals count.
+
+Bridge: one new symbol `OCCTMeshCreateFromArrays(vertices, vertexCount, normals, indices, indexCount) -> OCCTMeshRef?` — caller releases via the existing `OCCTMeshRelease`. Unblocks [OCCTSwiftMesh#1](https://github.com/gsdali/OCCTSwiftMesh/issues/1) (v0.1.0 — `Mesh.simplified(_:)` via vendored meshoptimizer).
+
+7 new tests covering round-trip, computed-normals correctness, supplied-normals preservation, and all four invalid-input rejection paths.
 
 ### v0.156.1 (Apr 2026) — Public `AssemblyNode.labelId` + `Document.node(at:)` lookup (issue #93)
 

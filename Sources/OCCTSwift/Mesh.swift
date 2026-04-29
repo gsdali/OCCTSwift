@@ -153,6 +153,84 @@ public final class Mesh: @unchecked Sendable {
         self.handle = handle
     }
 
+    /// Construct a Mesh directly from raw triangulation arrays.
+    ///
+    /// Use this when you have vertex/index data from a mesh-domain algorithm
+    /// (decimation, smoothing, repair, remeshing, OBJ/STL/glTF import) and don't
+    /// have a B-Rep source. For meshes derived from OCCT shapes, use `Shape.mesh()`.
+    ///
+    /// - Parameters:
+    ///   - vertices: per-vertex positions; length is the vertex count.
+    ///   - normals: optional per-vertex normals; if provided, must match `vertices.count`.
+    ///     If `nil`, per-vertex normals are computed by averaging the face normals of
+    ///     adjacent triangles (smooth shading default).
+    ///   - indices: triangle indices; length must be a multiple of 3, and each value
+    ///     must be `< vertices.count`.
+    /// - Returns: `nil` if inputs are invalid (empty, mismatched normal count,
+    ///   index count not divisible by 3, or any index out of bounds).
+    public convenience init?(
+        vertices: [SIMD3<Float>],
+        normals: [SIMD3<Float>]? = nil,
+        indices: [UInt32]
+    ) {
+        guard !vertices.isEmpty, !indices.isEmpty, indices.count % 3 == 0 else {
+            return nil
+        }
+        if let normals, normals.count != vertices.count {
+            return nil
+        }
+        let vertexCount = UInt32(vertices.count)
+        for idx in indices where idx >= vertexCount {
+            return nil
+        }
+
+        // Flatten SIMD3 → contiguous Float buffers.
+        var vertexFloats = [Float](repeating: 0, count: vertices.count * 3)
+        for (i, v) in vertices.enumerated() {
+            vertexFloats[i * 3 + 0] = v.x
+            vertexFloats[i * 3 + 1] = v.y
+            vertexFloats[i * 3 + 2] = v.z
+        }
+
+        var normalFloatsStorage: [Float]?
+        if let normals {
+            var n = [Float](repeating: 0, count: normals.count * 3)
+            for (i, vec) in normals.enumerated() {
+                n[i * 3 + 0] = vec.x
+                n[i * 3 + 1] = vec.y
+                n[i * 3 + 2] = vec.z
+            }
+            normalFloatsStorage = n
+        }
+
+        let handle: OCCTMeshRef? = vertexFloats.withUnsafeBufferPointer { vbuf in
+            indices.withUnsafeBufferPointer { ibuf in
+                if var nFloats = normalFloatsStorage {
+                    return nFloats.withUnsafeBufferPointer { nbuf in
+                        OCCTMeshCreateFromArrays(
+                            vbuf.baseAddress,
+                            UInt32(vertices.count),
+                            nbuf.baseAddress,
+                            ibuf.baseAddress,
+                            UInt32(indices.count)
+                        )
+                    }
+                } else {
+                    return OCCTMeshCreateFromArrays(
+                        vbuf.baseAddress,
+                        UInt32(vertices.count),
+                        nil,
+                        ibuf.baseAddress,
+                        UInt32(indices.count)
+                    )
+                }
+            }
+        }
+
+        guard let h = handle else { return nil }
+        self.init(handle: h)
+    }
+
     deinit {
         OCCTMeshRelease(handle)
     }

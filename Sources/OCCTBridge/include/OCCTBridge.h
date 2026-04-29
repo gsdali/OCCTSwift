@@ -743,6 +743,25 @@ OCCTMeshRef OCCTShapeCreateMeshWithParams(OCCTShapeRef shape, OCCTMeshParameters
 /// Get default mesh parameters
 OCCTMeshParameters OCCTMeshParametersDefault(void);
 
+/// Construct a Mesh directly from raw triangulation arrays.
+///
+/// `vertices` is `vertexCount` packed (x, y, z) triplets (so `vertexCount * 3` floats).
+/// `normals`, if non-NULL, is the same shape and must match `vertexCount`. Pass NULL
+/// to have per-vertex normals computed from triangle face-normals (smooth shading).
+/// `indices` is `indexCount` UInt32 indices forming `indexCount / 3` triangles; each
+/// index must be < `vertexCount`.
+///
+/// Returns NULL if any input is invalid (empty, mismatched normal count,
+/// `indexCount` not divisible by 3, or any index out of range), or on
+/// allocation failure. Caller releases the result via `OCCTMeshRelease`.
+OCCTMeshRef OCCTMeshCreateFromArrays(
+    const float* vertices,
+    uint32_t vertexCount,
+    const float* normals,
+    const uint32_t* indices,
+    uint32_t indexCount
+);
+
 // MARK: - Edge Discretization
 
 /// Ensure all edges in a shape have explicit 3D curves.

@@ -2157,6 +2157,94 @@ void OCCTMeshGetIndices(OCCTMeshRef mesh, uint32_t* outIndices) {
     std::copy(mesh->indices.begin(), mesh->indices.end(), outIndices);
 }
 
+OCCTMeshRef OCCTMeshCreateFromArrays(
+    const float* vertices,
+    uint32_t vertexCount,
+    const float* normals,
+    const uint32_t* indices,
+    uint32_t indexCount
+) {
+    if (!vertices || !indices) return nullptr;
+    if (vertexCount == 0 || indexCount == 0) return nullptr;
+    if (indexCount % 3 != 0) return nullptr;
+
+    // Validate all indices are within range.
+    for (uint32_t i = 0; i < indexCount; ++i) {
+        if (indices[i] >= vertexCount) return nullptr;
+    }
+
+    try {
+        std::unique_ptr<OCCTMesh> mesh(new OCCTMesh());
+
+        // Vertices: copy 3 floats per vertex.
+        mesh->vertices.assign(vertices, vertices + (size_t)vertexCount * 3);
+
+        // Indices: copy as-is.
+        mesh->indices.assign(indices, indices + indexCount);
+
+        const uint32_t triangleCount = indexCount / 3;
+
+        // Per-triangle normals (always computed — match the existing internal contract).
+        mesh->triangleNormals.resize((size_t)triangleCount * 3, 0.0f);
+        for (uint32_t t = 0; t < triangleCount; ++t) {
+            const uint32_t i0 = indices[t * 3 + 0];
+            const uint32_t i1 = indices[t * 3 + 1];
+            const uint32_t i2 = indices[t * 3 + 2];
+
+            const float* p0 = &vertices[i0 * 3];
+            const float* p1 = &vertices[i1 * 3];
+            const float* p2 = &vertices[i2 * 3];
+
+            const float ax = p1[0] - p0[0], ay = p1[1] - p0[1], az = p1[2] - p0[2];
+            const float bx = p2[0] - p0[0], by = p2[1] - p0[1], bz = p2[2] - p0[2];
+            float nx = ay * bz - az * by;
+            float ny = az * bx - ax * bz;
+            float nz = ax * by - ay * bx;
+            const float len = std::sqrt(nx * nx + ny * ny + nz * nz);
+            if (len > 0.0f) {
+                nx /= len; ny /= len; nz /= len;
+            }
+            mesh->triangleNormals[t * 3 + 0] = nx;
+            mesh->triangleNormals[t * 3 + 1] = ny;
+            mesh->triangleNormals[t * 3 + 2] = nz;
+        }
+
+        // Per-vertex normals: copy if provided, otherwise compute by averaging
+        // adjacent triangle normals (smooth shading default).
+        mesh->normals.resize((size_t)vertexCount * 3, 0.0f);
+        if (normals) {
+            std::copy(normals, normals + (size_t)vertexCount * 3, mesh->normals.begin());
+        } else {
+            for (uint32_t t = 0; t < triangleCount; ++t) {
+                const float nx = mesh->triangleNormals[t * 3 + 0];
+                const float ny = mesh->triangleNormals[t * 3 + 1];
+                const float nz = mesh->triangleNormals[t * 3 + 2];
+                for (int k = 0; k < 3; ++k) {
+                    const uint32_t vi = indices[t * 3 + k];
+                    mesh->normals[vi * 3 + 0] += nx;
+                    mesh->normals[vi * 3 + 1] += ny;
+                    mesh->normals[vi * 3 + 2] += nz;
+                }
+            }
+            // Renormalize per-vertex accumulators.
+            for (uint32_t v = 0; v < vertexCount; ++v) {
+                float* n = &mesh->normals[v * 3];
+                const float len = std::sqrt(n[0] * n[0] + n[1] * n[1] + n[2] * n[2]);
+                if (len > 0.0f) {
+                    n[0] /= len; n[1] /= len; n[2] /= len;
+                }
+            }
+        }
+
+        // No B-Rep source for these triangles.
+        mesh->faceIndices.assign((size_t)triangleCount, -1);
+
+        return mesh.release();
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // MARK: - Export
 
 bool OCCTExportSTL(OCCTShapeRef shape, const char* path, double deflection) {
