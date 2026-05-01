@@ -2,13 +2,26 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.164.0
+## Current: v0.165.0
 
 **4,269 wrapped operations | 3,383 tests | 1,176 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.165.0 (May 2026) — Fix SPM xcframework URL (issue #97)
+
+`Package.swift` had its remote `binaryTarget(url:)` hardcoded to the **v0.131.0** xcframework — predating OCCT 8 by months. SPM consumers pinning `from: "0.157.0"` resolved the version correctly but the build failed at compile-time with `'BRepGraph_MeshView.hxx' file not found` because the v0.131.0 binary was built against rc-era OCCT and didn't ship the beta1 headers that the v0.157+ wrappers reference. Local-path consumers were unaffected (the auto-detect picks up `Libraries/OCCT.xcframework`).
+
+This release:
+
+1. Attaches the current beta1 xcframework as a release asset (`OCCT.xcframework.zip`, ~148 MB).
+2. Updates `Package.swift`'s remote URL to point at the v0.165.0 release and bumps the SPM checksum to `99bba63c0e686195512cfaa4f3f46f9f11c8b6cd89e8fe5b8aed872a48978003`.
+
+After this release, `from: "0.165.0"` resolves cleanly for remote-pin consumers and the v0.157.0 → v0.164.0 wrapper surface (MeshView, MeshCache, EditorView mutation, ProductOps, RepOps + cache inspection) becomes usable downstream. Downstream Package.swift consumers should bump their pin to `from: "0.165.0"`.
+
+No new ops; this is purely a packaging fix.
 
 ### v0.164.0 (May 2026) — RepOps non-guard setters & cache entry inspection (21 ops)
 

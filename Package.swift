@@ -20,8 +20,8 @@ let occtTarget: Target = useLocalBinary
     )
     : .binaryTarget(
         name: "OCCT",
-        url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.131.0/OCCT.xcframework.zip",
-        checksum: "b69155e44b8e0d8119f864ea53c2b445bb7547edbe35f0e6c57c4833f984dedb"
+        url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.165.0/OCCT.xcframework.zip",
+        checksum: "99bba63c0e686195512cfaa4f3f46f9f11c8b6cd89e8fe5b8aed872a48978003"
     )
 
 let package = Package(
