@@ -2,13 +2,48 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.160.0
+## Current: v0.161.0
 
-**4,186 wrapped operations | 3,372 tests | 1,172 suites | OCCT 8.0.0-beta1**
+**4,227 wrapped operations | 3,375 tests | 1,173 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.161.0 (May 2026) — EditorView Add / Remove / Ref setters (41 ops)
+
+Continues the EditorView wrapping started in v0.159.0 with the structural-mutation surface:
+
+**Add operations** (return ref id or nil):
+- `edgeAddInternalVertex(_:vertexIndex:orientation:)`
+- `faceAddVertex(_:vertexIndex:orientation:)`
+- `shellAddChild(_:childKind:childIndex:orientation:)`
+- `solidAddChild(_:childKind:childIndex:orientation:)`
+- `compoundAddChild(_:childKind:childIndex:orientation:)`
+- `compSolidAddSolid(_:solidIndex:orientation:)`
+
+**Remove operations** (return Bool indicating active-usage removal):
+- `edgeRemoveVertex`, `edgeReplaceVertex` (returns new ref id)
+- `wireRemoveCoEdge`, `faceRemoveVertex`, `faceRemoveWire`
+- `shellRemoveFace`, `shellRemoveChild`
+- `solidRemoveShell`, `solidRemoveChild`
+- `compoundRemoveChild`, `compSolidRemoveSolid`
+- `removeRep(repKind:repIndex:)` — generic representation removal
+
+**Ref setters** (entity-ref → entity-def rebinding, orientation, rep-id binding):
+- Vertex: `setVertexRefOrientation`, `setVertexRefVertexDefId`
+- Edge: `setEdgeStartVertexRefId`, `setEdgeEndVertexRefId`, `setEdgeCurve3DRepId`, `setEdgePolygon3DRepId`
+- CoEdge: `setCoEdgeRefCoEdgeDefId`, `setCoEdgeEdgeDefId`, `setCoEdgeFaceDefId`, `setCoEdgeCurve2DRepId`, `setCoEdgePolygon2DRepId`, `setCoEdgePolygonOnTriRepId`, `clearCoEdgePCurveBinding`
+- Wire: `setWireRefIsOuter`, `setWireRefOrientation`, `setWireRefWireDefId`
+- Face: `setFaceSurfaceRepId`, `setFaceRefOrientation`, `setFaceRefFaceDefId`
+- Shell: `setShellRefOrientation`, `setShellRefShellDefId`
+- Solid: `setSolidRefOrientation`, `setSolidRefSolidDefId`
+- Occurrence: `setOccurrenceChildDefId`, `setOccurrenceRefOccurrenceDefId`
+- Generic: `setChildRefOrientation`, `setChildRefChildDefId`
+
+Setters that need `TopLoc_Location` or `Bnd_Box2d` (e.g. `*RefLocalLocation`, `CoEdge.SetUVBox`, `CoEdge.SetContinuity`) are deferred until a 12-double / 4-double calling convention lands in the bridge.
+
+3 new tests cover Add no-crash safety, Remove returning false on bogus ref ids, and Ref setters operating on real box ids without crashing.
 
 ### v0.160.0 (May 2026) — MeshCache write API + new `Triangulation` type
 

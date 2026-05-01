@@ -56875,6 +56875,418 @@ void OCCTBRepGraphSetShellIsClosed(OCCTBRepGraphRef g, int32_t shellIndex, bool 
     } catch (...) {}
 }
 
+// MARK: - BRepGraph EditorView Add/Remove + Ref Setters (v0.161.0)
+//
+// Add operations return the typed ref id (or -1 on failure). Remove operations return
+// bool indicating whether the active usage was removed. Ref setters are no-ops on
+// invalid ids.
+
+// --- Add operations ---
+
+int32_t OCCTBRepGraphEdgeAddInternalVertex(OCCTBRepGraphRef g, int32_t edgeIndex,
+                                            int32_t vertexIndex, int32_t orientation) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Editor().Edges().AddInternalVertex(
+            BRepGraph_EdgeId(edgeIndex),
+            BRepGraph_VertexId(vertexIndex),
+            oriFromInt(orientation));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphFaceAddVertex(OCCTBRepGraphRef g, int32_t faceIndex,
+                                    int32_t vertexIndex, int32_t orientation) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Editor().Faces().AddVertex(
+            BRepGraph_FaceId(faceIndex),
+            BRepGraph_VertexId(vertexIndex),
+            oriFromInt(orientation));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphShellAddChild(OCCTBRepGraphRef g, int32_t shellIndex,
+                                    int32_t childKind, int32_t childIndex, int32_t orientation) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Editor().Shells().AddChild(
+            BRepGraph_ShellId(shellIndex),
+            BRepGraph_NodeId(kindFromInt(childKind), childIndex),
+            oriFromInt(orientation));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphSolidAddChild(OCCTBRepGraphRef g, int32_t solidIndex,
+                                    int32_t childKind, int32_t childIndex, int32_t orientation) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Editor().Solids().AddChild(
+            BRepGraph_SolidId(solidIndex),
+            BRepGraph_NodeId(kindFromInt(childKind), childIndex),
+            oriFromInt(orientation));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphCompoundAddChild(OCCTBRepGraphRef g, int32_t compoundIndex,
+                                       int32_t childKind, int32_t childIndex, int32_t orientation) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Editor().Compounds().AddChild(
+            BRepGraph_CompoundId(compoundIndex),
+            BRepGraph_NodeId(kindFromInt(childKind), childIndex),
+            oriFromInt(orientation));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphCompSolidAddSolid(OCCTBRepGraphRef g, int32_t compSolidIndex,
+                                        int32_t solidIndex, int32_t orientation) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Editor().CompSolids().AddSolid(
+            BRepGraph_CompSolidId(compSolidIndex),
+            BRepGraph_SolidId(solidIndex),
+            oriFromInt(orientation));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+// --- Remove operations ---
+
+bool OCCTBRepGraphEdgeRemoveVertex(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t vertexRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Edges().RemoveVertex(
+            BRepGraph_EdgeId(edgeIndex), BRepGraph_VertexRefId(vertexRefIndex));
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphEdgeReplaceVertex(OCCTBRepGraphRef g, int32_t edgeIndex,
+                                        int32_t oldVertexRefIndex, int32_t newVertexIndex) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Editor().Edges().ReplaceVertex(
+            BRepGraph_EdgeId(edgeIndex),
+            BRepGraph_VertexRefId(oldVertexRefIndex),
+            BRepGraph_VertexId(newVertexIndex));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+bool OCCTBRepGraphWireRemoveCoEdge(OCCTBRepGraphRef g, int32_t wireIndex, int32_t coedgeRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Wires().RemoveCoEdge(
+            BRepGraph_WireId(wireIndex), BRepGraph_CoEdgeRefId(coedgeRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphFaceRemoveVertex(OCCTBRepGraphRef g, int32_t faceIndex, int32_t vertexRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Faces().RemoveVertex(
+            BRepGraph_FaceId(faceIndex), BRepGraph_VertexRefId(vertexRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphFaceRemoveWire(OCCTBRepGraphRef g, int32_t faceIndex, int32_t wireRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Faces().RemoveWire(
+            BRepGraph_FaceId(faceIndex), BRepGraph_WireRefId(wireRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphShellRemoveFace(OCCTBRepGraphRef g, int32_t shellIndex, int32_t faceRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Shells().RemoveFace(
+            BRepGraph_ShellId(shellIndex), BRepGraph_FaceRefId(faceRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphShellRemoveChild(OCCTBRepGraphRef g, int32_t shellIndex, int32_t childRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Shells().RemoveChild(
+            BRepGraph_ShellId(shellIndex), BRepGraph_ChildRefId(childRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphSolidRemoveShell(OCCTBRepGraphRef g, int32_t solidIndex, int32_t shellRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Solids().RemoveShell(
+            BRepGraph_SolidId(solidIndex), BRepGraph_ShellRefId(shellRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphSolidRemoveChild(OCCTBRepGraphRef g, int32_t solidIndex, int32_t childRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Solids().RemoveChild(
+            BRepGraph_SolidId(solidIndex), BRepGraph_ChildRefId(childRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphCompoundRemoveChild(OCCTBRepGraphRef g, int32_t compoundIndex, int32_t childRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Compounds().RemoveChild(
+            BRepGraph_CompoundId(compoundIndex), BRepGraph_ChildRefId(childRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphCompSolidRemoveSolid(OCCTBRepGraphRef g, int32_t compSolidIndex, int32_t solidRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().CompSolids().RemoveSolid(
+            BRepGraph_CompSolidId(compSolidIndex), BRepGraph_SolidRefId(solidRefIndex));
+    } catch (...) { return false; }
+}
+
+void OCCTBRepGraphRemoveRep(OCCTBRepGraphRef g, int32_t repKind, int32_t repIndex) {
+    if (!g) return;
+    try {
+        BRepGraph_RepId rid;
+        rid.RepKind = (BRepGraph_RepId::Kind)repKind;
+        rid.Index = (uint32_t)repIndex;
+        g->graph.Editor().Gen().RemoveRep(rid);
+    } catch (...) {}
+}
+
+// --- Simple Ref setters (no TopLoc_Location, no Bnd_Box2d) ---
+
+void OCCTBRepGraphSetVertexRefOrientation(OCCTBRepGraphRef g, int32_t vertexRefIndex, int32_t orientation) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Vertices().SetRefOrientation(
+            BRepGraph_VertexRefId(vertexRefIndex), oriFromInt(orientation));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetVertexRefVertexDefId(OCCTBRepGraphRef g, int32_t vertexRefIndex, int32_t vertexIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Vertices().SetRefVertexDefId(
+            BRepGraph_VertexRefId(vertexRefIndex), BRepGraph_VertexId(vertexIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgeStartVertexRefId(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t vertexRefIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Edges().SetStartVertexRefId(
+            BRepGraph_EdgeId(edgeIndex), BRepGraph_VertexRefId(vertexRefIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgeEndVertexRefId(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t vertexRefIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Edges().SetEndVertexRefId(
+            BRepGraph_EdgeId(edgeIndex), BRepGraph_VertexRefId(vertexRefIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgeCurve3DRepId(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t curve3DRepId) {
+    if (!g) return;
+    try {
+        BRepGraph_Curve3DRepId rid;
+        rid.Index = (uint32_t)curve3DRepId;
+        g->graph.Editor().Edges().SetCurve3DRepId(BRepGraph_EdgeId(edgeIndex), rid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgePolygon3DRepId(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t polygon3DRepId) {
+    if (!g) return;
+    try {
+        BRepGraph_Polygon3DRepId rid;
+        rid.Index = (uint32_t)polygon3DRepId;
+        g->graph.Editor().Edges().SetPolygon3DRepId(BRepGraph_EdgeId(edgeIndex), rid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeRefCoEdgeDefId(OCCTBRepGraphRef g, int32_t coedgeRefIndex, int32_t coedgeIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetRefCoEdgeDefId(
+            BRepGraph_CoEdgeRefId(coedgeRefIndex), BRepGraph_CoEdgeId(coedgeIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeEdgeDefId(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t edgeIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetEdgeDefId(
+            BRepGraph_CoEdgeId(coedgeIndex), BRepGraph_EdgeId(edgeIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeFaceDefId(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t faceIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetFaceDefId(
+            BRepGraph_CoEdgeId(coedgeIndex), BRepGraph_FaceId(faceIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeCurve2DRepId(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t curve2DRepId) {
+    if (!g) return;
+    try {
+        BRepGraph_Curve2DRepId rid;
+        rid.Index = (uint32_t)curve2DRepId;
+        g->graph.Editor().CoEdges().SetCurve2DRepId(BRepGraph_CoEdgeId(coedgeIndex), rid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgePolygon2DRepId(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t polygon2DRepId) {
+    if (!g) return;
+    try {
+        BRepGraph_Polygon2DRepId rid;
+        rid.Index = (uint32_t)polygon2DRepId;
+        g->graph.Editor().CoEdges().SetPolygon2DRepId(BRepGraph_CoEdgeId(coedgeIndex), rid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgePolygonOnTriRepId(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t polygonOnTriRepId) {
+    if (!g) return;
+    try {
+        BRepGraph_PolygonOnTriRepId rid;
+        rid.Index = (uint32_t)polygonOnTriRepId;
+        g->graph.Editor().CoEdges().SetPolygonOnTriRepId(BRepGraph_CoEdgeId(coedgeIndex), rid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphClearCoEdgePCurveBinding(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().ClearPCurveBinding(BRepGraph_CoEdgeId(coedgeIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetWireRefIsOuter(OCCTBRepGraphRef g, int32_t wireRefIndex, bool isOuter) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Wires().SetRefIsOuter(BRepGraph_WireRefId(wireRefIndex), isOuter);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetWireRefOrientation(OCCTBRepGraphRef g, int32_t wireRefIndex, int32_t orientation) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Wires().SetRefOrientation(
+            BRepGraph_WireRefId(wireRefIndex), oriFromInt(orientation));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetWireRefWireDefId(OCCTBRepGraphRef g, int32_t wireRefIndex, int32_t wireIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Wires().SetRefWireDefId(
+            BRepGraph_WireRefId(wireRefIndex), BRepGraph_WireId(wireIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetFaceSurfaceRepId(OCCTBRepGraphRef g, int32_t faceIndex, int32_t surfaceRepId) {
+    if (!g) return;
+    try {
+        BRepGraph_SurfaceRepId rid;
+        rid.Index = (uint32_t)surfaceRepId;
+        g->graph.Editor().Faces().SetSurfaceRepId(BRepGraph_FaceId(faceIndex), rid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetFaceRefOrientation(OCCTBRepGraphRef g, int32_t faceRefIndex, int32_t orientation) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Faces().SetRefOrientation(
+            BRepGraph_FaceRefId(faceRefIndex), oriFromInt(orientation));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetFaceRefFaceDefId(OCCTBRepGraphRef g, int32_t faceRefIndex, int32_t faceIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Faces().SetRefFaceDefId(
+            BRepGraph_FaceRefId(faceRefIndex), BRepGraph_FaceId(faceIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetShellRefOrientation(OCCTBRepGraphRef g, int32_t shellRefIndex, int32_t orientation) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Shells().SetRefOrientation(
+            BRepGraph_ShellRefId(shellRefIndex), oriFromInt(orientation));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetShellRefShellDefId(OCCTBRepGraphRef g, int32_t shellRefIndex, int32_t shellIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Shells().SetRefShellDefId(
+            BRepGraph_ShellRefId(shellRefIndex), BRepGraph_ShellId(shellIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetSolidRefOrientation(OCCTBRepGraphRef g, int32_t solidRefIndex, int32_t orientation) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Solids().SetRefOrientation(
+            BRepGraph_SolidRefId(solidRefIndex), oriFromInt(orientation));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetSolidRefSolidDefId(OCCTBRepGraphRef g, int32_t solidRefIndex, int32_t solidIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Solids().SetRefSolidDefId(
+            BRepGraph_SolidRefId(solidRefIndex), BRepGraph_SolidId(solidIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetOccurrenceChildDefId(OCCTBRepGraphRef g, int32_t occurrenceIndex,
+                                            int32_t childKind, int32_t childIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Occurrences().SetChildDefId(
+            BRepGraph_OccurrenceId(occurrenceIndex),
+            BRepGraph_NodeId(kindFromInt(childKind), childIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetOccurrenceRefOccurrenceDefId(OCCTBRepGraphRef g, int32_t occurrenceRefIndex,
+                                                    int32_t occurrenceIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Occurrences().SetRefOccurrenceDefId(
+            BRepGraph_OccurrenceRefId(occurrenceRefIndex),
+            BRepGraph_OccurrenceId(occurrenceIndex));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetChildRefOrientation(OCCTBRepGraphRef g, int32_t childRefIndex, int32_t orientation) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Gen().SetChildRefOrientation(
+            BRepGraph_ChildRefId(childRefIndex), oriFromInt(orientation));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetChildRefChildDefId(OCCTBRepGraphRef g, int32_t childRefIndex,
+                                          int32_t childKind, int32_t childIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Gen().SetChildRefChildDefId(
+            BRepGraph_ChildRefId(childRefIndex),
+            BRepGraph_NodeId(kindFromInt(childKind), childIndex));
+    } catch (...) {}
+}
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 #include <BRepTools.hxx>

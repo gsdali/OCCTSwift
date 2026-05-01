@@ -1375,6 +1375,192 @@ public final class TopologyGraph: @unchecked Sendable {
         OCCTBRepGraphSetShellIsClosed(handle, Int32(shellIndex), isClosed)
     }
 
+    // MARK: - EditorView Add operations (v0.161.0)
+
+    /// Add an internal vertex reference to an edge. Returns the new vertex-ref id, or nil on failure.
+    /// - Parameter orientation: 0=Forward, 1=Reversed, 2=Internal, 3=External (default Internal).
+    public func edgeAddInternalVertex(_ edgeIndex: Int, vertexIndex: Int, orientation: Int = 2) -> Int? {
+        let id = Int(OCCTBRepGraphEdgeAddInternalVertex(handle, Int32(edgeIndex), Int32(vertexIndex), Int32(orientation)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Add a vertex reference to a face. Returns the new vertex-ref id, or nil.
+    public func faceAddVertex(_ faceIndex: Int, vertexIndex: Int, orientation: Int = 0) -> Int? {
+        let id = Int(OCCTBRepGraphFaceAddVertex(handle, Int32(faceIndex), Int32(vertexIndex), Int32(orientation)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Link an auxiliary non-face child (Wire or Edge) to a shell. Returns child-ref id or nil.
+    public func shellAddChild(_ shellIndex: Int, childKind: Int, childIndex: Int, orientation: Int = 0) -> Int? {
+        let id = Int(OCCTBRepGraphShellAddChild(handle, Int32(shellIndex), Int32(childKind), Int32(childIndex), Int32(orientation)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Link an auxiliary non-shell child (Edge or Vertex) to a solid. Returns child-ref id or nil.
+    public func solidAddChild(_ solidIndex: Int, childKind: Int, childIndex: Int, orientation: Int = 0) -> Int? {
+        let id = Int(OCCTBRepGraphSolidAddChild(handle, Int32(solidIndex), Int32(childKind), Int32(childIndex), Int32(orientation)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Append a single child to an existing compound definition. Returns child-ref id or nil.
+    public func compoundAddChild(_ compoundIndex: Int, childKind: Int, childIndex: Int, orientation: Int = 0) -> Int? {
+        let id = Int(OCCTBRepGraphCompoundAddChild(handle, Int32(compoundIndex), Int32(childKind), Int32(childIndex), Int32(orientation)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Append a single solid to an existing compsolid definition. Returns solid-ref id or nil.
+    public func compSolidAddSolid(_ compSolidIndex: Int, solidIndex: Int, orientation: Int = 0) -> Int? {
+        let id = Int(OCCTBRepGraphCompSolidAddSolid(handle, Int32(compSolidIndex), Int32(solidIndex), Int32(orientation)))
+        return id >= 0 ? id : nil
+    }
+
+    // MARK: - EditorView Remove operations (v0.161.0)
+
+    /// Detach an exact vertex ref from an edge definition. Returns true if the active usage was removed.
+    public func edgeRemoveVertex(_ edgeIndex: Int, vertexRefIndex: Int) -> Bool {
+        OCCTBRepGraphEdgeRemoveVertex(handle, Int32(edgeIndex), Int32(vertexRefIndex))
+    }
+
+    /// Remap an edge-owned vertex reference to a different vertex definition. Returns the new vertex-ref id, or nil.
+    public func edgeReplaceVertex(_ edgeIndex: Int, oldVertexRefIndex: Int, newVertexIndex: Int) -> Int? {
+        let id = Int(OCCTBRepGraphEdgeReplaceVertex(handle, Int32(edgeIndex), Int32(oldVertexRefIndex), Int32(newVertexIndex)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Detach a coedge ref from a wire definition.
+    public func wireRemoveCoEdge(_ wireIndex: Int, coedgeRefIndex: Int) -> Bool {
+        OCCTBRepGraphWireRemoveCoEdge(handle, Int32(wireIndex), Int32(coedgeRefIndex))
+    }
+
+    /// Detach a vertex ref from a face definition.
+    public func faceRemoveVertex(_ faceIndex: Int, vertexRefIndex: Int) -> Bool {
+        OCCTBRepGraphFaceRemoveVertex(handle, Int32(faceIndex), Int32(vertexRefIndex))
+    }
+
+    /// Detach a wire ref from a face definition.
+    public func faceRemoveWire(_ faceIndex: Int, wireRefIndex: Int) -> Bool {
+        OCCTBRepGraphFaceRemoveWire(handle, Int32(faceIndex), Int32(wireRefIndex))
+    }
+
+    /// Detach a face ref from a shell definition.
+    public func shellRemoveFace(_ shellIndex: Int, faceRefIndex: Int) -> Bool {
+        OCCTBRepGraphShellRemoveFace(handle, Int32(shellIndex), Int32(faceRefIndex))
+    }
+
+    /// Detach an auxiliary child ref from a shell.
+    public func shellRemoveChild(_ shellIndex: Int, childRefIndex: Int) -> Bool {
+        OCCTBRepGraphShellRemoveChild(handle, Int32(shellIndex), Int32(childRefIndex))
+    }
+
+    /// Detach a shell ref from a solid definition.
+    public func solidRemoveShell(_ solidIndex: Int, shellRefIndex: Int) -> Bool {
+        OCCTBRepGraphSolidRemoveShell(handle, Int32(solidIndex), Int32(shellRefIndex))
+    }
+
+    /// Detach an auxiliary child ref from a solid.
+    public func solidRemoveChild(_ solidIndex: Int, childRefIndex: Int) -> Bool {
+        OCCTBRepGraphSolidRemoveChild(handle, Int32(solidIndex), Int32(childRefIndex))
+    }
+
+    /// Detach a child ref from a compound definition.
+    public func compoundRemoveChild(_ compoundIndex: Int, childRefIndex: Int) -> Bool {
+        OCCTBRepGraphCompoundRemoveChild(handle, Int32(compoundIndex), Int32(childRefIndex))
+    }
+
+    /// Detach a solid ref from a compsolid definition.
+    public func compSolidRemoveSolid(_ compSolidIndex: Int, solidRefIndex: Int) -> Bool {
+        OCCTBRepGraphCompSolidRemoveSolid(handle, Int32(compSolidIndex), Int32(solidRefIndex))
+    }
+
+    /// Remove a representation (surface, curve, triangulation, polygon) from storage.
+    public func removeRep(repKind: Int, repIndex: Int) {
+        OCCTBRepGraphRemoveRep(handle, Int32(repKind), Int32(repIndex))
+    }
+
+    // MARK: - EditorView Ref setters (v0.161.0)
+
+    public func setVertexRefOrientation(_ vertexRefIndex: Int, orientation: Int) {
+        OCCTBRepGraphSetVertexRefOrientation(handle, Int32(vertexRefIndex), Int32(orientation))
+    }
+    public func setVertexRefVertexDefId(_ vertexRefIndex: Int, vertexIndex: Int) {
+        OCCTBRepGraphSetVertexRefVertexDefId(handle, Int32(vertexRefIndex), Int32(vertexIndex))
+    }
+    public func setEdgeStartVertexRefId(_ edgeIndex: Int, vertexRefIndex: Int) {
+        OCCTBRepGraphSetEdgeStartVertexRefId(handle, Int32(edgeIndex), Int32(vertexRefIndex))
+    }
+    public func setEdgeEndVertexRefId(_ edgeIndex: Int, vertexRefIndex: Int) {
+        OCCTBRepGraphSetEdgeEndVertexRefId(handle, Int32(edgeIndex), Int32(vertexRefIndex))
+    }
+    public func setEdgeCurve3DRepId(_ edgeIndex: Int, curve3DRepId: Int) {
+        OCCTBRepGraphSetEdgeCurve3DRepId(handle, Int32(edgeIndex), Int32(curve3DRepId))
+    }
+    public func setEdgePolygon3DRepId(_ edgeIndex: Int, polygon3DRepId: Int) {
+        OCCTBRepGraphSetEdgePolygon3DRepId(handle, Int32(edgeIndex), Int32(polygon3DRepId))
+    }
+    public func setCoEdgeRefCoEdgeDefId(_ coedgeRefIndex: Int, coedgeIndex: Int) {
+        OCCTBRepGraphSetCoEdgeRefCoEdgeDefId(handle, Int32(coedgeRefIndex), Int32(coedgeIndex))
+    }
+    public func setCoEdgeEdgeDefId(_ coedgeIndex: Int, edgeIndex: Int) {
+        OCCTBRepGraphSetCoEdgeEdgeDefId(handle, Int32(coedgeIndex), Int32(edgeIndex))
+    }
+    public func setCoEdgeFaceDefId(_ coedgeIndex: Int, faceIndex: Int) {
+        OCCTBRepGraphSetCoEdgeFaceDefId(handle, Int32(coedgeIndex), Int32(faceIndex))
+    }
+    public func setCoEdgeCurve2DRepId(_ coedgeIndex: Int, curve2DRepId: Int) {
+        OCCTBRepGraphSetCoEdgeCurve2DRepId(handle, Int32(coedgeIndex), Int32(curve2DRepId))
+    }
+    public func setCoEdgePolygon2DRepId(_ coedgeIndex: Int, polygon2DRepId: Int) {
+        OCCTBRepGraphSetCoEdgePolygon2DRepId(handle, Int32(coedgeIndex), Int32(polygon2DRepId))
+    }
+    public func setCoEdgePolygonOnTriRepId(_ coedgeIndex: Int, polygonOnTriRepId: Int) {
+        OCCTBRepGraphSetCoEdgePolygonOnTriRepId(handle, Int32(coedgeIndex), Int32(polygonOnTriRepId))
+    }
+    public func clearCoEdgePCurveBinding(_ coedgeIndex: Int) {
+        OCCTBRepGraphClearCoEdgePCurveBinding(handle, Int32(coedgeIndex))
+    }
+    public func setWireRefIsOuter(_ wireRefIndex: Int, isOuter: Bool) {
+        OCCTBRepGraphSetWireRefIsOuter(handle, Int32(wireRefIndex), isOuter)
+    }
+    public func setWireRefOrientation(_ wireRefIndex: Int, orientation: Int) {
+        OCCTBRepGraphSetWireRefOrientation(handle, Int32(wireRefIndex), Int32(orientation))
+    }
+    public func setWireRefWireDefId(_ wireRefIndex: Int, wireIndex: Int) {
+        OCCTBRepGraphSetWireRefWireDefId(handle, Int32(wireRefIndex), Int32(wireIndex))
+    }
+    public func setFaceSurfaceRepId(_ faceIndex: Int, surfaceRepId: Int) {
+        OCCTBRepGraphSetFaceSurfaceRepId(handle, Int32(faceIndex), Int32(surfaceRepId))
+    }
+    public func setFaceRefOrientation(_ faceRefIndex: Int, orientation: Int) {
+        OCCTBRepGraphSetFaceRefOrientation(handle, Int32(faceRefIndex), Int32(orientation))
+    }
+    public func setFaceRefFaceDefId(_ faceRefIndex: Int, faceIndex: Int) {
+        OCCTBRepGraphSetFaceRefFaceDefId(handle, Int32(faceRefIndex), Int32(faceIndex))
+    }
+    public func setShellRefOrientation(_ shellRefIndex: Int, orientation: Int) {
+        OCCTBRepGraphSetShellRefOrientation(handle, Int32(shellRefIndex), Int32(orientation))
+    }
+    public func setShellRefShellDefId(_ shellRefIndex: Int, shellIndex: Int) {
+        OCCTBRepGraphSetShellRefShellDefId(handle, Int32(shellRefIndex), Int32(shellIndex))
+    }
+    public func setSolidRefOrientation(_ solidRefIndex: Int, orientation: Int) {
+        OCCTBRepGraphSetSolidRefOrientation(handle, Int32(solidRefIndex), Int32(orientation))
+    }
+    public func setSolidRefSolidDefId(_ solidRefIndex: Int, solidIndex: Int) {
+        OCCTBRepGraphSetSolidRefSolidDefId(handle, Int32(solidRefIndex), Int32(solidIndex))
+    }
+    public func setOccurrenceChildDefId(_ occurrenceIndex: Int, childKind: Int, childIndex: Int) {
+        OCCTBRepGraphSetOccurrenceChildDefId(handle, Int32(occurrenceIndex), Int32(childKind), Int32(childIndex))
+    }
+    public func setOccurrenceRefOccurrenceDefId(_ occurrenceRefIndex: Int, occurrenceIndex: Int) {
+        OCCTBRepGraphSetOccurrenceRefOccurrenceDefId(handle, Int32(occurrenceRefIndex), Int32(occurrenceIndex))
+    }
+    public func setChildRefOrientation(_ childRefIndex: Int, orientation: Int) {
+        OCCTBRepGraphSetChildRefOrientation(handle, Int32(childRefIndex), Int32(orientation))
+    }
+    public func setChildRefChildDefId(_ childRefIndex: Int, childKind: Int, childIndex: Int) {
+        OCCTBRepGraphSetChildRefChildDefId(handle, Int32(childRefIndex), Int32(childKind), Int32(childIndex))
+    }
+
     // MARK: - ML Export (v0.136.0)
 
     /// Graph data exported in ML-friendly format with flat arrays and COO sparse adjacency.

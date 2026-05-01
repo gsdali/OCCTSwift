@@ -20194,6 +20194,63 @@ void OCCTBRepGraphSetFaceNaturalRestriction(OCCTBRepGraphRef _Nonnull graph, int
 // ShellOps
 void OCCTBRepGraphSetShellIsClosed(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex, bool isClosed);
 
+// MARK: - BRepGraph EditorView Add/Remove + Ref Setters (v0.161.0)
+//
+// Add operations return the typed ref id (or -1 on failure). Remove operations return
+// bool indicating whether the active usage was removed. Ref setters are no-ops on
+// invalid ids.
+
+// Add operations (Ref-typed return)
+int32_t OCCTBRepGraphEdgeAddInternalVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t vertexIndex, int32_t orientation);
+int32_t OCCTBRepGraphFaceAddVertex(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t vertexIndex, int32_t orientation);
+int32_t OCCTBRepGraphShellAddChild(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex, int32_t childKind, int32_t childIndex, int32_t orientation);
+int32_t OCCTBRepGraphSolidAddChild(OCCTBRepGraphRef _Nonnull graph, int32_t solidIndex, int32_t childKind, int32_t childIndex, int32_t orientation);
+int32_t OCCTBRepGraphCompoundAddChild(OCCTBRepGraphRef _Nonnull graph, int32_t compoundIndex, int32_t childKind, int32_t childIndex, int32_t orientation);
+int32_t OCCTBRepGraphCompSolidAddSolid(OCCTBRepGraphRef _Nonnull graph, int32_t compSolidIndex, int32_t solidIndex, int32_t orientation);
+
+// Remove operations
+bool OCCTBRepGraphEdgeRemoveVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t vertexRefIndex);
+int32_t OCCTBRepGraphEdgeReplaceVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t oldVertexRefIndex, int32_t newVertexIndex);
+bool OCCTBRepGraphWireRemoveCoEdge(OCCTBRepGraphRef _Nonnull graph, int32_t wireIndex, int32_t coedgeRefIndex);
+bool OCCTBRepGraphFaceRemoveVertex(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t vertexRefIndex);
+bool OCCTBRepGraphFaceRemoveWire(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t wireRefIndex);
+bool OCCTBRepGraphShellRemoveFace(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex, int32_t faceRefIndex);
+bool OCCTBRepGraphShellRemoveChild(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex, int32_t childRefIndex);
+bool OCCTBRepGraphSolidRemoveShell(OCCTBRepGraphRef _Nonnull graph, int32_t solidIndex, int32_t shellRefIndex);
+bool OCCTBRepGraphSolidRemoveChild(OCCTBRepGraphRef _Nonnull graph, int32_t solidIndex, int32_t childRefIndex);
+bool OCCTBRepGraphCompoundRemoveChild(OCCTBRepGraphRef _Nonnull graph, int32_t compoundIndex, int32_t childRefIndex);
+bool OCCTBRepGraphCompSolidRemoveSolid(OCCTBRepGraphRef _Nonnull graph, int32_t compSolidIndex, int32_t solidRefIndex);
+void OCCTBRepGraphRemoveRep(OCCTBRepGraphRef _Nonnull graph, int32_t repKind, int32_t repIndex);
+
+// Simple Ref setters (no TopLoc_Location, no Bnd_Box2d)
+void OCCTBRepGraphSetVertexRefOrientation(OCCTBRepGraphRef _Nonnull graph, int32_t vertexRefIndex, int32_t orientation);
+void OCCTBRepGraphSetVertexRefVertexDefId(OCCTBRepGraphRef _Nonnull graph, int32_t vertexRefIndex, int32_t vertexIndex);
+void OCCTBRepGraphSetEdgeStartVertexRefId(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t vertexRefIndex);
+void OCCTBRepGraphSetEdgeEndVertexRefId(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t vertexRefIndex);
+void OCCTBRepGraphSetEdgeCurve3DRepId(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t curve3DRepId);
+void OCCTBRepGraphSetEdgePolygon3DRepId(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t polygon3DRepId);
+void OCCTBRepGraphSetCoEdgeRefCoEdgeDefId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeRefIndex, int32_t coedgeIndex);
+void OCCTBRepGraphSetCoEdgeEdgeDefId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t edgeIndex);
+void OCCTBRepGraphSetCoEdgeFaceDefId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t faceIndex);
+void OCCTBRepGraphSetCoEdgeCurve2DRepId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t curve2DRepId);
+void OCCTBRepGraphSetCoEdgePolygon2DRepId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t polygon2DRepId);
+void OCCTBRepGraphSetCoEdgePolygonOnTriRepId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t polygonOnTriRepId);
+void OCCTBRepGraphClearCoEdgePCurveBinding(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+void OCCTBRepGraphSetWireRefIsOuter(OCCTBRepGraphRef _Nonnull graph, int32_t wireRefIndex, bool isOuter);
+void OCCTBRepGraphSetWireRefOrientation(OCCTBRepGraphRef _Nonnull graph, int32_t wireRefIndex, int32_t orientation);
+void OCCTBRepGraphSetWireRefWireDefId(OCCTBRepGraphRef _Nonnull graph, int32_t wireRefIndex, int32_t wireIndex);
+void OCCTBRepGraphSetFaceSurfaceRepId(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t surfaceRepId);
+void OCCTBRepGraphSetFaceRefOrientation(OCCTBRepGraphRef _Nonnull graph, int32_t faceRefIndex, int32_t orientation);
+void OCCTBRepGraphSetFaceRefFaceDefId(OCCTBRepGraphRef _Nonnull graph, int32_t faceRefIndex, int32_t faceIndex);
+void OCCTBRepGraphSetShellRefOrientation(OCCTBRepGraphRef _Nonnull graph, int32_t shellRefIndex, int32_t orientation);
+void OCCTBRepGraphSetShellRefShellDefId(OCCTBRepGraphRef _Nonnull graph, int32_t shellRefIndex, int32_t shellIndex);
+void OCCTBRepGraphSetSolidRefOrientation(OCCTBRepGraphRef _Nonnull graph, int32_t solidRefIndex, int32_t orientation);
+void OCCTBRepGraphSetSolidRefSolidDefId(OCCTBRepGraphRef _Nonnull graph, int32_t solidRefIndex, int32_t solidIndex);
+void OCCTBRepGraphSetOccurrenceChildDefId(OCCTBRepGraphRef _Nonnull graph, int32_t occurrenceIndex, int32_t childKind, int32_t childIndex);
+void OCCTBRepGraphSetOccurrenceRefOccurrenceDefId(OCCTBRepGraphRef _Nonnull graph, int32_t occurrenceRefIndex, int32_t occurrenceIndex);
+void OCCTBRepGraphSetChildRefOrientation(OCCTBRepGraphRef _Nonnull graph, int32_t childRefIndex, int32_t orientation);
+void OCCTBRepGraphSetChildRefChildDefId(OCCTBRepGraphRef _Nonnull graph, int32_t childRefIndex, int32_t childKind, int32_t childIndex);
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 /// Sample a regular UV grid on a face surface. Returns point count (uSamples * vSamples),
