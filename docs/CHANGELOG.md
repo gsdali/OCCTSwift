@@ -2,13 +2,38 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.166.1
+## Current: v0.167.0
 
-**4,269 wrapped operations | 3,383 tests | 1,176 suites | OCCT 8.0.0-beta1**
+**4,269 wrapped operations | 3,383 tests | 1,176 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.167.0 (May 2026) — visionOS + tvOS support
+
+OCCT.xcframework now ships **seven slices**:
+
+| Platform | Slice |
+|---|---|
+| macOS 12+ arm64 | `macos-arm64` |
+| iOS 15+ device arm64 | `ios-arm64` |
+| iOS 15+ Simulator arm64 | `ios-arm64-simulator` |
+| visionOS 1+ device arm64 | `xros-arm64` (new) |
+| visionOS 1+ Simulator arm64 | `xros-arm64-simulator` (new) |
+| tvOS 15+ device arm64 | `tvos-arm64` (new) |
+| tvOS 15+ Simulator arm64 | `tvos-arm64-simulator` (new) |
+
+`Package.swift` declares `.visionOS(.v1)` and `.tvOS(.v15)` alongside the existing `.iOS(.v15)` / `.macOS(.v12)`. The xcframework asset attached to this release is ~341 MB (up from 148 MB at v0.165.0; quadruples the slice count).
+
+**Build script changes** (`Scripts/build-occt.sh`) — required to make OCCT 8 cross-compile cleanly to visionOS and tvOS SDKs:
+
+- Added four new build blocks (`visionOS device`, `visionOS Simulator`, `tvOS device`, `tvOS Simulator`).
+- Each new block sets `-DCMAKE_SIZEOF_VOID_P=8` to bypass OCCT's `OCCT_MAKE_COMPILER_BITNESS` cmake macro, which couldn't autodetect pointer size on the visionOS SDK (`32 + 32*(/8)` syntax error from an empty `CMAKE_C_SIZEOF_DATA_PTR`).
+- Removed explicit `-mtargetos=` / `-m*-version-min=` flags from the C/CXX flags — clang rejects them when CMake already sets `--target=arm64-apple-xros1.0` from the SDK + deployment target. Letting CMake derive the target is the correct path.
+- xcframework creation step now conditionally includes each platform slice: if a slice fails to build (empty `.a`), the xcframework is built without it instead of aborting the whole script.
+
+`OCCT.xcframework.zip` checksum: `5147b7d65cd9af5a6c3af1b38a1492365e645ed5c76a663bf9311c2f54043d87`.
 
 ### v0.166.1 (May 2026) — Platform plan refinement
 

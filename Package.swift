@@ -20,15 +20,17 @@ let occtTarget: Target = useLocalBinary
     )
     : .binaryTarget(
         name: "OCCT",
-        url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.165.0/OCCT.xcframework.zip",
-        checksum: "99bba63c0e686195512cfaa4f3f46f9f11c8b6cd89e8fe5b8aed872a48978003"
+        url: "https://github.com/gsdali/OCCTSwift/releases/download/v0.167.0/OCCT.xcframework.zip",
+        checksum: "5147b7d65cd9af5a6c3af1b38a1492365e645ed5c76a663bf9311c2f54043d87"
     )
 
 let package = Package(
     name: "OCCTSwift",
     platforms: [
         .iOS(.v15),
-        .macOS(.v12)
+        .macOS(.v12),
+        .visionOS(.v1),
+        .tvOS(.v15)
     ],
     products: [
         .library(
@@ -59,6 +61,10 @@ let package = Package(
                 .headerSearchPath("../../Libraries/OCCT.xcframework/macos-arm64/Headers", .when(platforms: [.macOS])),
                 .headerSearchPath("../../Libraries/OCCT.xcframework/ios-arm64/Headers", .when(platforms: [.iOS])),
                 .headerSearchPath("../../Libraries/OCCT.xcframework/ios-arm64-simulator/Headers", .when(platforms: [.iOS])),
+                .headerSearchPath("../../Libraries/OCCT.xcframework/xros-arm64/Headers", .when(platforms: [.visionOS])),
+                .headerSearchPath("../../Libraries/OCCT.xcframework/xros-arm64-simulator/Headers", .when(platforms: [.visionOS])),
+                .headerSearchPath("../../Libraries/OCCT.xcframework/tvos-arm64/Headers", .when(platforms: [.tvOS])),
+                .headerSearchPath("../../Libraries/OCCT.xcframework/tvos-arm64-simulator/Headers", .when(platforms: [.tvOS])),
                 .define("OCCT_AVAILABLE", to: "1")
             ],
             linkerSettings: [

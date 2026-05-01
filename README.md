@@ -6,7 +6,7 @@
 
 A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0 beta1, providing B-Rep solid modeling for macOS and iOS. v1.0.0 will pin to OCCT 8.0.0 GA on May 7, 2026.
 
-**4,269 wrapped operations** | **3,383 tests** | **1,176 suites** | macOS 12+ / iOS 15+ (arm64) | OCCT 8.0.0-beta1
+**4,269 wrapped operations** | **3,383 tests** | **1,176 suites** | macOS 12+ / iOS 15+ / visionOS 1+ / tvOS 15+ (arm64) | OCCT 8.0.0-beta1
 
 ## Quick Start
 
@@ -16,7 +16,7 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.165.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.167.0")
 ]
 ```
 
@@ -155,8 +155,8 @@ Each OCCT object is managed via opaque handle types with release-on-deinit. See 
 | macOS 12+ | arm64 (Apple Silicon) | Supported |
 | iOS 15+ device | arm64 | Supported |
 | iOS 15+ Simulator | arm64 (Apple Silicon host) | Supported |
-| visionOS | arm64 device + simulator | Planned for v1.0.0 |
-| tvOS | arm64 | Under consideration (only if cheap to add) |
+| visionOS 1+ | arm64 device + simulator | Supported (v0.167.0+) |
+| tvOS 15+ | arm64 device + simulator | Supported (v0.167.0+) |
 | watchOS | — | Out of scope (OCCT static lib too large for watch memory) |
 | macOS x86_64 (Intel) | — | Out of scope (Apple is winding down Intel macOS support) |
 | Linux / Windows / Android | — | Under review — see [docs/platform-expansion.md](docs/platform-expansion.md) |

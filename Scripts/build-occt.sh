@@ -38,6 +38,10 @@ JOBS=$(sysctl -n hw.ncpu)
 IOS_SDK=$(xcrun --sdk iphoneos --show-sdk-path)
 SIM_SDK=$(xcrun --sdk iphonesimulator --show-sdk-path)
 MACOS_SDK=$(xcrun --sdk macosx --show-sdk-path)
+XROS_SDK=$(xcrun --sdk xros --show-sdk-path)
+XRSIM_SDK=$(xcrun --sdk xrsimulator --show-sdk-path)
+TVOS_SDK=$(xcrun --sdk appletvos --show-sdk-path)
+TVSIM_SDK=$(xcrun --sdk appletvsimulator --show-sdk-path)
 
 # Compiler
 CC=$(xcrun --find clang)
@@ -52,6 +56,10 @@ echo "Parallel jobs: $JOBS"
 echo "iOS SDK: $IOS_SDK"
 echo "Simulator SDK: $SIM_SDK"
 echo "macOS SDK: $MACOS_SDK"
+echo "visionOS SDK: $XROS_SDK"
+echo "visionOS Simulator SDK: $XRSIM_SDK"
+echo "tvOS SDK: $TVOS_SDK"
+echo "tvOS Simulator SDK: $TVSIM_SDK"
 echo ""
 
 cd "$LIBRARIES_DIR"
@@ -212,6 +220,142 @@ cmake --install . || true
 cd ..
 
 # --------------------
+# Build for visionOS Device
+# --------------------
+
+echo ""
+echo ">>> Building for visionOS (arm64)..."
+rm -rf occt-build-xros
+mkdir -p occt-build-xros
+cd occt-build-xros
+
+XROS_FLAGS="-arch arm64 -isysroot $XROS_SDK"
+
+cmake ../occt-src \
+    -G "Unix Makefiles" \
+    "${CMAKE_COMMON_OPTS[@]}" \
+    -DCMAKE_SYSTEM_NAME=visionOS \
+    -DCMAKE_OSX_SYSROOT="$XROS_SDK" \
+    -DCMAKE_OSX_ARCHITECTURES=arm64 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=1.0 \
+    -DCMAKE_C_COMPILER="$CC" \
+    -DCMAKE_CXX_COMPILER="$CXX" \
+    -DCMAKE_C_FLAGS="$XROS_FLAGS" \
+    -DCMAKE_CXX_FLAGS="$XROS_FLAGS" \
+    -DCMAKE_C_COMPILER_WORKS=TRUE \
+    -DCMAKE_CXX_COMPILER_WORKS=TRUE \
+    -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+    -DCMAKE_SIZEOF_VOID_P=8 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=../occt-install-xros || true
+
+cmake --build . --parallel "$JOBS" || true
+cmake --install . || true
+cd ..
+
+# --------------------
+# Build for visionOS Simulator
+# --------------------
+
+echo ""
+echo ">>> Building for visionOS Simulator (arm64)..."
+rm -rf occt-build-xrsim
+mkdir -p occt-build-xrsim
+cd occt-build-xrsim
+
+XRSIM_FLAGS="-arch arm64 -isysroot $XRSIM_SDK"
+
+cmake ../occt-src \
+    -G "Unix Makefiles" \
+    "${CMAKE_COMMON_OPTS[@]}" \
+    -DCMAKE_SYSTEM_NAME=visionOS \
+    -DCMAKE_OSX_SYSROOT="$XRSIM_SDK" \
+    -DCMAKE_OSX_ARCHITECTURES=arm64 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=1.0 \
+    -DCMAKE_C_COMPILER="$CC" \
+    -DCMAKE_CXX_COMPILER="$CXX" \
+    -DCMAKE_C_FLAGS="$XRSIM_FLAGS" \
+    -DCMAKE_CXX_FLAGS="$XRSIM_FLAGS" \
+    -DCMAKE_C_COMPILER_WORKS=TRUE \
+    -DCMAKE_CXX_COMPILER_WORKS=TRUE \
+    -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+    -DCMAKE_SIZEOF_VOID_P=8 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=../occt-install-xrsim || true
+
+cmake --build . --parallel "$JOBS" || true
+cmake --install . || true
+cd ..
+
+# --------------------
+# Build for tvOS Device
+# --------------------
+
+echo ""
+echo ">>> Building for tvOS (arm64)..."
+rm -rf occt-build-tvos
+mkdir -p occt-build-tvos
+cd occt-build-tvos
+
+TVOS_FLAGS="-arch arm64 -isysroot $TVOS_SDK"
+
+cmake ../occt-src \
+    -G "Unix Makefiles" \
+    "${CMAKE_COMMON_OPTS[@]}" \
+    -DCMAKE_SYSTEM_NAME=tvOS \
+    -DCMAKE_OSX_SYSROOT="$TVOS_SDK" \
+    -DCMAKE_OSX_ARCHITECTURES=arm64 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+    -DCMAKE_C_COMPILER="$CC" \
+    -DCMAKE_CXX_COMPILER="$CXX" \
+    -DCMAKE_C_FLAGS="$TVOS_FLAGS" \
+    -DCMAKE_CXX_FLAGS="$TVOS_FLAGS" \
+    -DCMAKE_C_COMPILER_WORKS=TRUE \
+    -DCMAKE_CXX_COMPILER_WORKS=TRUE \
+    -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+    -DCMAKE_SIZEOF_VOID_P=8 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=../occt-install-tvos || true
+
+cmake --build . --parallel "$JOBS" || true
+cmake --install . || true
+cd ..
+
+# --------------------
+# Build for tvOS Simulator
+# --------------------
+
+echo ""
+echo ">>> Building for tvOS Simulator (arm64)..."
+rm -rf occt-build-tvsim
+mkdir -p occt-build-tvsim
+cd occt-build-tvsim
+
+TVSIM_FLAGS="-arch arm64 -isysroot $TVSIM_SDK"
+
+cmake ../occt-src \
+    -G "Unix Makefiles" \
+    "${CMAKE_COMMON_OPTS[@]}" \
+    -DCMAKE_SYSTEM_NAME=tvOS \
+    -DCMAKE_OSX_SYSROOT="$TVSIM_SDK" \
+    -DCMAKE_OSX_ARCHITECTURES=arm64 \
+    -DCMAKE_OSX_DEPLOYMENT_TARGET=15.0 \
+    -DCMAKE_C_COMPILER="$CC" \
+    -DCMAKE_CXX_COMPILER="$CXX" \
+    -DCMAKE_C_FLAGS="$TVSIM_FLAGS" \
+    -DCMAKE_CXX_FLAGS="$TVSIM_FLAGS" \
+    -DCMAKE_C_COMPILER_WORKS=TRUE \
+    -DCMAKE_CXX_COMPILER_WORKS=TRUE \
+    -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+    -DCMAKE_SIZEOF_VOID_P=8 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=../occt-install-tvsim || true
+
+cmake --build . --parallel "$JOBS" || true
+cmake --install . || true
+cd ..
+
+# --------------------
 # Create combined libraries
 # --------------------
 
@@ -227,6 +371,18 @@ libtool -static -o libOCCT-sim.a $(find occt-install-sim -name "*.a")
 
 libtool -static -o libOCCT-macos.a occt-install-macos/lib/*.a 2>/dev/null || \
 libtool -static -o libOCCT-macos.a $(find occt-install-macos -name "*.a")
+
+libtool -static -o libOCCT-xros.a occt-install-xros/lib/*.a 2>/dev/null || \
+libtool -static -o libOCCT-xros.a $(find occt-install-xros -name "*.a" 2>/dev/null) || true
+
+libtool -static -o libOCCT-xrsim.a occt-install-xrsim/lib/*.a 2>/dev/null || \
+libtool -static -o libOCCT-xrsim.a $(find occt-install-xrsim -name "*.a" 2>/dev/null) || true
+
+libtool -static -o libOCCT-tvos.a occt-install-tvos/lib/*.a 2>/dev/null || \
+libtool -static -o libOCCT-tvos.a $(find occt-install-tvos -name "*.a" 2>/dev/null) || true
+
+libtool -static -o libOCCT-tvsim.a occt-install-tvsim/lib/*.a 2>/dev/null || \
+libtool -static -o libOCCT-tvsim.a $(find occt-install-tvsim -name "*.a" 2>/dev/null) || true
 
 # --------------------
 # Prepare headers
@@ -253,11 +409,19 @@ echo ">>> Creating XCFramework..."
 
 rm -rf OCCT.xcframework
 
-xcodebuild -create-xcframework \
-    -library libOCCT-ios.a -headers occt-headers \
-    -library libOCCT-sim.a -headers occt-headers \
-    -library libOCCT-macos.a -headers occt-headers \
-    -output OCCT.xcframework
+# Conditionally include each platform slice — visionOS / tvOS may have failed to build
+# (e.g. missing OCCT patches for new SDKs); xcframework will skip absent / empty libs.
+XCFW_ARGS=(
+    -library libOCCT-ios.a -headers occt-headers
+    -library libOCCT-sim.a -headers occt-headers
+    -library libOCCT-macos.a -headers occt-headers
+)
+[ -s libOCCT-xros.a ]  && XCFW_ARGS+=(-library libOCCT-xros.a  -headers occt-headers)
+[ -s libOCCT-xrsim.a ] && XCFW_ARGS+=(-library libOCCT-xrsim.a -headers occt-headers)
+[ -s libOCCT-tvos.a ]  && XCFW_ARGS+=(-library libOCCT-tvos.a  -headers occt-headers)
+[ -s libOCCT-tvsim.a ] && XCFW_ARGS+=(-library libOCCT-tvsim.a -headers occt-headers)
+
+xcodebuild -create-xcframework "${XCFW_ARGS[@]}" -output OCCT.xcframework
 
 # --------------------
 # Cleanup
@@ -266,7 +430,7 @@ xcodebuild -create-xcframework \
 echo ""
 echo ">>> Cleaning up temporary files..."
 
-rm -f libOCCT-ios.a libOCCT-sim.a libOCCT-macos.a
+rm -f libOCCT-ios.a libOCCT-sim.a libOCCT-macos.a libOCCT-xros.a libOCCT-xrsim.a libOCCT-tvos.a libOCCT-tvsim.a
 rm -rf occt-headers
 
 # Optionally remove build directories (uncomment to save space)
