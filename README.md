@@ -1,6 +1,6 @@
 # OCCTSwift
 
-A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0, providing B-Rep solid modeling for macOS and iOS.
+A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0 beta1, providing B-Rep solid modeling for macOS and iOS. v1.0.0 will pin to OCCT 8.0.0 GA on May 7, 2026.
 
 **4,147 wrapped operations** | **3,361 tests** | **1,169 suites** | macOS arm64 / iOS arm64
 
@@ -128,7 +128,7 @@ try Exporter.writeGLB(shape: model, to: glbURL)
 Sources/OCCTSwift/          Swift public API
 Sources/OCCTBridge/include/ C function declarations (OCCTBridge.h)
 Sources/OCCTBridge/src/     Objective-C++ implementations (OCCTBridge.mm)
-Libraries/OCCT.xcframework  Pre-built OCCT 8.0.0-rc5 static library (arm64)
+Libraries/OCCT.xcframework  Pre-built OCCT 8.0.0-beta1 static library (arm64)
 Tests/OCCTSwiftTests/       All tests (Swift Testing framework)
 ```
 

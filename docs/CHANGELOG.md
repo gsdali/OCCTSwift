@@ -2,13 +2,35 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.156.3
+## Current: v0.157.0
 
-**4,147 wrapped operations | 3,361 tests | 1,169 suites | OCCT 8.0.0-rc5**
+**4,147 wrapped operations | 3,361 tests | 1,169 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.157.0 (May 2026) — OCCT 8.0.0 beta1 support (final pre-1.0 release)
+
+xcframework rebuilt against `V8_0_0_beta1`. v1.0.0 will follow on May 7, 2026 pinned to the OCCT 8.0.0 GA tag.
+
+Bridge migrations driven by upstream API churn since rc5:
+
+- **`BRepGraph_BuilderView` removed** ([OCCT #1237](https://github.com/Open-Cascade-SAS/OCCT/pull/1237)) → migrated all 22 mutation entry points to `BRepGraph_EditorView`. Old: `g.Builder().AddVertex(p, t)`; new: `g.Editor().Vertices().Add(p, t)`. Swift API surface unchanged.
+- **`NCollection_Vector` deprecated** ([OCCT #1230](https://github.com/Open-Cascade-SAS/OCCT/pull/1230)) → switched 4 internal sites to `NCollection_DynamicArray`, including the `BRepGraph_History::Record` mapping container.
+- **`Builder().AppendFlattenedShape` / `AppendFullShape` consolidated** → both now route through the static `BRepGraph_Builder::Add(graph, shape, options)`. The `Flatten` and `CreateAutoProduct` options preserve the pre-beta1 distinction.
+- **`Builder().ClearFaceMesh` / `ClearEdgePolygon3D` moved** → now `BRepGraph_Tool::Mesh::ClearFaceCache` / `ClearEdgeCache`. Semantic shift: clears only the new cached-mesh tier, not persistent (STEP-imported) mesh data.
+- **`graph.Build(shape, parallel)` removed** → wrapper now calls the static `BRepGraph_Builder::Add(graph, shape, opts)` with `CreateAutoProduct = false` to preserve the historical "no auto Product wrap" behaviour.
+- **`graph.RootNodeIds()` → `graph.RootProductIds()`** — root iteration is now Products only.
+- **`BRepGraph_Copy::CopyFace` → `CopyNode`** — single-node deep copy now takes any NodeId kind.
+- **`Topo().Occurrences().ParentOccurrence` removed** — beta1 model is `Product → Occurrence → Product`; an occurrence has no parent occurrence. Wrapper retained as `-1` sentinel for ABI; will be removed in v1.0.
+- **`BRepGraph_ChildExplorer::Current()` returns `BRepGraphInc::NodeInstance`** (was `NodeUsage`); field accessor unchanged.
+- **`BRepGraph_Tool::Edge::StartVertex` / `EndVertex` renamed** to `StartVertexId` / `EndVertexId`; return type simplified from a `VertexRef` struct to `BRepGraph_VertexId`.
+- **`Topo().Poly().Nb*` moved to `Mesh().Poly().Nb*`** — triangulation/polygon counts live on the new MeshView, paired with the two-tier mesh storage.
+
+New beta1 surface (`BRepGraph_MeshCache`, `BRepGraph_MeshView` read-side, `EditorView` per-entity Ops methods, `BRepGraph_Tool::Mesh` cache-write API) is **deferred to v0.158 / v1.0** — kept v0.157 minimal to preserve the soak window.
+
+The 1300+ existing tests continue to pass under serial execution (`OCCT_SERIAL=1` with `--num-workers 1`); the pre-existing parallel-execution NCollection arm64 race remains the same as v0.156.
 
 ### v0.156.3 (Apr 2026) — `Document.node(at:)` warms up the labelId registry (issue #95)
 

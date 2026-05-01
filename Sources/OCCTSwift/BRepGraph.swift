@@ -812,6 +812,12 @@ public final class TopologyGraph: @unchecked Sendable {
     }
 
     /// Parent occurrence index of an occurrence, or nil if top-level.
+    ///
+    /// OCCT 8.0.0 beta1 removed the parent-occurrence-of-occurrence relationship: the assembly
+    /// model is now `Product → Occurrence → Product`, so an occurrence has only one parent (a
+    /// product). This method always returns `nil` from v0.157.0 onward and will be removed in
+    /// v1.0.0. Use `occurrenceParentProduct(_:)` instead.
+    @available(*, deprecated, message: "Removed upstream in OCCT 8.0.0 beta1; always returns nil. Use occurrenceParentProduct(_:). Will be removed in OCCTSwift v1.0.0.")
     public func occurrenceParentOccurrence(_ occIndex: Int) -> Int? {
         let idx = Int(OCCTBRepGraphOccurrenceParentOccurrence(handle, Int32(occIndex)))
         return idx >= 0 ? idx : nil

@@ -55040,6 +55040,7 @@ OCCTCurve2DRef OCCTGeom2dEvalAHTBezierCurveCreate(
 #include <BRepGraph.hxx>
 #include <BRepGraph_Builder.hxx>
 #include <BRepGraph_TopoView.hxx>
+#include <BRepGraph_MeshView.hxx>
 #include <BRepGraph_Compact.hxx>
 #include <BRepGraph_Deduplicate.hxx>
 #include <BRepGraph_Validate.hxx>
@@ -55070,8 +55071,11 @@ OCCTBRepGraphRef OCCTBRepGraphCreate(OCCTShapeRef shape, bool parallel) {
     if (!shape) return nullptr;
     try {
         auto ref = new OCCTBRepGraph();
-        ref->graph.Build(shape->shape, parallel);
-        if (!ref->graph.IsDone()) { delete ref; return nullptr; }
+        BRepGraph_Builder::Options opts;
+        opts.Parallel = parallel;
+        opts.CreateAutoProduct = false; // preserve pre-beta1 behaviour: no auto Product/Occurrence wrap
+        auto result = BRepGraph_Builder::Add(ref->graph, *(const TopoDS_Shape*)shape, opts);
+        if (!result.Ok || !ref->graph.IsDone()) { delete ref; return nullptr; }
         return ref;
     } catch (...) { return nullptr; }
 }
@@ -55243,8 +55247,8 @@ int32_t OCCTBRepGraphChildIndices(OCCTBRepGraphRef g,
         int32_t total = 0;
         for (; explorer.More(); explorer.Next()) {
             if (total < maxCount) {
-                BRepGraphInc::NodeUsage usage = explorer.Current();
-                outIndices[total] = static_cast<BRepGraph_NodeId>(usage.DefId).Index;
+                BRepGraphInc::NodeInstance usage = explorer.Current();
+                outIndices[total] = usage.DefId.Index;
             }
             total++;
         }
@@ -55335,16 +55339,17 @@ bool OCCTBRepGraphIsRemoved(OCCTBRepGraphRef g, int32_t nodeKind, int32_t nodeIn
 
 int32_t OCCTBRepGraphRootCount(OCCTBRepGraphRef g) {
     if (!g) return 0;
-    try { return (int32_t)g->graph.RootNodeIds().Size(); }
+    try { return (int32_t)g->graph.RootProductIds().Size(); }
     catch (...) { return 0; }
 }
 
 void OCCTBRepGraphRootNodes(OCCTBRepGraphRef g, int32_t* outKinds, int32_t* outIndices) {
     if (!g || !outKinds || !outIndices) return;
     try {
-        auto& roots = g->graph.RootNodeIds();
-        for (int i = 0; i < roots.Size(); i++) {
-            outKinds[i] = (int32_t)roots(i).NodeKind;
+        // OCCT 8.0.0 beta1: root iteration is now Products only (was: arbitrary node kinds).
+        const auto& roots = g->graph.RootProductIds();
+        for (int i = 0; i < (int)roots.Size(); i++) {
+            outKinds[i] = (int32_t)BRepGraph_NodeId::Kind::Product;
             outIndices[i] = roots(i).Index;
         }
     } catch (...) {}
@@ -55699,7 +55704,7 @@ int32_t OCCTBRepGraphHistoryGetRecordOriginals(OCCTBRepGraphRef g,
         if (recordIdx < 0 || recordIdx >= hist.NbRecords()) return 0;
         const auto& rec = hist.Record(recordIdx);
         int32_t total = 0;
-        typedef NCollection_DataMap<BRepGraph_NodeId, NCollection_Vector<BRepGraph_NodeId>> MapT;
+        typedef NCollection_DataMap<BRepGraph_NodeId, NCollection_DynamicArray<BRepGraph_NodeId>> MapT;
         for (MapT::Iterator it(rec.Mapping); it.More(); it.Next()) {
             if (total < maxCount) {
                 outKinds[total] = (int32_t)it.Key().NodeKind;
@@ -55784,7 +55789,7 @@ void OCCTBRepGraphHistoryRecord(OCCTBRepGraphRef g,
     try {
         auto& hist = g->graph.History();
         BRepGraph_NodeId orig((BRepGraph_NodeId::Kind)origKind, origIndex);
-        NCollection_Vector<BRepGraph_NodeId> repls;
+        NCollection_DynamicArray<BRepGraph_NodeId> repls;
         for (int32_t i = 0; i < replCount; i++) {
             repls.Append(BRepGraph_NodeId((BRepGraph_NodeId::Kind)replKinds[i], replIndices[i]));
         }
@@ -55796,13 +55801,13 @@ void OCCTBRepGraphHistoryRecord(OCCTBRepGraphRef g,
 
 int32_t OCCTBRepGraphNbTriangulations(OCCTBRepGraphRef g) {
     if (!g) return 0;
-    try { return g->graph.Topo().Poly().NbTriangulations(); }
+    try { return g->graph.Mesh().Poly().NbTriangulations(); }
     catch (...) { return 0; }
 }
 
 int32_t OCCTBRepGraphNbPolygons3D(OCCTBRepGraphRef g) {
     if (!g) return 0;
-    try { return g->graph.Topo().Poly().NbPolygons3D(); }
+    try { return g->graph.Mesh().Poly().NbPolygons3D(); }
     catch (...) { return 0; }
 }
 
@@ -55865,7 +55870,11 @@ OCCTBRepGraphRef OCCTBRepGraphCopyFace(OCCTBRepGraphRef g, int32_t faceIndex, bo
     if (!g) return nullptr;
     try {
         auto ref = new OCCTBRepGraph();
-        ref->graph = BRepGraph_Copy::CopyFace(g->graph, BRepGraph_FaceId(faceIndex), copyGeom);
+        // OCCT 8.0.0 beta1: BRepGraph_Copy::CopyFace replaced by CopyNode taking any NodeId.
+        ref->graph = BRepGraph_Copy::CopyNode(
+            g->graph,
+            BRepGraph_NodeId(BRepGraph_NodeId::Kind::Face, faceIndex),
+            copyGeom);
         if (!ref->graph.IsDone()) { delete ref; return nullptr; }
         return ref;
     } catch (...) { return nullptr; }
@@ -55984,28 +55993,29 @@ int32_t OCCTBRepGraphOccurrenceParentProduct(OCCTBRepGraphRef g, int32_t occInde
     } catch (...) { return -1; }
 }
 
+// OCCT 8.0.0 beta1 removed the parent-occurrence-of-occurrence relationship: assembly
+// hierarchy is now Product -> Occurrence -> Product, and an occurrence has only one
+// parent (a Product), not another occurrence. The wrapper is retained as -1 sentinel
+// for ABI compatibility within v0.157.x; remove at v1.0 if unused.
 int32_t OCCTBRepGraphOccurrenceParentOccurrence(OCCTBRepGraphRef g, int32_t occIndex) {
-    if (!g) return -1;
-    try {
-        auto oid = g->graph.Topo().Occurrences().ParentOccurrence(BRepGraph_OccurrenceId(occIndex));
-        return oid.IsValid() ? oid.Index : -1;
-    } catch (...) { return -1; }
+    (void)g; (void)occIndex;
+    return -1;
 }
 
 int32_t OCCTBRepGraphRootProductCount(OCCTBRepGraphRef g) {
     if (!g) return 0;
     try {
-        auto roots = g->graph.Topo().Products().RootProducts(g->graph.Allocator());
-        return (int32_t)roots.Length();
+        const auto& roots = g->graph.RootProductIds();
+        return (int32_t)roots.Size();
     } catch (...) { return 0; }
 }
 
 void OCCTBRepGraphRootProductIndices(OCCTBRepGraphRef g, int32_t* outIndices) {
     if (!g || !outIndices) return;
     try {
-        auto roots = g->graph.Topo().Products().RootProducts(g->graph.Allocator());
-        for (int i = 0; i < roots.Length(); ++i) {
-            outIndices[i] = roots.Value(i).Index;
+        const auto& roots = g->graph.RootProductIds();
+        for (int i = 0; i < (int)roots.Size(); ++i) {
+            outIndices[i] = roots(i).Index;
         }
     } catch (...) {}
 }
@@ -56121,16 +56131,16 @@ int32_t OCCTBRepGraphFaceNbVertexRefs(OCCTBRepGraphRef g, int32_t faceIndex) {
 int32_t OCCTBRepGraphEdgeStartVertex(OCCTBRepGraphRef g, int32_t edgeIndex) {
     if (!g) return -1;
     try {
-        auto& vref = BRepGraph_Tool::Edge::StartVertex(g->graph, BRepGraph_EdgeId(edgeIndex));
-        return vref.VertexDefId.IsValid() ? vref.VertexDefId.Index : -1;
+        auto vid = BRepGraph_Tool::Edge::StartVertexId(g->graph, BRepGraph_EdgeId(edgeIndex));
+        return vid.IsValid() ? vid.Index : -1;
     } catch (...) { return -1; }
 }
 
 int32_t OCCTBRepGraphEdgeEndVertex(OCCTBRepGraphRef g, int32_t edgeIndex) {
     if (!g) return -1;
     try {
-        auto& vref = BRepGraph_Tool::Edge::EndVertex(g->graph, BRepGraph_EdgeId(edgeIndex));
-        return vref.VertexDefId.IsValid() ? vref.VertexDefId.Index : -1;
+        auto vid = BRepGraph_Tool::Edge::EndVertexId(g->graph, BRepGraph_EdgeId(edgeIndex));
+        return vid.IsValid() ? vid.Index : -1;
     } catch (...) { return -1; }
 }
 
@@ -56290,9 +56300,11 @@ int32_t OCCTBRepGraphEdgeFindCoEdge(OCCTBRepGraphRef g, int32_t edgeIndex, int32
 
 // end of v0.133.0 implementations
 
-// MARK: - BRepGraph Builder (v0.135.0)
+// MARK: - BRepGraph Builder (v0.135.0; migrated to EditorView in v0.157.0 / OCCT 8.0.0 beta1)
 
-#include <BRepGraph_BuilderView.hxx>
+#include <BRepGraph_EditorView.hxx>
+#include <BRepGraph_Builder.hxx>
+#include <BRepGraph_Tool.hxx>
 #include <BRepGraph_DeferredScope.hxx>
 
 static TopAbs_Orientation oriFromInt(int32_t o) {
@@ -56310,7 +56322,7 @@ static TopAbs_Orientation oriFromInt(int32_t o) {
 int32_t OCCTBRepGraphBuilderAddVertex(OCCTBRepGraphRef g, double x, double y, double z, double tolerance) {
     if (!g) return -1;
     try {
-        auto vid = g->graph.Builder().AddVertex(gp_Pnt(x, y, z), tolerance);
+        auto vid = g->graph.Editor().Vertices().Add(gp_Pnt(x, y, z), tolerance);
         return vid.IsValid() ? vid.Index : -1;
     } catch (...) { return -1; }
 }
@@ -56318,7 +56330,7 @@ int32_t OCCTBRepGraphBuilderAddVertex(OCCTBRepGraphRef g, double x, double y, do
 int32_t OCCTBRepGraphBuilderAddShell(OCCTBRepGraphRef g) {
     if (!g) return -1;
     try {
-        auto sid = g->graph.Builder().AddShell();
+        auto sid = g->graph.Editor().Shells().Add();
         return sid.IsValid() ? sid.Index : -1;
     } catch (...) { return -1; }
 }
@@ -56326,7 +56338,7 @@ int32_t OCCTBRepGraphBuilderAddShell(OCCTBRepGraphRef g) {
 int32_t OCCTBRepGraphBuilderAddSolid(OCCTBRepGraphRef g) {
     if (!g) return -1;
     try {
-        auto sid = g->graph.Builder().AddSolid();
+        auto sid = g->graph.Editor().Solids().Add();
         return sid.IsValid() ? sid.Index : -1;
     } catch (...) { return -1; }
 }
@@ -56334,7 +56346,7 @@ int32_t OCCTBRepGraphBuilderAddSolid(OCCTBRepGraphRef g) {
 int32_t OCCTBRepGraphBuilderAddFaceToShell(OCCTBRepGraphRef g, int32_t shellIndex, int32_t faceIndex, int32_t orientation) {
     if (!g) return -1;
     try {
-        auto rid = g->graph.Builder().AddFaceToShell(
+        auto rid = g->graph.Editor().Shells().AddFace(
             BRepGraph_ShellId(shellIndex),
             BRepGraph_FaceId(faceIndex),
             oriFromInt(orientation));
@@ -56345,7 +56357,7 @@ int32_t OCCTBRepGraphBuilderAddFaceToShell(OCCTBRepGraphRef g, int32_t shellInde
 int32_t OCCTBRepGraphBuilderAddShellToSolid(OCCTBRepGraphRef g, int32_t solidIndex, int32_t shellIndex, int32_t orientation) {
     if (!g) return -1;
     try {
-        auto rid = g->graph.Builder().AddShellToSolid(
+        auto rid = g->graph.Editor().Solids().AddShell(
             BRepGraph_SolidId(solidIndex),
             BRepGraph_ShellId(shellIndex),
             oriFromInt(orientation));
@@ -56356,11 +56368,11 @@ int32_t OCCTBRepGraphBuilderAddShellToSolid(OCCTBRepGraphRef g, int32_t solidInd
 int32_t OCCTBRepGraphBuilderAddCompound(OCCTBRepGraphRef g, const int32_t* kinds, const int32_t* indices, int32_t count) {
     if (!g || !kinds || !indices || count <= 0) return -1;
     try {
-        NCollection_Vector<BRepGraph_NodeId> children;
+        NCollection_DynamicArray<BRepGraph_NodeId> children;
         for (int32_t i = 0; i < count; ++i) {
             children.Append(BRepGraph_NodeId(kindFromInt(kinds[i]), indices[i]));
         }
-        auto cid = g->graph.Builder().AddCompound(children);
+        auto cid = g->graph.Editor().Compounds().Add(children);
         return cid.IsValid() ? cid.Index : -1;
     } catch (...) { return -1; }
 }
@@ -56368,11 +56380,11 @@ int32_t OCCTBRepGraphBuilderAddCompound(OCCTBRepGraphRef g, const int32_t* kinds
 int32_t OCCTBRepGraphBuilderAddCompSolid(OCCTBRepGraphRef g, const int32_t* solidIndices, int32_t count) {
     if (!g || !solidIndices || count <= 0) return -1;
     try {
-        NCollection_Vector<BRepGraph_SolidId> solids;
+        NCollection_DynamicArray<BRepGraph_SolidId> solids;
         for (int32_t i = 0; i < count; ++i) {
             solids.Append(BRepGraph_SolidId(solidIndices[i]));
         }
-        auto csid = g->graph.Builder().AddCompSolid(solids);
+        auto csid = g->graph.Editor().CompSolids().Add(solids);
         return csid.IsValid() ? csid.Index : -1;
     } catch (...) { return -1; }
 }
@@ -56382,30 +56394,40 @@ int32_t OCCTBRepGraphBuilderAddCompSolid(OCCTBRepGraphRef g, const int32_t* soli
 void OCCTBRepGraphBuilderRemoveNode(OCCTBRepGraphRef g, int32_t nodeKind, int32_t nodeIndex) {
     if (!g) return;
     try {
-        g->graph.Builder().RemoveNode(BRepGraph_NodeId(kindFromInt(nodeKind), nodeIndex));
+        g->graph.Editor().Gen().RemoveNode(BRepGraph_NodeId(kindFromInt(nodeKind), nodeIndex));
     } catch (...) {}
 }
 
 void OCCTBRepGraphBuilderRemoveSubgraph(OCCTBRepGraphRef g, int32_t nodeKind, int32_t nodeIndex) {
     if (!g) return;
     try {
-        g->graph.Builder().RemoveSubgraph(BRepGraph_NodeId(kindFromInt(nodeKind), nodeIndex));
+        g->graph.Editor().Gen().RemoveSubgraph(BRepGraph_NodeId(kindFromInt(nodeKind), nodeIndex));
     } catch (...) {}
 }
 
 // --- Append Shapes ---
+// NOTE: OCCT 8.0.0 beta1 routes the former Builder().AppendFlattenedShape /
+// AppendFullShape through the static BRepGraph_Builder::Add(graph, shape, options).
+// The Flatten option preserves the pre-beta1 distinction.
 
 void OCCTBRepGraphBuilderAppendFlattenedShape(OCCTBRepGraphRef g, OCCTShapeRef shape, bool parallel) {
     if (!g || !shape) return;
     try {
-        g->graph.Builder().AppendFlattenedShape(*(const TopoDS_Shape*)shape, parallel);
+        BRepGraph_Builder::Options opts;
+        opts.Parallel = parallel;
+        opts.CreateAutoProduct = false;
+        opts.Flatten = true;
+        (void)BRepGraph_Builder::Add(g->graph, *(const TopoDS_Shape*)shape, opts);
     } catch (...) {}
 }
 
 void OCCTBRepGraphBuilderAppendFullShape(OCCTBRepGraphRef g, OCCTShapeRef shape, bool parallel) {
     if (!g || !shape) return;
     try {
-        g->graph.Builder().AppendFullShape(*(const TopoDS_Shape*)shape, parallel);
+        BRepGraph_Builder::Options opts;
+        opts.Parallel = parallel;
+        opts.CreateAutoProduct = false;
+        (void)BRepGraph_Builder::Add(g->graph, *(const TopoDS_Shape*)shape, opts);
     } catch (...) {}
 }
 
@@ -56413,25 +56435,25 @@ void OCCTBRepGraphBuilderAppendFullShape(OCCTBRepGraphRef g, OCCTShapeRef shape,
 
 void OCCTBRepGraphBuilderBeginDeferred(OCCTBRepGraphRef g) {
     if (!g) return;
-    try { g->graph.Builder().BeginDeferredInvalidation(); }
+    try { g->graph.Editor().BeginDeferredInvalidation(); }
     catch (...) {}
 }
 
 void OCCTBRepGraphBuilderEndDeferred(OCCTBRepGraphRef g) {
     if (!g) return;
-    try { g->graph.Builder().EndDeferredInvalidation(); }
+    try { g->graph.Editor().EndDeferredInvalidation(); }
     catch (...) {}
 }
 
 bool OCCTBRepGraphBuilderIsDeferredMode(OCCTBRepGraphRef g) {
     if (!g) return false;
-    try { return g->graph.Builder().IsDeferredMode(); }
+    try { return g->graph.Editor().IsDeferredMode(); }
     catch (...) { return false; }
 }
 
 void OCCTBRepGraphBuilderCommitMutation(OCCTBRepGraphRef g) {
     if (!g) return;
-    try { g->graph.Builder().CommitMutation(); }
+    try { g->graph.Editor().CommitMutation(); }
     catch (...) {}
 }
 
@@ -56446,7 +56468,7 @@ void OCCTBRepGraphBuilderSplitEdge(OCCTBRepGraphRef g, int32_t edgeIndex, int32_
     }
     try {
         BRepGraph_EdgeId subA, subB;
-        g->graph.Builder().SplitEdge(
+        g->graph.Editor().Edges().Split(
             BRepGraph_EdgeId(edgeIndex),
             BRepGraph_VertexId(vertexIndex),
             param, subA, subB);
@@ -56465,7 +56487,7 @@ void OCCTBRepGraphBuilderReplaceEdgeInWire(OCCTBRepGraphRef g, int32_t wireIndex
                                             bool reversed) {
     if (!g) return;
     try {
-        g->graph.Builder().ReplaceEdgeInWire(
+        g->graph.Editor().Wires().ReplaceEdge(
             BRepGraph_WireId(wireIndex),
             BRepGraph_EdgeId(oldEdgeIndex),
             BRepGraph_EdgeId(newEdgeIndex),
@@ -56479,23 +56501,26 @@ bool OCCTBRepGraphBuilderRemoveRef(OCCTBRepGraphRef g, int32_t refKind, int32_t 
     if (!g) return false;
     try {
         BRepGraph_RefId rid(refKindFromInt(refKind), refIndex);
-        return g->graph.Builder().RemoveRef(rid);
+        return g->graph.Editor().Gen().RemoveRef(rid);
     } catch (...) { return false; }
 }
 
 // --- Clear Mesh ---
+// NOTE: OCCT 8.0.0 beta1 split mesh storage into a cache (algorithm-derived)
+// and persistent (STEP-imported) tier. The Builder-era ClearFaceMesh /
+// ClearEdgePolygon3D methods now clear only the cache via BRepGraph_Tool::Mesh.
 
 void OCCTBRepGraphBuilderClearFaceMesh(OCCTBRepGraphRef g, int32_t faceIndex) {
     if (!g) return;
     try {
-        g->graph.Builder().ClearFaceMesh(BRepGraph_FaceId(faceIndex));
+        BRepGraph_Tool::Mesh::ClearFaceCache(g->graph, BRepGraph_FaceId(faceIndex));
     } catch (...) {}
 }
 
 void OCCTBRepGraphBuilderClearEdgePolygon3D(OCCTBRepGraphRef g, int32_t edgeIndex) {
     if (!g) return;
     try {
-        g->graph.Builder().ClearEdgePolygon3D(BRepGraph_EdgeId(edgeIndex));
+        BRepGraph_Tool::Mesh::ClearEdgeCache(g->graph, BRepGraph_EdgeId(edgeIndex));
     } catch (...) {}
 }
 
@@ -56504,7 +56529,7 @@ void OCCTBRepGraphBuilderClearEdgePolygon3D(OCCTBRepGraphRef g, int32_t edgeInde
 bool OCCTBRepGraphBuilderValidateMutation(OCCTBRepGraphRef g) {
     if (!g) return false;
     try {
-        return g->graph.Builder().ValidateMutationBoundary();
+        return g->graph.Editor().ValidateMutationBoundary();
     } catch (...) { return false; }
 }
 
