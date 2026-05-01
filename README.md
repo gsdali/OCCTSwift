@@ -155,10 +155,11 @@ Each OCCT object is managed via opaque handle types with release-on-deinit. See 
 | macOS 12+ | arm64 (Apple Silicon) | Supported |
 | iOS 15+ device | arm64 | Supported |
 | iOS 15+ Simulator | arm64 (Apple Silicon host) | Supported |
-| macOS 12+ | x86_64 (Intel) | Planned for v1.0.0 |
-| visionOS | arm64 | Planned for v1.0.0 |
-| tvOS / watchOS | — | Out of scope |
-| Linux / Windows / Android | — | Out of scope (xcframework is Apple-only) |
+| visionOS | arm64 device + simulator | Planned for v1.0.0 |
+| tvOS | arm64 | Under consideration (only if cheap to add) |
+| watchOS | — | Out of scope (OCCT static lib too large for watch memory) |
+| macOS x86_64 (Intel) | — | Out of scope (Apple is winding down Intel macOS support) |
+| Linux / Windows / Android | — | Under review — see [docs/platform-expansion.md](docs/platform-expansion.md) |
 
 ## Building OCCT from Source
 

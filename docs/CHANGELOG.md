@@ -2,13 +2,22 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.166.0
+## Current: v0.166.1
 
 **4,269 wrapped operations | 3,383 tests | 1,176 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.166.1 (May 2026) — Platform plan refinement
+
+Metadata-only patch revising the v1.0.0 platform expansion plan:
+
+- **Dropped Intel Mac (`macOS x86_64`).** Apple is winding down Intel macOS support; not worth the build slot.
+- **visionOS confirmed for v1.0.0.** Device + simulator slices.
+- **tvOS reduced to "if cheap".** Will only add if it falls out of the visionOS work without extra effort.
+- **Linux / Windows / Android — moved to "under review"** with a full analysis in [docs/platform-expansion.md](../docs/platform-expansion.md). Headline: Linux is the strongest non-Apple candidate (~2 weeks of focused work), Windows is medium-risk, Android should wait for Swift-on-Android packaging to stabilize. The prerequisite for any non-Apple port is the OCCTBridge `.mm` → `.cpp` audit, which is independently useful.
 
 ### v0.166.0 (May 2026) — Swift Package Index readiness
 
