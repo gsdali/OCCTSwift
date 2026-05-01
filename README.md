@@ -2,7 +2,7 @@
 
 A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0 beta1, providing B-Rep solid modeling for macOS and iOS. v1.0.0 will pin to OCCT 8.0.0 GA on May 7, 2026.
 
-**4,147 wrapped operations** | **3,361 tests** | **1,169 suites** | macOS arm64 / iOS arm64
+**4,156 wrapped operations** | **3,364 tests** | **1,170 suites** | macOS arm64 / iOS arm64
 
 ## Quick Start
 

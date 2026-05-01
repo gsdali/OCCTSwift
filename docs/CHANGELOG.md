@@ -2,13 +2,27 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.157.0
+## Current: v0.158.0
 
-**4,147 wrapped operations | 3,361 tests | 1,169 suites | OCCT 8.0.0-beta1**
+**4,156 wrapped operations | 3,364 tests | 1,170 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.158.0 (May 2026) — MeshView two-tier mesh storage (read API)
+
+OCCT 8.0.0 beta1 introduced a two-tier mesh storage model: an algorithm-derived **cache** (populated by `BRepGraphMesh`) and the **persistent** tier (mesh data imported from STEP, stored in topology definitions). v0.158.0 wraps the read-side of this model — `BRepGraph::MeshView` queries — exposing it on the existing `TopologyGraph` Swift type:
+
+- Counts: `polygon2DCount`, `polygonOnTriCount`, `activeTriangulationCount`, `activePolygon3DCount`, `activePolygon2DCount`, `activePolygonOnTriCount`. Pairs with the existing `triangulationCount` / `polygon3DCount` from v0.133.0.
+- Per-entity cache-first queries:
+  - `meshFaceActiveTriangulationRepId(_ faceIndex:)` → optional rep id (cache-first, persistent fallback)
+  - `meshEdgePolygon3DRepId(_ edgeIndex:)` → optional rep id (cache-first, persistent fallback)
+  - `meshCoEdgeHasMesh(_ coedgeIndex:)` → bool (cache-only)
+
+The Swift API is unchanged for existing call sites. Driver: prep for future BRepGraphMesh-driven workflows in OCCTMCP / OCCTSwiftScripts that want to introspect mesh state without invalidating the persistent tier.
+
+The mesh **write** API (`BRepGraph_Tool::Mesh::CreateTriangulationRep` etc.) is intentionally not yet wrapped — it requires marshaling `Handle<Poly_Triangulation>` from Swift, which is a larger lift. Targeted for v0.159 or v1.0.
 
 ### v0.157.0 (May 2026) — OCCT 8.0.0 beta1 support (final pre-1.0 release)
 

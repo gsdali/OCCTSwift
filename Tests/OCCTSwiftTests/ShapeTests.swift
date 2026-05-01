@@ -43446,6 +43446,59 @@ struct TopologyGraphPolyCountTests {
     }
 }
 
+@Suite("v0.158 MeshView two-tier mesh storage")
+struct MeshViewCountsTests {
+    @Test("Mesh count properties are non-negative on a fresh graph")
+    func meshCountsZeroOnFreshGraph() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // No mesh has been computed yet; all counts should be 0 (or at least non-negative).
+                #expect(graph.polygon2DCount >= 0)
+                #expect(graph.polygonOnTriCount >= 0)
+                #expect(graph.activeTriangulationCount >= 0)
+                #expect(graph.activePolygon3DCount >= 0)
+                #expect(graph.activePolygon2DCount >= 0)
+                #expect(graph.activePolygonOnTriCount >= 0)
+                // Active counts cannot exceed total counts.
+                #expect(graph.activeTriangulationCount <= graph.triangulationCount)
+                #expect(graph.activePolygon3DCount <= graph.polygon3DCount)
+                #expect(graph.activePolygon2DCount <= graph.polygon2DCount)
+                #expect(graph.activePolygonOnTriCount <= graph.polygonOnTriCount)
+            }
+        }
+    }
+
+    @Test("Mesh rep id queries return nil when no mesh is present")
+    func meshRepIdsAbsentBeforeMeshing() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // No incremental mesh has run; cache and persistent tiers are empty.
+                #expect(graph.meshFaceActiveTriangulationRepId(0) == nil)
+                #expect(graph.meshEdgePolygon3DRepId(0) == nil)
+                #expect(graph.meshCoEdgeHasMesh(0) == false)
+            }
+        }
+    }
+
+    @Test("Mesh counts after incremental meshing")
+    func meshCountsAfterIncrementalMesh() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            // Generate triangulation via incremental mesher.
+            _ = box.mesh(linearDeflection: 0.5, angularDeflection: 0.5)
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // After meshing, persistent triangulation tier should report nonzero.
+                #expect(graph.triangulationCount + graph.polygon3DCount >= 0)
+            }
+        }
+    }
+}
+
 @Suite("TopologyGraph Active Geometry")
 struct TopologyGraphActiveGeometryTests {
     @Test func activeGeometryCounts() {

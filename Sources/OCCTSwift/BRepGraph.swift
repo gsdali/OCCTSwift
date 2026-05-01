@@ -717,6 +717,47 @@ public final class TopologyGraph: @unchecked Sendable {
     /// Number of 3D polygons in the graph.
     public var polygon3DCount: Int { Int(OCCTBRepGraphNbPolygons3D(handle)) }
 
+    // MARK: - MeshView (v0.158.0, OCCT 8.0.0 beta1 two-tier mesh storage)
+
+    /// Number of 2D polygons (PCurve discretizations) in the graph.
+    public var polygon2DCount: Int { Int(OCCTBRepGraphMeshNbPolygons2D(handle)) }
+
+    /// Number of polygon-on-triangulation reps (coedge discretizations parameterized on a face triangulation).
+    public var polygonOnTriCount: Int { Int(OCCTBRepGraphMeshNbPolygonsOnTri(handle)) }
+
+    /// Number of active (non-removed) triangulations.
+    public var activeTriangulationCount: Int { Int(OCCTBRepGraphMeshNbActiveTriangulations(handle)) }
+
+    /// Number of active 3D polygons.
+    public var activePolygon3DCount: Int { Int(OCCTBRepGraphMeshNbActivePolygons3D(handle)) }
+
+    /// Number of active 2D polygons.
+    public var activePolygon2DCount: Int { Int(OCCTBRepGraphMeshNbActivePolygons2D(handle)) }
+
+    /// Number of active polygon-on-triangulation reps.
+    public var activePolygonOnTriCount: Int { Int(OCCTBRepGraphMeshNbActivePolygonsOnTri(handle)) }
+
+    /// Active triangulation rep id for a face, checking the algorithm-derived mesh cache first
+    /// and falling back to the persistent (STEP-imported) tier. Returns nil if neither tier
+    /// has mesh data for the face.
+    public func meshFaceActiveTriangulationRepId(_ faceIndex: Int) -> Int? {
+        let id = Int(OCCTBRepGraphMeshFaceActiveTriangulationRepId(handle, Int32(faceIndex)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Active polygon-3D rep id for an edge (cache-first, persistent fallback). Returns nil if
+    /// neither tier has polygon-3D mesh data for the edge.
+    public func meshEdgePolygon3DRepId(_ edgeIndex: Int) -> Int? {
+        let id = Int(OCCTBRepGraphMeshEdgePolygon3DRepId(handle, Int32(edgeIndex)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Whether a coedge has cached mesh data (polygon-on-tri or polygon-2D). Cache-only check
+    /// — does not consult the persistent tier.
+    public func meshCoEdgeHasMesh(_ coedgeIndex: Int) -> Bool {
+        OCCTBRepGraphMeshCoEdgeHasMesh(handle, Int32(coedgeIndex))
+    }
+
     // MARK: - Active Geometry Counts (v0.133.0)
 
     /// Number of active (non-removed) surfaces.

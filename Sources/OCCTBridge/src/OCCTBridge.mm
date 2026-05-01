@@ -55811,6 +55811,72 @@ int32_t OCCTBRepGraphNbPolygons3D(OCCTBRepGraphRef g) {
     catch (...) { return 0; }
 }
 
+// --- MeshView additions (v0.158.0, OCCT 8.0.0 beta1 two-tier mesh storage) ---
+
+int32_t OCCTBRepGraphMeshNbPolygons2D(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Mesh().Poly().NbPolygons2D(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphMeshNbPolygonsOnTri(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Mesh().Poly().NbPolygonsOnTri(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphMeshNbActiveTriangulations(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Mesh().Poly().NbActiveTriangulations(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphMeshNbActivePolygons3D(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Mesh().Poly().NbActivePolygons3D(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphMeshNbActivePolygons2D(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Mesh().Poly().NbActivePolygons2D(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphMeshNbActivePolygonsOnTri(OCCTBRepGraphRef g) {
+    if (!g) return 0;
+    try { return g->graph.Mesh().Poly().NbActivePolygonsOnTri(); }
+    catch (...) { return 0; }
+}
+
+// MeshView FaceOps: cache-first triangulation queries.
+
+int32_t OCCTBRepGraphMeshFaceActiveTriangulationRepId(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Mesh().Faces().ActiveTriangulationRepId(BRepGraph_FaceId(faceIndex));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+// MeshView EdgeOps: cache-first polygon3D queries.
+
+int32_t OCCTBRepGraphMeshEdgePolygon3DRepId(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return -1;
+    try {
+        auto rid = g->graph.Mesh().Edges().Polygon3DRepId(BRepGraph_EdgeId(edgeIndex));
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+// MeshView CoEdgeOps: cache-only coedge mesh check.
+
+bool OCCTBRepGraphMeshCoEdgeHasMesh(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return false;
+    try { return g->graph.Mesh().CoEdges().HasMesh(BRepGraph_CoEdgeId(coedgeIndex)); }
+    catch (...) { return false; }
+}
+
 // --- Active Geometry Counts ---
 
 int32_t OCCTBRepGraphNbActiveSurfaces(OCCTBRepGraphRef g) {

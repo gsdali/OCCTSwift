@@ -19757,6 +19757,37 @@ int32_t OCCTBRepGraphNbTriangulations(OCCTBRepGraphRef _Nonnull graph);
 /// Number of 3D polygons.
 int32_t OCCTBRepGraphNbPolygons3D(OCCTBRepGraphRef _Nonnull graph);
 
+// --- MeshView additions (v0.158.0, OCCT 8.0.0 beta1 two-tier mesh storage) ---
+
+/// Number of 2D polygons (PCurve discretizations).
+int32_t OCCTBRepGraphMeshNbPolygons2D(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of polygon-on-triangulation reps (coedge discretizations parameterized on a face triangulation).
+int32_t OCCTBRepGraphMeshNbPolygonsOnTri(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of active (non-removed) triangulations.
+int32_t OCCTBRepGraphMeshNbActiveTriangulations(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of active 3D polygons.
+int32_t OCCTBRepGraphMeshNbActivePolygons3D(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of active 2D polygons.
+int32_t OCCTBRepGraphMeshNbActivePolygons2D(OCCTBRepGraphRef _Nonnull graph);
+
+/// Number of active polygon-on-triangulation reps.
+int32_t OCCTBRepGraphMeshNbActivePolygonsOnTri(OCCTBRepGraphRef _Nonnull graph);
+
+/// Active triangulation rep id for a face (cache-first, persistent fallback).
+/// Returns the rep id, or -1 if no mesh available.
+int32_t OCCTBRepGraphMeshFaceActiveTriangulationRepId(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+
+/// Active polygon-3D rep id for an edge (cache-first, persistent fallback).
+/// Returns the rep id, or -1 if no polygon3D mesh available.
+int32_t OCCTBRepGraphMeshEdgePolygon3DRepId(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+/// Whether a coedge has cached mesh data (polygon-on-tri or polygon-2D). Cache-only check.
+bool OCCTBRepGraphMeshCoEdgeHasMesh(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+
 // --- Active Geometry Counts ---
 
 /// Number of active (non-removed) surfaces.
