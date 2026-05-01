@@ -2,13 +2,36 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.162.0
+## Current: v0.163.0
 
-**4,243 wrapped operations | 3,378 tests | 1,174 suites | OCCT 8.0.0-beta1**
+**4,248 wrapped operations | 3,380 tests | 1,175 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.163.0 (May 2026) — EditorView ProductOps assembly building (5 ops)
+
+Closes the **EditorView mutation surface**. With v0.163.0 the public mutation API of `BRepGraph::EditorView` is fully wrapped on `TopologyGraph`.
+
+```swift
+let parent = graph.createEmptyProduct()!
+let child = graph.linkProductToTopology(
+    shapeRootKind: 0, shapeRootIndex: 0,
+    placement: TopologyGraph.identityLocationMatrix)!
+let linked = graph.linkProducts(
+    parentProductIndex: parent,
+    referencedProductIndex: child,
+    placement: TopologyGraph.identityLocationMatrix)!
+// linked.occurrenceIndex, linked.occurrenceRefIndex
+
+graph.productRemoveOccurrence(parent, occurrenceRefIndex: linked.occurrenceRefIndex)
+graph.productRemoveShapeRoot(child)
+```
+
+`linkProductToTopology` accepts `placement: nil` for an identity placement. `linkProducts` takes a `parentOccurrenceIndex: Int?` (nil for unparented).
+
+2 new tests cover the create/link path and remove-with-bogus-ids no-crash safety.
 
 ### v0.162.0 (May 2026) — EditorView geometric setters, location setters, PCurve API (16 ops)
 

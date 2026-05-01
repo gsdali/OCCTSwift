@@ -20281,6 +20281,31 @@ void OCCTBRepGraphSetSolidRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int3
 void OCCTBRepGraphSetOccurrenceRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t occurrenceRefIndex, const double* _Nonnull matrix);
 void OCCTBRepGraphSetChildRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t childRefIndex, const double* _Nonnull matrix);
 
+// MARK: - BRepGraph EditorView v0.163.0 — ProductOps assembly building
+
+/// Wrap an existing topology root in a Product. Returns the new product id or -1.
+int32_t OCCTBRepGraphLinkProductToTopology(OCCTBRepGraphRef _Nonnull graph,
+                                             int32_t shapeRootKind, int32_t shapeRootIndex,
+                                             const double* _Nullable placementMatrix);
+
+/// Create an empty product (assembly node with no direct topology). Returns product id or -1.
+int32_t OCCTBRepGraphCreateEmptyProduct(OCCTBRepGraphRef _Nonnull graph);
+
+/// Link two products via a fresh occurrence. Returns occurrence id, -1 on failure.
+/// Outputs the new occurrence ref id via outOccurrenceRefId (-1 on failure or when null).
+/// Pass parentOccurrenceIndex = -1 for an unparented occurrence.
+int32_t OCCTBRepGraphLinkProducts(OCCTBRepGraphRef _Nonnull graph, int32_t parentProductIndex,
+                                    int32_t referencedProductIndex,
+                                    const double* _Nonnull placementMatrix,
+                                    int32_t parentOccurrenceIndex,
+                                    int32_t* _Nullable outOccurrenceRefId);
+
+/// Detach an occurrence ref from a product.
+bool OCCTBRepGraphProductRemoveOccurrence(OCCTBRepGraphRef _Nonnull graph, int32_t productIndex, int32_t occurrenceRefIndex);
+
+/// Detach the scalar shape-root from a product.
+bool OCCTBRepGraphProductRemoveShapeRoot(OCCTBRepGraphRef _Nonnull graph, int32_t productIndex);
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 /// Sample a regular UV grid on a face surface. Returns point count (uSamples * vSamples),

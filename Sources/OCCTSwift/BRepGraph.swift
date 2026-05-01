@@ -1648,6 +1648,61 @@ public final class TopologyGraph: @unchecked Sendable {
          0, 0, 1, 0]
     }
 
+    // MARK: - EditorView ProductOps assembly building (v0.163.0)
+
+    /// Wrap an existing topology root in a Product. Pass nil for an identity placement.
+    /// Returns the new product id, or nil on failure.
+    public func linkProductToTopology(shapeRootKind: Int, shapeRootIndex: Int,
+                                       placement: [Double]? = nil) -> Int? {
+        let id: Int
+        if let placement {
+            precondition(placement.count == 12, "placement must be a 3x4 matrix (12 doubles)")
+            id = placement.withUnsafeBufferPointer { buf in
+                Int(OCCTBRepGraphLinkProductToTopology(handle, Int32(shapeRootKind), Int32(shapeRootIndex), buf.baseAddress))
+            }
+        } else {
+            id = Int(OCCTBRepGraphLinkProductToTopology(handle, Int32(shapeRootKind), Int32(shapeRootIndex), nil))
+        }
+        return id >= 0 ? id : nil
+    }
+
+    /// Create an empty product (assembly node with no direct topology). Returns product id or nil.
+    public func createEmptyProduct() -> Int? {
+        let id = Int(OCCTBRepGraphCreateEmptyProduct(handle))
+        return id >= 0 ? id : nil
+    }
+
+    /// Link two products via a fresh occurrence. Returns the new occurrence id and the new
+    /// occurrence-ref id, or nil on failure.
+    /// - Parameter parentOccurrenceIndex: pass nil for an unparented occurrence.
+    public func linkProducts(parentProductIndex: Int, referencedProductIndex: Int,
+                              placement: [Double], parentOccurrenceIndex: Int? = nil)
+        -> (occurrenceIndex: Int, occurrenceRefIndex: Int)?
+    {
+        precondition(placement.count == 12, "placement must be a 3x4 matrix (12 doubles)")
+        var outRef: Int32 = -1
+        let oid = placement.withUnsafeBufferPointer { buf -> Int in
+            Int(OCCTBRepGraphLinkProducts(handle,
+                                            Int32(parentProductIndex),
+                                            Int32(referencedProductIndex),
+                                            buf.baseAddress!,
+                                            Int32(parentOccurrenceIndex ?? -1),
+                                            &outRef))
+        }
+        guard oid >= 0, outRef >= 0 else { return nil }
+        return (occurrenceIndex: oid, occurrenceRefIndex: Int(outRef))
+    }
+
+    /// Detach an occurrence ref from a product. Returns true if the active usage was removed.
+    public func productRemoveOccurrence(_ productIndex: Int, occurrenceRefIndex: Int) -> Bool {
+        OCCTBRepGraphProductRemoveOccurrence(handle, Int32(productIndex), Int32(occurrenceRefIndex))
+    }
+
+    /// Detach the scalar shape-root from a product. Returns true if a root was detached.
+    public func productRemoveShapeRoot(_ productIndex: Int) -> Bool {
+        OCCTBRepGraphProductRemoveShapeRoot(handle, Int32(productIndex))
+    }
+
     // MARK: - ML Export (v0.136.0)
 
     /// Graph data exported in ML-friendly format with flat arrays and COO sparse adjacency.

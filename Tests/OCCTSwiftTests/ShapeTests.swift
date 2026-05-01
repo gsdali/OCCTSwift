@@ -43446,6 +43446,55 @@ struct TopologyGraphPolyCountTests {
     }
 }
 
+@Suite("v0.163 EditorView ProductOps assembly building")
+struct EditorViewProductOpsTests {
+    @Test("Create empty product and link to topology")
+    func createAndLinkProducts() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                // Empty product: an assembly node, no direct topology.
+                guard let parentProduct = graph.createEmptyProduct() else {
+                    Issue.record("createEmptyProduct nil"); return
+                }
+                #expect(parentProduct >= 0)
+
+                // Link a topology-rooted product (Solid 0) under the parent.
+                guard let childProduct = graph.linkProductToTopology(
+                    shapeRootKind: 0,        // Solid
+                    shapeRootIndex: 0,
+                    placement: TopologyGraph.identityLocationMatrix) else {
+                    Issue.record("linkProductToTopology nil"); return
+                }
+                #expect(childProduct >= 0)
+                #expect(childProduct != parentProduct)
+
+                // Wire the parent -> child via a placed occurrence.
+                if let linked = graph.linkProducts(
+                    parentProductIndex: parentProduct,
+                    referencedProductIndex: childProduct,
+                    placement: TopologyGraph.identityLocationMatrix) {
+                    #expect(linked.occurrenceIndex >= 0)
+                    #expect(linked.occurrenceRefIndex >= 0)
+                }
+            }
+        }
+    }
+
+    @Test("Remove ops on bogus ids return false")
+    func removeOpsSafe() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                #expect(graph.productRemoveOccurrence(99999, occurrenceRefIndex: 99999) == false)
+                #expect(graph.productRemoveShapeRoot(99999) == false)
+            }
+        }
+    }
+}
+
 @Suite("v0.162 EditorView geometric, location, PCurve setters")
 struct EditorViewV162Tests {
     @Test("CoEdge UV box / continuity / seam setters operate on existing coedges")

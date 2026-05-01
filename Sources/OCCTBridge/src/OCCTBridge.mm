@@ -57445,6 +57445,69 @@ void OCCTBRepGraphSetChildRefLocalLocation(OCCTBRepGraphRef g, int32_t childRefI
     } catch (...) {}
 }
 
+// MARK: - BRepGraph EditorView v0.163.0 — ProductOps assembly building
+
+int32_t OCCTBRepGraphLinkProductToTopology(OCCTBRepGraphRef g,
+                                             int32_t shapeRootKind, int32_t shapeRootIndex,
+                                             const double* placementMatrix) {
+    if (!g) return -1;
+    try {
+        TopLoc_Location loc = placementMatrix ? locationFromMatrix(placementMatrix) : TopLoc_Location();
+        BRepGraph_NodeId root(kindFromInt(shapeRootKind), shapeRootIndex);
+        auto pid = g->graph.Editor().Products().LinkProductToTopology(root, loc);
+        return pid.IsValid() ? (int32_t)pid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphCreateEmptyProduct(OCCTBRepGraphRef g) {
+    if (!g) return -1;
+    try {
+        auto pid = g->graph.Editor().Products().CreateEmptyProduct();
+        return pid.IsValid() ? (int32_t)pid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+/// Returns occurrence id, or -1 on failure. Outputs the new occurrence ref id via outOccRefId.
+int32_t OCCTBRepGraphLinkProducts(OCCTBRepGraphRef g, int32_t parentProductIndex,
+                                    int32_t referencedProductIndex,
+                                    const double* placementMatrix,
+                                    int32_t parentOccurrenceIndex,
+                                    int32_t* outOccurrenceRefId) {
+    if (!g || !placementMatrix) return -1;
+    try {
+        TopLoc_Location loc = locationFromMatrix(placementMatrix);
+        BRepGraph_OccurrenceId parentOcc =
+            (parentOccurrenceIndex >= 0)
+                ? BRepGraph_OccurrenceId(parentOccurrenceIndex)
+                : BRepGraph_OccurrenceId();
+        BRepGraph_OccurrenceRefId outRefId;
+        auto oid = g->graph.Editor().Products().LinkProducts(
+            BRepGraph_ProductId(parentProductIndex),
+            BRepGraph_ProductId(referencedProductIndex),
+            loc, parentOcc, &outRefId);
+        if (outOccurrenceRefId) *outOccurrenceRefId = outRefId.IsValid() ? (int32_t)outRefId.Index : -1;
+        return oid.IsValid() ? (int32_t)oid.Index : -1;
+    } catch (...) {
+        if (outOccurrenceRefId) *outOccurrenceRefId = -1;
+        return -1;
+    }
+}
+
+bool OCCTBRepGraphProductRemoveOccurrence(OCCTBRepGraphRef g, int32_t productIndex, int32_t occurrenceRefIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Products().RemoveOccurrence(
+            BRepGraph_ProductId(productIndex), BRepGraph_OccurrenceRefId(occurrenceRefIndex));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphProductRemoveShapeRoot(OCCTBRepGraphRef g, int32_t productIndex) {
+    if (!g) return false;
+    try {
+        return g->graph.Editor().Products().RemoveShapeRoot(BRepGraph_ProductId(productIndex));
+    } catch (...) { return false; }
+}
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 #include <BRepTools.hxx>
