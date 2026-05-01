@@ -9956,6 +9956,40 @@ void OCCTPolyPolygon2DSetDeflection(OCCTPolyPolygon2DRef _Nonnull ref, double de
 /// Release.
 void OCCTPolyPolygon2DRelease(OCCTPolyPolygon2DRef _Nonnull ref);
 
+// MARK: - Poly_Triangulation (v0.160.0)
+
+typedef struct Poly_TriangulationOpaque* OCCTPolyTriangulationRef;
+
+/// Create a Poly_Triangulation from flat node and triangle arrays.
+/// - Parameter nodes: flat array of node coordinates (count*3 doubles).
+/// - Parameter nbNodes: number of nodes.
+/// - Parameter triangles: flat array of triangle vertex indices, 0-based (count*3 ints).
+/// - Parameter nbTriangles: number of triangles.
+OCCTPolyTriangulationRef _Nullable OCCTPolyTriangulationCreate(
+    const double* _Nonnull nodes, int nbNodes,
+    const int* _Nonnull triangles, int nbTriangles);
+
+/// Number of nodes.
+int OCCTPolyTriangulationNbNodes(OCCTPolyTriangulationRef _Nonnull ref);
+
+/// Number of triangles.
+int OCCTPolyTriangulationNbTriangles(OCCTPolyTriangulationRef _Nonnull ref);
+
+/// Get a node's coordinates (0-based index in Swift, 1-based internally).
+bool OCCTPolyTriangulationNode(OCCTPolyTriangulationRef _Nonnull ref, int index,
+                                 double* _Nonnull x, double* _Nonnull y, double* _Nonnull z);
+
+/// Get a triangle's three node indices (0-based externally, returns 0-based indices).
+bool OCCTPolyTriangulationTriangle(OCCTPolyTriangulationRef _Nonnull ref, int index,
+                                     int* _Nonnull n1, int* _Nonnull n2, int* _Nonnull n3);
+
+/// Get / set deflection.
+double OCCTPolyTriangulationDeflection(OCCTPolyTriangulationRef _Nonnull ref);
+void OCCTPolyTriangulationSetDeflection(OCCTPolyTriangulationRef _Nonnull ref, double deflection);
+
+/// Release.
+void OCCTPolyTriangulationRelease(OCCTPolyTriangulationRef _Nonnull ref);
+
 // MARK: - Poly_Polygon3D
 
 typedef struct Poly_Polygon3DOpaque* OCCTPolyPolygon3DRef;
@@ -19787,6 +19821,32 @@ int32_t OCCTBRepGraphMeshEdgePolygon3DRepId(OCCTBRepGraphRef _Nonnull graph, int
 
 /// Whether a coedge has cached mesh data (polygon-on-tri or polygon-2D). Cache-only check.
 bool OCCTBRepGraphMeshCoEdgeHasMesh(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+
+// --- MeshCache write API (v0.160.0): BRepGraph_Tool::Mesh statics ---
+
+/// Create a TriangulationRep in mesh storage. Returns the rep id, or -1 on null/failure.
+int32_t OCCTBRepGraphMeshCreateTriangulationRep(OCCTBRepGraphRef _Nonnull graph, OCCTPolyTriangulationRef _Nonnull triangulation);
+
+/// Create a Polygon3DRep in mesh storage. Returns the rep id, or -1 on null/failure.
+int32_t OCCTBRepGraphMeshCreatePolygon3DRep(OCCTBRepGraphRef _Nonnull graph, OCCTPolyPolygon3DRef _Nonnull polygon);
+
+/// Create a PolygonOnTriRep linked to an existing triangulation rep. Returns the rep id, or -1 on failure.
+int32_t OCCTBRepGraphMeshCreatePolygonOnTriRep(OCCTBRepGraphRef _Nonnull graph, OCCTPolyPolygonOnTriRef _Nonnull polygon, int32_t triRepId);
+
+/// Append a triangulation rep to a face's cached mesh (multi-LOD support).
+void OCCTBRepGraphMeshAppendCachedTriangulation(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t triRepId);
+
+/// Set the active triangulation index in a face's cached mesh.
+void OCCTBRepGraphMeshSetCachedActiveIndex(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t activeIndex);
+
+/// Set the polygon-3D rep in an edge's cached mesh.
+void OCCTBRepGraphMeshSetCachedPolygon3D(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t polyRepId);
+
+/// Append a polygon-on-tri rep to a coedge's cached mesh (seam edge support).
+void OCCTBRepGraphMeshAppendCachedPolygonOnTri(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t polyRepId);
+
+/// Set the polygon-2D rep in a coedge's cached mesh.
+void OCCTBRepGraphMeshSetCachedPolygon2D(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t poly2DRepId);
 
 // --- Active Geometry Counts ---
 

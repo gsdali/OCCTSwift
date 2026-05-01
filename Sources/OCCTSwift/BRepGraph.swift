@@ -758,6 +758,51 @@ public final class TopologyGraph: @unchecked Sendable {
         OCCTBRepGraphMeshCoEdgeHasMesh(handle, Int32(coedgeIndex))
     }
 
+    // MARK: - MeshCache write API (v0.160.0)
+
+    /// Create a triangulation rep in the graph's mesh storage. Returns the rep id, or nil on failure.
+    public func createTriangulationRep(_ triangulation: Triangulation) -> Int? {
+        let id = Int(OCCTBRepGraphMeshCreateTriangulationRep(handle, triangulation.handle))
+        return id >= 0 ? id : nil
+    }
+
+    /// Create a polygon-3D rep in the graph's mesh storage. Returns the rep id, or nil on failure.
+    public func createPolygon3DRep(_ polygon: Polygon3D) -> Int? {
+        let id = Int(OCCTBRepGraphMeshCreatePolygon3DRep(handle, polygon.handle))
+        return id >= 0 ? id : nil
+    }
+
+    /// Create a polygon-on-triangulation rep linked to an existing triangulation rep. Returns the rep id, or nil.
+    public func createPolygonOnTriRep(_ polygon: PolygonOnTriangulation, triRepId: Int) -> Int? {
+        let id = Int(OCCTBRepGraphMeshCreatePolygonOnTriRep(handle, polygon.handle, Int32(triRepId)))
+        return id >= 0 ? id : nil
+    }
+
+    /// Append a triangulation rep to a face's cached mesh (multi-LOD support).
+    public func appendCachedTriangulation(faceIndex: Int, triRepId: Int) {
+        OCCTBRepGraphMeshAppendCachedTriangulation(handle, Int32(faceIndex), Int32(triRepId))
+    }
+
+    /// Set the active triangulation index in a face's cached mesh.
+    public func setCachedActiveIndex(faceIndex: Int, activeIndex: Int) {
+        OCCTBRepGraphMeshSetCachedActiveIndex(handle, Int32(faceIndex), Int32(activeIndex))
+    }
+
+    /// Set the polygon-3D rep in an edge's cached mesh.
+    public func setCachedPolygon3D(edgeIndex: Int, polyRepId: Int) {
+        OCCTBRepGraphMeshSetCachedPolygon3D(handle, Int32(edgeIndex), Int32(polyRepId))
+    }
+
+    /// Append a polygon-on-tri rep to a coedge's cached mesh (seam edge support).
+    public func appendCachedPolygonOnTri(coedgeIndex: Int, polyRepId: Int) {
+        OCCTBRepGraphMeshAppendCachedPolygonOnTri(handle, Int32(coedgeIndex), Int32(polyRepId))
+    }
+
+    /// Set the polygon-2D rep in a coedge's cached mesh.
+    public func setCachedPolygon2D(coedgeIndex: Int, poly2DRepId: Int) {
+        OCCTBRepGraphMeshSetCachedPolygon2D(handle, Int32(coedgeIndex), Int32(poly2DRepId))
+    }
+
     // MARK: - Active Geometry Counts (v0.133.0)
 
     /// Number of active (non-removed) surfaces.

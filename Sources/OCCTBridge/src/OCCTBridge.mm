@@ -29842,6 +29842,10 @@ int OCCTConvertCurve2dToBezier(OCCTCurve2DRef _Nonnull curveRef,
 
 // --- Poly opaque types ---
 
+struct Poly_TriangulationOpaque {
+    Handle(Poly_Triangulation) triangulation;
+};
+
 struct Poly_Polygon2DOpaque {
     Handle(Poly_Polygon2D) polygon;
 };
@@ -30191,6 +30195,84 @@ void OCCTPolyPolygon2DSetDeflection(OCCTPolyPolygon2DRef _Nonnull ref, double de
 
 void OCCTPolyPolygon2DRelease(OCCTPolyPolygon2DRef _Nonnull ref) {
     delete reinterpret_cast<Poly_Polygon2DOpaque*>(ref);
+}
+
+// MARK: - Poly_Triangulation (v0.160.0)
+
+OCCTPolyTriangulationRef _Nullable OCCTPolyTriangulationCreate(
+    const double* _Nonnull nodes, int nbNodes,
+    const int* _Nonnull triangles, int nbTriangles)
+{
+    if (!nodes || !triangles || nbNodes <= 0 || nbTriangles <= 0) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> nodeArr(1, nbNodes);
+        for (int i = 0; i < nbNodes; i++) {
+            nodeArr(i + 1) = gp_Pnt(nodes[i * 3], nodes[i * 3 + 1], nodes[i * 3 + 2]);
+        }
+        NCollection_Array1<Poly_Triangle> triArr(1, nbTriangles);
+        for (int i = 0; i < nbTriangles; i++) {
+            // Swift caller passes 0-based vertex indices; OCCT stores 1-based.
+            triArr(i + 1) = Poly_Triangle(
+                triangles[i * 3] + 1,
+                triangles[i * 3 + 1] + 1,
+                triangles[i * 3 + 2] + 1);
+        }
+        Handle(Poly_Triangulation) tri = new Poly_Triangulation(nodeArr, triArr);
+        return reinterpret_cast<OCCTPolyTriangulationRef>(new Poly_TriangulationOpaque{tri});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int OCCTPolyTriangulationNbNodes(OCCTPolyTriangulationRef _Nonnull ref) {
+    return reinterpret_cast<Poly_TriangulationOpaque*>(ref)->triangulation->NbNodes();
+}
+
+int OCCTPolyTriangulationNbTriangles(OCCTPolyTriangulationRef _Nonnull ref) {
+    return reinterpret_cast<Poly_TriangulationOpaque*>(ref)->triangulation->NbTriangles();
+}
+
+bool OCCTPolyTriangulationNode(OCCTPolyTriangulationRef _Nonnull ref, int index,
+                                 double* _Nonnull x, double* _Nonnull y, double* _Nonnull z) {
+    try {
+        auto* p = reinterpret_cast<Poly_TriangulationOpaque*>(ref);
+        int idx = index + 1;
+        if (idx < 1 || idx > p->triangulation->NbNodes()) return false;
+        gp_Pnt pt = p->triangulation->Node(idx);
+        *x = pt.X(); *y = pt.Y(); *z = pt.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTPolyTriangulationTriangle(OCCTPolyTriangulationRef _Nonnull ref, int index,
+                                     int* _Nonnull n1, int* _Nonnull n2, int* _Nonnull n3) {
+    try {
+        auto* p = reinterpret_cast<Poly_TriangulationOpaque*>(ref);
+        int idx = index + 1;
+        if (idx < 1 || idx > p->triangulation->NbTriangles()) return false;
+        const Poly_Triangle& tri = p->triangulation->Triangle(idx);
+        int a, b, c;
+        tri.Get(a, b, c);
+        // OCCT stores 1-based; Swift expects 0-based.
+        *n1 = a - 1; *n2 = b - 1; *n3 = c - 1;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+double OCCTPolyTriangulationDeflection(OCCTPolyTriangulationRef _Nonnull ref) {
+    return reinterpret_cast<Poly_TriangulationOpaque*>(ref)->triangulation->Deflection();
+}
+
+void OCCTPolyTriangulationSetDeflection(OCCTPolyTriangulationRef _Nonnull ref, double deflection) {
+    reinterpret_cast<Poly_TriangulationOpaque*>(ref)->triangulation->Deflection(deflection);
+}
+
+void OCCTPolyTriangulationRelease(OCCTPolyTriangulationRef _Nonnull ref) {
+    delete reinterpret_cast<Poly_TriangulationOpaque*>(ref);
 }
 
 // MARK: - Poly_Polygon3D
@@ -55875,6 +55957,84 @@ bool OCCTBRepGraphMeshCoEdgeHasMesh(OCCTBRepGraphRef g, int32_t coedgeIndex) {
     if (!g) return false;
     try { return g->graph.Mesh().CoEdges().HasMesh(BRepGraph_CoEdgeId(coedgeIndex)); }
     catch (...) { return false; }
+}
+
+// MeshCache write API (v0.160.0). All BRepGraph_Tool::Mesh statics. RepId allocations
+// return the Index field; -1 indicates failure. Writes are no-ops on invalid ids.
+
+int32_t OCCTBRepGraphMeshCreateTriangulationRep(OCCTBRepGraphRef g, OCCTPolyTriangulationRef tri) {
+    if (!g || !tri) return -1;
+    try {
+        const Handle(Poly_Triangulation)& h = reinterpret_cast<Poly_TriangulationOpaque*>(tri)->triangulation;
+        if (h.IsNull()) return -1;
+        auto rid = BRepGraph_Tool::Mesh::CreateTriangulationRep(g->graph, h);
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphMeshCreatePolygon3DRep(OCCTBRepGraphRef g, OCCTPolyPolygon3DRef poly) {
+    if (!g || !poly) return -1;
+    try {
+        const Handle(Poly_Polygon3D)& h = reinterpret_cast<Poly_Polygon3DOpaque*>(poly)->polygon;
+        if (h.IsNull()) return -1;
+        auto rid = BRepGraph_Tool::Mesh::CreatePolygon3DRep(g->graph, h);
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphMeshCreatePolygonOnTriRep(OCCTBRepGraphRef g, OCCTPolyPolygonOnTriRef poly, int32_t triRepId) {
+    if (!g || !poly || triRepId < 0) return -1;
+    try {
+        const Handle(Poly_PolygonOnTriangulation)& h = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(poly)->polygon;
+        if (h.IsNull()) return -1;
+        BRepGraph_TriangulationRepId tid;
+        tid.Index = (uint32_t)triRepId;
+        auto rid = BRepGraph_Tool::Mesh::CreatePolygonOnTriRep(g->graph, h, tid);
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+void OCCTBRepGraphMeshAppendCachedTriangulation(OCCTBRepGraphRef g, int32_t faceIndex, int32_t triRepId) {
+    if (!g || triRepId < 0) return;
+    try {
+        BRepGraph_TriangulationRepId tid;
+        tid.Index = (uint32_t)triRepId;
+        BRepGraph_Tool::Mesh::AppendCachedTriangulation(g->graph, BRepGraph_FaceId(faceIndex), tid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphMeshSetCachedActiveIndex(OCCTBRepGraphRef g, int32_t faceIndex, int32_t activeIndex) {
+    if (!g) return;
+    try {
+        BRepGraph_Tool::Mesh::SetCachedActiveIndex(g->graph, BRepGraph_FaceId(faceIndex), activeIndex);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphMeshSetCachedPolygon3D(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t polyRepId) {
+    if (!g || polyRepId < 0) return;
+    try {
+        BRepGraph_Polygon3DRepId rid;
+        rid.Index = (uint32_t)polyRepId;
+        BRepGraph_Tool::Mesh::SetCachedPolygon3D(g->graph, BRepGraph_EdgeId(edgeIndex), rid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphMeshAppendCachedPolygonOnTri(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t polyRepId) {
+    if (!g || polyRepId < 0) return;
+    try {
+        BRepGraph_PolygonOnTriRepId rid;
+        rid.Index = (uint32_t)polyRepId;
+        BRepGraph_Tool::Mesh::AppendCachedPolygonOnTri(g->graph, BRepGraph_CoEdgeId(coedgeIndex), rid);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphMeshSetCachedPolygon2D(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t poly2DRepId) {
+    if (!g || poly2DRepId < 0) return;
+    try {
+        BRepGraph_Polygon2DRepId rid;
+        rid.Index = (uint32_t)poly2DRepId;
+        BRepGraph_Tool::Mesh::SetCachedPolygon2D(g->graph, BRepGraph_CoEdgeId(coedgeIndex), rid);
+    } catch (...) {}
 }
 
 // --- Active Geometry Counts ---

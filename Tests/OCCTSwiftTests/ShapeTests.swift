@@ -43446,6 +43446,90 @@ struct TopologyGraphPolyCountTests {
     }
 }
 
+@Suite("v0.160 MeshCache write API")
+struct MeshCacheWriteTests {
+    @Test("Triangulation create from arrays round-trips")
+    func triangulationRoundTrip() {
+        let nodes: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(1, 1, 0),
+        ]
+        let triangles = [0, 1, 2, 1, 3, 2]
+        guard let tri = Triangulation.create(nodes: nodes, triangles: triangles) else {
+            Issue.record("Triangulation.create returned nil")
+            return
+        }
+        #expect(tri.nodeCount == 4)
+        #expect(tri.triangleCount == 2)
+        if let n0 = tri.node(at: 0) {
+            #expect(abs(n0.x) < 1e-12 && abs(n0.y) < 1e-12 && abs(n0.z) < 1e-12)
+        }
+        if let t0 = tri.triangle(at: 0) {
+            #expect(t0.0 == 0 && t0.1 == 1 && t0.2 == 2)
+        }
+        tri.deflection = 0.01
+        #expect(abs(tri.deflection - 0.01) < 1e-12)
+    }
+
+    @Test("Triangulation rejects malformed inputs")
+    func triangulationRejectsBadInputs() {
+        // Empty nodes.
+        #expect(Triangulation.create(nodes: [], triangles: []) == nil)
+        // Triangle index out of range.
+        let nodes: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0)]
+        #expect(Triangulation.create(nodes: nodes, triangles: [0, 1, 99]) == nil)
+        // Triangle count not divisible by 3.
+        #expect(Triangulation.create(nodes: nodes, triangles: [0, 1]) == nil)
+    }
+
+    @Test("Create triangulation rep and bind it to a face")
+    func createAndBindTriangulationRep() {
+        let nodes: [SIMD3<Double>] = [
+            SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(0, 1, 0), SIMD3(1, 1, 0),
+        ]
+        let triangles = [0, 1, 2, 1, 3, 2]
+        guard let tri = Triangulation.create(nodes: nodes, triangles: triangles) else {
+            Issue.record("Triangulation.create nil"); return
+        }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                guard let repId = graph.createTriangulationRep(tri) else {
+                    Issue.record("createTriangulationRep nil"); return
+                }
+                #expect(repId >= 0)
+                // Bind it to face 0; the call must not crash on a valid id.
+                graph.appendCachedTriangulation(faceIndex: 0, triRepId: repId)
+                graph.setCachedActiveIndex(faceIndex: 0, activeIndex: 0)
+                // After append, MeshView should report the rep as the active triangulation for face 0.
+                let active = graph.meshFaceActiveTriangulationRepId(0)
+                #expect(active != nil)
+            }
+        }
+    }
+
+    @Test("Create polygon3D rep and bind it to an edge")
+    func createAndBindPolygon3DRep() {
+        let pts: [SIMD3<Double>] = [SIMD3(0, 0, 0), SIMD3(1, 0, 0), SIMD3(2, 0, 0)]
+        guard let poly = Polygon3D.create(points: pts) else {
+            Issue.record("Polygon3D.create nil"); return
+        }
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        if let box {
+            let graph = TopologyGraph(shape: box)
+            if let graph {
+                guard let repId = graph.createPolygon3DRep(poly) else {
+                    Issue.record("createPolygon3DRep nil"); return
+                }
+                #expect(repId >= 0)
+                graph.setCachedPolygon3D(edgeIndex: 0, polyRepId: repId)
+                let active = graph.meshEdgePolygon3DRepId(0)
+                #expect(active != nil)
+            }
+        }
+    }
+}
+
 @Suite("v0.159 EditorView field setters")
 struct EditorViewSettersTests {
     @Test("Vertex point and tolerance set then read back")

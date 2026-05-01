@@ -10933,6 +10933,74 @@ public final class Polygon2D: @unchecked Sendable {
     }
 }
 
+// MARK: - Triangulation (v0.160.0)
+
+/// A `Poly_Triangulation` — a 3D mesh defined by node positions and triangle vertex indices.
+///
+/// Used as input to `TopologyGraph.createTriangulationRep(_:)` when populating the cached
+/// mesh tier of a graph (`BRepGraph_MeshCache`). Triangle indices are 0-based on the Swift
+/// boundary; the bridge handles the OCCT 1-based conversion internally.
+public final class Triangulation: @unchecked Sendable {
+    let handle: OCCTPolyTriangulationRef
+
+    init(handle: OCCTPolyTriangulationRef) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTPolyTriangulationRelease(handle)
+    }
+
+    /// Create a triangulation from nodes and triangle vertex indices.
+    /// - Parameter nodes: sequence of node positions.
+    /// - Parameter triangles: triangle vertex indices, 0-based, three per triangle.
+    /// - Returns: nil if any index is out of range or the inputs are empty.
+    public static func create(nodes: [SIMD3<Double>], triangles: [Int]) -> Triangulation? {
+        guard !nodes.isEmpty, triangles.count > 0, triangles.count % 3 == 0 else { return nil }
+        for idx in triangles where idx < 0 || idx >= nodes.count { return nil }
+        var flatNodes = [Double]()
+        flatNodes.reserveCapacity(nodes.count * 3)
+        for n in nodes {
+            flatNodes.append(n.x); flatNodes.append(n.y); flatNodes.append(n.z)
+        }
+        let triInts = triangles.map { Int32($0) }
+        guard let ref = flatNodes.withUnsafeBufferPointer({ nodeBuf in
+            triInts.withUnsafeBufferPointer { triBuf in
+                OCCTPolyTriangulationCreate(
+                    nodeBuf.baseAddress!, Int32(nodes.count),
+                    triBuf.baseAddress!, Int32(triangles.count / 3))
+            }
+        }) else { return nil }
+        return Triangulation(handle: ref)
+    }
+
+    /// Number of nodes.
+    public var nodeCount: Int { Int(OCCTPolyTriangulationNbNodes(handle)) }
+
+    /// Number of triangles.
+    public var triangleCount: Int { Int(OCCTPolyTriangulationNbTriangles(handle)) }
+
+    /// Get node at index (0-based).
+    public func node(at index: Int) -> SIMD3<Double>? {
+        var x: Double = 0, y: Double = 0, z: Double = 0
+        guard OCCTPolyTriangulationNode(handle, Int32(index), &x, &y, &z) else { return nil }
+        return SIMD3(x, y, z)
+    }
+
+    /// Get triangle's three node indices at the given triangle index (0-based; returns 0-based vertex indices).
+    public func triangle(at index: Int) -> (Int, Int, Int)? {
+        var n1: Int32 = 0, n2: Int32 = 0, n3: Int32 = 0
+        guard OCCTPolyTriangulationTriangle(handle, Int32(index), &n1, &n2, &n3) else { return nil }
+        return (Int(n1), Int(n2), Int(n3))
+    }
+
+    /// Deflection value.
+    public var deflection: Double {
+        get { OCCTPolyTriangulationDeflection(handle) }
+        set { OCCTPolyTriangulationSetDeflection(handle, newValue) }
+    }
+}
+
 // MARK: - Polygon3D
 
 /// A 3D polygon (sequence of 3D points with optional parameters).

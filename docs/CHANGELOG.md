@@ -2,13 +2,52 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.159.0
+## Current: v0.160.0
 
-**4,170 wrapped operations | 3,368 tests | 1,171 suites | OCCT 8.0.0-beta1**
+**4,186 wrapped operations | 3,372 tests | 1,172 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.160.0 (May 2026) — MeshCache write API + new `Triangulation` type
+
+Completes the OCCT 8.0.0 beta1 two-tier mesh storage wrapping started in v0.158.0. The cache write side — `BRepGraph_Tool::Mesh` static helpers — is now exposed on `TopologyGraph`, and a new `Triangulation` Swift class wraps `Handle<Poly_Triangulation>` for input.
+
+**New `Triangulation` class** (mirrors the existing `Polygon3D` / `PolygonOnTriangulation` pattern):
+
+```swift
+let tri = Triangulation.create(
+    nodes: [SIMD3(0,0,0), SIMD3(1,0,0), SIMD3(0,1,0), SIMD3(1,1,0)],
+    triangles: [0,1,2, 1,3,2]
+)!
+tri.nodeCount        // 4
+tri.triangleCount    // 2
+tri.node(at: 0)      // SIMD3(0, 0, 0)
+tri.triangle(at: 0)  // (0, 1, 2)
+tri.deflection = 0.01
+```
+
+Vertex indices are 0-based on the Swift boundary; the bridge handles OCCT's 1-based convention internally.
+
+**MeshCache write API** on `TopologyGraph`:
+
+```swift
+let triRepId = graph.createTriangulationRep(tri)!
+graph.appendCachedTriangulation(faceIndex: 0, triRepId: triRepId)
+graph.setCachedActiveIndex(faceIndex: 0, activeIndex: 0)
+
+let polyRepId = graph.createPolygon3DRep(polygon3d)!
+graph.setCachedPolygon3D(edgeIndex: 0, polyRepId: polyRepId)
+
+let polyOnTriRepId = graph.createPolygonOnTriRep(polygonOnTri, triRepId: triRepId)!
+graph.appendCachedPolygonOnTri(coedgeIndex: 0, polyRepId: polyOnTriRepId)
+graph.setCachedPolygon2D(coedgeIndex: 0, poly2DRepId: ...)
+```
+
+This unblocks downstream tooling (OCCTMCP, OCCTSwiftScripts) that wants to populate algorithm-derived mesh data on a graph without touching the persistent (STEP-imported) tier — important for non-destructive meshing workflows.
+
+4 new tests cover Triangulation construction round-trip, malformed-input rejection, and rep-creation + face/edge binding with subsequent MeshView readback.
 
 ### v0.159.0 (May 2026) — EditorView field setters
 
