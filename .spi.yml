@@ -1,0 +1,19 @@
+version: 1
+builder:
+  configs:
+    # Default build: macOS via SPM, latest Swift release.
+    - platform: macos-spm
+      swift_version: "6.3"
+      documentation_targets:
+        - OCCTSwift
+    # Verify Swift 6.0–6.2 still build clean (we depend on Swift 6 language mode).
+    - platform: macos-spm
+      swift_version: "6.2"
+    - platform: macos-spm
+      swift_version: "6.1"
+    - platform: macos-spm
+      swift_version: "6.0"
+    # iOS coverage on the latest Swift only — the xcframework is shared across iOS
+    # device + simulator + macOS, so the toolchain matrix above is the meaningful one.
+    - platform: ios
+      swift_version: "6.3"

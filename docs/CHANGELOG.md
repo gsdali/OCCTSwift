@@ -2,13 +2,32 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.165.0
+## Current: v0.166.0
 
 **4,269 wrapped operations | 3,383 tests | 1,176 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.166.0 (May 2026) — Swift Package Index readiness
+
+Preparation for a public listing on [Swift Package Index](https://swiftpackageindex.com) alongside v1.0.0. No code changes; metadata only.
+
+**Added:**
+
+- `.spi.yml` — SPI build matrix declaration:
+  - macOS via SPM on Swift 6.0, 6.1, 6.2, 6.3
+  - iOS on Swift 6.3
+  - DocC documentation target: `OCCTSwift`
+- `CODE_OF_CONDUCT.md` — short pointer to Contributor Covenant 2.1 with reports email.
+- README:
+  - SPI shields.io badges (Swift versions, platforms) — activate once the package is added to SPI.
+  - Updated install snippet from stale `from: "0.128.0"` to current `from: "0.165.0"`.
+  - "Supported Platforms" table covering current support and v1.0.0 expansion plan (Intel Mac, visionOS).
+  - Documented Swift 6.1+ verified clean against 6.1 / 6.2 / 6.3 toolchains.
+
+**Submission gating:** waiting until v1.0.0 ships (May 7, 2026, alongside OCCT 8.0.0 GA) before submitting to SPI. v0.166 makes the repo submission-ready.
 
 ### v0.165.0 (May 2026) — Fix SPM xcframework URL (issue #97)
 

@@ -1,8 +1,12 @@
 # OCCTSwift
 
+[![Swift](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fgsdali%2FOCCTSwift%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/gsdali/OCCTSwift)
+[![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fgsdali%2FOCCTSwift%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/gsdali/OCCTSwift)
+[![License](https://img.shields.io/badge/license-LGPL--2.1-blue)](LICENSE)
+
 A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0 beta1, providing B-Rep solid modeling for macOS and iOS. v1.0.0 will pin to OCCT 8.0.0 GA on May 7, 2026.
 
-**4,269 wrapped operations** | **3,383 tests** | **1,176 suites** | macOS arm64 / iOS arm64 | OCCT 8.0.0-beta1
+**4,269 wrapped operations** | **3,383 tests** | **1,176 suites** | macOS 12+ / iOS 15+ (arm64) | OCCT 8.0.0-beta1
 
 ## Quick Start
 
@@ -12,9 +16,11 @@ Add to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.128.0")
+    .package(url: "https://github.com/gsdali/OCCTSwift.git", from: "0.165.0")
 ]
 ```
+
+The package ships a pre-built `OCCT.xcframework` as a release asset, so no source build of OCCT is required for end users.
 
 ### Usage
 
@@ -138,9 +144,21 @@ Each OCCT object is managed via opaque handle types with release-on-deinit. See 
 
 ## Requirements
 
-- Swift 6.1+
+- Swift 6.1+ (verified clean on 6.1, 6.2, 6.3)
 - macOS 12.0+ (arm64) / iOS 15.0+ (arm64)
 - Xcode 16.0+
+
+### Supported Platforms
+
+| Platform | Architecture | Status |
+|---|---|---|
+| macOS 12+ | arm64 (Apple Silicon) | Supported |
+| iOS 15+ device | arm64 | Supported |
+| iOS 15+ Simulator | arm64 (Apple Silicon host) | Supported |
+| macOS 12+ | x86_64 (Intel) | Planned for v1.0.0 |
+| visionOS | arm64 | Planned for v1.0.0 |
+| tvOS / watchOS | — | Out of scope |
+| Linux / Windows / Android | — | Out of scope (xcframework is Apple-only) |
 
 ## Building OCCT from Source
 
