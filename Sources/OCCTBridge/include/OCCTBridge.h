@@ -20251,6 +20251,36 @@ void OCCTBRepGraphSetOccurrenceRefOccurrenceDefId(OCCTBRepGraphRef _Nonnull grap
 void OCCTBRepGraphSetChildRefOrientation(OCCTBRepGraphRef _Nonnull graph, int32_t childRefIndex, int32_t orientation);
 void OCCTBRepGraphSetChildRefChildDefId(OCCTBRepGraphRef _Nonnull graph, int32_t childRefIndex, int32_t childKind, int32_t childIndex);
 
+// MARK: - BRepGraph EditorView v0.162.0 — geometric setters, location setters, PCurve API
+
+// CoEdge geometric setters
+void OCCTBRepGraphSetCoEdgeUVBox(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, double u1, double v1, double u2, double v2);
+/// Continuity uses GeomAbs_Shape: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN.
+void OCCTBRepGraphSetCoEdgeContinuity(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t continuity);
+void OCCTBRepGraphSetCoEdgeSeamContinuity(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t continuity);
+void OCCTBRepGraphSetCoEdgeSeamPairId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t seamPairCoedgeIndex);
+
+// Face triangulation rep binding
+void OCCTBRepGraphSetFaceTriangulationRep(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t triRepId);
+
+// CoEdge PCurve operations (Geom2d_Curve handle from OCCTCurve2D opaque)
+int32_t OCCTBRepGraphCoEdgeCreateCurve2DRep(OCCTBRepGraphRef _Nonnull graph, OCCTCurve2DRef _Nonnull curve2d);
+/// Pass nullptr for curve2d to clear the PCurve binding.
+void OCCTBRepGraphCoEdgeSetPCurve(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, OCCTCurve2DRef _Nullable curve2d);
+void OCCTBRepGraphCoEdgeAddPCurve(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t faceIndex,
+                                   OCCTCurve2DRef _Nonnull curve2d, double first, double last,
+                                   int32_t orientation);
+
+// Location setters (12-double 3x4 matrix, gp_Trsf::SetValues convention; row-major).
+void OCCTBRepGraphSetVertexRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t vertexRefIndex, const double* _Nonnull matrix);
+void OCCTBRepGraphSetCoEdgeRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeRefIndex, const double* _Nonnull matrix);
+void OCCTBRepGraphSetWireRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t wireRefIndex, const double* _Nonnull matrix);
+void OCCTBRepGraphSetFaceRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t faceRefIndex, const double* _Nonnull matrix);
+void OCCTBRepGraphSetShellRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t shellRefIndex, const double* _Nonnull matrix);
+void OCCTBRepGraphSetSolidRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t solidRefIndex, const double* _Nonnull matrix);
+void OCCTBRepGraphSetOccurrenceRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t occurrenceRefIndex, const double* _Nonnull matrix);
+void OCCTBRepGraphSetChildRefLocalLocation(OCCTBRepGraphRef _Nonnull graph, int32_t childRefIndex, const double* _Nonnull matrix);
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 /// Sample a regular UV grid on a face surface. Returns point count (uSamples * vSamples),

@@ -2,13 +2,38 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.161.0
+## Current: v0.162.0
 
-**4,227 wrapped operations | 3,375 tests | 1,173 suites | OCCT 8.0.0-beta1**
+**4,243 wrapped operations | 3,378 tests | 1,174 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.162.0 (May 2026) — EditorView geometric setters, location setters, PCurve API (16 ops)
+
+Closes the EditorView wrapping started in v0.159.0. With v0.162.0 the public mutation surface of `BRepGraph::EditorView` is fully wrapped on `TopologyGraph`.
+
+**CoEdge geometric setters:**
+- `setCoEdgeUVBox(_:u1:v1:u2:v2:)`
+- `setCoEdgeContinuity` / `setCoEdgeSeamContinuity` (GeomAbs_Shape: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN)
+- `setCoEdgeSeamPairId`
+
+**Face geometric setter:**
+- `setFaceTriangulationRep(_:triRepId:)` — bind the active triangulation to a face's persistent tier (vs `appendCachedTriangulation` for the cache tier)
+
+**CoEdge PCurve API** (uses existing `Curve2D` Swift type):
+- `coEdgeCreateCurve2DRep(_ curve2D:)` → rep id
+- `coEdgeSetPCurve(_ coedgeIndex:curve2D:)` (pass nil to clear)
+- `coEdgeAddPCurve(edgeIndex:faceIndex:curve2D:first:last:orientation:)`
+
+**Location setters via 12-double 3x4 matrix** (`gp_Trsf::SetValues` row-major convention):
+- `setVertexRefLocalLocation`, `setCoEdgeRefLocalLocation`, `setWireRefLocalLocation`
+- `setFaceRefLocalLocation`, `setShellRefLocalLocation`, `setSolidRefLocalLocation`
+- `setOccurrenceRefLocalLocation`, `setChildRefLocalLocation`
+- Convenience: `TopologyGraph.identityLocationMatrix` returns the 3x4 identity
+
+3 new tests cover CoEdge geometric setters on real coedges, identity-matrix location setters on real refs, and face-triangulation binding with MeshView readback.
 
 ### v0.161.0 (May 2026) — EditorView Add / Remove / Ref setters (41 ops)
 

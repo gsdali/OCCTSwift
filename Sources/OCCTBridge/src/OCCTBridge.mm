@@ -57287,6 +57287,164 @@ void OCCTBRepGraphSetChildRefChildDefId(OCCTBRepGraphRef g, int32_t childRefInde
     } catch (...) {}
 }
 
+// MARK: - BRepGraph EditorView v0.162.0 — geometric setters, location setters, PCurve API
+
+// CoEdge geometric setters
+
+void OCCTBRepGraphSetCoEdgeUVBox(OCCTBRepGraphRef g, int32_t coedgeIndex,
+                                  double u1, double v1, double u2, double v2) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetUVBox(
+            BRepGraph_CoEdgeId(coedgeIndex), gp_Pnt2d(u1, v1), gp_Pnt2d(u2, v2));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeContinuity(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t continuity) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetContinuity(
+            BRepGraph_CoEdgeId(coedgeIndex), continuityFromInt(continuity));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeSeamContinuity(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t continuity) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetSeamContinuity(
+            BRepGraph_CoEdgeId(coedgeIndex), continuityFromInt(continuity));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeSeamPairId(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t seamPairCoedgeIndex) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetSeamPairId(
+            BRepGraph_CoEdgeId(coedgeIndex), BRepGraph_CoEdgeId(seamPairCoedgeIndex));
+    } catch (...) {}
+}
+
+// Face triangulation rep binding
+
+void OCCTBRepGraphSetFaceTriangulationRep(OCCTBRepGraphRef g, int32_t faceIndex, int32_t triRepId) {
+    if (!g) return;
+    try {
+        BRepGraph_TriangulationRepId rid;
+        rid.Index = (uint32_t)triRepId;
+        g->graph.Editor().Faces().SetTriangulationRep(BRepGraph_FaceId(faceIndex), rid);
+    } catch (...) {}
+}
+
+// CoEdge PCurve operations (Geom2d_Curve handle from OCCTCurve2D opaque)
+
+int32_t OCCTBRepGraphCoEdgeCreateCurve2DRep(OCCTBRepGraphRef g, OCCTCurve2DRef curve2d) {
+    if (!g || !curve2d) return -1;
+    try {
+        const Handle(Geom2d_Curve)& h = reinterpret_cast<OCCTCurve2D*>(curve2d)->curve;
+        if (h.IsNull()) return -1;
+        auto rid = g->graph.Editor().CoEdges().CreateCurve2DRep(h);
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+void OCCTBRepGraphCoEdgeSetPCurve(OCCTBRepGraphRef g, int32_t coedgeIndex, OCCTCurve2DRef curve2d) {
+    if (!g) return;
+    try {
+        Handle(Geom2d_Curve) h;
+        if (curve2d) h = reinterpret_cast<OCCTCurve2D*>(curve2d)->curve;
+        g->graph.Editor().CoEdges().SetPCurve(BRepGraph_CoEdgeId(coedgeIndex), h);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphCoEdgeAddPCurve(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t faceIndex,
+                                    OCCTCurve2DRef curve2d, double first, double last,
+                                    int32_t orientation) {
+    if (!g || !curve2d) return;
+    try {
+        const Handle(Geom2d_Curve)& h = reinterpret_cast<OCCTCurve2D*>(curve2d)->curve;
+        if (h.IsNull()) return;
+        g->graph.Editor().CoEdges().AddPCurve(
+            BRepGraph_EdgeId(edgeIndex),
+            BRepGraph_FaceId(faceIndex),
+            h, first, last, oriFromInt(orientation));
+    } catch (...) {}
+}
+
+// Location setters (12-double 3x4 matrix, gp_Trsf::SetValues convention)
+
+static TopLoc_Location locationFromMatrix(const double m[12]) {
+    gp_Trsf trsf;
+    trsf.SetValues(
+        m[0], m[1], m[2],  m[3],
+        m[4], m[5], m[6],  m[7],
+        m[8], m[9], m[10], m[11]);
+    return TopLoc_Location(trsf);
+}
+
+void OCCTBRepGraphSetVertexRefLocalLocation(OCCTBRepGraphRef g, int32_t vertexRefIndex, const double* matrix) {
+    if (!g || !matrix) return;
+    try {
+        g->graph.Editor().Vertices().SetRefLocalLocation(
+            BRepGraph_VertexRefId(vertexRefIndex), locationFromMatrix(matrix));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeRefLocalLocation(OCCTBRepGraphRef g, int32_t coedgeRefIndex, const double* matrix) {
+    if (!g || !matrix) return;
+    try {
+        g->graph.Editor().CoEdges().SetRefLocalLocation(
+            BRepGraph_CoEdgeRefId(coedgeRefIndex), locationFromMatrix(matrix));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetWireRefLocalLocation(OCCTBRepGraphRef g, int32_t wireRefIndex, const double* matrix) {
+    if (!g || !matrix) return;
+    try {
+        g->graph.Editor().Wires().SetRefLocalLocation(
+            BRepGraph_WireRefId(wireRefIndex), locationFromMatrix(matrix));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetFaceRefLocalLocation(OCCTBRepGraphRef g, int32_t faceRefIndex, const double* matrix) {
+    if (!g || !matrix) return;
+    try {
+        g->graph.Editor().Faces().SetRefLocalLocation(
+            BRepGraph_FaceRefId(faceRefIndex), locationFromMatrix(matrix));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetShellRefLocalLocation(OCCTBRepGraphRef g, int32_t shellRefIndex, const double* matrix) {
+    if (!g || !matrix) return;
+    try {
+        g->graph.Editor().Shells().SetRefLocalLocation(
+            BRepGraph_ShellRefId(shellRefIndex), locationFromMatrix(matrix));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetSolidRefLocalLocation(OCCTBRepGraphRef g, int32_t solidRefIndex, const double* matrix) {
+    if (!g || !matrix) return;
+    try {
+        g->graph.Editor().Solids().SetRefLocalLocation(
+            BRepGraph_SolidRefId(solidRefIndex), locationFromMatrix(matrix));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetOccurrenceRefLocalLocation(OCCTBRepGraphRef g, int32_t occurrenceRefIndex, const double* matrix) {
+    if (!g || !matrix) return;
+    try {
+        g->graph.Editor().Occurrences().SetRefLocalLocation(
+            BRepGraph_OccurrenceRefId(occurrenceRefIndex), locationFromMatrix(matrix));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetChildRefLocalLocation(OCCTBRepGraphRef g, int32_t childRefIndex, const double* matrix) {
+    if (!g || !matrix) return;
+    try {
+        g->graph.Editor().Gen().SetChildRefLocalLocation(
+            BRepGraph_ChildRefId(childRefIndex), locationFromMatrix(matrix));
+    } catch (...) {}
+}
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 #include <BRepTools.hxx>

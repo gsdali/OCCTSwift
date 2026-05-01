@@ -1561,6 +1561,93 @@ public final class TopologyGraph: @unchecked Sendable {
         OCCTBRepGraphSetChildRefChildDefId(handle, Int32(childRefIndex), Int32(childKind), Int32(childIndex))
     }
 
+    // MARK: - EditorView geometric setters & PCurve API (v0.162.0)
+
+    /// Set the UV box (UV1 at ParamFirst, UV2 at ParamLast) of a coedge definition.
+    public func setCoEdgeUVBox(_ coedgeIndex: Int, u1: Double, v1: Double, u2: Double, v2: Double) {
+        OCCTBRepGraphSetCoEdgeUVBox(handle, Int32(coedgeIndex), u1, v1, u2, v2)
+    }
+
+    /// Set the geometric continuity of a coedge.
+    /// - Parameter continuity: GeomAbs_Shape — 0=C0, 1=C1, 2=C2, 3=C3, 4=CN.
+    public func setCoEdgeContinuity(_ coedgeIndex: Int, continuity: Int) {
+        OCCTBRepGraphSetCoEdgeContinuity(handle, Int32(coedgeIndex), Int32(continuity))
+    }
+
+    /// Set the seam-pair continuity of a coedge.
+    public func setCoEdgeSeamContinuity(_ coedgeIndex: Int, continuity: Int) {
+        OCCTBRepGraphSetCoEdgeSeamContinuity(handle, Int32(coedgeIndex), Int32(continuity))
+    }
+
+    /// Set the seam-pair id linking two coedges of a seam edge (-1 to break the link).
+    public func setCoEdgeSeamPairId(_ coedgeIndex: Int, seamPairCoedgeIndex: Int) {
+        OCCTBRepGraphSetCoEdgeSeamPairId(handle, Int32(coedgeIndex), Int32(seamPairCoedgeIndex))
+    }
+
+    /// Set the active triangulation rep on a face (used to bind a fresh triangulation
+    /// to the persistent tier; also see `appendCachedTriangulation` for cache-tier writes).
+    public func setFaceTriangulationRep(_ faceIndex: Int, triRepId: Int) {
+        OCCTBRepGraphSetFaceTriangulationRep(handle, Int32(faceIndex), Int32(triRepId))
+    }
+
+    /// Create a new Curve2DRep from a `Curve2D` and return its rep id, or nil on failure.
+    public func coEdgeCreateCurve2DRep(_ curve2D: Curve2D) -> Int? {
+        let id = Int(OCCTBRepGraphCoEdgeCreateCurve2DRep(handle, curve2D.handle))
+        return id >= 0 ? id : nil
+    }
+
+    /// Assign or clear the PCurve bound to an existing coedge.
+    /// - Parameter curve2D: pass nil to clear the PCurve binding.
+    public func coEdgeSetPCurve(_ coedgeIndex: Int, curve2D: Curve2D?) {
+        OCCTBRepGraphCoEdgeSetPCurve(handle, Int32(coedgeIndex), curve2D?.handle)
+    }
+
+    /// Attach a PCurve to an edge for a given face context (creates a new CoEdge entry).
+    public func coEdgeAddPCurve(edgeIndex: Int, faceIndex: Int, curve2D: Curve2D,
+                                 first: Double, last: Double, orientation: Int = 0) {
+        OCCTBRepGraphCoEdgeAddPCurve(handle, Int32(edgeIndex), Int32(faceIndex),
+                                       curve2D.handle, first, last, Int32(orientation))
+    }
+
+    // Location setters via 12-double 3x4 matrix (gp_Trsf::SetValues convention, row-major).
+
+    private func passLoc(_ matrix: [Double], _ call: (UnsafePointer<Double>) -> Void) {
+        precondition(matrix.count == 12, "TopLoc_Location matrix must be 12 doubles (3x4)")
+        matrix.withUnsafeBufferPointer { buf in call(buf.baseAddress!) }
+    }
+
+    public func setVertexRefLocalLocation(_ vertexRefIndex: Int, matrix: [Double]) {
+        passLoc(matrix) { OCCTBRepGraphSetVertexRefLocalLocation(handle, Int32(vertexRefIndex), $0) }
+    }
+    public func setCoEdgeRefLocalLocation(_ coedgeRefIndex: Int, matrix: [Double]) {
+        passLoc(matrix) { OCCTBRepGraphSetCoEdgeRefLocalLocation(handle, Int32(coedgeRefIndex), $0) }
+    }
+    public func setWireRefLocalLocation(_ wireRefIndex: Int, matrix: [Double]) {
+        passLoc(matrix) { OCCTBRepGraphSetWireRefLocalLocation(handle, Int32(wireRefIndex), $0) }
+    }
+    public func setFaceRefLocalLocation(_ faceRefIndex: Int, matrix: [Double]) {
+        passLoc(matrix) { OCCTBRepGraphSetFaceRefLocalLocation(handle, Int32(faceRefIndex), $0) }
+    }
+    public func setShellRefLocalLocation(_ shellRefIndex: Int, matrix: [Double]) {
+        passLoc(matrix) { OCCTBRepGraphSetShellRefLocalLocation(handle, Int32(shellRefIndex), $0) }
+    }
+    public func setSolidRefLocalLocation(_ solidRefIndex: Int, matrix: [Double]) {
+        passLoc(matrix) { OCCTBRepGraphSetSolidRefLocalLocation(handle, Int32(solidRefIndex), $0) }
+    }
+    public func setOccurrenceRefLocalLocation(_ occurrenceRefIndex: Int, matrix: [Double]) {
+        passLoc(matrix) { OCCTBRepGraphSetOccurrenceRefLocalLocation(handle, Int32(occurrenceRefIndex), $0) }
+    }
+    public func setChildRefLocalLocation(_ childRefIndex: Int, matrix: [Double]) {
+        passLoc(matrix) { OCCTBRepGraphSetChildRefLocalLocation(handle, Int32(childRefIndex), $0) }
+    }
+
+    /// Identity matrix (3x4) usable with the location setters.
+    public static var identityLocationMatrix: [Double] {
+        [1, 0, 0, 0,
+         0, 1, 0, 0,
+         0, 0, 1, 0]
+    }
+
     // MARK: - ML Export (v0.136.0)
 
     /// Graph data exported in ML-friendly format with flat arrays and COO sparse adjacency.
