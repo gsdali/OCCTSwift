@@ -1257,6 +1257,79 @@ public final class TopologyGraph: @unchecked Sendable {
         OCCTBRepGraphBuilderValidateMutation(handle)
     }
 
+    // MARK: - EditorView Field Setters (v0.159.0)
+
+    /// Set the 3D point of a vertex definition.
+    public func setVertexPoint(_ vertexIndex: Int, x: Double, y: Double, z: Double) {
+        OCCTBRepGraphSetVertexPoint(handle, Int32(vertexIndex), x, y, z)
+    }
+
+    /// Set the tolerance of a vertex definition.
+    public func setVertexTolerance(_ vertexIndex: Int, tolerance: Double) {
+        OCCTBRepGraphSetVertexTolerance(handle, Int32(vertexIndex), tolerance)
+    }
+
+    /// Set the tolerance of an edge definition.
+    public func setEdgeTolerance(_ edgeIndex: Int, tolerance: Double) {
+        OCCTBRepGraphSetEdgeTolerance(handle, Int32(edgeIndex), tolerance)
+    }
+
+    /// Set the parametric range of an edge definition.
+    public func setEdgeParamRange(_ edgeIndex: Int, first: Double, last: Double) {
+        OCCTBRepGraphSetEdgeParamRange(handle, Int32(edgeIndex), first, last)
+    }
+
+    /// Set the SameParameter flag of an edge definition.
+    public func setEdgeSameParameter(_ edgeIndex: Int, sameParameter: Bool) {
+        OCCTBRepGraphSetEdgeSameParameter(handle, Int32(edgeIndex), sameParameter)
+    }
+
+    /// Set the SameRange flag of an edge definition.
+    public func setEdgeSameRange(_ edgeIndex: Int, sameRange: Bool) {
+        OCCTBRepGraphSetEdgeSameRange(handle, Int32(edgeIndex), sameRange)
+    }
+
+    /// Set the IsDegenerate flag of an edge definition.
+    public func setEdgeDegenerate(_ edgeIndex: Int, degenerate: Bool) {
+        OCCTBRepGraphSetEdgeDegenerate(handle, Int32(edgeIndex), degenerate)
+    }
+
+    /// Set the IsClosed flag (StartVertex == EndVertex topology) of an edge.
+    public func setEdgeIsClosed(_ edgeIndex: Int, isClosed: Bool) {
+        OCCTBRepGraphSetEdgeIsClosed(handle, Int32(edgeIndex), isClosed)
+    }
+
+    /// Set the parametric range of a coedge definition.
+    public func setCoEdgeParamRange(_ coedgeIndex: Int, first: Double, last: Double) {
+        OCCTBRepGraphSetCoEdgeParamRange(handle, Int32(coedgeIndex), first, last)
+    }
+
+    /// Set the orientation of a coedge in its owning face.
+    /// - Parameter orientation: 0=Forward, 1=Reversed, 2=Internal, 3=External.
+    public func setCoEdgeOrientation(_ coedgeIndex: Int, orientation: Int) {
+        OCCTBRepGraphSetCoEdgeOrientation(handle, Int32(coedgeIndex), Int32(orientation))
+    }
+
+    /// Set the IsClosed flag of a wire definition.
+    public func setWireIsClosed(_ wireIndex: Int, isClosed: Bool) {
+        OCCTBRepGraphSetWireIsClosed(handle, Int32(wireIndex), isClosed)
+    }
+
+    /// Set the tolerance of a face definition.
+    public func setFaceTolerance(_ faceIndex: Int, tolerance: Double) {
+        OCCTBRepGraphSetFaceTolerance(handle, Int32(faceIndex), tolerance)
+    }
+
+    /// Set the natural-restriction flag of a face definition.
+    public func setFaceNaturalRestriction(_ faceIndex: Int, naturalRestriction: Bool) {
+        OCCTBRepGraphSetFaceNaturalRestriction(handle, Int32(faceIndex), naturalRestriction)
+    }
+
+    /// Set the IsClosed flag of a shell definition.
+    public func setShellIsClosed(_ shellIndex: Int, isClosed: Bool) {
+        OCCTBRepGraphSetShellIsClosed(handle, Int32(shellIndex), isClosed)
+    }
+
     // MARK: - ML Export (v0.136.0)
 
     /// Graph data exported in ML-friendly format with flat arrays and COO sparse adjacency.

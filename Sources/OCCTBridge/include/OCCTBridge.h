@@ -20102,6 +20102,38 @@ void OCCTBRepGraphBuilderClearEdgePolygon3D(OCCTBRepGraphRef _Nonnull graph,
 /// Validate mutation-boundary invariants. Returns true if no issues found.
 bool OCCTBRepGraphBuilderValidateMutation(OCCTBRepGraphRef _Nonnull graph);
 
+// MARK: - BRepGraph EditorView Field Setters (v0.159.0)
+//
+// Pure-value setters on the per-entity Ops classes of BRepGraph::EditorView.
+// All take a typed entity id + scalar/bool argument and return void; on
+// invalid id or out-of-range value the underlying call is a no-op.
+
+// VertexOps
+void OCCTBRepGraphSetVertexPoint(OCCTBRepGraphRef _Nonnull graph, int32_t vertexIndex, double x, double y, double z);
+void OCCTBRepGraphSetVertexTolerance(OCCTBRepGraphRef _Nonnull graph, int32_t vertexIndex, double tolerance);
+
+// EdgeOps
+void OCCTBRepGraphSetEdgeTolerance(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, double tolerance);
+void OCCTBRepGraphSetEdgeParamRange(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, double first, double last);
+void OCCTBRepGraphSetEdgeSameParameter(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, bool sameParameter);
+void OCCTBRepGraphSetEdgeSameRange(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, bool sameRange);
+void OCCTBRepGraphSetEdgeDegenerate(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, bool degenerate);
+void OCCTBRepGraphSetEdgeIsClosed(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, bool isClosed);
+
+// CoEdgeOps
+void OCCTBRepGraphSetCoEdgeParamRange(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, double first, double last);
+void OCCTBRepGraphSetCoEdgeOrientation(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t orientation);
+
+// WireOps
+void OCCTBRepGraphSetWireIsClosed(OCCTBRepGraphRef _Nonnull graph, int32_t wireIndex, bool isClosed);
+
+// FaceOps
+void OCCTBRepGraphSetFaceTolerance(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, double tolerance);
+void OCCTBRepGraphSetFaceNaturalRestriction(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, bool naturalRestriction);
+
+// ShellOps
+void OCCTBRepGraphSetShellIsClosed(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex, bool isClosed);
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 /// Sample a regular UV grid on a face surface. Returns point count (uSamples * vSamples),

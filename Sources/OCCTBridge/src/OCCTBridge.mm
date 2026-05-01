@@ -56599,6 +56599,122 @@ bool OCCTBRepGraphBuilderValidateMutation(OCCTBRepGraphRef g) {
     } catch (...) { return false; }
 }
 
+// MARK: - BRepGraph EditorView Field Setters (v0.159.0)
+//
+// Pure-value setters on the per-entity Ops classes of BRepGraph::EditorView.
+// All take a typed entity id + scalar/bool argument and return void; on
+// invalid id or out-of-range value the underlying call is a no-op.
+
+// VertexOps
+
+void OCCTBRepGraphSetVertexPoint(OCCTBRepGraphRef g, int32_t vertexIndex, double x, double y, double z) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Vertices().SetPoint(BRepGraph_VertexId(vertexIndex), gp_Pnt(x, y, z));
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetVertexTolerance(OCCTBRepGraphRef g, int32_t vertexIndex, double tolerance) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Vertices().SetTolerance(BRepGraph_VertexId(vertexIndex), tolerance);
+    } catch (...) {}
+}
+
+// EdgeOps
+
+void OCCTBRepGraphSetEdgeTolerance(OCCTBRepGraphRef g, int32_t edgeIndex, double tolerance) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Edges().SetTolerance(BRepGraph_EdgeId(edgeIndex), tolerance);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgeParamRange(OCCTBRepGraphRef g, int32_t edgeIndex, double first, double last) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Edges().SetParamRange(BRepGraph_EdgeId(edgeIndex), first, last);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgeSameParameter(OCCTBRepGraphRef g, int32_t edgeIndex, bool sameParameter) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Edges().SetSameParameter(BRepGraph_EdgeId(edgeIndex), sameParameter);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgeSameRange(OCCTBRepGraphRef g, int32_t edgeIndex, bool sameRange) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Edges().SetSameRange(BRepGraph_EdgeId(edgeIndex), sameRange);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgeDegenerate(OCCTBRepGraphRef g, int32_t edgeIndex, bool degenerate) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Edges().SetDegenerate(BRepGraph_EdgeId(edgeIndex), degenerate);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetEdgeIsClosed(OCCTBRepGraphRef g, int32_t edgeIndex, bool isClosed) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Edges().SetIsClosed(BRepGraph_EdgeId(edgeIndex), isClosed);
+    } catch (...) {}
+}
+
+// CoEdgeOps
+
+void OCCTBRepGraphSetCoEdgeParamRange(OCCTBRepGraphRef g, int32_t coedgeIndex, double first, double last) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetParamRange(BRepGraph_CoEdgeId(coedgeIndex), first, last);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetCoEdgeOrientation(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t orientation) {
+    if (!g) return;
+    try {
+        g->graph.Editor().CoEdges().SetOrientation(BRepGraph_CoEdgeId(coedgeIndex), oriFromInt(orientation));
+    } catch (...) {}
+}
+
+// WireOps
+
+void OCCTBRepGraphSetWireIsClosed(OCCTBRepGraphRef g, int32_t wireIndex, bool isClosed) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Wires().SetIsClosed(BRepGraph_WireId(wireIndex), isClosed);
+    } catch (...) {}
+}
+
+// FaceOps
+
+void OCCTBRepGraphSetFaceTolerance(OCCTBRepGraphRef g, int32_t faceIndex, double tolerance) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Faces().SetTolerance(BRepGraph_FaceId(faceIndex), tolerance);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphSetFaceNaturalRestriction(OCCTBRepGraphRef g, int32_t faceIndex, bool naturalRestriction) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Faces().SetNaturalRestriction(BRepGraph_FaceId(faceIndex), naturalRestriction);
+    } catch (...) {}
+}
+
+// ShellOps
+
+void OCCTBRepGraphSetShellIsClosed(OCCTBRepGraphRef g, int32_t shellIndex, bool isClosed) {
+    if (!g) return;
+    try {
+        g->graph.Editor().Shells().SetIsClosed(BRepGraph_ShellId(shellIndex), isClosed);
+    } catch (...) {}
+}
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 #include <BRepTools.hxx>

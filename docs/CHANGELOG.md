@@ -2,13 +2,35 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.158.0
+## Current: v0.159.0
 
-**4,156 wrapped operations | 3,364 tests | 1,170 suites | OCCT 8.0.0-beta1**
+**4,170 wrapped operations | 3,368 tests | 1,171 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.159.0 (May 2026) — EditorView field setters
+
+OCCT 8.0.0 beta1's `BRepGraph::EditorView` exposes per-entity `Ops` classes with `Set*` methods that mutate field-level data on existing graph entities (without requiring a full topology rebuild). v0.159.0 wraps the simple-value subset (scalars, bools, orientations) on the `TopologyGraph` Swift type:
+
+**VertexOps** — `setVertexPoint(_:x:y:z:)`, `setVertexTolerance(_:tolerance:)`
+
+**EdgeOps** — `setEdgeTolerance`, `setEdgeParamRange(_:first:last:)`, `setEdgeSameParameter`, `setEdgeSameRange`, `setEdgeDegenerate`, `setEdgeIsClosed`
+
+**CoEdgeOps** — `setCoEdgeParamRange`, `setCoEdgeOrientation` (Forward/Reversed/Internal/External as Int 0–3)
+
+**WireOps** — `setWireIsClosed`
+
+**FaceOps** — `setFaceTolerance`, `setFaceNaturalRestriction`
+
+**ShellOps** — `setShellIsClosed`
+
+All 14 setters are pass-through to the corresponding `g.Editor().<Entity>().Set*(...)` on the OCCT side. Invalid ids are no-ops (try/catch in bridge). Setters that require new opaque types — `SetPCurve`, `SetSurfaceRepId`, `SetTriangulationRep`, `Mut*` RAII guards — are deferred. Same with `Add*` / `Remove*` mutation methods that aren't already wrapped via the Builder bridge functions.
+
+Driver: lets headless tooling (OCCTMCP, OCCTSwiftScripts) tweak field-level data after constructing a graph (e.g. relax a tolerance, mark an edge degenerate) without round-tripping through `TopoDS_Shape` rebuilds.
+
+4 new tests cover set-then-read-back where a getter exists, plus no-crash safety on the readback-less setters.
 
 ### v0.158.0 (May 2026) — MeshView two-tier mesh storage (read API)
 
