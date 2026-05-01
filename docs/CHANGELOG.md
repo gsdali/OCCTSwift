@@ -2,13 +2,54 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.163.0
+## Current: v0.164.0
 
-**4,248 wrapped operations | 3,380 tests | 1,175 suites | OCCT 8.0.0-beta1**
+**4,269 wrapped operations | 3,383 tests | 1,176 suites | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.164.0 (May 2026) — RepOps non-guard setters & cache entry inspection (21 ops)
+
+Final wrapping pass for OCCT 8.0.0 beta1 BRepGraph surface. After this release, the public surface of `BRepGraph::EditorView` and `BRepGraph::MeshView` is exhaustively wrapped on `TopologyGraph`.
+
+**RepOps non-guard setters** — swap geometry / mesh content bound to an existing rep id without recreating the rep:
+
+```swift
+graph.repSetSurface(repId, surface: newSurface)
+graph.repSetCurve3D(repId, curve: newCurve3D)
+graph.repSetCurve2D(repId, curve: newCurve2D)
+graph.repSetTriangulation(repId, triangulation: newTri)
+graph.repSetPolygon3D(repId, polygon: newPoly3D)
+graph.repSetPolygon2D(repId, polygon: newPoly2D)
+graph.repSetPolygonOnTri(repId, polygon: newPolyOnTri)
+graph.repSetPolygonOnTriTriangulationId(polyOnTriRepId, triRepId: newTriRepId)
+```
+
+**Cache entry inspection** — detailed access to the algorithm-derived cache tier for diagnostics and non-destructive mesh tooling:
+
+```swift
+graph.cachedFaceMeshIsPresent(0)              // Bool
+graph.cachedFaceMeshTriRepCount(0)            // Int
+graph.cachedFaceMeshActiveIndex(0)            // Int (-1 if absent)
+graph.cachedFaceMeshStoredOwnGen(0)           // UInt32 (cache freshness gen)
+graph.cachedFaceMeshTriRepId(0, repIndex: 0)  // Int? (active or specific entry)
+
+graph.cachedEdgeMeshIsPresent(0)
+graph.cachedEdgeMeshPolygon3DRepId(0)
+graph.cachedEdgeMeshStoredOwnGen(0)
+
+graph.cachedCoEdgeMeshIsPresent(0)
+graph.cachedCoEdgeMeshPolygon2DRepId(0)
+graph.cachedCoEdgeMeshPolygonOnTriRepCount(0)
+graph.cachedCoEdgeMeshPolygonOnTriRepId(0, repIndex: 0)
+graph.cachedCoEdgeMeshStoredOwnGen(0)
+```
+
+The `StoredOwnGen` accessors expose the cache freshness generation — pair with the entity's current OwnGen (via existing readers) to detect stale cache entries.
+
+3 new tests cover fresh-graph absence, post-`appendCachedTriangulation` state readback, and edge/coedge cache absence.
 
 ### v0.163.0 (May 2026) — EditorView ProductOps assembly building (5 ops)
 

@@ -20306,6 +20306,41 @@ bool OCCTBRepGraphProductRemoveOccurrence(OCCTBRepGraphRef _Nonnull graph, int32
 /// Detach the scalar shape-root from a product.
 bool OCCTBRepGraphProductRemoveShapeRoot(OCCTBRepGraphRef _Nonnull graph, int32_t productIndex);
 
+// MARK: - BRepGraph EditorView RepOps non-guard setters (v0.164.0)
+//
+// Swap the geometry / mesh content bound to an existing rep id without recreating
+// the rep. Pass a valid handle to bind, or skip — the bridge no-ops on null.
+
+void OCCTBRepGraphRepSetSurface(OCCTBRepGraphRef _Nonnull graph, int32_t surfaceRepId, OCCTSurfaceRef _Nonnull surface);
+void OCCTBRepGraphRepSetCurve3D(OCCTBRepGraphRef _Nonnull graph, int32_t curve3DRepId, OCCTCurve3DRef _Nonnull curve);
+void OCCTBRepGraphRepSetCurve2D(OCCTBRepGraphRef _Nonnull graph, int32_t curve2DRepId, OCCTCurve2DRef _Nonnull curve);
+void OCCTBRepGraphRepSetTriangulation(OCCTBRepGraphRef _Nonnull graph, int32_t triRepId, OCCTPolyTriangulationRef _Nonnull tri);
+void OCCTBRepGraphRepSetPolygon3D(OCCTBRepGraphRef _Nonnull graph, int32_t polyRepId, OCCTPolyPolygon3DRef _Nonnull poly);
+void OCCTBRepGraphRepSetPolygon2D(OCCTBRepGraphRef _Nonnull graph, int32_t polyRepId, OCCTPolyPolygon2DRef _Nonnull poly);
+void OCCTBRepGraphRepSetPolygonOnTri(OCCTBRepGraphRef _Nonnull graph, int32_t polyRepId, OCCTPolyPolygonOnTriRef _Nonnull poly);
+void OCCTBRepGraphRepSetPolygonOnTriTriangulationId(OCCTBRepGraphRef _Nonnull graph, int32_t polyOnTriRepId, int32_t triRepId);
+
+// MARK: - BRepGraph MeshView cache entry inspection (v0.164.0)
+//
+// Detailed access to the algorithm-derived cache entries for diagnostics and
+// non-destructive mesh tooling. All return 0/false/-1 for absent entries.
+
+bool OCCTBRepGraphCachedFaceMeshIsPresent(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+int32_t OCCTBRepGraphCachedFaceMeshTriRepCount(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+int32_t OCCTBRepGraphCachedFaceMeshActiveIndex(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+uint32_t OCCTBRepGraphCachedFaceMeshStoredOwnGen(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex);
+int32_t OCCTBRepGraphCachedFaceMeshTriRepId(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t repIndex);
+
+bool OCCTBRepGraphCachedEdgeMeshIsPresent(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+int32_t OCCTBRepGraphCachedEdgeMeshPolygon3DRepId(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+uint32_t OCCTBRepGraphCachedEdgeMeshStoredOwnGen(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex);
+
+bool OCCTBRepGraphCachedCoEdgeMeshIsPresent(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+int32_t OCCTBRepGraphCachedCoEdgeMeshPolygon2DRepId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+int32_t OCCTBRepGraphCachedCoEdgeMeshPolygonOnTriRepCount(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+int32_t OCCTBRepGraphCachedCoEdgeMeshPolygonOnTriRepId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t repIndex);
+uint32_t OCCTBRepGraphCachedCoEdgeMeshStoredOwnGen(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex);
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 /// Sample a regular UV grid on a face surface. Returns point count (uSamples * vSamples),

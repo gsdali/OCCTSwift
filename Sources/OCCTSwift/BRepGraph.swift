@@ -1703,6 +1703,85 @@ public final class TopologyGraph: @unchecked Sendable {
         OCCTBRepGraphProductRemoveShapeRoot(handle, Int32(productIndex))
     }
 
+    // MARK: - EditorView RepOps non-guard setters (v0.164.0)
+
+    /// Swap the surface bound to an existing surface rep id (without recreating the rep).
+    public func repSetSurface(_ surfaceRepId: Int, surface: Surface) {
+        OCCTBRepGraphRepSetSurface(handle, Int32(surfaceRepId), surface.handle)
+    }
+    public func repSetCurve3D(_ curve3DRepId: Int, curve: Curve3D) {
+        OCCTBRepGraphRepSetCurve3D(handle, Int32(curve3DRepId), curve.handle)
+    }
+    public func repSetCurve2D(_ curve2DRepId: Int, curve: Curve2D) {
+        OCCTBRepGraphRepSetCurve2D(handle, Int32(curve2DRepId), curve.handle)
+    }
+    public func repSetTriangulation(_ triRepId: Int, triangulation: Triangulation) {
+        OCCTBRepGraphRepSetTriangulation(handle, Int32(triRepId), triangulation.handle)
+    }
+    public func repSetPolygon3D(_ polyRepId: Int, polygon: Polygon3D) {
+        OCCTBRepGraphRepSetPolygon3D(handle, Int32(polyRepId), polygon.handle)
+    }
+    public func repSetPolygon2D(_ polyRepId: Int, polygon: Polygon2D) {
+        OCCTBRepGraphRepSetPolygon2D(handle, Int32(polyRepId), polygon.handle)
+    }
+    public func repSetPolygonOnTri(_ polyRepId: Int, polygon: PolygonOnTriangulation) {
+        OCCTBRepGraphRepSetPolygonOnTri(handle, Int32(polyRepId), polygon.handle)
+    }
+    public func repSetPolygonOnTriTriangulationId(_ polyOnTriRepId: Int, triRepId: Int) {
+        OCCTBRepGraphRepSetPolygonOnTriTriangulationId(handle, Int32(polyOnTriRepId), Int32(triRepId))
+    }
+
+    // MARK: - MeshView cache entry inspection (v0.164.0)
+
+    /// Detailed accessors for the cached-mesh tier (algorithm-derived). All return absent
+    /// values (false / 0 / nil) when no cache entry exists for the entity.
+
+    public func cachedFaceMeshIsPresent(_ faceIndex: Int) -> Bool {
+        OCCTBRepGraphCachedFaceMeshIsPresent(handle, Int32(faceIndex))
+    }
+    public func cachedFaceMeshTriRepCount(_ faceIndex: Int) -> Int {
+        Int(OCCTBRepGraphCachedFaceMeshTriRepCount(handle, Int32(faceIndex)))
+    }
+    public func cachedFaceMeshActiveIndex(_ faceIndex: Int) -> Int {
+        Int(OCCTBRepGraphCachedFaceMeshActiveIndex(handle, Int32(faceIndex)))
+    }
+    public func cachedFaceMeshStoredOwnGen(_ faceIndex: Int) -> UInt32 {
+        OCCTBRepGraphCachedFaceMeshStoredOwnGen(handle, Int32(faceIndex))
+    }
+    public func cachedFaceMeshTriRepId(_ faceIndex: Int, repIndex: Int) -> Int? {
+        let id = Int(OCCTBRepGraphCachedFaceMeshTriRepId(handle, Int32(faceIndex), Int32(repIndex)))
+        return id >= 0 ? id : nil
+    }
+
+    public func cachedEdgeMeshIsPresent(_ edgeIndex: Int) -> Bool {
+        OCCTBRepGraphCachedEdgeMeshIsPresent(handle, Int32(edgeIndex))
+    }
+    public func cachedEdgeMeshPolygon3DRepId(_ edgeIndex: Int) -> Int? {
+        let id = Int(OCCTBRepGraphCachedEdgeMeshPolygon3DRepId(handle, Int32(edgeIndex)))
+        return id >= 0 ? id : nil
+    }
+    public func cachedEdgeMeshStoredOwnGen(_ edgeIndex: Int) -> UInt32 {
+        OCCTBRepGraphCachedEdgeMeshStoredOwnGen(handle, Int32(edgeIndex))
+    }
+
+    public func cachedCoEdgeMeshIsPresent(_ coedgeIndex: Int) -> Bool {
+        OCCTBRepGraphCachedCoEdgeMeshIsPresent(handle, Int32(coedgeIndex))
+    }
+    public func cachedCoEdgeMeshPolygon2DRepId(_ coedgeIndex: Int) -> Int? {
+        let id = Int(OCCTBRepGraphCachedCoEdgeMeshPolygon2DRepId(handle, Int32(coedgeIndex)))
+        return id >= 0 ? id : nil
+    }
+    public func cachedCoEdgeMeshPolygonOnTriRepCount(_ coedgeIndex: Int) -> Int {
+        Int(OCCTBRepGraphCachedCoEdgeMeshPolygonOnTriRepCount(handle, Int32(coedgeIndex)))
+    }
+    public func cachedCoEdgeMeshPolygonOnTriRepId(_ coedgeIndex: Int, repIndex: Int) -> Int? {
+        let id = Int(OCCTBRepGraphCachedCoEdgeMeshPolygonOnTriRepId(handle, Int32(coedgeIndex), Int32(repIndex)))
+        return id >= 0 ? id : nil
+    }
+    public func cachedCoEdgeMeshStoredOwnGen(_ coedgeIndex: Int) -> UInt32 {
+        OCCTBRepGraphCachedCoEdgeMeshStoredOwnGen(handle, Int32(coedgeIndex))
+    }
+
     // MARK: - ML Export (v0.136.0)
 
     /// Graph data exported in ML-friendly format with flat arrays and COO sparse adjacency.

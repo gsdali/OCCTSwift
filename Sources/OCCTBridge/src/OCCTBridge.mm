@@ -57508,6 +57508,200 @@ bool OCCTBRepGraphProductRemoveShapeRoot(OCCTBRepGraphRef g, int32_t productInde
     } catch (...) { return false; }
 }
 
+// MARK: - BRepGraph EditorView v0.164.0 — RepOps non-guard setters
+
+#include <Geom_Surface.hxx>
+#include <Geom_Curve.hxx>
+#include <Geom2d_Curve.hxx>
+
+void OCCTBRepGraphRepSetSurface(OCCTBRepGraphRef g, int32_t surfaceRepId, OCCTSurfaceRef surface) {
+    if (!g || !surface) return;
+    try {
+        BRepGraph_SurfaceRepId rid; rid.Index = (uint32_t)surfaceRepId;
+        const Handle(Geom_Surface)& h = reinterpret_cast<OCCTSurface*>(surface)->surface;
+        g->graph.Editor().Reps().SetSurface(rid, h);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphRepSetCurve3D(OCCTBRepGraphRef g, int32_t curve3DRepId, OCCTCurve3DRef curve) {
+    if (!g || !curve) return;
+    try {
+        BRepGraph_Curve3DRepId rid; rid.Index = (uint32_t)curve3DRepId;
+        const Handle(Geom_Curve)& h = reinterpret_cast<OCCTCurve3D*>(curve)->curve;
+        g->graph.Editor().Reps().SetCurve3D(rid, h);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphRepSetCurve2D(OCCTBRepGraphRef g, int32_t curve2DRepId, OCCTCurve2DRef curve) {
+    if (!g || !curve) return;
+    try {
+        BRepGraph_Curve2DRepId rid; rid.Index = (uint32_t)curve2DRepId;
+        const Handle(Geom2d_Curve)& h = reinterpret_cast<OCCTCurve2D*>(curve)->curve;
+        g->graph.Editor().Reps().SetCurve2D(rid, h);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphRepSetTriangulation(OCCTBRepGraphRef g, int32_t triRepId, OCCTPolyTriangulationRef tri) {
+    if (!g || !tri) return;
+    try {
+        BRepGraph_TriangulationRepId rid; rid.Index = (uint32_t)triRepId;
+        const Handle(Poly_Triangulation)& h = reinterpret_cast<Poly_TriangulationOpaque*>(tri)->triangulation;
+        g->graph.Editor().Reps().SetTriangulation(rid, h);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphRepSetPolygon3D(OCCTBRepGraphRef g, int32_t polyRepId, OCCTPolyPolygon3DRef poly) {
+    if (!g || !poly) return;
+    try {
+        BRepGraph_Polygon3DRepId rid; rid.Index = (uint32_t)polyRepId;
+        const Handle(Poly_Polygon3D)& h = reinterpret_cast<Poly_Polygon3DOpaque*>(poly)->polygon;
+        g->graph.Editor().Reps().SetPolygon3D(rid, h);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphRepSetPolygon2D(OCCTBRepGraphRef g, int32_t polyRepId, OCCTPolyPolygon2DRef poly) {
+    if (!g || !poly) return;
+    try {
+        BRepGraph_Polygon2DRepId rid; rid.Index = (uint32_t)polyRepId;
+        const Handle(Poly_Polygon2D)& h = reinterpret_cast<Poly_Polygon2DOpaque*>(poly)->polygon;
+        g->graph.Editor().Reps().SetPolygon2D(rid, h);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphRepSetPolygonOnTri(OCCTBRepGraphRef g, int32_t polyRepId, OCCTPolyPolygonOnTriRef poly) {
+    if (!g || !poly) return;
+    try {
+        BRepGraph_PolygonOnTriRepId rid; rid.Index = (uint32_t)polyRepId;
+        const Handle(Poly_PolygonOnTriangulation)& h = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(poly)->polygon;
+        g->graph.Editor().Reps().SetPolygonOnTri(rid, h);
+    } catch (...) {}
+}
+
+void OCCTBRepGraphRepSetPolygonOnTriTriangulationId(OCCTBRepGraphRef g, int32_t polyOnTriRepId, int32_t triRepId) {
+    if (!g) return;
+    try {
+        BRepGraph_PolygonOnTriRepId polyRid; polyRid.Index = (uint32_t)polyOnTriRepId;
+        BRepGraph_TriangulationRepId triRid; triRid.Index = (uint32_t)triRepId;
+        g->graph.Editor().Reps().SetPolygonOnTriTriangulationId(polyRid, triRid);
+    } catch (...) {}
+}
+
+// MARK: - BRepGraph MeshView v0.164.0 — cache entry inspection
+
+#include <BRepGraph_MeshCache.hxx>
+
+bool OCCTBRepGraphCachedFaceMeshIsPresent(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return false;
+    try {
+        const auto* entry = g->graph.Mesh().Faces().CachedMesh(BRepGraph_FaceId(faceIndex));
+        return entry && entry->IsPresent();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphCachedFaceMeshTriRepCount(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try {
+        const auto* entry = g->graph.Mesh().Faces().CachedMesh(BRepGraph_FaceId(faceIndex));
+        return entry ? (int32_t)entry->TriangulationRepIds.Length() : 0;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphCachedFaceMeshActiveIndex(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return -1;
+    try {
+        const auto* entry = g->graph.Mesh().Faces().CachedMesh(BRepGraph_FaceId(faceIndex));
+        return entry ? (int32_t)entry->ActiveTriangulationIndex : -1;
+    } catch (...) { return -1; }
+}
+
+uint32_t OCCTBRepGraphCachedFaceMeshStoredOwnGen(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try {
+        const auto* entry = g->graph.Mesh().Faces().CachedMesh(BRepGraph_FaceId(faceIndex));
+        return entry ? entry->StoredOwnGen : 0u;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphCachedFaceMeshTriRepId(OCCTBRepGraphRef g, int32_t faceIndex, int32_t repIndex) {
+    if (!g) return -1;
+    try {
+        const auto* entry = g->graph.Mesh().Faces().CachedMesh(BRepGraph_FaceId(faceIndex));
+        if (!entry) return -1;
+        if (repIndex < 0 || repIndex >= entry->TriangulationRepIds.Length()) return -1;
+        const auto& rid = entry->TriangulationRepIds.Value(repIndex);
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+bool OCCTBRepGraphCachedEdgeMeshIsPresent(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return false;
+    try {
+        const auto* entry = g->graph.Mesh().Edges().CachedMesh(BRepGraph_EdgeId(edgeIndex));
+        return entry && entry->IsPresent();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphCachedEdgeMeshPolygon3DRepId(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return -1;
+    try {
+        const auto* entry = g->graph.Mesh().Edges().CachedMesh(BRepGraph_EdgeId(edgeIndex));
+        if (!entry) return -1;
+        return entry->Polygon3DRepId.IsValid() ? (int32_t)entry->Polygon3DRepId.Index : -1;
+    } catch (...) { return -1; }
+}
+
+uint32_t OCCTBRepGraphCachedEdgeMeshStoredOwnGen(OCCTBRepGraphRef g, int32_t edgeIndex) {
+    if (!g) return 0;
+    try {
+        const auto* entry = g->graph.Mesh().Edges().CachedMesh(BRepGraph_EdgeId(edgeIndex));
+        return entry ? entry->StoredOwnGen : 0u;
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepGraphCachedCoEdgeMeshIsPresent(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return false;
+    try {
+        const auto* entry = g->graph.Mesh().CoEdges().CachedMesh(BRepGraph_CoEdgeId(coedgeIndex));
+        return entry && entry->IsPresent();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepGraphCachedCoEdgeMeshPolygon2DRepId(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return -1;
+    try {
+        const auto* entry = g->graph.Mesh().CoEdges().CachedMesh(BRepGraph_CoEdgeId(coedgeIndex));
+        if (!entry) return -1;
+        return entry->Polygon2DRepId.IsValid() ? (int32_t)entry->Polygon2DRepId.Index : -1;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTBRepGraphCachedCoEdgeMeshPolygonOnTriRepCount(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return 0;
+    try {
+        const auto* entry = g->graph.Mesh().CoEdges().CachedMesh(BRepGraph_CoEdgeId(coedgeIndex));
+        return entry ? (int32_t)entry->PolygonOnTriRepIds.Length() : 0;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepGraphCachedCoEdgeMeshPolygonOnTriRepId(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t repIndex) {
+    if (!g) return -1;
+    try {
+        const auto* entry = g->graph.Mesh().CoEdges().CachedMesh(BRepGraph_CoEdgeId(coedgeIndex));
+        if (!entry) return -1;
+        if (repIndex < 0 || repIndex >= entry->PolygonOnTriRepIds.Length()) return -1;
+        const auto& rid = entry->PolygonOnTriRepIds.Value(repIndex);
+        return rid.IsValid() ? (int32_t)rid.Index : -1;
+    } catch (...) { return -1; }
+}
+
+uint32_t OCCTBRepGraphCachedCoEdgeMeshStoredOwnGen(OCCTBRepGraphRef g, int32_t coedgeIndex) {
+    if (!g) return 0;
+    try {
+        const auto* entry = g->graph.Mesh().CoEdges().CachedMesh(BRepGraph_CoEdgeId(coedgeIndex));
+        return entry ? entry->StoredOwnGen : 0u;
+    } catch (...) { return 0; }
+}
+
 // MARK: - BRepGraph ML Export & Sampling (v0.136.0)
 
 #include <BRepTools.hxx>
