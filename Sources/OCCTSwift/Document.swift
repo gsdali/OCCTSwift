@@ -47,6 +47,22 @@ public final class Document: @unchecked Sendable {
         try load(from: url, progress: progress)
     }
 
+    /// Write the document to a STEP file with progress + cancellation.
+    ///
+    /// - Throws: `ImportError.cancelled` if cancelled cooperatively,
+    ///   `ImportError.importFailed` on other failure (the case name reuses
+    ///   `ImportError` because we share the cancellation channel — see #98).
+    public func writeSTEP(to url: URL, progress: ImportProgress?) throws {
+        var cancelled: Bool = false
+        let success: Bool = withImportProgress(progress) { ctx in
+            OCCTDocumentWriteSTEPProgress(handle, url.path, ctx, &cancelled)
+        }
+        if cancelled { throw ImportError.cancelled }
+        if !success {
+            throw ImportError.importFailed("STEP write to \(url.lastPathComponent) failed")
+        }
+    }
+
     /// Create a new empty document
     public static func create() -> Document? {
         guard let handle = OCCTDocumentCreate() else {

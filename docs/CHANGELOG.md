@@ -2,13 +2,57 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.168.0
+## Current: v0.169.0
 
-**4,276 wrapped operations | 3,387 tests | 1,177 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta1**
+**4,281 wrapped operations | 3,393 tests | 1,178 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.169.0 (May 2026) — Mesh + export progress (issue #98 follow-up)
+
+Extends the `ImportProgress` channel from v0.168 to two more long-running OCCT operations called out as out-of-scope in the original issue: `BRepMesh_IncrementalMesh::Perform` and the STEP / IGES writers. Same protocol, same cancellation contract.
+
+**New Swift API**:
+
+```swift
+extension Shape {
+    /// Run BRepMesh_IncrementalMesh with progress + cooperative cancellation.
+    /// Throws ImportError.cancelled if cancelled.
+    @discardableResult
+    public func meshWithProgress(
+        linearDeflection: Double = 0.1,
+        angularDeflection: Double = 0.5,
+        progress: ImportProgress? = nil
+    ) throws -> Shape
+}
+
+extension Exporter {
+    /// Export a shape to STEP with progress + cancellation.
+    /// Throws ExportError.cancelled if cancelled.
+    public static func writeSTEP(shape: Shape, to url: URL, progress: ImportProgress?) throws
+
+    /// Export a shape to IGES with progress + cancellation.
+    public static func writeIGES(shape: Shape, to url: URL, progress: ImportProgress?) throws
+}
+
+extension Document {
+    /// Write the document to a STEP file with progress + cancellation.
+    /// Throws ImportError.cancelled if cancelled.
+    public func writeSTEP(to url: URL, progress: ImportProgress?) throws
+}
+
+extension ExportError {
+    case cancelled
+}
+```
+
+**Bridge plumbing**: 5 new entry points (`OCCTShapeIncrementalMeshProgress`, `OCCTExportSTEPProgress`, `OCCTExportSTEPWithModeProgress`, `OCCTExportIGESProgress`, `OCCTDocumentWriteSTEPProgress`) reusing the existing `BridgeProgressIndicator` from v0.168. `BRepMesh_IncrementalMesh::Perform(Message_ProgressRange&)`, `STEPControl_Writer::Transfer(...range)`, `IGESControl_Writer::AddShape(...range)`, and `STEPCAFControl_Writer::Transfer(...range)` all accept the indicator's progress range.
+
+**Why `ImportProgress` is the type for export too**: it's the same channel — progress + cancel. Adding parallel `ExportProgress`/`MeshProgress` protocols would multiply types without functional benefit. The protocol name reads slightly oddly in export contexts; pre-1.0 we accept that, and v1.0 will likely rename to `OperationProgress`.
+
+6 new tests cover meshing progress + cancellation, STEP/IGES export with `progress: nil` (back-compat), STEP export progress fires, and `Document.writeSTEP(to:progress:)` round-trip.
 
 ### v0.168.0 (May 2026) — STEP/IGES import progress + cancellation (issue #98)
 

@@ -960,6 +960,38 @@ OCCTShapeRef _Nullable OCCTImportIGESRobustProgress(const char* _Nonnull path,
                                                       const OCCTImportProgress* _Nullable ctx,
                                                       bool* _Nullable outCancelled);
 
+// MARK: - Mesh + export progress (v0.169.0, follow-up to issue #98)
+//
+// Same OCCTImportProgress channel, different operations. The struct name is
+// kept for ABI compatibility; the OperationProgress / ExportProgress / MeshProgress
+// Swift typealiases live in the OCCTSwift module.
+
+/// Run BRepMesh_IncrementalMesh on a shape with optional progress + cancellation.
+/// Returns the meshed shape (same handle, mutated in place; new OCCTShape wrapping the
+/// same TopoDS_Shape) on success, or nullptr on failure / cancellation. Sets
+/// *outCancelled=true on cancellation.
+OCCTShapeRef _Nullable OCCTShapeIncrementalMeshProgress(OCCTShapeRef _Nonnull shape,
+                                                          double linearDeflection,
+                                                          double angularDeflection,
+                                                          const OCCTImportProgress* _Nullable ctx,
+                                                          bool* _Nullable outCancelled);
+
+/// Export a shape to STEP with optional progress + cancellation.
+bool OCCTExportSTEPProgress(OCCTShapeRef _Nonnull shape, const char* _Nonnull path,
+                             const OCCTImportProgress* _Nullable ctx,
+                             bool* _Nullable outCancelled);
+
+/// Export a shape to STEP with explicit model type + progress.
+bool OCCTExportSTEPWithModeProgress(OCCTShapeRef _Nonnull shape, const char* _Nonnull path,
+                                      int32_t modelType,
+                                      const OCCTImportProgress* _Nullable ctx,
+                                      bool* _Nullable outCancelled);
+
+/// Export a shape to IGES with optional progress + cancellation.
+bool OCCTExportIGESProgress(OCCTShapeRef _Nonnull shape, const char* _Nonnull path,
+                             const OCCTImportProgress* _Nullable ctx,
+                             bool* _Nullable outCancelled);
+
 // Document progress entry points are declared further down (after OCCTDocumentRef typedef).
 
 // MARK: - Robust STEP Import
@@ -1227,6 +1259,11 @@ OCCTDocumentRef _Nullable OCCTDocumentLoadSTEPWithModesProgress(const char* _Non
                                                                   bool propsMode, bool gdtMode, bool matMode,
                                                                   const OCCTImportProgress* _Nullable ctx,
                                                                   bool* _Nullable outCancelled);
+
+/// Write a Document to STEP with optional progress + cancellation.
+bool OCCTDocumentWriteSTEPProgress(OCCTDocumentRef _Nonnull doc, const char* _Nonnull path,
+                                     const OCCTImportProgress* _Nullable ctx,
+                                     bool* _Nullable outCancelled);
 
 /// Create a new empty XDE document
 OCCTDocumentRef OCCTDocumentCreate(void);

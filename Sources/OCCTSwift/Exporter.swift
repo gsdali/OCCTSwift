@@ -37,6 +37,8 @@ public enum Exporter {
         case exportFailed(String)
         case invalidPath
         case invalidShape
+        /// The export was cancelled cooperatively via `ImportProgress.shouldCancel()`.
+        case cancelled
 
         public var errorDescription: String? {
             switch self {
@@ -46,6 +48,8 @@ public enum Exporter {
                 return "Invalid file path"
             case .invalidShape:
                 return "Shape is invalid or empty"
+            case .cancelled:
+                return "Export cancelled"
             }
         }
     }
@@ -194,6 +198,49 @@ public enum Exporter {
 
         if !success {
             throw ExportError.exportFailed("STEP export to \(url.lastPathComponent) failed")
+        }
+    }
+
+    /// Export a shape to STEP with progress + cancellation.
+    ///
+    /// - Throws: `ExportError.cancelled` if cancelled cooperatively, `ExportError.exportFailed`
+    ///   on other failure, `ExportError.invalidShape` / `.invalidPath` on bad inputs.
+    public static func writeSTEP(
+        shape: Shape,
+        to url: URL,
+        progress: ImportProgress?
+    ) throws {
+        guard shape.isValid else { throw ExportError.invalidShape }
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+
+        var cancelled: Bool = false
+        let success: Bool = withImportProgress(progress) { ctx in
+            OCCTExportSTEPProgress(shape.handle, path, ctx, &cancelled)
+        }
+        if cancelled { throw ExportError.cancelled }
+        if !success {
+            throw ExportError.exportFailed("STEP export to \(url.lastPathComponent) failed")
+        }
+    }
+
+    /// Export a shape to IGES with progress + cancellation.
+    public static func writeIGES(
+        shape: Shape,
+        to url: URL,
+        progress: ImportProgress?
+    ) throws {
+        guard shape.isValid else { throw ExportError.invalidShape }
+        let path = url.path
+        guard !path.isEmpty else { throw ExportError.invalidPath }
+
+        var cancelled: Bool = false
+        let success: Bool = withImportProgress(progress) { ctx in
+            OCCTExportIGESProgress(shape.handle, path, ctx, &cancelled)
+        }
+        if cancelled { throw ExportError.cancelled }
+        if !success {
+            throw ExportError.exportFailed("IGES export to \(url.lastPathComponent) failed")
         }
     }
 

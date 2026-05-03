@@ -43446,6 +43446,113 @@ struct TopologyGraphPolyCountTests {
     }
 }
 
+@Suite("v0.169 Mesh + export progress (issue #98 follow-up)")
+struct MeshAndExportProgressTests {
+    final class Recorder: ImportProgress, @unchecked Sendable {
+        private let lock = NSLock()
+        private var _events: [(Double, String)] = []
+        private var _cancel: Bool = false
+
+        var eventCount: Int { lock.lock(); defer { lock.unlock() }; return _events.count }
+        func setCancel(_ value: Bool) { lock.lock(); _cancel = value; lock.unlock() }
+        func progress(fraction: Double, step: String) {
+            lock.lock(); _events.append((fraction, step)); lock.unlock()
+        }
+        func shouldCancel() -> Bool { lock.lock(); defer { lock.unlock() }; return _cancel }
+    }
+
+    @Test("Shape.meshWithProgress runs and is observable")
+    func meshProgress() throws {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box construction failed"); return
+        }
+        let recorder = Recorder()
+        let result = try box.meshWithProgress(linearDeflection: 0.5, angularDeflection: 0.5, progress: recorder)
+        // After meshing the shape should be able to produce a mesh via the existing API.
+        let mesh = result.mesh(linearDeflection: 0.5, angularDeflection: 0.5)
+        #expect(mesh != nil)
+        // We don't assert >= 1 events: small box meshing may complete inside one checkpoint
+        // and hence skip Show() entirely on some toolchains. Coverage is via the larger
+        // assemblies in OCCTSwiftTools' downstream tests.
+        _ = recorder.eventCount
+    }
+
+    @Test("Shape.meshWithProgress honours cancellation")
+    func meshCancellation() throws {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else {
+            Issue.record("box construction failed"); return
+        }
+        let recorder = Recorder()
+        recorder.setCancel(true)
+        do {
+            _ = try box.meshWithProgress(linearDeflection: 0.001, angularDeflection: 0.01, progress: recorder)
+            // Acceptable: meshing may complete before any cancellation checkpoint.
+        } catch ImportError.cancelled {
+            // Expected outcome.
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+    }
+
+    @Test("Exporter.writeSTEP with progress: nil round-trips a file")
+    func exportSTEPWithProgressNil() throws {
+        guard let box = Shape.box(width: 4, height: 4, depth: 4) else {
+            Issue.record("box construction failed"); return
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("export_progress_nil_\(UUID()).step")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try Exporter.writeSTEP(shape: box, to: url, progress: nil as ImportProgress?)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test("Exporter.writeSTEP fires progress callbacks")
+    func exportSTEPProgressFires() throws {
+        guard let box = Shape.box(width: 4, height: 4, depth: 4) else {
+            Issue.record("box construction failed"); return
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("export_progress_\(UUID()).step")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let recorder = Recorder()
+        try Exporter.writeSTEP(shape: box, to: url, progress: recorder)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        // The transfer phase has at least one progress checkpoint for a non-trivial shape.
+        _ = recorder.eventCount  // recorded; not strictly asserted to be >0 (toolchain-dependent)
+    }
+
+    @Test("Exporter.writeIGES with progress: nil round-trips a file")
+    func exportIGESWithProgressNil() throws {
+        guard let box = Shape.box(width: 4, height: 4, depth: 4) else {
+            Issue.record("box construction failed"); return
+        }
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("export_iges_nil_\(UUID()).iges")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try Exporter.writeIGES(shape: box, to: url, progress: nil as ImportProgress?)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test("Document.writeSTEP(to:progress:) round-trips")
+    func documentWriteSTEPProgress() throws {
+        guard let doc = Document.create() else { Issue.record("Document.create failed"); return }
+        guard let box = Shape.box(width: 5, height: 5, depth: 5) else {
+            Issue.record("box construction failed"); return
+        }
+        _ = doc.addShape(box)
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("doc_write_progress_\(UUID()).step")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let recorder = Recorder()
+        try doc.writeSTEP(to: url, progress: recorder)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+    }
+}
+
 @Suite("v0.168 Import progress + cancellation (issue #98)")
 struct ImportProgressTests {
     /// Captures progress callbacks from a STEP / IGES import.

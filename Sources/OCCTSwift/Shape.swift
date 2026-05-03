@@ -681,6 +681,36 @@ public final class Shape: @unchecked Sendable {
         return Mesh(handle: meshHandle)
     }
 
+    /// Generate a triangulated mesh with progress + cancellation support.
+    ///
+    /// Wraps `BRepMesh_IncrementalMesh::Perform(Message_ProgressRange&)` so callers can
+    /// observe meshing progress on large or finely-tessellated assemblies and cooperatively
+    /// cancel via `progress.shouldCancel()`. After meshing completes, the shape's faces
+    /// have triangulations attached and `mesh()` (no progress) can extract them.
+    ///
+    /// - Throws: `ImportError.cancelled` if the meshing was cancelled cooperatively.
+    /// - Returns: The same shape (with triangulations attached) on success, or nil on
+    ///   internal failure (no exception thrown for non-cancellation failures, matching
+    ///   the existing `mesh()` API).
+    @discardableResult
+    public func meshWithProgress(
+        linearDeflection: Double = 0.1,
+        angularDeflection: Double = 0.5,
+        progress: ImportProgress? = nil
+    ) throws -> Shape {
+        var cancelled: Bool = false
+        let result: OCCTShapeRef? = withImportProgress(progress) { ctx in
+            OCCTShapeIncrementalMeshProgress(handle, linearDeflection, angularDeflection, ctx, &cancelled)
+        }
+        if cancelled { throw ImportError.cancelled }
+        // Triangulations are attached to self; the returned handle wraps the same
+        // TopoDS_Shape. Release the new wrapper if we don't need it as a separate object.
+        if let result {
+            OCCTShapeRelease(result)
+        }
+        return self
+    }
+
     /// Generate a triangulated mesh with enhanced parameters.
     ///
     /// This method provides fine-grained control over tessellation quality,

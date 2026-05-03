@@ -2566,6 +2566,102 @@ OCCTDocumentRef OCCTDocumentLoadSTEPProgress(const char* path,
     } catch (...) { delete document; return nullptr; }
 }
 
+// MARK: - Mesh + export progress (v0.169.0, issue #98 follow-up)
+
+OCCTShapeRef OCCTShapeIncrementalMeshProgress(OCCTShapeRef shape,
+                                                double linearDeflection,
+                                                double angularDeflection,
+                                                const OCCTImportProgress* ctx,
+                                                bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!shape) return nullptr;
+    try {
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        BRepMesh_IncrementalMesh mesher(shape->shape, linearDeflection, Standard_False, angularDeflection);
+        mesher.Perform(range);
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return nullptr; }
+        // Return a new OCCTShape wrapping the same (now-meshed) TopoDS_Shape so callers
+        // can chain. The original handle is also valid.
+        return new OCCTShape(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTExportSTEPProgress(OCCTShapeRef shape, const char* path,
+                              const OCCTImportProgress* ctx, bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!shape || !path) return false;
+    try {
+        STEPControl_Writer writer;
+        Interface_Static::SetCVal("write.step.schema", "AP214");
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        IFSelect_ReturnStatus status = writer.Transfer(shape->shape, STEPControl_AsIs, true, range);
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return false; }
+        if (status != IFSelect_RetDone) return false;
+        return writer.Write(path) == IFSelect_RetDone;
+    } catch (...) { return false; }
+}
+
+bool OCCTExportSTEPWithModeProgress(OCCTShapeRef shape, const char* path, int32_t modelType,
+                                      const OCCTImportProgress* ctx, bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!shape || !path) return false;
+    try {
+        STEPControl_Writer writer;
+        Interface_Static::SetCVal("write.step.schema", "AP214");
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        STEPControl_StepModelType mode = static_cast<STEPControl_StepModelType>(modelType);
+        IFSelect_ReturnStatus status = writer.Transfer(shape->shape, mode, true, range);
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return false; }
+        if (status != IFSelect_RetDone) return false;
+        return writer.Write(path) == IFSelect_RetDone;
+    } catch (...) { return false; }
+}
+
+bool OCCTExportIGESProgress(OCCTShapeRef shape, const char* path,
+                              const OCCTImportProgress* ctx, bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!shape || !path || shape->shape.IsNull()) return false;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
+    try {
+        BRepCheck_Analyzer analyzer(shape->shape);
+        if (!analyzer.IsValid()) return false;
+
+        IGESControl_Writer writer("MM", 0);
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        if (!writer.AddShape(shape->shape, range)) return false;
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return false; }
+        writer.ComputeModel();
+        return writer.Write(path);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentWriteSTEPProgress(OCCTDocumentRef doc, const char* path,
+                                     const OCCTImportProgress* ctx, bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!doc || !path) return false;
+    try {
+        STEPCAFControl_Writer writer;
+        writer.SetColorMode(Standard_True);
+        writer.SetNameMode(Standard_True);
+        writer.SetLayerMode(Standard_True);
+        writer.SetPropsMode(Standard_True);
+        writer.SetMaterialMode(Standard_True);
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        if (!writer.Transfer(doc->doc, STEPControl_AsIs, nullptr, range)) {
+            if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return false; }
+            return false;
+        }
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return false; }
+        IFSelect_ReturnStatus status = writer.Write(path);
+        return status == IFSelect_RetDone;
+    } catch (...) { return false; }
+}
+
 OCCTDocumentRef OCCTDocumentLoadSTEPWithModesProgress(const char* path,
                                                         bool colorMode, bool nameMode, bool layerMode,
                                                         bool propsMode, bool gdtMode, bool matMode,
