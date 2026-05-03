@@ -14,27 +14,19 @@
 //
 
 #import "../include/OCCTBridge.h"
+#import "OCCTBridge_Internal.h"
 
-// OCCT headers — kept minimal to what this TU actually uses. Anything missing
-// here is a build error, not a silent dependency on the rest of OCCTBridge.mm.
+// Area-specific OCCT headers — the foundation set + handle wrappers come from
+// OCCTBridge_Internal.h, this block is just the BRepGraph-block extras.
 
-#include <TopoDS.hxx>
-#include <TopoDS_Shape.hxx>
-#include <TopoDS_Face.hxx>
 #include <TopAbs_Orientation.hxx>
 #include <TopLoc_Location.hxx>
+#include <TopoDS.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Pnt2d.hxx>
 #include <gp_Vec.hxx>
 #include <gp_Trsf.hxx>
-#include <Geom_Surface.hxx>
-#include <Geom_Curve.hxx>
-#include <Geom2d_Curve.hxx>
 #include <Poly_Triangle.hxx>
-#include <Poly_Triangulation.hxx>
-#include <Poly_Polygon3D.hxx>
-#include <Poly_Polygon2D.hxx>
-#include <Poly_PolygonOnTriangulation.hxx>
 #include <BRepTools.hxx>
 #include <GeomLProp_SLProps.hxx>
 #include <Precision.hxx>
@@ -43,55 +35,6 @@
 #include <NCollection_DynamicArray.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <GeomAbs_Shape.hxx>
-
-// === Foundation struct definitions ===
-//
-// Repeated from OCCTBridge.mm. The C++ One Definition Rule allows identical
-// struct definitions in multiple TUs (they're treated as the same type).
-// Keep these byte-for-byte equal to the canonical defs in OCCTBridge.mm.
-
-struct OCCTShape {
-    TopoDS_Shape shape;
-
-    OCCTShape() {}
-    OCCTShape(const TopoDS_Shape& s) : shape(s) {}
-};
-
-struct OCCTCurve2D {
-    Handle(Geom2d_Curve) curve;
-
-    OCCTCurve2D() {}
-    OCCTCurve2D(const Handle(Geom2d_Curve)& c) : curve(c) {}
-};
-
-struct OCCTCurve3D {
-    Handle(Geom_Curve) curve;
-
-    OCCTCurve3D() {}
-    OCCTCurve3D(const Handle(Geom_Curve)& c) : curve(c) {}
-};
-
-struct OCCTSurface {
-    Handle(Geom_Surface) surface;
-    OCCTSurface() {}
-    OCCTSurface(const Handle(Geom_Surface)& s) : surface(s) {}
-};
-
-struct Poly_TriangulationOpaque {
-    Handle(Poly_Triangulation) triangulation;
-};
-
-struct Poly_Polygon3DOpaque {
-    Handle(Poly_Polygon3D) polygon;
-};
-
-struct Poly_Polygon2DOpaque {
-    Handle(Poly_Polygon2D) polygon;
-};
-
-struct Poly_PolygonOnTriangulationOpaque {
-    Handle(Poly_PolygonOnTriangulation) polygon;
-};
 
 // === Local static helper duplicated from OCCTBridge.mm ===
 //
