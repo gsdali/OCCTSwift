@@ -915,6 +915,53 @@ bool OCCTExportSTEPWithName(OCCTShapeRef shape, const char* path, const char* na
 
 OCCTShapeRef OCCTImportSTEP(const char* path);
 
+// MARK: - Import progress + cancellation (v0.168.0, issue #98)
+//
+// Wrapper for OCCT's Message_ProgressIndicator. Pass a non-NULL OCCTImportProgress
+// struct to the *Progress entry points to receive progress callbacks during
+// STEP/IGES TransferRoots and to request cooperative cancellation.
+//
+// Lifetime: the OCCTImportProgress* must remain valid for the duration of the
+// import call. The bridge does not retain it. userData is passed back unchanged.
+//
+// Cancellation: if shouldCancel returns true, OCCT stops at the next polling
+// boundary. The *Progress entry points return NULL and set *outCancelled=true.
+// If the import otherwise fails, NULL is returned and *outCancelled stays false.
+
+typedef struct OCCTImportProgress {
+    /// Called as the importer advances. fraction is 0.0...1.0; step is a
+    /// human-readable name of the current sub-task (may be NULL or empty).
+    void (* _Nullable onProgress)(double fraction, const char* _Nullable step, void* _Nullable userData);
+
+    /// Return true to cooperatively cancel the in-flight import.
+    bool (* _Nullable shouldCancel)(void* _Nullable userData);
+
+    /// Opaque pointer passed back to onProgress and shouldCancel.
+    void* _Nullable userData;
+} OCCTImportProgress;
+
+OCCTShapeRef _Nullable OCCTImportSTEPProgress(const char* _Nonnull path,
+                                                const OCCTImportProgress* _Nullable ctx,
+                                                bool* _Nullable outCancelled);
+
+OCCTShapeRef _Nullable OCCTImportSTEPRobustProgress(const char* _Nonnull path,
+                                                      const OCCTImportProgress* _Nullable ctx,
+                                                      bool* _Nullable outCancelled);
+
+OCCTShapeRef _Nullable OCCTImportSTEPWithUnitProgress(const char* _Nonnull path, double unitInMeters,
+                                                       const OCCTImportProgress* _Nullable ctx,
+                                                       bool* _Nullable outCancelled);
+
+OCCTShapeRef _Nullable OCCTImportIGESProgress(const char* _Nonnull path,
+                                                const OCCTImportProgress* _Nullable ctx,
+                                                bool* _Nullable outCancelled);
+
+OCCTShapeRef _Nullable OCCTImportIGESRobustProgress(const char* _Nonnull path,
+                                                      const OCCTImportProgress* _Nullable ctx,
+                                                      bool* _Nullable outCancelled);
+
+// Document progress entry points are declared further down (after OCCTDocumentRef typedef).
+
 // MARK: - Robust STEP Import
 
 /// Import result structure with diagnostics
@@ -1170,6 +1217,16 @@ double OCCTEdgeGetDihedralAngle(OCCTEdgeRef edge, OCCTFaceRef face1, OCCTFaceRef
 
 /// Opaque handle for XDE document
 typedef struct OCCTDocument* OCCTDocumentRef;
+
+OCCTDocumentRef _Nullable OCCTDocumentLoadSTEPProgress(const char* _Nonnull path,
+                                                         const OCCTImportProgress* _Nullable ctx,
+                                                         bool* _Nullable outCancelled);
+
+OCCTDocumentRef _Nullable OCCTDocumentLoadSTEPWithModesProgress(const char* _Nonnull path,
+                                                                  bool colorMode, bool nameMode, bool layerMode,
+                                                                  bool propsMode, bool gdtMode, bool matMode,
+                                                                  const OCCTImportProgress* _Nullable ctx,
+                                                                  bool* _Nullable outCancelled);
 
 /// Create a new empty XDE document
 OCCTDocumentRef OCCTDocumentCreate(void);

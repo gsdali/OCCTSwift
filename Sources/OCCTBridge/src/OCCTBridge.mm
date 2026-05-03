@@ -2333,6 +2333,276 @@ bool OCCTExportSTEPWithName(OCCTShapeRef shape, const char* path, const char* na
     }
 }
 
+// MARK: - Import progress + cancellation (v0.168.0, issue #98)
+
+#include <Message_ProgressIndicator.hxx>
+#include <Message_ProgressScope.hxx>
+#include <Message_ProgressRange.hxx>
+
+// Forward decl: igesMutex() is defined alongside the existing IGES bridge functions
+// further down in the file. The Progress variants need to take the same lock.
+static std::mutex& igesMutex();
+
+namespace {
+
+class BridgeProgressIndicator : public Message_ProgressIndicator {
+public:
+    BridgeProgressIndicator(const OCCTImportProgress* ctx) : myCtx(ctx) {}
+
+    void Show(const Message_ProgressScope& theScope, const Standard_Boolean isForce) override {
+        (void)isForce;
+        if (!myCtx || !myCtx->onProgress) return;
+        // GetPosition() reports global progress 0.0...1.0.
+        const double fraction = GetPosition();
+        const char* name = theScope.Name();
+        myCtx->onProgress(fraction, name, myCtx->userData);
+    }
+
+    Standard_Boolean UserBreak() override {
+        if (!myCtx || !myCtx->shouldCancel) return Standard_False;
+        return myCtx->shouldCancel(myCtx->userData) ? Standard_True : Standard_False;
+    }
+
+    DEFINE_STANDARD_RTTI_INLINE(BridgeProgressIndicator, Message_ProgressIndicator)
+
+private:
+    const OCCTImportProgress* myCtx;
+};
+
+DEFINE_STANDARD_HANDLE(BridgeProgressIndicator, Message_ProgressIndicator)
+
+static inline void clearCancelOut(bool* outCancelled) {
+    if (outCancelled) *outCancelled = false;
+}
+static inline void setCancelOut(bool* outCancelled, opencascade::handle<BridgeProgressIndicator>& ind) {
+    if (outCancelled && !ind.IsNull()) *outCancelled = ind->UserBreak() ? true : false;
+}
+
+}
+
+OCCTShapeRef OCCTImportSTEPProgress(const char* path,
+                                      const OCCTImportProgress* ctx,
+                                      bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!path) return nullptr;
+    try {
+        STEPControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        reader.TransferRoots(range);
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return nullptr; }
+
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTImportSTEPRobustProgress(const char* path,
+                                            const OCCTImportProgress* ctx,
+                                            bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!path) return nullptr;
+    try {
+        STEPControl_Reader reader;
+        Interface_Static::SetIVal("read.precision.mode", 0);
+        Interface_Static::SetRVal("read.maxprecision.val", 0.1);
+        Interface_Static::SetIVal("read.surfacecurve.mode", 3);
+        Interface_Static::SetIVal("read.step.product.mode", 1);
+
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        if (reader.TransferRoots(range) == 0) return nullptr;
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return nullptr; }
+
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+
+        TopAbs_ShapeEnum shapeType = shape.ShapeType();
+        if (shapeType == TopAbs_SOLID) {
+            ShapeFix_Shape fixer(shape);
+            fixer.Perform();
+            TopoDS_Shape fixed = fixer.Shape();
+            return new OCCTShape(fixed.IsNull() ? shape : fixed);
+        }
+        if (shapeType == TopAbs_COMPOUND || shapeType == TopAbs_SHELL || shapeType == TopAbs_FACE) {
+            BRepBuilderAPI_Sewing sewing(1.0e-4);
+            sewing.SetNonManifoldMode(Standard_False);
+            sewing.Add(shape);
+            sewing.Perform();
+            TopoDS_Shape sewedShape = sewing.SewedShape();
+            if (sewedShape.IsNull()) sewedShape = shape;
+
+            TopoDS_Shape resultShape = sewedShape;
+            if (sewedShape.ShapeType() != TopAbs_SOLID) {
+                TopExp_Explorer shellExp(sewedShape, TopAbs_SHELL);
+                if (shellExp.More()) {
+                    BRepBuilderAPI_MakeSolid makeSolid(TopoDS::Shell(shellExp.Current()));
+                    if (makeSolid.IsDone()) resultShape = makeSolid.Solid();
+                }
+            }
+            ShapeFix_Shape fixer(resultShape);
+            fixer.Perform();
+            TopoDS_Shape fixed = fixer.Shape();
+            return new OCCTShape(fixed.IsNull() ? resultShape : fixed);
+        }
+        ShapeFix_Shape fixer(shape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+        return new OCCTShape(fixed.IsNull() ? shape : fixed);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTImportSTEPWithUnitProgress(const char* path, double unitInMeters,
+                                              const OCCTImportProgress* ctx,
+                                              bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!path) return nullptr;
+    try {
+        STEPControl_Reader reader;
+        reader.SetSystemLengthUnit(unitInMeters);
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        reader.TransferRoots(range);
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return nullptr; }
+
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTImportIGESProgress(const char* path,
+                                      const OCCTImportProgress* ctx,
+                                      bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!path) return nullptr;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
+    try {
+        IGESControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        reader.TransferRoots(range);
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return nullptr; }
+
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTImportIGESRobustProgress(const char* path,
+                                            const OCCTImportProgress* ctx,
+                                            bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!path) return nullptr;
+    std::lock_guard<std::mutex> igesLock(igesMutex());
+    try {
+        IGESControl_Reader reader;
+        Interface_Static::SetIVal("read.precision.mode", 0);
+        Interface_Static::SetRVal("read.precision.val", 0.0001);
+
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        if (reader.TransferRoots(range) == 0) return nullptr;
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); return nullptr; }
+
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+
+        ShapeFix_Shape fixer(shape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+        return new OCCTShape(fixed.IsNull() ? shape : fixed);
+    } catch (...) { return nullptr; }
+}
+
+OCCTDocumentRef OCCTDocumentLoadSTEPProgress(const char* path,
+                                               const OCCTImportProgress* ctx,
+                                               bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!path) return nullptr;
+    OCCTDocument* document = nullptr;
+    try {
+        document = new OCCTDocument();
+        document->app->NewDocument("MDTV-XCAF", document->doc);
+        if (document->doc.IsNull()) { delete document; return nullptr; }
+
+        STEPCAFControl_Reader reader;
+        reader.SetColorMode(Standard_True);
+        reader.SetNameMode(Standard_True);
+        reader.SetLayerMode(Standard_True);
+        reader.SetPropsMode(Standard_True);
+        reader.SetMatMode(Standard_True);
+
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) { delete document; return nullptr; }
+
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        bool ok = reader.Transfer(document->doc, range);
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); delete document; return nullptr; }
+        if (!ok) { delete document; return nullptr; }
+
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+        return document;
+    } catch (...) { delete document; return nullptr; }
+}
+
+OCCTDocumentRef OCCTDocumentLoadSTEPWithModesProgress(const char* path,
+                                                        bool colorMode, bool nameMode, bool layerMode,
+                                                        bool propsMode, bool gdtMode, bool matMode,
+                                                        const OCCTImportProgress* ctx,
+                                                        bool* outCancelled) {
+    clearCancelOut(outCancelled);
+    if (!path) return nullptr;
+    OCCTDocument* document = nullptr;
+    try {
+        document = new OCCTDocument();
+        document->app->NewDocument("MDTV-XCAF", document->doc);
+        if (document->doc.IsNull()) { delete document; return nullptr; }
+
+        STEPCAFControl_Reader reader;
+        reader.SetColorMode(colorMode);
+        reader.SetNameMode(nameMode);
+        reader.SetLayerMode(layerMode);
+        reader.SetPropsMode(propsMode);
+        reader.SetGDTMode(gdtMode);
+        reader.SetMatMode(matMode);
+
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) { delete document; return nullptr; }
+
+        opencascade::handle<BridgeProgressIndicator> indicator = new BridgeProgressIndicator(ctx);
+        Message_ProgressRange range = indicator->Start();
+        bool ok = reader.Transfer(document->doc, range);
+        if (indicator->UserBreak()) { setCancelOut(outCancelled, indicator); delete document; return nullptr; }
+        if (!ok) { delete document; return nullptr; }
+
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+        return document;
+    } catch (...) { delete document; return nullptr; }
+}
+
 // MARK: - Import
 
 OCCTShapeRef OCCTImportSTEP(const char* path) {

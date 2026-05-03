@@ -29,11 +29,22 @@ public final class Document: @unchecked Sendable {
     /// - Parameter url: URL to the STEP file
     /// - Returns: Document containing the assembly structure
     /// - Throws: `DocumentError` if loading fails
-    public static func load(from url: URL) throws -> Document {
-        guard let handle = OCCTDocumentLoadSTEP(url.path) else {
+    public static func load(from url: URL, progress: ImportProgress? = nil) throws -> Document {
+        var cancelled: Bool = false
+        let handle: OCCTDocumentRef? = withImportProgress(progress) { ctx in
+            OCCTDocumentLoadSTEPProgress(url.path, ctx, &cancelled)
+        }
+        if cancelled { throw ImportError.cancelled }
+        guard let handle else {
             throw DocumentError.loadFailed(url: url)
         }
         return Document(handle: handle)
+    }
+
+    /// Load a STEP file as an XCAF document with optional progress + cancellation.
+    /// Alias for ``load(from:progress:)`` with explicit naming.
+    public static func loadSTEP(from url: URL, progress: ImportProgress? = nil) throws -> Document {
+        try load(from: url, progress: progress)
     }
 
     /// Create a new empty document
@@ -1616,6 +1627,24 @@ extension Document {
             modes.color, modes.name, modes.layer,
             modes.props, modes.gdt, modes.material) else { return nil }
         return Document(handle: ref)
+    }
+
+    /// Load a STEP file with individual mode control plus progress + cancellation.
+    ///
+    /// Throws `ImportError.cancelled` if cancelled, `ImportError.importFailed` on other failure.
+    public static func loadSTEP(from url: URL, modes: STEPReaderModes, progress: ImportProgress?) throws -> Document {
+        var cancelled: Bool = false
+        let handle: OCCTDocumentRef? = withImportProgress(progress) { ctx in
+            OCCTDocumentLoadSTEPWithModesProgress(url.path,
+                modes.color, modes.name, modes.layer,
+                modes.props, modes.gdt, modes.material,
+                ctx, &cancelled)
+        }
+        if cancelled { throw ImportError.cancelled }
+        guard let handle else {
+            throw ImportError.importFailed("Failed to load STEP document: \(url.lastPathComponent)")
+        }
+        return Document(handle: handle)
     }
 
     /// Write the document to a STEP file with model type and mode control.

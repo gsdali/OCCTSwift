@@ -773,18 +773,33 @@ public final class Shape: @unchecked Sendable {
 
     // MARK: - Import
 
-    /// Load a shape from a STEP file
-    public static func load(from url: URL) throws -> Shape {
-        let path = url.path
-        guard let handle = OCCTImportSTEP(path) else {
-            throw ImportError.importFailed("Failed to import STEP file: \(url.lastPathComponent)")
-        }
-        return Shape(handle: handle)
+    /// Load a shape from a STEP file.
+    ///
+    /// - Parameters:
+    ///   - url: URL to the STEP file.
+    ///   - progress: Optional progress + cancellation channel.
+    public static func load(from url: URL, progress: ImportProgress? = nil) throws -> Shape {
+        try loadSTEP(fromPath: url.path, progress: progress)
     }
 
-    /// Load a shape from a STEP file path
-    public static func load(fromPath path: String) throws -> Shape {
-        guard let handle = OCCTImportSTEP(path) else {
+    /// Load a shape from a STEP file path.
+    public static func load(fromPath path: String, progress: ImportProgress? = nil) throws -> Shape {
+        try loadSTEP(fromPath: path, progress: progress)
+    }
+
+    /// Load a shape from a STEP file (alias for ``load(from:progress:)`` with explicit naming).
+    public static func loadSTEP(from url: URL, progress: ImportProgress? = nil) throws -> Shape {
+        try loadSTEP(fromPath: url.path, progress: progress)
+    }
+
+    /// Load a shape from a STEP file path with optional progress.
+    public static func loadSTEP(fromPath path: String, progress: ImportProgress? = nil) throws -> Shape {
+        var cancelled: Bool = false
+        let handle: OCCTShapeRef? = withImportProgress(progress) { ctx in
+            OCCTImportSTEPProgress(path, ctx, &cancelled)
+        }
+        if cancelled { throw ImportError.cancelled }
+        guard let handle else {
             throw ImportError.importFailed("Failed to import STEP file: \(path)")
         }
         return Shape(handle: handle)
@@ -836,16 +851,18 @@ public final class Shape: @unchecked Sendable {
     ///   - unitInMeters: System length unit in meters (e.g. 0.001 for mm, 0.0254 for inch)
     /// - Returns: The imported shape in the specified unit system
     /// - Throws: ImportError if import fails
-    public static func loadSTEP(from url: URL, unitInMeters: Double) throws -> Shape {
-        guard let handle = OCCTImportSTEPWithUnit(url.path, unitInMeters) else {
-            throw ImportError.importFailed("Failed to import with unit from: \(url.lastPathComponent)")
-        }
-        return Shape(handle: handle)
+    public static func loadSTEP(from url: URL, unitInMeters: Double, progress: ImportProgress? = nil) throws -> Shape {
+        try loadSTEP(fromPath: url.path, unitInMeters: unitInMeters, progress: progress)
     }
 
     /// Import a STEP file with a specific system length unit.
-    public static func loadSTEP(fromPath path: String, unitInMeters: Double) throws -> Shape {
-        guard let handle = OCCTImportSTEPWithUnit(path, unitInMeters) else {
+    public static func loadSTEP(fromPath path: String, unitInMeters: Double, progress: ImportProgress? = nil) throws -> Shape {
+        var cancelled: Bool = false
+        let handle: OCCTShapeRef? = withImportProgress(progress) { ctx in
+            OCCTImportSTEPWithUnitProgress(path, unitInMeters, ctx, &cancelled)
+        }
+        if cancelled { throw ImportError.cancelled }
+        guard let handle else {
             throw ImportError.importFailed("Failed to import with unit from: \(path)")
         }
         return Shape(handle: handle)
@@ -935,16 +952,18 @@ public final class Shape: @unchecked Sendable {
     /// - Parameter url: URL to the IGES file (.igs or .iges)
     /// - Returns: Imported shape
     /// - Throws: ImportError if import fails
-    public static func loadIGES(from url: URL) throws -> Shape {
-        guard let handle = OCCTImportIGES(url.path) else {
-            throw ImportError.importFailed("Failed to import IGES file: \(url.lastPathComponent)")
-        }
-        return Shape(handle: handle)
+    public static func loadIGES(from url: URL, progress: ImportProgress? = nil) throws -> Shape {
+        try loadIGES(fromPath: url.path, progress: progress)
     }
 
     /// Load a shape from an IGES file path
-    public static func loadIGES(fromPath path: String) throws -> Shape {
-        guard let handle = OCCTImportIGES(path) else {
+    public static func loadIGES(fromPath path: String, progress: ImportProgress? = nil) throws -> Shape {
+        var cancelled: Bool = false
+        let handle: OCCTShapeRef? = withImportProgress(progress) { ctx in
+            OCCTImportIGESProgress(path, ctx, &cancelled)
+        }
+        if cancelled { throw ImportError.cancelled }
+        guard let handle else {
             throw ImportError.importFailed("Failed to import IGES file: \(path)")
         }
         return Shape(handle: handle)
@@ -952,12 +971,24 @@ public final class Shape: @unchecked Sendable {
 
     /// Load an IGES file with automatic repair (sewing and healing)
     ///
-    /// - Parameter url: URL to the IGES file
+    /// - Parameters:
+    ///   - url: URL to the IGES file
+    ///   - progress: Optional progress + cancellation channel.
     /// - Returns: Processed shape with healing applied
-    /// - Throws: ImportError if import fails
-    public static func loadIGESRobust(from url: URL) throws -> Shape {
-        guard let handle = OCCTImportIGESRobust(url.path) else {
-            throw ImportError.importFailed("Failed to import IGES file: \(url.lastPathComponent)")
+    /// - Throws: `ImportError.cancelled` if cancelled, `ImportError.importFailed` on failure.
+    public static func loadIGESRobust(from url: URL, progress: ImportProgress? = nil) throws -> Shape {
+        try loadIGESRobust(fromPath: url.path, progress: progress)
+    }
+
+    /// Load an IGES file with automatic repair from a path.
+    public static func loadIGESRobust(fromPath path: String, progress: ImportProgress? = nil) throws -> Shape {
+        var cancelled: Bool = false
+        let handle: OCCTShapeRef? = withImportProgress(progress) { ctx in
+            OCCTImportIGESRobustProgress(path, ctx, &cancelled)
+        }
+        if cancelled { throw ImportError.cancelled }
+        guard let handle else {
+            throw ImportError.importFailed("Failed to import IGES file: \(path)")
         }
         return Shape(handle: handle)
     }
@@ -1666,11 +1697,15 @@ public final class Shape: @unchecked Sendable {
 
 public enum ImportError: Error, LocalizedError {
     case importFailed(String)
+    /// The import was cancelled cooperatively via `ImportProgress.shouldCancel()`.
+    case cancelled
 
     public var errorDescription: String? {
         switch self {
         case .importFailed(let message):
             return message
+        case .cancelled:
+            return "Import cancelled"
         }
     }
 }

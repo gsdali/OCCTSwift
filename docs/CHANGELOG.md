@@ -2,13 +2,53 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.167.0
+## Current: v0.168.0
 
-**4,269 wrapped operations | 3,383 tests | 1,176 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta1**
+**4,276 wrapped operations | 3,387 tests | 1,177 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta1**
 
 ---
 
 ## Release History
+
+### v0.168.0 (May 2026) — STEP/IGES import progress + cancellation (issue #98)
+
+Wraps OCCT's `Message_ProgressIndicator` so callers of `Shape.loadSTEP / loadIGES / loadIGESRobust` and `Document.load / loadSTEP` can observe progress and cooperatively cancel long-running imports.
+
+**New Swift API**:
+
+```swift
+public protocol ImportProgress: AnyObject, Sendable {
+    func progress(fraction: Double, step: String)
+    func shouldCancel() -> Bool   // default: false
+}
+
+extension ImportError {
+    case cancelled
+}
+
+extension Shape {
+    public static func loadSTEP(from url: URL, progress: ImportProgress? = nil) throws -> Shape
+    public static func loadSTEP(from url: URL, unitInMeters: Double, progress: ImportProgress? = nil) throws -> Shape
+    public static func loadIGES(from url: URL, progress: ImportProgress? = nil) throws -> Shape
+    public static func loadIGESRobust(from url: URL, progress: ImportProgress? = nil) throws -> Shape
+}
+
+extension Document {
+    public static func load(from url: URL, progress: ImportProgress? = nil) throws -> Document
+    public static func loadSTEP(from url: URL, progress: ImportProgress? = nil) throws -> Document
+    public static func loadSTEP(from url: URL, modes: STEPReaderModes, progress: ImportProgress?) throws -> Document
+}
+```
+
+`progress: nil` (the default) keeps existing call sites source-compatible — no behavioural change for callers that haven't opted in.
+
+**Bridge plumbing**: 7 new `*Progress` C entry points in `OCCTBridge` plus an internal `BridgeProgressIndicator` subclass of `Message_ProgressIndicator` that forwards `Show()` to a Swift callback (via opaque `userData` + `@convention(c)` trampoline) and reports `UserBreak() == true` when the Swift `shouldCancel()` returns true. `STEPControl_Reader::TransferRoots`, `IGESControl_Reader::TransferRoots`, and `STEPCAFControl_Reader::Transfer` all accept the indicator's progress range.
+
+**Cancellation contract**: `shouldCancel()` is polled at OCCT's progress checkpoints (typically once per transferred entity). Returning `true` causes the loader to throw `ImportError.cancelled` at the next boundary. The shape / document is not partially constructed.
+
+4 new tests cover (1) progress callback fires for a round-tripped STEP file, (2) `progress: nil` back-compat path still works, (3) cancellation flag honored, (4) `Document.load` progress.
+
+**Driver**: unblocks [OCCTSwiftTools](https://github.com/gsdali/OCCTSwiftTools) v0.4.0 — its `CADFileLoader.load(from:format:)` async API can now pass `progress` straight through, giving OCCTSwiftAIS' file-open dialog a real progress bar and cancel button "for free".
 
 ### v0.167.0 (May 2026) — visionOS + tvOS support
 
