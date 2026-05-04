@@ -852,3 +852,190 @@ bool OCCTCurve3DGetBoundingBox(OCCTCurve3DRef c,
 }
 
 // ============================================================================
+// MARK: - Batch Curve3D Evaluation (v0.29.0)
+
+#include <GeomGridEval_Curve.hxx>
+#include <GeomGridEval.hxx>
+
+int32_t OCCTCurve3DEvaluateGrid(OCCTCurve3DRef curve, const double* params, int32_t paramCount,
+                                 double* outXYZ) {
+    if (!curve || curve->curve.IsNull() || !params || !outXYZ || paramCount <= 0) return 0;
+    try {
+        GeomGridEval_Curve evaluator(curve->curve);
+
+        NCollection_Array1<double> paramArr(1, paramCount);
+        for (int32_t i = 0; i < paramCount; i++) {
+            paramArr.SetValue(i + 1, params[i]);
+        }
+
+        NCollection_Array1<gp_Pnt> results = evaluator.EvaluateGrid(paramArr);
+        int32_t n = results.Size();
+        for (int32_t i = 0; i < n; i++) {
+            const gp_Pnt& pt = results.Value(i + 1);
+            outXYZ[i*3]   = pt.X();
+            outXYZ[i*3+1] = pt.Y();
+            outXYZ[i*3+2] = pt.Z();
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTCurve3DEvaluateGridD1(OCCTCurve3DRef curve, const double* params, int32_t paramCount,
+                                   double* outXYZ, double* outDXDYDZ) {
+    if (!curve || curve->curve.IsNull() || !params || !outXYZ || !outDXDYDZ || paramCount <= 0) return 0;
+    try {
+        GeomGridEval_Curve evaluator(curve->curve);
+
+        NCollection_Array1<double> paramArr(1, paramCount);
+        for (int32_t i = 0; i < paramCount; i++) {
+            paramArr.SetValue(i + 1, params[i]);
+        }
+
+        NCollection_Array1<GeomGridEval::CurveD1> results = evaluator.EvaluateGridD1(paramArr);
+        int32_t n = results.Size();
+        for (int32_t i = 0; i < n; i++) {
+            const GeomGridEval::CurveD1& r = results.Value(i + 1);
+            outXYZ[i*3]     = r.Point.X();
+            outXYZ[i*3+1]   = r.Point.Y();
+            outXYZ[i*3+2]   = r.Point.Z();
+            outDXDYDZ[i*3]   = r.D1.X();
+            outDXDYDZ[i*3+1] = r.D1.Y();
+            outDXDYDZ[i*3+2] = r.D1.Z();
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Curve Planarity Check (v0.29.0)
+
+#include <ShapeAnalysis_Curve.hxx>
+
+bool OCCTCurve3DIsPlanar(OCCTCurve3DRef curve, double tolerance,
+                          double* outNX, double* outNY, double* outNZ) {
+    if (!curve || curve->curve.IsNull()) return false;
+    try {
+        ShapeAnalysis_Curve analyzer;
+        gp_XYZ normal;
+        bool result = analyzer.IsPlanar(curve->curve, normal, tolerance);
+        if (result) {
+            if (outNX) *outNX = normal.X();
+            if (outNY) *outNY = normal.Y();
+            if (outNZ) *outNZ = normal.Z();
+            return true;
+        }
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Curve-Curve Extrema (v0.30.0)
+
+#include <GeomAPI_ExtremaCurveCurve.hxx>
+
+double OCCTCurve3DMinDistanceToCurve(OCCTCurve3DRef c1, OCCTCurve3DRef c2) {
+    if (!c1 || c1->curve.IsNull() || !c2 || c2->curve.IsNull()) return -1.0;
+    try {
+        GeomAPI_ExtremaCurveCurve extrema(c1->curve, c2->curve);
+        if (extrema.NbExtrema() == 0) return -1.0;
+        return extrema.LowerDistance();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+int32_t OCCTCurve3DExtrema(OCCTCurve3DRef c1, OCCTCurve3DRef c2, OCCTCurveExtrema* outExtrema, int32_t maxCount) {
+    if (!c1 || c1->curve.IsNull() || !c2 || c2->curve.IsNull() || !outExtrema || maxCount <= 0) return 0;
+    try {
+        GeomAPI_ExtremaCurveCurve extrema(c1->curve, c2->curve);
+        int32_t nb = extrema.NbExtrema();
+        int32_t count = (nb < maxCount) ? nb : maxCount;
+        for (int32_t i = 0; i < count; i++) {
+            gp_Pnt p1, p2;
+            extrema.Points(i + 1, p1, p2);
+            double u1, u2;
+            extrema.Parameters(i + 1, u1, u2);
+            outExtrema[i].distance = extrema.Distance(i + 1);
+            outExtrema[i].point1[0] = p1.X();
+            outExtrema[i].point1[1] = p1.Y();
+            outExtrema[i].point1[2] = p1.Z();
+            outExtrema[i].point2[0] = p2.X();
+            outExtrema[i].point2[1] = p2.Y();
+            outExtrema[i].point2[2] = p2.Z();
+            outExtrema[i].param1 = u1;
+            outExtrema[i].param2 = u2;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Curve to Analytical (v0.30.0)
+
+#include <GeomConvert_CurveToAnaCurve.hxx>
+
+OCCTCurve3DRef OCCTCurve3DToAnalytical(OCCTCurve3DRef curve, double tolerance) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        GeomConvert_CurveToAnaCurve converter(curve->curve);
+        Handle(Geom_Curve) result;
+        double newFirst, newLast;
+        bool ok = converter.ConvertToAnalytical(tolerance, result,
+                                                 curve->curve->FirstParameter(),
+                                                 curve->curve->LastParameter(),
+                                                 newFirst, newLast);
+        if (!ok || result.IsNull()) return nullptr;
+        return new OCCTCurve3D(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Quasi-Uniform Curve Sampling (v0.31.0)
+
+#include <GCPnts_QuasiUniformAbscissa.hxx>
+
+int32_t OCCTCurve3DQuasiUniformAbscissa(OCCTCurve3DRef curve, int32_t nbPoints, double* outParams) {
+    if (!curve || curve->curve.IsNull() || !outParams || nbPoints <= 0) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        GCPnts_QuasiUniformAbscissa sampler(adaptor, nbPoints);
+        if (!sampler.IsDone()) return 0;
+        int32_t n = sampler.NbPoints();
+        for (int32_t i = 0; i < n; i++) {
+            outParams[i] = sampler.Parameter(i + 1);
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Quasi-Uniform Deflection Sampling (v0.31.0)
+
+#include <GCPnts_QuasiUniformDeflection.hxx>
+
+int32_t OCCTCurve3DQuasiUniformDeflection(OCCTCurve3DRef curve, double deflection, double* outXYZ, int32_t maxPoints) {
+    if (!curve || curve->curve.IsNull() || !outXYZ || maxPoints <= 0) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        GCPnts_QuasiUniformDeflection sampler(adaptor, deflection);
+        if (!sampler.IsDone()) return 0;
+        int32_t n = std::min((int32_t)sampler.NbPoints(), maxPoints);
+        for (int32_t i = 0; i < n; i++) {
+            gp_Pnt p = sampler.Value(i + 1);
+            outXYZ[i*3] = p.X();
+            outXYZ[i*3+1] = p.Y();
+            outXYZ[i*3+2] = p.Z();
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+

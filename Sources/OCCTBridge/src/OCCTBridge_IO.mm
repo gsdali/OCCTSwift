@@ -37,6 +37,13 @@
 #include <Message_ProgressScope.hxx>
 #include <Message_ProgressRange.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <TDF_Label.hxx>
+#include <RWObj_CafReader.hxx>
+#include <RWObj_CafWriter.hxx>
+#include <RWPly_CafWriter.hxx>
+#include <TDocStd_Document.hxx>
+#include <XCAFApp_Application.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <StlAPI_Writer.hxx>
 #include <StlAPI_Reader.hxx>
@@ -674,4 +681,202 @@ OCCTSTEPImportResult OCCTImportSTEPWithDiagnostics(const char* path) {
         return result;
     }
 }
+
+// MARK: - STEP Optimization (v0.28.0)
+
+#include <StepTidy_DuplicateCleaner.hxx>
+
+bool OCCTStepTidyOptimize(const char* inputPath, const char* outputPath) {
+    if (!inputPath || !outputPath) return false;
+    try {
+        STEPControl_Reader reader;
+        if (reader.ReadFile(inputPath) != IFSelect_RetDone) return false;
+
+        // Run tidy on the work session before transferring
+        Handle(XSControl_WorkSession) ws = reader.WS();
+        StepTidy_DuplicateCleaner cleaner(ws);
+        cleaner.Perform();
+
+        // Now transfer and write
+        reader.TransferRoots();
+
+        STEPControl_Writer writer;
+        for (int i = 1; i <= reader.NbShapes(); i++) {
+            writer.Transfer(reader.Shape(i), STEPControl_AsIs);
+        }
+        return writer.Write(outputPath) == IFSelect_RetDone;
+    } catch (...) {
+        return false;
+    }
+}
+// MARK: - STL Import (v0.17.0)
+
+#include <StlAPI_Reader.hxx>
+
+OCCTShapeRef OCCTImportSTL(const char* path) {
+    if (!path) return nullptr;
+
+    try {
+        TopoDS_Shape shape;
+        StlAPI_Reader reader;
+        if (!reader.Read(shape, path)) return nullptr;
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTImportSTLRobust(const char* path, double sewingTolerance) {
+    if (!path) return nullptr;
+
+    try {
+        TopoDS_Shape shape;
+        StlAPI_Reader reader;
+        if (!reader.Read(shape, path)) return nullptr;
+        if (shape.IsNull()) return nullptr;
+
+        // Sew disconnected faces
+        BRepBuilderAPI_Sewing sewing(sewingTolerance);
+        sewing.Add(shape);
+        sewing.Perform();
+        TopoDS_Shape sewedShape = sewing.SewedShape();
+        if (sewedShape.IsNull()) sewedShape = shape;
+
+        // Try to create solid from shell
+        TopoDS_Shape resultShape = sewedShape;
+        if (sewedShape.ShapeType() != TopAbs_SOLID) {
+            TopExp_Explorer shellExp(sewedShape, TopAbs_SHELL);
+            if (shellExp.More()) {
+                BRepBuilderAPI_MakeSolid makeSolid(TopoDS::Shell(shellExp.Current()));
+                if (makeSolid.IsDone()) {
+                    resultShape = makeSolid.Solid();
+                }
+            }
+        }
+
+        // Apply shape healing
+        ShapeFix_Shape fixer(resultShape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+        return new OCCTShape(fixed.IsNull() ? resultShape : fixed);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+
+// MARK: - OBJ Import/Export (v0.17.0)
+
+#include <RWObj_CafReader.hxx>
+#include <RWObj_CafWriter.hxx>
+#include <TDocStd_Document.hxx>
+#include <XCAFApp_Application.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <Message_ProgressRange.hxx>
+
+OCCTShapeRef OCCTImportOBJ(const char* path) {
+    if (!path) return nullptr;
+
+    try {
+        // Use RWObj_CafReader for OBJ import
+        RWObj_CafReader objReader;
+
+        // Create an XDE document
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+
+        objReader.SetDocument(doc);
+        TCollection_AsciiString filePath(path);
+        if (!objReader.Perform(filePath, Message_ProgressRange())) return nullptr;
+
+        // Extract shape from document
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        TopoDS_Shape shape = shapeTool->GetOneShape();
+        if (shape.IsNull()) return nullptr;
+
+        // Close document
+        app->Close(doc);
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTExportOBJ(OCCTShapeRef shape, const char* path, double deflection) {
+    if (!shape || !path) return false;
+
+    try {
+        // Tessellate the shape first
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        mesher.Perform();
+
+        // Create an XDE document
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        shapeTool->AddShape(shape->shape);
+
+        // Write OBJ
+        RWObj_CafWriter writer(path);
+        NCollection_Sequence<TDF_Label> rootLabels;
+        TDF_LabelSequence freeShapes;
+        shapeTool->GetFreeShapes(freeShapes);
+        for (int i = 1; i <= freeShapes.Length(); ++i) {
+            rootLabels.Append(freeShapes.Value(i));
+        }
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        bool success = writer.Perform(doc, rootLabels, nullptr, fileInfo, Message_ProgressRange());
+
+        app->Close(doc);
+        return success;
+    } catch (...) {
+        return false;
+    }
+}
+
+
+// MARK: - PLY Export (v0.17.0)
+
+#include <RWPly_CafWriter.hxx>
+
+bool OCCTExportPLY(OCCTShapeRef shape, const char* path, double deflection) {
+    if (!shape || !path) return false;
+
+    try {
+        // Tessellate the shape first
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        mesher.Perform();
+
+        // Create an XDE document
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        shapeTool->AddShape(shape->shape);
+
+        // Write PLY
+        RWPly_CafWriter writer(path);
+        writer.SetNormals(true);
+        NCollection_Sequence<TDF_Label> rootLabels;
+        TDF_LabelSequence freeShapes;
+        shapeTool->GetFreeShapes(freeShapes);
+        for (int i = 1; i <= freeShapes.Length(); ++i) {
+            rootLabels.Append(freeShapes.Value(i));
+        }
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        bool success = writer.Perform(doc, rootLabels, nullptr, fileInfo, Message_ProgressRange());
+
+        app->Close(doc);
+        return success;
+    } catch (...) {
+        return false;
+    }
+}
+
 

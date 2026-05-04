@@ -32,6 +32,8 @@
 #include <HLRAlgo_Projector.hxx>
 
 #include <BRep_Builder.hxx>
+#include <BRepLib_FindSurface.hxx>
+#include <Geom_Plane.hxx>
 #include <BRepAdaptor_CompCurve.hxx>
 #include <BRepAlgoAPI_Defeaturing.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
@@ -727,4 +729,417 @@ OCCTShapeRef OCCTShapeShellWithOpenFaces(OCCTShapeRef shape, double thickness,
     }
 }
 
+
+// MARK: - Helix Curves (v0.28.0)
+
+#include <HelixBRep_BuilderHelix.hxx>
+
+OCCTWireRef OCCTWireCreateHelix(double originX, double originY, double originZ,
+                                 double axisX, double axisY, double axisZ,
+                                 double radius, double pitch, double turns,
+                                 bool clockwise) {
+    try {
+        gp_Pnt origin(originX, originY, originZ);
+        gp_Dir dir(axisX, axisY, axisZ);
+        if (!clockwise) dir.Reverse();
+        gp_Ax3 axis(origin, dir);
+
+        double diameter = radius * 2.0;
+
+        NCollection_Array1<double> pitchArr(1, 1);
+        pitchArr.SetValue(1, pitch);
+        NCollection_Array1<double> nbTurnsArr(1, 1);
+        nbTurnsArr.SetValue(1, turns);
+
+        HelixBRep_BuilderHelix builder;
+        builder.SetParameters(axis, diameter, pitchArr, nbTurnsArr);
+        builder.Perform();
+
+        if (builder.ErrorStatus() != 0) return nullptr;
+
+        const TopoDS_Shape& shape = builder.Shape();
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTWire(TopoDS::Wire(shape));
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateHelixTapered(double originX, double originY, double originZ,
+                                        double axisX, double axisY, double axisZ,
+                                        double startRadius, double endRadius,
+                                        double pitch, double turns,
+                                        bool clockwise) {
+    try {
+        gp_Pnt origin(originX, originY, originZ);
+        gp_Dir dir(axisX, axisY, axisZ);
+        if (!clockwise) dir.Reverse();
+        gp_Ax3 axis(origin, dir);
+
+        double startDiam = startRadius * 2.0;
+        double endDiam = endRadius * 2.0;
+
+        NCollection_Array1<double> pitchArr(1, 1);
+        pitchArr.SetValue(1, pitch);
+        NCollection_Array1<double> nbTurnsArr(1, 1);
+        nbTurnsArr.SetValue(1, turns);
+
+        HelixBRep_BuilderHelix builder;
+        builder.SetParameters(axis, startDiam, endDiam, pitchArr, nbTurnsArr);
+        builder.Perform();
+
+        if (builder.ErrorStatus() != 0) return nullptr;
+
+        const TopoDS_Shape& shape = builder.Shape();
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTWire(TopoDS::Wire(shape));
+    } catch (...) {
+        return nullptr;
+    }
+}
+// MARK: - Wedge Primitive (v0.29.0)
+
+#include <BRepPrimAPI_MakeWedge.hxx>
+
+OCCTShapeRef OCCTShapeCreateWedge(double dx, double dy, double dz, double ltx) {
+    try {
+        BRepPrimAPI_MakeWedge maker(dx, dy, dz, ltx);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateWedgeAdvanced(double dx, double dy, double dz,
+                                           double xmin, double zmin, double xmax, double zmax) {
+    try {
+        BRepPrimAPI_MakeWedge maker(dx, dy, dz, xmin, zmin, xmax, zmax);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreateWedgeOriented(
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double dx, double dy, double dz, double ltx) {
+    try {
+        gp_Ax2 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        BRepPrimAPI_MakeWedge maker(axis, dx, dy, dz, ltx);
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Normal Projection (v0.29.0)
+
+#include <BRepOffsetAPI_NormalProjection.hxx>
+
+OCCTShapeRef OCCTShapeNormalProjection(OCCTShapeRef wireOrEdge, OCCTShapeRef surface,
+                                        double tol3d, double tol2d, int maxDegree, int maxSeg) {
+    if (!wireOrEdge || !surface) return nullptr;
+    try {
+        BRepOffsetAPI_NormalProjection proj(surface->shape);
+        proj.Add(wireOrEdge->shape);
+        proj.SetParams(tol3d, tol2d, GeomAbs_C2, maxDegree, maxSeg);
+        proj.Build();
+        if (!proj.IsDone()) return nullptr;
+        return new OCCTShape(proj.Projection());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Half-Space (v0.29.0)
+
+#include <BRepPrimAPI_MakeHalfSpace.hxx>
+
+OCCTShapeRef OCCTShapeCreateHalfSpace(OCCTShapeRef faceShape, double refX, double refY, double refZ) {
+    if (!faceShape) return nullptr;
+    try {
+        // Extract first face from the shape
+        TopExp_Explorer exp(faceShape->shape, TopAbs_FACE);
+        if (!exp.More()) return nullptr;
+        TopoDS_Face face = TopoDS::Face(exp.Current());
+
+        gp_Pnt refPt(refX, refY, refZ);
+        BRepPrimAPI_MakeHalfSpace maker(face, refPt);
+        return new OCCTShape(maker.Solid());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Periodic Shapes (v0.29.0)
+
+#include <BOPAlgo_MakePeriodic.hxx>
+
+OCCTShapeRef OCCTShapeMakePeriodic(OCCTShapeRef shape,
+                                    bool xPeriodic, double xPeriod,
+                                    bool yPeriodic, double yPeriod,
+                                    bool zPeriodic, double zPeriod) {
+    if (!shape) return nullptr;
+    try {
+        BOPAlgo_MakePeriodic maker;
+        maker.SetShape(shape->shape);
+        if (xPeriodic) maker.MakeXPeriodic(true, xPeriod);
+        if (yPeriodic) maker.MakeYPeriodic(true, yPeriod);
+        if (zPeriodic) maker.MakeZPeriodic(true, zPeriod);
+        maker.Perform();
+        if (maker.HasErrors()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeRepeat(OCCTShapeRef shape,
+                              bool xPeriodic, double xPeriod,
+                              bool yPeriodic, double yPeriod,
+                              bool zPeriodic, double zPeriod,
+                              int32_t xTimes, int32_t yTimes, int32_t zTimes) {
+    if (!shape) return nullptr;
+    try {
+        BOPAlgo_MakePeriodic maker;
+        maker.SetShape(shape->shape);
+        if (xPeriodic) maker.MakeXPeriodic(true, xPeriod);
+        if (yPeriodic) maker.MakeYPeriodic(true, yPeriod);
+        if (zPeriodic) maker.MakeZPeriodic(true, zPeriod);
+        maker.Perform();
+        if (maker.HasErrors()) return nullptr;
+
+        // Now repeat in each direction
+        if (xPeriodic && xTimes > 0) maker.XRepeat(xTimes);
+        if (yPeriodic && yTimes > 0) maker.YRepeat(yTimes);
+        if (zPeriodic && zTimes > 0) maker.ZRepeat(zTimes);
+
+        return new OCCTShape(maker.RepeatedShape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Draft from Shape (v0.29.0)
+
+#include <BRepOffsetAPI_MakeDraft.hxx>
+
+OCCTShapeRef OCCTShapeMakeDraft(OCCTShapeRef shape, double dirX, double dirY, double dirZ,
+                                 double angle, double lengthMax) {
+    if (!shape) return nullptr;
+    try {
+        gp_Dir dir(dirX, dirY, dirZ);
+        BRepOffsetAPI_MakeDraft maker(shape->shape, dir, angle);
+        maker.Perform(lengthMax);
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Shell());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Non-Uniform Transform (v0.30.0)
+
+#include <BRepBuilderAPI_GTransform.hxx>
+#include <gp_GTrsf.hxx>
+#include <gp_Mat.hxx>
+
+OCCTShapeRef OCCTShapeNonUniformScale(OCCTShapeRef shape, double sx, double sy, double sz) {
+    if (!shape) return nullptr;
+    try {
+        gp_GTrsf gtrsf;
+        gtrsf.SetVectorialPart(gp_Mat(sx, 0, 0, 0, sy, 0, 0, 0, sz));
+        BRepBuilderAPI_GTransform builder(shape->shape, gtrsf, true);
+        if (!builder.IsDone()) return nullptr;
+        return new OCCTShape(builder.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Make Shell (v0.30.0)
+
+#include <BRepBuilderAPI_MakeShell.hxx>
+
+OCCTShapeRef OCCTShapeCreateShellFromSurface(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeShell builder(surface->surface);
+        if (!builder.IsDone()) return nullptr;
+        return new OCCTShape(builder.Shell());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Make Vertex (v0.30.0)
+
+#include <BRepBuilderAPI_MakeVertex.hxx>
+
+OCCTShapeRef OCCTShapeCreateVertex(double x, double y, double z) {
+    try {
+        BRepBuilderAPI_MakeVertex builder(gp_Pnt(x, y, z));
+        if (!builder.IsDone()) return nullptr;
+        return new OCCTShape(builder.Vertex());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Simple Offset (v0.30.0)
+
+#include <BRepOffset_MakeSimpleOffset.hxx>
+
+OCCTShapeRef OCCTShapeSimpleOffset(OCCTShapeRef shape, double offsetValue) {
+    if (!shape) return nullptr;
+    try {
+        BRepOffset_MakeSimpleOffset builder(shape->shape, offsetValue);
+        builder.SetBuildSolidFlag(true);
+        builder.Perform();
+        if (!builder.IsDone()) return nullptr;
+        return new OCCTShape(builder.GetResultShape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Middle Path (v0.30.0)
+
+#include <BRepOffsetAPI_MiddlePath.hxx>
+
+OCCTShapeRef OCCTShapeMiddlePath(OCCTShapeRef shape, OCCTShapeRef startShape, OCCTShapeRef endShape) {
+    if (!shape || !startShape || !endShape) return nullptr;
+    try {
+        BRepOffsetAPI_MiddlePath builder(shape->shape, startShape->shape, endShape->shape);
+        builder.Build();
+        if (!builder.IsDone()) return nullptr;
+        return new OCCTShape(builder.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Fuse Edges (v0.30.0)
+
+#include <BRepLib_FuseEdges.hxx>
+
+OCCTShapeRef OCCTShapeFuseEdges(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        BRepLib_FuseEdges fuser(shape->shape);
+        fuser.Perform();
+        return new OCCTShape(fuser.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Maker Volume (v0.30.0)
+
+#include <BOPAlgo_MakerVolume.hxx>
+
+OCCTShapeRef OCCTShapeMakeVolume(OCCTShapeRef* shapes, int32_t count) {
+    if (!shapes || count <= 0) return nullptr;
+    try {
+        BOPAlgo_MakerVolume maker;
+        for (int32_t i = 0; i < count; i++) {
+            if (!shapes[i]) return nullptr;
+            maker.AddArgument(shapes[i]->shape);
+        }
+        maker.Perform();
+        if (maker.HasErrors()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Make Connected (v0.30.0)
+
+#include <BOPAlgo_MakeConnected.hxx>
+
+OCCTShapeRef OCCTShapeMakeConnected(OCCTShapeRef* shapes, int32_t count) {
+    if (!shapes || count <= 0) return nullptr;
+    try {
+        BOPAlgo_MakeConnected maker;
+        for (int32_t i = 0; i < count; i++) {
+            if (!shapes[i]) return nullptr;
+            maker.AddArgument(shapes[i]->shape);
+        }
+        maker.Perform();
+        if (maker.HasErrors()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Quilt Faces (v0.31.0)
+
+#include <BRepTools_Quilt.hxx>
+
+OCCTShapeRef OCCTShapeQuilt(OCCTShapeRef* shapes, int32_t count) {
+    if (!shapes || count <= 0) return nullptr;
+    try {
+        BRepTools_Quilt quilt;
+        for (int32_t i = 0; i < count; i++) {
+            if (!shapes[i]) return nullptr;
+            quilt.Add(shapes[i]->shape);
+        }
+        TopoDS_Shape result = quilt.Shells();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Revolution from Curve (v0.31.0)
+
+#include <BRepPrimAPI_MakeRevolution.hxx>
+
+OCCTShapeRef OCCTShapeCreateRevolutionFromCurve(OCCTCurve3DRef meridian,
+                                                 double axOX, double axOY, double axOZ,
+                                                 double axDX, double axDY, double axDZ,
+                                                 double angle) {
+    if (!meridian || meridian->curve.IsNull()) return nullptr;
+    try {
+        gp_Ax2 axes(gp_Pnt(axOX, axOY, axOZ), gp_Dir(axDX, axDY, axDZ));
+        BRepPrimAPI_MakeRevolution maker(axes, meridian->curve, angle);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Linear Rib Feature (v0.31.0)
+
+#include <BRepFeat_MakeLinearForm.hxx>
+
+OCCTShapeRef OCCTShapeAddLinearRib(OCCTShapeRef shape, OCCTWireRef profile,
+                                    double dirX, double dirY, double dirZ,
+                                    double dir1X, double dir1Y, double dir1Z,
+                                    bool fuse) {
+    if (!shape || !profile) return nullptr;
+    try {
+        BRepLib_FindSurface finder(profile->wire);
+        if (!finder.Found()) return nullptr;
+        Handle(Geom_Plane) plane = Handle(Geom_Plane)::DownCast(finder.Surface());
+        if (plane.IsNull()) return nullptr;
+        gp_Vec dir(dirX, dirY, dirZ);
+        gp_Vec dir1(dir1X, dir1Y, dir1Z);
+        BRepFeat_MakeLinearForm maker(shape->shape, profile->wire, plane, dir, dir1,
+                                       fuse ? 1 : 0, false);
+        maker.Perform();
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
 

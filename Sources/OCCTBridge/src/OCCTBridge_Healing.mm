@@ -25,6 +25,8 @@
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAlgoAPI_Defeaturing.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepBuilderAPI_MakeSolid.hxx>
+#include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <ChFi2d_Builder.hxx>
@@ -736,4 +738,302 @@ OCCTShapeRef OCCTShapePlateCurves(const OCCTWireRef* curves, int32_t curveCount,
         return nullptr;
     }
 }
+
+// MARK: - NURBS Conversion (v0.29.0)
+
+#include <BRepBuilderAPI_NurbsConvert.hxx>
+
+OCCTShapeRef OCCTShapeConvertToNURBS(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        BRepBuilderAPI_NurbsConvert converter(shape->shape);
+        if (!converter.IsDone()) return nullptr;
+        return new OCCTShape(converter.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Fast Sewing (v0.29.0)
+
+#include <BRepBuilderAPI_FastSewing.hxx>
+
+OCCTShapeRef OCCTShapeFastSewn(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        BRepBuilderAPI_FastSewing sewer(tolerance);
+        sewer.Add(shape->shape);
+        sewer.Perform();
+        return new OCCTShape(sewer.GetResult());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Shape Fix Wireframe (v0.30.0)
+
+#include <ShapeFix_Wireframe.hxx>
+
+OCCTShapeRef OCCTShapeFixWireframe(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_Wireframe) fixer = new ShapeFix_Wireframe(shape->shape);
+        fixer->SetPrecision(tolerance);
+        fixer->FixSmallEdges();
+        fixer->FixWireGaps();
+        TopoDS_Shape result = fixer->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Remove Internal Wires (v0.30.0)
+
+#include <ShapeUpgrade_RemoveInternalWires.hxx>
+
+OCCTShapeRef OCCTShapeRemoveInternalWires(OCCTShapeRef shape, double minArea) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeUpgrade_RemoveInternalWires) remover = new ShapeUpgrade_RemoveInternalWires(shape->shape);
+        remover->MinArea() = minArea;
+        remover->Perform();
+        TopoDS_Shape result = remover->GetResult();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Fix Small Faces (v0.31.0)
+
+#include <ShapeFix_FixSmallFace.hxx>
+
+OCCTShapeRef OCCTShapeFixSmallFaces(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_FixSmallFace) fixer = new ShapeFix_FixSmallFace();
+        fixer->Init(shape->shape);
+        fixer->SetPrecision(tolerance);
+        fixer->Perform();
+        TopoDS_Shape result = fixer->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Remove Locations (v0.31.0)
+
+#include <ShapeUpgrade_RemoveLocations.hxx>
+
+OCCTShapeRef OCCTShapeRemoveLocations(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_RemoveLocations remover;
+        remover.Remove(shape->shape);
+        TopoDS_Shape result = remover.GetResult();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Advanced Healing (v0.17.0)
+
+#include <ShapeUpgrade_ShapeDivide.hxx>
+#include <ShapeUpgrade_ShapeDivideContinuity.hxx>
+#include <ShapeCustom.hxx>
+#include <ShapeCustom_RestrictionParameters.hxx>
+
+OCCTShapeRef OCCTShapeDivide(OCCTShapeRef shape, int32_t continuity) {
+    if (!shape) return nullptr;
+
+    try {
+        // Map continuity: 0=C0, 1=C1, 2=C2, 3=C3
+        GeomAbs_Shape cont;
+        switch (continuity) {
+            case 0:  cont = GeomAbs_C0; break;
+            case 1:  cont = GeomAbs_C1; break;
+            case 2:  cont = GeomAbs_C2; break;
+            case 3:  cont = GeomAbs_C3; break;
+            default: cont = GeomAbs_C1; break;
+        }
+
+        ShapeUpgrade_ShapeDivideContinuity divider(shape->shape);
+        divider.SetBoundaryCriterion(cont);
+        divider.SetPCurveCriterion(cont);
+        divider.SetSurfaceCriterion(cont);
+        divider.SetSurfaceSegmentMode(Standard_True);
+        if (!divider.Perform()) return nullptr;
+
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeDirectFaces(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+
+    try {
+        TopoDS_Shape result = ShapeCustom::DirectFaces(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeScaleGeometry(OCCTShapeRef shape, double factor) {
+    if (!shape) return nullptr;
+
+    try {
+        TopoDS_Shape result = ShapeCustom::ScaleShape(shape->shape, factor);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeBSplineRestriction(OCCTShapeRef shape,
+                                          double surfaceTol, double curveTol,
+                                          int32_t maxDegree, int32_t maxSegments) {
+    if (!shape) return nullptr;
+
+    try {
+        // Static method signature:
+        // BSplineRestriction(shape, Tol3d, Tol2d, MaxDegree, MaxNbSegment,
+        //                    Continuity3d, Continuity2d, Degree, Rational, aParameters)
+        Handle(ShapeCustom_RestrictionParameters) params = new ShapeCustom_RestrictionParameters();
+        TopoDS_Shape result = ShapeCustom::BSplineRestriction(
+            shape->shape,
+            surfaceTol,
+            curveTol,
+            maxDegree,
+            maxSegments,
+            GeomAbs_C1,       // Continuity3d
+            GeomAbs_C1,       // Continuity2d
+            Standard_True,     // Degree priority
+            Standard_True,     // Rational
+            params
+        );
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeSweptToElementary(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+
+    try {
+        TopoDS_Shape result = ShapeCustom::SweptToElementary(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeRevolutionToElementary(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+
+    try {
+        TopoDS_Shape result = ShapeCustom::ConvertToRevolution(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeConvertToBSpline(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+
+    try {
+        // ConvertToBSpline(shape, extrMode, revolMode, offsetMode, planeMode)
+        TopoDS_Shape result = ShapeCustom::ConvertToBSpline(
+            shape->shape,
+            Standard_True,   // Convert extrusion surfaces
+            Standard_True,   // Convert revolution surfaces
+            Standard_True,   // Convert offset surfaces
+            Standard_False   // Don't convert planes
+        );
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeSewSingle(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+
+    try {
+        BRepBuilderAPI_Sewing sewing(tolerance);
+        sewing.Add(shape->shape);
+        sewing.Perform();
+        TopoDS_Shape sewn = sewing.SewedShape();
+        if (sewn.IsNull()) return nullptr;
+
+        // Try to make a solid if we got a closed shell
+        if (sewn.ShapeType() == TopAbs_SHELL) {
+            TopoDS_Shell shell = TopoDS::Shell(sewn);
+            if (shell.Closed()) {
+                BRepBuilderAPI_MakeSolid makeSolid(shell);
+                if (makeSolid.IsDone()) {
+                    return new OCCTShape(makeSolid.Solid());
+                }
+            }
+        }
+
+        return new OCCTShape(sewn);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeUpgrade(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+
+    try {
+        // Step 1: Sew
+        BRepBuilderAPI_Sewing sewing(tolerance);
+        sewing.Add(shape->shape);
+        sewing.Perform();
+        TopoDS_Shape sewedShape = sewing.SewedShape();
+        if (sewedShape.IsNull()) sewedShape = shape->shape;
+
+        // Step 2: Try to create solid from shell
+        TopoDS_Shape resultShape = sewedShape;
+        if (sewedShape.ShapeType() != TopAbs_SOLID) {
+            TopExp_Explorer shellExp(sewedShape, TopAbs_SHELL);
+            if (shellExp.More()) {
+                BRepBuilderAPI_MakeSolid makeSolid(TopoDS::Shell(shellExp.Current()));
+                if (makeSolid.IsDone()) {
+                    resultShape = makeSolid.Solid();
+                }
+            }
+        }
+
+        // Step 3: Apply shape healing
+        ShapeFix_Shape fixer(resultShape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+        return new OCCTShape(fixed.IsNull() ? resultShape : fixed);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 
