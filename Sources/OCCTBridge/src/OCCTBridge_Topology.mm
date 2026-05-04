@@ -40,6 +40,8 @@
 #include <GProp_GProps.hxx>
 
 #include <ShapeAnalysis_ShapeContents.hxx>
+#include <ShapeAnalysis_Wire.hxx>
+#include <ShapeExtend_WireData.hxx>
 
 #include <gp_Ax1.hxx>
 #include <gp_Dir.hxx>
@@ -302,4 +304,173 @@ OCCTTopAbsState OCCTClassifyPointOnFaceUV(OCCTFaceRef face,
     }
 }
 
+
+// MARK: - Wire Analysis (v0.37.0)
+
+#include <ShapeAnalysis_Wire.hxx>
+#include <ShapeExtend_WireData.hxx>
+
+bool OCCTWireAnalyze(OCCTWireRef wire, double tolerance, OCCTWireAnalysisResult* result) {
+    if (!wire || !result) return false;
+    try {
+        // Create a dummy planar face for wire analysis
+        TopoDS_Face face;
+        ShapeAnalysis_Wire analyzer;
+        analyzer.Load(wire->wire);
+        analyzer.SetPrecision(tolerance);
+
+        result->edgeCount = analyzer.NbEdges();
+        // CheckClosed returns true when there IS a problem, so negate it
+        result->isClosed = wire->wire.Closed() || !analyzer.CheckClosed(tolerance);
+        result->hasSmallEdges = analyzer.CheckSmall(tolerance);
+        result->hasGaps3d = analyzer.CheckGaps3d();
+        result->hasSelfIntersection = analyzer.CheckSelfIntersection();
+        result->isOrdered = !analyzer.CheckOrder();
+        result->minDistance3d = analyzer.MinDistance3d();
+        result->maxDistance3d = analyzer.MaxDistance3d();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Oriented Bounding Box (v0.38.0)
+
+#include <Bnd_OBB.hxx>
+#include <BRepBndLib.hxx>
+
+bool OCCTShapeOrientedBoundingBox(OCCTShapeRef shape, bool optimal, OCCTOrientedBoundingBox* result) {
+    if (!shape || !result) return false;
+    try {
+        Bnd_OBB obb;
+        BRepBndLib::AddOBB(shape->shape, obb, true, optimal, true);
+        if (obb.IsVoid()) return false;
+
+        gp_XYZ center = obb.Center();
+        result->centerX = center.X();
+        result->centerY = center.Y();
+        result->centerZ = center.Z();
+
+        gp_XYZ xDir = obb.XDirection();
+        result->xDirX = xDir.X(); result->xDirY = xDir.Y(); result->xDirZ = xDir.Z();
+        gp_XYZ yDir = obb.YDirection();
+        result->yDirX = yDir.X(); result->yDirY = yDir.Y(); result->yDirZ = yDir.Z();
+        gp_XYZ zDir = obb.ZDirection();
+        result->zDirX = zDir.X(); result->zDirY = zDir.Y(); result->zDirZ = zDir.Z();
+
+        result->halfX = obb.XHSize();
+        result->halfY = obb.YHSize();
+        result->halfZ = obb.ZHSize();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+double OCCTOrientedBoundingBoxVolume(const OCCTOrientedBoundingBox* result) {
+    if (!result) return 0.0;
+    return 8.0 * result->halfX * result->halfY * result->halfZ;
+}
+
+void OCCTOrientedBoundingBoxCorners(const OCCTOrientedBoundingBox* result, double* outCorners) {
+    if (!result || !outCorners) return;
+    gp_XYZ center(result->centerX, result->centerY, result->centerZ);
+    gp_XYZ xDir(result->xDirX, result->xDirY, result->xDirZ);
+    gp_XYZ yDir(result->yDirX, result->yDirY, result->yDirZ);
+    gp_XYZ zDir(result->zDirX, result->zDirY, result->zDirZ);
+    gp_XYZ hx = xDir * result->halfX;
+    gp_XYZ hy = yDir * result->halfY;
+    gp_XYZ hz = zDir * result->halfZ;
+
+    // 8 corners: all combinations of +/- half-sizes
+    int idx = 0;
+    for (int sx = -1; sx <= 1; sx += 2) {
+        for (int sy = -1; sy <= 1; sy += 2) {
+            for (int sz = -1; sz <= 1; sz += 2) {
+                gp_XYZ corner = center;
+                corner += hx * sx;
+                corner += hy * sy;
+                corner += hz * sz;
+                outCorners[idx++] = corner.X();
+                outCorners[idx++] = corner.Y();
+                outCorners[idx++] = corner.Z();
+            }
+        }
+    }
+}
+
+// MARK: - Deep Shape Copy (v0.38.0)
+
+#include <BRepBuilderAPI_Copy.hxx>
+
+OCCTShapeRef OCCTShapeCopy(OCCTShapeRef shape, bool copyGeom, bool copyMesh) {
+    if (!shape) return nullptr;
+    try {
+        BRepBuilderAPI_Copy copier(shape->shape, copyGeom, copyMesh);
+        if (!copier.IsDone()) return nullptr;
+        TopoDS_Shape result = copier.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Sub-Shape Extraction (v0.38.0)
+
+#include <TopExp_Explorer.hxx>
+
+int32_t OCCTShapeGetSolidCount(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_SOLID); exp.More(); exp.Next()) {
+        count++;
+    }
+    return count;
+}
+
+int32_t OCCTShapeGetSolids(OCCTShapeRef shape, OCCTShapeRef* outSolids, int32_t maxCount) {
+    if (!shape || !outSolids || maxCount <= 0) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_SOLID); exp.More() && count < maxCount; exp.Next()) {
+        outSolids[count++] = new OCCTShape(exp.Current());
+    }
+    return count;
+}
+
+int32_t OCCTShapeGetShellCount(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_SHELL); exp.More(); exp.Next()) {
+        count++;
+    }
+    return count;
+}
+
+int32_t OCCTShapeGetShells(OCCTShapeRef shape, OCCTShapeRef* outShells, int32_t maxCount) {
+    if (!shape || !outShells || maxCount <= 0) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_SHELL); exp.More() && count < maxCount; exp.Next()) {
+        outShells[count++] = new OCCTShape(exp.Current());
+    }
+    return count;
+}
+
+int32_t OCCTShapeGetWireCount(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_WIRE); exp.More(); exp.Next()) {
+        count++;
+    }
+    return count;
+}
+
+int32_t OCCTShapeGetWires(OCCTShapeRef shape, OCCTShapeRef* outWires, int32_t maxCount) {
+    if (!shape || !outWires || maxCount <= 0) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_WIRE); exp.More() && count < maxCount; exp.Next()) {
+        outWires[count++] = new OCCTShape(exp.Current());
+    }
+    return count;
+}
 

@@ -54,6 +54,14 @@
 #include <ShapeFix_Shape.hxx>
 #include <ShapeFix_Wire.hxx>
 #include <ShapeUpgrade_UnifySameDomain.hxx>
+#include <ShapeUpgrade_ShapeDivideAngle.hxx>
+#include <ShapeUpgrade_ShapeDivide.hxx>
+#include <ShapeUpgrade_FaceDivideArea.hxx>
+#include <ShapeFix_Wireframe.hxx>
+#include <ShapeAnalysis_FreeBounds.hxx>
+#include <ShapeFix_FreeBounds.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
+#include <BRepLib.hxx>
 
 #include <TopAbs.hxx>
 #include <TopExp.hxx>
@@ -1036,4 +1044,173 @@ OCCTShapeRef OCCTShapeUpgrade(OCCTShapeRef shape, double tolerance) {
     }
 }
 
+
+// MARK: - Split Shape by Angle (v0.34.0)
+
+#include <ShapeUpgrade_ShapeDivideAngle.hxx>
+
+OCCTShapeRef OCCTShapeSplitByAngle(OCCTShapeRef shape, double maxAngleDegrees) {
+    if (!shape) return nullptr;
+    try {
+        double maxAngleRadians = maxAngleDegrees * M_PI / 180.0;
+        ShapeUpgrade_ShapeDivideAngle divider(maxAngleRadians, shape->shape);
+        if (!divider.Perform()) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Drop Small Edges (v0.34.0)
+
+OCCTShapeRef OCCTShapeDropSmallEdges(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_Wireframe) wireframe = new ShapeFix_Wireframe(shape->shape);
+        wireframe->SetPrecision(tolerance);
+        wireframe->ModeDropSmallEdges() = true;
+        wireframe->FixSmallEdges();
+        TopoDS_Shape result = wireframe->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Same Parameter (v0.35.0)
+
+#include <BRepLib.hxx>
+
+OCCTShapeRef OCCTShapeSameParameter(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        // Make a copy so we don't modify the original
+        BRepBuilderAPI_Copy copier(shape->shape);
+        if (!copier.IsDone()) return nullptr;
+        TopoDS_Shape result = copier.Shape();
+        BRepLib::SameParameter(result, tolerance);
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Encode Regularity (v0.36.0)
+
+OCCTShapeRef OCCTShapeEncodeRegularity(OCCTShapeRef shape, double toleranceAngleDegrees) {
+    if (!shape) return nullptr;
+    try {
+        BRepBuilderAPI_Copy copier(shape->shape);
+        if (!copier.IsDone()) return nullptr;
+        TopoDS_Shape result = copier.Shape();
+        double tolAngle = toleranceAngleDegrees * M_PI / 180.0;
+        BRepLib::EncodeRegularity(result, tolAngle);
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Update Tolerances (v0.36.0)
+
+OCCTShapeRef OCCTShapeUpdateTolerances(OCCTShapeRef shape, bool verifyFaceTolerance) {
+    if (!shape) return nullptr;
+    try {
+        BRepBuilderAPI_Copy copier(shape->shape);
+        if (!copier.IsDone()) return nullptr;
+        TopoDS_Shape result = copier.Shape();
+        BRepLib::UpdateTolerances(result, verifyFaceTolerance);
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Shape Divide by Number (v0.36.0)
+
+#include <ShapeUpgrade_ShapeDivide.hxx>
+#include <ShapeUpgrade_FaceDivideArea.hxx>
+
+OCCTShapeRef OCCTShapeDivideByNumber(OCCTShapeRef shape, int32_t nbU, int32_t nbV) {
+    if (!shape || nbU < 1 || nbV < 1) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivide divider(shape->shape);
+        // Use FaceDivideArea with splitting-by-number mode
+        Handle(ShapeUpgrade_FaceDivideArea) faceDivide = new ShapeUpgrade_FaceDivideArea();
+        faceDivide->SetSplittingByNumber(true);
+        faceDivide->NbParts() = nbU * nbV;
+        divider.SetSplitFaceTool(faceDivide);
+        if (!divider.Perform()) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFreeBounds(OCCTShapeRef shape, double sewingTolerance,
+                                  int32_t* outClosedCount, int32_t* outOpenCount) {
+    if (!shape || !outClosedCount || !outOpenCount) return nullptr;
+    try {
+        ShapeAnalysis_FreeBounds analyzer(shape->shape, sewingTolerance);
+
+        TopoDS_Compound closedWires = analyzer.GetClosedWires();
+        TopoDS_Compound openWires = analyzer.GetOpenWires();
+
+        // Count wires in each compound
+        int32_t closedCount = 0, openCount = 0;
+        TopExp_Explorer expClosed(closedWires, TopAbs_WIRE);
+        while (expClosed.More()) { closedCount++; expClosed.Next(); }
+        TopExp_Explorer expOpen(openWires, TopAbs_WIRE);
+        while (expOpen.More()) { openCount++; expOpen.Next(); }
+
+        *outClosedCount = closedCount;
+        *outOpenCount = openCount;
+
+        // Return compound of all free boundary wires
+        BRep_Builder builder;
+        TopoDS_Compound result;
+        builder.MakeCompound(result);
+        if (!closedWires.IsNull()) builder.Add(result, closedWires);
+        if (!openWires.IsNull()) builder.Add(result, openWires);
+
+        if (closedCount == 0 && openCount == 0) return nullptr;
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFixFreeBounds(OCCTShapeRef shape, double sewingTolerance,
+                                     double closingTolerance, int32_t* outFixedCount) {
+    if (!shape || !outFixedCount) return nullptr;
+    try {
+        ShapeFix_FreeBounds fixer(shape->shape, sewingTolerance, closingTolerance,
+                                   Standard_True, Standard_True);
+
+        TopoDS_Compound closedWires = fixer.GetClosedWires();
+        TopoDS_Compound openWires = fixer.GetOpenWires();
+
+        int32_t closedCount = 0;
+        TopExp_Explorer exp(closedWires, TopAbs_WIRE);
+        while (exp.More()) { closedCount++; exp.Next(); }
+
+        *outFixedCount = closedCount;
+
+        BRep_Builder builder;
+        TopoDS_Compound result;
+        builder.MakeCompound(result);
+        if (!closedWires.IsNull()) builder.Add(result, closedWires);
+        if (!openWires.IsNull()) builder.Add(result, openWires);
+
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
 

@@ -45,6 +45,11 @@
 #include <GeomAdaptor_Surface.hxx>
 #include <GeomConvert.hxx>
 #include <GeomConvert_ApproxSurface.hxx>
+#include <GeomConvert_BSplineSurfaceToBezierSurface.hxx>
+#include <GeomAPI_IntSS.hxx>
+#include <GeomAPI_IntCS.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BezierSurface.hxx>
 #include <GeomFill_Pipe.hxx>
 #include <GeomLProp_SLProps.hxx>
 
@@ -1084,6 +1089,133 @@ OCCTSurfaceRef OCCTSurfaceBezierFill2(OCCTCurve3DRef c1, OCCTCurve3DRef c2,
         return new OCCTSurface(surf);
     } catch (...) {
         return nullptr;
+    }
+}
+
+// MARK: - Surface-Surface Intersection (v0.35.0)
+
+#include <GeomAPI_IntSS.hxx>
+
+int32_t OCCTSurfaceSurfaceIntersect(OCCTSurfaceRef surface1, OCCTSurfaceRef surface2,
+                                     double tolerance,
+                                     OCCTCurve3DRef* outCurves, int32_t maxCurves) {
+    if (!surface1 || !surface2 || !outCurves || maxCurves < 1) return 0;
+    if (surface1->surface.IsNull() || surface2->surface.IsNull()) return 0;
+    try {
+        GeomAPI_IntSS intersector(surface1->surface, surface2->surface, tolerance);
+        if (!intersector.IsDone()) return 0;
+        int32_t nbLines = intersector.NbLines();
+        int32_t count = std::min(nbLines, maxCurves);
+        for (int32_t i = 0; i < count; ++i) {
+            Handle(Geom_Curve) curve = intersector.Line(i + 1); // 1-based
+            if (curve.IsNull()) {
+                outCurves[i] = nullptr;
+            } else {
+                outCurves[i] = new OCCTCurve3D(curve);
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Curve-Surface Intersection (v0.35.0)
+
+#include <GeomAPI_IntCS.hxx>
+
+int32_t OCCTCurveSurfaceIntersect(OCCTCurve3DRef curve, OCCTSurfaceRef surface,
+                                   OCCTCurveSurfacePoint* outPoints, int32_t maxPoints) {
+    if (!curve || !surface || !outPoints || maxPoints < 1) return 0;
+    if (curve->curve.IsNull() || surface->surface.IsNull()) return 0;
+    try {
+        GeomAPI_IntCS intersector(curve->curve, surface->surface);
+        if (!intersector.IsDone()) return 0;
+        int32_t nbPoints = intersector.NbPoints();
+        int32_t count = std::min(nbPoints, maxPoints);
+        for (int32_t i = 0; i < count; ++i) {
+            gp_Pnt pt = intersector.Point(i + 1);
+            double u, v, w;
+            intersector.Parameters(i + 1, u, v, w);
+            outPoints[i].x = pt.X();
+            outPoints[i].y = pt.Y();
+            outPoints[i].z = pt.Z();
+            outPoints[i].u = u;
+            outPoints[i].v = v;
+            outPoints[i].w = w;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Surface to Bezier Patches (v0.36.0)
+
+#include <GeomConvert_BSplineSurfaceToBezierSurface.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BezierSurface.hxx>
+
+int32_t OCCTSurfaceToBezierPatches(OCCTSurfaceRef surface,
+                                    OCCTSurfaceRef* outPatches, int32_t maxPatches) {
+    if (!surface || !outPatches || maxPatches < 1) return 0;
+    if (surface->surface.IsNull()) return 0;
+    try {
+        // First convert to BSpline if needed
+        Handle(Geom_BSplineSurface) bspline = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bspline.IsNull()) {
+            // Try approximate conversion
+            Handle(Geom_Surface) surf = surface->surface;
+            // Use ShapeConstruct to convert
+            bspline = GeomConvert::SurfaceToBSplineSurface(surf);
+            if (bspline.IsNull()) return 0;
+        }
+        GeomConvert_BSplineSurfaceToBezierSurface converter(bspline);
+        int32_t nbU = converter.NbUPatches();
+        int32_t nbV = converter.NbVPatches();
+        int32_t total = nbU * nbV;
+        int32_t count = std::min(total, maxPatches);
+        int32_t idx = 0;
+        for (int32_t i = 1; i <= nbU && idx < count; ++i) {
+            for (int32_t j = 1; j <= nbV && idx < count; ++j) {
+                Handle(Geom_BezierSurface) patch = converter.Patch(i, j);
+                if (!patch.IsNull()) {
+                    outPatches[idx] = new OCCTSurface(patch);
+                    idx++;
+                } else {
+                    outPatches[idx] = nullptr;
+                    idx++;
+                }
+            }
+        }
+        return idx;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Surface Singularity Analysis (v0.37.0)
+
+#include <ShapeAnalysis_Surface.hxx>
+
+int32_t OCCTSurfaceSingularityCount(OCCTSurfaceRef surface, double tolerance) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    try {
+        ShapeAnalysis_Surface analyzer(surface->surface);
+        return analyzer.NbSingularities(tolerance);
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTSurfaceIsDegenerated(OCCTSurfaceRef surface, double x, double y, double z, double tolerance) {
+    if (!surface || surface->surface.IsNull()) return false;
+    try {
+        ShapeAnalysis_Surface analyzer(surface->surface);
+        gp_Pnt point(x, y, z);
+        return analyzer.IsDegenerated(point, tolerance);
+    } catch (...) {
+        return false;
     }
 }
 
