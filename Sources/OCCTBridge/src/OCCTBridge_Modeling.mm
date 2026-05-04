@@ -3103,3 +3103,143 @@ OCCTWireRef OCCTWireJoin(const OCCTWireRef* wires, int32_t count) {
     }
 }
 
+// MARK: - Law Functions (v0.21.0)
+// ============================================================================
+
+#include <Law_Function.hxx>
+#include <Law_Constant.hxx>
+#include <Law_Linear.hxx>
+#include <Law_S.hxx>
+#include <Law_Interpol.hxx>
+#include <Law_BSpline.hxx>
+#include <Law_BSpFunc.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
+
+struct OCCTLawFunction {
+    Handle(Law_Function) law;
+    OCCTLawFunction() {}
+    OCCTLawFunction(const Handle(Law_Function)& l) : law(l) {}
+};
+
+void OCCTLawFunctionRelease(OCCTLawFunctionRef l) {
+    delete l;
+}
+
+double OCCTLawFunctionValue(OCCTLawFunctionRef l, double param) {
+    if (!l || l->law.IsNull()) return 0.0;
+    try {
+        return l->law->Value(param);
+    } catch (...) {
+        return 0.0;
+    }
+}
+
+void OCCTLawFunctionBounds(OCCTLawFunctionRef l, double* first, double* last) {
+    if (!l || l->law.IsNull() || !first || !last) return;
+    try {
+        l->law->Bounds(*first, *last);
+    } catch (...) {
+        *first = 0;
+        *last = 0;
+    }
+}
+
+OCCTLawFunctionRef OCCTLawCreateConstant(double value, double first, double last) {
+    try {
+        Handle(Law_Constant) law = new Law_Constant();
+        law->Set(value, first, last);
+        return new OCCTLawFunction(law);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTLawFunctionRef OCCTLawCreateLinear(double first, double startVal,
+                                        double last, double endVal) {
+    try {
+        Handle(Law_Linear) law = new Law_Linear();
+        law->Set(first, startVal, last, endVal);
+        return new OCCTLawFunction(law);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTLawFunctionRef OCCTLawCreateS(double first, double startVal,
+                                   double last, double endVal) {
+    try {
+        Handle(Law_S) law = new Law_S();
+        law->Set(first, startVal, last, endVal);
+        return new OCCTLawFunction(law);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTLawFunctionRef OCCTLawCreateInterpolate(const double* paramValues,
+                                             int32_t count, bool periodic) {
+    if (!paramValues || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt2d pts(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt2d(paramValues[i * 2], paramValues[i * 2 + 1]));
+        }
+        Handle(Law_Interpol) law = new Law_Interpol();
+        law->Set(pts, periodic ? Standard_True : Standard_False);
+        return new OCCTLawFunction(law);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTLawFunctionRef OCCTLawCreateBSpline(const double* poles, int32_t poleCount,
+                                         const double* knots, int32_t knotCount,
+                                         const int32_t* multiplicities,
+                                         int32_t degree) {
+    if (!poles || !knots || !multiplicities || poleCount < 2 || knotCount < 2)
+        return nullptr;
+    try {
+        TColStd_Array1OfReal poleArr(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) poleArr.SetValue(i + 1, poles[i]);
+
+        TColStd_Array1OfReal knotArr(1, knotCount);
+        for (int32_t i = 0; i < knotCount; i++) knotArr.SetValue(i + 1, knots[i]);
+
+        TColStd_Array1OfInteger multArr(1, knotCount);
+        for (int32_t i = 0; i < knotCount; i++) multArr.SetValue(i + 1, multiplicities[i]);
+
+        Handle(Law_BSpline) bsp = new Law_BSpline(poleArr, knotArr, multArr, degree);
+        Handle(Law_BSpFunc) law = new Law_BSpFunc(bsp, knots[0], knots[knotCount - 1]);
+        return new OCCTLawFunction(law);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCreatePipeShellWithLaw(OCCTWireRef spine,
+                                              OCCTWireRef profile,
+                                              OCCTLawFunctionRef law,
+                                              bool solid) {
+    if (!spine || !profile || !law || law->law.IsNull()) return nullptr;
+    try {
+        BRepOffsetAPI_MakePipeShell pipeShell(spine->wire);
+        pipeShell.SetMode(Standard_False); // Frenet
+        pipeShell.SetLaw(profile->wire, law->law, Standard_False, Standard_False);
+        pipeShell.SetIsBuildHistory(false); // avoid SEGV on closed spine+profile (OCCT bug)
+        pipeShell.Build();
+        if (!pipeShell.IsDone()) return nullptr;
+
+        TopoDS_Shape result = pipeShell.Shape();
+        if (solid) {
+            pipeShell.MakeSolid();
+            if (pipeShell.IsDone()) {
+                result = pipeShell.Shape();
+            }
+        }
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// ============================================================================
