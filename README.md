@@ -4,9 +4,9 @@
 [![Platforms](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2Fgsdali%2FOCCTSwift%2Fbadge%3Ftype%3Dplatforms)](https://swiftpackageindex.com/gsdali/OCCTSwift)
 [![License](https://img.shields.io/badge/license-LGPL--2.1-blue)](LICENSE)
 
-A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0 beta1, providing B-Rep solid modeling for macOS and iOS. v1.0.0 will pin to OCCT 8.0.0 GA on May 7, 2026.
+A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0 beta2, providing B-Rep solid modeling for macOS and iOS. v1.0.0 will pin to OCCT 8.0.0 GA on May 7, 2026.
 
-**4,281 wrapped operations** | **3,393 tests** | **1,178 suites** | macOS 12+ / iOS 15+ / visionOS 1+ / tvOS 15+ (arm64) | OCCT 8.0.0-beta1
+**4,281 wrapped operations** | **3,393 tests** | **1,178 suites** | macOS 12+ / iOS 15+ / visionOS 1+ / tvOS 15+ (arm64) | OCCT 8.0.0-beta2
 
 ## Quick Start
 
@@ -134,7 +134,7 @@ try Exporter.writeGLB(shape: model, to: glbURL)
 Sources/OCCTSwift/          Swift public API
 Sources/OCCTBridge/include/ C function declarations (OCCTBridge.h)
 Sources/OCCTBridge/src/     Objective-C++ implementations (OCCTBridge.mm)
-Libraries/OCCT.xcframework  Pre-built OCCT 8.0.0-beta1 static library (arm64)
+Libraries/OCCT.xcframework  Pre-built OCCT 8.0.0-beta2 static library (arm64)
 Tests/OCCTSwiftTests/       All tests (Swift Testing framework)
 ```
 

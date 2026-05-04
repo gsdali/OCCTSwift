@@ -2,13 +2,25 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.169.0
+## Current: v0.170.0
 
-**4,281 wrapped operations | 3,393 tests | 1,178 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta1**
+**4,281 wrapped operations | 3,393 tests | 1,178 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta2**
 
 ---
 
 ## Release History
+
+### v0.170.0 (May 2026) — OCCT 8.0.0-beta2 ingest
+
+xcframework rebuilt against `V8_0_0_beta2`. No public API changes — beta2 is a small follow-up to beta1 with no API breakage. Final 8.0.0 release remains targeted for May 7, 2026.
+
+Upstream changes that landed in beta2:
+
+- **Thread-safe STEP write + STEP/IGES read** ([OCCT #1259](https://github.com/Open-Cascade-SAS/OCCT/pull/1259)) — fixes `libmalloc` double-free under concurrent `STEPControl_Writer::Transfer` and intermittent crashes in concurrent STEP/IGES readers. Contract: one reader/writer per thread; STEP read + write safe under that contract; IGES read still requires explicit serialization. OCCTSwift already serializes IGES via `igesMutex()` and STEP via `occtGlobalMutex()`, so the upstream fix is a net safety improvement without requiring bridge changes.
+- **CPU grid path restored** ([OCCT #1252](https://github.com/Open-Cascade-SAS/OCCT/pull/1252)) — the classical `Graphic3d_Structure`-based grid removed in beta1 is back as a coexisting backend. Doesn't surface in OCCTSwift (no grid API exposed).
+- **Documentation refresh + samples directory + CI warning cleanup** — internal to upstream; no impact on consumers.
+
+OCCTSwift surface unchanged: 4,281 wrapped operations, 3,393 tests, 1,178 suites, identical Swift `OCCTSwift.*` API.
 
 ### v0.169.0 (May 2026) — Mesh + export progress (issue #98 follow-up)
 
