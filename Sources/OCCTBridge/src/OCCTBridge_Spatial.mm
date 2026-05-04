@@ -19,6 +19,12 @@
 #include <math_DirectPolynomialRoots.hxx>
 
 #include <gp_Pnt.hxx>
+#include <gp_Lin.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Sphere.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <GProp_PEquation.hxx>
 
 #include <algorithm>
 #include <cmath>
@@ -185,3 +191,52 @@ OCCTPolynomialRoots OCCTSolveQuartic(double a, double b, double c, double d, dou
     return result;
 }
 
+
+bool OCCTAnalyzePointCloud(const double* coords, int32_t pointCount,
+                            double tolerance, OCCTPointCloudGeometry* outResult) {
+    if (!coords || pointCount < 1 || !outResult) return false;
+    try {
+        TColgp_Array1OfPnt pts(1, pointCount);
+        for (int32_t i = 0; i < pointCount; i++) {
+            pts.SetValue(i + 1, gp_Pnt(coords[i*3], coords[i*3+1], coords[i*3+2]));
+        }
+
+        GProp_PEquation eq(pts, tolerance);
+
+        if (eq.IsPoint()) {
+            outResult->type = 0;
+            gp_Pnt pt = eq.Point();
+            outResult->pointX = pt.X();
+            outResult->pointY = pt.Y();
+            outResult->pointZ = pt.Z();
+        } else if (eq.IsLinear()) {
+            outResult->type = 1;
+            gp_Lin lin = eq.Line();
+            gp_Pnt o = lin.Location();
+            gp_Dir d = lin.Direction();
+            outResult->pointX = o.X();
+            outResult->pointY = o.Y();
+            outResult->pointZ = o.Z();
+            outResult->dirX = d.X();
+            outResult->dirY = d.Y();
+            outResult->dirZ = d.Z();
+        } else if (eq.IsPlanar()) {
+            outResult->type = 2;
+            gp_Pln pln = eq.Plane();
+            gp_Pnt o = pln.Location();
+            gp_Dir n = pln.Axis().Direction();
+            outResult->pointX = o.X();
+            outResult->pointY = o.Y();
+            outResult->pointZ = o.Z();
+            outResult->normalX = n.X();
+            outResult->normalY = n.Y();
+            outResult->normalZ = n.Z();
+        } else {
+            outResult->type = 3;
+            // No specific geometry for space points
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}

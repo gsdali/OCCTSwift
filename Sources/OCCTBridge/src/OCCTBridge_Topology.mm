@@ -814,3 +814,101 @@ OCCTSurfaceRef OCCTShapeFindSurfaceEx(OCCTShapeRef shape, double tolerance,
     }
 }
 
+// MARK: - v0.41.0: Shape Surgery, Plane Detection, Geometry Conversion
+
+#include <BRepTools_ReShape.hxx>
+#include <BRepBuilderAPI_FindPlane.hxx>
+#include <Geom_Plane.hxx>
+#include <ShapeUpgrade_ShapeDivideClosedEdges.hxx>
+#include <ShapeCustom.hxx>
+#include <BRepAlgo_FaceRestrictor.hxx>
+
+OCCTShapeRef OCCTShapeRemoveSubShapes(OCCTShapeRef shape, OCCTShapeRef* subShapes, int32_t count) {
+    if (!shape || !subShapes || count <= 0) return nullptr;
+    try {
+        Handle(BRepTools_ReShape) reshaper = new BRepTools_ReShape();
+        for (int32_t i = 0; i < count; i++) {
+            if (subShapes[i]) {
+                reshaper->Remove(subShapes[i]->shape);
+            }
+        }
+        TopoDS_Shape result = reshaper->Apply(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeReplaceSubShapes(OCCTShapeRef shape,
+                                        OCCTShapeRef* oldShapes, OCCTShapeRef* newShapes,
+                                        int32_t count) {
+    if (!shape || !oldShapes || !newShapes || count <= 0) return nullptr;
+    try {
+        Handle(BRepTools_ReShape) reshaper = new BRepTools_ReShape();
+        for (int32_t i = 0; i < count; i++) {
+            if (oldShapes[i] && newShapes[i]) {
+                reshaper->Replace(oldShapes[i]->shape, newShapes[i]->shape);
+            }
+        }
+        TopoDS_Shape result = reshaper->Apply(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTShapeFindPlane(OCCTShapeRef shape, double tolerance,
+                         double* outNormalX, double* outNormalY, double* outNormalZ,
+                         double* outOriginX, double* outOriginY, double* outOriginZ) {
+    if (!shape || !outNormalX || !outNormalY || !outNormalZ ||
+        !outOriginX || !outOriginY || !outOriginZ) return false;
+    try {
+        BRepBuilderAPI_FindPlane finder(shape->shape, tolerance);
+        if (!finder.Found()) return false;
+
+        Handle(Geom_Plane) plane = finder.Plane();
+        if (plane.IsNull()) return false;
+
+        gp_Pln pln = plane->Pln();
+        gp_Dir norm = pln.Axis().Direction();
+        gp_Pnt loc = pln.Location();
+
+        *outNormalX = norm.X();
+        *outNormalY = norm.Y();
+        *outNormalZ = norm.Z();
+        *outOriginX = loc.X();
+        *outOriginY = loc.Y();
+        *outOriginZ = loc.Z();
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+// MARK: - Sub-Shape Extraction (fixes #36)
+
+int32_t OCCTShapeGetSubShapeCount(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(shape->shape, static_cast<TopAbs_ShapeEnum>(type), map);
+        return map.Extent();
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTShapeRef OCCTShapeGetSubShapeByTypeIndex(OCCTShapeRef shape, int32_t type, int32_t index) {
+    if (!shape || index < 0) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(shape->shape, static_cast<TopAbs_ShapeEnum>(type), map);
+        if (index >= map.Extent()) return nullptr;
+        return new OCCTShape(map(index + 1)); // OCCT uses 1-based indexing
+    } catch (...) {
+        return nullptr;
+    }
+}
+
