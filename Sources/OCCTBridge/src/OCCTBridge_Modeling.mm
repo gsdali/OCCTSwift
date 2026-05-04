@@ -72,6 +72,15 @@
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
+#include <Geom_Circle.hxx>
+#include <Geom_TrimmedCurve.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <GC_MakeArcOfCircle.hxx>
+#include <GeomAPI_PointsToBSpline.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <TColStd_Array1OfReal.hxx>
+#include <TColStd_Array1OfInteger.hxx>
+#include <TColStd_HArray1OfBoolean.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
 #include <ShapeFix_Solid.hxx>
@@ -2756,6 +2765,339 @@ OCCTShapeRef OCCTShapeCircularPattern(OCCTShapeRef shape,
         }
 
         return new OCCTShape(compound);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Wire Creation (2D Profiles)
+
+OCCTWireRef OCCTWireCreateRectangle(double width, double height) {
+    try {
+        double hw = width / 2;
+        double hh = height / 2;
+
+        gp_Pnt p1(-hw, -hh, 0);
+        gp_Pnt p2( hw, -hh, 0);
+        gp_Pnt p3( hw,  hh, 0);
+        gp_Pnt p4(-hw,  hh, 0);
+
+        TopoDS_Edge e1 = BRepBuilderAPI_MakeEdge(p1, p2);
+        TopoDS_Edge e2 = BRepBuilderAPI_MakeEdge(p2, p3);
+        TopoDS_Edge e3 = BRepBuilderAPI_MakeEdge(p3, p4);
+        TopoDS_Edge e4 = BRepBuilderAPI_MakeEdge(p4, p1);
+
+        BRepBuilderAPI_MakeWire wireMaker;
+        wireMaker.Add(e1);
+        wireMaker.Add(e2);
+        wireMaker.Add(e3);
+        wireMaker.Add(e4);
+
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateCircle(double radius) {
+    try {
+        gp_Circ circle(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), radius);
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(circle);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateCircleEx(double radius,
+    double ox, double oy, double oz,
+    double nx, double ny, double nz) {
+    try {
+        gp_Circ circle(gp_Ax2(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz)), radius);
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(circle);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreatePolygon(const double* points, int32_t pointCount, bool closed) {
+    if (!points || pointCount < 2) return nullptr;
+
+    try {
+        BRepBuilderAPI_MakeWire wireMaker;
+
+        for (int32_t i = 0; i < pointCount - 1; i++) {
+            gp_Pnt p1(points[i * 2], points[i * 2 + 1], 0);
+            gp_Pnt p2(points[(i + 1) * 2], points[(i + 1) * 2 + 1], 0);
+            TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(p1, p2);
+            wireMaker.Add(edge);
+        }
+
+        if (closed && pointCount > 2) {
+            gp_Pnt pLast(points[(pointCount - 1) * 2], points[(pointCount - 1) * 2 + 1], 0);
+            gp_Pnt pFirst(points[0], points[1], 0);
+            TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(pLast, pFirst);
+            wireMaker.Add(edge);
+        }
+
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateFromPoints3D(const double* points, int32_t pointCount, bool closed) {
+    if (!points || pointCount < 2) return nullptr;
+
+    try {
+        BRepBuilderAPI_MakeWire wireMaker;
+
+        for (int32_t i = 0; i < pointCount - 1; i++) {
+            gp_Pnt p1(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+            gp_Pnt p2(points[(i + 1) * 3], points[(i + 1) * 3 + 1], points[(i + 1) * 3 + 2]);
+            TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(p1, p2);
+            wireMaker.Add(edge);
+        }
+
+        if (closed && pointCount > 2) {
+            gp_Pnt pLast(points[(pointCount - 1) * 3], points[(pointCount - 1) * 3 + 1], points[(pointCount - 1) * 3 + 2]);
+            gp_Pnt pFirst(points[0], points[1], points[2]);
+            TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(pLast, pFirst);
+            wireMaker.Add(edge);
+        }
+
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Wire Creation (3D Paths)
+
+OCCTWireRef OCCTWireCreateLine(double x1, double y1, double z1, double x2, double y2, double z2) {
+    try {
+        gp_Pnt p1(x1, y1, z1);
+        gp_Pnt p2(x2, y2, z2);
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(p1, p2);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateArc(double centerX, double centerY, double centerZ, double radius, double startAngle, double endAngle, double normalX, double normalY, double normalZ) {
+    try {
+        gp_Pnt center(centerX, centerY, centerZ);
+        gp_Dir normal(normalX, normalY, normalZ);
+        gp_Ax2 axis(center, normal);
+
+        gp_Circ circle(axis, radius);
+
+        // Create arc from angles
+        Handle(Geom_Circle) geomCircle = new Geom_Circle(circle);
+        Handle(Geom_TrimmedCurve) arc = new Geom_TrimmedCurve(geomCircle, startAngle, endAngle);
+
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(arc);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateArcThroughPoints(double sx, double sy, double sz,
+                                            double mx, double my, double mz,
+                                            double ex, double ey, double ez) {
+    try {
+        gp_Pnt p1(sx, sy, sz);
+        gp_Pnt p2(mx, my, mz);
+        gp_Pnt p3(ex, ey, ez);
+        GC_MakeArcOfCircle maker(p1, p2, p3);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_TrimmedCurve) arc = maker.Value();
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(arc);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateBSpline(const double* controlPoints, int32_t pointCount) {
+    if (!controlPoints || pointCount < 2) return nullptr;
+
+    try {
+        TColgp_Array1OfPnt points(1, pointCount);
+        for (int32_t i = 0; i < pointCount; i++) {
+            points.SetValue(i + 1, gp_Pnt(
+                controlPoints[i * 3],
+                controlPoints[i * 3 + 1],
+                controlPoints[i * 3 + 2]
+            ));
+        }
+
+        GeomAPI_PointsToBSpline fitter(points);
+        if (!fitter.IsDone()) return nullptr;
+
+        Handle(Geom_BSplineCurve) curve = fitter.Curve();
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(curve);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - NURBS Curve Creation
+
+OCCTWireRef OCCTWireCreateNURBS(
+    const double* poles,
+    int32_t poleCount,
+    const double* weights,
+    const double* knots,
+    int32_t knotCount,
+    const int32_t* multiplicities,
+    int32_t degree
+) {
+    if (!poles || poleCount < 2 || !knots || knotCount < 2 || degree < 1) return nullptr;
+
+    try {
+        // Create control points array (1-indexed in OCCT)
+        TColgp_Array1OfPnt polesArray(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) {
+            polesArray.SetValue(i + 1, gp_Pnt(
+                poles[i * 3],
+                poles[i * 3 + 1],
+                poles[i * 3 + 2]
+            ));
+        }
+
+        // Create weights array
+        TColStd_Array1OfReal weightsArray(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) {
+            weightsArray.SetValue(i + 1, weights ? weights[i] : 1.0);
+        }
+
+        // Create knots array
+        TColStd_Array1OfReal knotsArray(1, knotCount);
+        for (int32_t i = 0; i < knotCount; i++) {
+            knotsArray.SetValue(i + 1, knots[i]);
+        }
+
+        // Create multiplicities array
+        TColStd_Array1OfInteger multsArray(1, knotCount);
+        for (int32_t i = 0; i < knotCount; i++) {
+            multsArray.SetValue(i + 1, multiplicities ? multiplicities[i] : 1);
+        }
+
+        // Create the B-spline curve
+        Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(
+            polesArray,
+            weightsArray,
+            knotsArray,
+            multsArray,
+            degree
+        );
+
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(curve);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateNURBSUniform(
+    const double* poles,
+    int32_t poleCount,
+    const double* weights,
+    int32_t degree
+) {
+    if (!poles || poleCount < 2 || degree < 1) return nullptr;
+    if (poleCount < degree + 1) return nullptr;  // Need at least degree+1 control points
+
+    try {
+        // Create control points array
+        TColgp_Array1OfPnt polesArray(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) {
+            polesArray.SetValue(i + 1, gp_Pnt(
+                poles[i * 3],
+                poles[i * 3 + 1],
+                poles[i * 3 + 2]
+            ));
+        }
+
+        // Create weights array
+        TColStd_Array1OfReal weightsArray(1, poleCount);
+        for (int32_t i = 0; i < poleCount; i++) {
+            weightsArray.SetValue(i + 1, weights ? weights[i] : 1.0);
+        }
+
+        // For clamped uniform B-spline:
+        // - First and last knots have multiplicity = degree + 1
+        // - Interior knots have multiplicity = 1
+        // - Number of interior knots = poleCount - degree - 1
+        // - Total distinct knots = interior + 2 (for start and end)
+        int32_t interiorKnots = poleCount - degree - 1;
+        int32_t knotCount = interiorKnots + 2;
+
+        TColStd_Array1OfReal knotsArray(1, knotCount);
+        TColStd_Array1OfInteger multsArray(1, knotCount);
+
+        // Start knot at 0 with multiplicity degree+1
+        knotsArray.SetValue(1, 0.0);
+        multsArray.SetValue(1, degree + 1);
+
+        // Interior knots uniformly distributed
+        for (int32_t i = 0; i < interiorKnots; i++) {
+            knotsArray.SetValue(i + 2, (double)(i + 1) / (double)(interiorKnots + 1));
+            multsArray.SetValue(i + 2, 1);
+        }
+
+        // End knot at 1 with multiplicity degree+1
+        knotsArray.SetValue(knotCount, 1.0);
+        multsArray.SetValue(knotCount, degree + 1);
+
+        // Create the B-spline curve
+        Handle(Geom_BSplineCurve) curve = new Geom_BSplineCurve(
+            polesArray,
+            weightsArray,
+            knotsArray,
+            multsArray,
+            degree
+        );
+
+        TopoDS_Edge edge = BRepBuilderAPI_MakeEdge(curve);
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        return new OCCTWire(wireMaker.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateCubicBSpline(const double* poles, int32_t poleCount) {
+    // Cubic B-spline with uniform weights (non-rational)
+    return OCCTWireCreateNURBSUniform(poles, poleCount, nullptr, 3);
+}
+
+OCCTWireRef OCCTWireJoin(const OCCTWireRef* wires, int32_t count) {
+    if (!wires || count < 1) return nullptr;
+
+    try {
+        BRepBuilderAPI_MakeWire wireMaker;
+
+        for (int32_t i = 0; i < count; i++) {
+            if (wires[i]) {
+                wireMaker.Add(wires[i]->wire);
+            }
+        }
+
+        if (!wireMaker.IsDone()) return nullptr;
+        return new OCCTWire(wireMaker.Wire());
     } catch (...) {
         return nullptr;
     }
