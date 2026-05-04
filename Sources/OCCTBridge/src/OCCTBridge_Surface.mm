@@ -45,6 +45,11 @@
 #include <GeomAdaptor_Surface.hxx>
 #include <GeomConvert.hxx>
 #include <GeomConvert_ApproxSurface.hxx>
+#include <GeomConvert_BSplineSurfaceToBezierSurface.hxx>
+#include <GeomAPI_IntSS.hxx>
+#include <GeomAPI_IntCS.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BezierSurface.hxx>
 #include <GeomFill_Pipe.hxx>
 #include <GeomLProp_SLProps.hxx>
 
@@ -797,5 +802,420 @@ int32_t OCCTSurfaceGetVDegree(OCCTSurfaceRef s) {
         return 0;
     }
     return bsp->VDegree();
+}
+
+// MARK: - Batch Surface Evaluation (v0.29.0)
+
+#include <GeomGridEval_Surface.hxx>
+
+int32_t OCCTSurfaceEvaluateGrid(OCCTSurfaceRef surface,
+                                 const double* uParams, int32_t uCount,
+                                 const double* vParams, int32_t vCount,
+                                 double* outXYZ) {
+    if (!surface || surface->surface.IsNull() || !uParams || !vParams || !outXYZ
+        || uCount <= 0 || vCount <= 0) return 0;
+    try {
+        GeomGridEval_Surface evaluator(surface->surface);
+
+        NCollection_Array1<double> uArr(1, uCount);
+        for (int32_t i = 0; i < uCount; i++) {
+            uArr.SetValue(i + 1, uParams[i]);
+        }
+        NCollection_Array1<double> vArr(1, vCount);
+        for (int32_t i = 0; i < vCount; i++) {
+            vArr.SetValue(i + 1, vParams[i]);
+        }
+
+        NCollection_Array2<gp_Pnt> results = evaluator.EvaluateGrid(uArr, vArr);
+        int32_t total = uCount * vCount;
+        int32_t idx = 0;
+        // Row-major: v (rows) varies slowest, u (cols) varies fastest
+        for (int32_t iv = 1; iv <= vCount; iv++) {
+            for (int32_t iu = 1; iu <= uCount; iu++) {
+                const gp_Pnt& pt = results.Value(iu, iv);
+                outXYZ[idx*3]   = pt.X();
+                outXYZ[idx*3+1] = pt.Y();
+                outXYZ[idx*3+2] = pt.Z();
+                idx++;
+            }
+        }
+        return total;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Curve-Surface Intersection (v0.30.0)
+
+#include <GeomAPI_IntCS.hxx>
+
+int32_t OCCTCurve3DIntersectSurface(OCCTCurve3DRef curve, OCCTSurfaceRef surface,
+                                     OCCTCurveSurfaceIntersection* outHits, int32_t maxHits) {
+    if (!curve || curve->curve.IsNull() || !surface || surface->surface.IsNull() || !outHits || maxHits <= 0) return 0;
+    try {
+        GeomAPI_IntCS inter(curve->curve, surface->surface);
+        if (!inter.IsDone()) return 0;
+        int32_t nb = inter.NbPoints();
+        int32_t count = (nb < maxHits) ? nb : maxHits;
+        for (int32_t i = 0; i < count; i++) {
+            gp_Pnt pt = inter.Point(i + 1);
+            double w, u, v;
+            inter.Parameters(i + 1, u, v, w);
+            outHits[i].point[0] = pt.X();
+            outHits[i].point[1] = pt.Y();
+            outHits[i].point[2] = pt.Z();
+            outHits[i].paramCurve = w;
+            outHits[i].paramU = u;
+            outHits[i].paramV = v;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Surface-Surface Intersection (v0.30.0)
+
+#include <GeomAPI_IntSS.hxx>
+
+int32_t OCCTSurfaceIntersect(OCCTSurfaceRef s1, OCCTSurfaceRef s2, double tolerance,
+                              OCCTCurve3DRef* outCurves, int32_t maxCurves) {
+    if (!s1 || s1->surface.IsNull() || !s2 || s2->surface.IsNull() || !outCurves || maxCurves <= 0) return 0;
+    try {
+        GeomAPI_IntSS inter(s1->surface, s2->surface, tolerance);
+        if (!inter.IsDone()) return 0;
+        int32_t nb = inter.NbLines();
+        int32_t count = (nb < maxCurves) ? nb : maxCurves;
+        for (int32_t i = 0; i < count; i++) {
+            Handle(Geom_Curve) c = inter.Line(i + 1);
+            if (c.IsNull()) {
+                outCurves[i] = nullptr;
+            } else {
+                outCurves[i] = new OCCTCurve3D(c);
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Curve-Surface Distance (v0.30.0)
+
+#include <GeomAPI_ExtremaCurveSurface.hxx>
+
+double OCCTCurve3DDistanceToSurface(OCCTCurve3DRef curve, OCCTSurfaceRef surface) {
+    if (!curve || curve->curve.IsNull() || !surface || surface->surface.IsNull()) return -1.0;
+    try {
+        GeomAPI_ExtremaCurveSurface extrema(curve->curve, surface->surface);
+        if (extrema.NbExtrema() == 0) return -1.0;
+        return extrema.LowerDistance();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+// MARK: - Surface to Analytical (v0.30.0)
+
+#include <GeomConvert_SurfToAnaSurf.hxx>
+
+OCCTSurfaceRef OCCTSurfaceToAnalytical(OCCTSurfaceRef surface, double tolerance) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    try {
+        GeomConvert_SurfToAnaSurf converter(surface->surface);
+        Handle(Geom_Surface) result = converter.ConvertToAnalytical(tolerance);
+        if (result.IsNull()) return nullptr;
+        // If the result is the same handle, it was already analytical or couldn't convert
+        if (result == surface->surface) return nullptr;
+        return new OCCTSurface(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Canonical Recognition (v0.30.0)
+
+#include <ShapeAnalysis_CanonicalRecognition.hxx>
+#include <gp_Elips.hxx>
+
+OCCTCanonicalForm OCCTShapeRecognizeCanonical(OCCTShapeRef shape, double tolerance) {
+    OCCTCanonicalForm result = {};
+    if (!shape) return result;
+    try {
+        ShapeAnalysis_CanonicalRecognition recog(shape->shape);
+        gp_Pln pln;
+        if (recog.IsPlane(tolerance, pln)) {
+            result.type = 1;
+            result.origin[0] = pln.Location().X();
+            result.origin[1] = pln.Location().Y();
+            result.origin[2] = pln.Location().Z();
+            result.direction[0] = pln.Axis().Direction().X();
+            result.direction[1] = pln.Axis().Direction().Y();
+            result.direction[2] = pln.Axis().Direction().Z();
+            result.gap = recog.GetGap();
+            return result;
+        }
+        gp_Cylinder cyl;
+        if (recog.IsCylinder(tolerance, cyl)) {
+            result.type = 2;
+            result.origin[0] = cyl.Location().X();
+            result.origin[1] = cyl.Location().Y();
+            result.origin[2] = cyl.Location().Z();
+            result.direction[0] = cyl.Axis().Direction().X();
+            result.direction[1] = cyl.Axis().Direction().Y();
+            result.direction[2] = cyl.Axis().Direction().Z();
+            result.radius = cyl.Radius();
+            result.gap = recog.GetGap();
+            return result;
+        }
+        gp_Cone cone;
+        if (recog.IsCone(tolerance, cone)) {
+            result.type = 3;
+            result.origin[0] = cone.Location().X();
+            result.origin[1] = cone.Location().Y();
+            result.origin[2] = cone.Location().Z();
+            result.direction[0] = cone.Axis().Direction().X();
+            result.direction[1] = cone.Axis().Direction().Y();
+            result.direction[2] = cone.Axis().Direction().Z();
+            result.radius = cone.RefRadius();
+            result.radius2 = cone.SemiAngle();
+            result.gap = recog.GetGap();
+            return result;
+        }
+        gp_Sphere sph;
+        if (recog.IsSphere(tolerance, sph)) {
+            result.type = 4;
+            result.origin[0] = sph.Location().X();
+            result.origin[1] = sph.Location().Y();
+            result.origin[2] = sph.Location().Z();
+            result.direction[0] = sph.Position().Direction().X();
+            result.direction[1] = sph.Position().Direction().Y();
+            result.direction[2] = sph.Position().Direction().Z();
+            result.radius = sph.Radius();
+            result.gap = recog.GetGap();
+            return result;
+        }
+        gp_Lin lin;
+        if (recog.IsLine(tolerance, lin)) {
+            result.type = 5;
+            result.origin[0] = lin.Location().X();
+            result.origin[1] = lin.Location().Y();
+            result.origin[2] = lin.Location().Z();
+            result.direction[0] = lin.Direction().X();
+            result.direction[1] = lin.Direction().Y();
+            result.direction[2] = lin.Direction().Z();
+            result.gap = recog.GetGap();
+            return result;
+        }
+        gp_Circ circ;
+        if (recog.IsCircle(tolerance, circ)) {
+            result.type = 6;
+            result.origin[0] = circ.Location().X();
+            result.origin[1] = circ.Location().Y();
+            result.origin[2] = circ.Location().Z();
+            result.direction[0] = circ.Axis().Direction().X();
+            result.direction[1] = circ.Axis().Direction().Y();
+            result.direction[2] = circ.Axis().Direction().Z();
+            result.radius = circ.Radius();
+            result.gap = recog.GetGap();
+            return result;
+        }
+        gp_Elips elips;
+        if (recog.IsEllipse(tolerance, elips)) {
+            result.type = 7;
+            result.origin[0] = elips.Location().X();
+            result.origin[1] = elips.Location().Y();
+            result.origin[2] = elips.Location().Z();
+            result.direction[0] = elips.Axis().Direction().X();
+            result.direction[1] = elips.Axis().Direction().Y();
+            result.direction[2] = elips.Axis().Direction().Z();
+            result.radius = elips.MajorRadius();
+            result.radius2 = elips.MinorRadius();
+            result.gap = recog.GetGap();
+            return result;
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// MARK: - Bezier Surface Fill (v0.31.0)
+
+#include <GeomFill_BezierCurves.hxx>
+#include <GeomFill_FillingStyle.hxx>
+#include <Geom_BezierCurve.hxx>
+#include <Geom_BezierSurface.hxx>
+
+OCCTSurfaceRef OCCTSurfaceBezierFill4(OCCTCurve3DRef c1, OCCTCurve3DRef c2,
+                                        OCCTCurve3DRef c3, OCCTCurve3DRef c4,
+                                        int32_t fillStyle) {
+    if (!c1 || c1->curve.IsNull() ||
+        !c2 || c2->curve.IsNull() ||
+        !c3 || c3->curve.IsNull() ||
+        !c4 || c4->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom_BezierCurve) bc1 = Handle(Geom_BezierCurve)::DownCast(c1->curve);
+        Handle(Geom_BezierCurve) bc2 = Handle(Geom_BezierCurve)::DownCast(c2->curve);
+        Handle(Geom_BezierCurve) bc3 = Handle(Geom_BezierCurve)::DownCast(c3->curve);
+        Handle(Geom_BezierCurve) bc4 = Handle(Geom_BezierCurve)::DownCast(c4->curve);
+        if (bc1.IsNull() || bc2.IsNull() || bc3.IsNull() || bc4.IsNull()) return nullptr;
+        GeomFill_FillingStyle style = GeomFill_StretchStyle;
+        if (fillStyle == 1) style = GeomFill_CoonsStyle;
+        else if (fillStyle == 2) style = GeomFill_CurvedStyle;
+        GeomFill_BezierCurves filler(bc1, bc2, bc3, bc4, style);
+        Handle(Geom_BezierSurface) surf = filler.Surface();
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceBezierFill2(OCCTCurve3DRef c1, OCCTCurve3DRef c2,
+                                        int32_t fillStyle) {
+    if (!c1 || c1->curve.IsNull() ||
+        !c2 || c2->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom_BezierCurve) bc1 = Handle(Geom_BezierCurve)::DownCast(c1->curve);
+        Handle(Geom_BezierCurve) bc2 = Handle(Geom_BezierCurve)::DownCast(c2->curve);
+        if (bc1.IsNull() || bc2.IsNull()) return nullptr;
+        GeomFill_FillingStyle style = GeomFill_StretchStyle;
+        if (fillStyle == 1) style = GeomFill_CoonsStyle;
+        else if (fillStyle == 2) style = GeomFill_CurvedStyle;
+        GeomFill_BezierCurves filler(bc1, bc2, style);
+        Handle(Geom_BezierSurface) surf = filler.Surface();
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Surface-Surface Intersection (v0.35.0)
+
+#include <GeomAPI_IntSS.hxx>
+
+int32_t OCCTSurfaceSurfaceIntersect(OCCTSurfaceRef surface1, OCCTSurfaceRef surface2,
+                                     double tolerance,
+                                     OCCTCurve3DRef* outCurves, int32_t maxCurves) {
+    if (!surface1 || !surface2 || !outCurves || maxCurves < 1) return 0;
+    if (surface1->surface.IsNull() || surface2->surface.IsNull()) return 0;
+    try {
+        GeomAPI_IntSS intersector(surface1->surface, surface2->surface, tolerance);
+        if (!intersector.IsDone()) return 0;
+        int32_t nbLines = intersector.NbLines();
+        int32_t count = std::min(nbLines, maxCurves);
+        for (int32_t i = 0; i < count; ++i) {
+            Handle(Geom_Curve) curve = intersector.Line(i + 1); // 1-based
+            if (curve.IsNull()) {
+                outCurves[i] = nullptr;
+            } else {
+                outCurves[i] = new OCCTCurve3D(curve);
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Curve-Surface Intersection (v0.35.0)
+
+#include <GeomAPI_IntCS.hxx>
+
+int32_t OCCTCurveSurfaceIntersect(OCCTCurve3DRef curve, OCCTSurfaceRef surface,
+                                   OCCTCurveSurfacePoint* outPoints, int32_t maxPoints) {
+    if (!curve || !surface || !outPoints || maxPoints < 1) return 0;
+    if (curve->curve.IsNull() || surface->surface.IsNull()) return 0;
+    try {
+        GeomAPI_IntCS intersector(curve->curve, surface->surface);
+        if (!intersector.IsDone()) return 0;
+        int32_t nbPoints = intersector.NbPoints();
+        int32_t count = std::min(nbPoints, maxPoints);
+        for (int32_t i = 0; i < count; ++i) {
+            gp_Pnt pt = intersector.Point(i + 1);
+            double u, v, w;
+            intersector.Parameters(i + 1, u, v, w);
+            outPoints[i].x = pt.X();
+            outPoints[i].y = pt.Y();
+            outPoints[i].z = pt.Z();
+            outPoints[i].u = u;
+            outPoints[i].v = v;
+            outPoints[i].w = w;
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Surface to Bezier Patches (v0.36.0)
+
+#include <GeomConvert_BSplineSurfaceToBezierSurface.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BezierSurface.hxx>
+
+int32_t OCCTSurfaceToBezierPatches(OCCTSurfaceRef surface,
+                                    OCCTSurfaceRef* outPatches, int32_t maxPatches) {
+    if (!surface || !outPatches || maxPatches < 1) return 0;
+    if (surface->surface.IsNull()) return 0;
+    try {
+        // First convert to BSpline if needed
+        Handle(Geom_BSplineSurface) bspline = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bspline.IsNull()) {
+            // Try approximate conversion
+            Handle(Geom_Surface) surf = surface->surface;
+            // Use ShapeConstruct to convert
+            bspline = GeomConvert::SurfaceToBSplineSurface(surf);
+            if (bspline.IsNull()) return 0;
+        }
+        GeomConvert_BSplineSurfaceToBezierSurface converter(bspline);
+        int32_t nbU = converter.NbUPatches();
+        int32_t nbV = converter.NbVPatches();
+        int32_t total = nbU * nbV;
+        int32_t count = std::min(total, maxPatches);
+        int32_t idx = 0;
+        for (int32_t i = 1; i <= nbU && idx < count; ++i) {
+            for (int32_t j = 1; j <= nbV && idx < count; ++j) {
+                Handle(Geom_BezierSurface) patch = converter.Patch(i, j);
+                if (!patch.IsNull()) {
+                    outPatches[idx] = new OCCTSurface(patch);
+                    idx++;
+                } else {
+                    outPatches[idx] = nullptr;
+                    idx++;
+                }
+            }
+        }
+        return idx;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Surface Singularity Analysis (v0.37.0)
+
+#include <ShapeAnalysis_Surface.hxx>
+
+int32_t OCCTSurfaceSingularityCount(OCCTSurfaceRef surface, double tolerance) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    try {
+        ShapeAnalysis_Surface analyzer(surface->surface);
+        return analyzer.NbSingularities(tolerance);
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTSurfaceIsDegenerated(OCCTSurfaceRef surface, double x, double y, double z, double tolerance) {
+    if (!surface || surface->surface.IsNull()) return false;
+    try {
+        ShapeAnalysis_Surface analyzer(surface->surface);
+        gp_Pnt point(x, y, z);
+        return analyzer.IsDegenerated(point, tolerance);
+    } catch (...) {
+        return false;
+    }
 }
 

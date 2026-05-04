@@ -570,3 +570,129 @@ void OCCTStringFree(const char* str) {
     delete[] str;
 }
 
+// MARK: - Document Length Unit (v0.30.0)
+
+#include <XCAFDoc_LengthUnit.hxx>
+
+bool OCCTDocumentGetLengthUnit(OCCTDocumentRef doc, double* unitScale, char* unitName, int32_t maxNameLen) {
+    if (!doc || doc->doc.IsNull() || !unitScale) return false;
+    try {
+        TDF_Label rootLabel = doc->doc->Main().Root();
+        Handle(XCAFDoc_LengthUnit) luAttr;
+        if (!rootLabel.FindAttribute(XCAFDoc_LengthUnit::GetID(), luAttr)) {
+            // Try the main label
+            TDF_Label mainLabel = doc->doc->Main();
+            if (!mainLabel.FindAttribute(XCAFDoc_LengthUnit::GetID(), luAttr)) {
+                return false;
+            }
+        }
+        *unitScale = luAttr->GetUnitValue();
+        if (unitName && maxNameLen > 0) {
+            TCollection_AsciiString name = luAttr->GetUnitName();
+            int len = name.Length();
+            if (len >= maxNameLen) len = maxNameLen - 1;
+            for (int i = 0; i < len; i++) {
+                unitName[i] = name.Value(i + 1);
+            }
+            unitName[len] = '\0';
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Document Layers (v0.31.0)
+
+#include <XCAFDoc_LayerTool.hxx>
+
+int32_t OCCTDocumentGetLayerCount(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        Handle(XCAFDoc_LayerTool) layerTool = XCAFDoc_LayerTool::Set(doc->doc->Main());
+        if (layerTool.IsNull()) return 0;
+        TDF_LabelSequence labels;
+        layerTool->GetLayerLabels(labels);
+        return (int32_t)labels.Length();
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTDocumentGetLayerName(OCCTDocumentRef doc, int32_t index, char* outName, int32_t maxLen) {
+    if (!doc || doc->doc.IsNull() || !outName || maxLen <= 0) return false;
+    try {
+        Handle(XCAFDoc_LayerTool) layerTool = XCAFDoc_LayerTool::Set(doc->doc->Main());
+        if (layerTool.IsNull()) return false;
+        TDF_LabelSequence labels;
+        layerTool->GetLayerLabels(labels);
+        if (index < 0 || index >= labels.Length()) return false;
+        TDF_Label label = labels.Value(index + 1);
+        TCollection_ExtendedString name;
+        if (!layerTool->GetLayer(label, name)) return false;
+        // Convert ExtendedString to ASCII
+        TCollection_AsciiString ascii(name);
+        int32_t len = ascii.Length();
+        if (len >= maxLen) len = maxLen - 1;
+        for (int32_t i = 0; i < len; i++) {
+            outName[i] = ascii.Value(i + 1);
+        }
+        outName[len] = '\0';
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Document Materials (v0.31.0)
+
+#include <XCAFDoc_MaterialTool.hxx>
+#include <TCollection_HAsciiString.hxx>
+
+int32_t OCCTDocumentGetMaterialCount(OCCTDocumentRef doc) {
+    if (!doc || doc->doc.IsNull()) return 0;
+    try {
+        Handle(XCAFDoc_MaterialTool) matTool = XCAFDoc_MaterialTool::Set(doc->doc->Main());
+        if (matTool.IsNull()) return 0;
+        TDF_LabelSequence labels;
+        matTool->GetMaterialLabels(labels);
+        return (int32_t)labels.Length();
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTDocumentGetMaterialInfo(OCCTDocumentRef doc, int32_t index, OCCTMaterialInfo* outInfo) {
+    if (!doc || doc->doc.IsNull() || !outInfo) return false;
+    try {
+        Handle(XCAFDoc_MaterialTool) matTool = XCAFDoc_MaterialTool::Set(doc->doc->Main());
+        if (matTool.IsNull()) return false;
+        TDF_LabelSequence labels;
+        matTool->GetMaterialLabels(labels);
+        if (index < 0 || index >= labels.Length()) return false;
+        TDF_Label label = labels.Value(index + 1);
+        Handle(TCollection_HAsciiString) hName, hDesc, hDensName, hDensValType;
+        double density = 0.0;
+        matTool->GetMaterial(label, hName, hDesc, density, hDensName, hDensValType);
+        memset(outInfo, 0, sizeof(OCCTMaterialInfo));
+        if (!hName.IsNull()) {
+            TCollection_AsciiString name = hName->String();
+            int32_t len = std::min((int32_t)name.Length(), (int32_t)(sizeof(outInfo->name) - 1));
+            for (int32_t i = 0; i < len; i++) {
+                outInfo->name[i] = name.Value(i + 1);
+            }
+        }
+        if (!hDesc.IsNull()) {
+            TCollection_AsciiString desc = hDesc->String();
+            int32_t len = std::min((int32_t)desc.Length(), (int32_t)(sizeof(outInfo->description) - 1));
+            for (int32_t i = 0; i < len; i++) {
+                outInfo->description[i] = desc.Value(i + 1);
+            }
+        }
+        outInfo->density = density;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+

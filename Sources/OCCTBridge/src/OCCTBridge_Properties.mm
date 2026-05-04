@@ -52,6 +52,7 @@
 #include <gp_Sphere.hxx>
 #include <gp_Vec.hxx>
 #include <GProp_GProps.hxx>
+#include <GProp_PrincipalProps.hxx>
 
 #include <TopAbs.hxx>
 #include <TopExp_Explorer.hxx>
@@ -658,3 +659,82 @@ OCCTShapeRef OCCTFaceIntersect(OCCTFaceRef face1, OCCTFaceRef face2,
 }
 
 
+bool OCCTShapeInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outProps) {
+    if (!shape || !outProps) return false;
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+
+        outProps->volume = props.Mass();
+        gp_Pnt cm = props.CentreOfMass();
+        outProps->centerX = cm.X();
+        outProps->centerY = cm.Y();
+        outProps->centerZ = cm.Z();
+
+        gp_Mat mat = props.MatrixOfInertia();
+        outProps->inertia[0] = mat(1,1); outProps->inertia[1] = mat(1,2); outProps->inertia[2] = mat(1,3);
+        outProps->inertia[3] = mat(2,1); outProps->inertia[4] = mat(2,2); outProps->inertia[5] = mat(2,3);
+        outProps->inertia[6] = mat(3,1); outProps->inertia[7] = mat(3,2); outProps->inertia[8] = mat(3,3);
+
+        GProp_PrincipalProps pp = props.PrincipalProperties();
+        double Ix, Iy, Iz;
+        pp.Moments(Ix, Iy, Iz);
+        outProps->principalIx = Ix;
+        outProps->principalIy = Iy;
+        outProps->principalIz = Iz;
+
+        gp_Vec v1 = pp.FirstAxisOfInertia();
+        gp_Vec v2 = pp.SecondAxisOfInertia();
+        gp_Vec v3 = pp.ThirdAxisOfInertia();
+        outProps->principalAxes[0] = v1.X(); outProps->principalAxes[1] = v1.Y(); outProps->principalAxes[2] = v1.Z();
+        outProps->principalAxes[3] = v2.X(); outProps->principalAxes[4] = v2.Y(); outProps->principalAxes[5] = v2.Z();
+        outProps->principalAxes[6] = v3.X(); outProps->principalAxes[7] = v3.Y(); outProps->principalAxes[8] = v3.Z();
+
+        outProps->hasSymmetryAxis = pp.HasSymmetryAxis();
+        outProps->hasSymmetryPoint = pp.HasSymmetryPoint();
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTShapeSurfaceInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outProps) {
+    if (!shape || !outProps) return false;
+    try {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(shape->shape, props);
+
+        outProps->volume = props.Mass(); // Surface area in this context
+        gp_Pnt cm = props.CentreOfMass();
+        outProps->centerX = cm.X();
+        outProps->centerY = cm.Y();
+        outProps->centerZ = cm.Z();
+
+        gp_Mat mat = props.MatrixOfInertia();
+        outProps->inertia[0] = mat(1,1); outProps->inertia[1] = mat(1,2); outProps->inertia[2] = mat(1,3);
+        outProps->inertia[3] = mat(2,1); outProps->inertia[4] = mat(2,2); outProps->inertia[5] = mat(2,3);
+        outProps->inertia[6] = mat(3,1); outProps->inertia[7] = mat(3,2); outProps->inertia[8] = mat(3,3);
+
+        GProp_PrincipalProps pp = props.PrincipalProperties();
+        double Ix, Iy, Iz;
+        pp.Moments(Ix, Iy, Iz);
+        outProps->principalIx = Ix;
+        outProps->principalIy = Iy;
+        outProps->principalIz = Iz;
+
+        gp_Vec v1 = pp.FirstAxisOfInertia();
+        gp_Vec v2 = pp.SecondAxisOfInertia();
+        gp_Vec v3 = pp.ThirdAxisOfInertia();
+        outProps->principalAxes[0] = v1.X(); outProps->principalAxes[1] = v1.Y(); outProps->principalAxes[2] = v1.Z();
+        outProps->principalAxes[3] = v2.X(); outProps->principalAxes[4] = v2.Y(); outProps->principalAxes[5] = v2.Z();
+        outProps->principalAxes[6] = v3.X(); outProps->principalAxes[7] = v3.Y(); outProps->principalAxes[8] = v3.Z();
+
+        outProps->hasSymmetryAxis = pp.HasSymmetryAxis();
+        outProps->hasSymmetryPoint = pp.HasSymmetryPoint();
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
