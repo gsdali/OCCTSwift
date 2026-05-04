@@ -474,3 +474,47 @@ int32_t OCCTShapeGetWires(OCCTShapeRef shape, OCCTShapeRef* outWires, int32_t ma
     return count;
 }
 
+// MARK: - Memory Management
+
+// MARK: - Shape Conversion
+
+OCCTShapeRef OCCTShapeFromWire(OCCTWireRef wireRef) {
+    if (!wireRef) return nullptr;
+    return new OCCTShape(wireRef->wire);
+}
+
+OCCTShapeRef OCCTShapeFromFace(OCCTFaceRef faceRef) {
+    if (!faceRef) return nullptr;
+    return new OCCTShape(faceRef->face);
+}
+
+OCCTFaceRef OCCTFaceFromShape(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        if (shape->shape.IsNull()) return nullptr;
+        if (shape->shape.ShapeType() != TopAbs_FACE) return nullptr;
+        return new OCCTFace(TopoDS::Face(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
+OCCTWireRef OCCTWireFromShape(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        if (shape->shape.IsNull()) return nullptr;
+        if (shape->shape.ShapeType() != TopAbs_WIRE) return nullptr;
+        return new OCCTWire(TopoDS::Wire(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
+void OCCTShapeRelease(OCCTShapeRef shape) {
+    delete shape;
+}
+
+void OCCTWireRelease(OCCTWireRef wire) {
+    delete wire;
+}
+
+void OCCTMeshRelease(OCCTMeshRef mesh) {
+    delete mesh;
+}
+

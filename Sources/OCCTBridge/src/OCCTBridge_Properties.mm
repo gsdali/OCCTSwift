@@ -53,6 +53,8 @@
 #include <gp_Vec.hxx>
 #include <GProp_GProps.hxx>
 #include <GProp_PrincipalProps.hxx>
+#include <BRepAdaptor_CompCurve.hxx>
+#include <GCPnts_AbscissaPoint.hxx>
 
 #include <TopAbs.hxx>
 #include <TopExp_Explorer.hxx>
@@ -633,31 +635,6 @@ bool OCCTShapeSelfIntersects(OCCTShapeRef shape) {
 }
 
 
-// MARK: - Surface Intersection (v0.18.0)
-
-OCCTShapeRef OCCTFaceIntersect(OCCTFaceRef face1, OCCTFaceRef face2,
-                                double tolerance) {
-    if (!face1 || !face2) return nullptr;
-
-    try {
-        BRepAlgoAPI_Section section(face1->face, face2->face, Standard_False);
-        section.Approximation(Standard_True);
-        section.ComputePCurveOn1(Standard_True);
-        section.ComputePCurveOn2(Standard_True);
-        section.SetFuzzyValue(tolerance);
-        section.Build();
-
-        if (!section.IsDone()) return nullptr;
-
-        TopoDS_Shape result = section.Shape();
-        if (result.IsNull()) return nullptr;
-
-        return new OCCTShape(result);
-    } catch (...) {
-        return nullptr;
-    }
-}
-
 
 bool OCCTShapeInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties* outProps) {
     if (!shape || !outProps) return false;
@@ -738,3 +715,194 @@ bool OCCTShapeSurfaceInertiaProperties(OCCTShapeRef shape, OCCTInertiaProperties
         return false;
     }
 }
+// MARK: - Wire / Curve Properties (v0.9.0)
+
+OCCTCurveInfo OCCTWireGetCurveInfo(OCCTWireRef wire) {
+    OCCTCurveInfo result = {};
+    result.isValid = false;
+    if (!wire) return result;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+
+        // Get length
+        result.length = GCPnts_AbscissaPoint::Length(curve);
+
+        // Get closed/periodic status
+        result.isClosed = curve.IsClosed();
+        result.isPeriodic = curve.IsPeriodic();
+
+        // Get start point
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+        gp_Pnt startPt = curve.Value(first);
+        gp_Pnt endPt = curve.Value(last);
+
+        result.startX = startPt.X();
+        result.startY = startPt.Y();
+        result.startZ = startPt.Z();
+        result.endX = endPt.X();
+        result.endY = endPt.Y();
+        result.endZ = endPt.Z();
+
+        result.isValid = true;
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+double OCCTWireGetLength(OCCTWireRef wire) {
+    if (!wire) return -1.0;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        return GCPnts_AbscissaPoint::Length(curve);
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+bool OCCTWireGetPointAt(OCCTWireRef wire, double param, double* x, double* y, double* z) {
+    if (!wire || !x || !y || !z) return false;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+
+        // Map normalized parameter [0,1] to actual parameter range
+        Standard_Real actualParam = first + param * (last - first);
+
+        gp_Pnt pt = curve.Value(actualParam);
+        *x = pt.X();
+        *y = pt.Y();
+        *z = pt.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTWireGetTangentAt(OCCTWireRef wire, double param, double* tx, double* ty, double* tz) {
+    if (!wire || !tx || !ty || !tz) return false;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+
+        // Map normalized parameter [0,1] to actual parameter range
+        Standard_Real actualParam = first + param * (last - first);
+
+        gp_Pnt pt;
+        gp_Vec tangent;
+        curve.D1(actualParam, pt, tangent);
+
+        // Normalize the tangent
+        if (tangent.Magnitude() > 1e-10) {
+            tangent.Normalize();
+        }
+
+        *tx = tangent.X();
+        *ty = tangent.Y();
+        *tz = tangent.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+double OCCTWireGetCurvatureAt(OCCTWireRef wire, double param) {
+    if (!wire) return -1.0;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+
+        // Map normalized parameter [0,1] to actual parameter range
+        Standard_Real actualParam = first + param * (last - first);
+
+        // Get first and second derivatives
+        gp_Pnt pt;
+        gp_Vec d1, d2;
+        curve.D2(actualParam, pt, d1, d2);
+
+        // Curvature formula: κ = |d1 × d2| / |d1|³
+        gp_Vec cross = d1.Crossed(d2);
+        double d1Mag = d1.Magnitude();
+        if (d1Mag < 1e-10) return 0.0;
+
+        return cross.Magnitude() / (d1Mag * d1Mag * d1Mag);
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+OCCTCurvePoint OCCTWireGetCurvePointAt(OCCTWireRef wire, double param) {
+    OCCTCurvePoint result = {};
+    result.isValid = false;
+    result.hasNormal = false;
+    if (!wire) return result;
+
+    try {
+        BRepAdaptor_CompCurve curve(wire->wire);
+        Standard_Real first = curve.FirstParameter();
+        Standard_Real last = curve.LastParameter();
+
+        // Map normalized parameter [0,1] to actual parameter range
+        Standard_Real actualParam = first + param * (last - first);
+
+        // Get position and derivatives
+        gp_Pnt pt;
+        gp_Vec d1, d2;
+        curve.D2(actualParam, pt, d1, d2);
+
+        result.posX = pt.X();
+        result.posY = pt.Y();
+        result.posZ = pt.Z();
+
+        // Normalize tangent (d1)
+        double d1Mag = d1.Magnitude();
+        if (d1Mag > 1e-10) {
+            gp_Vec tangent = d1.Divided(d1Mag);
+            result.tanX = tangent.X();
+            result.tanY = tangent.Y();
+            result.tanZ = tangent.Z();
+
+            // Compute curvature: κ = |d1 × d2| / |d1|³
+            gp_Vec cross = d1.Crossed(d2);
+            result.curvature = cross.Magnitude() / (d1Mag * d1Mag * d1Mag);
+
+            // Compute principal normal if curvature is non-zero
+            // Normal = (d1 × d2) × d1, normalized, pointing toward center of curvature
+            if (result.curvature > 1e-10) {
+                // Principal normal is perpendicular to tangent, in the osculating plane
+                // N = (T' - (T' · T)T) / |T' - (T' · T)T|
+                // For arc-length parameterization, T' is already perpendicular to T
+                // For general parameterization, we use: N = d2 - (d2 · T)T, normalized
+                gp_Vec T(result.tanX, result.tanY, result.tanZ);
+                double d2DotT = d2.Dot(T);
+                gp_Vec normalDir = d2 - T.Multiplied(d2DotT);
+                double normalMag = normalDir.Magnitude();
+                if (normalMag > 1e-10) {
+                    normalDir.Divide(normalMag);
+                    result.normX = normalDir.X();
+                    result.normY = normalDir.Y();
+                    result.normZ = normalDir.Z();
+                    result.hasNormal = true;
+                }
+            }
+        } else {
+            result.tanX = result.tanY = result.tanZ = 0.0;
+            result.curvature = 0.0;
+        }
+
+        result.isValid = true;
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
