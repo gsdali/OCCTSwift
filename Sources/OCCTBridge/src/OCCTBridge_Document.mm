@@ -1,0 +1,572 @@
+//
+//  OCCTBridge_Document.mm
+//  OCCTSwift
+//
+//  Extracted from OCCTBridge.mm — issue #99.
+//
+//  XDE / XCAF document support: document creation + lifecycle, assembly
+//  traversal, transforms, colors, PBR + common visual materials, plus the
+//  generic OCCTStringFree helper (declared in the public header but
+//  defined here because every label-name getter that allocates a heap
+//  string is in this block).
+//
+//  Public C surface unchanged. No symbol changes — pure file move.
+//
+
+#import "../include/OCCTBridge.h"
+#import "OCCTBridge_Internal.h"
+
+// === Area-specific OCCT headers ===
+
+#include <STEPCAFControl_Reader.hxx>
+#include <STEPCAFControl_Writer.hxx>
+#include <STEPControl_StepModelType.hxx>
+#include <IFSelect_ReturnStatus.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_VisMaterial.hxx>
+#include <XCAFDoc_VisMaterialCommon.hxx>
+#include <XCAFDoc_VisMaterialPBR.hxx>
+#include <XCAFDoc_ColorType.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <TDataStd_Name.hxx>
+#include <TCollection_AsciiString.hxx>
+#include <TCollection_ExtendedString.hxx>
+#include <Quantity_Color.hxx>
+#include <Quantity_ColorRGBA.hxx>
+#include <Graphic3d_Vec3.hxx>
+#include <Graphic3d_Vec4.hxx>
+#include <gp_Trsf.hxx>
+#include <TopLoc_Location.hxx>
+
+#include <cstring>
+
+// MARK: - XDE/XCAF Document Support (v0.6.0)
+
+OCCTDocumentRef OCCTDocumentCreate(void) {
+    OCCTDocument* document = nullptr;
+    try {
+        document = new OCCTDocument();
+
+        // Create a new document
+        document->app->NewDocument("MDTV-XCAF", document->doc);
+
+        if (document->doc.IsNull()) {
+            delete document;
+            return nullptr;
+        }
+
+        // Get the tools
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+
+        return document;
+    } catch (...) {
+        delete document;
+        return nullptr;
+    }
+}
+
+OCCTDocumentRef OCCTDocumentLoadSTEP(const char* path) {
+    if (!path) return nullptr;
+
+    OCCTDocument* document = nullptr;
+    try {
+        document = new OCCTDocument();
+
+        // Create a new document
+        document->app->NewDocument("MDTV-XCAF", document->doc);
+
+        if (document->doc.IsNull()) {
+            delete document;
+            return nullptr;
+        }
+
+        // Configure the reader
+        STEPCAFControl_Reader reader;
+        reader.SetColorMode(Standard_True);
+        reader.SetNameMode(Standard_True);
+        reader.SetLayerMode(Standard_True);
+        reader.SetPropsMode(Standard_True);
+        reader.SetMatMode(Standard_True);  // Enable material reading
+
+        // Read the file
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) {
+            delete document;
+            return nullptr;
+        }
+
+        // Transfer to document
+        if (!reader.Transfer(document->doc)) {
+            delete document;
+            return nullptr;
+        }
+
+        // Get the tools
+        document->shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->doc->Main());
+        document->colorTool = XCAFDoc_DocumentTool::ColorTool(document->doc->Main());
+        document->materialTool = XCAFDoc_DocumentTool::VisMaterialTool(document->doc->Main());
+
+        return document;
+    } catch (...) {
+        delete document;
+        return nullptr;
+    }
+}
+
+bool OCCTDocumentWriteSTEP(OCCTDocumentRef doc, const char* path) {
+    if (!doc || !path) return false;
+
+    try {
+        STEPCAFControl_Writer writer;
+        writer.SetColorMode(Standard_True);
+        writer.SetNameMode(Standard_True);
+        writer.SetLayerMode(Standard_True);
+        writer.SetPropsMode(Standard_True);
+        writer.SetMaterialMode(Standard_True);  // Enable material writing
+
+        if (!writer.Transfer(doc->doc, STEPControl_AsIs)) {
+            return false;
+        }
+
+        IFSelect_ReturnStatus status = writer.Write(path);
+        return status == IFSelect_RetDone;
+    } catch (...) {
+        return false;
+    }
+}
+
+void OCCTDocumentRelease(OCCTDocumentRef doc) {
+    if (!doc) return;
+
+    try {
+        if (!doc->doc.IsNull()) {
+            doc->app->Close(doc->doc);
+        }
+    } catch (...) {
+        // Ignore cleanup errors
+    }
+
+    delete doc;
+}
+
+// MARK: - XDE Assembly Traversal
+
+int32_t OCCTDocumentGetRootCount(OCCTDocumentRef doc) {
+    if (!doc || doc->shapeTool.IsNull()) return 0;
+
+    try {
+        TDF_LabelSequence roots;
+        doc->shapeTool->GetFreeShapes(roots);
+        return static_cast<int32_t>(roots.Length());
+    } catch (...) {
+        return 0;
+    }
+}
+
+int64_t OCCTDocumentGetRootLabelId(OCCTDocumentRef doc, int32_t index) {
+    if (!doc || doc->shapeTool.IsNull() || index < 0) return -1;
+
+    try {
+        TDF_LabelSequence roots;
+        doc->shapeTool->GetFreeShapes(roots);
+
+        if (index >= roots.Length()) return -1;
+
+        TDF_Label label = roots.Value(index + 1);  // OCCT is 1-based
+        return doc->registerLabel(label);
+    } catch (...) {
+        return -1;
+    }
+}
+
+const char* OCCTDocumentGetLabelName(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return nullptr;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+
+        Handle(TDataStd_Name) nameAttr;
+        if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
+            TCollection_ExtendedString name = nameAttr->Get();
+            TCollection_AsciiString asciiName(name);
+
+            // Allocate and copy the string (caller must free with OCCTStringFree)
+            char* result = new char[asciiName.Length() + 1];
+            std::strcpy(result, asciiName.ToCString());
+            return result;
+        }
+
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTDocumentIsAssembly(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return false;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        return doc->shapeTool->IsAssembly(label);
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTDocumentIsReference(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return false;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+
+        return doc->shapeTool->IsReference(label);
+    } catch (...) {
+        return false;
+    }
+}
+
+int32_t OCCTDocumentGetChildCount(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return 0;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+
+        TDF_LabelSequence components;
+        doc->shapeTool->GetComponents(label, components);
+        return static_cast<int32_t>(components.Length());
+    } catch (...) {
+        return 0;
+    }
+}
+
+int64_t OCCTDocumentGetChildLabelId(OCCTDocumentRef doc, int64_t parentLabelId, int32_t index) {
+    if (!doc || doc->shapeTool.IsNull() || index < 0) return -1;
+
+    try {
+        TDF_Label parentLabel = doc->getLabel(parentLabelId);
+        if (parentLabel.IsNull()) return -1;
+
+        TDF_LabelSequence components;
+        doc->shapeTool->GetComponents(parentLabel, components);
+
+        if (index >= components.Length()) return -1;
+
+        TDF_Label childLabel = components.Value(index + 1);  // OCCT is 1-based
+        return doc->registerLabel(childLabel);
+    } catch (...) {
+        return -1;
+    }
+}
+
+int64_t OCCTDocumentGetReferredLabelId(OCCTDocumentRef doc, int64_t refLabelId) {
+    if (!doc || doc->shapeTool.IsNull()) return -1;
+
+    try {
+        TDF_Label refLabel = doc->getLabel(refLabelId);
+        if (refLabel.IsNull()) return -1;
+
+        TDF_Label referredLabel;
+        if (!doc->shapeTool->GetReferredShape(refLabel, referredLabel)) {
+            return -1;
+        }
+
+        return doc->registerLabel(referredLabel);
+    } catch (...) {
+        return -1;
+    }
+}
+
+OCCTShapeRef OCCTDocumentGetShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return nullptr;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+
+        TopoDS_Shape shape = doc->shapeTool->GetShape(label);
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTDocumentGetShapeWithLocation(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->shapeTool.IsNull()) return nullptr;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+
+        // Get shape with accumulated location
+        TopoDS_Shape shape;
+
+        // If it's a reference, get the referred shape with location
+        if (doc->shapeTool->IsReference(label)) {
+            TDF_Label referredLabel;
+            if (doc->shapeTool->GetReferredShape(label, referredLabel)) {
+                shape = doc->shapeTool->GetShape(referredLabel);
+                // Apply location from reference
+                TopLoc_Location loc = doc->shapeTool->GetLocation(label);
+                shape.Location(loc);
+            }
+        } else {
+            shape = doc->shapeTool->GetShape(label);
+        }
+
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - XDE Transforms
+
+void OCCTDocumentGetLocation(OCCTDocumentRef doc, int64_t labelId, float* outMatrix16) {
+    if (!doc || !outMatrix16) return;
+
+    // Initialize to identity matrix (column-major)
+    for (int i = 0; i < 16; i++) {
+        outMatrix16[i] = (i % 5 == 0) ? 1.0f : 0.0f;
+    }
+
+    if (doc->shapeTool.IsNull()) return;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+
+        TopLoc_Location loc = doc->shapeTool->GetLocation(label);
+        if (loc.IsIdentity()) return;
+
+        gp_Trsf trsf = loc.Transformation();
+
+        // Extract rotation/scale part (3x3)
+        for (int row = 0; row < 3; row++) {
+            for (int col = 0; col < 3; col++) {
+                outMatrix16[col * 4 + row] = static_cast<float>(trsf.Value(row + 1, col + 1));
+            }
+        }
+
+        // Extract translation
+        outMatrix16[12] = static_cast<float>(trsf.TranslationPart().X());
+        outMatrix16[13] = static_cast<float>(trsf.TranslationPart().Y());
+        outMatrix16[14] = static_cast<float>(trsf.TranslationPart().Z());
+        outMatrix16[15] = 1.0f;
+    } catch (...) {
+        // Keep identity matrix on error
+    }
+}
+
+// MARK: - XDE Colors
+
+OCCTColor OCCTDocumentGetLabelColor(OCCTDocumentRef doc, int64_t labelId, OCCTColorType colorType) {
+    OCCTColor result = {0, 0, 0, 1.0, false};
+
+    if (!doc || doc->colorTool.IsNull()) return result;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return result;
+
+        Quantity_ColorRGBA color;
+        XCAFDoc_ColorType xcafType;
+
+        switch (colorType) {
+            case OCCTColorTypeSurface:
+                xcafType = XCAFDoc_ColorSurf;
+                break;
+            case OCCTColorTypeCurve:
+                xcafType = XCAFDoc_ColorCurv;
+                break;
+            default:
+                xcafType = XCAFDoc_ColorGen;
+                break;
+        }
+
+        // Try to get color from this label
+        if (doc->colorTool->GetColor(label, xcafType, color)) {
+            result.r = color.GetRGB().Red();
+            result.g = color.GetRGB().Green();
+            result.b = color.GetRGB().Blue();
+            result.a = color.Alpha();
+            result.isSet = true;
+            return result;
+        }
+
+        // If this is a reference, try to get color from referred shape
+        if (doc->shapeTool->IsReference(label)) {
+            TDF_Label referredLabel;
+            if (doc->shapeTool->GetReferredShape(label, referredLabel)) {
+                if (doc->colorTool->GetColor(referredLabel, xcafType, color)) {
+                    result.r = color.GetRGB().Red();
+                    result.g = color.GetRGB().Green();
+                    result.b = color.GetRGB().Blue();
+                    result.a = color.Alpha();
+                    result.isSet = true;
+                }
+            }
+        }
+
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+void OCCTDocumentSetLabelColor(OCCTDocumentRef doc, int64_t labelId, OCCTColorType colorType, double r, double g, double b) {
+    if (!doc || doc->colorTool.IsNull()) return;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+
+        Quantity_Color color(r, g, b, Quantity_TOC_RGB);
+        XCAFDoc_ColorType xcafType;
+
+        switch (colorType) {
+            case OCCTColorTypeSurface:
+                xcafType = XCAFDoc_ColorSurf;
+                break;
+            case OCCTColorTypeCurve:
+                xcafType = XCAFDoc_ColorCurv;
+                break;
+            default:
+                xcafType = XCAFDoc_ColorGen;
+                break;
+        }
+
+        doc->colorTool->SetColor(label, color, xcafType);
+    } catch (...) {
+        // Ignore errors
+    }
+}
+
+// MARK: - XDE Materials (PBR)
+
+OCCTMaterial OCCTDocumentGetLabelMaterial(OCCTDocumentRef doc, int64_t labelId) {
+    OCCTMaterial result = {{0, 0, 0, 1.0, false}, 0.0, 0.5, {0, 0, 0, 1.0, false}, 0.0, false};
+
+    if (!doc || doc->materialTool.IsNull()) return result;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return result;
+
+        // Get shape to find material
+        TopoDS_Shape shape = doc->shapeTool->GetShape(label);
+        if (shape.IsNull()) {
+            // Try from reference
+            if (doc->shapeTool->IsReference(label)) {
+                TDF_Label referredLabel;
+                if (doc->shapeTool->GetReferredShape(label, referredLabel)) {
+                    shape = doc->shapeTool->GetShape(referredLabel);
+                }
+            }
+        }
+
+        if (shape.IsNull()) return result;
+
+        // Try to get material from shape
+        Handle(XCAFDoc_VisMaterial) visMat = doc->materialTool->GetShapeMaterial(shape);
+        if (visMat.IsNull()) return result;
+
+        result.isSet = true;
+
+        // Get PBR properties if available
+        if (visMat->HasPbrMaterial()) {
+            XCAFDoc_VisMaterialPBR pbr = visMat->PbrMaterial();
+
+            // Base color
+            Quantity_ColorRGBA baseColor = pbr.BaseColor;
+            result.baseColor.r = baseColor.GetRGB().Red();
+            result.baseColor.g = baseColor.GetRGB().Green();
+            result.baseColor.b = baseColor.GetRGB().Blue();
+            result.baseColor.a = baseColor.Alpha();
+            result.baseColor.isSet = true;
+
+            // Metallic and roughness
+            result.metallic = pbr.Metallic;
+            result.roughness = pbr.Roughness;
+
+            // Emissive (Graphic3d_Vec3)
+            result.emissive.r = pbr.EmissiveFactor.x();
+            result.emissive.g = pbr.EmissiveFactor.y();
+            result.emissive.b = pbr.EmissiveFactor.z();
+            result.emissive.a = 1.0;
+            result.emissive.isSet = true;
+        } else if (visMat->HasCommonMaterial()) {
+            // Fall back to common material
+            XCAFDoc_VisMaterialCommon common = visMat->CommonMaterial();
+
+            result.baseColor.r = common.DiffuseColor.Red();
+            result.baseColor.g = common.DiffuseColor.Green();
+            result.baseColor.b = common.DiffuseColor.Blue();
+            result.baseColor.a = 1.0 - common.Transparency;
+            result.baseColor.isSet = true;
+
+            result.transparency = common.Transparency;
+
+            // Estimate roughness from shininess
+            result.roughness = 1.0 - (common.Shininess / 100.0);
+        }
+
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+void OCCTDocumentSetLabelMaterial(OCCTDocumentRef doc, int64_t labelId, OCCTMaterial material) {
+    if (!doc || doc->materialTool.IsNull() || !material.isSet) return;
+
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return;
+
+        TopoDS_Shape shape = doc->shapeTool->GetShape(label);
+        if (shape.IsNull()) return;
+
+        // Create new material
+        Handle(XCAFDoc_VisMaterial) visMat = new XCAFDoc_VisMaterial();
+
+        // Set PBR properties
+        XCAFDoc_VisMaterialPBR pbr;
+        pbr.BaseColor = Quantity_ColorRGBA(
+            Quantity_Color(material.baseColor.r, material.baseColor.g, material.baseColor.b, Quantity_TOC_RGB),
+            static_cast<float>(material.baseColor.a)
+        );
+        pbr.Metallic = static_cast<Standard_ShortReal>(material.metallic);
+        pbr.Roughness = static_cast<Standard_ShortReal>(material.roughness);
+        pbr.EmissiveFactor = Graphic3d_Vec3(
+            static_cast<float>(material.emissive.r),
+            static_cast<float>(material.emissive.g),
+            static_cast<float>(material.emissive.b)
+        );
+
+        visMat->SetPbrMaterial(pbr);
+
+        // Add material and bind to shape
+        TDF_Label matLabel = doc->materialTool->AddMaterial(visMat, TCollection_AsciiString("Material"));
+        doc->materialTool->SetShapeMaterial(shape, matLabel);
+    } catch (...) {
+        // Ignore errors
+    }
+}
+
+// MARK: - XDE Utility
+
+void OCCTStringFree(const char* str) {
+    delete[] str;
+}
+
