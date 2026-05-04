@@ -57,6 +57,11 @@
 #include <ShapeUpgrade_ShapeDivideAngle.hxx>
 #include <ShapeUpgrade_ShapeDivide.hxx>
 #include <ShapeUpgrade_FaceDivideArea.hxx>
+#include <ShapeUpgrade_ShapeDivideClosedEdges.hxx>
+#include <ShapeCustom.hxx>
+#include <ShapeCustom_RestrictionParameters.hxx>
+#include <BRepAlgo_FaceRestrictor.hxx>
+#include <ShapeFix_EdgeConnect.hxx>
 #include <ShapeFix_Wireframe.hxx>
 #include <ShapeAnalysis_FreeBounds.hxx>
 #include <ShapeFix_FreeBounds.hxx>
@@ -1214,3 +1219,199 @@ OCCTShapeRef OCCTShapeFixFreeBounds(OCCTShapeRef shape, double sewingTolerance,
     }
 }
 
+
+OCCTShapeRef OCCTShapeDivideClosedEdges(OCCTShapeRef shape, int32_t nbSplitPoints) {
+    if (!shape || nbSplitPoints < 1) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideClosedEdges divider(shape->shape);
+        divider.SetNbSplitPoints(nbSplitPoints);
+        if (!divider.Perform()) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCustomConvertToBSpline(OCCTShapeRef shape,
+                                              bool extrusion, bool revolution,
+                                              bool offset, bool plane) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Shape result = ShapeCustom::ConvertToBSpline(
+            shape->shape, extrusion, revolution, offset, plane);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeCustomConvertToRevolution(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Shape result = ShapeCustom::ConvertToRevolution(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTShapeFaceRestrict(OCCTShapeRef faceShape,
+                               OCCTWireRef* wires, int32_t wireCount,
+                               OCCTShapeRef* outFaces, int32_t maxFaces) {
+    if (!faceShape || !wires || wireCount <= 0 || !outFaces || maxFaces <= 0) return -1;
+    try {
+        // Get the face from the shape
+        TopoDS_Face face;
+        TopExp_Explorer exp(faceShape->shape, TopAbs_FACE);
+        if (exp.More()) {
+            face = TopoDS::Face(exp.Current());
+        } else {
+            return -1;
+        }
+
+        BRepAlgo_FaceRestrictor restrictor;
+        restrictor.Init(face, false, true);
+
+        for (int32_t i = 0; i < wireCount; i++) {
+            if (wires[i]) {
+                TopoDS_Wire w = wires[i]->wire;
+                restrictor.Add(w);
+            }
+        }
+        restrictor.Perform();
+        if (!restrictor.IsDone()) return -1;
+
+        int32_t count = 0;
+        for (; restrictor.More() && count < maxFaces; restrictor.Next()) {
+            TopoDS_Face resultFace = restrictor.Current();
+            outFaces[count] = new OCCTShape(resultFace);
+            count++;
+        }
+        return count;
+    } catch (...) {
+        return -1;
+    }
+}
+// MARK: - v0.43.0: Face Subdivision, Small Face Detection, BSpline Fill, Location Purge
+
+#include <ShapeUpgrade_ShapeDivideArea.hxx>
+#include <ShapeAnalysis_CheckSmallFace.hxx>
+#include <GeomFill_BSplineCurves.hxx>
+#include <GeomFill_FillingStyle.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <GeomConvert.hxx>
+#include <BRepTools_PurgeLocations.hxx>
+
+OCCTShapeRef OCCTShapeDivideByArea(OCCTShapeRef shape, double maxArea) {
+    if (!shape || maxArea <= 0) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideArea divider(shape->shape);
+        divider.MaxArea() = maxArea;
+        divider.Perform();
+        // Result() is valid even when Perform returns false (nothing to split)
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeDivideByParts(OCCTShapeRef shape, int32_t nbParts) {
+    if (!shape || nbParts <= 0) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideArea divider(shape->shape);
+        divider.SetSplittingByNumber(true);
+        divider.NbParts() = nbParts;
+        if (!divider.Perform()) return nullptr;
+        return new OCCTShape(divider.Result());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTShapeCheckSmallFaces(OCCTShapeRef shape, double tolerance,
+                                  OCCTSmallFaceResult* outResults, int32_t maxResults) {
+    if (!shape || !outResults || maxResults <= 0) return 0;
+    try {
+        ShapeAnalysis_CheckSmallFace checker;
+        int32_t found = 0;
+
+        TopExp_Explorer exp(shape->shape, TopAbs_FACE);
+        int32_t faceIdx = 0;
+        while (exp.More() && found < maxResults) {
+            TopoDS_Face face = TopoDS::Face(exp.Current());
+            OCCTSmallFaceResult& r = outResults[found];
+            r.isSpotFace = false;
+            r.isStripFace = false;
+            r.isTwisted = false;
+            r.spotX = r.spotY = r.spotZ = 0;
+
+            bool isDegenerate = false;
+
+            // Check spot face
+            gp_Pnt spot;
+            double spotTol;
+            int spotResult = checker.IsSpotFace(face, spot, spotTol, tolerance);
+            if (spotResult != 0) {
+                r.isSpotFace = true;
+                r.spotX = spot.X();
+                r.spotY = spot.Y();
+                r.spotZ = spot.Z();
+                isDegenerate = true;
+            }
+
+            // Check strip face
+            if (checker.IsStripSupport(face, tolerance)) {
+                r.isStripFace = true;
+                isDegenerate = true;
+            }
+
+            // Check twisted
+            double paramu, paramv;
+            if (checker.CheckTwisted(face, paramu, paramv)) {
+                r.isTwisted = true;
+                isDegenerate = true;
+            }
+
+            if (isDegenerate) found++;
+            exp.Next();
+            faceIdx++;
+        }
+        return found;
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTShapeRef OCCTShapePurgeLocations(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        BRepTools_PurgeLocations purger;
+        purger.Perform(shape->shape);
+        if (purger.IsDone()) {
+            return new OCCTShape(purger.GetResult());
+        }
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeConnectEdges(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        ShapeFix_EdgeConnect connector;
+        connector.Add(shape->shape);
+        connector.Build();
+        // EdgeConnect modifies edges in place, return a copy of the shape
+        return new OCCTShape(shape->shape);
+    } catch (...) {
+        return nullptr;
+    }
+}

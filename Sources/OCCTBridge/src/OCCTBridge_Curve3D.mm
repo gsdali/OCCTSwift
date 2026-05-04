@@ -31,6 +31,7 @@
 #include <BRepLib.hxx>
 
 #include <GC_MakeArcOfCircle.hxx>
+#include <GC_MakeArcOfEllipse.hxx>
 #include <GC_MakeCircle.hxx>
 #include <GC_MakeSegment.hxx>
 
@@ -1039,3 +1040,33 @@ int32_t OCCTCurve3DQuasiUniformDeflection(OCCTCurve3DRef curve, double deflectio
     }
 }
 
+OCCTCurve3DRef OCCTCurve3DArcOfEllipse(double centerX, double centerY, double centerZ,
+                                         double normalX, double normalY, double normalZ,
+                                         double majorRadius, double minorRadius,
+                                         double angle1, double angle2, bool sense) {
+    try {
+        gp_Ax2 ax(gp_Pnt(centerX, centerY, centerZ), gp_Dir(normalX, normalY, normalZ));
+        gp_Elips elips(ax, majorRadius, minorRadius);
+        GC_MakeArcOfEllipse maker(elips, angle1, angle2, sense);
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTCurve3D(maker.Value());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve3DRef OCCTCurve3DArcOfEllipsePoints(double centerX, double centerY, double centerZ,
+                                               double normalX, double normalY, double normalZ,
+                                               double majorRadius, double minorRadius,
+                                               double p1X, double p1Y, double p1Z,
+                                               double p2X, double p2Y, double p2Z, bool sense) {
+    try {
+        gp_Ax2 ax(gp_Pnt(centerX, centerY, centerZ), gp_Dir(normalX, normalY, normalZ));
+        gp_Elips elips(ax, majorRadius, minorRadius);
+        GC_MakeArcOfEllipse maker(elips, gp_Pnt(p1X, p1Y, p1Z), gp_Pnt(p2X, p2Y, p2Z), sense);
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTCurve3D(maker.Value());
+    } catch (...) {
+        return nullptr;
+    }
+}

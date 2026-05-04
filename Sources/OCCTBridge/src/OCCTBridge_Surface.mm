@@ -51,7 +51,13 @@
 #include <Geom_BSplineSurface.hxx>
 #include <Geom_BezierSurface.hxx>
 #include <GeomFill_Pipe.hxx>
+#include <GeomFill_BSplineCurves.hxx>
 #include <GeomLProp_SLProps.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopAbs.hxx>
+#include <TopoDS.hxx>
+#include <BRep_Tool.hxx>
+#include <GeomAPI_ExtremaSurfaceSurface.hxx>
 
 #include <gp_Ax1.hxx>
 #include <gp_Ax2.hxx>
@@ -1219,3 +1225,135 @@ bool OCCTSurfaceIsDegenerated(OCCTSurfaceRef surface, double x, double y, double
     }
 }
 
+
+static Handle(Geom_BSplineCurve) toBSplineCurve(const Handle(Geom_Curve)& curve) {
+    Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve);
+    if (!bsc.IsNull()) {
+        // Re-convert to ensure consistent parameterization
+        return GeomConvert::CurveToBSplineCurve(curve, Convert_QuasiAngular);
+    }
+    // Convert any Geom_Curve to BSpline
+    return GeomConvert::CurveToBSplineCurve(curve, Convert_QuasiAngular);
+}
+
+OCCTSurfaceRef OCCTSurfaceFillBSpline2Curves(OCCTCurve3DRef curve1, OCCTCurve3DRef curve2,
+                                               int32_t fillStyle) {
+    if (!curve1 || !curve2) return nullptr;
+    try {
+        Handle(Geom_BSplineCurve) c1 = toBSplineCurve(curve1->curve);
+        Handle(Geom_BSplineCurve) c2 = toBSplineCurve(curve2->curve);
+        if (c1.IsNull() || c2.IsNull()) return nullptr;
+
+        GeomFill_FillingStyle style = GeomFill_StretchStyle;
+        if (fillStyle == 1) style = GeomFill_CoonsStyle;
+        else if (fillStyle == 2) style = GeomFill_CurvedStyle;
+
+        GeomFill_BSplineCurves filler(c1, c2, style);
+        Handle(Geom_BSplineSurface) surf = filler.Surface();
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTSurfaceRef OCCTSurfaceFillBSpline4Curves(OCCTCurve3DRef c1, OCCTCurve3DRef c2,
+                                               OCCTCurve3DRef c3, OCCTCurve3DRef c4,
+                                               int32_t fillStyle) {
+    if (!c1 || !c2 || !c3 || !c4) return nullptr;
+    try {
+        Handle(Geom_BSplineCurve) bc1 = toBSplineCurve(c1->curve);
+        Handle(Geom_BSplineCurve) bc2 = toBSplineCurve(c2->curve);
+        Handle(Geom_BSplineCurve) bc3 = toBSplineCurve(c3->curve);
+        Handle(Geom_BSplineCurve) bc4 = toBSplineCurve(c4->curve);
+        if (bc1.IsNull() || bc2.IsNull() || bc3.IsNull() || bc4.IsNull()) return nullptr;
+
+        GeomFill_FillingStyle style = GeomFill_StretchStyle;
+        if (fillStyle == 1) style = GeomFill_CoonsStyle;
+        else if (fillStyle == 2) style = GeomFill_CurvedStyle;
+
+        GeomFill_BSplineCurves filler(bc1, bc2, bc3, bc4, style);
+        Handle(Geom_BSplineSurface) surf = filler.Surface();
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) {
+        return nullptr;
+    }
+}
+// MARK: - v0.44.0: Surface Extrema, Curve-on-Surface Check, Ellipse Arc, Edge Connect, Bezier Convert
+
+#include <GeomAPI_ExtremaSurfaceSurface.hxx>
+#include <BRepLib_CheckCurveOnSurface.hxx>
+#include <GC_MakeArcOfEllipse.hxx>
+#include <gp_Elips.hxx>
+#include <ShapeFix_EdgeConnect.hxx>
+#include <ShapeUpgrade_ShapeConvertToBezier.hxx>
+// v0.45.0
+#include <BRepFill_Filling.hxx>
+#include <GeomAbs_Shape.hxx>
+#include <BRepExtrema_SelfIntersection.hxx>
+#include <BRepGProp_Face.hxx>
+#include <ShapeAnalysis_WireOrder.hxx>
+
+int32_t OCCTSurfaceExtrema(OCCTSurfaceRef s1, OCCTSurfaceRef s2,
+                            double u1Min, double u1Max, double v1Min, double v1Max,
+                            double u2Min, double u2Max, double v2Min, double v2Max,
+                            OCCTSurfaceExtremaResult* outResult) {
+    if (!s1 || !s2 || !outResult) return 0;
+    try {
+        GeomAPI_ExtremaSurfaceSurface extrema(
+            s1->surface, s2->surface,
+            u1Min, u1Max, v1Min, v1Max,
+            u2Min, u2Max, v2Min, v2Max);
+
+        int32_t nb = extrema.NbExtrema();
+        if (nb <= 0) return 0;
+
+        outResult->distance = extrema.LowerDistance();
+        gp_Pnt p1, p2;
+        extrema.NearestPoints(p1, p2);
+        outResult->p1X = p1.X(); outResult->p1Y = p1.Y(); outResult->p1Z = p1.Z();
+        outResult->p2X = p2.X(); outResult->p2Y = p2.Y(); outResult->p2Z = p2.Z();
+        extrema.LowerDistanceParameters(outResult->u1, outResult->v1,
+                                         outResult->u2, outResult->v2);
+        return nb;
+    } catch (...) {
+        return 0;
+    }
+}
+
+bool OCCTShapeCheckCurveOnSurface(OCCTShapeRef shape, double* outMaxDist, double* outMaxParam) {
+    if (!shape || !outMaxDist || !outMaxParam) return false;
+    try {
+        double globalMaxDist = 0;
+        double globalMaxParam = 0;
+        bool anyChecked = false;
+
+        for (TopExp_Explorer fExp(shape->shape, TopAbs_FACE); fExp.More(); fExp.Next()) {
+            TopoDS_Face face = TopoDS::Face(fExp.Current());
+            for (TopExp_Explorer eExp(face, TopAbs_EDGE); eExp.More(); eExp.Next()) {
+                TopoDS_Edge edge = TopoDS::Edge(eExp.Current());
+                double f, l;
+                Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(edge, face, f, l);
+                if (pcurve.IsNull()) continue;
+
+                BRepLib_CheckCurveOnSurface checker(edge, face);
+                checker.Perform();
+                if (checker.IsDone()) {
+                    double dist = checker.MaxDistance();
+                    if (dist > globalMaxDist) {
+                        globalMaxDist = dist;
+                        globalMaxParam = checker.MaxParameter();
+                    }
+                    anyChecked = true;
+                }
+            }
+        }
+
+        *outMaxDist = globalMaxDist;
+        *outMaxParam = globalMaxParam;
+        return anyChecked;
+    } catch (...) {
+        return false;
+    }
+}

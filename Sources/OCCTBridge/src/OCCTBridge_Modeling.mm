@@ -3078,3 +3078,111 @@ OCCTWireRef OCCTWireOffset3D(OCCTWireRef wire, double distance, double dirX, dou
         return nullptr;
     }
 }
+// MARK: - v0.42.0: Solid Construction, Fast Polygon, 2D Fillet, Point Cloud Analysis
+
+#include <BRepBuilderAPI_MakeSolid.hxx>
+#include <BRepBuilderAPI_MakePolygon.hxx>
+#include <BRepFilletAPI_MakeFillet2d.hxx>
+#include <GProp_PEquation.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+
+OCCTShapeRef OCCTSolidFromShells(OCCTShapeRef* shells, int32_t count) {
+    if (!shells || count <= 0) return nullptr;
+    try {
+        // Get the first shell
+        TopExp_Explorer exp(shells[0]->shape, TopAbs_SHELL);
+        if (!exp.More()) return nullptr;
+        TopoDS_Shell firstShell = TopoDS::Shell(exp.Current());
+
+        BRepBuilderAPI_MakeSolid maker(firstShell);
+
+        // Add additional shells (cavities)
+        for (int32_t i = 1; i < count; i++) {
+            if (!shells[i]) continue;
+            TopExp_Explorer exp2(shells[i]->shape, TopAbs_SHELL);
+            if (exp2.More()) {
+                maker.Add(TopoDS::Shell(exp2.Current()));
+            }
+        }
+
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Solid());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTWireRef OCCTWireCreateFastPolygon(const double* coords, int32_t pointCount, bool closed) {
+    if (!coords || pointCount < 2) return nullptr;
+    try {
+        BRepBuilderAPI_MakePolygon poly;
+        for (int32_t i = 0; i < pointCount; i++) {
+            poly.Add(gp_Pnt(coords[i*3], coords[i*3+1], coords[i*3+2]));
+        }
+        if (closed) poly.Close();
+        if (!poly.IsDone()) return nullptr;
+        return new OCCTWire(poly.Wire());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTFace2DFillet(OCCTShapeRef shape, const int32_t* vertexIndices,
+                               const double* radii, int32_t count) {
+    if (!shape || !vertexIndices || !radii || count <= 0) return nullptr;
+    try {
+        // Get face from shape
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        if (!faceExp.More()) return nullptr;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepFilletAPI_MakeFillet2d fillet(face);
+
+        TopTools_IndexedMapOfShape vertMap;
+        TopExp::MapShapes(face, TopAbs_VERTEX, vertMap);
+
+        for (int32_t i = 0; i < count; i++) {
+            int32_t idx = vertexIndices[i] + 1; // Convert to 1-based
+            if (idx < 1 || idx > vertMap.Extent()) continue;
+            fillet.AddFillet(TopoDS::Vertex(vertMap(idx)), radii[i]);
+        }
+
+        fillet.Build();
+        if (!fillet.IsDone()) return nullptr;
+        return new OCCTShape(fillet.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTFace2DChamfer(OCCTShapeRef shape,
+                                const int32_t* edge1Indices, const int32_t* edge2Indices,
+                                const double* distances, int32_t count) {
+    if (!shape || !edge1Indices || !edge2Indices || !distances || count <= 0) return nullptr;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        if (!faceExp.More()) return nullptr;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepFilletAPI_MakeFillet2d chamfer(face);
+
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(face, TopAbs_EDGE, edgeMap);
+
+        for (int32_t i = 0; i < count; i++) {
+            int32_t idx1 = edge1Indices[i] + 1;
+            int32_t idx2 = edge2Indices[i] + 1;
+            if (idx1 < 1 || idx1 > edgeMap.Extent()) continue;
+            if (idx2 < 1 || idx2 > edgeMap.Extent()) continue;
+            chamfer.AddChamfer(TopoDS::Edge(edgeMap(idx1)),
+                               TopoDS::Edge(edgeMap(idx2)),
+                               distances[i], distances[i]);
+        }
+
+        chamfer.Build();
+        if (!chamfer.IsDone()) return nullptr;
+        return new OCCTShape(chamfer.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
