@@ -4278,3 +4278,376 @@ bool OCCTVisMaterialPBRIsEqual(const OCCTVisMaterialPBR *a, const OCCTVisMateria
     } catch (...) { return false; }
 }
 
+
+// MARK: - v0.84: TDataStd Directory/Variable/Expression, TDocStd_XLink, XCAFDimTolObjects_Tool, TPrsStd_DriverTable, TObj_Application
+
+#include <TDataStd_Directory.hxx>
+#include <TDataStd_Variable.hxx>
+#include <TDataStd_Expression.hxx>
+#include <TDocStd_XLink.hxx>
+#include <XCAFDimTolObjects_Tool.hxx>
+#include <TPrsStd_DriverTable.hxx>
+#include <TObj_Application.hxx>
+#include <TDF_TagSource.hxx>
+
+// Helper to get label from document ref + tag (duplicate of main bridge's helper, ODR-safe across TUs)
+static TDF_Label getLabelForTag(OCCTDocumentRef document, int tag) {
+    if (tag == 0) return document->doc->Main();
+    return document->doc->Main().FindChild(tag, Standard_True);
+}
+
+// --- TDataStd_Directory ---
+
+bool OCCTDocumentDirectoryNew(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Directory) dir = TDataStd_Directory::New(label);
+        return !dir.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentDirectoryFind(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Directory) dir;
+        return TDataStd_Directory::Find(label, dir);
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentDirectoryAddSubDirectory(OCCTDocumentRef document, int parentLabelTag) {
+    try {
+        TDF_Label parentLabel = getLabelForTag(document, parentLabelTag);
+        Handle(TDataStd_Directory) dir;
+        if (!TDataStd_Directory::Find(parentLabel, dir)) return -1;
+        Handle(TDataStd_Directory) subDir = TDataStd_Directory::AddDirectory(dir);
+        if (subDir.IsNull()) return -1;
+        return subDir->Label().Tag();
+    } catch (...) { return -1; }
+}
+
+int OCCTDocumentDirectoryMakeObjectLabel(OCCTDocumentRef document, int parentLabelTag) {
+    try {
+        TDF_Label parentLabel = getLabelForTag(document, parentLabelTag);
+        Handle(TDataStd_Directory) dir;
+        if (!TDataStd_Directory::Find(parentLabel, dir)) return -1;
+        TDF_Label objLabel = TDataStd_Directory::MakeObjectLabel(dir);
+        if (objLabel.IsNull()) return -1;
+        return objLabel.Tag();
+    } catch (...) { return -1; }
+}
+
+// --- TDataStd_Variable ---
+
+bool OCCTDocumentVariableSet(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var = TDataStd_Variable::Set(label);
+        return !var.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentVariableSetName(OCCTDocumentRef document, int labelTag, const char* name) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        var->Name(TCollection_ExtendedString(name));
+        return true;
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentVariableGetName(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return nullptr;
+        TCollection_AsciiString aStr(var->Name());
+        char* result = (char*)malloc(aStr.Length() + 1);
+        strcpy(result, aStr.ToCString());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentVariableSetValue(OCCTDocumentRef document, int labelTag, double value) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        var->Set(value);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTDocumentVariableGetValue(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return 0.0;
+        if (!var->IsValued()) return 0.0;
+        return var->Get();
+    } catch (...) { return 0.0; }
+}
+
+bool OCCTDocumentVariableIsValued(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        return var->IsValued();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentVariableSetUnit(OCCTDocumentRef document, int labelTag, const char* unit) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        var->Unit(TCollection_AsciiString(unit));
+        return true;
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentVariableGetUnit(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return nullptr;
+        TCollection_AsciiString unit = var->Unit();
+        char* result = (char*)malloc(unit.Length() + 1);
+        strcpy(result, unit.ToCString());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentVariableSetConstant(OCCTDocumentRef document, int labelTag, bool isConstant) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        var->Constant(isConstant);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentVariableIsConstant(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        return var->IsConstant();
+    } catch (...) { return false; }
+}
+
+// --- TDataStd_Expression ---
+
+bool OCCTDocumentExpressionSet(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Expression) expr = TDataStd_Expression::Set(label);
+        return !expr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentExpressionSetString(OCCTDocumentRef document, int labelTag, const char* expression) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Expression) expr;
+        if (!label.FindAttribute(TDataStd_Expression::GetID(), expr)) return false;
+        expr->SetExpression(TCollection_ExtendedString(expression));
+        return true;
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentExpressionGetString(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Expression) expr;
+        if (!label.FindAttribute(TDataStd_Expression::GetID(), expr)) return nullptr;
+        TCollection_AsciiString aStr(expr->GetExpression());
+        char* result = (char*)malloc(aStr.Length() + 1);
+        strcpy(result, aStr.ToCString());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTDocumentExpressionGetName(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Expression) expr;
+        if (!label.FindAttribute(TDataStd_Expression::GetID(), expr)) return nullptr;
+        TCollection_AsciiString aStr(expr->Name());
+        char* result = (char*)malloc(aStr.Length() + 1);
+        strcpy(result, aStr.ToCString());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentVariableAssignExpression(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        Handle(TDataStd_Expression) expr = var->Assign();
+        return !expr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentVariableDesassignExpression(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        var->Desassign();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentVariableIsAssigned(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDataStd_Variable) var;
+        if (!label.FindAttribute(TDataStd_Variable::GetID(), var)) return false;
+        return var->IsAssigned();
+    } catch (...) { return false; }
+}
+
+// --- TDocStd_XLink ---
+
+bool OCCTDocumentXLinkSet(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDocStd_XLink) xlink = TDocStd_XLink::Set(label);
+        return !xlink.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentXLinkSetDocumentEntry(OCCTDocumentRef document, int labelTag, const char* entry) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDocStd_XLink) xlink;
+        if (!label.FindAttribute(TDocStd_XLink::GetID(), xlink)) return false;
+        xlink->DocumentEntry(TCollection_AsciiString(entry));
+        return true;
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentXLinkGetDocumentEntry(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDocStd_XLink) xlink;
+        if (!label.FindAttribute(TDocStd_XLink::GetID(), xlink)) return nullptr;
+        TCollection_AsciiString entry = xlink->DocumentEntry();
+        char* result = (char*)malloc(entry.Length() + 1);
+        strcpy(result, entry.ToCString());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentXLinkSetLabelEntry(OCCTDocumentRef document, int labelTag, const char* entry) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDocStd_XLink) xlink;
+        if (!label.FindAttribute(TDocStd_XLink::GetID(), xlink)) return false;
+        xlink->LabelEntry(TCollection_AsciiString(entry));
+        return true;
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentXLinkGetLabelEntry(OCCTDocumentRef document, int labelTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, labelTag);
+        Handle(TDocStd_XLink) xlink;
+        if (!label.FindAttribute(TDocStd_XLink::GetID(), xlink)) return nullptr;
+        TCollection_AsciiString entry = xlink->LabelEntry();
+        char* result = (char*)malloc(entry.Length() + 1);
+        strcpy(result, entry.ToCString());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// --- XCAFDimTolObjects_Tool ---
+
+int OCCTDocumentDimTolDimensionCount(OCCTDocumentRef document) {
+    try {
+        XCAFDimTolObjects_Tool tool(document->doc);
+        NCollection_Sequence<Handle(XCAFDimTolObjects_DimensionObject)> dims;
+        tool.GetDimensions(dims);
+        return dims.Size();
+    } catch (...) { return 0; }
+}
+
+int OCCTDocumentDimTolToleranceCount(OCCTDocumentRef document) {
+    try {
+        XCAFDimTolObjects_Tool tool(document->doc);
+        NCollection_Sequence<Handle(XCAFDimTolObjects_GeomToleranceObject)> tols;
+        NCollection_Sequence<Handle(XCAFDimTolObjects_DatumObject)> datums;
+        NCollection_DataMap<Handle(XCAFDimTolObjects_GeomToleranceObject), Handle(XCAFDimTolObjects_DatumObject)> datumMap;
+        tool.GetGeomTolerances(tols, datums, datumMap);
+        return tols.Size();
+    } catch (...) { return 0; }
+}
+
+// --- TPrsStd_DriverTable ---
+
+void OCCTDriverTableInitStandard() {
+    try {
+        Handle(TPrsStd_DriverTable) table = TPrsStd_DriverTable::Get();
+        table->InitStandardDrivers();
+    } catch (...) { }
+}
+
+bool OCCTDriverTableExists() {
+    try {
+        Handle(TPrsStd_DriverTable) table = TPrsStd_DriverTable::Get();
+        return !table.IsNull();
+    } catch (...) { return false; }
+}
+
+void OCCTDriverTableClear() {
+    try {
+        Handle(TPrsStd_DriverTable) table = TPrsStd_DriverTable::Get();
+        if (!table.IsNull()) table->Clear();
+    } catch (...) { }
+}
+
+// --- TObj_Application ---
+
+OCCTTObjAppRef OCCTTObjApplicationGetInstance() {
+    try {
+        Handle(TObj_Application) app = TObj_Application::GetInstance();
+        if (app.IsNull()) return nullptr;
+        // Prevent reference count from going to 0
+        app->IncrementRefCounter();
+        return app.get();
+    } catch (...) { return nullptr; }
+}
+
+void OCCTTObjApplicationSetVerbose(OCCTTObjAppRef app, bool verbose) {
+    try {
+        auto* a = static_cast<TObj_Application*>(app);
+        a->SetVerbose(verbose);
+    } catch (...) { }
+}
+
+bool OCCTTObjApplicationIsVerbose(OCCTTObjAppRef app) {
+    try {
+        auto* a = static_cast<TObj_Application*>(app);
+        return a->IsVerbose();
+    } catch (...) { return false; }
+}
+
+OCCTDocumentRef OCCTTObjApplicationCreateDocument(OCCTTObjAppRef app) {
+    try {
+        auto* a = static_cast<TObj_Application*>(app);
+        Handle(TObj_Application) hApp(a);
+        Handle(TDocStd_Document) doc;
+        TCollection_ExtendedString format("BinOcaf");
+        if (!hApp->CreateNewDocument(doc, format)) return nullptr;
+        if (doc.IsNull()) return nullptr;
+        // Wrap in OCCTDocument struct
+        OCCTDocument* result = new OCCTDocument();
+        result->doc = doc;
+        return result;
+    } catch (...) { return nullptr; }
+}
+

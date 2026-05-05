@@ -39,6 +39,8 @@
 #include <GeomTools_CurveSet.hxx>
 #include <GeomTools_Curve2dSet.hxx>
 #include <GeomTools_SurfaceSet.hxx>
+#include <VrmlAPI_Writer.hxx>
+#include <VrmlAPI_RepresentationOfShape.hxx>
 #include <sstream>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <TDF_LabelSequence.hxx>
@@ -1483,4 +1485,27 @@ void OCCTGeomToolsSurfaceSetFreeArray(OCCTSurfaceRef * array, int count) {
 
 void OCCTGeomToolsFreeString(const char * str) {
     if (str) free((void*)str);
+}
+
+// MARK: - VrmlAPI Writer (v0.84)
+bool OCCTVrmlWriteShape(OCCTShapeRef shape, const char* filePath,
+                        int version, double deflection, int representation) {
+    try {
+        VrmlAPI_Writer writer;
+        writer.SetDeflection(deflection);
+        switch (representation) {
+            case 0: writer.SetRepresentation(VrmlAPI_ShadedRepresentation); break;
+            case 1: writer.SetRepresentation(VrmlAPI_WireFrameRepresentation); break;
+            case 2: writer.SetRepresentation(VrmlAPI_BothRepresentation); break;
+            default: writer.SetRepresentation(VrmlAPI_ShadedRepresentation); break;
+        }
+        return writer.Write(shape->shape, filePath, version);
+    } catch (...) { return false; }
+}
+
+bool OCCTVrmlWriteDocument(OCCTDocumentRef document, const char* filePath, double scale) {
+    try {
+        VrmlAPI_Writer writer;
+        return writer.WriteDoc(document->doc, filePath, scale);
+    } catch (...) { return false; }
 }
