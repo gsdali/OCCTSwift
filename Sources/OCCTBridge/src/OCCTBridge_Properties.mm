@@ -41,6 +41,7 @@
 #include <BRepGProp_VinertGK.hxx>
 #include <BRepLProp_CLProps.hxx>
 #include <BRepLProp_SLProps.hxx>
+#include <PointSetLib_Equation.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
 
@@ -1686,4 +1687,76 @@ double OCCTShapeRadiusOfGyration(OCCTShapeRef shape,
         gp_Ax1 axis(gp_Pnt(ax, ay, az), gp_Dir(dx, dy, dz));
         return props.RadiusOfGyration(axis);
     } catch (...) { return 0; }
+}
+
+// MARK: - v0.130: PointSetLib
+// --- PointSetLib ---
+
+void OCCTPointSetProps(const double* points, int32_t count,
+                       double* cx, double* cy, double* cz, double* mass) {
+    if (!points || count <= 0) { *cx = *cy = *cz = *mass = 0; return; }
+    NCollection_Array1<gp_Pnt> pts(0, count - 1);
+    for (int i = 0; i < count; i++) {
+        pts.SetValue(i, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+    }
+    PointSetLib_Props props(pts);
+    auto cg = props.CentreOfMass();
+    *cx = cg.X(); *cy = cg.Y(); *cz = cg.Z();
+    *mass = props.Mass();
+}
+
+void OCCTPointSetPropsInertia(const double* points, int32_t count, double* inertiaMatrix) {
+    if (!points || count <= 0 || !inertiaMatrix) return;
+    NCollection_Array1<gp_Pnt> pts(0, count - 1);
+    for (int i = 0; i < count; i++) {
+        pts.SetValue(i, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+    }
+    PointSetLib_Props props(pts);
+    gp_Mat m = props.MatrixOfInertia();
+    inertiaMatrix[0] = m.Value(1,1); inertiaMatrix[1] = m.Value(1,2); inertiaMatrix[2] = m.Value(1,3);
+    inertiaMatrix[3] = m.Value(2,1); inertiaMatrix[4] = m.Value(2,2); inertiaMatrix[5] = m.Value(2,3);
+    inertiaMatrix[6] = m.Value(3,1); inertiaMatrix[7] = m.Value(3,2); inertiaMatrix[8] = m.Value(3,3);
+}
+
+void OCCTPointSetBarycentre(const double* points, int32_t count,
+                             double* bx, double* by, double* bz) {
+    if (!points || count <= 0) { *bx = *by = *bz = 0; return; }
+    NCollection_Array1<gp_Pnt> pts(0, count - 1);
+    for (int i = 0; i < count; i++) {
+        pts.SetValue(i, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+    }
+    gp_Pnt b = PointSetLib_Props::Barycentre(pts);
+    *bx = b.X(); *by = b.Y(); *bz = b.Z();
+}
+
+int32_t OCCTPointSetEquation(const double* points, int32_t count, double tolerance,
+                              double* baryCx, double* baryCy, double* baryCz,
+                              double* planeNx, double* planeNy, double* planeNz,
+                              double* planeDist) {
+    if (!points || count <= 0) return -1;
+    try {
+        NCollection_Array1<gp_Pnt> pts(0, count - 1);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        PointSetLib_Equation eq(pts, tolerance);
+        auto bary = eq.Barycentre();
+        *baryCx = bary.X(); *baryCy = bary.Y(); *baryCz = bary.Z();
+        *planeNx = *planeNy = *planeNz = *planeDist = 0;
+
+        auto type = eq.GetType();
+        if (type == PointSetLib_Equation::Type::Point) {
+            return 0;
+        } else if (type == PointSetLib_Equation::Type::Line) {
+            return 1;
+        } else if (type == PointSetLib_Equation::Type::Plane) {
+            auto pl = eq.Plane();
+            auto dir = pl.Axis().Direction();
+            *planeNx = dir.X(); *planeNy = dir.Y(); *planeNz = dir.Z();
+            *planeDist = pl.Distance(gp_Pnt(0,0,0));
+            return 2;
+        } else {
+            return 3;
+        }
+    } catch (...) { return -1; }
 }

@@ -6768,3 +6768,161 @@ void OCCTDocumentExplorerLocation(OCCTDocumentRef docRef, int32_t index, double*
         }
     } catch (...) {}
 }
+
+// MARK: - v0.126/v0.127: XCAFDoc_ColorTool completions
+// --- XCAFDoc_ColorTool completions ---
+
+#import <XCAFDoc_ColorTool.hxx>
+#import <XCAFDoc_DocumentTool.hxx>
+#import <Quantity_Color.hxx>
+#import <Quantity_ColorRGBA.hxx>
+
+int64_t OCCTDocumentColorToolAddColor(OCCTDocumentRef doc, double r, double g, double b) {
+    if (!doc) return -1;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        Quantity_Color col(r, g, b, Quantity_TOC_RGB);
+        TDF_Label lab = colorTool->AddColor(col);
+        if (lab.IsNull()) return -1;
+        return doc->registerLabel(lab);
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentColorToolRemoveColor(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        colorTool->RemoveColor(lab);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentColorToolGetColorCount(OCCTDocumentRef doc) {
+    if (!doc) return 0;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        NCollection_Sequence<TDF_Label> labels;
+        colorTool->GetColors(labels);
+        return (int32_t)labels.Length();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDocumentColorToolUnSetColor(OCCTDocumentRef doc, int64_t labelId, int32_t colorType) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        colorTool->UnSetColor(lab, (XCAFDoc_ColorType)colorType);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentColorToolIsVisible(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return true;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return true;
+        return XCAFDoc_ColorTool::IsVisible(lab);
+    } catch (...) { return true; }
+}
+
+bool OCCTDocumentColorToolSetVisibility(OCCTDocumentRef doc, int64_t labelId, bool visible) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        colorTool->SetVisibility(lab, visible);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentColorToolIsColorByLayer(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return colorTool->IsColorByLayer(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentColorToolSetColorByLayer(OCCTDocumentRef doc, int64_t labelId, bool isByLayer) {
+    if (!doc) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        colorTool->SetColorByLayer(lab, isByLayer);
+        return true;
+    } catch (...) { return false; }
+}
+
+int64_t OCCTDocumentColorToolFindColor(OCCTDocumentRef doc, double r, double g, double b) {
+    if (!doc) return -1;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        Quantity_Color col(r, g, b, Quantity_TOC_RGB);
+        TDF_Label lab = colorTool->FindColor(col);
+        if (lab.IsNull()) return -1;
+        return doc->registerLabel(lab);
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentColorToolSetInstanceColor(OCCTDocumentRef doc, OCCTShapeRef shape,
+                                            int32_t colorType, double r, double g, double b) {
+    if (!doc || !shape) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        Quantity_Color col(r, g, b, Quantity_TOC_RGB);
+        return colorTool->SetInstanceColor(shape->shape, (XCAFDoc_ColorType)colorType, col);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentColorToolGetInstanceColor(OCCTDocumentRef doc, OCCTShapeRef shape,
+                                            int32_t colorType,
+                                            double* r, double* g, double* b) {
+    if (!doc || !shape) return false;
+    try {
+        auto colorTool = XCAFDoc_DocumentTool::ColorTool(doc->doc->Main());
+        Quantity_Color col;
+        if (!colorTool->GetInstanceColor(shape->shape, (XCAFDoc_ColorType)colorType, col))
+            return false;
+        *r = col.Red();
+        *g = col.Green();
+        *b = col.Blue();
+        return true;
+    } catch (...) { return false; }
+}
+// --- XCAFDoc_ColorTool completions ---
+
+int32_t OCCTDocumentColorToolGetAllColors(OCCTDocumentRef doc, int64_t** outLabelIds) {
+    if (!doc || !outLabelIds) return 0;
+    *outLabelIds = nullptr;
+    try {
+        NCollection_Sequence<TDF_Label> labels;
+        doc->colorTool->GetColors(labels);
+        int count = labels.Size();
+        if (count == 0) return 0;
+        int64_t* ids = (int64_t*)malloc(count * sizeof(int64_t));
+        if (!ids) return 0;
+        for (int i = 1; i <= count; i++) {
+            const TDF_Label& lab = labels.Value(i);
+            // Find or add to label registry
+            int64_t idx = -1;
+            for (int64_t j = 0; j < (int64_t)doc->labels.size(); j++) {
+                if (doc->labels[j].IsEqual(lab)) { idx = j; break; }
+            }
+            if (idx < 0) {
+                idx = (int64_t)doc->labels.size();
+                doc->labels.push_back(lab);
+            }
+            ids[i-1] = idx;
+        }
+        *outLabelIds = ids;
+        return count;
+    } catch (...) { return 0; }
+}

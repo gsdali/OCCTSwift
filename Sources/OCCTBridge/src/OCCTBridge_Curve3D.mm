@@ -63,6 +63,15 @@
 #include <HelixGeom_BuilderHelixCoil.hxx>
 #include <HelixGeom_HelixCurve.hxx>
 #include <HelixGeom_Tools.hxx>
+#include <GeomEval_CircularHelixCurve.hxx>
+#include <GeomEval_SineWaveCurve.hxx>
+#include <GeomEval_TBezierCurve.hxx>
+#include <GeomEval_AHTBezierCurve.hxx>
+#include <GeomAdaptor_TransformedCurve.hxx>
+#include <Approx_BSplineApproxInterp.hxx>
+#include <Extrema_ExtPC.hxx>
+#include <ExtremaPC_Curve.hxx>
+#include <TColStd_HArray1OfBoolean.hxx>
 #include <ShapeUpgrade_SplitCurve3dContinuity.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -5077,4 +5086,499 @@ bool OCCTCurve3DBezierIsCN(OCCTCurve3DRef curve, int32_t n) {
     auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
     if (bz.IsNull()) return false;
     try { return bz->IsCN(n); } catch (...) { return false; }
+}
+
+// MARK: - v0.126: Bezier 3D + Curve3D Transform + v0.127: Geom_BSplineCurve + v0.129: BSplineCurve3D Local + v0.130: GeomEval Helix/Sine/ExtremaPC + v0.131: Approx_BSplineApproxInterp + GeomAdaptor_TransformedCurve + GeomEval_TBezier/AHTBezierCurve
+// --- Bezier 3D curve InsertPoleBefore and Reverse ---
+
+bool OCCTCurve3DBezierInsertPoleBefore(OCCTCurve3DRef curve, int32_t index,
+                                        double x, double y, double z) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->InsertPoleBefore(index, gp_Pnt(x, y, z));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierReverse(OCCTCurve3DRef curve) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Reverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierSetPoleWithWeight(OCCTCurve3DRef curve, int32_t index,
+                                         double x, double y, double z, double weight) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->SetPole(index, gp_Pnt(x, y, z), weight);
+        return true;
+    } catch (...) { return false; }
+}
+// --- Geometry Transform (in-place) ---
+
+static bool buildTrsf3D(gp_Trsf& trsf, int32_t type,
+                          double p1, double p2, double p3,
+                          double p4, double p5, double p6, double p7) {
+    switch (type) {
+        case 0: // translation (dx, dy, dz)
+            trsf.SetTranslation(gp_Vec(p1, p2, p3));
+            return true;
+        case 1: // rotation (ox, oy, oz, dx, dy, dz, angle)
+            trsf.SetRotation(gp_Ax1(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)), p7);
+            return true;
+        case 2: // scale (cx, cy, cz, factor)
+            trsf.SetScale(gp_Pnt(p1, p2, p3), p4);
+            return true;
+        case 3: // mirror point (px, py, pz)
+            trsf.SetMirror(gp_Pnt(p1, p2, p3));
+            return true;
+        case 4: // mirror axis (ox, oy, oz, dx, dy, dz)
+            trsf.SetMirror(gp_Ax1(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)));
+            return true;
+        case 5: // mirror plane (ox, oy, oz, nx, ny, nz)
+            trsf.SetMirror(gp_Ax2(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)));
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool OCCTCurve3DTransform(OCCTCurve3DRef curve, int32_t transformType,
+                           double p1, double p2, double p3,
+                           double p4, double p5, double p6, double p7) {
+    if (!curve) return false;
+    try {
+        gp_Trsf trsf;
+        if (!buildTrsf3D(trsf, transformType, p1, p2, p3, p4, p5, p6, p7)) return false;
+        curve->curve->Transform(trsf);
+        return true;
+    } catch (...) { return false; }
+}
+// --- Geom_BSplineCurve completions ---
+
+bool OCCTCurve3DBSplinePeriodicNormalization(OCCTCurve3DRef curve, double* u) {
+    if (!curve || !u) return false;
+    auto bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bsc.IsNull() || !bsc->IsPeriodic()) return false;
+    try {
+        bsc->PeriodicNormalization(*u);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineIsG1(OCCTCurve3DRef curve, double tFirst, double tLast, double angTol) {
+    if (!curve) return false;
+    auto bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bsc.IsNull()) return false;
+    try {
+        return bsc->IsG1(tFirst, tLast, angTol);
+    } catch (...) { return false; }
+}
+// --- v0.129.0: BSplineCurve3D LocalD0-D3/DN, BSplineSurface completions, BezierSurface completions ---
+
+void OCCTCurve3DBSplineLocalD0(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* pz) {
+    if (!curve || curve->curve.IsNull()) { *px = *py = *pz = 0; return; }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) { *px = *py = *pz = 0; return; }
+        gp_Pnt p;
+        bs->LocalD0(u, fromK1, toK2, p);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+    } catch (...) { *px = *py = *pz = 0; }
+}
+
+void OCCTCurve3DBSplineLocalD1(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* pz,
+                                double* vx, double* vy, double* vz) {
+    if (!curve || curve->curve.IsNull()) { *px = *py = *pz = *vx = *vy = *vz = 0; return; }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) { *px = *py = *pz = *vx = *vy = *vz = 0; return; }
+        gp_Pnt p; gp_Vec v1;
+        bs->LocalD1(u, fromK1, toK2, p, v1);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *vx = v1.X(); *vy = v1.Y(); *vz = v1.Z();
+    } catch (...) { *px = *py = *pz = *vx = *vy = *vz = 0; }
+}
+
+void OCCTCurve3DBSplineLocalD2(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* pz,
+                                double* v1x, double* v1y, double* v1z,
+                                double* v2x, double* v2y, double* v2z) {
+    if (!curve || curve->curve.IsNull()) {
+        *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = 0; return;
+    }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) { *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = 0; return; }
+        gp_Pnt p; gp_Vec v1, v2;
+        bs->LocalD2(u, fromK1, toK2, p, v1, v2);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *v1x = v1.X(); *v1y = v1.Y(); *v1z = v1.Z();
+        *v2x = v2.X(); *v2y = v2.Y(); *v2z = v2.Z();
+    } catch (...) { *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = 0; }
+}
+
+void OCCTCurve3DBSplineLocalD3(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* pz,
+                                double* v1x, double* v1y, double* v1z,
+                                double* v2x, double* v2y, double* v2z,
+                                double* v3x, double* v3y, double* v3z) {
+    if (!curve || curve->curve.IsNull()) {
+        *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = *v3x = *v3y = *v3z = 0; return;
+    }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) {
+            *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = *v3x = *v3y = *v3z = 0; return;
+        }
+        gp_Pnt p; gp_Vec v1, v2, v3;
+        bs->LocalD3(u, fromK1, toK2, p, v1, v2, v3);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *v1x = v1.X(); *v1y = v1.Y(); *v1z = v1.Z();
+        *v2x = v2.X(); *v2y = v2.Y(); *v2z = v2.Z();
+        *v3x = v3.X(); *v3y = v3.Y(); *v3z = v3.Z();
+    } catch (...) {
+        *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = *v3x = *v3y = *v3z = 0;
+    }
+}
+
+void OCCTCurve3DBSplineLocalDN(OCCTCurve3DRef curve, double u,
+                                int32_t fromK1, int32_t toK2, int32_t n,
+                                double* vx, double* vy, double* vz) {
+    if (!curve || curve->curve.IsNull()) { *vx = *vy = *vz = 0; return; }
+    try {
+        auto bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bs.IsNull()) { *vx = *vy = *vz = 0; return; }
+        gp_Vec v = bs->LocalDN(u, fromK1, toK2, n);
+        *vx = v.X(); *vy = v.Y(); *vz = v.Z();
+    } catch (...) { *vx = *vy = *vz = 0; }
+}
+
+// BSplineSurface completions
+// --- GeomEval Circular Helix ---
+
+void OCCTGeomEvalCircularHelixD0(double radius, double pitch, double u,
+                                  double* px, double* py, double* pz) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_CircularHelixCurve helix(ax, radius, pitch);
+    gp_Pnt p = helix.EvalD0(u);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+void OCCTGeomEvalCircularHelixD1(double radius, double pitch, double u,
+                                  double* px, double* py, double* pz,
+                                  double* vx, double* vy, double* vz) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_CircularHelixCurve helix(ax, radius, pitch);
+    auto res = helix.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y(); *pz = res.Point.Z();
+    *vx = res.D1.X(); *vy = res.D1.Y(); *vz = res.D1.Z();
+}
+
+void OCCTGeomEvalCircularHelixD2(double radius, double pitch, double u,
+                                  double* px, double* py, double* pz,
+                                  double* d1x, double* d1y, double* d1z,
+                                  double* d2x, double* d2y, double* d2z) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_CircularHelixCurve helix(ax, radius, pitch);
+    auto res = helix.EvalD2(u);
+    *px = res.Point.X(); *py = res.Point.Y(); *pz = res.Point.Z();
+    *d1x = res.D1.X(); *d1y = res.D1.Y(); *d1z = res.D1.Z();
+    *d2x = res.D2.X(); *d2y = res.D2.Y(); *d2z = res.D2.Z();
+}
+
+OCCTCurve3DRef OCCTGeomEvalCircularHelixCurveCreate(double radius, double pitch) {
+    try {
+        gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto helix = new GeomEval_CircularHelixCurve(ax, radius, pitch);
+        occ::handle<Geom_Curve> hCurve(helix);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval Sine Wave 3D ---
+
+void OCCTGeomEvalSineWaveD0(double amplitude, double omega, double phase, double u,
+                             double* px, double* py, double* pz) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_SineWaveCurve sw(ax, amplitude, omega, phase);
+    gp_Pnt p = sw.EvalD0(u);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+void OCCTGeomEvalSineWaveD1(double amplitude, double omega, double phase, double u,
+                             double* px, double* py, double* pz,
+                             double* vx, double* vy, double* vz) {
+    gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_SineWaveCurve sw(ax, amplitude, omega, phase);
+    auto res = sw.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y(); *pz = res.Point.Z();
+    *vx = res.D1.X(); *vy = res.D1.Y(); *vz = res.D1.Z();
+}
+
+OCCTCurve3DRef OCCTGeomEvalSineWaveCurveCreate(double amplitude, double omega, double phase) {
+    try {
+        gp_Ax2 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto sw = new GeomEval_SineWaveCurve(ax, amplitude, omega, phase);
+        occ::handle<Geom_Curve> hCurve(sw);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+// --- ExtremaPC ---
+
+int32_t OCCTExtremaPCCurve(OCCTCurve3DRef curve,
+                            double px, double py, double pz,
+                            double* outParams, double* outDistances,
+                            double* outPx, double* outPy, double* outPz,
+                            int32_t maxResults) {
+    if (!curve || !outParams || !outDistances || maxResults <= 0) return 0;
+    try {
+        ExtremaPC_Curve extPC(curve->curve);
+        if (!extPC.IsInitialized()) return 0;
+        const auto& result = extPC.Perform(gp_Pnt(px, py, pz), 1e-9);
+        if (!result.IsDone()) return 0;
+        int n = std::min((int)result.NbExt(), (int)maxResults);
+        for (int i = 0; i < n; i++) {
+            outParams[i] = result[i].Parameter;
+            outDistances[i] = std::sqrt(result[i].SquareDistance);
+            if (outPx) outPx[i] = result[i].Point.X();
+            if (outPy) outPy[i] = result[i].Point.Y();
+            if (outPz) outPz[i] = result[i].Point.Z();
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTExtremaPCCurveBounded(OCCTCurve3DRef curve,
+                                   double px, double py, double pz,
+                                   double uMin, double uMax,
+                                   double* outParams, double* outDistances,
+                                   double* outPx, double* outPy, double* outPz,
+                                   int32_t maxResults) {
+    if (!curve || !outParams || !outDistances || maxResults <= 0) return 0;
+    try {
+        ExtremaPC_Curve extPC(curve->curve, uMin, uMax);
+        if (!extPC.IsInitialized()) return 0;
+        const auto& result = extPC.Perform(gp_Pnt(px, py, pz), 1e-9);
+        if (!result.IsDone()) return 0;
+        int n = std::min((int)result.NbExt(), (int)maxResults);
+        for (int i = 0; i < n; i++) {
+            outParams[i] = result[i].Parameter;
+            outDistances[i] = std::sqrt(result[i].SquareDistance);
+            if (outPx) outPx[i] = result[i].Point.X();
+            if (outPy) outPy[i] = result[i].Point.Y();
+            if (outPz) outPz[i] = result[i].Point.Z();
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+double OCCTExtremaPCMinDistance(OCCTCurve3DRef curve,
+                                double px, double py, double pz) {
+    if (!curve) return -1.0;
+    try {
+        ExtremaPC_Curve extPC(curve->curve);
+        if (!extPC.IsInitialized()) return -1.0;
+        const auto& result = extPC.Perform(gp_Pnt(px, py, pz), 1e-9);
+        if (!result.IsDone() || result.NbExt() == 0) return -1.0;
+        return std::sqrt(result.MinSquareDistance());
+    } catch (...) { return -1.0; }
+}
+
+// --- Approx_BSplineApproxInterp ---
+
+struct OCCTBSplineApproxInterp {
+    Approx_BSplineApproxInterp* solver;
+    OCCTBSplineApproxInterp() : solver(nullptr) {}
+    ~OCCTBSplineApproxInterp() { delete solver; }
+};
+
+OCCTBSplineApproxInterpRef OCCTBSplineApproxInterpCreate(
+    const double* points, int32_t count,
+    int32_t nbControlPts, int32_t degree, bool continuousIfClosed) {
+    if (!points || count < 2) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]);
+        auto ref = new OCCTBSplineApproxInterp();
+        ref->solver = new Approx_BSplineApproxInterp(pts, nbControlPts, degree, continuousIfClosed);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTBSplineApproxInterpRelease(OCCTBSplineApproxInterpRef ref) {
+    delete ref;
+}
+
+void OCCTBSplineApproxInterpInterpolatePoint(OCCTBSplineApproxInterpRef ref,
+                                              int32_t pointIndex, bool withKink) {
+    if (!ref || !ref->solver) return;
+    try { ref->solver->InterpolatePoint(pointIndex, withKink); } catch (...) {}
+}
+
+void OCCTBSplineApproxInterpPerform(OCCTBSplineApproxInterpRef ref) {
+    if (!ref || !ref->solver) return;
+    try { ref->solver->Perform(); } catch (...) {}
+}
+
+void OCCTBSplineApproxInterpPerformOptimal(OCCTBSplineApproxInterpRef ref,
+                                            int32_t maxIter) {
+    if (!ref || !ref->solver) return;
+    try { ref->solver->PerformOptimal(maxIter); } catch (...) {}
+}
+
+bool OCCTBSplineApproxInterpIsDone(OCCTBSplineApproxInterpRef ref) {
+    if (!ref || !ref->solver) return false;
+    return ref->solver->IsDone();
+}
+
+OCCTCurve3DRef OCCTBSplineApproxInterpCurve(OCCTBSplineApproxInterpRef ref) {
+    if (!ref || !ref->solver || !ref->solver->IsDone()) return nullptr;
+    try {
+        const auto& curve = ref->solver->Curve();
+        if (curve.IsNull()) return nullptr;
+        auto cref = new OCCTCurve3D();
+        cref->curve = curve;
+        return cref;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTBSplineApproxInterpMaxError(OCCTBSplineApproxInterpRef ref) {
+    if (!ref || !ref->solver) return -1.0;
+    return ref->solver->MaxError();
+}
+
+void OCCTBSplineApproxInterpSetAlpha(OCCTBSplineApproxInterpRef ref, double alpha) {
+    if (ref && ref->solver) ref->solver->SetParametrizationAlpha(alpha);
+}
+
+void OCCTBSplineApproxInterpSetMinPivot(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetMinPivot(val);
+}
+
+void OCCTBSplineApproxInterpSetClosedTol(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetClosedTolerance(val);
+}
+
+void OCCTBSplineApproxInterpSetKnotTol(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetKnotInsertionTolerance(val);
+}
+
+void OCCTBSplineApproxInterpSetConvergenceTol(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetConvergenceTolerance(val);
+}
+
+void OCCTBSplineApproxInterpSetProjectionTol(OCCTBSplineApproxInterpRef ref, double val) {
+    if (ref && ref->solver) ref->solver->SetProjectionTolerance(val);
+}
+
+// --- GeomAdaptor_TransformedCurve ---
+
+OCCTCurve3DRef OCCTGeomAdaptorTransformedCurveCreate(
+    OCCTCurve3DRef curve,
+    double tx, double ty, double tz) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        gp_Trsf trsf;
+        trsf.SetTranslation(gp_Vec(tx, ty, tz));
+        // Create a trimmed copy of the original curve with the transform applied
+        Handle(Geom_Curve) origCurve = curve->curve;
+        Handle(Geom_Curve) copyCurve = Handle(Geom_Curve)::DownCast(origCurve->Copy());
+        if (copyCurve.IsNull()) return nullptr;
+        copyCurve->Transform(trsf);
+        auto ref = new OCCTCurve3D();
+        ref->curve = copyCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+// --- GeomEval_TBezierCurve ---
+
+OCCTCurve3DRef OCCTGeomEvalTBezierCurveCreate(
+    const double* poles, int32_t count, double alpha) {
+    if (!poles || count < 3 || count % 2 == 0) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]);
+        auto tc = new GeomEval_TBezierCurve(pts, alpha);
+        occ::handle<Geom_Curve> hCurve(tc);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGeomEvalTBezierCurveCreateRational(
+    const double* poles, const double* weights,
+    int32_t count, double alpha) {
+    if (!poles || !weights || count < 3 || count % 2 == 0) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        NCollection_Array1<double> wts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]);
+            wts(i + 1) = weights[i];
+        }
+        auto tc = new GeomEval_TBezierCurve(pts, wts, alpha);
+        occ::handle<Geom_Curve> hCurve(tc);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval_AHTBezierCurve ---
+
+OCCTCurve3DRef OCCTGeomEvalAHTBezierCurveCreate(
+    const double* poles, int32_t count,
+    int32_t algDegree, double alpha, double beta) {
+    if (!poles || count < 1) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]);
+        auto ac = new GeomEval_AHTBezierCurve(pts, algDegree, alpha, beta);
+        occ::handle<Geom_Curve> hCurve(ac);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGeomEvalAHTBezierCurveCreateRational(
+    const double* poles, const double* weights,
+    int32_t count, int32_t algDegree, double alpha, double beta) {
+    if (!poles || !weights || count < 1) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        NCollection_Array1<double> wts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]);
+            wts(i + 1) = weights[i];
+        }
+        auto ac = new GeomEval_AHTBezierCurve(pts, wts, algDegree, alpha, beta);
+        occ::handle<Geom_Curve> hCurve(ac);
+        auto ref = new OCCTCurve3D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
 }
