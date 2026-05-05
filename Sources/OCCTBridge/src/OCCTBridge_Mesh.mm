@@ -35,6 +35,8 @@
 #include <Poly_CoherentNode.hxx>
 #include <Poly_CoherentTriangle.hxx>
 #include <Poly_CoherentLink.hxx>
+#include <RWMesh_CoordinateSystem.hxx>
+#include <RWMesh_CoordinateSystemConverter.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <BRep_Builder.hxx>
@@ -1309,4 +1311,46 @@ bool OCCTCoherentTriangulationNodeCoords(OCCTCoherentTriangulationRef _Nonnull r
 
 void OCCTCoherentTriangulationRelease(OCCTCoherentTriangulationRef _Nonnull ref) {
     delete (Poly_CoherentTriangulationOpaque*)ref;
+}
+
+// MARK: - RWMesh_CoordinateSystemConverter (v0.85)
+// --- RWMesh_CoordinateSystemConverter ---
+
+static RWMesh_CoordinateSystem toRWMeshCS(int sys) {
+    switch (sys) {
+        case 0: return RWMesh_CoordinateSystem_Zup;
+        case 1: return RWMesh_CoordinateSystem_Yup;
+        default: return RWMesh_CoordinateSystem_Zup;
+    }
+}
+
+OCCTPoint3D OCCTCoordSystemConvert(double x, double y, double z,
+                                    int inputSystem, double inputLengthUnit,
+                                    int outputSystem, double outputLengthUnit) {
+    OCCTPoint3D result = {x, y, z};
+    try {
+        RWMesh_CoordinateSystemConverter conv;
+        conv.SetInputCoordinateSystem(toRWMeshCS(inputSystem));
+        conv.SetInputLengthUnit(inputLengthUnit);
+        conv.SetOutputCoordinateSystem(toRWMeshCS(outputSystem));
+        conv.SetOutputLengthUnit(outputLengthUnit);
+        gp_XYZ pos(x, y, z);
+        conv.TransformPosition(pos);
+        result.x = pos.X();
+        result.y = pos.Y();
+        result.z = pos.Z();
+    } catch (...) { }
+    return result;
+}
+
+OCCTPoint3D OCCTCoordSystemUpDirection(int system) {
+    OCCTPoint3D result = {0, 0, 1};
+    try {
+        gp_Ax3 ax = RWMesh_CoordinateSystemConverter::StandardCoordinateSystem(toRWMeshCS(system));
+        gp_Dir dir = ax.Direction();
+        result.x = dir.X();
+        result.y = dir.Y();
+        result.z = dir.Z();
+    } catch (...) { }
+    return result;
 }

@@ -41,6 +41,16 @@
 #include <GeomTools_SurfaceSet.hxx>
 #include <VrmlAPI_Writer.hxx>
 #include <VrmlAPI_RepresentationOfShape.hxx>
+#include <UnitsAPI.hxx>
+#include <UnitsAPI_SystemUnits.hxx>
+#include <BinTools.hxx>
+#include <BinTools_ShapeReader.hxx>
+#include <BinTools_ShapeWriter.hxx>
+#include <Message.hxx>
+#include <Message_Messenger.hxx>
+#include <Message_PrinterOStream.hxx>
+#include <Message_Report.hxx>
+#include <Message_Gravity.hxx>
 #include <sstream>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <TDF_LabelSequence.hxx>
@@ -1508,4 +1518,224 @@ bool OCCTVrmlWriteDocument(OCCTDocumentRef document, const char* filePath, doubl
         VrmlAPI_Writer writer;
         return writer.WriteDoc(document->doc, filePath, scale);
     } catch (...) { return false; }
+}
+
+// MARK: - UnitsAPI (v0.85)
+// --- UnitsAPI ---
+
+double OCCTUnitsAnyToAny(double value, const char* fromUnit, const char* toUnit) {
+    try {
+        return UnitsAPI::AnyToAny(value, fromUnit, toUnit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsAnyToSI(double value, const char* unit) {
+    try {
+        return UnitsAPI::AnyToSI(value, unit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsAnyFromSI(double value, const char* unit) {
+    try {
+        return UnitsAPI::AnyFromSI(value, unit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsAnyToLS(double value, const char* unit) {
+    try {
+        return UnitsAPI::AnyToLS(value, unit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsAnyFromLS(double value, const char* unit) {
+    try {
+        return UnitsAPI::AnyFromLS(value, unit);
+    } catch (...) { return 0.0; }
+}
+
+void OCCTUnitsSetLocalSystem(int system) {
+    try {
+        UnitsAPI::SetLocalSystem(static_cast<UnitsAPI_SystemUnits>(system));
+    } catch (...) { }
+}
+
+int OCCTUnitsGetLocalSystem() {
+    try {
+        return static_cast<int>(UnitsAPI::LocalSystem());
+    } catch (...) { return 0; }
+}
+
+
+// MARK: - BinTools Shape I/O (v0.85)
+// --- BinTools Shape I/O ---
+
+const void* OCCTBinToolsWriteShape(OCCTShapeRef shape, int* outLength) {
+    try {
+        std::ostringstream oss;
+        BinTools_ShapeWriter writer;
+        writer.Write(shape->shape, oss);
+        std::string data = oss.str();
+        *outLength = (int)data.size();
+        void* buf = malloc(data.size());
+        memcpy(buf, data.data(), data.size());
+        return buf;
+    } catch (...) { *outLength = 0; return nullptr; }
+}
+
+OCCTShapeRef OCCTBinToolsReadShape(const void* data, int length) {
+    try {
+        std::string str((const char*)data, length);
+        std::istringstream iss(str);
+        BinTools_ShapeReader reader;
+        TopoDS_Shape readShape;
+        reader.Read(iss, readShape);
+        if (readShape.IsNull()) return nullptr;
+        return new OCCTShape(readShape);
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTBinToolsWriteShapeToFile(OCCTShapeRef shape, const char* filePath) {
+    try {
+        std::ofstream fout(filePath, std::ios::binary);
+        if (!fout.is_open()) return false;
+        BinTools_ShapeWriter writer;
+        writer.Write(shape->shape, fout);
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTBinToolsReadShapeFromFile(const char* filePath) {
+    try {
+        std::ifstream fin(filePath, std::ios::binary);
+        if (!fin.is_open()) return nullptr;
+        BinTools_ShapeReader reader;
+        TopoDS_Shape readShape;
+        reader.Read(fin, readShape);
+        if (readShape.IsNull()) return nullptr;
+        return new OCCTShape(readShape);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Message Messenger + Report (v0.85)
+// --- Message_Messenger ---
+
+OCCTMessengerRef OCCTMessengerCreate() {
+    try {
+        Handle(Message_Messenger) msg = new Message_Messenger();
+        if (msg.IsNull()) return nullptr;
+        msg->IncrementRefCounter();
+        return msg.get();
+    } catch (...) { return nullptr; }
+}
+
+void OCCTMessengerRelease(OCCTMessengerRef messenger) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        m->DecrementRefCounter();
+        if (m->GetRefCount() == 0) delete m;
+    } catch (...) { }
+}
+
+int OCCTMessengerPrinterCount(OCCTMessengerRef messenger) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        return m->Printers().Size();
+    } catch (...) { return 0; }
+}
+
+void OCCTMessengerSend(OCCTMessengerRef messenger, const char* message, int gravity) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        Message_Gravity g = static_cast<Message_Gravity>(gravity);
+        m->Send(TCollection_AsciiString(message), g);
+    } catch (...) { }
+}
+
+bool OCCTMessengerAddFilePrinter(OCCTMessengerRef messenger, const char* filePath, int gravity) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        Message_Gravity g = static_cast<Message_Gravity>(gravity);
+        Handle(Message_PrinterOStream) printer = new Message_PrinterOStream(filePath, false, g);
+        return m->AddPrinter(printer);
+    } catch (...) { return false; }
+}
+
+void OCCTMessengerRemoveAllPrinters(OCCTMessengerRef messenger) {
+    try {
+        auto* m = static_cast<Message_Messenger*>(messenger);
+        // Remove by type — remove all Standard_Transient printers
+        Handle(Standard_Type) printerType = STANDARD_TYPE(Message_Printer);
+        m->RemovePrinters(printerType);
+    } catch (...) { }
+}
+
+// --- Message_Report ---
+
+OCCTReportRef OCCTReportCreate() {
+    try {
+        Handle(Message_Report) report = new Message_Report();
+        if (report.IsNull()) return nullptr;
+        report->IncrementRefCounter();
+        return report.get();
+    } catch (...) { return nullptr; }
+}
+
+void OCCTReportRelease(OCCTReportRef report) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        r->DecrementRefCounter();
+        if (r->GetRefCount() == 0) delete r;
+    } catch (...) { }
+}
+
+void OCCTReportSetLimit(OCCTReportRef report, int limit) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        r->SetLimit(limit);
+    } catch (...) { }
+}
+
+int OCCTReportGetLimit(OCCTReportRef report) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        return r->Limit();
+    } catch (...) { return 0; }
+}
+
+void OCCTReportClear(OCCTReportRef report) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        r->Clear();
+    } catch (...) { }
+}
+
+void OCCTReportClearByGravity(OCCTReportRef report, int gravity) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        r->Clear(static_cast<Message_Gravity>(gravity));
+    } catch (...) { }
+}
+
+const char* OCCTReportDump(OCCTReportRef report) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        std::ostringstream oss;
+        r->Dump(oss);
+        std::string str = oss.str();
+        char* result = (char*)malloc(str.size() + 1);
+        strcpy(result, str.c_str());
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTReportDumpByGravity(OCCTReportRef report, int gravity) {
+    try {
+        auto* r = static_cast<Message_Report*>(report);
+        std::ostringstream oss;
+        r->Dump(oss, static_cast<Message_Gravity>(gravity));
+        std::string str = oss.str();
+        char* result = (char*)malloc(str.size() + 1);
+        strcpy(result, str.c_str());
+        return result;
+    } catch (...) { return nullptr; }
 }

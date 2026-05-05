@@ -4651,3 +4651,664 @@ OCCTDocumentRef OCCTTObjApplicationCreateDocument(OCCTTObjAppRef app) {
     } catch (...) { return nullptr; }
 }
 
+
+// MARK: - TDF_IDFilter (v0.85)
+// --- TDF_IDFilter ---
+
+OCCTIDFilterRef OCCTIDFilterCreate(bool ignoreAll) {
+    try {
+        TDF_IDFilter* filter = new TDF_IDFilter(ignoreAll);
+        return filter;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTIDFilterRelease(OCCTIDFilterRef filter) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        delete f;
+    } catch (...) { }
+}
+
+bool OCCTIDFilterIgnoreAll(OCCTIDFilterRef filter) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        return f->IgnoreAll();
+    } catch (...) { return false; }
+}
+
+void OCCTIDFilterSetIgnoreAll(OCCTIDFilterRef filter, bool ignoreAll) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        f->IgnoreAll(ignoreAll);
+    } catch (...) { }
+}
+
+void OCCTIDFilterKeep(OCCTIDFilterRef filter, const char* guidString) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        Standard_GUID guid(guidString);
+        f->Keep(guid);
+    } catch (...) { }
+}
+
+void OCCTIDFilterIgnore(OCCTIDFilterRef filter, const char* guidString) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        Standard_GUID guid(guidString);
+        f->Ignore(guid);
+    } catch (...) { }
+}
+
+bool OCCTIDFilterIsKept(OCCTIDFilterRef filter, const char* guidString) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        Standard_GUID guid(guidString);
+        return f->IsKept(guid);
+    } catch (...) { return false; }
+}
+
+bool OCCTIDFilterIsIgnored(OCCTIDFilterRef filter, const char* guidString) {
+    try {
+        auto* f = static_cast<TDF_IDFilter*>(filter);
+        Standard_GUID guid(guidString);
+        return f->IsIgnored(guid);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd Boolean/Byte/Integer/Real/ExtString/Reference Arrays + Lists (v0.85)
+// MARK: - TDataStd_BooleanArray
+
+#include <TDataStd_BooleanArray.hxx>
+
+bool OCCTDocumentSetBooleanArray(OCCTDocumentRef document, int tag,
+                                  int lower, int upper,
+                                  const bool* values, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        auto arr = TDataStd_BooleanArray::Set(label, lower, upper);
+        int len = upper - lower + 1;
+        for (int i = 0; i < len && i < count; i++) {
+            arr->SetValue(lower + i, values[i]);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetBooleanArray(OCCTDocumentRef document, int tag,
+                                 bool* values, int maxCount) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_BooleanArray) arr;
+        if (!label.FindAttribute(TDataStd_BooleanArray::GetID(), arr)) return -1;
+        int len = arr->Length();
+        if (values) {
+            int n = std::min(len, maxCount);
+            for (int i = 0; i < n; i++) {
+                values[i] = arr->Value(arr->Lower() + i);
+            }
+        }
+        return len;
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentHasBooleanArray(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_BooleanArray) arr;
+        return label.FindAttribute(TDataStd_BooleanArray::GetID(), arr);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_BooleanList
+
+#include <TDataStd_BooleanList.hxx>
+
+bool OCCTDocumentSetBooleanList(OCCTDocumentRef document, int tag,
+                                 const bool* values, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        auto lst = TDataStd_BooleanList::Set(label);
+        lst->Clear();
+        for (int i = 0; i < count; i++) {
+            lst->Append(values[i]);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetBooleanList(OCCTDocumentRef document, int tag,
+                                bool* values, int maxCount) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_BooleanList) lst;
+        if (!label.FindAttribute(TDataStd_BooleanList::GetID(), lst)) return -1;
+        int count = lst->Extent();
+        if (values) {
+            int i = 0;
+            for (auto it = lst->List().cbegin(); it != lst->List().cend() && i < maxCount; ++it, ++i) {
+                values[i] = (*it != 0);
+            }
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentBooleanListAppend(OCCTDocumentRef document, int tag, bool value) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_BooleanList) lst;
+        if (!label.FindAttribute(TDataStd_BooleanList::GetID(), lst)) {
+            lst = TDataStd_BooleanList::Set(label);
+        }
+        lst->Append(value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentBooleanListClear(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_BooleanList) lst;
+        if (!label.FindAttribute(TDataStd_BooleanList::GetID(), lst)) return false;
+        lst->Clear();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasBooleanList(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_BooleanList) lst;
+        return label.FindAttribute(TDataStd_BooleanList::GetID(), lst);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_ByteArray
+
+#include <TDataStd_ByteArray.hxx>
+
+bool OCCTDocumentSetByteArray(OCCTDocumentRef document, int tag,
+                               int lower, int upper,
+                               const uint8_t* values, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        auto arr = TDataStd_ByteArray::Set(label, lower, upper);
+        int len = upper - lower + 1;
+        for (int i = 0; i < len && i < count; i++) {
+            arr->SetValue(lower + i, values[i]);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetByteArray(OCCTDocumentRef document, int tag,
+                              uint8_t* values, int maxCount) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ByteArray) arr;
+        if (!label.FindAttribute(TDataStd_ByteArray::GetID(), arr)) return -1;
+        int len = arr->Length();
+        if (values) {
+            int n = std::min(len, maxCount);
+            for (int i = 0; i < n; i++) {
+                values[i] = arr->Value(arr->Lower() + i);
+            }
+        }
+        return len;
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentHasByteArray(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ByteArray) arr;
+        return label.FindAttribute(TDataStd_ByteArray::GetID(), arr);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_IntegerList
+
+#include <TDataStd_IntegerList.hxx>
+
+bool OCCTDocumentSetIntegerList(OCCTDocumentRef document, int tag,
+                                 const int* values, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        auto lst = TDataStd_IntegerList::Set(label);
+        lst->Clear();
+        for (int i = 0; i < count; i++) {
+            lst->Append(values[i]);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetIntegerList(OCCTDocumentRef document, int tag,
+                                int* values, int maxCount) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_IntegerList) lst;
+        if (!label.FindAttribute(TDataStd_IntegerList::GetID(), lst)) return -1;
+        int count = lst->Extent();
+        if (values) {
+            int i = 0;
+            for (auto it = lst->List().cbegin(); it != lst->List().cend() && i < maxCount; ++it, ++i) {
+                values[i] = *it;
+            }
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentIntegerListAppend(OCCTDocumentRef document, int tag, int value) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_IntegerList) lst;
+        if (!label.FindAttribute(TDataStd_IntegerList::GetID(), lst)) {
+            lst = TDataStd_IntegerList::Set(label);
+        }
+        lst->Append(value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentIntegerListClear(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_IntegerList) lst;
+        if (!label.FindAttribute(TDataStd_IntegerList::GetID(), lst)) return false;
+        lst->Clear();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasIntegerList(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_IntegerList) lst;
+        return label.FindAttribute(TDataStd_IntegerList::GetID(), lst);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_RealList
+
+#include <TDataStd_RealList.hxx>
+
+bool OCCTDocumentSetRealList(OCCTDocumentRef document, int tag,
+                              const double* values, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        auto lst = TDataStd_RealList::Set(label);
+        lst->Clear();
+        for (int i = 0; i < count; i++) {
+            lst->Append(values[i]);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetRealList(OCCTDocumentRef document, int tag,
+                             double* values, int maxCount) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_RealList) lst;
+        if (!label.FindAttribute(TDataStd_RealList::GetID(), lst)) return -1;
+        int count = lst->Extent();
+        if (values) {
+            int i = 0;
+            for (auto it = lst->List().cbegin(); it != lst->List().cend() && i < maxCount; ++it, ++i) {
+                values[i] = *it;
+            }
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentRealListAppend(OCCTDocumentRef document, int tag, double value) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_RealList) lst;
+        if (!label.FindAttribute(TDataStd_RealList::GetID(), lst)) {
+            lst = TDataStd_RealList::Set(label);
+        }
+        lst->Append(value);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentRealListClear(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_RealList) lst;
+        if (!label.FindAttribute(TDataStd_RealList::GetID(), lst)) return false;
+        lst->Clear();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasRealList(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_RealList) lst;
+        return label.FindAttribute(TDataStd_RealList::GetID(), lst);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_ExtStringArray
+
+#include <TDataStd_ExtStringArray.hxx>
+
+bool OCCTDocumentSetExtStringArray(OCCTDocumentRef document, int tag,
+                                    int lower, int upper,
+                                    const char* const* values, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        auto arr = TDataStd_ExtStringArray::Set(label, lower, upper);
+        int len = upper - lower + 1;
+        for (int i = 0; i < len && i < count; i++) {
+            arr->SetValue(lower + i, TCollection_ExtendedString(values[i], true));
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+char* OCCTDocumentGetExtStringArrayValue(OCCTDocumentRef document, int tag, int index) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ExtStringArray) arr;
+        if (!label.FindAttribute(TDataStd_ExtStringArray::GetID(), arr)) return nullptr;
+        if (index < arr->Lower() || index > arr->Upper()) return nullptr;
+        TCollection_ExtendedString val = arr->Value(index);
+        TCollection_AsciiString ascii(val);
+        return strdup(ascii.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+int OCCTDocumentGetExtStringArrayLength(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ExtStringArray) arr;
+        if (!label.FindAttribute(TDataStd_ExtStringArray::GetID(), arr)) return -1;
+        return arr->Length();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentHasExtStringArray(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ExtStringArray) arr;
+        return label.FindAttribute(TDataStd_ExtStringArray::GetID(), arr);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_ExtStringList
+
+#include <TDataStd_ExtStringList.hxx>
+
+bool OCCTDocumentSetExtStringList(OCCTDocumentRef document, int tag,
+                                   const char* const* values, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        auto lst = TDataStd_ExtStringList::Set(label);
+        lst->Clear();
+        for (int i = 0; i < count; i++) {
+            lst->Append(TCollection_ExtendedString(values[i], true));
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetExtStringListCount(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ExtStringList) lst;
+        if (!label.FindAttribute(TDataStd_ExtStringList::GetID(), lst)) return -1;
+        return lst->Extent();
+    } catch (...) { return -1; }
+}
+
+char* OCCTDocumentGetExtStringListValue(OCCTDocumentRef document, int tag, int index) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ExtStringList) lst;
+        if (!label.FindAttribute(TDataStd_ExtStringList::GetID(), lst)) return nullptr;
+        int i = 0;
+        for (auto it = lst->List().cbegin(); it != lst->List().cend(); ++it, ++i) {
+            if (i == index) {
+                TCollection_AsciiString ascii(*it);
+                return strdup(ascii.ToCString());
+            }
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentExtStringListAppend(OCCTDocumentRef document, int tag, const char* value) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ExtStringList) lst;
+        if (!label.FindAttribute(TDataStd_ExtStringList::GetID(), lst)) {
+            lst = TDataStd_ExtStringList::Set(label);
+        }
+        lst->Append(TCollection_ExtendedString(value, true));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentExtStringListClear(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ExtStringList) lst;
+        if (!label.FindAttribute(TDataStd_ExtStringList::GetID(), lst)) return false;
+        lst->Clear();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasExtStringList(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ExtStringList) lst;
+        return label.FindAttribute(TDataStd_ExtStringList::GetID(), lst);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_ReferenceArray
+
+#include <TDataStd_ReferenceArray.hxx>
+
+bool OCCTDocumentSetReferenceArray(OCCTDocumentRef document, int tag,
+                                    int lower, int upper,
+                                    const int* refTags, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        TDF_Label main = document->doc->Main();
+        auto arr = TDataStd_ReferenceArray::Set(label, lower, upper);
+        int len = upper - lower + 1;
+        for (int i = 0; i < len && i < count; i++) {
+            arr->SetValue(lower + i, main.FindChild(refTags[i]));
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetReferenceArray(OCCTDocumentRef document, int tag,
+                                   int* refTags, int maxCount) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ReferenceArray) arr;
+        if (!label.FindAttribute(TDataStd_ReferenceArray::GetID(), arr)) return -1;
+        int len = arr->Length();
+        if (refTags) {
+            int n = std::min(len, maxCount);
+            for (int i = 0; i < n; i++) {
+                refTags[i] = arr->Value(arr->Lower() + i).Tag();
+            }
+        }
+        return len;
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentHasReferenceArray(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ReferenceArray) arr;
+        return label.FindAttribute(TDataStd_ReferenceArray::GetID(), arr);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_ReferenceList
+
+#include <TDataStd_ReferenceList.hxx>
+
+bool OCCTDocumentSetReferenceList(OCCTDocumentRef document, int tag,
+                                   const int* refTags, int count) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        TDF_Label main = document->doc->Main();
+        auto lst = TDataStd_ReferenceList::Set(label);
+        lst->Clear();
+        for (int i = 0; i < count; i++) {
+            lst->Append(main.FindChild(refTags[i]));
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetReferenceList(OCCTDocumentRef document, int tag,
+                                  int* refTags, int maxCount) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ReferenceList) lst;
+        if (!label.FindAttribute(TDataStd_ReferenceList::GetID(), lst)) return -1;
+        int count = lst->Extent();
+        if (refTags) {
+            int i = 0;
+            for (auto it = lst->List().cbegin(); it != lst->List().cend() && i < maxCount; ++it, ++i) {
+                refTags[i] = (*it).Tag();
+            }
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentReferenceListAppend(OCCTDocumentRef document, int tag, int refTag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        TDF_Label main = document->doc->Main();
+        Handle(TDataStd_ReferenceList) lst;
+        if (!label.FindAttribute(TDataStd_ReferenceList::GetID(), lst)) {
+            lst = TDataStd_ReferenceList::Set(label);
+        }
+        lst->Append(main.FindChild(refTag));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentReferenceListClear(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ReferenceList) lst;
+        if (!label.FindAttribute(TDataStd_ReferenceList::GetID(), lst)) return false;
+        lst->Clear();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasReferenceList(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_ReferenceList) lst;
+        return label.FindAttribute(TDataStd_ReferenceList::GetID(), lst);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_Relation
+
+#include <TDataStd_Relation.hxx>
+
+bool OCCTDocumentSetRelation(OCCTDocumentRef document, int tag, const char* relation) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        auto rel = TDataStd_Relation::Set(label);
+        rel->SetRelation(TCollection_ExtendedString(relation, true));
+        return true;
+    } catch (...) { return false; }
+}
+
+char* OCCTDocumentGetRelation(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_Relation) rel;
+        if (!label.FindAttribute(TDataStd_Relation::GetID(), rel)) return nullptr;
+        TCollection_AsciiString ascii(rel->GetRelation());
+        return strdup(ascii.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentHasRelation(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_Relation) rel;
+        return label.FindAttribute(TDataStd_Relation::GetID(), rel);
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd Tick + Current (v0.85)
+// MARK: - TDataStd_Tick
+
+#include <TDataStd_Tick.hxx>
+
+bool OCCTDocumentSetTick(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        TDataStd_Tick::Set(label);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasTick(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_Tick) tick;
+        return label.FindAttribute(TDataStd_Tick::GetID(), tick);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentRemoveTick(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        Handle(TDataStd_Tick) tick;
+        if (!label.FindAttribute(TDataStd_Tick::GetID(), tick)) return false;
+        label.ForgetAttribute(TDataStd_Tick::GetID());
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - TDataStd_Current
+
+#include <TDataStd_Current.hxx>
+
+bool OCCTDocumentSetCurrentLabel(OCCTDocumentRef document, int tag) {
+    try {
+        TDF_Label label = getLabelForTag(document, tag);
+        TDataStd_Current::Set(label);
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTDocumentGetCurrentLabel(OCCTDocumentRef document) {
+    try {
+        TDF_Label root = document->doc->Main();
+        if (!TDataStd_Current::Has(root)) return -1;
+        TDF_Label current = TDataStd_Current::Get(root);
+        return current.Tag();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentHasCurrentLabel(OCCTDocumentRef document) {
+    try {
+        TDF_Label root = document->doc->Main();
+        return TDataStd_Current::Has(root);
+    } catch (...) { return false; }
+}

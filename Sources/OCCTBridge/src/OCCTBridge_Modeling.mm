@@ -6257,3 +6257,20 @@ bool OCCTBRepFillNSectionsIsVertex(OCCTNSectionsRef _Nonnull ref) {
 void OCCTBRepFillNSectionsRelease(OCCTNSectionsRef _Nonnull ref) {
     delete (NSectionsOpaque*)ref;
 }
+
+// MARK: - BRepOffsetAPI_FindContigousEdges (v0.85)
+// MARK: - BRepOffsetAPI_FindContigousEdges
+
+#include <BRepOffsetAPI_FindContigousEdges.hxx>
+
+OCCTContigousEdgeResult OCCTShapeFindContigousEdges(OCCTShapeRef shape, double tolerance) {
+    OCCTContigousEdgeResult result = {0, 0};
+    try {
+        BRepOffsetAPI_FindContigousEdges finder(tolerance, true);
+        finder.Add(shape->shape);
+        finder.Perform();
+        result.contigousEdgeCount = finder.NbContigousEdges();
+        result.degeneratedShapeCount = finder.NbDegeneratedShapes();
+    } catch (...) {}
+    return result;
+}
