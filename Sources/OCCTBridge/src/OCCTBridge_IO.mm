@@ -1850,3 +1850,251 @@ void OCCTEnvironmentRemove(const char* name) {
 void OCCTEnvironmentFreeString(const char* str) {
     if (str) free((void*)str);
 }
+
+// MARK: - v0.96/v0.98/v0.99: OSD_Path + OSD_Chronometer + OSD_Process + OSD_File
+// MARK: - OSD_Path (v0.96.0)
+
+#include <OSD_Path.hxx>
+
+const char* OCCTOSDPathName(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path p(apath);
+        TCollection_AsciiString name = p.Name();
+        return strdup(name.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTOSDPathExtension(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path p(apath);
+        TCollection_AsciiString ext = p.Extension();
+        return strdup(ext.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTOSDPathTrek(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path p(apath);
+        TCollection_AsciiString trek = p.Trek();
+        return strdup(trek.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTOSDPathSystemName(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path p(apath);
+        TCollection_AsciiString sysName;
+        p.SystemName(sysName);
+        return strdup(sysName.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTOSDPathFolderAndFile(const char* path, const char** outFolder, const char** outFile) {
+    try {
+        TCollection_AsciiString apath(path);
+        TCollection_AsciiString folder, file;
+        OSD_Path::FolderAndFileFromPath(apath, folder, file);
+        *outFolder = strdup(folder.ToCString());
+        *outFile = strdup(file.ToCString());
+    } catch (...) {
+        *outFolder = nullptr;
+        *outFile = nullptr;
+    }
+}
+
+bool OCCTOSDPathIsValid(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        return OSD_Path::IsValid(apath);
+    } catch (...) { return false; }
+}
+
+bool OCCTOSDPathIsUnixPath(const char* path) { return OSD_Path::IsUnixPath(path); }
+bool OCCTOSDPathIsRelative(const char* path) { return OSD_Path::IsRelativePath(path); }
+bool OCCTOSDPathIsAbsolute(const char* path) { return OSD_Path::IsAbsolutePath(path); }
+
+void OCCTOSDPathFreeString(const char* str) {
+    if (str) free((void*)str);
+}
+// MARK: - OSD_Chronometer (v0.98.0)
+
+void OCCTGetProcessCPU(double* userSeconds, double* systemSeconds) {
+    OSD_Chronometer::GetProcessCPU(*userSeconds, *systemSeconds);
+}
+
+void OCCTGetThreadCPU(double* userSeconds, double* systemSeconds) {
+    OSD_Chronometer::GetThreadCPU(*userSeconds, *systemSeconds);
+}
+
+// MARK: - OSD_Process (v0.98.0)
+
+#include <OSD_Process.hxx>
+
+int32_t OCCTProcessId() {
+    try { OSD_Process p; return p.ProcessId(); } catch (...) { return -1; }
+}
+
+const char* OCCTProcessUserName() {
+    try {
+        OSD_Process p;
+        TCollection_AsciiString user = p.UserName();
+        return strdup(user.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTProcessExecutablePath() {
+    try {
+        TCollection_AsciiString path = OSD_Process::ExecutablePath();
+        if (path.Length() == 0) return nullptr;
+        return strdup(path.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTProcessExecutableFolder() {
+    try {
+        TCollection_AsciiString path = OSD_Process::ExecutableFolder();
+        if (path.Length() == 0) return nullptr;
+        return strdup(path.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTProcessFreeString(const char* str) { if (str) free((void*)str); }
+// MARK: - OSD_File (v0.99.0)
+
+#include <OSD_File.hxx>
+#include <OSD_Path.hxx>
+#include <OSD_Protection.hxx>
+#include <OSD_OpenMode.hxx>
+
+struct OCCTOSDFile {
+    OSD_File file;
+    OCCTOSDFile() {}
+    explicit OCCTOSDFile(const OSD_Path& path) : file(path) {}
+};
+
+OCCTOSDFileRef OCCTFileCreate(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        return new OCCTOSDFile(opath);
+    } catch (...) { return new OCCTOSDFile(); }
+}
+
+OCCTOSDFileRef OCCTFileCreateTemporary(void) {
+    try {
+        auto* f = new OCCTOSDFile();
+        f->file.BuildTemporary();
+        return f;
+    } catch (...) { return new OCCTOSDFile(); }
+}
+
+void OCCTFileRelease(OCCTOSDFileRef file) {
+    delete file;
+}
+
+bool OCCTFileOpen(OCCTOSDFileRef file) {
+    if (!file) return false;
+    try {
+        file->file.Build(OSD_ReadWrite, OSD_Protection());
+        return !file->file.Failed();
+    } catch (...) { return false; }
+}
+
+bool OCCTFileOpenReadOnly(OCCTOSDFileRef file) {
+    if (!file) return false;
+    try {
+        file->file.Open(OSD_ReadOnly, OSD_Protection());
+        return !file->file.Failed();
+    } catch (...) { return false; }
+}
+
+bool OCCTFileWrite(OCCTOSDFileRef file, const char* data, int32_t length) {
+    if (!file || !data || length <= 0) return false;
+    try {
+        TCollection_AsciiString str(data, length);
+        file->file.Write(str, length);
+        return !file->file.Failed();
+    } catch (...) { return false; }
+}
+
+char* OCCTFileReadLine(OCCTOSDFileRef file, int32_t bufSize) {
+    if (!file || bufSize <= 0) return nullptr;
+    try {
+        TCollection_AsciiString line;
+        int actualRead = 0;
+        file->file.ReadLine(line, bufSize, actualRead);
+        if (file->file.Failed() && actualRead == 0) return nullptr;
+        std::string s = line.ToCString();
+        char* result = (char*)malloc(s.size() + 1);
+        if (!result) return nullptr;
+        memcpy(result, s.c_str(), s.size() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+char* OCCTFileReadAll(OCCTOSDFileRef file, int32_t* outLength) {
+    if (!file || !outLength) return nullptr;
+    *outLength = 0;
+    try {
+        // Get file size
+        size_t sz = file->file.Size();
+        if (file->file.Failed() || sz == 0) return nullptr;
+
+        // Read entire content line by line
+        std::string accumulated;
+        accumulated.reserve(sz);
+        while (!file->file.IsAtEnd() && !file->file.Failed()) {
+            TCollection_AsciiString line;
+            int n = 0;
+            file->file.ReadLine(line, 65536, n);
+            if (n > 0) {
+                if (!accumulated.empty()) accumulated += "\n";
+                accumulated += line.ToCString();
+            } else {
+                break;
+            }
+        }
+        char* result = (char*)malloc(accumulated.size() + 1);
+        if (!result) return nullptr;
+        memcpy(result, accumulated.c_str(), accumulated.size() + 1);
+        *outLength = (int32_t)accumulated.size();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTFileClose(OCCTOSDFileRef file) {
+    if (!file) return;
+    try { file->file.Close(); } catch (...) {}
+}
+
+bool OCCTFileIsOpen(OCCTOSDFileRef file) {
+    if (!file) return false;
+    try { return file->file.IsOpen(); } catch (...) { return false; }
+}
+
+int64_t OCCTFileSize(OCCTOSDFileRef file) {
+    if (!file) return -1;
+    try {
+        size_t sz = file->file.Size();
+        if (file->file.Failed()) return -1;
+        return (int64_t)sz;
+    } catch (...) { return -1; }
+}
+
+void OCCTFileRewind(OCCTOSDFileRef file) {
+    if (!file) return;
+    try { file->file.Rewind(); } catch (...) {}
+}
+
+bool OCCTFileIsAtEnd(OCCTOSDFileRef file) {
+    if (!file) return true;
+    try { return file->file.IsAtEnd(); } catch (...) { return true; }
+}
+
+void OCCTFileFreeString(char* str) {
+    free(str);
+}

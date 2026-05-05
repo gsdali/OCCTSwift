@@ -1728,3 +1728,67 @@ int32_t OCCTShapeClassifyPoint(OCCTShapeRef shape, double px, double py, double 
         return (int32_t)classifier.State();
     } catch (...) { return 3; }
 }
+
+// MARK: - v0.96-v0.97: BRepClass_FClassifier + Bnd_BoundSortBox
+// MARK: - BRepClass_FClassifier (v0.96.0)
+
+#include <BRepClass_FaceExplorer.hxx>
+#include <BRepClass_FClassifier.hxx>
+
+int32_t OCCTShapeClassifyPoint2D(OCCTShapeRef shape, int32_t faceIndex,
+                                   double u, double v, double tolerance) {
+    if (!shape) return 3;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return 3;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepClass_FaceExplorer explorer(face);
+        BRepClass_FClassifier classifier(explorer, gp_Pnt2d(u, v), tolerance);
+        return (int32_t)classifier.State();
+    } catch (...) { return 3; }
+}
+// MARK: - Bnd_BoundSortBox (v0.97.0)
+
+#include <Bnd_BoundSortBox.hxx>
+
+struct OCCTBoundSortBox {
+    Bnd_BoundSortBox sorter;
+    Handle(NCollection_HArray1<Bnd_Box>) boxes;
+};
+
+OCCTBoundSortBoxRef OCCTBoundSortBoxCreate(const double* boxData, int32_t count) {
+    try {
+        auto* ref = new OCCTBoundSortBox();
+        ref->boxes = new NCollection_HArray1<Bnd_Box>(1, count);
+        Bnd_Box enclosing;
+        for (int i = 0; i < count; i++) {
+            Bnd_Box b;
+            b.Update(boxData[i*6], boxData[i*6+1], boxData[i*6+2],
+                     boxData[i*6+3], boxData[i*6+4], boxData[i*6+5]);
+            ref->boxes->SetValue(i+1, b);
+            enclosing.Add(b);
+        }
+        ref->sorter.Initialize(enclosing, ref->boxes);
+        return ref;
+    } catch (...) { return new OCCTBoundSortBox(); }
+}
+
+void OCCTBoundSortBoxRelease(OCCTBoundSortBoxRef bsb) { delete bsb; }
+
+int32_t OCCTBoundSortBoxCompare(OCCTBoundSortBoxRef bsb,
+                                  double xmin, double ymin, double zmin,
+                                  double xmax, double ymax, double zmax,
+                                  int32_t* outIndices, int32_t maxIndices) {
+    try {
+        Bnd_Box query;
+        query.Update(xmin, ymin, zmin, xmax, ymax, zmax);
+        auto& result = bsb->sorter.Compare(query);
+        int count = 0;
+        for (auto it = result.cbegin(); it != result.cend() && count < maxIndices; ++it) {
+            outIndices[count++] = *it;
+        }
+        return count;
+    } catch (...) { return 0; }
+}

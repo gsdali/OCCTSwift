@@ -6523,3 +6523,113 @@ bool OCCTDocumentHasPattern(OCCTDocumentRef doc, int64_t labelId) {
         return label.FindAttribute(TDataXtd_Pattern::GetID(), pat);
     } catch (...) { return false; }
 }
+
+// MARK: - v0.96-v0.97: XCAFDoc_AssemblyItemRef + TNaming_Naming
+// MARK: - XCAFDoc_AssemblyItemRef (v0.96.0)
+
+#include <XCAFDoc_AssemblyItemRef.hxx>
+#include <XCAFDoc_AssemblyItemId.hxx>
+
+bool OCCTDocumentSetAssemblyItemRef(OCCTDocumentRef doc, int64_t labelId, const char* itemPath) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TCollection_AsciiString path(itemPath);
+        XCAFDoc_AssemblyItemId itemId(path);
+        Handle(XCAFDoc_AssemblyItemRef) ref = XCAFDoc_AssemblyItemRef::Set(label, itemId);
+        return !ref.IsNull();
+    } catch (...) { return false; }
+}
+
+const char* OCCTDocumentGetAssemblyItemRef(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return nullptr;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return nullptr;
+        TCollection_AsciiString path = ref->GetItem().ToString();
+        return strdup(path.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentAssemblyItemRefSetSubshape(OCCTDocumentRef doc, int64_t labelId, int32_t index) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return false;
+        ref->SetSubshapeIndex(index);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentAssemblyItemRefGetSubshape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return -1;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return -1;
+        if (!ref->IsSubshapeIndex()) return -1;
+        return ref->GetSubshapeIndex();
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentAssemblyItemRefHasExtra(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return false;
+        return ref->HasExtraRef();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentAssemblyItemRefClearExtra(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return false;
+        ref->ClearExtraRef();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentAssemblyItemRefIsOrphan(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return true;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        Handle(XCAFDoc_AssemblyItemRef) ref;
+        if (!label.FindAttribute(XCAFDoc_AssemblyItemRef::GetID(), ref)) return true;
+        return ref->IsOrphan();
+    } catch (...) { return true; }
+}
+
+void OCCTDocumentFreeAssemblyItemRefString(const char* str) {
+    if (str) free((void*)str);
+}
+// MARK: - TNaming_Naming (v0.97.0)
+
+#include <TNaming_Naming.hxx>
+
+bool OCCTDocumentInsertNaming(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TNaming_Naming) naming = TNaming_Naming::Insert(label);
+        return !naming.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentNamingIsDefined(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc || doc->doc.IsNull()) return false;
+    try {
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TNaming_Naming) naming;
+        if (!label.FindAttribute(TNaming_Naming::GetID(), naming)) return false;
+        return naming->IsDefined();
+    } catch (...) { return false; }
+}

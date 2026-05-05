@@ -2657,3 +2657,90 @@ void OCCTQuaternionNormalize(OCCTQuaternionRef q) {
 }
 
 // MARK: - v0.94: Convert_CircleToBSplineCurve
+
+// MARK: - v0.99: Convert_CompBezierCurvesToBSplineCurve
+// MARK: - Convert_CompBezierCurvesToBSplineCurve (v0.99.0)
+
+#include <Convert_CompBezierCurvesToBSplineCurve.hxx>
+#include <Convert_CompBezierCurves2dToBSplineCurve2d.hxx>
+#include <gp_Pnt2d.hxx>
+#include <NCollection_Array1.hxx>
+
+bool OCCTConvertCompBezierToBSpline(const double* poles, int32_t segCount, int32_t ptsPerSeg,
+                                    OCCTBezierBSplineResult* out) {
+    if (!poles || segCount <= 0 || ptsPerSeg <= 0 || !out) return false;
+    try {
+        Convert_CompBezierCurvesToBSplineCurve conv;
+        const double* p = poles;
+        for (int s = 0; s < segCount; s++) {
+            NCollection_Array1<gp_Pnt> seg(1, ptsPerSeg);
+            for (int i = 1; i <= ptsPerSeg; i++) {
+                seg(i) = gp_Pnt(p[0], p[1], p[2]);
+                p += 3;
+            }
+            conv.AddCurve(seg);
+        }
+        conv.Perform();
+        int nb = conv.NbPoles();
+        int nk = conv.NbKnots();
+        out->degree  = conv.Degree();
+        out->nbPoles = nb;
+        out->nbKnots = nk;
+
+        NCollection_Array1<gp_Pnt> resultPoles(1, nb);
+        conv.Poles(resultPoles);
+        for (int i = 1; i <= nb && (i - 1) * 3 + 2 < 300; i++) {
+            out->poles[(i - 1) * 3]     = resultPoles(i).X();
+            out->poles[(i - 1) * 3 + 1] = resultPoles(i).Y();
+            out->poles[(i - 1) * 3 + 2] = resultPoles(i).Z();
+        }
+
+        NCollection_Array1<double> knots(1, nk);
+        NCollection_Array1<int>    mults(1, nk);
+        conv.KnotsAndMults(knots, mults);
+        for (int i = 1; i <= nk && i - 1 < 50; i++) {
+            out->knots[i - 1] = knots(i);
+            out->mults[i - 1] = mults(i);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTConvertCompBezier2dToBSpline2d(const double* poles, int32_t segCount, int32_t ptsPerSeg,
+                                        OCCTBezierBSpline2dResult* out) {
+    if (!poles || segCount <= 0 || ptsPerSeg <= 0 || !out) return false;
+    try {
+        Convert_CompBezierCurves2dToBSplineCurve2d conv;
+        const double* p = poles;
+        for (int s = 0; s < segCount; s++) {
+            NCollection_Array1<gp_Pnt2d> seg(1, ptsPerSeg);
+            for (int i = 1; i <= ptsPerSeg; i++) {
+                seg(i) = gp_Pnt2d(p[0], p[1]);
+                p += 2;
+            }
+            conv.AddCurve(seg);
+        }
+        conv.Perform();
+        int nb = conv.NbPoles();
+        int nk = conv.NbKnots();
+        out->degree  = conv.Degree();
+        out->nbPoles = nb;
+        out->nbKnots = nk;
+
+        NCollection_Array1<gp_Pnt2d> resultPoles(1, nb);
+        conv.Poles(resultPoles);
+        for (int i = 1; i <= nb && (i - 1) * 2 + 1 < 200; i++) {
+            out->poles[(i - 1) * 2]     = resultPoles(i).X();
+            out->poles[(i - 1) * 2 + 1] = resultPoles(i).Y();
+        }
+
+        NCollection_Array1<double> knots(1, nk);
+        NCollection_Array1<int>    mults(1, nk);
+        conv.KnotsAndMults(knots, mults);
+        for (int i = 1; i <= nk && i - 1 < 50; i++) {
+            out->knots[i - 1] = knots(i);
+            out->mults[i - 1] = mults(i);
+        }
+        return true;
+    } catch (...) { return false; }
+}
