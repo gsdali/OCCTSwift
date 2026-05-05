@@ -4366,3 +4366,26 @@ bool OCCTShapeFixEdgeFixReversed2d(OCCTShapeRef edge, OCCTShapeRef face) {
         return fixer.FixReversed2d(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape));
     } catch (...) { return false; }
 }
+// MARK: - Validation
+
+bool OCCTShapeIsValid(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        BRepCheck_Analyzer analyzer(shape->shape);
+        return analyzer.IsValid();
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTShapeRef OCCTShapeHeal(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_Shape) fixer = new ShapeFix_Shape(shape->shape);
+        fixer->Perform();
+        return new OCCTShape(fixer->Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
