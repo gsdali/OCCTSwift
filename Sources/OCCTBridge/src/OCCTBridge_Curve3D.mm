@@ -31,6 +31,7 @@
 #include <Approx_CurveOnSurface.hxx>
 #include <Approx_CurvilinearParameter.hxx>
 #include <CPnts_UniformDeflection.hxx>
+#include <LocalAnalysis_CurveContinuity.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -1496,4 +1497,75 @@ OCCTShapeRef _Nullable OCCTApproxCurvilinearParameter(OCCTShapeRef edgeShape,
         if (!me.IsDone()) return nullptr;
         return new OCCTShape(me.Edge());
     } catch (...) { return nullptr; }
+}
+
+// MARK: - LocalAnalysis_CurveContinuity (v0.67)
+// --- LocalAnalysis_CurveContinuity ---
+
+static GeomAbs_Shape orderToShape(int32_t order) {
+    switch (order) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_G1;
+        case 2: return GeomAbs_C1;
+        case 3: return GeomAbs_G2;
+        case 4: return GeomAbs_C2;
+        default: return GeomAbs_C2;
+    }
+}
+
+static int32_t shapeToOrder(GeomAbs_Shape shape) {
+    switch (shape) {
+        case GeomAbs_C0: return 0;
+        case GeomAbs_G1: return 1;
+        case GeomAbs_C1: return 2;
+        case GeomAbs_G2: return 3;
+        case GeomAbs_C2: return 4;
+        default: return -1;
+    }
+}
+
+bool OCCTLocalAnalysisCurveContinuity(OCCTCurve3DRef _Nonnull curve1, double u1,
+    OCCTCurve3DRef _Nonnull curve2, double u2, int32_t order,
+    int32_t* _Nonnull outStatus,
+    double* _Nonnull outC0Value, double* _Nonnull outG1Angle,
+    double* _Nonnull outC1Angle, double* _Nonnull outC1Ratio,
+    double* _Nonnull outC2Angle, double* _Nonnull outC2Ratio,
+    double* _Nonnull outG2Angle, double* _Nonnull outG2CurvatureVariation) {
+    try {
+        auto c1 = (OCCTCurve3D*)curve1;
+        auto c2 = (OCCTCurve3D*)curve2;
+
+        LocalAnalysis_CurveContinuity cc(c1->curve, u1, c2->curve, u2, orderToShape(order));
+        if (!cc.IsDone()) return false;
+
+        *outStatus = shapeToOrder(cc.ContinuityStatus());
+        *outC0Value = cc.C0Value();
+        *outG1Angle = cc.IsG1() ? cc.G1Angle() : -1.0;
+        *outC1Angle = cc.IsC1() ? cc.C1Angle() : -1.0;
+        *outC1Ratio = cc.IsC1() ? cc.C1Ratio() : -1.0;
+        *outC2Angle = cc.IsC2() ? cc.C2Angle() : -1.0;
+        *outC2Ratio = cc.IsC2() ? cc.C2Ratio() : -1.0;
+        *outG2Angle = cc.IsG2() ? cc.G2Angle() : -1.0;
+        *outG2CurvatureVariation = cc.IsG2() ? cc.G2CurvatureVariation() : -1.0;
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTLocalAnalysisCurveContinuityFlags(OCCTCurve3DRef _Nonnull curve1, double u1,
+    OCCTCurve3DRef _Nonnull curve2, double u2, int32_t order) {
+    try {
+        auto c1 = (OCCTCurve3D*)curve1;
+        auto c2 = (OCCTCurve3D*)curve2;
+
+        LocalAnalysis_CurveContinuity cc(c1->curve, u1, c2->curve, u2, orderToShape(order));
+        if (!cc.IsDone()) return 0;
+
+        int32_t flags = 0;
+        if (cc.IsC0()) flags |= 1;
+        if (cc.IsG1()) flags |= 2;
+        if (cc.IsC1()) flags |= 4;
+        if (cc.IsG2()) flags |= 8;
+        if (cc.IsC2()) flags |= 16;
+        return flags;
+    } catch (...) { return 0; }
 }
