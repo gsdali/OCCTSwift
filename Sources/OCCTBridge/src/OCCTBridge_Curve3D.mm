@@ -4862,3 +4862,52 @@ void OCCTCurve3DLocalCentreOfCurvature(OCCTCurve3DRef _Nonnull curve, double u,
 // GeomLProp_SLProps (was LProp3d_SLProps in RC4)
 
 #include <GeomLProp_SLProps.hxx>
+
+// MARK: - v0.120: Curve3D continuity + Bezier Resolution + MaxDegree
+// --- Curve3D continuity queries ---
+
+bool OCCTCurve3DIsCN(OCCTCurve3DRef _Nonnull curve, int32_t n) {
+    try {
+        auto c = *(occ::handle<Geom_Curve>*)curve;
+        if (c.IsNull()) return false;
+        return c->IsCN(n);
+    } catch (...) { return false; }
+}
+
+double OCCTCurve3DReversedParameter(OCCTCurve3DRef _Nonnull curve, double u) {
+    try {
+        auto c = *(occ::handle<Geom_Curve>*)curve;
+        if (c.IsNull()) return u;
+        return c->ReversedParameter(u);
+    } catch (...) { return u; }
+}
+
+double OCCTCurve3DParametricTransformation(OCCTCurve3DRef _Nonnull curve,
+                                            const double* _Nonnull trsf12) {
+    try {
+        auto c = *(occ::handle<Geom_Curve>*)curve;
+        if (c.IsNull()) return 1.0;
+        gp_Trsf t;
+        t.SetValues(trsf12[0], trsf12[1], trsf12[2], trsf12[9],
+                    trsf12[3], trsf12[4], trsf12[5], trsf12[10],
+                    trsf12[6], trsf12[7], trsf12[8], trsf12[11]);
+        return c->ParametricTransformation(t);
+    } catch (...) { return 1.0; }
+}
+// --- Bezier curve/surface Resolution + MaxDegree ---
+
+double OCCTCurve3DBezierResolution(OCCTCurve3DRef _Nonnull curve, double tolerance3d) {
+    try {
+        auto c = *(occ::handle<Geom_Curve>*)curve;
+        if (c.IsNull()) return 0;
+        auto bez = occ::handle<Geom_BezierCurve>::DownCast(c);
+        if (bez.IsNull()) return 0;
+        double uTol = 0;
+        bez->Resolution(tolerance3d, uTol);
+        return uTol;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTCurve3DBezierMaxDegree(void) {
+    return Geom_BezierCurve::MaxDegree();
+}

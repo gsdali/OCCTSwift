@@ -5058,3 +5058,92 @@ double OCCTSurfaceBSplineGetWeight(OCCTSurfaceRef surface, int32_t uIndex, int32
 
 // end of v0.119.0 implementations
 
+
+// MARK: - v0.120: Surface continuity + BSpline RemoveVKnot + Bezier Resolution + MaxDegree + BSplineMaxDegree
+// --- Surface continuity queries ---
+
+bool OCCTSurfaceIsCNu(OCCTSurfaceRef _Nonnull surface, int32_t n) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return false;
+        return s->IsCNu(n);
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceIsCNv(OCCTSurfaceRef _Nonnull surface, int32_t n) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return false;
+        return s->IsCNv(n);
+    } catch (...) { return false; }
+}
+
+OCCTSurfaceRef _Nullable OCCTSurfaceUReversed(OCCTSurfaceRef _Nonnull surface) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return nullptr;
+        auto rev = s->UReversed();
+        if (rev.IsNull()) return nullptr;
+        auto* result = new occ::handle<Geom_Surface>(rev);
+        return (OCCTSurfaceRef)result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef _Nullable OCCTSurfaceVReversed(OCCTSurfaceRef _Nonnull surface) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return nullptr;
+        auto rev = s->VReversed();
+        if (rev.IsNull()) return nullptr;
+        auto* result = new occ::handle<Geom_Surface>(rev);
+        return (OCCTSurfaceRef)result;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTSurfaceUReversedParameter(OCCTSurfaceRef _Nonnull surface, double u) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return u;
+        return s->UReversedParameter(u);
+    } catch (...) { return u; }
+}
+
+double OCCTSurfaceVReversedParameter(OCCTSurfaceRef _Nonnull surface, double v) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return v;
+        return s->VReversedParameter(v);
+    } catch (...) { return v; }
+}
+
+// --- BSpline surface RemoveVKnot ---
+
+bool OCCTSurfaceBSplineRemoveVKnot(OCCTSurfaceRef _Nonnull surface,
+                                     int32_t index, int32_t mult, double tol) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) return false;
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s);
+        if (bsp.IsNull()) return false;
+        return bsp->RemoveVKnot(index, mult, tol);
+    } catch (...) { return false; }
+}
+void OCCTSurfaceBezierResolution(OCCTSurfaceRef _Nonnull surface, double tolerance3d,
+                                  double* _Nonnull uResolution, double* _Nonnull vResolution) {
+    try {
+        auto s = *(occ::handle<Geom_Surface>*)surface;
+        if (s.IsNull()) { *uResolution = 0; *vResolution = 0; return; }
+        auto bez = occ::handle<Geom_BezierSurface>::DownCast(s);
+        if (bez.IsNull()) { *uResolution = 0; *vResolution = 0; return; }
+        bez->Resolution(tolerance3d, *uResolution, *vResolution);
+    } catch (...) { *uResolution = 0; *vResolution = 0; }
+}
+
+int32_t OCCTSurfaceBezierMaxDegree(void) {
+    return Geom_BezierSurface::MaxDegree();
+}
+// --- BSpline MaxDegree (surface + 2D curve) ---
+
+int32_t OCCTSurfaceBSplineMaxDegree(void) {
+    return Geom_BSplineSurface::MaxDegree();
+}
