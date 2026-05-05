@@ -2124,3 +2124,42 @@ int OCCTSplitCurve3dContinuity(OCCTCurve3DRef _Nonnull curveRef, int criterion, 
         return 0;
     }
 }
+
+// MARK: - GeomConvert_CurveToAnaCurve (v0.78)
+// MARK: - GeomConvert_CurveToAnaCurve
+
+OCCTCurveToAnaCurveResult OCCTGeomConvertCurveToAnalytical(OCCTCurve3DRef _Nonnull curveRef,
+                                                             double tolerance, double first, double last) {
+    OCCTCurveToAnaCurveResult result = {nullptr, 0, 0, 0, false};
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve3D*>(curveRef)->curve;
+        GeomConvert_CurveToAnaCurve converter(curve);
+        Handle(Geom_Curve) resCurve;
+        double newF, newL;
+        bool ok = converter.ConvertToAnalytical(tolerance, resCurve, first, last, newF, newL);
+        if (ok && !resCurve.IsNull()) {
+            result.curve = reinterpret_cast<OCCTCurve3DRef>(new OCCTCurve3D{resCurve});
+            result.newFirst = newF;
+            result.newLast = newL;
+            result.gap = converter.Gap();
+            result.success = true;
+        }
+    } catch (...) {}
+    return result;
+}
+
+bool OCCTGeomConvertIsLinear(const double* _Nonnull points, int count, double tolerance,
+                               double* _Nullable deviation) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+        }
+        double dev = 0;
+        bool result = GeomConvert_CurveToAnaCurve::IsLinear(pts, tolerance, dev);
+        if (deviation) *deviation = dev;
+        return result;
+    } catch (...) {
+        return false;
+    }
+}

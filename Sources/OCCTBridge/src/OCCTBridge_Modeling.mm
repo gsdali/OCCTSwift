@@ -89,6 +89,9 @@
 #include <BRepFeat_MakeCylindricalHole.hxx>
 #include <BiTgte_Blend.hxx>
 #include <BRepPreviewAPI_MakeBox.hxx>
+#include <BRepTools_CopyModification.hxx>
+#include <BRepTools_GTrsfModification.hxx>
+#include <BRepTools_TrsfModification.hxx>
 #include <HLRAppli_ReflectLines.hxx>
 #include <HLRBRep_TypeOfResultingEdge.hxx>
 #include <BRepFeat_Status.hxx>
@@ -6051,3 +6054,67 @@ OCCTShapeRef _Nullable OCCTPreviewBox(double dx, double dy, double dz) {
     }
 }
 
+
+// MARK: - BRepTools Trsf / GTrsf / Copy Modifications (v0.78)
+// MARK: - BRepTools_TrsfModification
+
+OCCTShapeRef _Nullable OCCTShapeTrsfModification(OCCTShapeRef _Nonnull shapeRef,
+                                                   double a11, double a12, double a13, double a14,
+                                                   double a21, double a22, double a23, double a24,
+                                                   double a31, double a32, double a33, double a34) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        gp_Trsf trsf;
+        trsf.SetValues(a11, a12, a13, a14,
+                       a21, a22, a23, a24,
+                       a31, a32, a33, a34);
+        Handle(BRepTools_TrsfModification) mod = new BRepTools_TrsfModification(trsf);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - BRepTools_GTrsfModification
+
+OCCTShapeRef _Nullable OCCTShapeGTrsfModification(OCCTShapeRef _Nonnull shapeRef,
+                                                    double a11, double a12, double a13, double a14,
+                                                    double a21, double a22, double a23, double a24,
+                                                    double a31, double a32, double a33, double a34) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        gp_GTrsf gtrsf;
+        gtrsf.SetValue(1, 1, a11); gtrsf.SetValue(1, 2, a12); gtrsf.SetValue(1, 3, a13); gtrsf.SetValue(1, 4, a14);
+        gtrsf.SetValue(2, 1, a21); gtrsf.SetValue(2, 2, a22); gtrsf.SetValue(2, 3, a23); gtrsf.SetValue(2, 4, a24);
+        gtrsf.SetValue(3, 1, a31); gtrsf.SetValue(3, 2, a32); gtrsf.SetValue(3, 3, a33); gtrsf.SetValue(3, 4, a34);
+        Handle(BRepTools_GTrsfModification) mod = new BRepTools_GTrsfModification(gtrsf);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - BRepTools_CopyModification
+
+OCCTShapeRef _Nullable OCCTShapeCopyModification(OCCTShapeRef _Nonnull shapeRef,
+                                                   bool copyGeometry, bool copyMesh) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        Handle(BRepTools_CopyModification) mod = new BRepTools_CopyModification(copyGeometry, copyMesh);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}

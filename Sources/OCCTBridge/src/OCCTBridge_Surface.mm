@@ -2713,3 +2713,48 @@ bool OCCTGeomLibPlanarSurfacePlane(OCCTSurfaceRef _Nonnull surfRef, double toler
         return false;
     }
 }
+
+// MARK: - GeomConvert_SurfToAnaSurf (v0.78)
+// MARK: - GeomConvert_SurfToAnaSurf
+
+OCCTSurfToAnaSurfResult OCCTGeomConvertSurfToAnalytical(OCCTSurfaceRef _Nonnull surfaceRef, double tolerance) {
+    OCCTSurfToAnaSurfResult result = {nullptr, 0, false};
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        GeomConvert_SurfToAnaSurf converter(surface);
+        Handle(Geom_Surface) resSurf = converter.ConvertToAnalytical(tolerance);
+        if (!resSurf.IsNull()) {
+            result.surface = reinterpret_cast<OCCTSurfaceRef>(new OCCTSurface{resSurf});
+            result.gap = converter.Gap();
+            result.success = true;
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTSurfToAnaSurfResult OCCTGeomConvertSurfToAnalyticalBounded(OCCTSurfaceRef _Nonnull surfaceRef,
+                                                                  double tolerance,
+                                                                  double uMin, double uMax,
+                                                                  double vMin, double vMax) {
+    OCCTSurfToAnaSurfResult result = {nullptr, 0, false};
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        GeomConvert_SurfToAnaSurf converter(surface);
+        Handle(Geom_Surface) resSurf = converter.ConvertToAnalytical(tolerance, uMin, uMax, vMin, vMax);
+        if (!resSurf.IsNull()) {
+            result.surface = reinterpret_cast<OCCTSurfaceRef>(new OCCTSurface{resSurf});
+            result.gap = converter.Gap();
+            result.success = true;
+        }
+    } catch (...) {}
+    return result;
+}
+
+bool OCCTGeomConvertIsCanonical(OCCTSurfaceRef _Nonnull surfaceRef) {
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        return GeomConvert_SurfToAnaSurf::IsCanonical(surface);
+    } catch (...) {
+        return false;
+    }
+}

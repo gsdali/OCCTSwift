@@ -96,6 +96,12 @@
 #include <ShapeUpgrade_FixSmallCurves.hxx>
 #include <ShapeUpgrade_WireDivide.hxx>
 #include <BRepLib_ValidateEdge.hxx>
+#include <ShapeCustom_BSplineRestriction.hxx>
+#include <ShapeCustom_ConvertToBSpline.hxx>
+#include <ShapeCustom_ConvertToRevolution.hxx>
+#include <ShapeUpgrade_SplitSurfaceAngle.hxx>
+#include <ShapeUpgrade_SplitSurfaceArea.hxx>
+#include <ShapeUpgrade_SplitSurfaceContinuity.hxx>
 #include <ShapeUpgrade_ClosedFaceDivide.hxx>
 #include <ShapeUpgrade_ShapeDivideAngle.hxx>
 #include <ShapeUpgrade_ShapeDivideArea.hxx>
@@ -2774,4 +2780,129 @@ OCCTValidateEdgeResult OCCTValidateEdge(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _
         }
     } catch (...) {}
     return result;
+}
+
+// MARK: - ShapeCustom_BSplineRestriction + ConvertToBSpline (v0.78, with continuityFromInt78 helper)
+// MARK: - ShapeCustom_BSplineRestriction
+
+static GeomAbs_Shape continuityFromInt78(int c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_G1;
+        case 2: return GeomAbs_C1;
+        case 3: return GeomAbs_G2;
+        case 4: return GeomAbs_C2;
+        case 5: return GeomAbs_C3;
+        case 6: return GeomAbs_CN;
+        default: return GeomAbs_C1;
+    }
+}
+
+OCCTShapeRef _Nullable OCCTShapeBSplineRestrictionAdvanced(OCCTShapeRef _Nonnull shapeRef,
+                                                             bool approxSurface, bool approxCurve3d, bool approxCurve2d,
+                                                             double tol3d, double tol2d,
+                                                             int continuity3d, int continuity2d,
+                                                             int maxDegree, int maxSegments,
+                                                             bool priorityDegree, bool convertRational) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        Handle(ShapeCustom_BSplineRestriction) mod = new ShapeCustom_BSplineRestriction(
+            approxSurface, approxCurve3d, approxCurve2d,
+            tol3d, tol2d,
+            continuityFromInt78(continuity3d), continuityFromInt78(continuity2d),
+            maxDegree, maxSegments,
+            priorityDegree, convertRational);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeCustom_ConvertToBSpline
+
+OCCTShapeRef _Nullable OCCTShapeConvertToBSplineAdvanced(OCCTShapeRef _Nonnull shapeRef,
+                                                           bool extrusionMode, bool revolutionMode,
+                                                           bool offsetMode, bool planeMode) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        Handle(ShapeCustom_ConvertToBSpline) mod = new ShapeCustom_ConvertToBSpline();
+        mod->SetExtrusionMode(extrusionMode);
+        mod->SetRevolutionMode(revolutionMode);
+        mod->SetOffsetMode(offsetMode);
+        mod->SetPlaneMode(planeMode);
+        BRepTools_Modifier modifier(shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape);
+        if (result.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTShapeRef>(new OCCTShape{result});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeUpgrade_SplitSurface Continuity / Angle / Area (v0.78)
+// MARK: - ShapeUpgrade_SplitSurfaceContinuity
+
+int OCCTSplitSurfaceContinuity(OCCTSurfaceRef _Nonnull surfaceRef,
+                                 int criterion, double tolerance,
+                                 int* _Nullable outUSplitCount, int* _Nullable outVSplitCount) {
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        Handle(ShapeUpgrade_SplitSurfaceContinuity) splitter = new ShapeUpgrade_SplitSurfaceContinuity();
+        splitter->Init(surface);
+        splitter->SetCriterion(continuityFromInt78(criterion));
+        splitter->SetTolerance(tolerance);
+        splitter->Perform(true);
+        int uCount = splitter->USplitValues()->Length();
+        int vCount = splitter->VSplitValues()->Length();
+        if (outUSplitCount) *outUSplitCount = uCount;
+        if (outVSplitCount) *outVSplitCount = vCount;
+        return uCount;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - ShapeUpgrade_SplitSurfaceAngle
+
+int OCCTSplitSurfaceAngle(OCCTSurfaceRef _Nonnull surfaceRef, double maxAngle,
+                            int* _Nullable outUSplitCount, int* _Nullable outVSplitCount) {
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        Handle(ShapeUpgrade_SplitSurfaceAngle) splitter = new ShapeUpgrade_SplitSurfaceAngle(maxAngle);
+        splitter->Init(surface);
+        splitter->Perform(true);
+        int uCount = splitter->USplitValues()->Length();
+        int vCount = splitter->VSplitValues()->Length();
+        if (outUSplitCount) *outUSplitCount = uCount;
+        if (outVSplitCount) *outVSplitCount = vCount;
+        return uCount;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - ShapeUpgrade_SplitSurfaceArea
+
+int OCCTSplitSurfaceArea(OCCTSurfaceRef _Nonnull surfaceRef, int nbParts, bool intoSquares,
+                           int* _Nullable outUSplitCount, int* _Nullable outVSplitCount) {
+    try {
+        auto& surface = reinterpret_cast<OCCTSurface*>(surfaceRef)->surface;
+        Handle(ShapeUpgrade_SplitSurfaceArea) splitter = new ShapeUpgrade_SplitSurfaceArea();
+        splitter->Init(surface);
+        splitter->NbParts() = nbParts;
+        splitter->SetSplittingIntoSquares(intoSquares);
+        splitter->Perform(true);
+        int uCount = splitter->USplitValues()->Length();
+        int vCount = splitter->VSplitValues()->Length();
+        if (outUSplitCount) *outUSplitCount = uCount;
+        if (outVSplitCount) *outVSplitCount = vCount;
+        return uCount;
+    } catch (...) {
+        return 0;
+    }
 }
