@@ -22,8 +22,14 @@
 
 // === Area-specific OCCT headers ===
 
+#include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepBuilderAPI_MakeFace.hxx>
+#include <Geom2d_BezierCurve.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <ProjLib_ComputeApprox.hxx>
+#include <ProjLib_ComputeApproxOnPolarSurface.hxx>
 
 #include <Geom_BSplineSurface.hxx>
 #include <Geom_Curve.hxx>
@@ -521,5 +527,73 @@ OCCTShapeRef OCCTGeomPlateSurface(const double* points, int32_t ptCount,
         BRepBuilderAPI_MakeFace faceMaker(bspline, tolerance);
         if (!faceMaker.IsDone()) return nullptr;
         return new OCCTShape(faceMaker.Face());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - ProjLib Compute Approx (v0.64)
+// --- ProjLib_ComputeApprox ---
+
+OCCTShapeRef _Nullable OCCTProjLibComputeApprox(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
+    double tolerance) {
+    if (!edgeShape || !faceShape) return nullptr;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        double f, l;
+        Handle(Geom_Curve) curve3d = BRep_Tool::Curve(edge, f, l);
+        if (curve3d.IsNull()) return nullptr;
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) return nullptr;
+
+        Handle(GeomAdaptor_Curve) curveAdaptor = new GeomAdaptor_Curve(curve3d, f, l);
+        Handle(GeomAdaptor_Surface) surfAdaptor = new GeomAdaptor_Surface(surface);
+
+        ProjLib_ComputeApprox proj(curveAdaptor, surfAdaptor, tolerance);
+        Handle(Geom2d_BSplineCurve) bsp = proj.BSpline();
+        if (!bsp.IsNull()) {
+            // Convert 2D curve to a 3D edge on the surface
+            BRepBuilderAPI_MakeEdge me(bsp, surface);
+            if (me.IsDone()) return new OCCTShape(me.Edge());
+        }
+        Handle(Geom2d_BezierCurve) bez = proj.Bezier();
+        if (!bez.IsNull()) {
+            BRepBuilderAPI_MakeEdge me(bez, surface);
+            if (me.IsDone()) return new OCCTShape(me.Edge());
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- ProjLib_ComputeApproxOnPolarSurface ---
+
+OCCTShapeRef _Nullable OCCTProjLibComputeApproxOnPolarSurface(OCCTShapeRef edgeShape,
+    OCCTShapeRef faceShape, double tolerance) {
+    if (!edgeShape || !faceShape) return nullptr;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        double f, l;
+        Handle(Geom_Curve) curve3d = BRep_Tool::Curve(edge, f, l);
+        if (curve3d.IsNull()) return nullptr;
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) return nullptr;
+
+        Handle(GeomAdaptor_Curve) curveAdaptor = new GeomAdaptor_Curve(curve3d, f, l);
+        Handle(GeomAdaptor_Surface) surfAdaptor = new GeomAdaptor_Surface(surface);
+
+        ProjLib_ComputeApproxOnPolarSurface proj(curveAdaptor, surfAdaptor, tolerance);
+        if (!proj.IsDone()) return nullptr;
+
+        Handle(Geom2d_BSplineCurve) bsp = proj.BSpline();
+        if (!bsp.IsNull()) {
+            BRepBuilderAPI_MakeEdge me(bsp, surface);
+            if (me.IsDone()) return new OCCTShape(me.Edge());
+        }
+        Handle(Geom2d_Curve) curve2d = proj.Curve2d();
+        if (!curve2d.IsNull()) {
+            BRepBuilderAPI_MakeEdge me(curve2d, surface);
+            if (me.IsDone()) return new OCCTShape(me.Edge());
+        }
+        return nullptr;
     } catch (...) { return nullptr; }
 }

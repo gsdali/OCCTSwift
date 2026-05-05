@@ -25,9 +25,16 @@
 #include <BRepBuilderAPI_MakeEdge2d.hxx>
 #include <GC_MakeLine2d.hxx>
 #include <GccEnt_Position.hxx>
+#include <Geom2d_AxisPlacement.hxx>
 #include <Geom2d_BSplineCurve.hxx>
 #include <Geom2d_CartesianPoint.hxx>
 #include <Geom2d_Curve.hxx>
+#include <Geom2d_Direction.hxx>
+#include <Geom2d_Point.hxx>
+#include <Geom2d_Transformation.hxx>
+#include <Geom2d_VectorWithMagnitude.hxx>
+#include <LProp_CIType.hxx>
+#include <LProp_CurAndInf.hxx>
 #include <Geom2dAdaptor_Curve.hxx>
 #include <Geom2dGcc_Circ2d2TanRad.hxx>
 #include <Geom2dGcc_Circ2d3Tan.hxx>
@@ -1730,4 +1737,407 @@ OCCTShapeRef _Nullable OCCTMakeEdge2dFromLine(
         if (!me.IsDone()) return nullptr;
         return new OCCTShape(me.Edge());
     } catch (...) { return nullptr; }
+}
+
+// MARK: - Geom2d Point2D (v0.64)
+// --- Point2D (Geom2d_CartesianPoint) ---
+
+struct OCCTPoint2D {
+    Handle(Geom2d_CartesianPoint) point;
+    OCCTPoint2D(const Handle(Geom2d_CartesianPoint)& p) : point(p) {}
+};
+
+OCCTPoint2DRef _Nullable OCCTPoint2DCreate(double x, double y) {
+    try {
+        return new OCCTPoint2D(new Geom2d_CartesianPoint(x, y));
+    } catch (...) { return nullptr; }
+}
+
+void OCCTPoint2DRelease(OCCTPoint2DRef _Nonnull ref) { delete ref; }
+
+double OCCTPoint2DGetX(OCCTPoint2DRef _Nonnull ref) { return ref->point->X(); }
+double OCCTPoint2DGetY(OCCTPoint2DRef _Nonnull ref) { return ref->point->Y(); }
+
+void OCCTPoint2DSetCoords(OCCTPoint2DRef _Nonnull ref, double x, double y) {
+    ref->point->SetCoord(x, y);
+}
+
+double OCCTPoint2DDistance(OCCTPoint2DRef _Nonnull ref, OCCTPoint2DRef _Nonnull other) {
+    return ref->point->Distance(other->point);
+}
+
+double OCCTPoint2DSquareDistance(OCCTPoint2DRef _Nonnull ref, OCCTPoint2DRef _Nonnull other) {
+    return ref->point->SquareDistance(other->point);
+}
+
+OCCTPoint2DRef _Nullable OCCTPoint2DTranslated(OCCTPoint2DRef _Nonnull ref, double dx, double dy) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetTranslation(gp_Vec2d(dx, dy));
+        Handle(Geom2d_Geometry) g = ref->point->Transformed(trsf);
+        Handle(Geom2d_CartesianPoint) p = Handle(Geom2d_CartesianPoint)::DownCast(g);
+        if (p.IsNull()) return nullptr;
+        return new OCCTPoint2D(p);
+    } catch (...) { return nullptr; }
+}
+
+OCCTPoint2DRef _Nullable OCCTPoint2DRotated(OCCTPoint2DRef _Nonnull ref,
+    double cx, double cy, double angle) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetRotation(gp_Pnt2d(cx, cy), angle);
+        Handle(Geom2d_Geometry) g = ref->point->Transformed(trsf);
+        Handle(Geom2d_CartesianPoint) p = Handle(Geom2d_CartesianPoint)::DownCast(g);
+        if (p.IsNull()) return nullptr;
+        return new OCCTPoint2D(p);
+    } catch (...) { return nullptr; }
+}
+
+OCCTPoint2DRef _Nullable OCCTPoint2DScaled(OCCTPoint2DRef _Nonnull ref,
+    double cx, double cy, double factor) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetScale(gp_Pnt2d(cx, cy), factor);
+        Handle(Geom2d_Geometry) g = ref->point->Transformed(trsf);
+        Handle(Geom2d_CartesianPoint) p = Handle(Geom2d_CartesianPoint)::DownCast(g);
+        if (p.IsNull()) return nullptr;
+        return new OCCTPoint2D(p);
+    } catch (...) { return nullptr; }
+}
+
+OCCTPoint2DRef _Nullable OCCTPoint2DMirroredPoint(OCCTPoint2DRef _Nonnull ref,
+    double px, double py) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetMirror(gp_Pnt2d(px, py));
+        Handle(Geom2d_Geometry) g = ref->point->Transformed(trsf);
+        Handle(Geom2d_CartesianPoint) p = Handle(Geom2d_CartesianPoint)::DownCast(g);
+        if (p.IsNull()) return nullptr;
+        return new OCCTPoint2D(p);
+    } catch (...) { return nullptr; }
+}
+
+OCCTPoint2DRef _Nullable OCCTPoint2DMirroredAxis(OCCTPoint2DRef _Nonnull ref,
+    double ox, double oy, double dx, double dy) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetMirror(gp_Ax2d(gp_Pnt2d(ox, oy), gp_Dir2d(dx, dy)));
+        Handle(Geom2d_Geometry) g = ref->point->Transformed(trsf);
+        Handle(Geom2d_CartesianPoint) p = Handle(Geom2d_CartesianPoint)::DownCast(g);
+        if (p.IsNull()) return nullptr;
+        return new OCCTPoint2D(p);
+    } catch (...) { return nullptr; }
+}
+
+double OCCTPoint2DDistanceToCurve(OCCTPoint2DRef _Nonnull ref, OCCTCurve2DRef _Nonnull curve) {
+    try {
+        Geom2dAPI_ProjectPointOnCurve proj(ref->point->Pnt2d(), curve->curve);
+        if (proj.NbPoints() == 0) return -1.0;
+        return proj.LowerDistance();
+    } catch (...) { return -1.0; }
+}
+
+OCCTPoint2DRef _Nullable OCCTPoint2DTransformed(OCCTPoint2DRef _Nonnull ref,
+    OCCTTransform2DRef _Nonnull trsf);
+
+// MARK: - Geom2d Transform2D (v0.64)
+// --- Transform2D (Geom2d_Transformation) ---
+
+struct OCCTTransform2D {
+    Handle(Geom2d_Transformation) transform;
+    OCCTTransform2D(const Handle(Geom2d_Transformation)& t) : transform(t) {}
+};
+
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateIdentity(void) {
+    try {
+        return new OCCTTransform2D(new Geom2d_Transformation());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTTransform2DRelease(OCCTTransform2DRef _Nonnull ref) { delete ref; }
+
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateTranslation(double dx, double dy) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetTranslation(gp_Vec2d(dx, dy));
+        return new OCCTTransform2D(new Geom2d_Transformation(trsf));
+    } catch (...) { return nullptr; }
+}
+
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateRotation(double cx, double cy, double angle) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetRotation(gp_Pnt2d(cx, cy), angle);
+        return new OCCTTransform2D(new Geom2d_Transformation(trsf));
+    } catch (...) { return nullptr; }
+}
+
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateScale(double cx, double cy, double factor) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetScale(gp_Pnt2d(cx, cy), factor);
+        return new OCCTTransform2D(new Geom2d_Transformation(trsf));
+    } catch (...) { return nullptr; }
+}
+
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateMirrorPoint(double px, double py) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetMirror(gp_Pnt2d(px, py));
+        return new OCCTTransform2D(new Geom2d_Transformation(trsf));
+    } catch (...) { return nullptr; }
+}
+
+OCCTTransform2DRef _Nullable OCCTTransform2DCreateMirrorAxis(double ox, double oy,
+    double dx, double dy) {
+    try {
+        gp_Trsf2d trsf;
+        trsf.SetMirror(gp_Ax2d(gp_Pnt2d(ox, oy), gp_Dir2d(dx, dy)));
+        return new OCCTTransform2D(new Geom2d_Transformation(trsf));
+    } catch (...) { return nullptr; }
+}
+
+OCCTTransform2DRef _Nullable OCCTTransform2DInverted(OCCTTransform2DRef _Nonnull ref) {
+    try {
+        Handle(Geom2d_Transformation) inv =
+            Handle(Geom2d_Transformation)::DownCast(ref->transform->Inverted());
+        if (inv.IsNull()) return nullptr;
+        return new OCCTTransform2D(inv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTTransform2DRef _Nullable OCCTTransform2DComposed(OCCTTransform2DRef _Nonnull ref,
+    OCCTTransform2DRef _Nonnull other) {
+    try {
+        Handle(Geom2d_Transformation) composed =
+            Handle(Geom2d_Transformation)::DownCast(ref->transform->Multiplied(other->transform));
+        if (composed.IsNull()) return nullptr;
+        return new OCCTTransform2D(composed);
+    } catch (...) { return nullptr; }
+}
+
+OCCTTransform2DRef _Nullable OCCTTransform2DPowered(OCCTTransform2DRef _Nonnull ref, int32_t n) {
+    try {
+        Handle(Geom2d_Transformation) powered =
+            Handle(Geom2d_Transformation)::DownCast(ref->transform->Powered(n));
+        if (powered.IsNull()) return nullptr;
+        return new OCCTTransform2D(powered);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTTransform2DApply(OCCTTransform2DRef _Nonnull ref, double* _Nonnull x, double* _Nonnull y) {
+    try {
+        ref->transform->Trsf2d().Transforms(*x, *y);
+    } catch (...) {}
+}
+
+double OCCTTransform2DScaleFactor(OCCTTransform2DRef _Nonnull ref) {
+    return ref->transform->ScaleFactor();
+}
+
+bool OCCTTransform2DIsNegative(OCCTTransform2DRef _Nonnull ref) {
+    return ref->transform->IsNegative();
+}
+
+void OCCTTransform2DGetValues(OCCTTransform2DRef _Nonnull ref,
+    double* _Nonnull a11, double* _Nonnull a12, double* _Nonnull a13,
+    double* _Nonnull a21, double* _Nonnull a22, double* _Nonnull a23) {
+    try {
+        *a11 = ref->transform->Value(1, 1);
+        *a12 = ref->transform->Value(1, 2);
+        *a13 = ref->transform->Value(1, 3);
+        *a21 = ref->transform->Value(2, 1);
+        *a22 = ref->transform->Value(2, 2);
+        *a23 = ref->transform->Value(2, 3);
+    } catch (...) {}
+}
+
+OCCTCurve2DRef _Nullable OCCTTransform2DApplyToCurve(OCCTTransform2DRef _Nonnull ref,
+    OCCTCurve2DRef _Nonnull curve) {
+    try {
+        Handle(Geom2d_Curve) copy = Handle(Geom2d_Curve)::DownCast(curve->curve->Copy());
+        if (copy.IsNull()) return nullptr;
+        copy->Transform(ref->transform->Trsf2d());
+        return new OCCTCurve2D(copy);
+    } catch (...) { return nullptr; }
+}
+
+// Now implement the forward-declared Point2D + Transform2D function
+OCCTPoint2DRef _Nullable OCCTPoint2DTransformed(OCCTPoint2DRef _Nonnull ref,
+    OCCTTransform2DRef _Nonnull trsf) {
+    try {
+        Handle(Geom2d_Geometry) g = ref->point->Transformed(trsf->transform->Trsf2d());
+        Handle(Geom2d_CartesianPoint) p = Handle(Geom2d_CartesianPoint)::DownCast(g);
+        if (p.IsNull()) return nullptr;
+        return new OCCTPoint2D(p);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Geom2d AxisPlacement2D (v0.64)
+// --- AxisPlacement2D (Geom2d_AxisPlacement) ---
+
+struct OCCTAxisPlacement2D {
+    Handle(Geom2d_AxisPlacement) axis;
+    OCCTAxisPlacement2D(const Handle(Geom2d_AxisPlacement)& a) : axis(a) {}
+};
+
+OCCTAxisPlacement2DRef _Nullable OCCTAxisPlacement2DCreate(double ox, double oy,
+    double dx, double dy) {
+    try {
+        return new OCCTAxisPlacement2D(
+            new Geom2d_AxisPlacement(gp_Pnt2d(ox, oy), gp_Dir2d(dx, dy)));
+    } catch (...) { return nullptr; }
+}
+
+void OCCTAxisPlacement2DRelease(OCCTAxisPlacement2DRef _Nonnull ref) { delete ref; }
+
+void OCCTAxisPlacement2DGetOrigin(OCCTAxisPlacement2DRef _Nonnull ref,
+    double* _Nonnull x, double* _Nonnull y) {
+    gp_Pnt2d loc = ref->axis->Location();
+    *x = loc.X();
+    *y = loc.Y();
+}
+
+void OCCTAxisPlacement2DGetDirection(OCCTAxisPlacement2DRef _Nonnull ref,
+    double* _Nonnull x, double* _Nonnull y) {
+    gp_Dir2d dir = ref->axis->Direction();
+    *x = dir.X();
+    *y = dir.Y();
+}
+
+OCCTAxisPlacement2DRef _Nullable OCCTAxisPlacement2DReversed(OCCTAxisPlacement2DRef _Nonnull ref) {
+    try {
+        Handle(Geom2d_AxisPlacement) copy =
+            Handle(Geom2d_AxisPlacement)::DownCast(ref->axis->Copy());
+        if (copy.IsNull()) return nullptr;
+        copy->Reverse();
+        return new OCCTAxisPlacement2D(copy);
+    } catch (...) { return nullptr; }
+}
+
+double OCCTAxisPlacement2DAngle(OCCTAxisPlacement2DRef _Nonnull ref,
+    OCCTAxisPlacement2DRef _Nonnull other) {
+    return ref->axis->Angle(other->axis);
+}
+
+// MARK: - Vector2D / Direction2D Utilities (v0.64)
+// --- Vector2D utilities ---
+
+double OCCTVector2DAngle(double ax, double ay, double bx, double by) {
+    try {
+        gp_Vec2d a(ax, ay), b(bx, by);
+        return a.Angle(b);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTVector2DCross(double ax, double ay, double bx, double by) {
+    return ax * by - ay * bx;
+}
+
+double OCCTVector2DDot(double ax, double ay, double bx, double by) {
+    return ax * bx + ay * by;
+}
+
+double OCCTVector2DMagnitude(double x, double y) {
+    return sqrt(x * x + y * y);
+}
+
+void OCCTVector2DNormalize(double* _Nonnull x, double* _Nonnull y) {
+    double mag = sqrt((*x) * (*x) + (*y) * (*y));
+    if (mag > 1e-15) { *x /= mag; *y /= mag; }
+}
+
+// --- Direction2D utilities ---
+
+void OCCTDirection2DNormalize(double* _Nonnull x, double* _Nonnull y) {
+    try {
+        gp_Dir2d d(*x, *y);
+        *x = d.X();
+        *y = d.Y();
+    } catch (...) {}
+}
+
+double OCCTDirection2DAngle(double ax, double ay, double bx, double by) {
+    try {
+        gp_Dir2d a(ax, ay), b(bx, by);
+        return a.Angle(b);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTDirection2DCross(double ax, double ay, double bx, double by) {
+    try {
+        gp_Dir2d a(ax, ay), b(bx, by);
+        return a.Crossed(b);
+    } catch (...) { return 0.0; }
+}
+
+
+// MARK: - LProp_AnalyticCurInf (v0.64)
+
+int32_t OCCTLPropAnalyticCurInf(int32_t curveType, double first, double last,
+    double* _Nonnull outParams, int32_t* _Nonnull outTypes, int32_t maxResults) {
+    try {
+        // Inline implementation matching OCCT LProp_AnalyticCurInf::Perform.
+        // Only ellipses have curvature extrema among analytic curves.
+        // Line: zero curvature, Circle: constant curvature, Parabola/Hyperbola: monotonic curvature.
+        LProp_CurAndInf result;
+        GeomAbs_CurveType ct = (GeomAbs_CurveType)curveType;
+        if (ct == GeomAbs_Ellipse) {
+            // Ellipse curvature extrema at multiples of PI/2
+            // At 0, PI: max curvature (min radius vertex on minor axis)
+            // At PI/2, 3PI/2: min curvature (max radius vertex on major axis)
+            double PI2 = M_PI / 2.0;
+            for (int k = 0; k < 4; k++) {
+                double param = k * PI2;
+                if (param >= first && param <= last) {
+                    bool isMin = (k == 1 || k == 3);
+                    result.AddExtCur(param, isMin);
+                }
+            }
+        }
+        // All other analytic curve types: no curvature extrema to report.
+        int32_t count = std::min((int32_t)result.NbPoints(), maxResults);
+        for (int32_t i = 0; i < count; i++) {
+            outParams[i] = result.Parameter(i + 1);
+            LProp_CIType t = result.Type(i + 1);
+            switch (t) {
+                case LProp_Inflection: outTypes[i] = 0; break;
+                case LProp_MinCur: outTypes[i] = 1; break;
+                case LProp_MaxCur: outTypes[i] = 2; break;
+            }
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+// MARK: - Curve2D ↔ Point2D Integration (v0.64)
+// --- Curve2D ↔ Point2D integration ---
+
+OCCTPoint2DRef _Nullable OCCTCurve2DPointAt(OCCTCurve2DRef _Nonnull curve, double t) {
+    try {
+        gp_Pnt2d pt;
+        curve->curve->D0(t, pt);
+        return new OCCTPoint2D(new Geom2d_CartesianPoint(pt));
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTCurve2DSegmentFromPoints(OCCTPoint2DRef _Nonnull p1,
+    OCCTPoint2DRef _Nonnull p2) {
+    try {
+        Handle(Geom2d_Line) line = new Geom2d_Line(p1->point->Pnt2d(),
+            gp_Dir2d(p2->point->X() - p1->point->X(), p2->point->Y() - p1->point->Y()));
+        double dist = p1->point->Pnt2d().Distance(p2->point->Pnt2d());
+        Handle(Geom2d_TrimmedCurve) seg = new Geom2d_TrimmedCurve(line, 0.0, dist);
+        return new OCCTCurve2D(seg);
+    } catch (...) { return nullptr; }
+}
+
+double OCCTCurve2DProjectPoint2D(OCCTCurve2DRef _Nonnull curve, OCCTPoint2DRef _Nonnull point,
+    double* _Nonnull outDistance) {
+    try {
+        Geom2dAPI_ProjectPointOnCurve proj(point->point->Pnt2d(), curve->curve);
+        if (proj.NbPoints() == 0) { *outDistance = -1.0; return 0.0; }
+        *outDistance = proj.LowerDistance();
+        return proj.LowerDistanceParameter();
+    } catch (...) { *outDistance = -1.0; return 0.0; }
 }

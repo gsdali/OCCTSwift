@@ -59,6 +59,7 @@
 #include <GeomConvert_CompBezierSurfacesToBSplineSurface.hxx>
 #include <GeomFill_Pipe.hxx>
 #include <GeomFill_BSplineCurves.hxx>
+#include <Adaptor3d_IsoCurve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepTopAdaptor_TopolTool.hxx>
 #include <Contap_ContAna.hxx>
@@ -2219,4 +2220,59 @@ OCCTEvolvedSectionInfo OCCTGeomFillEvolvedSectionInfo(OCCTShapeRef edgeShape) {
         result.isRational = evolved.IsRational();
     } catch (...) {}
     return result;
+}
+
+// MARK: - Adaptor3d_IsoCurve (v0.64)
+// --- Adaptor3d_IsoCurve ---
+
+void OCCTAdaptor3dIsoCurveEval(OCCTShapeRef faceShape, int isoType, double param,
+    int evalCount, double* outPoints) {
+    if (!faceShape || !outPoints || evalCount < 1) return;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) return;
+        Handle(GeomAdaptor_Surface) surfAdaptor = new GeomAdaptor_Surface(surface);
+
+        GeomAbs_IsoType type = (isoType == 0) ? GeomAbs_IsoU : GeomAbs_IsoV;
+        Adaptor3d_IsoCurve iso(surfAdaptor, type, param);
+
+        double first = iso.FirstParameter();
+        double last = iso.LastParameter();
+        // Clamp infinite parameters
+        if (first < -1e6) first = -1e6;
+        if (last > 1e6) last = 1e6;
+
+        for (int i = 0; i < evalCount; i++) {
+            double t = (evalCount > 1) ? first + (last - first) * i / (evalCount - 1) : first;
+            gp_Pnt pt;
+            iso.D0(t, pt);
+            outPoints[i*3]     = pt.X();
+            outPoints[i*3 + 1] = pt.Y();
+            outPoints[i*3 + 2] = pt.Z();
+        }
+    } catch (...) {}
+}
+
+OCCTShapeRef _Nullable OCCTAdaptor3dIsoCurveEdge(OCCTShapeRef faceShape, int isoType,
+    double param, double p1, double p2) {
+    if (!faceShape) return nullptr;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+        if (surface.IsNull()) return nullptr;
+
+        // Create iso-curve as a Geom_Curve
+        Handle(Geom_Curve) isoCurve;
+        if (isoType == 0) {
+            isoCurve = surface->UIso(param);
+        } else {
+            isoCurve = surface->VIso(param);
+        }
+        if (isoCurve.IsNull()) return nullptr;
+
+        BRepBuilderAPI_MakeEdge me(isoCurve, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
 }
