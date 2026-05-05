@@ -3491,3 +3491,45 @@ OCCTSurfaceRef OCCTSurfaceOffsetBasis(OCCTSurfaceRef surface) {
     ref->surface = basis;
     return ref;
 }
+
+// MARK: - v0.101: ShapeAnalysis_Surface (project / singularities / closed)
+// --- ShapeAnalysis_Surface ---
+
+double OCCTSurfaceProjectPointUV(OCCTSurfaceRef surface, double px, double py, double pz,
+                                   double preci, double* u, double* v) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        gp_Pnt2d uv = sas->ValueOfUV(gp_Pnt(px, py, pz), preci);
+        *u = uv.X();
+        *v = uv.Y();
+        return sas->Gap();
+    } catch (...) { *u = 0; *v = 0; return -1.0; }
+}
+
+bool OCCTSurfaceHasSingularities(OCCTSurfaceRef surface, double preci) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        return sas->HasSingularities(preci);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTSurfaceNbSingularities(OCCTSurfaceRef surface, double preci) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        return sas->NbSingularities(preci);
+    } catch (...) { return 0; }
+}
+
+bool OCCTSurfaceIsUClosedSA(OCCTSurfaceRef surface, double preci) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        return sas->IsUClosed(preci);
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceIsVClosedSA(OCCTSurfaceRef surface, double preci) {
+    try {
+        Handle(ShapeAnalysis_Surface) sas = new ShapeAnalysis_Surface(surface->surface);
+        return sas->IsVClosed(preci);
+    } catch (...) { return false; }
+}

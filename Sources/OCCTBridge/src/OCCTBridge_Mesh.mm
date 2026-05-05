@@ -37,6 +37,8 @@
 #include <Poly_CoherentLink.hxx>
 #include <RWMesh_CoordinateSystem.hxx>
 #include <RWMesh_CoordinateSystemConverter.hxx>
+#include <RWStl.hxx>
+#include <OSD_Path.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <BRep_Builder.hxx>
@@ -1353,4 +1355,60 @@ OCCTPoint3D OCCTCoordSystemUpDirection(int system) {
         result.z = dir.Z();
     } catch (...) { }
     return result;
+}
+
+// MARK: - v0.100: RWStl direct binary/ASCII STL I/O
+// --- RWStl direct binary/ASCII STL I/O ---
+
+bool OCCTShapeWriteSTLBinary(OCCTShapeRef shape, const char* filePath) {
+    if (!shape || !filePath) return false;
+    try {
+        // Mesh the shape
+        BRepMesh_IncrementalMesh mesher(shape->shape, 0.1);
+
+        // Collect first non-null triangulation
+        TopExp_Explorer ex(shape->shape, TopAbs_FACE);
+        for (; ex.More(); ex.Next()) {
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), loc);
+            if (!tri.IsNull()) {
+                OSD_Path path(filePath);
+                return RWStl::WriteBinary(tri, path);
+            }
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeWriteSTLAscii(OCCTShapeRef shape, const char* filePath) {
+    if (!shape || !filePath) return false;
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, 0.1);
+
+        TopExp_Explorer ex(shape->shape, TopAbs_FACE);
+        for (; ex.More(); ex.Next()) {
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), loc);
+            if (!tri.IsNull()) {
+                OSD_Path path(filePath);
+                return RWStl::WriteAscii(tri, path);
+            }
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTShapeReadSTL(const char* filePath) {
+    if (!filePath) return nullptr;
+    try {
+        Handle(Poly_Triangulation) tri = RWStl::ReadFile(filePath, M_PI / 2.0);
+        if (tri.IsNull()) return nullptr;
+
+        // Build a face with triangulation
+        BRep_Builder builder;
+        TopoDS_Face face;
+        builder.MakeFace(face);
+        builder.UpdateFace(face, tri);
+        return new OCCTShape(face);
+    } catch (...) { return nullptr; }
 }
