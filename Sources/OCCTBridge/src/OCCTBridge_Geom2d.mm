@@ -4450,3 +4450,205 @@ bool OCCTCurve2DBSplineMovePointAndTangent(OCCTCurve2DRef curve, double u,
         return (errorStatus == 0);
     } catch (...) { return false; }
 }
+
+// MARK: - v0.125: Geom2d_BSplineCurve completions
+// --- Geom2d_BSplineCurve completions ---
+
+void OCCTCurve2DBSplineLocalD0(OCCTCurve2DRef curve, double u, int32_t fromK1, int32_t toK2,
+                                double* x, double* y) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt2d P;
+        bs->LocalD0(u, fromK1, toK2, P);
+        *x = P.X(); *y = P.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineLocalD1(OCCTCurve2DRef curve, double u, int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* v1x, double* v1y) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt2d P; gp_Vec2d V1;
+        bs->LocalD1(u, fromK1, toK2, P, V1);
+        *px = P.X(); *py = P.Y();
+        *v1x = V1.X(); *v1y = V1.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineLocalD2(OCCTCurve2DRef curve, double u, int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* v1x, double* v1y,
+                                double* v2x, double* v2y) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt2d P; gp_Vec2d V1, V2;
+        bs->LocalD2(u, fromK1, toK2, P, V1, V2);
+        *px = P.X(); *py = P.Y();
+        *v1x = V1.X(); *v1y = V1.Y();
+        *v2x = V2.X(); *v2y = V2.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineLocalD3(OCCTCurve2DRef curve, double u, int32_t fromK1, int32_t toK2,
+                                double* px, double* py, double* v1x, double* v1y,
+                                double* v2x, double* v2y, double* v3x, double* v3y) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt2d P; gp_Vec2d V1, V2, V3;
+        bs->LocalD3(u, fromK1, toK2, P, V1, V2, V3);
+        *px = P.X(); *py = P.Y();
+        *v1x = V1.X(); *v1y = V1.Y();
+        *v2x = V2.X(); *v2y = V2.Y();
+        *v3x = V3.X(); *v3y = V3.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineLocalDN(OCCTCurve2DRef curve, double u, int32_t fromK1, int32_t toK2,
+                                int32_t n, double* vx, double* vy) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        gp_Vec2d V = bs->LocalDN(u, fromK1, toK2, n);
+        *vx = V.X(); *vy = V.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineLocalValue(OCCTCurve2DRef curve, double u, int32_t fromK1, int32_t toK2,
+                                   double* x, double* y) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt2d P = bs->LocalValue(u, fromK1, toK2);
+        *x = P.X(); *y = P.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineLocateU(OCCTCurve2DRef curve, double u, double paramTol,
+                                int32_t* i1, int32_t* i2) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        int I1 = 0, I2 = 0;
+        bs->LocateU(u, paramTol, I1, I2);
+        *i1 = I1; *i2 = I2;
+    } catch (...) {}
+}
+
+int32_t OCCTCurve2DBSplineFirstUKnotIndex(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    try { return bs->FirstUKnotIndex(); } catch (...) { return 0; }
+}
+
+int32_t OCCTCurve2DBSplineLastUKnotIndex(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    try { return bs->LastUKnotIndex(); } catch (...) { return 0; }
+}
+
+double OCCTCurve2DBSplineKnot(OCCTCurve2DRef curve, int32_t index) {
+    if (!curve) return 0.0;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0.0;
+    try { return bs->Knot(index); } catch (...) { return 0.0; }
+}
+
+int32_t OCCTCurve2DBSplineKnotDistribution(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->KnotDistribution(); } catch (...) { return 0; }
+}
+
+int32_t OCCTCurve2DBSplineMultiplicity(OCCTCurve2DRef curve, int32_t index) {
+    if (!curve) return 0;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    try { return bs->Multiplicity(index); } catch (...) { return 0; }
+}
+
+void OCCTCurve2DBSplineGetMultiplicities(OCCTCurve2DRef curve, int32_t* mults) {
+    if (!curve || !mults) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        const auto& m = bs->Multiplicities();
+        for (int i = m.Lower(); i <= m.Upper(); i++) {
+            mults[i - m.Lower()] = m(i);
+        }
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineStartPoint(OCCTCurve2DRef curve, double* x, double* y) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt2d P = bs->StartPoint();
+        *x = P.X(); *y = P.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineEndPoint(OCCTCurve2DRef curve, double* x, double* y) {
+    if (!curve) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt2d P = bs->EndPoint();
+        *x = P.X(); *y = P.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBSplineGetPoles(OCCTCurve2DRef curve, double* poles) {
+    if (!curve || !poles) return;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return;
+    try {
+        const auto& p = bs->Poles();
+        int idx = 0;
+        for (int i = p.Lower(); i <= p.Upper(); i++) {
+            poles[idx++] = p(i).X();
+            poles[idx++] = p(i).Y();
+        }
+    } catch (...) {}
+}
+
+bool OCCTCurve2DBSplineIsClosed(OCCTCurve2DRef curve) {
+    if (!curve) return false;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { return bs->IsClosed(); } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineIsPeriodic(OCCTCurve2DRef curve) {
+    if (!curve) return false;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { return bs->IsPeriodic(); } catch (...) { return false; }
+}
+
+int32_t OCCTCurve2DBSplineContinuity(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->Continuity(); } catch (...) { return 0; }
+}
+
+bool OCCTCurve2DBSplineIsCN(OCCTCurve2DRef curve, int32_t n) {
+    if (!curve) return false;
+    auto bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { return bs->IsCN(n); } catch (...) { return false; }
+}

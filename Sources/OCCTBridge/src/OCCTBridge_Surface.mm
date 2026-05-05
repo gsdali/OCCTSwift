@@ -5282,3 +5282,387 @@ bool OCCTSurfaceBSplineSetPoleRow(OCCTSurfaceRef surface,
         return true;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.122: Surface queries + v0.125: Geom_BSplineSurface + BezierSurface completions
+// --- Surface queries ---
+
+double OCCTSurfaceUPeriod(OCCTSurfaceRef surface) {
+    if (!surface) return 0.0;
+    try {
+        if (!surface->surface->IsUPeriodic()) return 0.0;
+        return surface->surface->UPeriod();
+    } catch (...) { return 0.0; }
+}
+
+double OCCTSurfaceVPeriod(OCCTSurfaceRef surface) {
+    if (!surface) return 0.0;
+    try {
+        if (!surface->surface->IsVPeriodic()) return 0.0;
+        return surface->surface->VPeriod();
+    } catch (...) { return 0.0; }
+}
+// MARK: - v0.125.0: BSpline/Bezier deep method completion
+
+// --- Geom_BSplineSurface completions ---
+
+void OCCTSurfaceBSplineLocalD0(OCCTSurfaceRef surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                double* x, double* y, double* z) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt P;
+        bs->LocalD0(u, v, fromUK1, toUK2, fromVK1, toVK2, P);
+        *x = P.X(); *y = P.Y(); *z = P.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineLocalD1(OCCTSurfaceRef surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                double* px, double* py, double* pz,
+                                double* d1ux, double* d1uy, double* d1uz,
+                                double* d1vx, double* d1vy, double* d1vz) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt P; gp_Vec D1U, D1V;
+        bs->LocalD1(u, v, fromUK1, toUK2, fromVK1, toVK2, P, D1U, D1V);
+        *px = P.X(); *py = P.Y(); *pz = P.Z();
+        *d1ux = D1U.X(); *d1uy = D1U.Y(); *d1uz = D1U.Z();
+        *d1vx = D1V.X(); *d1vy = D1V.Y(); *d1vz = D1V.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineLocalD2(OCCTSurfaceRef surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                double* px, double* py, double* pz,
+                                double* d1ux, double* d1uy, double* d1uz,
+                                double* d1vx, double* d1vy, double* d1vz,
+                                double* d2ux, double* d2uy, double* d2uz,
+                                double* d2vx, double* d2vy, double* d2vz,
+                                double* d2uvx, double* d2uvy, double* d2uvz) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt P; gp_Vec D1U, D1V, D2U, D2V, D2UV;
+        bs->LocalD2(u, v, fromUK1, toUK2, fromVK1, toVK2, P, D1U, D1V, D2U, D2V, D2UV);
+        *px = P.X(); *py = P.Y(); *pz = P.Z();
+        *d1ux = D1U.X(); *d1uy = D1U.Y(); *d1uz = D1U.Z();
+        *d1vx = D1V.X(); *d1vy = D1V.Y(); *d1vz = D1V.Z();
+        *d2ux = D2U.X(); *d2uy = D2U.Y(); *d2uz = D2U.Z();
+        *d2vx = D2V.X(); *d2vy = D2V.Y(); *d2vz = D2V.Z();
+        *d2uvx = D2UV.X(); *d2uvy = D2UV.Y(); *d2uvz = D2UV.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineLocalD3(OCCTSurfaceRef surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                double* px, double* py, double* pz,
+                                double* d1ux, double* d1uy, double* d1uz,
+                                double* d1vx, double* d1vy, double* d1vz,
+                                double* d2ux, double* d2uy, double* d2uz,
+                                double* d2vx, double* d2vy, double* d2vz,
+                                double* d2uvx, double* d2uvy, double* d2uvz,
+                                double* d3ux, double* d3uy, double* d3uz,
+                                double* d3vx, double* d3vy, double* d3vz,
+                                double* d3uuvx, double* d3uuvy, double* d3uuvz,
+                                double* d3uvvx, double* d3uvvy, double* d3uvvz) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt P; gp_Vec D1U, D1V, D2U, D2V, D2UV, D3U, D3V, D3UUV, D3UVV;
+        bs->LocalD3(u, v, fromUK1, toUK2, fromVK1, toVK2, P, D1U, D1V, D2U, D2V, D2UV, D3U, D3V, D3UUV, D3UVV);
+        *px = P.X(); *py = P.Y(); *pz = P.Z();
+        *d1ux = D1U.X(); *d1uy = D1U.Y(); *d1uz = D1U.Z();
+        *d1vx = D1V.X(); *d1vy = D1V.Y(); *d1vz = D1V.Z();
+        *d2ux = D2U.X(); *d2uy = D2U.Y(); *d2uz = D2U.Z();
+        *d2vx = D2V.X(); *d2vy = D2V.Y(); *d2vz = D2V.Z();
+        *d2uvx = D2UV.X(); *d2uvy = D2UV.Y(); *d2uvz = D2UV.Z();
+        *d3ux = D3U.X(); *d3uy = D3U.Y(); *d3uz = D3U.Z();
+        *d3vx = D3V.X(); *d3vy = D3V.Y(); *d3vz = D3V.Z();
+        *d3uuvx = D3UUV.X(); *d3uuvy = D3UUV.Y(); *d3uuvz = D3UUV.Z();
+        *d3uvvx = D3UVV.X(); *d3uvvy = D3UVV.Y(); *d3uvvz = D3UVV.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineLocalDN(OCCTSurfaceRef surface, double u, double v,
+                                int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                int32_t nu, int32_t nv,
+                                double* vx, double* vy, double* vz) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        gp_Vec V = bs->LocalDN(u, v, fromUK1, toUK2, fromVK1, toVK2, nu, nv);
+        *vx = V.X(); *vy = V.Y(); *vz = V.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineLocalValue(OCCTSurfaceRef surface, double u, double v,
+                                   int32_t fromUK1, int32_t toUK2, int32_t fromVK1, int32_t toVK2,
+                                   double* x, double* y, double* z) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        gp_Pnt P = bs->LocalValue(u, v, fromUK1, toUK2, fromVK1, toVK2);
+        *x = P.X(); *y = P.Y(); *z = P.Z();
+    } catch (...) {}
+}
+
+OCCTCurve3DRef OCCTSurfaceBSplineUIso(OCCTSurfaceRef surface, double u) {
+    if (!surface) return nullptr;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return nullptr;
+    try {
+        auto curve = bs->UIso(u);
+        if (curve.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D;
+        ref->curve = curve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTSurfaceBSplineVIso(OCCTSurfaceRef surface, double v) {
+    if (!surface) return nullptr;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return nullptr;
+    try {
+        auto curve = bs->VIso(v);
+        if (curve.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D;
+        ref->curve = curve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTSurfaceBSplineLocateU(OCCTSurfaceRef surface, double u, double paramTol,
+                                int32_t* i1, int32_t* i2) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        int I1 = 0, I2 = 0;
+        bs->LocateU(u, paramTol, I1, I2);
+        *i1 = I1; *i2 = I2;
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineLocateV(OCCTSurfaceRef surface, double v, double paramTol,
+                                int32_t* i1, int32_t* i2) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        int I1 = 0, I2 = 0;
+        bs->LocateV(v, paramTol, I1, I2);
+        *i1 = I1; *i2 = I2;
+    } catch (...) {}
+}
+
+double OCCTSurfaceBSplineUKnot(OCCTSurfaceRef surface, int32_t index) {
+    if (!surface) return 0.0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0.0;
+    try { return bs->UKnot(index); } catch (...) { return 0.0; }
+}
+
+double OCCTSurfaceBSplineVKnot(OCCTSurfaceRef surface, int32_t index) {
+    if (!surface) return 0.0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0.0;
+    try { return bs->VKnot(index); } catch (...) { return 0.0; }
+}
+
+int32_t OCCTSurfaceBSplineUMultiplicity(OCCTSurfaceRef surface, int32_t index) {
+    if (!surface) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return bs->UMultiplicity(index); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineVMultiplicity(OCCTSurfaceRef surface, int32_t index) {
+    if (!surface) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return bs->VMultiplicity(index); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineUKnotDistribution(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->UKnotDistribution(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineVKnotDistribution(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->VKnotDistribution(); } catch (...) { return 0; }
+}
+
+void OCCTSurfaceBSplineGetPoles(OCCTSurfaceRef surface, double* poles) {
+    if (!surface || !poles) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        const auto& p = bs->Poles();
+        int idx = 0;
+        for (int i = p.LowerRow(); i <= p.UpperRow(); i++) {
+            for (int j = p.LowerCol(); j <= p.UpperCol(); j++) {
+                const gp_Pnt& pt = p(i, j);
+                poles[idx++] = pt.X();
+                poles[idx++] = pt.Y();
+                poles[idx++] = pt.Z();
+            }
+        }
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineBounds(OCCTSurfaceRef surface,
+                               double* u1, double* u2, double* v1, double* v2) {
+    if (!surface) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try { bs->Bounds(*u1, *u2, *v1, *v2); } catch (...) {}
+}
+
+bool OCCTSurfaceBSplineIsUClosed(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { return bs->IsUClosed(); } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIsVClosed(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { return bs->IsVClosed(); } catch (...) { return false; }
+}
+// --- Geom_BezierSurface completions ---
+
+OCCTCurve3DRef OCCTSurfaceBezierUIso(OCCTSurfaceRef surface, double u) {
+    if (!surface) return nullptr;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return nullptr;
+    try {
+        auto curve = bz->UIso(u);
+        if (curve.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D;
+        ref->curve = curve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTSurfaceBezierVIso(OCCTSurfaceRef surface, double v) {
+    if (!surface) return nullptr;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return nullptr;
+    try {
+        auto curve = bz->VIso(v);
+        if (curve.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D;
+        ref->curve = curve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTSurfaceBezierIsUClosed(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try { return bz->IsUClosed(); } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIsVClosed(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try { return bz->IsVClosed(); } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIsUPeriodic(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try { return bz->IsUPeriodic(); } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIsVPeriodic(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try { return bz->IsVPeriodic(); } catch (...) { return false; }
+}
+
+int32_t OCCTSurfaceBezierContinuity(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return 0;
+    try { return (int32_t)bz->Continuity(); } catch (...) { return 0; }
+}
+
+bool OCCTSurfaceBezierIsCNu(OCCTSurfaceRef surface, int32_t n) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try { return bz->IsCNu(n); } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIsCNv(OCCTSurfaceRef surface, int32_t n) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try { return bz->IsCNv(n); } catch (...) { return false; }
+}
+
+void OCCTSurfaceBezierGetPoles(OCCTSurfaceRef surface, double* poles) {
+    if (!surface || !poles) return;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return;
+    try {
+        const auto& p = bz->Poles();
+        int idx = 0;
+        for (int i = p.LowerRow(); i <= p.UpperRow(); i++) {
+            for (int j = p.LowerCol(); j <= p.UpperCol(); j++) {
+                const gp_Pnt& pt = p(i, j);
+                poles[idx++] = pt.X();
+                poles[idx++] = pt.Y();
+                poles[idx++] = pt.Z();
+            }
+        }
+    } catch (...) {}
+}
+
+bool OCCTSurfaceBezierGetWeights(OCCTSurfaceRef surface, double* weights) {
+    if (!surface || !weights) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        const auto* w = bz->Weights();
+        if (!w) return false;
+        int idx = 0;
+        for (int i = w->LowerRow(); i <= w->UpperRow(); i++) {
+            for (int j = w->LowerCol(); j <= w->UpperCol(); j++) {
+                weights[idx++] = (*w)(i, j);
+            }
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTSurfaceBezierBounds(OCCTSurfaceRef surface,
+                              double* u1, double* u2, double* v1, double* v2) {
+    if (!surface) return;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return;
+    try { bz->Bounds(*u1, *u2, *v1, *v2); } catch (...) {}
+}
+
+// end of v0.125.0 implementations

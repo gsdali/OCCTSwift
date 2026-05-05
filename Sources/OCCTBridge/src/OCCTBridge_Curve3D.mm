@@ -4979,3 +4979,102 @@ bool OCCTCurve3DBSplineMovePointAndTangent(OCCTCurve3DRef curve, double u,
         return (errorStatus == 0);
     } catch (...) { return false; }
 }
+
+// MARK: - v0.122: Curve3D queries + v0.125: Geom_BezierCurve completions
+// --- Curve3D queries ---
+
+double OCCTCurve3DPeriod(OCCTCurve3DRef curve) {
+    if (!curve) return 0.0;
+    try {
+        if (!curve->curve->IsPeriodic()) return 0.0;
+        return curve->curve->Period();
+    } catch (...) { return 0.0; }
+}
+
+double OCCTCurve3DFirstParameter(OCCTCurve3DRef curve) {
+    if (!curve) return 0.0;
+    try { return curve->curve->FirstParameter(); } catch (...) { return 0.0; }
+}
+
+double OCCTCurve3DLastParameter(OCCTCurve3DRef curve) {
+    if (!curve) return 0.0;
+    try { return curve->curve->LastParameter(); } catch (...) { return 0.0; }
+}
+// --- Geom_BezierCurve completions ---
+
+void OCCTCurve3DBezierStartPoint(OCCTCurve3DRef curve, double* x, double* y, double* z) {
+    if (!curve) return;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        gp_Pnt P = bz->StartPoint();
+        *x = P.X(); *y = P.Y(); *z = P.Z();
+    } catch (...) {}
+}
+
+void OCCTCurve3DBezierEndPoint(OCCTCurve3DRef curve, double* x, double* y, double* z) {
+    if (!curve) return;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        gp_Pnt P = bz->EndPoint();
+        *x = P.X(); *y = P.Y(); *z = P.Z();
+    } catch (...) {}
+}
+
+void OCCTCurve3DBezierGetPoles(OCCTCurve3DRef curve, double* poles) {
+    if (!curve || !poles) return;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        const auto& p = bz->Poles();
+        int idx = 0;
+        for (int i = p.Lower(); i <= p.Upper(); i++) {
+            poles[idx++] = p(i).X();
+            poles[idx++] = p(i).Y();
+            poles[idx++] = p(i).Z();
+        }
+    } catch (...) {}
+}
+
+bool OCCTCurve3DBezierGetWeights(OCCTCurve3DRef curve, double* weights) {
+    if (!curve || !weights) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        const auto* w = bz->Weights();
+        if (!w) return false;
+        for (int i = w->Lower(); i <= w->Upper(); i++) {
+            weights[i - w->Lower()] = (*w)(i);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierIsClosed(OCCTCurve3DRef curve) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { return bz->IsClosed(); } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBezierIsPeriodic(OCCTCurve3DRef curve) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { return bz->IsPeriodic(); } catch (...) { return false; }
+}
+
+int32_t OCCTCurve3DBezierContinuity(OCCTCurve3DRef curve) {
+    if (!curve) return 0;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return 0;
+    try { return (int32_t)bz->Continuity(); } catch (...) { return 0; }
+}
+
+bool OCCTCurve3DBezierIsCN(OCCTCurve3DRef curve, int32_t n) {
+    if (!curve) return false;
+    auto bz = Handle(Geom_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try { return bz->IsCN(n); } catch (...) { return false; }
+}

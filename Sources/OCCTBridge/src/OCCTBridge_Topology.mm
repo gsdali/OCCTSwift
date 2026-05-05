@@ -3411,3 +3411,211 @@ bool OCCTFaceIsGeometric(OCCTShapeRef face) {
 }
 
 // === Sewing extras ===
+
+// MARK: - v0.122: BRepTools statics + BRepLib extended statics + Additional Shape queries + Shape emptied/moved
+// --- BRepTools statics ---
+
+void OCCTBRepToolsCleanTriangulation(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::Clean(shape->shape); } catch (...) {}
+}
+
+void OCCTBRepToolsRemoveInternals(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::RemoveInternals(shape->shape); } catch (...) {}
+}
+
+void OCCTBRepToolsDetectClosedness(OCCTShapeRef face, bool* isClosedU, bool* isClosedV) {
+    if (!face || !isClosedU || !isClosedV) return;
+    try {
+        bool u = false, v = false;
+        BRepTools::DetectClosedness(TopoDS::Face(face->shape), u, v);
+        *isClosedU = u;
+        *isClosedV = v;
+    } catch (...) {
+        *isClosedU = false;
+        *isClosedV = false;
+    }
+}
+
+double OCCTBRepToolsEvalAndUpdateTol(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return 0.0;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        double first, last;
+        Handle(Geom_Curve) c3d = BRep_Tool::Curve(e, first, last);
+        Handle(Geom2d_Curve) c2d = BRep_Tool::CurveOnSurface(e, f, first, last);
+        Handle(Geom_Surface) surf = BRep_Tool::Surface(f);
+        if (c3d.IsNull() || surf.IsNull()) return BRep_Tool::Tolerance(e);
+        return BRepTools::EvalAndUpdateTol(e, c3d, c2d, surf, first, last);
+    } catch (...) { return 0.0; }
+}
+
+int32_t OCCTBRepToolsMap3DEdgeCount(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        TopTools_IndexedMapOfShape edgeMap;
+        BRepTools::Map3DEdges(shape->shape, edgeMap);
+        return (int32_t)edgeMap.Extent();
+    } catch (...) { return 0; }
+}
+
+void OCCTBRepToolsUpdateFaceUVPoints(OCCTShapeRef face) {
+    if (!face) return;
+    try { BRepTools::UpdateFaceUVPoints(TopoDS::Face(face->shape)); } catch (...) {}
+}
+
+bool OCCTBRepToolsCompareVertices(OCCTShapeRef v1, OCCTShapeRef v2) {
+    if (!v1 || !v2) return false;
+    try {
+        return BRepTools::Compare(TopoDS::Vertex(v1->shape), TopoDS::Vertex(v2->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolsCompareEdges(OCCTShapeRef e1, OCCTShapeRef e2) {
+    if (!e1 || !e2) return false;
+    try {
+        return BRepTools::Compare(TopoDS::Edge(e1->shape), TopoDS::Edge(e2->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolsIsReallyClosed(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return false;
+    try {
+        return BRepTools::IsReallyClosed(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape));
+    } catch (...) { return false; }
+}
+
+void OCCTBRepToolsUpdate(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::Update(shape->shape); } catch (...) {}
+}
+
+// --- BRepLib extended statics ---
+
+bool OCCTBRepLibEnsureNormalConsistency(OCCTShapeRef shape, double maxAngleRad) {
+    if (!shape) return false;
+    try {
+        return BRepLib::EnsureNormalConsistency(shape->shape, maxAngleRad);
+    } catch (...) { return false; }
+}
+
+void OCCTBRepLibUpdateDeflection(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepLib::UpdateDeflection(shape->shape); } catch (...) {}
+}
+
+int32_t OCCTBRepLibContinuityOfFaces(OCCTShapeRef edge, OCCTShapeRef face1, OCCTShapeRef face2,
+                                      double tolerance) {
+    if (!edge || !face1 || !face2) return -1;
+    try {
+        GeomAbs_Shape cont = BRepLib::ContinuityOfFaces(
+            TopoDS::Edge(edge->shape),
+            TopoDS::Face(face1->shape),
+            TopoDS::Face(face2->shape),
+            tolerance);
+        return (int32_t)cont;
+    } catch (...) { return -1; }
+}
+
+bool OCCTBRepLibBuildCurves3dAll(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return false;
+    try {
+        return BRepLib::BuildCurves3d(shape->shape, tolerance);
+    } catch (...) { return false; }
+}
+
+void OCCTBRepLibSameParameterAll(OCCTShapeRef shape, double tolerance, bool forced) {
+    if (!shape) return;
+    try {
+        BRepLib::SameParameter(shape->shape, tolerance, forced);
+    } catch (...) {}
+}
+// --- Additional Shape queries ---
+
+OCCTShapeRef OCCTShapeNullified(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Shape s = shape->shape;
+        s.Nullify();
+        return new OCCTShape{s};
+    } catch (...) { return nullptr; }
+}
+
+const char* OCCTShapeTypeName(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    switch (shape->shape.ShapeType()) {
+        case TopAbs_COMPOUND: return "COMPOUND";
+        case TopAbs_COMPSOLID: return "COMPSOLID";
+        case TopAbs_SOLID: return "SOLID";
+        case TopAbs_SHELL: return "SHELL";
+        case TopAbs_FACE: return "FACE";
+        case TopAbs_WIRE: return "WIRE";
+        case TopAbs_EDGE: return "EDGE";
+        case TopAbs_VERTEX: return "VERTEX";
+        case TopAbs_SHAPE: return "SHAPE";
+        default: return "UNKNOWN";
+    }
+}
+
+bool OCCTShapeIsNotEqual(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1 || !shape2) return true;
+    return !shape1->shape.IsEqual(shape2->shape);
+}
+
+// --- Shape emptied/moved ---
+
+OCCTShapeRef OCCTShapeEmptied(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Shape s = shape->shape.EmptyCopied();
+        if (s.IsNull()) return nullptr;
+        return new OCCTShape{s};
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeMoved(OCCTShapeRef shape, double dx, double dy, double dz) {
+    if (!shape) return nullptr;
+    try {
+        gp_Trsf trsf;
+        trsf.SetTranslation(gp_Vec(dx, dy, dz));
+        TopoDS_Shape moved = shape->shape.Moved(TopLoc_Location(trsf));
+        if (moved.IsNull()) return nullptr;
+        return new OCCTShape{moved};
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTShapeOrientationValue(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    return (int32_t)shape->shape.Orientation();
+}
+
+int32_t OCCTShapeNbEdges(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+        count++;
+    }
+    return count;
+}
+
+int32_t OCCTShapeNbFaces(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+        count++;
+    }
+    return count;
+}
+
+int32_t OCCTShapeNbVertices(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    int32_t count = 0;
+    for (TopExp_Explorer exp(shape->shape, TopAbs_VERTEX); exp.More(); exp.Next()) {
+        count++;
+    }
+    return count;
+}
+
+// end of v0.123.0 implementations
