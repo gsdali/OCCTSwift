@@ -2622,3 +2622,44 @@ double OCCTSurfaceConversionGap(OCCTSurfaceRef _Nonnull surface) {
         return -1.0;
     }
 }
+
+// MARK: - GeomConvert_ApproxSurface (v0.75)
+static GeomAbs_Shape intToContinuity(int32_t c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C2;
+    }
+}
+
+// --- GeomConvert_ApproxSurface ---
+
+OCCTApproxSurfaceResult OCCTGeomConvertApproxSurface(OCCTSurfaceRef _Nonnull surface,
+                                                      double tolerance,
+                                                      int32_t uContinuity,
+                                                      int32_t vContinuity,
+                                                      int32_t maxDegree,
+                                                      int32_t maxSegments) {
+    OCCTApproxSurfaceResult result = {};
+    if (!surface) return result;
+    try {
+        GeomConvert_ApproxSurface approx(surface->surface, tolerance,
+                                          intToContinuity(uContinuity),
+                                          intToContinuity(vContinuity),
+                                          maxDegree, maxDegree, maxSegments, 1);
+        result.isDone = approx.IsDone();
+        result.hasResult = approx.HasResult();
+        if (result.hasResult) {
+            result.maxError = approx.MaxError();
+            Handle(Geom_BSplineSurface) bspl = approx.Surface();
+            if (!bspl.IsNull()) {
+                auto* ref = new OCCTSurface();
+                ref->surface = bspl;
+                result.surface = ref;
+            }
+        }
+    } catch (...) {}
+    return result;
+}

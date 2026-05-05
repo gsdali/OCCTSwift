@@ -1569,3 +1569,140 @@ int32_t OCCTLocalAnalysisCurveContinuityFlags(OCCTCurve3DRef _Nonnull curve1, do
         return flags;
     } catch (...) { return 0; }
 }
+
+// MARK: - GeomConvert_ApproxCurve (v0.75)
+// --- GeomConvert_ApproxCurve ---
+
+static GeomAbs_Shape intToContinuity(int32_t c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C2;
+    }
+}
+
+OCCTApproxCurveResult OCCTGeomConvertApproxCurve(OCCTCurve3DRef _Nonnull curve,
+                                                  double tolerance,
+                                                  int32_t continuity,
+                                                  int32_t maxSegments,
+                                                  int32_t maxDegree) {
+    OCCTApproxCurveResult result = {};
+    if (!curve) return result;
+    try {
+        GeomConvert_ApproxCurve approx(curve->curve, tolerance,
+                                        intToContinuity(continuity), maxSegments, maxDegree);
+        result.isDone = approx.IsDone();
+        result.hasResult = approx.HasResult();
+        if (result.hasResult) {
+            result.maxError = approx.MaxError();
+            Handle(Geom_BSplineCurve) bspl = approx.Curve();
+            if (!bspl.IsNull()) {
+                auto* ref = new OCCTCurve3D();
+                ref->curve = bspl;
+                result.curve = ref;
+            }
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - GCPnts QuasiUniform / TangentialDeflection (v0.75)
+// --- GCPnts_QuasiUniformAbscissa ---
+
+int32_t OCCTGCPntsQuasiUniform(OCCTEdgeRef _Nonnull edge,
+                                int32_t nbPoints,
+                                double* _Nonnull params,
+                                int32_t maxParams) {
+    if (!edge || nbPoints < 2) return 0;
+    try {
+        BRepAdaptor_Curve curve(TopoDS::Edge(edge->edge));
+        GCPnts_QuasiUniformAbscissa sampler(curve, nbPoints);
+        if (!sampler.IsDone()) return 0;
+        int32_t count = std::min((int32_t)sampler.NbPoints(), maxParams);
+        for (int32_t i = 0; i < count; i++) {
+            params[i] = sampler.Parameter(i + 1); // 1-based
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGCPntsQuasiUniformCurve(OCCTCurve3DRef _Nonnull curve,
+                                      int32_t nbPoints,
+                                      double* _Nonnull params,
+                                      int32_t maxParams) {
+    if (!curve || nbPoints < 2) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        GCPnts_QuasiUniformAbscissa sampler(adaptor, nbPoints);
+        if (!sampler.IsDone()) return 0;
+        int32_t count = std::min((int32_t)sampler.NbPoints(), maxParams);
+        for (int32_t i = 0; i < count; i++) {
+            params[i] = sampler.Parameter(i + 1);
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// --- GCPnts_TangentialDeflection ---
+
+int32_t OCCTGCPntsTangentialDeflection(OCCTEdgeRef _Nonnull edge,
+                                        double angularDeflection,
+                                        double curvatureDeflection,
+                                        int32_t minPoints,
+                                        double* _Nonnull params,
+                                        double* _Nullable coords,
+                                        int32_t maxPoints) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve curve(TopoDS::Edge(edge->edge));
+        GCPnts_TangentialDeflection sampler(curve, angularDeflection, curvatureDeflection,
+                                             std::max((int)minPoints, 2));
+        int32_t count = std::min((int32_t)sampler.NbPoints(), maxPoints);
+        for (int32_t i = 0; i < count; i++) {
+            params[i] = sampler.Parameter(i + 1);
+            if (coords) {
+                gp_Pnt pt = sampler.Value(i + 1);
+                coords[i*3] = pt.X();
+                coords[i*3+1] = pt.Y();
+                coords[i*3+2] = pt.Z();
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTGCPntsTangentialDeflectionCurve(OCCTCurve3DRef _Nonnull curve,
+                                             double angularDeflection,
+                                             double curvatureDeflection,
+                                             int32_t minPoints,
+                                             double* _Nonnull params,
+                                             double* _Nullable coords,
+                                             int32_t maxPoints) {
+    if (!curve) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        GCPnts_TangentialDeflection sampler(adaptor, angularDeflection, curvatureDeflection,
+                                             std::max((int)minPoints, 2));
+        int32_t count = std::min((int32_t)sampler.NbPoints(), maxPoints);
+        for (int32_t i = 0; i < count; i++) {
+            params[i] = sampler.Parameter(i + 1);
+            if (coords) {
+                gp_Pnt pt = sampler.Value(i + 1);
+                coords[i*3] = pt.X();
+                coords[i*3+1] = pt.Y();
+                coords[i*3+2] = pt.Z();
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}

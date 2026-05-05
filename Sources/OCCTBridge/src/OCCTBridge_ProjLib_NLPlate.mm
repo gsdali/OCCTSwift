@@ -39,6 +39,7 @@
 #include <Plate_PinpointConstraint.hxx>
 #include <Plate_Plate.hxx>
 #include <Geom_Line.hxx>
+#include <ShapeConstruct_ProjectCurveOnSurface.hxx>
 
 #include <Geom_BSplineSurface.hxx>
 #include <Geom_Curve.hxx>
@@ -989,5 +990,31 @@ bool OCCTGeomPlateErrors(const double* points, int32_t ptCount,
         return true;
     } catch (...) {
         return false;
+    }
+}
+
+// MARK: - ShapeConstruct_ProjectCurveOnSurface (v0.75)
+// --- ShapeConstruct_ProjectCurveOnSurface ---
+
+OCCTCurve2DRef _Nullable OCCTProjectCurveOnSurface(OCCTCurve3DRef _Nonnull curve,
+                                                     OCCTSurfaceRef _Nonnull surface,
+                                                     double firstParam,
+                                                     double lastParam,
+                                                     double precision) {
+    if (!curve || !surface) return nullptr;
+    try {
+        Handle(ShapeConstruct_ProjectCurveOnSurface) projector =
+            new ShapeConstruct_ProjectCurveOnSurface();
+        projector->Init(surface->surface, precision);
+
+        Handle(Geom2d_Curve) curve2d;
+        bool ok = projector->Perform(curve->curve, firstParam, lastParam, curve2d);
+        if (!ok || curve2d.IsNull()) return nullptr;
+
+        auto* ref = new OCCTCurve2D();
+        ref->curve = curve2d;
+        return ref;
+    } catch (...) {
+        return nullptr;
     }
 }

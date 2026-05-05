@@ -35,6 +35,9 @@
 #include <BRepGProp_Face.hxx>
 #include <BRepGProp_MeshCinert.hxx>
 #include <BRepGProp_MeshProps.hxx>
+#include <BRepGProp_Cinert.hxx>
+#include <BRepGProp_Sinert.hxx>
+#include <BRepGProp_Vinert.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
 
@@ -1161,6 +1164,99 @@ OCCTMeshPropsResult OCCTMeshPropsCompute(OCCTFaceRef _Nonnull face, OCCTMeshProp
         props.Perform(tri, loc, TopoDS::Face(face->face).Orientation());
         result.mass = props.Mass();
         gp_Pnt cm = props.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - BRepGProp Cinert / Sinert / Vinert (v0.75)
+// --- BRepGProp_Cinert ---
+
+OCCTCurveInertiaResult OCCTBRepGPropCinert(OCCTEdgeRef _Nonnull edge) {
+    OCCTCurveInertiaResult result = {};
+    if (!edge) return result;
+    try {
+        BRepAdaptor_Curve curve(TopoDS::Edge(edge->edge));
+        BRepGProp_Cinert cinert(curve, gp_Pnt(0, 0, 0));
+        result.mass = cinert.Mass();
+        gp_Pnt cm = cinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// --- BRepGProp_Sinert ---
+
+OCCTFaceSurfaceInertia OCCTBRepGPropSinert(OCCTFaceRef _Nonnull face) {
+    OCCTFaceSurfaceInertia result = {};
+    if (!face) return result;
+    try {
+        BRepGProp_Face gpropFace(TopoDS::Face(face->face));
+        BRepGProp_Sinert sinert;
+        sinert.SetLocation(gp_Pnt(0, 0, 0));
+        sinert.Perform(gpropFace);
+        result.mass = sinert.Mass();
+        gp_Pnt cm = sinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+OCCTFaceSurfaceInertia OCCTBRepGPropSinertAdaptive(OCCTFaceRef _Nonnull face, double epsilon) {
+    OCCTFaceSurfaceInertia result = {};
+    if (!face) return result;
+    try {
+        BRepGProp_Face gpropFace(TopoDS::Face(face->face));
+        BRepGProp_Sinert sinert;
+        sinert.SetLocation(gp_Pnt(0, 0, 0));
+        double err = sinert.Perform(gpropFace, epsilon);
+        result.mass = sinert.Mass();
+        result.epsilon = err;
+        gp_Pnt cm = sinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// --- BRepGProp_Vinert ---
+
+OCCTFaceVolumeInertia OCCTBRepGPropVinert(OCCTFaceRef _Nonnull face) {
+    OCCTFaceVolumeInertia result = {};
+    if (!face) return result;
+    try {
+        BRepGProp_Face gpropFace(TopoDS::Face(face->face));
+        BRepGProp_Vinert vinert;
+        vinert.SetLocation(gp_Pnt(0, 0, 0));
+        vinert.Perform(gpropFace);
+        result.mass = vinert.Mass();
+        gp_Pnt cm = vinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+OCCTFaceVolumeInertia OCCTBRepGPropVinertPlane(OCCTFaceRef _Nonnull face,
+                                                  double planeNX, double planeNY, double planeNZ,
+                                                  double planeDist) {
+    OCCTFaceVolumeInertia result = {};
+    if (!face) return result;
+    try {
+        BRepGProp_Face gpropFace(TopoDS::Face(face->face));
+        gp_Dir normal(planeNX, planeNY, planeNZ);
+        gp_Pln plane(gp_Pnt(normal.X() * planeDist, normal.Y() * planeDist, normal.Z() * planeDist), normal);
+        BRepGProp_Vinert vinert(gpropFace, plane, gp_Pnt(0, 0, 0));
+        result.mass = vinert.Mass();
+        gp_Pnt cm = vinert.CentreOfMass();
         result.centerX = cm.X();
         result.centerY = cm.Y();
         result.centerZ = cm.Z();
