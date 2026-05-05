@@ -1414,3 +1414,52 @@ double OCCTGPropConeVolume(double semiAngle, double refRadius, double height) {
         return props.Mass();
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.105: GProp Torus + GProp weighted point sets
+// MARK: - GProp Torus (v0.105.0)
+
+double OCCTGPropTorusSurface(double majorRadius, double minorRadius) {
+    try {
+        gp_Torus torus(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), majorRadius, minorRadius);
+        GProp_SelGProps props(torus, 0, 2*M_PI, 0, 2*M_PI, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropTorusVolume(double majorRadius, double minorRadius) {
+    try {
+        gp_Torus torus(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), majorRadius, minorRadius);
+        GProp_VelGProps props(torus, 0, 2*M_PI, 0, 2*M_PI, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+// MARK: - GProp weighted point sets (v0.105.0)
+
+double OCCTGPropPointSetWeightedCentroid(const double* points, const double* weights, int32_t count,
+                                          double* cx, double* cy, double* cz) {
+    *cx = 0; *cy = 0; *cz = 0;
+    try {
+        GProp_PGProps props;
+        for (int32_t i = 0; i < count; i++) {
+            gp_Pnt p(points[i*3], points[i*3+1], points[i*3+2]);
+            props.AddPoint(p, weights[i]);
+        }
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+void OCCTGPropBarycentre(const double* points, int32_t count,
+                          double* cx, double* cy, double* cz) {
+    *cx = 0; *cy = 0; *cz = 0;
+    try {
+        GProp_PGProps props;
+        for (int32_t i = 0; i < count; i++) {
+            gp_Pnt p(points[i*3], points[i*3+1], points[i*3+2]);
+            props.AddPoint(p);
+        }
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+    } catch (...) {}
+}

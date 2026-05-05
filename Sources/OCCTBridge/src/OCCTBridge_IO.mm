@@ -2319,3 +2319,239 @@ void OCCTPerfMeterRelease(OCCTPerfMeterRef meter) { delete meter; }
 void OCCTPerfMeterStart(OCCTPerfMeterRef meter) { meter->meter.Start(); }
 void OCCTPerfMeterStop(OCCTPerfMeterRef meter) { meter->meter.Stop(); }
 double OCCTPerfMeterElapsed(OCCTPerfMeterRef meter) { return meter->meter.Elapsed(); }
+
+// MARK: - v0.105: OSD_Directory + Resource_Unicode
+// MARK: - OSD_Directory (v0.105.0)
+
+#include <OSD_Directory.hxx>
+#include <OSD_Path.hxx>
+#include <OSD_Protection.hxx>
+
+bool OCCTDirectoryExists(const char* path) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        OSD_Directory dir(osdPath);
+        return dir.Exists();
+    } catch (...) { return false; }
+}
+
+bool OCCTDirectoryCreate(const char* path) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        OSD_Directory dir(osdPath);
+        OSD_Protection prot;
+        dir.Build(prot);
+        return dir.Exists();
+    } catch (...) { return false; }
+}
+
+char* OCCTDirectoryBuildTemporary(void) {
+    try {
+        OSD_Directory tmpDir = OSD_Directory::BuildTemporary();
+        OSD_Path tmpPath;
+        tmpDir.Path(tmpPath);
+        TCollection_AsciiString sysName;
+        tmpPath.SystemName(sysName);
+        return strdup(sysName.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDirectoryRemove(const char* path) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        OSD_Directory dir(osdPath);
+        if (!dir.Exists()) return false;
+        dir.Remove();
+        return !dir.Exists();
+    } catch (...) { return false; }
+}
+// MARK: - Resource_Unicode (v0.105.0)
+
+#include <Resource_Unicode.hxx>
+
+void OCCTUnicodeSetFormat(int32_t format) {
+    try {
+        Resource_FormatType fmt;
+        switch (format) {
+            case 0: fmt = Resource_FormatType_SJIS; break;
+            case 1: fmt = Resource_FormatType_EUC; break;
+            case 2: fmt = Resource_FormatType_GB; break;
+            case 3: fmt = Resource_FormatType_ANSI; break;
+            default: fmt = Resource_FormatType_ANSI; break;
+        }
+        Resource_Unicode::SetFormat(fmt);
+    } catch (...) {}
+}
+
+int32_t OCCTUnicodeGetFormat(void) {
+    try {
+        Resource_FormatType fmt = Resource_Unicode::GetFormat();
+        switch (fmt) {
+            case Resource_FormatType_SJIS: return 0;
+            case Resource_FormatType_EUC: return 1;
+            case Resource_FormatType_GB: return 2;
+            case Resource_FormatType_ANSI: return 3;
+            default: return 3;
+        }
+    } catch (...) { return 3; }
+}
+
+char* OCCTUnicodeConvertToUnicode(const char* input) {
+    try {
+        TCollection_AsciiString aStr(input);
+        TCollection_ExtendedString eStr;
+        Resource_Unicode::ConvertFormatToUnicode(aStr.ToCString(), eStr);
+        // Convert extended string to a simple C string (ASCII portion)
+        std::string result;
+        for (int i = 1; i <= eStr.Length(); i++) {
+            char16_t c = eStr.Value(i);
+            if (c < 128) {
+                result += (char)c;
+            }
+        }
+        return strdup(result.c_str());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTUnicodeConvertFromUnicode(const char* utf8Input, char* output, int32_t maxSize) {
+    try {
+        TCollection_ExtendedString eStr(utf8Input, true);
+        Standard_PCharacter buf = output;
+        bool ok = Resource_Unicode::ConvertUnicodeToFormat(eStr, buf, maxSize);
+        return ok;
+    } catch (...) { return false; }
+}
+
+// MARK: - v0.106: OSD_DirectoryIterator + OSD_FileIterator
+// MARK: - OSD_DirectoryIterator (v0.106.0)
+
+#include <OSD_DirectoryIterator.hxx>
+#include <OSD_Directory.hxx>
+
+int32_t OCCTDirectoryIteratorCount(const char* path, const char* mask) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        TCollection_AsciiString aMask(mask);
+        OSD_DirectoryIterator it(osdPath, aMask);
+        int32_t count = 0;
+        while (it.More()) {
+            count++;
+            it.Next();
+            if (count > 10000) break;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+char* OCCTDirectoryIteratorName(const char* path, const char* mask, int32_t index) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        TCollection_AsciiString aMask(mask);
+        OSD_DirectoryIterator it(osdPath, aMask);
+        int32_t i = 0;
+        while (it.More()) {
+            if (i == index) {
+                OSD_Directory dir = it.Values();
+                OSD_Path dirPath;
+                dir.Path(dirPath);
+                TCollection_AsciiString name;
+                dirPath.SystemName(name);
+                return strdup(name.ToCString());
+            }
+            i++;
+            it.Next();
+            if (i > 10000) break;
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTDirectoryList(const char* path, const char* mask, char** names, int32_t maxCount) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        TCollection_AsciiString aMask(mask);
+        OSD_DirectoryIterator it(osdPath, aMask);
+        int32_t count = 0;
+        while (it.More() && count < maxCount) {
+            OSD_Directory dir = it.Values();
+            OSD_Path dirPath;
+            dir.Path(dirPath);
+            TCollection_AsciiString name;
+            dirPath.SystemName(name);
+            names[count] = strdup(name.ToCString());
+            count++;
+            it.Next();
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+// MARK: - OSD_FileIterator (v0.106.0)
+
+#include <OSD_FileIterator.hxx>
+
+int32_t OCCTFileIteratorCount(const char* path, const char* mask) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        TCollection_AsciiString aMask(mask);
+        OSD_FileIterator it(osdPath, aMask);
+        int32_t count = 0;
+        while (it.More()) {
+            count++;
+            it.Next();
+            if (count > 10000) break;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+char* OCCTFileIteratorName(const char* path, const char* mask, int32_t index) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        TCollection_AsciiString aMask(mask);
+        OSD_FileIterator it(osdPath, aMask);
+        int32_t i = 0;
+        while (it.More()) {
+            if (i == index) {
+                OSD_File file = it.Values();
+                OSD_Path filePath;
+                file.Path(filePath);
+                TCollection_AsciiString name;
+                filePath.SystemName(name);
+                return strdup(name.ToCString());
+            }
+            i++;
+            it.Next();
+            if (i > 10000) break;
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTFileList(const char* path, const char* mask, char** names, int32_t maxCount) {
+    try {
+        TCollection_AsciiString aPath(path);
+        OSD_Path osdPath(aPath);
+        TCollection_AsciiString aMask(mask);
+        OSD_FileIterator it(osdPath, aMask);
+        int32_t count = 0;
+        while (it.More() && count < maxCount) {
+            OSD_File file = it.Values();
+            OSD_Path filePath;
+            file.Path(filePath);
+            TCollection_AsciiString name;
+            filePath.SystemName(name);
+            names[count] = strdup(name.ToCString());
+            count++;
+            it.Next();
+        }
+        return count;
+    } catch (...) { return 0; }
+}

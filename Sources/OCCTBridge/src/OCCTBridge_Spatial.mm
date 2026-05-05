@@ -920,3 +920,183 @@ bool OCCTIntAnaCylinderSphereIdentical(double cylRadius,
         return iqq.IsDone() && iqq.IdenticalElements();
     } catch (...) { return false; }
 }
+
+// MARK: - v0.105: BndLib extras + IntAna extensions
+// MARK: - BndLib extras (v0.105.0)
+
+#include <BndLib.hxx>
+#include <Bnd_Box.hxx>
+
+static void fillBounds6(const Bnd_Box& box, double* bounds6) {
+    double x0, y0, z0, x1, y1, z1;
+    box.Get(x0, y0, z0, x1, y1, z1);
+    bounds6[0] = x0; bounds6[1] = y0; bounds6[2] = z0;
+    bounds6[3] = x1; bounds6[4] = y1; bounds6[5] = z1;
+}
+
+void OCCTBndLibEllipse(double cx, double cy, double cz,
+                        double nx, double ny, double nz,
+                        double xdx, double xdy, double xdz,
+                        double major, double minor, double tol,
+                        double* bounds6) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), gp_Dir(xdx, xdy, xdz));
+        gp_Elips elips(ax, major, minor);
+        Bnd_Box box;
+        BndLib::Add(elips, tol, box);
+        fillBounds6(box, bounds6);
+    } catch (...) {
+        for (int i = 0; i < 6; i++) bounds6[i] = 0;
+    }
+}
+
+void OCCTBndLibCone(double cx, double cy, double cz,
+                     double nx, double ny, double nz,
+                     double semiAngle, double refRadius,
+                     double vmin, double vmax, double tol,
+                     double* bounds6) {
+    try {
+        gp_Ax3 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Cone cone(ax, semiAngle, refRadius);
+        Bnd_Box box;
+        BndLib::Add(cone, vmin, vmax, tol, box);
+        fillBounds6(box, bounds6);
+    } catch (...) {
+        for (int i = 0; i < 6; i++) bounds6[i] = 0;
+    }
+}
+
+void OCCTBndLibCircleArc(double cx, double cy, double cz,
+                          double nx, double ny, double nz,
+                          double radius, double u1, double u2, double tol,
+                          double* bounds6) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Circ circ(ax, radius);
+        Bnd_Box box;
+        BndLib::Add(circ, u1, u2, tol, box);
+        fillBounds6(box, bounds6);
+    } catch (...) {
+        for (int i = 0; i < 6; i++) bounds6[i] = 0;
+    }
+}
+
+void OCCTBndLibEllipseArc(double cx, double cy, double cz,
+                           double nx, double ny, double nz,
+                           double xdx, double xdy, double xdz,
+                           double major, double minor,
+                           double u1, double u2, double tol,
+                           double* bounds6) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), gp_Dir(xdx, xdy, xdz));
+        gp_Elips elips(ax, major, minor);
+        Bnd_Box box;
+        BndLib::Add(elips, u1, u2, tol, box);
+        fillBounds6(box, bounds6);
+    } catch (...) {
+        for (int i = 0; i < 6; i++) bounds6[i] = 0;
+    }
+}
+
+void OCCTBndLibParabolaArc(double cx, double cy, double cz,
+                            double nx, double ny, double nz,
+                            double xdx, double xdy, double xdz,
+                            double focal, double u1, double u2, double tol,
+                            double* bounds6) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), gp_Dir(xdx, xdy, xdz));
+        gp_Parab parab(ax, focal);
+        Bnd_Box box;
+        BndLib::Add(parab, u1, u2, tol, box);
+        fillBounds6(box, bounds6);
+    } catch (...) {
+        for (int i = 0; i < 6; i++) bounds6[i] = 0;
+    }
+}
+
+void OCCTBndLibHyperbolaArc(double cx, double cy, double cz,
+                             double nx, double ny, double nz,
+                             double xdx, double xdy, double xdz,
+                             double major, double minor,
+                             double u1, double u2, double tol,
+                             double* bounds6) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), gp_Dir(xdx, xdy, xdz));
+        gp_Hypr hypr(ax, major, minor);
+        Bnd_Box box;
+        BndLib::Add(hypr, u1, u2, tol, box);
+        fillBounds6(box, bounds6);
+    } catch (...) {
+        for (int i = 0; i < 6; i++) bounds6[i] = 0;
+    }
+}
+// MARK: - IntAna extensions (v0.105.0)
+
+#include <IntAna_Curve.hxx>
+
+int32_t OCCTIntAnaConeSphere(double semiAngle, double refRadius,
+                              double sphCx, double sphCy, double sphCz, double sphRadius,
+                              double tol) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), semiAngle, refRadius);
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sphCx, sphCy, sphCz), gp_Dir(0,0,1)), sphRadius));
+        IntAna_IntQuadQuad iqq(cone, quad, tol);
+        if (!iqq.IsDone()) return -1;
+        if (iqq.IdenticalElements()) return -2;
+        return (int32_t)iqq.NbCurve();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTIntAnaConeSpherePoints(double semiAngle, double refRadius,
+                                    double sphCx, double sphCy, double sphCz, double sphRadius,
+                                    double tol, int32_t curveIndex, int32_t nbSamples,
+                                    double* xs, double* ys, double* zs) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), semiAngle, refRadius);
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sphCx, sphCy, sphCz), gp_Dir(0,0,1)), sphRadius));
+        IntAna_IntQuadQuad iqq(cone, quad, tol);
+        if (!iqq.IsDone() || curveIndex < 1 || curveIndex > (int32_t)iqq.NbCurve()) return 0;
+        IntAna_Curve curve = iqq.Curve(curveIndex);
+        double first, last;
+        curve.Domain(first, last);
+        int32_t actual = nbSamples;
+        for (int32_t i = 0; i < actual; i++) {
+            double t = first + (last - first) * i / (actual - 1);
+            gp_Pnt p = curve.Value(t);
+            xs[i] = p.X(); ys[i] = p.Y(); zs[i] = p.Z();
+        }
+        return actual;
+    } catch (...) { return 0; }
+}
+
+bool OCCTIntAnaConeSphereIsOpen(double semiAngle, double refRadius,
+                                 double sphCx, double sphCy, double sphCz, double sphRadius,
+                                 double tol, int32_t curveIndex) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), semiAngle, refRadius);
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sphCx, sphCy, sphCz), gp_Dir(0,0,1)), sphRadius));
+        IntAna_IntQuadQuad iqq(cone, quad, tol);
+        if (!iqq.IsDone() || curveIndex < 1 || curveIndex > (int32_t)iqq.NbCurve()) return true;
+        IntAna_Curve curve = iqq.Curve(curveIndex);
+        return curve.IsOpen();
+    } catch (...) { return true; }
+}
+
+void OCCTIntAnaConeSphereGetDomain(double semiAngle, double refRadius,
+                                    double sphCx, double sphCy, double sphCz, double sphRadius,
+                                    double tol, int32_t curveIndex,
+                                    double* first, double* last) {
+    *first = 0; *last = 0;
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), semiAngle, refRadius);
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sphCx, sphCy, sphCz), gp_Dir(0,0,1)), sphRadius));
+        IntAna_IntQuadQuad iqq(cone, quad, tol);
+        if (!iqq.IsDone() || curveIndex < 1 || curveIndex > (int32_t)iqq.NbCurve()) return;
+        IntAna_Curve curve = iqq.Curve(curveIndex);
+        curve.Domain(*first, *last);
+    } catch (...) {}
+}

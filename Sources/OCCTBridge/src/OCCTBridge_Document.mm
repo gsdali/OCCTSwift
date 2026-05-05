@@ -6701,3 +6701,70 @@ OCCTShapeRef OCCTDocumentExplorerFindShape(OCCTDocumentRef docRef, const char* p
         return result;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.105: XCAFPrs_DocumentExplorer extensions
+// MARK: - XCAFPrs_DocumentExplorer extensions (v0.105.0)
+
+int32_t OCCTDocumentExplorerDepth(OCCTDocumentRef docRef, int32_t index) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t i = 0;
+        while (explorer.More()) {
+            if (i == index) {
+                return (int32_t)explorer.CurrentDepth();
+            }
+            i++;
+            explorer.Next();
+        }
+        return 0;
+    } catch (...) { return 0; }
+}
+
+bool OCCTDocumentExplorerIsAssembly(OCCTDocumentRef docRef, int32_t index) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t i = 0;
+        while (explorer.More()) {
+            if (i == index) {
+                const XCAFPrs_DocumentNode& node = explorer.Current();
+                return shapeTool->IsAssembly(node.Label);
+            }
+            i++;
+            explorer.Next();
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+void OCCTDocumentExplorerLocation(OCCTDocumentRef docRef, int32_t index, double* matrix12) {
+    for (int i = 0; i < 12; i++) matrix12[i] = (i % 4 == i / 3) ? 1.0 : 0.0; // identity
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t i = 0;
+        while (explorer.More()) {
+            if (i == index) {
+                const XCAFPrs_DocumentNode& node = explorer.Current();
+                TopLoc_Location loc = node.Location;
+                if (!loc.IsIdentity()) {
+                    gp_Trsf trsf = loc.IsIdentity() ? gp_Trsf() : loc.IsIdentity() ? gp_Trsf() : loc.IsIdentity() ? gp_Trsf() : loc.Transformation();
+                    for (int r = 1; r <= 3; r++) {
+                        for (int c = 1; c <= 4; c++) {
+                            matrix12[(r-1)*4 + (c-1)] = trsf.Value(r, c);
+                        }
+                    }
+                } else {
+                    // Identity matrix
+                    for (int j = 0; j < 12; j++) matrix12[j] = 0;
+                    matrix12[0] = 1; matrix12[5] = 1; matrix12[10] = 1; // diag = 1
+                }
+                return;
+            }
+            i++;
+            explorer.Next();
+        }
+    } catch (...) {}
+}
