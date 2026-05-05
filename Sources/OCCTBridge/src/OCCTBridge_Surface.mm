@@ -3757,3 +3757,461 @@ void OCCTSurfaceGetNBounds(OCCTSurfaceRef surface, int32_t* uSpans, int32_t* vSp
         *vSpans = (v2 > v1) ? 1 : 0;
     } catch (...) {}
 }
+
+// MARK: - v0.107: Geom_BSplineSurface Methods
+// MARK: - Geom_BSplineSurface Methods (v0.107.0)
+
+int32_t OCCTSurfaceBSplineNbUKnots(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->NbUKnots();
+}
+
+int32_t OCCTSurfaceBSplineNbVKnots(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->NbVKnots();
+}
+
+int32_t OCCTSurfaceBSplineNbUPoles(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->NbUPoles();
+}
+
+int32_t OCCTSurfaceBSplineNbVPoles(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->NbVPoles();
+}
+
+int32_t OCCTSurfaceBSplineUDegree(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->UDegree();
+}
+
+int32_t OCCTSurfaceBSplineVDegree(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    return bs->VDegree();
+}
+
+bool OCCTSurfaceBSplineIsURational(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    return bs->IsURational();
+}
+
+bool OCCTSurfaceBSplineIsVRational(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    return bs->IsVRational();
+}
+
+void OCCTSurfaceBSplineGetPole(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    if (uIndex < 1 || uIndex > bs->NbUPoles() || vIndex < 1 || vIndex > bs->NbVPoles()) return;
+    gp_Pnt p = bs->Pole(uIndex, vIndex);
+    *x = p.X(); *y = p.Y(); *z = p.Z();
+}
+
+bool OCCTSurfaceBSplineSetPole(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex, double x, double y, double z) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetPole(uIndex, vIndex, gp_Pnt(x, y, z)); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetWeight(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex, double weight) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetWeight(uIndex, vIndex, weight); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineInsertUKnot(OCCTSurfaceRef surface, double u, int32_t mult, double tol) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->InsertUKnot(u, mult, tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineInsertVKnot(OCCTSurfaceRef surface, double v, int32_t mult, double tol) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->InsertVKnot(v, mult, tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSegment(OCCTSurfaceRef surface, double u1, double u2, double v1, double v2) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->Segment(u1, u2, v1, v2); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncreaseDegree(OCCTSurfaceRef surface, int32_t uDeg, int32_t vDeg) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseDegree(uDeg, vDeg); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineExchangeUV(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->ExchangeUV(); return true; } catch (...) { return false; }
+}
+
+// MARK: - v0.108: Geom_Plane/Spherical/Toroidal/SurfaceOfRevolution/Cylindrical/Conical/Swept Methods
+// MARK: - Geom_Plane Methods (v0.108.0)
+
+void OCCTSurfacePlaneCoefficients(OCCTSurfaceRef surface, double* A, double* B, double* C, double* D) {
+    *A = 0; *B = 0; *C = 0; *D = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_Plane) p = Handle(Geom_Plane)::DownCast(surface->surface);
+        if (p.IsNull()) return;
+        p->Coefficients(*A, *B, *C, *D);
+    } catch (...) {}
+}
+
+OCCTCurve3DRef OCCTSurfacePlaneUIso(OCCTSurfaceRef surface, double u) {
+    if (!surface) return nullptr;
+    try {
+        Handle(Geom_Plane) p = Handle(Geom_Plane)::DownCast(surface->surface);
+        if (p.IsNull()) return nullptr;
+        Handle(Geom_Curve) iso = p->UIso(u);
+        if (iso.IsNull()) return nullptr;
+        return new OCCTCurve3D(iso);
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTSurfacePlaneVIso(OCCTSurfaceRef surface, double v) {
+    if (!surface) return nullptr;
+    try {
+        Handle(Geom_Plane) p = Handle(Geom_Plane)::DownCast(surface->surface);
+        if (p.IsNull()) return nullptr;
+        Handle(Geom_Curve) iso = p->VIso(v);
+        if (iso.IsNull()) return nullptr;
+        return new OCCTCurve3D(iso);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTSurfacePlanePln(OCCTSurfaceRef surface, double* px, double* py, double* pz, double* nx, double* ny, double* nz) {
+    *px = 0; *py = 0; *pz = 0; *nx = 0; *ny = 0; *nz = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_Plane) p = Handle(Geom_Plane)::DownCast(surface->surface);
+        if (p.IsNull()) return;
+        gp_Pln pln = p->Pln();
+        gp_Pnt loc = pln.Location();
+        gp_Dir norm = pln.Axis().Direction();
+        *px = loc.X(); *py = loc.Y(); *pz = loc.Z();
+        *nx = norm.X(); *ny = norm.Y(); *nz = norm.Z();
+    } catch (...) {}
+}
+// MARK: - Geom_SphericalSurface Methods (v0.108.0)
+
+double OCCTSurfaceSphereRadius(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_SphericalSurface) s = Handle(Geom_SphericalSurface)::DownCast(surface->surface);
+        if (s.IsNull()) return 0;
+        return s->Radius();
+    } catch (...) { return 0; }
+}
+
+bool OCCTSurfaceSphereSetRadius(OCCTSurfaceRef surface, double radius) {
+    if (!surface) return false;
+    try {
+        Handle(Geom_SphericalSurface) s = Handle(Geom_SphericalSurface)::DownCast(surface->surface);
+        if (s.IsNull()) return false;
+        s->SetRadius(radius);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTSurfaceSphereArea(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_SphericalSurface) s = Handle(Geom_SphericalSurface)::DownCast(surface->surface);
+        if (s.IsNull()) return 0;
+        return s->Area();
+    } catch (...) { return 0; }
+}
+
+double OCCTSurfaceSphereVolume(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_SphericalSurface) s = Handle(Geom_SphericalSurface)::DownCast(surface->surface);
+        if (s.IsNull()) return 0;
+        return s->Volume();
+    } catch (...) { return 0; }
+}
+
+void OCCTSurfaceSphereCenter(OCCTSurfaceRef surface, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_SphericalSurface) s = Handle(Geom_SphericalSurface)::DownCast(surface->surface);
+        if (s.IsNull()) return;
+        gp_Pnt c = s->Sphere().Location();
+        *x = c.X(); *y = c.Y(); *z = c.Z();
+    } catch (...) {}
+}
+
+OCCTCurve3DRef OCCTSurfaceSphereUIso(OCCTSurfaceRef surface, double u) {
+    if (!surface) return nullptr;
+    try {
+        Handle(Geom_SphericalSurface) s = Handle(Geom_SphericalSurface)::DownCast(surface->surface);
+        if (s.IsNull()) return nullptr;
+        Handle(Geom_Curve) iso = s->UIso(u);
+        if (iso.IsNull()) return nullptr;
+        return new OCCTCurve3D(iso);
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTSurfaceSphereVIso(OCCTSurfaceRef surface, double v) {
+    if (!surface) return nullptr;
+    try {
+        Handle(Geom_SphericalSurface) s = Handle(Geom_SphericalSurface)::DownCast(surface->surface);
+        if (s.IsNull()) return nullptr;
+        Handle(Geom_Curve) iso = s->VIso(v);
+        if (iso.IsNull()) return nullptr;
+        return new OCCTCurve3D(iso);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTSurfaceSphereSphere(OCCTSurfaceRef surface, double* cx, double* cy, double* cz, double* radius) {
+    *cx = 0; *cy = 0; *cz = 0; *radius = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_SphericalSurface) s = Handle(Geom_SphericalSurface)::DownCast(surface->surface);
+        if (s.IsNull()) return;
+        gp_Sphere sph = s->Sphere();
+        gp_Pnt c = sph.Location();
+        *cx = c.X(); *cy = c.Y(); *cz = c.Z();
+        *radius = sph.Radius();
+    } catch (...) {}
+}
+
+// MARK: - Geom_ToroidalSurface Methods (v0.108.0)
+
+double OCCTSurfaceTorusMajorRadius(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_ToroidalSurface) t = Handle(Geom_ToroidalSurface)::DownCast(surface->surface);
+        if (t.IsNull()) return 0;
+        return t->MajorRadius();
+    } catch (...) { return 0; }
+}
+
+double OCCTSurfaceTorusMinorRadius(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_ToroidalSurface) t = Handle(Geom_ToroidalSurface)::DownCast(surface->surface);
+        if (t.IsNull()) return 0;
+        return t->MinorRadius();
+    } catch (...) { return 0; }
+}
+
+bool OCCTSurfaceTorusSetMajorRadius(OCCTSurfaceRef surface, double r) {
+    if (!surface) return false;
+    try {
+        Handle(Geom_ToroidalSurface) t = Handle(Geom_ToroidalSurface)::DownCast(surface->surface);
+        if (t.IsNull()) return false;
+        t->SetMajorRadius(r);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceTorusSetMinorRadius(OCCTSurfaceRef surface, double r) {
+    if (!surface) return false;
+    try {
+        Handle(Geom_ToroidalSurface) t = Handle(Geom_ToroidalSurface)::DownCast(surface->surface);
+        if (t.IsNull()) return false;
+        t->SetMinorRadius(r);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTSurfaceTorusArea(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_ToroidalSurface) t = Handle(Geom_ToroidalSurface)::DownCast(surface->surface);
+        if (t.IsNull()) return 0;
+        return t->Area();
+    } catch (...) { return 0; }
+}
+
+double OCCTSurfaceTorusVolume(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_ToroidalSurface) t = Handle(Geom_ToroidalSurface)::DownCast(surface->surface);
+        if (t.IsNull()) return 0;
+        return t->Volume();
+    } catch (...) { return 0; }
+}
+
+void OCCTSurfaceTorusAxis(OCCTSurfaceRef surface, double* px, double* py, double* pz, double* dx, double* dy, double* dz) {
+    *px = 0; *py = 0; *pz = 0; *dx = 0; *dy = 0; *dz = 1;
+    if (!surface) return;
+    try {
+        Handle(Geom_ToroidalSurface) t = Handle(Geom_ToroidalSurface)::DownCast(surface->surface);
+        if (t.IsNull()) return;
+        gp_Ax1 a = t->Axis();
+        const gp_Pnt& p = a.Location();
+        const gp_Dir& d = a.Direction();
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *dx = d.X(); *dy = d.Y(); *dz = d.Z();
+    } catch (...) {}
+}
+// MARK: - Geom_SurfaceOfRevolution Methods (v0.137)
+
+void OCCTSurfaceRevolutionAxis(OCCTSurfaceRef surface, double* px, double* py, double* pz, double* dx, double* dy, double* dz) {
+    *px = 0; *py = 0; *pz = 0; *dx = 0; *dy = 0; *dz = 1;
+    if (!surface) return;
+    try {
+        Handle(Geom_SurfaceOfRevolution) r = Handle(Geom_SurfaceOfRevolution)::DownCast(surface->surface);
+        if (r.IsNull()) return;
+        gp_Ax1 a = r->Axis();
+        const gp_Pnt& p = a.Location();
+        const gp_Dir& d = a.Direction();
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *dx = d.X(); *dy = d.Y(); *dz = d.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceRevolutionLocation(OCCTSurfaceRef surface, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_SurfaceOfRevolution) r = Handle(Geom_SurfaceOfRevolution)::DownCast(surface->surface);
+        if (r.IsNull()) return;
+        gp_Pnt p = r->Location();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+// MARK: - Geom_CylindricalSurface Methods (v0.108.0)
+
+double OCCTSurfaceCylinderRadius(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_CylindricalSurface) c = Handle(Geom_CylindricalSurface)::DownCast(surface->surface);
+        if (c.IsNull()) return 0;
+        return c->Radius();
+    } catch (...) { return 0; }
+}
+
+bool OCCTSurfaceCylinderSetRadius(OCCTSurfaceRef surface, double r) {
+    if (!surface) return false;
+    try {
+        Handle(Geom_CylindricalSurface) c = Handle(Geom_CylindricalSurface)::DownCast(surface->surface);
+        if (c.IsNull()) return false;
+        c->SetRadius(r);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTSurfaceCylinderAxis(OCCTSurfaceRef surface, double* px, double* py, double* pz, double* dx, double* dy, double* dz) {
+    *px = 0; *py = 0; *pz = 0; *dx = 0; *dy = 0; *dz = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_CylindricalSurface) c = Handle(Geom_CylindricalSurface)::DownCast(surface->surface);
+        if (c.IsNull()) return;
+        gp_Ax1 ax = c->Cylinder().Axis();
+        *px = ax.Location().X(); *py = ax.Location().Y(); *pz = ax.Location().Z();
+        *dx = ax.Direction().X(); *dy = ax.Direction().Y(); *dz = ax.Direction().Z();
+    } catch (...) {}
+}
+
+OCCTCurve3DRef OCCTSurfaceCylinderUIso(OCCTSurfaceRef surface, double u) {
+    if (!surface) return nullptr;
+    try {
+        Handle(Geom_CylindricalSurface) c = Handle(Geom_CylindricalSurface)::DownCast(surface->surface);
+        if (c.IsNull()) return nullptr;
+        Handle(Geom_Curve) iso = c->UIso(u);
+        if (iso.IsNull()) return nullptr;
+        return new OCCTCurve3D(iso);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Geom_ConicalSurface Methods (v0.108.0)
+
+double OCCTSurfaceConeSemiAngle(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_ConicalSurface) c = Handle(Geom_ConicalSurface)::DownCast(surface->surface);
+        if (c.IsNull()) return 0;
+        return c->SemiAngle();
+    } catch (...) { return 0; }
+}
+
+double OCCTSurfaceConeRefRadius(OCCTSurfaceRef surface) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_ConicalSurface) c = Handle(Geom_ConicalSurface)::DownCast(surface->surface);
+        if (c.IsNull()) return 0;
+        return c->RefRadius();
+    } catch (...) { return 0; }
+}
+
+void OCCTSurfaceConeApex(OCCTSurfaceRef surface, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_ConicalSurface) c = Handle(Geom_ConicalSurface)::DownCast(surface->surface);
+        if (c.IsNull()) return;
+        gp_Pnt a = c->Apex();
+        *x = a.X(); *y = a.Y(); *z = a.Z();
+    } catch (...) {}
+}
+
+void OCCTSurfaceConeAxis(OCCTSurfaceRef surface, double* px, double* py, double* pz, double* dx, double* dy, double* dz) {
+    *px = 0; *py = 0; *pz = 0; *dx = 0; *dy = 0; *dz = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_ConicalSurface) c = Handle(Geom_ConicalSurface)::DownCast(surface->surface);
+        if (c.IsNull()) return;
+        gp_Ax1 ax = c->Cone().Axis();
+        *px = ax.Location().X(); *py = ax.Location().Y(); *pz = ax.Location().Z();
+        *dx = ax.Direction().X(); *dy = ax.Direction().Y(); *dz = ax.Direction().Z();
+    } catch (...) {}
+}
+// MARK: - Geom_SweptSurface Methods (v0.108.0)
+
+void OCCTSurfaceSweptDirection(OCCTSurfaceRef surface, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!surface) return;
+    try {
+        Handle(Geom_SweptSurface) sw = Handle(Geom_SweptSurface)::DownCast(surface->surface);
+        if (sw.IsNull()) return;
+        gp_Dir d = sw->Direction();
+        *dx = d.X(); *dy = d.Y(); *dz = d.Z();
+    } catch (...) {}
+}
+
+OCCTCurve3DRef OCCTSurfaceSweptBasisCurve(OCCTSurfaceRef surface) {
+    if (!surface) return nullptr;
+    try {
+        Handle(Geom_SweptSurface) sw = Handle(Geom_SweptSurface)::DownCast(surface->surface);
+        if (sw.IsNull()) return nullptr;
+        Handle(Geom_Curve) basis = sw->BasisCurve();
+        if (basis.IsNull()) return nullptr;
+        return new OCCTCurve3D(basis);
+    } catch (...) { return nullptr; }
+}

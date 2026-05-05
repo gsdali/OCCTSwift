@@ -33,6 +33,8 @@
 #include <TopCnx_EdgeFaceTransition.hxx>
 #include <TopTrans_SurfaceTransition.hxx>
 #include <BRepIntCurveSurface_Inter.hxx>
+#include <BRepTools.hxx>
+#include <BRepLib.hxx>
 #include <BRepExtrema_DistanceSS.hxx>
 #include <BRepExtrema_SolutionElem.hxx>
 #include <BRepLib_FindSurface.hxx>
@@ -2341,4 +2343,132 @@ int32_t OCCTShapeNbChildren(OCCTShapeRef shape) {
 int32_t OCCTShapeHashCode(OCCTShapeRef shape) {
     if (!shape) return 0;
     return static_cast<int32_t>(std::hash<TopoDS_Shape>{}(shape->shape) & 0x7FFFFFFF);
+}
+
+// MARK: - v0.107: BRepTools/BRepLib Utilities + Edge/Face Extraction
+// MARK: - BRepTools/BRepLib Utilities (v0.107.0)
+
+void OCCTShapeClean(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::Clean(shape->shape); } catch (...) {}
+}
+
+void OCCTShapeCleanGeometry(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::CleanGeometry(shape->shape); } catch (...) {}
+}
+
+void OCCTShapeRemoveUnusedPCurves(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::RemoveUnusedPCurves(shape->shape); } catch (...) {}
+}
+
+void OCCTShapeUpdate(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepTools::Update(shape->shape); } catch (...) {}
+}
+
+bool OCCTBRepLibCheckSameRange(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try { return BRepLib::CheckSameRange(TopoDS::Edge(edge->shape)); } catch (...) { return false; }
+}
+
+bool OCCTBRepLibSameRange(OCCTShapeRef edge, double tol) {
+    if (!edge) return false;
+    try { BRepLib::SameRange(TopoDS::Edge(edge->shape), tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTBRepLibBuildCurve3d(OCCTShapeRef edge, double tol) {
+    if (!edge) return false;
+    try { return BRepLib::BuildCurve3d(TopoDS::Edge(edge->shape), tol); } catch (...) { return false; }
+}
+
+void OCCTBRepLibUpdateTolerances(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepLib::UpdateTolerances(shape->shape); } catch (...) {}
+}
+
+void OCCTBRepLibUpdateInnerTolerances(OCCTShapeRef shape) {
+    if (!shape) return;
+    try { BRepLib::UpdateInnerTolerances(shape->shape); } catch (...) {}
+}
+
+bool OCCTBRepLibUpdateEdgeTolerance(OCCTShapeRef edge, double tol) {
+    if (!edge) return false;
+    try { return BRepLib::UpdateEdgeTol(TopoDS::Edge(edge->shape), tol, tol * 100.0); } catch (...) { return false; }
+}
+// MARK: - Edge/Face Extraction (v0.107.0)
+
+OCCTCurve3DRef OCCTEdgeExtractCurve3D(OCCTShapeRef edge, double* first, double* last) {
+    *first = 0; *last = 0;
+    if (!edge) return nullptr;
+    try {
+        double f, l;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(TopoDS::Edge(edge->shape), f, l);
+        if (curve.IsNull()) return nullptr;
+        *first = f; *last = l;
+        auto result = new OCCTCurve3D(curve);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTEdgeExtractPCurve(OCCTShapeRef edge, OCCTShapeRef face, double* first, double* last) {
+    *first = 0; *last = 0;
+    if (!edge || !face) return nullptr;
+    try {
+        double f, l;
+        Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(
+            TopoDS::Edge(edge->shape), TopoDS::Face(face->shape), f, l);
+        if (pcurve.IsNull()) return nullptr;
+        *first = f; *last = l;
+        auto result = new OCCTCurve2D(pcurve);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTEdgeGetTolerance(OCCTShapeRef edge) {
+    if (!edge) return 0;
+    try { return BRep_Tool::Tolerance(TopoDS::Edge(edge->shape)); } catch (...) { return 0; }
+}
+
+bool OCCTEdgeIsDegenerated(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try { return BRep_Tool::Degenerated(TopoDS::Edge(edge->shape)); } catch (...) { return false; }
+}
+
+OCCTSurfaceRef OCCTFaceExtractSurface(OCCTShapeRef face) {
+    if (!face) return nullptr;
+    try {
+        Handle(Geom_Surface) surf = BRep_Tool::Surface(TopoDS::Face(face->shape));
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) { return nullptr; }
+}
+
+double OCCTFaceGetTolerance(OCCTShapeRef face) {
+    if (!face) return 0;
+    try { return BRep_Tool::Tolerance(TopoDS::Face(face->shape)); } catch (...) { return 0; }
+}
+
+int32_t OCCTFaceWireCount(OCCTShapeRef face) {
+    if (!face) return 0;
+    try {
+        int count = 0;
+        for (TopExp_Explorer ex(face->shape, TopAbs_WIRE); ex.More(); ex.Next()) count++;
+        return count;
+    } catch (...) { return 0; }
+}
+
+double OCCTVertexGetTolerance(OCCTShapeRef vertex) {
+    if (!vertex) return 0;
+    try { return BRep_Tool::Tolerance(TopoDS::Vertex(vertex->shape)); } catch (...) { return 0; }
+}
+
+void OCCTVertexGetPoint(OCCTShapeRef vertex, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!vertex) return;
+    try {
+        gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(vertex->shape));
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
 }

@@ -6789,3 +6789,124 @@ void OCCTPipeShellSimulateFree(OCCTShapeRef* shapes, int32_t count) {
     }
     free(shapes);
 }
+
+// MARK: - v0.107: MakeFace Extras + Sewing
+// MARK: - MakeFace Extras (v0.107.0)
+
+OCCTShapeRef OCCTMakeFaceFromSphere(double cx, double cy, double cz, double radius, double umin, double umax, double vmin, double vmax) {
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(0, 0, 1)), radius);
+        BRepBuilderAPI_MakeFace mf(sphere, umin, umax, vmin, vmax);
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceFromTorus(double cx, double cy, double cz, double nx, double ny, double nz, double major, double minor, double umin, double umax, double vmin, double vmax) {
+    try {
+        gp_Torus torus(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), major, minor);
+        BRepBuilderAPI_MakeFace mf(torus, umin, umax, vmin, vmax);
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceFromCone(double cx, double cy, double cz, double nx, double ny, double nz, double angle, double radius, double umin, double umax, double vmin, double vmax) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), angle, radius);
+        BRepBuilderAPI_MakeFace mf(cone, umin, umax, vmin, vmax);
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceFromSurfaceWire(OCCTSurfaceRef surface, OCCTShapeRef wire, bool inside) {
+    if (!surface || surface->surface.IsNull() || !wire) return nullptr;
+    try {
+        BRepBuilderAPI_MakeFace mf(surface->surface, TopoDS::Wire(wire->shape), inside);
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceAddHole(OCCTShapeRef face, OCCTShapeRef wire) {
+    if (!face || !wire) return nullptr;
+    try {
+        BRepBuilderAPI_MakeFace mf(TopoDS::Face(face->shape));
+        mf.Add(TopoDS::Wire(wire->shape));
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceCopy(OCCTShapeRef face) {
+    if (!face) return nullptr;
+    try {
+        BRepBuilderAPI_MakeFace mf(TopoDS::Face(face->shape));
+        if (!mf.IsDone()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = mf.Shape();
+        return result;
+    } catch (...) { return nullptr; }
+}
+// MARK: - Sewing (v0.107.0)
+
+// OCCTSewing struct duplicated in main bridge (ODR-safe across TUs)
+struct OCCTSewing {
+    BRepBuilderAPI_Sewing sewing;
+    OCCTSewing(double tol) : sewing(tol) {}
+};
+
+OCCTSewingRef OCCTSewingCreate(double tolerance) {
+    try { return new OCCTSewing(tolerance); } catch (...) { return nullptr; }
+}
+
+void OCCTSewingRelease(OCCTSewingRef sewing) {
+    delete sewing;
+}
+
+void OCCTSewingAdd(OCCTSewingRef sewing, OCCTShapeRef shape) {
+    if (!sewing || !shape) return;
+    try { sewing->sewing.Add(shape->shape); } catch (...) {}
+}
+
+void OCCTSewingPerform(OCCTSewingRef sewing) {
+    if (!sewing) return;
+    try { sewing->sewing.Perform(); } catch (...) {}
+}
+
+OCCTShapeRef OCCTSewingResult(OCCTSewingRef sewing) {
+    if (!sewing) return nullptr;
+    try {
+        TopoDS_Shape result = sewing->sewing.SewedShape();
+        if (result.IsNull()) return nullptr;
+        auto r = new OCCTShape();
+        r->shape = result;
+        return r;
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTSewingNbFreeEdges(OCCTSewingRef sewing) {
+    if (!sewing) return 0;
+    try { return sewing->sewing.NbFreeEdges(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSewingNbContigousEdges(OCCTSewingRef sewing) {
+    if (!sewing) return 0;
+    try { return sewing->sewing.NbContigousEdges(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSewingNbDegeneratedShapes(OCCTSewingRef sewing) {
+    if (!sewing) return 0;
+    try { return sewing->sewing.NbDegeneratedShapes(); } catch (...) { return 0; }
+}
