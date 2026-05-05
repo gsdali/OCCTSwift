@@ -4911,3 +4911,71 @@ double OCCTCurve3DBezierResolution(OCCTCurve3DRef _Nonnull curve, double toleran
 int32_t OCCTCurve3DBezierMaxDegree(void) {
     return Geom_BezierCurve::MaxDegree();
 }
+
+// MARK: - v0.121: BSplineCurve 3D completions
+// --- BSplineCurve 3D completions ---
+
+bool OCCTCurve3DBSplineSetNotPeriodic(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->SetNotPeriodic(); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineSetOrigin(OCCTCurve3DRef curve, int32_t index) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->SetOrigin(index); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineIncreaseMultiplicity(OCCTCurve3DRef curve, int32_t index, int32_t mult) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseMultiplicity(index, mult); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineIncrementMultiplicity(OCCTCurve3DRef curve, int32_t index1, int32_t index2, int32_t step) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncrementMultiplicity(index1, index2, step); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineSetKnots(OCCTCurve3DRef curve, const double* knots, int32_t count) {
+    if (!curve || curve->curve.IsNull() || !knots || count <= 0) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || count != bs->NbKnots()) return false;
+    try {
+        TColStd_Array1OfReal kArr(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            kArr.SetValue(i + 1, knots[i]);
+        }
+        bs->SetKnots(kArr);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineReverse(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->Reverse(); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineMovePointAndTangent(OCCTCurve3DRef curve, double u,
+                                            double px, double py, double pz,
+                                            double tx, double ty, double tz,
+                                            double tolerance,
+                                            int32_t startIndex, int32_t endIndex) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom_BSplineCurve) bs = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try {
+        Standard_Integer errorStatus = 0;
+        bs->MovePointAndTangent(u, gp_Pnt(px, py, pz), gp_Vec(tx, ty, tz),
+                                tolerance, startIndex, endIndex, errorStatus);
+        return (errorStatus == 0);
+    } catch (...) { return false; }
+}

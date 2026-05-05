@@ -4217,3 +4217,109 @@ bool OCCTShapeBooleanCheckPair(OCCTShapeRef shape1, OCCTShapeRef shape2,
 
 // === BRepAlgoAPI_Defeaturing ===
 #include <BRepAlgoAPI_Defeaturing.hxx>
+
+// MARK: - v0.124: WireAnalyzer (ShapeAnalysis_Wire)
+// --- WireAnalyzer (ShapeAnalysis_Wire) ---
+
+#include <ShapeAnalysis_Wire.hxx>
+#include <TopoDS.hxx>
+
+struct OCCTWireAnalyzer {
+    Handle(ShapeAnalysis_Wire) analyzer;
+    OCCTWireAnalyzer(const TopoDS_Wire& w, const TopoDS_Face& f, double prec) {
+        analyzer = new ShapeAnalysis_Wire(w, f, prec);
+    }
+};
+
+OCCTWireAnalyzerRef OCCTWireAnalyzerCreate(OCCTShapeRef wire, OCCTShapeRef face, double precision) {
+    if (!wire || !face) return nullptr;
+    try {
+        const TopoDS_Wire& w = TopoDS::Wire(wire->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        return new OCCTWireAnalyzer(w, f, precision);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTWireAnalyzerRelease(OCCTWireAnalyzerRef analyzer) {
+    delete analyzer;
+}
+
+bool OCCTWireAnalyzerPerform(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->Perform(); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckOrder(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckOrder(); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckConnected(OCCTWireAnalyzerRef analyzer, int32_t edgeNum) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckConnected(edgeNum); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckSmall(OCCTWireAnalyzerRef analyzer, int32_t edgeNum) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckSmall(edgeNum); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckDegenerated(OCCTWireAnalyzerRef analyzer, int32_t edgeNum) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckDegenerated(edgeNum); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckGap3d(OCCTWireAnalyzerRef analyzer, int32_t edgeNum) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckGap3d(edgeNum); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckGap2d(OCCTWireAnalyzerRef analyzer, int32_t edgeNum) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckGap2d(edgeNum); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckSeam(OCCTWireAnalyzerRef analyzer, int32_t edgeNum) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckSeam(edgeNum); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckLacking(OCCTWireAnalyzerRef analyzer, int32_t edgeNum) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckLacking(edgeNum); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckSelfIntersection(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckSelfIntersection(); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerCheckClosed(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->CheckClosed(); } catch (...) { return false; }
+}
+
+double OCCTWireAnalyzerMinDistance3d(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return -1.0;
+    try { return analyzer->analyzer->MinDistance3d(); } catch (...) { return -1.0; }
+}
+
+double OCCTWireAnalyzerMaxDistance3d(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return -1.0;
+    try { return analyzer->analyzer->MaxDistance3d(); } catch (...) { return -1.0; }
+}
+
+int32_t OCCTWireAnalyzerNbEdges(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return 0;
+    try { return analyzer->analyzer->NbEdges(); } catch (...) { return 0; }
+}
+
+bool OCCTWireAnalyzerIsLoaded(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->IsLoaded(); } catch (...) { return false; }
+}
+
+bool OCCTWireAnalyzerIsReady(OCCTWireAnalyzerRef analyzer) {
+    if (!analyzer || analyzer->analyzer.IsNull()) return false;
+    try { return analyzer->analyzer->IsReady(); } catch (...) { return false; }
+}

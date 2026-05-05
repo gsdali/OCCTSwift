@@ -95,6 +95,7 @@
 #include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <GeomAPI_PointsToBSplineSurface.hxx>
 #include <TColgp_HArray2OfPnt.hxx>
+#include <TColgp_Array1OfPnt.hxx>
 #include <TColgp_Array2OfPnt.hxx>
 #include <TColStd_Array2OfReal.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
@@ -5146,4 +5147,138 @@ int32_t OCCTSurfaceBezierMaxDegree(void) {
 
 int32_t OCCTSurfaceBSplineMaxDegree(void) {
     return Geom_BSplineSurface::MaxDegree();
+}
+
+// MARK: - v0.121: BSplineSurface completions
+// --- BSplineSurface completions ---
+
+bool OCCTSurfaceBSplineSetUNotPeriodic(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetUNotPeriodic(); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetVNotPeriodic(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetVNotPeriodic(); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetUOrigin(OCCTSurfaceRef surface, int32_t index) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetUOrigin(index); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetVOrigin(OCCTSurfaceRef surface, int32_t index) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->SetVOrigin(index); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncreaseUMultiplicity(OCCTSurfaceRef surface, int32_t index, int32_t mult) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseUMultiplicity(index, mult); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncreaseVMultiplicity(OCCTSurfaceRef surface, int32_t index, int32_t mult) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseVMultiplicity(index, mult); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineInsertUKnots(OCCTSurfaceRef surface,
+                                     const double* knots, const int32_t* mults,
+                                     int32_t count, double tol) {
+    if (!surface || surface->surface.IsNull() || !knots || !mults || count <= 0) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal kArr(1, count);
+        TColStd_Array1OfInteger mArr(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            kArr.SetValue(i + 1, knots[i]);
+            mArr.SetValue(i + 1, mults[i]);
+        }
+        bs->InsertUKnots(kArr, mArr, tol);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineInsertVKnots(OCCTSurfaceRef surface,
+                                     const double* knots, const int32_t* mults,
+                                     int32_t count, double tol) {
+    if (!surface || surface->surface.IsNull() || !knots || !mults || count <= 0) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal kArr(1, count);
+        TColStd_Array1OfInteger mArr(1, count);
+        for (int32_t i = 0; i < count; i++) {
+            kArr.SetValue(i + 1, knots[i]);
+            mArr.SetValue(i + 1, mults[i]);
+        }
+        bs->InsertVKnots(kArr, mArr, tol);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineMovePoint(OCCTSurfaceRef surface,
+                                  double u, double v,
+                                  double px, double py, double pz,
+                                  int32_t uIndex1, int32_t uIndex2,
+                                  int32_t vIndex1, int32_t vIndex2) {
+    if (!surface || surface->surface.IsNull()) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        Standard_Integer uFirstIndex, uLastIndex, vFirstIndex, vLastIndex;
+        bs->MovePoint(u, v, gp_Pnt(px, py, pz),
+                      uIndex1, uIndex2, vIndex1, vIndex2,
+                      uFirstIndex, uLastIndex, vFirstIndex, vLastIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetPoleCol(OCCTSurfaceRef surface,
+                                   int32_t vIndex,
+                                   const double* coords, int32_t count) {
+    if (!surface || surface->surface.IsNull() || !coords || count <= 0) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        int32_t nUPoles = bs->NbUPoles();
+        if (count != nUPoles) return false;
+        TColgp_Array1OfPnt poles(1, nUPoles);
+        for (int32_t i = 0; i < nUPoles; i++) {
+            poles.SetValue(i + 1, gp_Pnt(coords[i * 3], coords[i * 3 + 1], coords[i * 3 + 2]));
+        }
+        bs->SetPoleCol(vIndex, poles);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetPoleRow(OCCTSurfaceRef surface,
+                                   int32_t uIndex,
+                                   const double* coords, int32_t count) {
+    if (!surface || surface->surface.IsNull() || !coords || count <= 0) return false;
+    Handle(Geom_BSplineSurface) bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        int32_t nVPoles = bs->NbVPoles();
+        if (count != nVPoles) return false;
+        TColgp_Array1OfPnt poles(1, nVPoles);
+        for (int32_t i = 0; i < nVPoles; i++) {
+            poles.SetValue(i + 1, gp_Pnt(coords[i * 3], coords[i * 3 + 1], coords[i * 3 + 2]));
+        }
+        bs->SetPoleRow(uIndex, poles);
+        return true;
+    } catch (...) { return false; }
 }
