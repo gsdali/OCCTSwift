@@ -26,6 +26,11 @@
 #include <BRepMesh_Deflection.hxx>
 #include <BRepMesh_ShapeTool.hxx>
 #include <ShapeConstruct_MakeTriangulation.hxx>
+#include <Geom2dAdaptor_Curve.hxx>
+#include <Poly_MergeNodesTool.hxx>
+#include <Poly_Polygon2D.hxx>
+#include <Poly_Polygon3D.hxx>
+#include <Poly_PolygonOnTriangulation.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <BRep_Builder.hxx>
@@ -831,4 +836,339 @@ OCCTUVPointsResult OCCTMeshShapeToolUVPoints(OCCTEdgeRef _Nonnull edge, OCCTFace
         }
     } catch (...) {}
     return result;
+}
+
+// MARK: - Poly_Polygon2D / Triangulation / Polygon3D / PolygonOnTriangulation (v0.78)
+// (Poly_*Opaque struct definitions live in OCCTBridge_Internal.h)
+// MARK: - Poly_Polygon2D
+
+OCCTPolyPolygon2DRef _Nullable OCCTPolyPolygon2DCreate(const double* _Nonnull points, int count) {
+    try {
+        NCollection_Array1<gp_Pnt2d> pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt2d(points[i * 2], points[i * 2 + 1]);
+        }
+        Handle(Poly_Polygon2D) poly = new Poly_Polygon2D(pts);
+        return reinterpret_cast<OCCTPolyPolygon2DRef>(new Poly_Polygon2DOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int OCCTPolyPolygon2DNbNodes(OCCTPolyPolygon2DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon2DOpaque*>(ref)->polygon->NbNodes();
+}
+
+bool OCCTPolyPolygon2DNode(OCCTPolyPolygon2DRef _Nonnull ref, int index,
+                             double* _Nonnull x, double* _Nonnull y) {
+    try {
+        auto* p = reinterpret_cast<Poly_Polygon2DOpaque*>(ref);
+        int idx = index + 1;
+        if (idx < 1 || idx > p->polygon->NbNodes()) return false;
+        const gp_Pnt2d& pt = p->polygon->Nodes()(idx);
+        *x = pt.X();
+        *y = pt.Y();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+double OCCTPolyPolygon2DDeflection(OCCTPolyPolygon2DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon2DOpaque*>(ref)->polygon->Deflection();
+}
+
+void OCCTPolyPolygon2DSetDeflection(OCCTPolyPolygon2DRef _Nonnull ref, double deflection) {
+    reinterpret_cast<Poly_Polygon2DOpaque*>(ref)->polygon->Deflection(deflection);
+}
+
+void OCCTPolyPolygon2DRelease(OCCTPolyPolygon2DRef _Nonnull ref) {
+    delete reinterpret_cast<Poly_Polygon2DOpaque*>(ref);
+}
+
+// MARK: - Poly_Triangulation (v0.160.0)
+
+OCCTPolyTriangulationRef _Nullable OCCTPolyTriangulationCreate(
+    const double* _Nonnull nodes, int nbNodes,
+    const int* _Nonnull triangles, int nbTriangles)
+{
+    if (!nodes || !triangles || nbNodes <= 0 || nbTriangles <= 0) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> nodeArr(1, nbNodes);
+        for (int i = 0; i < nbNodes; i++) {
+            nodeArr(i + 1) = gp_Pnt(nodes[i * 3], nodes[i * 3 + 1], nodes[i * 3 + 2]);
+        }
+        NCollection_Array1<Poly_Triangle> triArr(1, nbTriangles);
+        for (int i = 0; i < nbTriangles; i++) {
+            // Swift caller passes 0-based vertex indices; OCCT stores 1-based.
+            triArr(i + 1) = Poly_Triangle(
+                triangles[i * 3] + 1,
+                triangles[i * 3 + 1] + 1,
+                triangles[i * 3 + 2] + 1);
+        }
+        Handle(Poly_Triangulation) tri = new Poly_Triangulation(nodeArr, triArr);
+        return reinterpret_cast<OCCTPolyTriangulationRef>(new Poly_TriangulationOpaque{tri});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int OCCTPolyTriangulationNbNodes(OCCTPolyTriangulationRef _Nonnull ref) {
+    return reinterpret_cast<Poly_TriangulationOpaque*>(ref)->triangulation->NbNodes();
+}
+
+int OCCTPolyTriangulationNbTriangles(OCCTPolyTriangulationRef _Nonnull ref) {
+    return reinterpret_cast<Poly_TriangulationOpaque*>(ref)->triangulation->NbTriangles();
+}
+
+bool OCCTPolyTriangulationNode(OCCTPolyTriangulationRef _Nonnull ref, int index,
+                                 double* _Nonnull x, double* _Nonnull y, double* _Nonnull z) {
+    try {
+        auto* p = reinterpret_cast<Poly_TriangulationOpaque*>(ref);
+        int idx = index + 1;
+        if (idx < 1 || idx > p->triangulation->NbNodes()) return false;
+        gp_Pnt pt = p->triangulation->Node(idx);
+        *x = pt.X(); *y = pt.Y(); *z = pt.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTPolyTriangulationTriangle(OCCTPolyTriangulationRef _Nonnull ref, int index,
+                                     int* _Nonnull n1, int* _Nonnull n2, int* _Nonnull n3) {
+    try {
+        auto* p = reinterpret_cast<Poly_TriangulationOpaque*>(ref);
+        int idx = index + 1;
+        if (idx < 1 || idx > p->triangulation->NbTriangles()) return false;
+        const Poly_Triangle& tri = p->triangulation->Triangle(idx);
+        int a, b, c;
+        tri.Get(a, b, c);
+        // OCCT stores 1-based; Swift expects 0-based.
+        *n1 = a - 1; *n2 = b - 1; *n3 = c - 1;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+double OCCTPolyTriangulationDeflection(OCCTPolyTriangulationRef _Nonnull ref) {
+    return reinterpret_cast<Poly_TriangulationOpaque*>(ref)->triangulation->Deflection();
+}
+
+void OCCTPolyTriangulationSetDeflection(OCCTPolyTriangulationRef _Nonnull ref, double deflection) {
+    reinterpret_cast<Poly_TriangulationOpaque*>(ref)->triangulation->Deflection(deflection);
+}
+
+void OCCTPolyTriangulationRelease(OCCTPolyTriangulationRef _Nonnull ref) {
+    delete reinterpret_cast<Poly_TriangulationOpaque*>(ref);
+}
+
+// MARK: - Poly_Polygon3D
+
+OCCTPolyPolygon3DRef _Nullable OCCTPolyPolygon3DCreate(const double* _Nonnull points, int count) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+        }
+        Handle(Poly_Polygon3D) poly = new Poly_Polygon3D(pts);
+        return reinterpret_cast<OCCTPolyPolygon3DRef>(new Poly_Polygon3DOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTPolyPolygon3DRef _Nullable OCCTPolyPolygon3DCreateWithParams(const double* _Nonnull points, int count,
+                                                                    const double* _Nonnull params) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        NCollection_Array1<double> par(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i + 1) = gp_Pnt(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+            par(i + 1) = params[i];
+        }
+        Handle(Poly_Polygon3D) poly = new Poly_Polygon3D(pts, par);
+        return reinterpret_cast<OCCTPolyPolygon3DRef>(new Poly_Polygon3DOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int OCCTPolyPolygon3DNbNodes(OCCTPolyPolygon3DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon3DOpaque*>(ref)->polygon->NbNodes();
+}
+
+bool OCCTPolyPolygon3DNode(OCCTPolyPolygon3DRef _Nonnull ref, int index,
+                             double* _Nonnull x, double* _Nonnull y, double* _Nonnull z) {
+    try {
+        auto* p = reinterpret_cast<Poly_Polygon3DOpaque*>(ref);
+        int idx = index + 1;
+        if (idx < 1 || idx > p->polygon->NbNodes()) return false;
+        const gp_Pnt& pt = p->polygon->Nodes()(idx);
+        *x = pt.X(); *y = pt.Y(); *z = pt.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTPolyPolygon3DHasParameters(OCCTPolyPolygon3DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon3DOpaque*>(ref)->polygon->HasParameters();
+}
+
+double OCCTPolyPolygon3DParameter(OCCTPolyPolygon3DRef _Nonnull ref, int index) {
+    try {
+        auto* p = reinterpret_cast<Poly_Polygon3DOpaque*>(ref);
+        return p->polygon->Parameters()(index + 1);
+    } catch (...) {
+        return 0;
+    }
+}
+
+double OCCTPolyPolygon3DDeflection(OCCTPolyPolygon3DRef _Nonnull ref) {
+    return reinterpret_cast<Poly_Polygon3DOpaque*>(ref)->polygon->Deflection();
+}
+
+void OCCTPolyPolygon3DSetDeflection(OCCTPolyPolygon3DRef _Nonnull ref, double deflection) {
+    reinterpret_cast<Poly_Polygon3DOpaque*>(ref)->polygon->Deflection(deflection);
+}
+
+void OCCTPolyPolygon3DRelease(OCCTPolyPolygon3DRef _Nonnull ref) {
+    delete reinterpret_cast<Poly_Polygon3DOpaque*>(ref);
+}
+
+// MARK: - Poly_PolygonOnTriangulation
+
+OCCTPolyPolygonOnTriRef _Nullable OCCTPolyPolygonOnTriCreate(const int* _Nonnull nodeIndices, int count) {
+    try {
+        NCollection_Array1<int> nodes(1, count);
+        for (int i = 0; i < count; i++) {
+            nodes(i + 1) = nodeIndices[i];
+        }
+        Handle(Poly_PolygonOnTriangulation) poly = new Poly_PolygonOnTriangulation(nodes);
+        return reinterpret_cast<OCCTPolyPolygonOnTriRef>(new Poly_PolygonOnTriangulationOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTPolyPolygonOnTriRef _Nullable OCCTPolyPolygonOnTriCreateWithParams(const int* _Nonnull nodeIndices, int count,
+                                                                         const double* _Nonnull params) {
+    try {
+        NCollection_Array1<int> nodes(1, count);
+        NCollection_Array1<double> par(1, count);
+        for (int i = 0; i < count; i++) {
+            nodes(i + 1) = nodeIndices[i];
+            par(i + 1) = params[i];
+        }
+        Handle(Poly_PolygonOnTriangulation) poly = new Poly_PolygonOnTriangulation(nodes, par);
+        return reinterpret_cast<OCCTPolyPolygonOnTriRef>(new Poly_PolygonOnTriangulationOpaque{poly});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int OCCTPolyPolygonOnTriNbNodes(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    return reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref)->polygon->NbNodes();
+}
+
+int OCCTPolyPolygonOnTriNode(OCCTPolyPolygonOnTriRef _Nonnull ref, int index) {
+    try {
+        auto* p = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+        return p->polygon->Node(index + 1);
+    } catch (...) {
+        return -1;
+    }
+}
+
+bool OCCTPolyPolygonOnTriHasParameters(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    return reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref)->polygon->HasParameters();
+}
+
+double OCCTPolyPolygonOnTriParameter(OCCTPolyPolygonOnTriRef _Nonnull ref, int index) {
+    try {
+        auto* p = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+        return p->polygon->Parameter(index + 1);
+    } catch (...) {
+        return 0;
+    }
+}
+
+double OCCTPolyPolygonOnTriDeflection(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    return reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref)->polygon->Deflection();
+}
+
+void OCCTPolyPolygonOnTriSetDeflection(OCCTPolyPolygonOnTriRef _Nonnull ref, double deflection) {
+    reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref)->polygon->Deflection(deflection);
+}
+
+void OCCTPolyPolygonOnTriRelease(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    delete reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+}
+
+// MARK: - Poly_MergeNodesTool (v0.78)
+// MARK: - Poly_MergeNodesTool
+
+int OCCTPolyMergeNodes(OCCTShapeRef _Nonnull shapeRef,
+                         double smoothAngle, double mergeTolerance,
+                         float* _Nullable outVertices, float* _Nullable outNormals,
+                         uint32_t* _Nullable outIndices,
+                         int maxVertices, int maxIndices,
+                         int* _Nullable outTriangleCount) {
+    try {
+        auto& shape = reinterpret_cast<OCCTShape*>(shapeRef)->shape;
+        // Collect all face triangulations and merge
+        Handle(Poly_MergeNodesTool) tool = new Poly_MergeNodesTool(smoothAngle, mergeTolerance);
+        TopExp_Explorer exp(shape, TopAbs_FACE);
+        bool hasTri = false;
+        for (; exp.More(); exp.Next()) {
+            TopoDS_Face face = TopoDS::Face(exp.Current());
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+            if (!tri.IsNull()) {
+                gp_Trsf trsf = loc.IsIdentity() ? gp_Trsf() : loc.Transformation();
+                bool reversed = (face.Orientation() == TopAbs_REVERSED);
+                tool->AddTriangulation(tri, trsf, reversed);
+                hasTri = true;
+            }
+        }
+        if (!hasTri) return 0;
+        Handle(Poly_Triangulation) result = tool->Result();
+        if (result.IsNull()) return 0;
+        int nNodes = result->NbNodes();
+        int nTris = result->NbTriangles();
+        if (outTriangleCount) *outTriangleCount = nTris;
+        // Extract vertices/normals
+        if (outVertices && nNodes <= maxVertices) {
+            for (int i = 1; i <= nNodes; i++) {
+                gp_Pnt p = result->Node(i);
+                outVertices[(i-1)*3] = (float)p.X();
+                outVertices[(i-1)*3+1] = (float)p.Y();
+                outVertices[(i-1)*3+2] = (float)p.Z();
+            }
+        }
+        if (outNormals && result->HasNormals() && nNodes <= maxVertices) {
+            for (int i = 1; i <= nNodes; i++) {
+                gp_Dir n = result->Normal(i);
+                outNormals[(i-1)*3] = (float)n.X();
+                outNormals[(i-1)*3+1] = (float)n.Y();
+                outNormals[(i-1)*3+2] = (float)n.Z();
+            }
+        }
+        // Extract indices
+        if (outIndices && nTris * 3 <= maxIndices) {
+            for (int i = 1; i <= nTris; i++) {
+                Poly_Triangle t = result->Triangle(i);
+                int n1, n2, n3;
+                t.Get(n1, n2, n3);
+                outIndices[(i-1)*3] = (uint32_t)(n1 - 1);
+                outIndices[(i-1)*3+1] = (uint32_t)(n2 - 1);
+                outIndices[(i-1)*3+2] = (uint32_t)(n3 - 1);
+            }
+        }
+        return nNodes;
+    } catch (...) {
+        return 0;
+    }
 }

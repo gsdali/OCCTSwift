@@ -33,6 +33,7 @@
 #include <IntRes2d_IntersectionPoint.hxx>
 #include <Intf_InterferencePolygon2d.hxx>
 #include <ShapeConstruct_Curve.hxx>
+#include <Geom2dConvert_ApproxArcsSegments.hxx>
 #include <GeomLib_Tool.hxx>
 #include <GeomLib_Check2dBSplineCurve.hxx>
 #include <ShapeUpgrade_SplitCurve2dContinuity.hxx>
@@ -2796,6 +2797,32 @@ int OCCTConvertCurve2dToBezier(OCCTCurve2DRef _Nonnull curveRef,
             written++;
         }
         return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - Geom2dConvert_ApproxArcsSegments (v0.78)
+// MARK: - Geom2dConvert_ApproxArcsSegments
+
+int OCCTGeom2dConvertApproxArcsSegments(OCCTCurve2DRef _Nonnull curveRef,
+                                          double tolerance, double angleTolerance,
+                                          OCCTCurve2DRef _Nullable* _Nullable outCurves, int maxCurves) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve2D*>(curveRef)->curve;
+        Geom2dAdaptor_Curve adaptor(curve);
+        Geom2dConvert_ApproxArcsSegments approx(adaptor, tolerance, angleTolerance);
+        const NCollection_Sequence<Handle(Geom2d_Curve)>& result = approx.GetResult();
+        int count = result.Length();
+        int written = 0;
+        for (int i = 1; i <= count && written < maxCurves; i++) {
+            Handle(Geom2d_Curve) c = result.Value(i);
+            if (!c.IsNull() && outCurves) {
+                outCurves[written] = reinterpret_cast<OCCTCurve2DRef>(new OCCTCurve2D{c});
+            }
+            written++;
+        }
+        return count;
     } catch (...) {
         return 0;
     }
