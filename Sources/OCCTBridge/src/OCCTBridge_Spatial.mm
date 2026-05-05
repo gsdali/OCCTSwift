@@ -2477,3 +2477,86 @@ bool OCCTDirIsNormal(double d1x, double d1y, double d1z,
         return d1.IsNormal(d2, angularTolerance);
     } catch (...) { return false; }
 }
+// MARK: - Ray Casting Implementation (Issue #12)
+
+#include <IntCurvesFace_ShapeIntersector.hxx>
+#include <gp_Lin.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+#include <TopExp.hxx>
+
+int32_t OCCTShapeRaycast(
+    OCCTShapeRef shape,
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double tolerance,
+    OCCTRayHit* outHits,
+    int32_t maxHits
+) {
+    if (!shape || !outHits || maxHits <= 0) return -1;
+    
+    try {
+        // Build face index map for looking up face indices
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        
+        // Create ray
+        gp_Pnt origin(originX, originY, originZ);
+        gp_Dir direction(dirX, dirY, dirZ);
+        gp_Lin ray(origin, direction);
+        
+        // Perform intersection
+        IntCurvesFace_ShapeIntersector intersector;
+        intersector.Load(shape->shape, tolerance);
+        intersector.Perform(ray, -1e10, 1e10);  // Large range for ray
+        
+        int32_t hitCount = 0;
+        int nbPoints = intersector.NbPnt();
+        
+        for (int i = 1; i <= nbPoints && hitCount < maxHits; i++) {
+            gp_Pnt pt = intersector.Pnt(i);
+            double param = intersector.WParameter(i);
+            
+            // Get face at this intersection
+            TopoDS_Face hitFace = intersector.Face(i);
+            int faceIndex = faceMap.FindIndex(hitFace) - 1;  // Convert to 0-based
+            
+            // Get UV parameters
+            double u = intersector.UParameter(i);
+            double v = intersector.VParameter(i);
+            
+            // Get surface normal at intersection point
+            BRepAdaptor_Surface adaptor(hitFace);
+            BRepLProp_SLProps props(adaptor, u, v, 1, tolerance);
+            
+            OCCTRayHit& hit = outHits[hitCount];
+            hit.point[0] = pt.X();
+            hit.point[1] = pt.Y();
+            hit.point[2] = pt.Z();
+            hit.distance = param;
+            hit.faceIndex = faceIndex;
+            hit.uv[0] = u;
+            hit.uv[1] = v;
+            
+            if (props.IsNormalDefined()) {
+                gp_Dir normal = props.Normal();
+                if (hitFace.Orientation() == TopAbs_REVERSED) {
+                    normal.Reverse();
+                }
+                hit.normal[0] = normal.X();
+                hit.normal[1] = normal.Y();
+                hit.normal[2] = normal.Z();
+            } else {
+                hit.normal[0] = 0;
+                hit.normal[1] = 0;
+                hit.normal[2] = 1;
+            }
+            
+            hitCount++;
+        }
+        
+        return hitCount;
+    } catch (...) {
+        return -1;
+    }
+}
+
