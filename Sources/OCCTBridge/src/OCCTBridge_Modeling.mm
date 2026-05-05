@@ -87,6 +87,8 @@
 #include <BOPAlgo_WireSplitter.hxx>
 #include <BRepFeat_Gluer.hxx>
 #include <BRepFeat_MakeCylindricalHole.hxx>
+#include <BiTgte_Blend.hxx>
+#include <BRepPreviewAPI_MakeBox.hxx>
 #include <HLRAppli_ReflectLines.hxx>
 #include <HLRBRep_TypeOfResultingEdge.hxx>
 #include <BRepFeat_Status.hxx>
@@ -5955,3 +5957,97 @@ OCCTShapeRef _Nullable OCCTHLRReflectLinesFiltered(OCCTShapeRef _Nonnull shape,
         return new OCCTShape(result);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - BiTgte_Blend (v0.75)
+// --- BiTgte_Blend ---
+
+OCCTShapeRef _Nullable OCCTBiTgteBlend(OCCTShapeRef _Nonnull shape,
+                                        const int32_t* _Nonnull edgeIndices,
+                                        int32_t edgeCount,
+                                        double radius,
+                                        double tolerance,
+                                        bool nubs) {
+    if (!shape || edgeCount <= 0) return nullptr;
+    try {
+        BiTgte_Blend blend(shape->shape, radius, tolerance, nubs);
+
+        // Collect edges by index
+        TopExp_Explorer edgeExp(shape->shape, TopAbs_EDGE);
+        std::vector<TopoDS_Edge> allEdges;
+        while (edgeExp.More()) {
+            allEdges.push_back(TopoDS::Edge(edgeExp.Current()));
+            edgeExp.Next();
+        }
+
+        for (int32_t i = 0; i < edgeCount; i++) {
+            int32_t idx = edgeIndices[i];
+            if (idx >= 0 && idx < (int32_t)allEdges.size()) {
+                blend.SetEdge(allEdges[idx]);
+            }
+        }
+
+        blend.Perform(true);
+        if (!blend.IsDone()) return nullptr;
+
+        TopoDS_Shape result = blend.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTBiTgteBlendInfo OCCTBiTgteBlendInfo_(OCCTShapeRef _Nonnull shape,
+                                          const int32_t* _Nonnull edgeIndices,
+                                          int32_t edgeCount,
+                                          double radius,
+                                          double tolerance) {
+    OCCTBiTgteBlendInfo info = {};
+    if (!shape || edgeCount <= 0) return info;
+    try {
+        BiTgte_Blend blend(shape->shape, radius, tolerance, false);
+
+        TopExp_Explorer edgeExp(shape->shape, TopAbs_EDGE);
+        std::vector<TopoDS_Edge> allEdges;
+        while (edgeExp.More()) {
+            allEdges.push_back(TopoDS::Edge(edgeExp.Current()));
+            edgeExp.Next();
+        }
+
+        for (int32_t i = 0; i < edgeCount; i++) {
+            int32_t idx = edgeIndices[i];
+            if (idx >= 0 && idx < (int32_t)allEdges.size()) {
+                blend.SetEdge(allEdges[idx]);
+            }
+        }
+
+        blend.Perform(true);
+        info.isDone = blend.IsDone();
+        if (info.isDone) {
+            info.nbSurfaces = blend.NbSurfaces();
+        }
+    } catch (...) {}
+    return info;
+}
+
+// MARK: - BRepPreviewAPI_MakeBox (v0.75)
+// --- BRepPreviewAPI_MakeBox ---
+
+OCCTShapeRef _Nullable OCCTPreviewBox(double dx, double dy, double dz) {
+    try {
+        BRepPreviewAPI_MakeBox preview;
+        preview.Init(dx, dy, dz);
+        preview.Build();
+        if (!preview.IsDone()) return nullptr;
+        TopoDS_Shape result = preview.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
