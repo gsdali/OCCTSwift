@@ -29,6 +29,7 @@
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepGProp.hxx>
 #include <IntCurvesFace_Intersector.hxx>
+#include <IntCurvesFace_ShapeIntersector.hxx>
 #include <BRepLib_FindSurface.hxx>
 #include <BRepTools_ReShape.hxx>
 #include <BRepTools_WireExplorer.hxx>
@@ -1306,4 +1307,55 @@ int32_t OCCTIntersectLineFace(OCCTShapeRef face,
         }
         return nb;
     } catch (...) { return 0; }
+}
+
+// MARK: - IntCurvesFace_ShapeIntersector (v0.62)
+// --- IntCurvesFace_ShapeIntersector ---
+
+bool OCCTIntCurvesFaceShapeIntersect(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outParams,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        IntCurvesFace_ShapeIntersector si;
+        si.Load(shape->shape, 1e-6);
+        gp_Lin ray(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        si.Perform(ray, -1e10, 1e10);
+        int32_t n = si.NbPnt();
+        *outCount = n;
+        if (n == 0) { *outPoints = nullptr; *outParams = nullptr; return false; }
+        si.SortResult();
+        *outPoints = (double*)malloc(n * 3 * sizeof(double));
+        *outParams = (double*)malloc(n * sizeof(double));
+        for (int32_t i = 0; i < n; i++) {
+            gp_Pnt pt = si.Pnt(i + 1);
+            (*outPoints)[i*3]   = pt.X();
+            (*outPoints)[i*3+1] = pt.Y();
+            (*outPoints)[i*3+2] = pt.Z();
+            (*outParams)[i] = si.WParameter(i + 1);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTIntCurvesFaceShapeIntersectNearest(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* outX, double* outY, double* outZ,
+    double* outParam) {
+    if (!shape) return false;
+    try {
+        IntCurvesFace_ShapeIntersector si;
+        si.Load(shape->shape, 1e-6);
+        gp_Lin ray(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        si.PerformNearest(ray, -1e10, 1e10);
+        if (si.NbPnt() < 1) return false;
+        gp_Pnt pt = si.Pnt(1);
+        *outX = pt.X(); *outY = pt.Y(); *outZ = pt.Z();
+        *outParam = si.WParameter(1);
+        return true;
+    } catch (...) { return false; }
 }

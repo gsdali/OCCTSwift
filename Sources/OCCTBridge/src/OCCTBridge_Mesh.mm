@@ -20,6 +20,8 @@
 
 // === Area-specific OCCT headers ===
 
+#include <BRepLib_PointCloudShape.hxx>
+#include <BRepLib_ToolTriangulatedShape.hxx>
 #include <BRepMesh_Deflection.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
@@ -662,5 +664,88 @@ double OCCTComputeAbsoluteDeflection(OCCTShapeRef shape, double relativeDeflecti
 bool OCCTDeflectionIsConsistent(double current, double required, bool allowDecrease, double ratio) {
     try {
         return BRepMesh_Deflection::IsConsistent(current, required, allowDecrease, ratio);
+    } catch (...) { return false; }
+}
+
+// MARK: - BRepLib_ToolTriangulatedShape Compute Normals (v0.62)
+// --- BRepLib_ToolTriangulatedShape ---
+
+bool OCCTBRepLibComputeNormals(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        bool computedAny = false;
+        TopExp_Explorer exp(shape->shape, TopAbs_FACE);
+        for (; exp.More(); exp.Next()) {
+            TopoDS_Face face = TopoDS::Face(exp.Current());
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+            if (!tri.IsNull()) {
+                BRepLib_ToolTriangulatedShape::ComputeNormals(face, tri);
+                computedAny = true;
+            }
+        }
+        return computedAny;
+    } catch (...) { return false; }
+}
+
+// MARK: - BRepLib_PointCloudShape (v0.62)
+// --- BRepLib_PointCloudShape ---
+
+class OCCTPointCloudCollector : public BRepLib_PointCloudShape {
+public:
+    OCCTPointCloudCollector(const TopoDS_Shape& s) : BRepLib_PointCloudShape(s, 0.0) {}
+    std::vector<gp_Pnt> pts;
+    std::vector<gp_Vec> norms;
+protected:
+    void addPoint(const gp_Pnt& thePoint,
+                  const gp_Vec& theNorm,
+                  const gp_Pnt2d& /*theUV*/,
+                  const TopoDS_Shape& /*theFace*/) override {
+        pts.push_back(thePoint);
+        norms.push_back(theNorm);
+    }
+};
+
+static bool copyPointCloudResults(OCCTPointCloudCollector& pcs,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outNormals,
+    int32_t* outCount) {
+    int32_t n = (int32_t)pcs.pts.size();
+    if (n == 0) { *outCount = 0; *outPoints = nullptr; *outNormals = nullptr; return false; }
+    *outCount = n;
+    *outPoints = (double*)malloc(n * 3 * sizeof(double));
+    *outNormals = (double*)malloc(n * 3 * sizeof(double));
+    for (int32_t i = 0; i < n; i++) {
+        (*outPoints)[i*3]   = pcs.pts[i].X();
+        (*outPoints)[i*3+1] = pcs.pts[i].Y();
+        (*outPoints)[i*3+2] = pcs.pts[i].Z();
+        (*outNormals)[i*3]   = pcs.norms[i].X();
+        (*outNormals)[i*3+1] = pcs.norms[i].Y();
+        (*outNormals)[i*3+2] = pcs.norms[i].Z();
+    }
+    return true;
+}
+
+bool OCCTBRepLibPointCloudByTriangulation(OCCTShapeRef shape,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outNormals,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        OCCTPointCloudCollector pcs(shape->shape);
+        if (!pcs.GeneratePointsByTriangulation()) return false;
+        return copyPointCloudResults(pcs, outPoints, outNormals, outCount);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepLibPointCloudByDensity(OCCTShapeRef shape, double density,
+    double* _Nullable * _Nonnull outPoints,
+    double* _Nullable * _Nonnull outNormals,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        OCCTPointCloudCollector pcs(shape->shape);
+        if (!pcs.GeneratePointsByDensity(density)) return false;
+        return copyPointCloudResults(pcs, outPoints, outNormals, outCount);
     } catch (...) { return false; }
 }
