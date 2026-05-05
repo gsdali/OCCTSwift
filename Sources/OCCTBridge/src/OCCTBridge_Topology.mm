@@ -1651,3 +1651,80 @@ OCCTDistanceSSResult OCCTBRepExtremaDistanceSS(OCCTShapeRef _Nonnull shape1Ref,
     } catch (...) {}
     return result;
 }
+
+// MARK: - v0.92: Bnd_OBB + BRepClass3d
+// MARK: - Bnd_OBB (v0.92.0)
+
+#include <Bnd_OBB.hxx>
+#include <BRepBndLib.hxx>
+
+struct OCCTOBB {
+    Bnd_OBB obb;
+};
+
+OCCTOBBRef OCCTOBBCreate(double cx, double cy, double cz,
+                           double xDirX, double xDirY, double xDirZ,
+                           double yDirX, double yDirY, double yDirZ,
+                           double zDirX, double zDirY, double zDirZ,
+                           double hx, double hy, double hz) {
+    auto* ref = new OCCTOBB();
+    ref->obb = Bnd_OBB(gp_Pnt(cx,cy,cz),
+                        gp_Dir(xDirX,xDirY,xDirZ),
+                        gp_Dir(yDirX,yDirY,yDirZ),
+                        gp_Dir(zDirX,zDirY,zDirZ),
+                        hx, hy, hz);
+    return ref;
+}
+
+OCCTOBBRef OCCTOBBCreateFromShape(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        auto* ref = new OCCTOBB();
+        Bnd_Box bbox;
+        BRepBndLib::Add(shape->shape, bbox);
+        ref->obb = Bnd_OBB(bbox);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTOBBRelease(OCCTOBBRef obb) { delete obb; }
+
+bool OCCTOBBIsVoid(OCCTOBBRef obb) { return obb->obb.IsVoid(); }
+
+void OCCTOBBGetCenter(OCCTOBBRef obb, double* x, double* y, double* z) {
+    gp_XYZ c = obb->obb.Center();
+    *x = c.X(); *y = c.Y(); *z = c.Z();
+}
+
+void OCCTOBBGetHalfSizes(OCCTOBBRef obb, double* hx, double* hy, double* hz) {
+    *hx = obb->obb.XHSize(); *hy = obb->obb.YHSize(); *hz = obb->obb.ZHSize();
+}
+
+bool OCCTOBBIsOutPoint(OCCTOBBRef obb, double px, double py, double pz) {
+    return obb->obb.IsOut(gp_Pnt(px, py, pz));
+}
+
+bool OCCTOBBIsOutOBB(OCCTOBBRef obb1, OCCTOBBRef obb2) {
+    return obb1->obb.IsOut(obb2->obb);
+}
+
+void OCCTOBBEnlarge(OCCTOBBRef obb, double gap) {
+    obb->obb.Enlarge(gap);
+}
+
+double OCCTOBBSquareExtent(OCCTOBBRef obb) {
+    return obb->obb.SquareExtent();
+}
+// MARK: - BRepClass3d (v0.92.0)
+
+#include <BRepClass3d_SClassifier.hxx>
+#include <BRepClass3d_SolidExplorer.hxx>
+
+int32_t OCCTShapeClassifyPoint(OCCTShapeRef shape, double px, double py, double pz, double tolerance) {
+    if (!shape) return 3; // UNKNOWN
+    try {
+        BRepClass3d_SolidExplorer explorer(shape->shape);
+        BRepClass3d_SClassifier classifier(explorer, gp_Pnt(px, py, pz), tolerance);
+        return (int32_t)classifier.State();
+    } catch (...) { return 3; }
+}

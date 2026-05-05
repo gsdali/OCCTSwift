@@ -376,3 +376,232 @@ void OCCTIntrvIntervalsIntersect(OCCTIntrvIntervalsRef _Nonnull intervals, doubl
 void OCCTIntrvIntervalsXUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
     intervals->intervals.XUnite(Intrv_Interval(start, end));
 }
+
+// MARK: - v0.92: Bnd_Range
+// MARK: - Bnd_Range (v0.92.0)
+
+#include <Bnd_Range.hxx>
+
+struct OCCTRange {
+    Bnd_Range range;
+};
+
+OCCTRangeRef OCCTRangeCreate(double min, double max) {
+    auto* ref = new OCCTRange();
+    ref->range = Bnd_Range(min, max);
+    return ref;
+}
+
+OCCTRangeRef OCCTRangeCreateVoid() {
+    return new OCCTRange();
+}
+
+void OCCTRangeRelease(OCCTRangeRef range) { delete range; }
+
+bool OCCTRangeIsVoid(OCCTRangeRef range) { return range->range.IsVoid(); }
+
+bool OCCTRangeGetBounds(OCCTRangeRef range, double* first, double* last) {
+    return range->range.GetBounds(*first, *last);
+}
+
+double OCCTRangeDelta(OCCTRangeRef range) { return range->range.Delta(); }
+
+bool OCCTRangeContains(OCCTRangeRef range, double value) { return range->range.Contains(value); }
+
+void OCCTRangeAddValue(OCCTRangeRef range, double value) { range->range.Add(value); }
+
+void OCCTRangeAddRange(OCCTRangeRef range, OCCTRangeRef other) { range->range.Add(other->range); }
+
+void OCCTRangeCommon(OCCTRangeRef range, OCCTRangeRef other) { range->range.Common(other->range); }
+
+void OCCTRangeEnlarge(OCCTRangeRef range, double delta) { range->range.Enlarge(delta); }
+
+void OCCTRangeTrimFrom(OCCTRangeRef range, double lower) { range->range.TrimFrom(lower); }
+
+void OCCTRangeTrimTo(OCCTRangeRef range, double upper) { range->range.TrimTo(upper); }
+
+// MARK: - v0.94: math_Matrix/Gauss/SVD/DirectPolynomialRoots/Jacobi
+// MARK: - math_Matrix (v0.94.0)
+
+#include <math_Matrix.hxx>
+#include <math_Vector.hxx>
+#include <math_Gauss.hxx>
+#include <math_SVD.hxx>
+#include <math_DirectPolynomialRoots.hxx>
+#include <math_Jacobi.hxx>
+
+struct OCCTMathMatrix {
+    math_Matrix mat;
+    OCCTMathMatrix(int r, int c, double v) : mat(1, r, 1, c, v) {}
+};
+
+OCCTMathMatrixRef OCCTMathMatrixCreate(int32_t rows, int32_t cols, double initValue) {
+    return new OCCTMathMatrix(rows, cols, initValue);
+}
+
+void OCCTMathMatrixRelease(OCCTMathMatrixRef m) { delete m; }
+int32_t OCCTMathMatrixRows(OCCTMathMatrixRef m) { return m->mat.RowNumber(); }
+int32_t OCCTMathMatrixCols(OCCTMathMatrixRef m) { return m->mat.ColNumber(); }
+
+double OCCTMathMatrixGetValue(OCCTMathMatrixRef m, int32_t row, int32_t col) {
+    return m->mat(row, col);
+}
+
+void OCCTMathMatrixSetValue(OCCTMathMatrixRef m, int32_t row, int32_t col, double value) {
+    m->mat(row, col) = value;
+}
+
+double OCCTMathMatrixDeterminant(OCCTMathMatrixRef m) {
+    try { return m->mat.Determinant(); } catch (...) { return 0.0; }
+}
+
+bool OCCTMathMatrixInvert(OCCTMathMatrixRef m) {
+    try { m->mat.Invert(); return true; } catch (...) { return false; }
+}
+
+void OCCTMathMatrixMultiplyScalar(OCCTMathMatrixRef m, double scalar) { m->mat.Multiply(scalar); }
+void OCCTMathMatrixTranspose(OCCTMathMatrixRef m) { m->mat.Transpose(); }
+
+// MARK: - math_Gauss (v0.94.0)
+
+bool OCCTMathGaussSolve(const double* matrixData, int32_t n,
+                         const double* rhs, double* outSolution) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Gauss gauss(A);
+        if (!gauss.IsDone()) return false;
+        math_Vector B(1, n, 0.0);
+        for (int i = 0; i < n; i++) B(i+1) = rhs[i];
+        math_Vector X(1, n, 0.0);
+        gauss.Solve(B, X);
+        for (int i = 0; i < n; i++) outSolution[i] = X(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTMathGaussDeterminant(const double* matrixData, int32_t n) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Gauss gauss(A);
+        if (!gauss.IsDone()) return 0.0;
+        return gauss.Determinant();
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - math_SVD (v0.94.0)
+
+bool OCCTMathSVDSolve(const double* matrixData, int32_t rows, int32_t cols,
+                       const double* rhs, double* outSolution) {
+    try {
+        math_Matrix A(1, rows, 1, cols, 0.0);
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++)
+                A(i+1, j+1) = matrixData[i*cols + j];
+        math_SVD svd(A);
+        if (!svd.IsDone()) return false;
+        math_Vector B(1, rows, 0.0);
+        for (int i = 0; i < rows; i++) B(i+1) = rhs[i];
+        math_Vector X(1, cols, 0.0);
+        svd.Solve(B, X);
+        for (int i = 0; i < cols; i++) outSolution[i] = X(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_DirectPolynomialRoots (v0.94.0)
+
+int32_t OCCTMathPolynomialRoots(const double* coeffs, int32_t nCoeffs, double* outRoots) {
+    try {
+        math_DirectPolynomialRoots* roots = nullptr;
+        switch (nCoeffs) {
+            case 2: roots = new math_DirectPolynomialRoots(coeffs[0], coeffs[1]); break;
+            case 3: roots = new math_DirectPolynomialRoots(coeffs[0], coeffs[1], coeffs[2]); break;
+            case 4: roots = new math_DirectPolynomialRoots(coeffs[0], coeffs[1], coeffs[2], coeffs[3]); break;
+            case 5: roots = new math_DirectPolynomialRoots(coeffs[0], coeffs[1], coeffs[2], coeffs[3], coeffs[4]); break;
+            default: return -1;
+        }
+        if (!roots->IsDone()) { delete roots; return -1; }
+        int n = roots->NbSolutions();
+        for (int i = 0; i < n && i < 4; i++) outRoots[i] = roots->Value(i+1);
+        delete roots;
+        return n;
+    } catch (...) { return -1; }
+}
+
+// MARK: - math_Jacobi (v0.94.0)
+
+bool OCCTMathJacobiEigenvalues(const double* matrixData, int32_t n, double* outEigenvalues) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Jacobi jacobi(A);
+        if (!jacobi.IsDone()) return false;
+        for (int i = 0; i < n; i++) outEigenvalues[i] = jacobi.Value(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - v0.95: math_Householder/Crout
+// MARK: - math_Householder (v0.95.0)
+
+#include <math_Householder.hxx>
+
+bool OCCTMathHouseholderSolve(const double* matrixData, int32_t rows, int32_t cols,
+                               const double* rhs, double* outSolution) {
+    try {
+        math_Matrix A(1, rows, 1, cols, 0.0);
+        for (int i = 0; i < rows; i++)
+            for (int j = 0; j < cols; j++)
+                A(i+1, j+1) = matrixData[i*cols + j];
+        math_Vector B(1, rows, 0.0);
+        for (int i = 0; i < rows; i++) B(i+1) = rhs[i];
+        math_Householder hh(A, B);
+        if (!hh.IsDone()) return false;
+        math_Vector sol(1, cols, 0.0);
+        hh.Value(sol, 1);
+        for (int i = 0; i < cols; i++) outSolution[i] = sol(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_Crout (v0.95.0)
+
+#include <math_Crout.hxx>
+
+bool OCCTMathCroutSolve(const double* matrixData, int32_t n,
+                          const double* rhs, double* outSolution) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Crout crout(A);
+        if (!crout.IsDone()) return false;
+        math_Vector B(1, n, 0.0);
+        for (int i = 0; i < n; i++) B(i+1) = rhs[i];
+        math_Vector X(1, n, 0.0);
+        crout.Solve(B, X);
+        for (int i = 0; i < n; i++) outSolution[i] = X(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTMathCroutDeterminant(const double* matrixData, int32_t n) {
+    try {
+        math_Matrix A(1, n, 1, n, 0.0);
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++)
+                A(i+1, j+1) = matrixData[i*n + j];
+        math_Crout crout(A);
+        if (!crout.IsDone()) return 0.0;
+        return crout.Determinant();
+    } catch (...) { return 0.0; }
+}

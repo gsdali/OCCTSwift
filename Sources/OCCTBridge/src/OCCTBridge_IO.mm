@@ -1739,3 +1739,114 @@ const char* OCCTReportDumpByGravity(OCCTReportRef report, int gravity) {
         return result;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.91: OSD_Timer
+// MARK: - OSD_Timer (v0.91.0)
+
+#include <OSD_Timer.hxx>
+
+struct OCCTTimer {
+    OSD_Timer timer;
+};
+
+OCCTTimerRef OCCTTimerCreate() {
+    return new OCCTTimer();
+}
+
+void OCCTTimerRelease(OCCTTimerRef timer) {
+    delete timer;
+}
+
+void OCCTTimerStart(OCCTTimerRef timer) {
+    timer->timer.Start();
+}
+
+void OCCTTimerStop(OCCTTimerRef timer) {
+    timer->timer.Stop();
+}
+
+void OCCTTimerReset(OCCTTimerRef timer) {
+    timer->timer.Reset();
+}
+
+double OCCTTimerElapsedTime(OCCTTimerRef timer) {
+    return timer->timer.ElapsedTime();
+}
+
+double OCCTTimerGetWallClockTime() {
+    return OSD_Timer::GetWallClockTime();
+}
+
+// MARK: - v0.93: OSD_MemInfo
+// MARK: - OSD_MemInfo (v0.93.0)
+
+#include <OSD_MemInfo.hxx>
+
+int64_t OCCTMemInfoHeapUsage() {
+    try {
+        OSD_MemInfo info(true);
+        return (int64_t)info.Value(OSD_MemInfo::MemHeapUsage);
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTMemInfoWorkingSet() {
+    try {
+        OSD_MemInfo info(true);
+        return (int64_t)info.Value(OSD_MemInfo::MemWorkingSet);
+    } catch (...) { return -1; }
+}
+
+double OCCTMemInfoHeapUsageMiB() {
+    try {
+        OSD_MemInfo info(true);
+        return info.ValuePreciseMiB(OSD_MemInfo::MemHeapUsage);
+    } catch (...) { return -1.0; }
+}
+
+const char* OCCTMemInfoString() {
+    try {
+        TCollection_AsciiString str = OSD_MemInfo::PrintInfo();
+        return strdup(str.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTMemInfoFreeString(const char* str) {
+    if (str) free((void*)str);
+}
+
+// MARK: - v0.94: OSD_Environment
+// MARK: - OSD_Environment (v0.94.0)
+
+#include <OSD_Environment.hxx>
+
+const char* OCCTEnvironmentGet(const char* name) {
+    try {
+        TCollection_AsciiString aname(name);
+        OSD_Environment env(aname);
+        TCollection_AsciiString val = env.Value();
+        if (val.Length() == 0) return nullptr;
+        return strdup(val.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTEnvironmentSet(const char* name, const char* value) {
+    try {
+        TCollection_AsciiString aname(name);
+        TCollection_AsciiString aval(value);
+        OSD_Environment env(aname, aval);
+        env.Build();
+        return !env.Failed();
+    } catch (...) { return false; }
+}
+
+void OCCTEnvironmentRemove(const char* name) {
+    try {
+        TCollection_AsciiString aname(name);
+        OSD_Environment env(aname);
+        env.Remove();
+    } catch (...) {}
+}
+
+void OCCTEnvironmentFreeString(const char* str) {
+    if (str) free((void*)str);
+}

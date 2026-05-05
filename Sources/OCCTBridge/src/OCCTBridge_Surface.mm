@@ -87,6 +87,12 @@
 #include <gce_MakeCone.hxx>
 #include <gce_MakeCylinder.hxx>
 #include <gce_MakePln.hxx>
+#include <Convert_CylinderToBSplineSurface.hxx>
+#include <Convert_ConeToBSplineSurface.hxx>
+#include <Convert_TorusToBSplineSurface.hxx>
+#include <Convert_SphereToBSplineSurface.hxx>
+#include <TColgp_Array2OfPnt.hxx>
+#include <TColStd_Array2OfReal.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
 #include <BRepTopAdaptor_TopolTool.hxx>
 #include <Contap_ContAna.hxx>
@@ -3281,5 +3287,176 @@ OCCTSurfaceRef OCCTSurfaceCreateTrimmedInV(OCCTSurfaceRef basisSurface,
         auto* ref = new OCCTSurface();
         ref->surface = ts;
         return ref;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - v0.91: ElSLib
+// MARK: - ElSLib (v0.91.0)
+
+#include <ElSLib.hxx>
+
+void OCCTElSLibValueOnPlane(double u, double v,
+                             double ox, double oy, double oz,
+                             double nx, double ny, double nz,
+                             double* outX, double* outY, double* outZ) {
+    gp_Pnt p = ElSLib::Value(u, v, gp_Pln(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)));
+    *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+}
+
+void OCCTElSLibValueOnCylinder(double u, double v,
+                                double ox, double oy, double oz,
+                                double nx, double ny, double nz, double radius,
+                                double* outX, double* outY, double* outZ) {
+    gp_Pnt p = ElSLib::Value(u, v, gp_Cylinder(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), radius));
+    *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+}
+
+void OCCTElSLibValueOnCone(double u, double v,
+                            double ox, double oy, double oz,
+                            double nx, double ny, double nz,
+                            double refRadius, double semiAngle,
+                            double* outX, double* outY, double* outZ) {
+    gp_Pnt p = ElSLib::Value(u, v, gp_Cone(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), semiAngle, refRadius));
+    *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+}
+
+void OCCTElSLibValueOnSphere(double u, double v,
+                              double ox, double oy, double oz,
+                              double nx, double ny, double nz, double radius,
+                              double* outX, double* outY, double* outZ) {
+    gp_Pnt p = ElSLib::Value(u, v, gp_Sphere(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), radius));
+    *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+}
+
+void OCCTElSLibValueOnTorus(double u, double v,
+                             double ox, double oy, double oz,
+                             double nx, double ny, double nz,
+                             double majorRadius, double minorRadius,
+                             double* outX, double* outY, double* outZ) {
+    gp_Pnt p = ElSLib::Value(u, v, gp_Torus(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), majorRadius, minorRadius));
+    *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+}
+
+void OCCTElSLibParametersOnSphere(double ox, double oy, double oz,
+                                   double nx, double ny, double nz, double radius,
+                                   double px, double py, double pz,
+                                   double* outU, double* outV) {
+    double u, v;
+    ElSLib::Parameters(gp_Sphere(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), radius), gp_Pnt(px,py,pz), u, v);
+    *outU = u; *outV = v;
+}
+
+void OCCTElSLibD1OnSphere(double u, double v,
+                           double ox, double oy, double oz,
+                           double nx, double ny, double nz, double radius,
+                           double* outPX, double* outPY, double* outPZ,
+                           double* outVuX, double* outVuY, double* outVuZ,
+                           double* outVvX, double* outVvY, double* outVvZ) {
+    gp_Pnt p; gp_Vec vu, vv;
+    ElSLib::D1(u, v, gp_Sphere(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), radius), p, vu, vv);
+    *outPX = p.X(); *outPY = p.Y(); *outPZ = p.Z();
+    *outVuX = vu.X(); *outVuY = vu.Y(); *outVuZ = vu.Z();
+    *outVvX = vv.X(); *outVvY = vv.Y(); *outVvZ = vv.Z();
+}
+
+// MARK: - v0.94: Convert_SphereToBSplineSurface
+// MARK: - Convert_SphereToBSplineSurface (v0.94.0)
+
+#include <Convert_SphereToBSplineSurface.hxx>
+#include <Convert_ElementarySurfaceToBSplineSurface.hxx>
+
+OCCTSurfaceRef OCCTConvertSphereToBSplineSurface(double ox, double oy, double oz,
+                                                   double nx, double ny, double nz, double radius) {
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), radius);
+        Convert_SphereToBSplineSurface conv(sphere);
+        int nup = conv.NbUPoles(), nvp = conv.NbVPoles();
+        int nuk = conv.NbUKnots(), nvk = conv.NbVKnots();
+        int udeg = conv.UDegree(), vdeg = conv.VDegree();
+
+        TColgp_Array2OfPnt poles(1, nup, 1, nvp);
+        TColStd_Array2OfReal weights(1, nup, 1, nvp);
+        for (int i = 1; i <= nup; i++)
+            for (int j = 1; j <= nvp; j++) {
+                poles(i,j) = conv.Pole(i,j);
+                weights(i,j) = conv.Weight(i,j);
+            }
+
+        TColStd_Array1OfReal uknots(1, nuk), vknots(1, nvk);
+        TColStd_Array1OfInteger umults(1, nuk), vmults(1, nvk);
+        for (int i = 1; i <= nuk; i++) { uknots(i) = conv.UKnot(i); umults(i) = conv.UMultiplicity(i); }
+        for (int i = 1; i <= nvk; i++) { vknots(i) = conv.VKnot(i); vmults(i) = conv.VMultiplicity(i); }
+
+        Handle(Geom_BSplineSurface) bss = new Geom_BSplineSurface(
+            poles, weights, uknots, vknots, umults, vmults, udeg, vdeg,
+            conv.IsUPeriodic(), conv.IsVPeriodic());
+        if (bss.IsNull()) return nullptr;
+        OCCTSurface* result = new OCCTSurface();
+        result->surface = bss;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - v0.95: Convert_Cylinder/Cone/TorusToBSplineSurface (with buildSurfaceFromElementary helper)
+
+#include <Convert_ElementarySurfaceToBSplineSurface.hxx>
+
+// Helper: build Geom_BSplineSurface from Convert_ElementarySurfaceToBSplineSurface result
+static OCCTSurfaceRef buildSurfaceFromElementary(const Convert_ElementarySurfaceToBSplineSurface& conv) {
+    int nup = conv.NbUPoles(), nvp = conv.NbVPoles();
+    int nuk = conv.NbUKnots(), nvk = conv.NbVKnots();
+    int udeg = conv.UDegree(), vdeg = conv.VDegree();
+
+    TColgp_Array2OfPnt poles(1, nup, 1, nvp);
+    TColStd_Array2OfReal weights(1, nup, 1, nvp);
+    for (int i = 1; i <= nup; i++)
+        for (int j = 1; j <= nvp; j++) {
+            poles(i,j) = conv.Pole(i,j);
+            weights(i,j) = conv.Weight(i,j);
+        }
+
+    TColStd_Array1OfReal uknots(1, nuk), vknots(1, nvk);
+    TColStd_Array1OfInteger umults(1, nuk), vmults(1, nvk);
+    for (int i = 1; i <= nuk; i++) { uknots(i) = conv.UKnot(i); umults(i) = conv.UMultiplicity(i); }
+    for (int i = 1; i <= nvk; i++) { vknots(i) = conv.VKnot(i); vmults(i) = conv.VMultiplicity(i); }
+
+    Handle(Geom_BSplineSurface) bss = new Geom_BSplineSurface(
+        poles, weights, uknots, vknots, umults, vmults, udeg, vdeg,
+        conv.IsUPeriodic(), conv.IsVPeriodic());
+    if (bss.IsNull()) return nullptr;
+    OCCTSurface* result = new OCCTSurface();
+    result->surface = bss;
+    return result;
+}
+
+OCCTSurfaceRef OCCTConvertCylinderToBSplineSurface(double ox, double oy, double oz,
+                                                     double nx, double ny, double nz,
+                                                     double radius,
+                                                     double u1, double u2, double v1, double v2) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), radius);
+        Convert_CylinderToBSplineSurface conv(cyl, u1, u2, v1, v2);
+        return buildSurfaceFromElementary(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTConvertConeToBSplineSurface(double ox, double oy, double oz,
+                                                 double nx, double ny, double nz,
+                                                 double semiAngle, double refRadius,
+                                                 double u1, double u2, double v1, double v2) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), semiAngle, refRadius);
+        Convert_ConeToBSplineSurface conv(cone, u1, u2, v1, v2);
+        return buildSurfaceFromElementary(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTConvertTorusToBSplineSurface(double ox, double oy, double oz,
+                                                  double nx, double ny, double nz,
+                                                  double majorRadius, double minorRadius) {
+    try {
+        gp_Torus torus(gp_Ax3(gp_Pnt(ox,oy,oz), gp_Dir(nx,ny,nz)), majorRadius, minorRadius);
+        Convert_TorusToBSplineSurface conv(torus);
+        return buildSurfaceFromElementary(conv);
     } catch (...) { return nullptr; }
 }
