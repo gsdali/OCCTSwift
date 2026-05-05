@@ -1857,3 +1857,294 @@ bool OCCTFindSurfaceExisted(OCCTShapeRef shape, double tolerance, bool onlyPlane
         return finder.Existed();
     } catch (...) { return false; }
 }
+
+// MARK: - v0.102: TopExp Adjacency + BRepOffset_Analyse Edge Classification + BRepTools_WireExplorer Extensions
+// MARK: - TopExp Adjacency (v0.102.0)
+
+bool OCCTEdgeFirstVertex(OCCTShapeRef shape, double* x, double* y, double* z) {
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(shape->shape);
+        TopoDS_Vertex v = TopExp::FirstVertex(edge);
+        if (v.IsNull()) return false;
+        gp_Pnt p = BRep_Tool::Pnt(v);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeLastVertex(OCCTShapeRef shape, double* x, double* y, double* z) {
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(shape->shape);
+        TopoDS_Vertex v = TopExp::LastVertex(edge);
+        if (v.IsNull()) return false;
+        gp_Pnt p = BRep_Tool::Pnt(v);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeVertices(OCCTShapeRef shape,
+                      double* x1, double* y1, double* z1,
+                      double* x2, double* y2, double* z2) {
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(shape->shape);
+        TopoDS_Vertex v1, v2;
+        TopExp::Vertices(edge, v1, v2);
+        if (v1.IsNull() || v2.IsNull()) return false;
+        gp_Pnt p1 = BRep_Tool::Pnt(v1), p2 = BRep_Tool::Pnt(v2);
+        *x1 = p1.X(); *y1 = p1.Y(); *z1 = p1.Z();
+        *x2 = p2.X(); *y2 = p2.Y(); *z2 = p2.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTWireVertices(OCCTShapeRef shape,
+                      double* x1, double* y1, double* z1,
+                      double* x2, double* y2, double* z2) {
+    try {
+        TopoDS_Wire wire = TopoDS::Wire(shape->shape);
+        TopoDS_Vertex v1, v2;
+        TopExp::Vertices(wire, v1, v2);
+        if (v1.IsNull()) return false;
+        gp_Pnt p1 = BRep_Tool::Pnt(v1);
+        *x1 = p1.X(); *y1 = p1.Y(); *z1 = p1.Z();
+        if (v2.IsNull()) {
+            *x2 = p1.X(); *y2 = p1.Y(); *z2 = p1.Z();
+        } else {
+            gp_Pnt p2 = BRep_Tool::Pnt(v2);
+            *x2 = p2.X(); *y2 = p2.Y(); *z2 = p2.Z();
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeCommonVertex(OCCTShapeRef edge1, OCCTShapeRef edge2,
+                          double* x, double* y, double* z) {
+    try {
+        TopoDS_Edge e1 = TopoDS::Edge(edge1->shape);
+        TopoDS_Edge e2 = TopoDS::Edge(edge2->shape);
+        TopoDS_Vertex v;
+        if (!TopExp::CommonVertex(e1, e2, v)) return false;
+        gp_Pnt p = BRep_Tool::Pnt(v);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTEdgeFaceAdjacency(OCCTShapeRef shape, int32_t* adjacentFaceCounts) {
+    try {
+        NCollection_IndexedDataMap<TopoDS_Shape, TopTools_ListOfShape, TopTools_ShapeMapHasher> map;
+        TopExp::MapShapesAndUniqueAncestors(shape->shape, TopAbs_EDGE, TopAbs_FACE, map);
+        int32_t count = (int32_t)map.Extent();
+        if (adjacentFaceCounts) {
+            for (int i = 1; i <= count; i++) {
+                adjacentFaceCounts[i-1] = (int32_t)map(i).Extent();
+            }
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTVertexEdgeAdjacency(OCCTShapeRef shape, int32_t* adjacentEdgeCounts) {
+    try {
+        NCollection_IndexedDataMap<TopoDS_Shape, TopTools_ListOfShape, TopTools_ShapeMapHasher> map;
+        TopExp::MapShapesAndUniqueAncestors(shape->shape, TopAbs_VERTEX, TopAbs_EDGE, map);
+        int32_t count = (int32_t)map.Extent();
+        if (adjacentEdgeCounts) {
+            for (int i = 1; i <= count; i++) {
+                adjacentEdgeCounts[i-1] = (int32_t)map(i).Extent();
+            }
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTEdgeAdjacentFaces(OCCTShapeRef shape, OCCTShapeRef edge,
+                              int32_t* faceIndices, int32_t maxFaces) {
+    try {
+        NCollection_IndexedDataMap<TopoDS_Shape, TopTools_ListOfShape, TopTools_ShapeMapHasher> map;
+        TopExp::MapShapesAndUniqueAncestors(shape->shape, TopAbs_EDGE, TopAbs_FACE, map);
+        // Find the edge in the map
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        int edgeIdx = map.FindIndex(e);
+        if (edgeIdx == 0) return 0;
+        // Build face index map for lookup
+        NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        const TopTools_ListOfShape& faces = map(edgeIdx);
+        int32_t count = 0;
+        for (auto it = faces.cbegin(); it != faces.cend() && count < maxFaces; ++it) {
+            int fi = faceMap.FindIndex(*it);
+            if (fi > 0) faceIndices[count++] = (int32_t)fi;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTVertexAdjacentEdges(OCCTShapeRef shape, OCCTShapeRef vertex,
+                                int32_t* edgeIndices, int32_t maxEdges) {
+    try {
+        NCollection_IndexedDataMap<TopoDS_Shape, TopTools_ListOfShape, TopTools_ShapeMapHasher> map;
+        TopExp::MapShapesAndUniqueAncestors(shape->shape, TopAbs_VERTEX, TopAbs_EDGE, map);
+        TopoDS_Vertex v = TopoDS::Vertex(vertex->shape);
+        int vertIdx = map.FindIndex(v);
+        if (vertIdx == 0) return 0;
+        NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+        const TopTools_ListOfShape& edges = map(vertIdx);
+        int32_t count = 0;
+        for (auto it = edges.cbegin(); it != edges.cend() && count < maxEdges; ++it) {
+            int ei = edgeMap.FindIndex(*it);
+            if (ei > 0) edgeIndices[count++] = (int32_t)ei;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+// MARK: - BRepOffset_Analyse Edge Classification (v0.102.0)
+
+// Map our convention (0=Convex,1=Concave,2=Tangent) to ChFiDS (0=Concave,1=Convex,2=Tangential)
+static ChFiDS_TypeOfConcavity _mapConcavity(int32_t ourType) {
+    switch (ourType) {
+        case 0: return ChFiDS_Convex;
+        case 1: return ChFiDS_Concave;
+        case 2: return ChFiDS_Tangential;
+        default: return ChFiDS_Convex;
+    }
+}
+
+static int32_t _mapConcavityBack(ChFiDS_TypeOfConcavity chiType) {
+    switch (chiType) {
+        case ChFiDS_Convex: return 0;
+        case ChFiDS_Concave: return 1;
+        case ChFiDS_Tangential: return 2;
+        case ChFiDS_FreeBound: return 3;
+        default: return 4;
+    }
+}
+
+int32_t OCCTAnalyseEdgeConcavity(OCCTShapeRef shape, double angle, int32_t* edgeTypes) {
+    try {
+        BRepOffset_Analyse analyse(shape->shape, angle);
+        if (!analyse.IsDone()) return 0;
+        NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> edges;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edges);
+        int32_t count = (int32_t)edges.Extent();
+        if (edgeTypes) {
+            for (int i = 1; i <= count; i++) {
+                TopoDS_Edge e = TopoDS::Edge(edges(i));
+                const NCollection_List<BRepOffset_Interval>& intervals = analyse.Type(e);
+                if (intervals.IsEmpty()) {
+                    edgeTypes[i-1] = 4; // Other
+                } else {
+                    edgeTypes[i-1] = _mapConcavityBack(intervals.First().Type());
+                }
+            }
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTAnalyseExplode(OCCTShapeRef shape, double angle, int32_t concavityType) {
+    try {
+        BRepOffset_Analyse analyse(shape->shape, angle);
+        if (!analyse.IsDone()) return nullptr;
+        ChFiDS_TypeOfConcavity type = _mapConcavity(concavityType);
+        TopTools_ListOfShape groups;
+        analyse.Explode(groups, type);
+        if (groups.IsEmpty()) return nullptr;
+        // Build compound from all groups
+        BRep_Builder bb;
+        TopoDS_Compound compound;
+        bb.MakeCompound(compound);
+        for (auto it = groups.cbegin(); it != groups.cend(); ++it) {
+            bb.Add(compound, *it);
+        }
+        auto result = new OCCTShape();
+        result->shape = compound;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTAnalyseEdgesOnFace(OCCTShapeRef shape, double angle, OCCTShapeRef face, int32_t concavityType) {
+    try {
+        BRepOffset_Analyse analyse(shape->shape, angle);
+        if (!analyse.IsDone()) return 0;
+        ChFiDS_TypeOfConcavity type = _mapConcavity(concavityType);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        TopTools_ListOfShape edges;
+        analyse.Edges(f, type, edges);
+        return (int32_t)edges.Extent();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTAnalyseAncestorCount(OCCTShapeRef shape, double angle, OCCTShapeRef edge) {
+    try {
+        BRepOffset_Analyse analyse(shape->shape, angle);
+        if (!analyse.IsDone()) return 0;
+        if (!analyse.HasAncestor(edge->shape)) return 0;
+        const NCollection_List<TopoDS_Shape>& ancestors = analyse.Ancestors(edge->shape);
+        return (int32_t)ancestors.Extent();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTAnalyseTangentEdgeCount(OCCTShapeRef shape, double angle, OCCTShapeRef edge, OCCTShapeRef vertex) {
+    try {
+        BRepOffset_Analyse analyse(shape->shape, angle);
+        if (!analyse.IsDone()) return 0;
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Vertex v = TopoDS::Vertex(vertex->shape);
+        TopTools_ListOfShape tangents;
+        analyse.TangentEdges(e, v, tangents);
+        return (int32_t)tangents.Extent();
+    } catch (...) { return 0; }
+}
+// MARK: - BRepTools_WireExplorer Extensions (v0.102.0)
+
+int32_t OCCTWireExplorerOrientations(OCCTShapeRef wire, OCCTShapeRef face, int32_t* orientations) {
+    try {
+        TopoDS_Wire w = TopoDS::Wire(wire->shape);
+        BRepTools_WireExplorer we;
+        if (face) {
+            TopoDS_Face f = TopoDS::Face(face->shape);
+            we.Init(w, f);
+        } else {
+            we.Init(w);
+        }
+        int32_t count = 0;
+        while (we.More()) {
+            if (orientations) {
+                orientations[count] = (int32_t)we.Orientation();
+            }
+            count++;
+            we.Next();
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTWireExplorerVertices(OCCTShapeRef wire, OCCTShapeRef face,
+                                  double* xs, double* ys, double* zs) {
+    try {
+        TopoDS_Wire w = TopoDS::Wire(wire->shape);
+        BRepTools_WireExplorer we;
+        if (face) {
+            TopoDS_Face f = TopoDS::Face(face->shape);
+            we.Init(w, f);
+        } else {
+            we.Init(w);
+        }
+        int32_t count = 0;
+        while (we.More()) {
+            if (xs) {
+                TopoDS_Vertex v = we.CurrentVertex();
+                if (!v.IsNull()) {
+                    gp_Pnt p = BRep_Tool::Pnt(v);
+                    xs[count] = p.X(); ys[count] = p.Y(); zs[count] = p.Z();
+                }
+            }
+            count++;
+            we.Next();
+        }
+        return count;
+    } catch (...) { return 0; }
+}

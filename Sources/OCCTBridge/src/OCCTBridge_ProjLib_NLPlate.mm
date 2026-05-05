@@ -1045,3 +1045,56 @@ OCCTCurve3DRef _Nullable OCCTProjLibProjectOnSurface(OCCTCurve3DRef curve, doubl
         return nullptr;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.103: Plate Constraint Extensions
+// MARK: - Plate Constraint Extensions (v0.103.0)
+
+#include <Plate_PlaneConstraint.hxx>
+#include <Plate_LineConstraint.hxx>
+#include <Plate_FreeGtoCConstraint.hxx>
+#include <Plate_LinearScalarConstraint.hxx>
+
+bool OCCTPlateLoadPlaneConstraint(OCCTPlateRef plate, double u, double v,
+                                   double px, double py, double pz,
+                                   double nx, double ny, double nz) {
+    try {
+        auto* p = (Plate_Plate*)plate;
+        gp_XY uv(u, v);
+        gp_Pln pln(gp_Pnt(px,py,pz), gp_Dir(nx,ny,nz));
+        Plate_PlaneConstraint pc(uv, pln);
+        p->Load(pc.LSC());
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTPlateLoadLineConstraint(OCCTPlateRef plate, double u, double v,
+                                  double px, double py, double pz,
+                                  double dx, double dy, double dz) {
+    try {
+        auto* p = (Plate_Plate*)plate;
+        gp_XY uv(u, v);
+        gp_Lin lin(gp_Pnt(px,py,pz), gp_Dir(dx,dy,dz));
+        Plate_LineConstraint lc(uv, lin);
+        p->Load(lc.LSC());
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTPlateLoadFreeG1Constraint(OCCTPlateRef plate, double u, double v,
+                                    double duX, double duY, double duZ,
+                                    double dvX, double dvY, double dvZ) {
+    try {
+        auto* p = (Plate_Plate*)plate;
+        gp_XY uv(u, v);
+        Plate_D1 d1s(gp_XYZ(duX,duY,duZ), gp_XYZ(dvX,dvY,dvZ));
+        Plate_D1 d1t(gp_XYZ(duX,duY,duZ), gp_XYZ(dvX,dvY,dvZ));
+        Plate_FreeGtoCConstraint fgtoc(uv, d1s, d1t);
+        for (int i = 1; i <= fgtoc.nb_LSC(); i++) {
+            p->Load(fgtoc.LSC(i));
+        }
+        for (int i = 1; i <= fgtoc.nb_PPC(); i++) {
+            p->Load(fgtoc.GetPPC(i));
+        }
+        return true;
+    } catch (...) { return false; }
+}

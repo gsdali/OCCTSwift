@@ -2273,3 +2273,49 @@ double OCCTResourceManagerGetReal(OCCTResourceManagerRef mgr, const char* key) {
     try { return mgr->mgr->Real(key); } catch (...) { return 0.0; }
 }
 
+
+// MARK: - v0.104: OSD_Host + OSD_PerfMeter
+// MARK: - OSD_Host (v0.104.0)
+
+#include <OSD_Host.hxx>
+
+char* OCCTHostName(void) {
+    try {
+        OSD_Host host;
+        return strdup(host.HostName().ToCString());
+    } catch (...) { return nullptr; }
+}
+
+char* OCCTSystemVersion(void) {
+    try {
+        OSD_Host host;
+        return strdup(host.SystemVersion().ToCString());
+    } catch (...) { return nullptr; }
+}
+
+char* OCCTInternetAddress(void) {
+    try {
+        OSD_Host host;
+        return strdup(host.InternetAddress().ToCString());
+    } catch (...) { return nullptr; }
+}
+// MARK: - OSD_PerfMeter (v0.104.0)
+
+#include <OSD_PerfMeter.hxx>
+
+struct OCCTPerfMeter {
+    OSD_PerfMeter meter;
+};
+
+OCCTPerfMeterRef OCCTPerfMeterCreate(const char* name) {
+    auto m = new OCCTPerfMeter();
+    TCollection_AsciiString n(name);
+    m->meter.Init(n);
+    m->meter.Start();
+    return m;
+}
+
+void OCCTPerfMeterRelease(OCCTPerfMeterRef meter) { delete meter; }
+void OCCTPerfMeterStart(OCCTPerfMeterRef meter) { meter->meter.Start(); }
+void OCCTPerfMeterStop(OCCTPerfMeterRef meter) { meter->meter.Stop(); }
+double OCCTPerfMeterElapsed(OCCTPerfMeterRef meter) { return meter->meter.Elapsed(); }

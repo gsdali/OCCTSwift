@@ -6401,3 +6401,142 @@ OCCTShapeRef OCCTShapeDraftModification(OCCTShapeRef shape, int32_t faceIndex,
         return r;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.103: gce Transform Factories + Law_Interpolate
+// MARK: - gce Transform Factories (v0.103.0)
+
+#include <gce_MakeMirror.hxx>
+#include <gce_MakeRotation.hxx>
+#include <gce_MakeScale.hxx>
+#include <gce_MakeTranslation.hxx>
+#include <gce_MakeMirror2d.hxx>
+#include <gce_MakeRotation2d.hxx>
+#include <gce_MakeScale2d.hxx>
+#include <gce_MakeTranslation2d.hxx>
+#include <gce_MakeDir2d.hxx>
+
+static void _storeTrsf(const gp_Trsf& t, double* matrix) {
+    for (int r = 1; r <= 3; r++)
+        for (int c = 1; c <= 4; c++)
+            matrix[(r-1)*4 + (c-1)] = t.Value(r, c);
+}
+
+static void _storeTrsf2d(const gp_Trsf2d& t, double* matrix) {
+    for (int r = 1; r <= 2; r++)
+        for (int c = 1; c <= 3; c++)
+            matrix[(r-1)*3 + (c-1)] = t.Value(r, c);
+}
+
+void OCCTMakeMirrorPoint(double px, double py, double pz, double* matrix) {
+    gce_MakeMirror mm(gp_Pnt(px, py, pz));
+    _storeTrsf(mm.Value(), matrix);
+}
+
+void OCCTMakeMirrorAxis(double px, double py, double pz, double dx, double dy, double dz, double* matrix) {
+    gce_MakeMirror mm(gp_Ax1(gp_Pnt(px,py,pz), gp_Dir(dx,dy,dz)));
+    _storeTrsf(mm.Value(), matrix);
+}
+
+void OCCTMakeMirrorPlane(double px, double py, double pz, double nx, double ny, double nz, double* matrix) {
+    gce_MakeMirror mm(gp_Pln(gp_Pnt(px,py,pz), gp_Dir(nx,ny,nz)));
+    _storeTrsf(mm.Value(), matrix);
+}
+
+void OCCTMakeRotation(double px, double py, double pz, double dx, double dy, double dz, double angle, double* matrix) {
+    gce_MakeRotation mr(gp_Ax1(gp_Pnt(px,py,pz), gp_Dir(dx,dy,dz)), angle);
+    _storeTrsf(mr.Value(), matrix);
+}
+
+void OCCTMakeScaleTransform(double px, double py, double pz, double factor, double* matrix) {
+    gce_MakeScale ms(gp_Pnt(px,py,pz), factor);
+    _storeTrsf(ms.Value(), matrix);
+}
+
+void OCCTMakeTranslationVec(double vx, double vy, double vz, double* matrix) {
+    gce_MakeTranslation mt(gp_Vec(vx,vy,vz));
+    _storeTrsf(mt.Value(), matrix);
+}
+
+void OCCTMakeTranslationPoints(double x1, double y1, double z1, double x2, double y2, double z2, double* matrix) {
+    gce_MakeTranslation mt(gp_Pnt(x1,y1,z1), gp_Pnt(x2,y2,z2));
+    _storeTrsf(mt.Value(), matrix);
+}
+
+void OCCTMakeMirror2dPoint(double px, double py, double* matrix) {
+    gce_MakeMirror2d mm(gp_Pnt2d(px,py));
+    _storeTrsf2d(mm.Value(), matrix);
+}
+
+void OCCTMakeMirror2dAxis(double px, double py, double dx, double dy, double* matrix) {
+    gce_MakeMirror2d mm(gp_Ax2d(gp_Pnt2d(px,py), gp_Dir2d(dx,dy)));
+    _storeTrsf2d(mm.Value(), matrix);
+}
+
+void OCCTMakeRotation2d(double px, double py, double angle, double* matrix) {
+    gce_MakeRotation2d mr(gp_Pnt2d(px,py), angle);
+    _storeTrsf2d(mr.Value(), matrix);
+}
+
+void OCCTMakeScale2d(double px, double py, double factor, double* matrix) {
+    gce_MakeScale2d ms(gp_Pnt2d(px,py), factor);
+    _storeTrsf2d(ms.Value(), matrix);
+}
+
+void OCCTMakeTranslation2dVec(double vx, double vy, double* matrix) {
+    gce_MakeTranslation2d mt(gp_Vec2d(vx,vy));
+    _storeTrsf2d(mt.Value(), matrix);
+}
+
+void OCCTMakeTranslation2dPoints(double x1, double y1, double x2, double y2, double* matrix) {
+    gce_MakeTranslation2d mt(gp_Pnt2d(x1,y1), gp_Pnt2d(x2,y2));
+    _storeTrsf2d(mt.Value(), matrix);
+}
+
+bool OCCTMakeDir2d(double x, double y, double* outX, double* outY) {
+    try {
+        gce_MakeDir2d md(x, y);
+        if (!md.IsDone()) return false;
+        gp_Dir2d d = md.Value();
+        *outX = d.X(); *outY = d.Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTMakeDir2dFromPoints(double x1, double y1, double x2, double y2, double* outX, double* outY) {
+    try {
+        gce_MakeDir2d md(gp_Pnt2d(x1,y1), gp_Pnt2d(x2,y2));
+        if (!md.IsDone()) return false;
+        gp_Dir2d d = md.Value();
+        *outX = d.X(); *outY = d.Y();
+        return true;
+    } catch (...) { return false; }
+}
+// MARK: - Law_Interpolate (v0.103.0)
+
+#include <Law_Interpolate.hxx>
+
+OCCTLawFunctionRef OCCTLawInterpolate(const double* values, int32_t count,
+                                       const double* parameters, bool periodic) {
+    try {
+        Handle(NCollection_HArray1<double>) pts = new NCollection_HArray1<double>(1, count);
+        for (int i = 0; i < count; i++) pts->SetValue(i+1, values[i]);
+
+        Law_Interpolate* interp;
+        if (parameters) {
+            Handle(NCollection_HArray1<double>) params = new NCollection_HArray1<double>(1, count);
+            for (int i = 0; i < count; i++) params->SetValue(i+1, parameters[i]);
+            interp = new Law_Interpolate(pts, params, periodic, 1e-6);
+        } else {
+            interp = new Law_Interpolate(pts, periodic, 1e-6);
+        }
+        interp->Perform();
+        if (!interp->IsDone()) { delete interp; return nullptr; }
+        Handle(Law_BSpline) curve = interp->Curve();
+        delete interp;
+        if (curve.IsNull()) return nullptr;
+        Handle(Law_Function) func = new Law_BSpFunc(curve, curve->FirstParameter(), curve->LastParameter());
+        auto result = new OCCTLawFunction();
+        result->law = func;
+        return result;
+    } catch (...) { return nullptr; }
+}
