@@ -2438,3 +2438,42 @@ bool OCCTLineContainsPoint(double lx, double ly, double lz,
         return lin.Contains(gp_Pnt(px, py, pz), tolerance);
     } catch (...) { return false; }
 }
+
+// MARK: - v0.120: gp_Vec extras + gp_Dir extras
+// --- gp_Vec extras ---
+
+double OCCTVecCrossMagnitude(double v1x, double v1y, double v1z,
+                              double v2x, double v2y, double v2z) {
+    gp_Vec v1(v1x, v1y, v1z);
+    gp_Vec v2(v2x, v2y, v2z);
+    return v1.CrossMagnitude(v2);
+}
+
+double OCCTVecCrossSquareMagnitude(double v1x, double v1y, double v1z,
+                                    double v2x, double v2y, double v2z) {
+    gp_Vec v1(v1x, v1y, v1z);
+    gp_Vec v2(v2x, v2y, v2z);
+    return v1.CrossSquareMagnitude(v2);
+}
+
+// --- gp_Dir extras ---
+
+bool OCCTDirIsOpposite(double d1x, double d1y, double d1z,
+                        double d2x, double d2y, double d2z,
+                        double angularTolerance) {
+    try {
+        gp_Dir d1(d1x, d1y, d1z);
+        gp_Dir d2(d2x, d2y, d2z);
+        return d1.IsOpposite(d2, angularTolerance);
+    } catch (...) { return false; }
+}
+
+bool OCCTDirIsNormal(double d1x, double d1y, double d1z,
+                      double d2x, double d2y, double d2z,
+                      double angularTolerance) {
+    try {
+        gp_Dir d1(d1x, d1y, d1z);
+        gp_Dir d2(d2x, d2y, d2z);
+        return d1.IsNormal(d2, angularTolerance);
+    } catch (...) { return false; }
+}

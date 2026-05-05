@@ -4355,3 +4355,30 @@ void OCCTCurve2DBSplineGetWeights(OCCTCurve2DRef curve, double* weights) {
         }
     } catch (...) {}
 }
+
+// MARK: - v0.120: Curve2D continuity + BezierMaxDegree + BSplineMaxDegree
+// --- Curve2D continuity queries ---
+
+bool OCCTCurve2DIsCN(OCCTCurve2DRef _Nonnull curve, int32_t n) {
+    try {
+        auto c = *(occ::handle<Geom2d_Curve>*)curve;
+        if (c.IsNull()) return false;
+        return c->IsCN(n);
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DReversedParameter(OCCTCurve2DRef _Nonnull curve, double u) {
+    try {
+        auto c = *(occ::handle<Geom2d_Curve>*)curve;
+        if (c.IsNull()) return u;
+        return c->ReversedParameter(u);
+    } catch (...) { return u; }
+}
+
+int32_t OCCTCurve2DBezierMaxDegree(void) {
+    return Geom2d_BezierCurve::MaxDegree();
+}
+
+int32_t OCCTCurve2DBSplineMaxDegree(void) {
+    return Geom2d_BSplineCurve::MaxDegree();
+}
