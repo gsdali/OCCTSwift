@@ -3244,3 +3244,42 @@ OCCTSurfaceRef _Nullable OCCTGceMakePlnFrom3Points(double p1x, double p1y, doubl
         return (OCCTSurfaceRef)new OCCTSurface{plane};
     } catch (...) { return nullptr; }
 }
+
+// MARK: - Geom_RectangularTrimmedSurface handle (v0.86)
+// MARK: - Geom_RectangularTrimmedSurface
+
+#include <Geom_RectangularTrimmedSurface.hxx>
+
+OCCTSurfaceRef OCCTSurfaceCreateRectangularTrimmed(OCCTSurfaceRef basisSurface,
+                                                     double u1, double u2,
+                                                     double v1, double v2) {
+    try {
+        Handle(Geom_RectangularTrimmedSurface) ts =
+            new Geom_RectangularTrimmedSurface(basisSurface->surface, u1, u2, v1, v2);
+        auto* ref = new OCCTSurface();
+        ref->surface = ts;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTSurfaceCreateTrimmedInU(OCCTSurfaceRef basisSurface,
+                                             double param1, double param2) {
+    try {
+        Handle(Geom_RectangularTrimmedSurface) ts =
+            new Geom_RectangularTrimmedSurface(basisSurface->surface, param1, param2, true);
+        auto* ref = new OCCTSurface();
+        ref->surface = ts;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTSurfaceCreateTrimmedInV(OCCTSurfaceRef basisSurface,
+                                             double param1, double param2) {
+    try {
+        Handle(Geom_RectangularTrimmedSurface) ts =
+            new Geom_RectangularTrimmedSurface(basisSurface->surface, param1, param2, false);
+        auto* ref = new OCCTSurface();
+        ref->surface = ts;
+        return ref;
+    } catch (...) { return nullptr; }
+}

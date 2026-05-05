@@ -2368,3 +2368,149 @@ OCCTCurve3DRef _Nullable OCCTGceMakeParab(double cx, double cy, double cz,
         return (OCCTCurve3DRef)new OCCTCurve3D{parab};
     } catch (...) { return nullptr; }
 }
+
+// MARK: - Geom_Transformation handle (v0.86)
+// MARK: - Geom_Transformation
+
+#include <Geom_Transformation.hxx>
+
+OCCTGeomTransformRef OCCTGeomTransformCreate(void) {
+    try {
+        Handle(Geom_Transformation)* h = new Handle(Geom_Transformation)(new Geom_Transformation());
+        return h;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomTransformRelease(OCCTGeomTransformRef transform) {
+    auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+    delete h;
+}
+
+void OCCTGeomTransformSetTranslation(OCCTGeomTransformRef transform,
+                                      double dx, double dy, double dz) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        (*h)->SetTranslation(gp_Vec(dx, dy, dz));
+    } catch (...) {}
+}
+
+void OCCTGeomTransformSetRotation(OCCTGeomTransformRef transform,
+                                   double originX, double originY, double originZ,
+                                   double dirX, double dirY, double dirZ,
+                                   double angleRadians) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        gp_Ax1 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        (*h)->SetRotation(axis, angleRadians);
+    } catch (...) {}
+}
+
+void OCCTGeomTransformSetScale(OCCTGeomTransformRef transform,
+                                double centerX, double centerY, double centerZ,
+                                double scaleFactor) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        (*h)->SetScale(gp_Pnt(centerX, centerY, centerZ), scaleFactor);
+    } catch (...) {}
+}
+
+void OCCTGeomTransformSetMirrorPoint(OCCTGeomTransformRef transform,
+                                      double x, double y, double z) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        (*h)->SetMirror(gp_Pnt(x, y, z));
+    } catch (...) {}
+}
+
+void OCCTGeomTransformSetMirrorAxis(OCCTGeomTransformRef transform,
+                                     double originX, double originY, double originZ,
+                                     double dirX, double dirY, double dirZ) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        gp_Ax1 axis(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        (*h)->SetMirror(axis);
+    } catch (...) {}
+}
+
+double OCCTGeomTransformScaleFactor(OCCTGeomTransformRef transform) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        return (*h)->ScaleFactor();
+    } catch (...) { return 1.0; }
+}
+
+bool OCCTGeomTransformIsNegative(OCCTGeomTransformRef transform) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        return (*h)->IsNegative();
+    } catch (...) { return false; }
+}
+
+void OCCTGeomTransformApply(OCCTGeomTransformRef transform,
+                             double* x, double* y, double* z) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        (*h)->Transforms(*x, *y, *z);
+    } catch (...) {}
+}
+
+double OCCTGeomTransformValue(OCCTGeomTransformRef transform, int row, int col) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        return (*h)->Value(row, col);
+    } catch (...) { return 0.0; }
+}
+
+OCCTGeomTransformRef OCCTGeomTransformMultiplied(OCCTGeomTransformRef t1,
+                                                  OCCTGeomTransformRef t2) {
+    try {
+        auto* h1 = static_cast<Handle(Geom_Transformation)*>(t1);
+        auto* h2 = static_cast<Handle(Geom_Transformation)*>(t2);
+        Handle(Geom_Transformation) result = (*h1)->Multiplied(*h2);
+        return new Handle(Geom_Transformation)(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTGeomTransformRef OCCTGeomTransformInverted(OCCTGeomTransformRef transform) {
+    try {
+        auto* h = static_cast<Handle(Geom_Transformation)*>(transform);
+        Handle(Geom_Transformation) result = (*h)->Inverted();
+        return new Handle(Geom_Transformation)(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Geom_OffsetCurve handle (v0.86)
+// MARK: - Geom_OffsetCurve
+
+#include <Geom_OffsetCurve.hxx>
+
+OCCTCurve3DRef OCCTCurve3DCreateOffset(OCCTCurve3DRef basisCurve,
+                                         double offset,
+                                         double dirX, double dirY, double dirZ) {
+    try {
+        Handle(Geom_OffsetCurve) oc = new Geom_OffsetCurve(
+            basisCurve->curve, offset, gp_Dir(dirX, dirY, dirZ));
+        auto* ref = new OCCTCurve3D();
+        ref->curve = oc;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTCurve3DOffsetValue(OCCTCurve3DRef curve) {
+    try {
+        Handle(Geom_OffsetCurve) oc = Handle(Geom_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return 0.0;
+        return oc->Offset();
+    } catch (...) { return 0.0; }
+}
+
+bool OCCTCurve3DOffsetDirection(OCCTCurve3DRef curve,
+                                 double* dirX, double* dirY, double* dirZ) {
+    try {
+        Handle(Geom_OffsetCurve) oc = Handle(Geom_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return false;
+        gp_Dir d = oc->Direction();
+        *dirX = d.X(); *dirY = d.Y(); *dirZ = d.Z();
+        return true;
+    } catch (...) { return false; }
+}
