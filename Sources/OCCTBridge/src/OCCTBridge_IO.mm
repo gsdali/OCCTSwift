@@ -2802,3 +2802,136 @@ bool OCCTDocumentWriteGLTF(OCCTDocumentRef _Nonnull doc, const char* _Nonnull pa
 
 // end of v0.121.0 implementations
 
+// MARK: - IGES Import/Export (v0.10.0)
+// IGES reader/writer uses C-level global state (iges_newparam, iges_param, etc.)
+// that is NOT thread-safe. All IGES operations MUST be serialized.
+// See: https://github.com/Open-Cascade-SAS/OCCT/issues/1179
+// Non-static (declared in OCCTBridge_Internal.h) so per-area TUs share the
+// same underlying mutex via the linker.
+std::mutex& igesMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+OCCTShapeRef OCCTImportIGES(const char* path) {
+    if (!path) return nullptr;
+
+    std::lock_guard<std::mutex> igesLock(igesMutex());
+    try {
+        IGESControl_Reader reader;
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        // Transfer all roots
+        reader.TransferRoots();
+
+        // Get the result as a single shape (compound if multiple)
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTImportIGESRobust(const char* path) {
+    if (!path) return nullptr;
+
+    std::lock_guard<std::mutex> igesLock(igesMutex());
+    try {
+        IGESControl_Reader reader;
+
+        // Configure reader for better handling
+        Interface_Static::SetIVal("read.precision.mode", 0);
+        Interface_Static::SetRVal("read.precision.val", 0.0001);
+
+        IFSelect_ReturnStatus status = reader.ReadFile(path);
+        if (status != IFSelect_RetDone) return nullptr;
+
+        if (reader.TransferRoots() == 0) return nullptr;
+
+        TopoDS_Shape shape = reader.OneShape();
+        if (shape.IsNull()) return nullptr;
+
+        // Apply shape healing
+        ShapeFix_Shape fixer(shape);
+        fixer.Perform();
+        TopoDS_Shape fixed = fixer.Shape();
+
+        return new OCCTShape(fixed.IsNull() ? shape : fixed);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTExportIGES(OCCTShapeRef shape, const char* path) {
+    if (!shape || !path) return false;
+    if (shape->shape.IsNull()) return false;
+
+    std::lock_guard<std::mutex> igesLock(igesMutex());
+    try {
+        // Validate shape before IGES export — OCCT translator can segfault on invalid geometry
+        BRepCheck_Analyzer analyzer(shape->shape);
+        if (!analyzer.IsValid()) return false;
+
+        bool success = false;
+        {
+            IGESControl_Writer writer("MM", 0);  // Millimeters, faces mode
+
+            if (!writer.AddShape(shape->shape)) {
+                return false;
+            }
+
+            writer.ComputeModel();
+            success = writer.Write(path);
+        }
+        return success;
+    } catch (...) {
+        return false;
+    }
+}
+
+
+// MARK: - BREP Native Format (v0.10.0)
+
+OCCTShapeRef OCCTImportBREP(const char* path) {
+    if (!path) return nullptr;
+
+    try {
+        TopoDS_Shape shape;
+        BRep_Builder builder;
+
+        if (!BRepTools::Read(shape, path, builder)) {
+            return nullptr;
+        }
+
+        if (shape.IsNull()) return nullptr;
+
+        return new OCCTShape(shape);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTExportBREP(OCCTShapeRef shape, const char* path) {
+    if (!shape || !path) return false;
+
+    try {
+        return BRepTools::Write(shape->shape, path);
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTExportBREPWithTriangles(OCCTShapeRef shape, const char* path, bool withTriangles, bool withNormals) {
+    if (!shape || !path) return false;
+
+    try {
+        return BRepTools::Write(shape->shape, path, withTriangles, withNormals, TopTools_FormatVersion_CURRENT);
+    } catch (...) {
+        return false;
+    }
+}
+
+
