@@ -1017,3 +1017,83 @@ bool OCCTShapeSurfaceInertia(OCCTShapeRef shape, OCCTSurfaceInertiaResult* resul
         return false;
     }
 }
+
+// MARK: - GeomLProp CL/SL Props (v0.63)
+// --- GeomLProp_CLProps ---
+
+OCCTCurveLocalProps OCCTGeomLPropCLProps(OCCTShapeRef edgeShape, double param) {
+    OCCTCurveLocalProps result = {};
+    if (!edgeShape) return result;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        double f, l;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, f, l);
+        if (curve.IsNull()) return result;
+
+        GeomLProp_CLProps props(curve, param, 2, 1e-6);
+        gp_Pnt pt = props.Value();
+        result.px = pt.X(); result.py = pt.Y(); result.pz = pt.Z();
+        result.curvature = props.Curvature();
+        result.tangentDefined = props.IsTangentDefined();
+
+        if (result.tangentDefined) {
+            gp_Dir tangent;
+            props.Tangent(tangent);
+            result.tx = tangent.X(); result.ty = tangent.Y(); result.tz = tangent.Z();
+
+            if (result.curvature > 1e-10) {
+                gp_Dir normal;
+                props.Normal(normal);
+                result.nx = normal.X(); result.ny = normal.Y(); result.nz = normal.Z();
+
+                gp_Pnt center;
+                props.CentreOfCurvature(center);
+                result.cx = center.X(); result.cy = center.Y(); result.cz = center.Z();
+            }
+        }
+    } catch (...) {}
+    return result;
+}
+
+// --- GeomLProp_SLProps ---
+
+OCCTSurfaceLocalProps OCCTGeomLPropSLProps(OCCTShapeRef faceShape, double u, double v) {
+    OCCTSurfaceLocalProps result = {};
+    if (!faceShape) return result;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(Geom_Surface) surf = BRep_Tool::Surface(face);
+        if (surf.IsNull()) return result;
+
+        GeomLProp_SLProps props(surf, u, v, 2, 1e-6);
+        gp_Pnt pt = props.Value();
+        result.px = pt.X(); result.py = pt.Y(); result.pz = pt.Z();
+
+        result.normalDefined = props.IsNormalDefined();
+        if (result.normalDefined) {
+            gp_Dir n = props.Normal();
+            result.nx = n.X(); result.ny = n.Y(); result.nz = n.Z();
+        }
+
+        if (props.IsTangentUDefined()) {
+            gp_Dir tu;
+            props.TangentU(tu);
+            result.tuX = tu.X(); result.tuY = tu.Y(); result.tuZ = tu.Z();
+        }
+        if (props.IsTangentVDefined()) {
+            gp_Dir tv;
+            props.TangentV(tv);
+            result.tvX = tv.X(); result.tvY = tv.Y(); result.tvZ = tv.Z();
+        }
+
+        result.curvatureDefined = props.IsCurvatureDefined();
+        if (result.curvatureDefined) {
+            result.maxCurvature = props.MaxCurvature();
+            result.minCurvature = props.MinCurvature();
+            result.meanCurvature = props.MeanCurvature();
+            result.gaussianCurvature = props.GaussianCurvature();
+            result.isUmbilic = props.IsUmbilic();
+        }
+    } catch (...) {}
+    return result;
+}

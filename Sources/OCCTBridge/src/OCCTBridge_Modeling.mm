@@ -76,6 +76,8 @@
 #include <BRepLib_MakeEdge.hxx>
 #include <BRepLib_MakeFace.hxx>
 #include <BRepLib_MakeShell.hxx>
+#include <BRepFeat_Builder.hxx>
+#include <BRepOffset_SimpleOffset.hxx>
 #include <BRepTools_Modifier.hxx>
 #include <BRepTools_NurbsConvertModification.hxx>
 #include <Geom_CylindricalSurface.hxx>
@@ -4645,4 +4647,58 @@ bool OCCTLocOpeCurveShapeIntersectLine(OCCTShapeRef shape,
         }
         return true;
     } catch (...) { return false; }
+}
+
+// MARK: - BRepOffset_SimpleOffset (v0.63)
+// --- BRepOffset_SimpleOffset ---
+
+OCCTShapeRef _Nullable OCCTBRepOffsetSimpleOffset(OCCTShapeRef shape, double offset, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        Handle(BRepOffset_SimpleOffset) mod = new BRepOffset_SimpleOffset(shape->shape, offset, tolerance);
+        BRepTools_Modifier modifier(shape->shape, mod);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BRepFeat_Builder (v0.63)
+// --- BRepFeat_Builder ---
+
+OCCTShapeRef _Nullable OCCTBRepFeatBuilderFuse(OCCTShapeRef shape, OCCTShapeRef tool) {
+    if (!shape || !tool) return nullptr;
+    try {
+        BRepFeat_Builder builder;
+        builder.Init(shape->shape, tool->shape);
+        builder.SetOperation(1); // Fuse
+        TopTools_ListOfShape parts;
+        builder.PartsOfTool(parts);
+        for (auto it = parts.begin(); it != parts.end(); ++it) {
+            builder.KeepPart(*it);
+        }
+        builder.PerformResult();
+        if (builder.HasErrors()) return nullptr;
+        TopoDS_Shape result = builder.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepFeatBuilderCut(OCCTShapeRef shape, OCCTShapeRef tool) {
+    if (!shape || !tool) return nullptr;
+    try {
+        BRepFeat_Builder builder;
+        builder.Init(shape->shape, tool->shape);
+        builder.SetOperation(0); // Cut
+        TopTools_ListOfShape parts;
+        builder.PartsOfTool(parts);
+        // For cut, keep NO parts of tool (remove all)
+        builder.PerformResult();
+        if (builder.HasErrors()) return nullptr;
+        TopoDS_Shape result = builder.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
 }

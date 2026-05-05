@@ -29,6 +29,7 @@
 
 #include <Approx_Curve3d.hxx>
 #include <Approx_CurveOnSurface.hxx>
+#include <Approx_CurvilinearParameter.hxx>
 #include <CPnts_UniformDeflection.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -1476,4 +1477,23 @@ bool OCCTCPntsUniformDeflectionRange(OCCTShapeRef shape, double deflection,
         }
         return true;
     } catch (...) { return false; }
+}
+
+// MARK: - Approx_CurvilinearParameter (v0.63)
+// --- Approx_CurvilinearParameter ---
+
+OCCTShapeRef _Nullable OCCTApproxCurvilinearParameter(OCCTShapeRef edgeShape,
+    double tolerance, int maxDegree, int maxSegments) {
+    if (!edgeShape) return nullptr;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        Handle(BRepAdaptor_Curve) adaptor = new BRepAdaptor_Curve(edge);
+        Approx_CurvilinearParameter approx(adaptor, tolerance, GeomAbs_C1, maxDegree, maxSegments);
+        if (!approx.IsDone() || !approx.HasResult()) return nullptr;
+        Handle(Geom_BSplineCurve) curve = approx.Curve3d();
+        if (curve.IsNull()) return nullptr;
+        BRepBuilderAPI_MakeEdge me(curve);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
 }
