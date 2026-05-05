@@ -8778,3 +8778,39 @@ OCCTShapeRef OCCTSectionBuilderAncestorFaceOn2(OCCTSectionBuilderRef builder, OC
         return nullptr;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - Issue #39: Lift 2D Curve to 3D Wire on a Plane
+
+#include <BRepLib.hxx>
+
+OCCTWireRef OCCTWireFromCurve2DOnPlane(OCCTCurve2DRef curve,
+                                       double ox, double oy, double oz,
+                                       double nx, double ny, double nz,
+                                       double xx, double xy, double xz) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        gp_Pnt origin(ox, oy, oz);
+        gp_Dir normal(nx, ny, nz);
+        gp_Dir xDir(xx, xy, xz);
+        gp_Ax2 ax2(origin, normal, xDir);
+        gp_Pln plane(ax2);
+
+        // BRepBuilderAPI_MakeEdge accepts a Geom2d_Curve + Handle(Geom_Surface)
+        Handle(Geom_Plane) surf = new Geom_Plane(plane);
+        BRepBuilderAPI_MakeEdge maker(curve->curve, surf);
+        if (!maker.IsDone()) return nullptr;
+        TopoDS_Edge edge = maker.Edge();
+
+        // Build the 3D curve representation from the pcurve on the plane surface
+        BRepLib::BuildCurves3d(edge);
+
+        BRepBuilderAPI_MakeWire wireMaker(edge);
+        if (!wireMaker.IsDone()) return nullptr;
+
+        auto* w = new OCCTWire();
+        w->wire = wireMaker.Wire();
+        return w;
+    } catch (...) {
+        return nullptr;
+    }
+}
