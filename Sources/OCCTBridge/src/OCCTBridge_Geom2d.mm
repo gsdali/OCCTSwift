@@ -50,6 +50,8 @@
 #include <TColgp_HArray1OfPnt2d.hxx>
 #include <TColStd_HArray1OfReal.hxx>
 #include <Geom2dConvert.hxx>
+#include <gp_GTrsf2d.hxx>
+#include <gp_Mat2d.hxx>
 #include <GccAna_Circ2d2TanRad.hxx>
 #include <GccAna_Circ2dTanCen.hxx>
 #include <GccAna_Lin2d2Tan.hxx>
@@ -4140,3 +4142,112 @@ double OCCTCurve2DLength(OCCTCurve2DRef curve, double u1, double u2) {
     } catch (...) { return 0; }
 }
 // --- Curve3D Arc Length (GCPnts_AbscissaPoint) ---
+
+// MARK: - v0.116: gp_GTrsf2d + gp_Mat2d
+void OCCTGTrsf2dAffinity(double axPx, double axPy, double axDx, double axDy, double ratio,
+                           double* _Nonnull mat, double* _Nonnull tx, double* _Nonnull ty) {
+    gp_GTrsf2d gt;
+    gt.SetAffinity(gp_Ax2d(gp_Pnt2d(axPx, axPy), gp_Dir2d(axDx, axDy)), ratio);
+    const gp_Mat2d& m = gt.VectorialPart();
+    mat[0] = m.Value(1,1); mat[1] = m.Value(1,2);
+    mat[2] = m.Value(2,1); mat[3] = m.Value(2,2);
+    *tx = gt.TranslationPart().X(); *ty = gt.TranslationPart().Y();
+}
+
+void OCCTGTrsf2dMultiply(const double* _Nonnull matA, double txA, double tyA,
+                           const double* _Nonnull matB, double txB, double tyB,
+                           double* _Nonnull matR, double* _Nonnull txR, double* _Nonnull tyR) {
+    gp_GTrsf2d a, b;
+    gp_Mat2d ma; ma.SetValue(1,1,matA[0]); ma.SetValue(1,2,matA[1]); ma.SetValue(2,1,matA[2]); ma.SetValue(2,2,matA[3]);
+    a.SetVectorialPart(ma); a.SetTranslationPart(gp_XY(txA, tyA));
+    gp_Mat2d mb; mb.SetValue(1,1,matB[0]); mb.SetValue(1,2,matB[1]); mb.SetValue(2,1,matB[2]); mb.SetValue(2,2,matB[3]);
+    b.SetVectorialPart(mb); b.SetTranslationPart(gp_XY(txB, tyB));
+    gp_GTrsf2d r = a.Multiplied(b);
+    const gp_Mat2d& mr = r.VectorialPart();
+    matR[0] = mr.Value(1,1); matR[1] = mr.Value(1,2);
+    matR[2] = mr.Value(2,1); matR[3] = mr.Value(2,2);
+    *txR = r.TranslationPart().X(); *tyR = r.TranslationPart().Y();
+}
+
+bool OCCTGTrsf2dInvert(const double* _Nonnull mat, double tx, double ty,
+                         double* _Nonnull matR, double* _Nonnull txR, double* _Nonnull tyR) {
+    try {
+        gp_GTrsf2d gt;
+        gp_Mat2d m; m.SetValue(1,1,mat[0]); m.SetValue(1,2,mat[1]); m.SetValue(2,1,mat[2]); m.SetValue(2,2,mat[3]);
+        gt.SetVectorialPart(m); gt.SetTranslationPart(gp_XY(tx, ty));
+        gp_GTrsf2d inv = gt.Inverted();
+        const gp_Mat2d& mr = inv.VectorialPart();
+        matR[0] = mr.Value(1,1); matR[1] = mr.Value(1,2);
+        matR[2] = mr.Value(2,1); matR[3] = mr.Value(2,2);
+        *txR = inv.TranslationPart().X(); *tyR = inv.TranslationPart().Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTGTrsf2dTransformPoint(const double* _Nonnull mat, double tx, double ty,
+                                 double px, double py, double* _Nonnull rx, double* _Nonnull ry) {
+    gp_GTrsf2d gt;
+    gp_Mat2d m; m.SetValue(1,1,mat[0]); m.SetValue(1,2,mat[1]); m.SetValue(2,1,mat[2]); m.SetValue(2,2,mat[3]);
+    gt.SetVectorialPart(m); gt.SetTranslationPart(gp_XY(tx, ty));
+    gp_XY pt(px, py);
+    gp_XY result = gt.Transformed(pt);
+    *rx = result.X(); *ry = result.Y();
+}
+
+// gp_Mat2d
+
+void OCCTMat2dIdentity(double* _Nonnull mat) {
+    gp_Mat2d m; m.SetIdentity();
+    mat[0] = m.Value(1,1); mat[1] = m.Value(1,2);
+    mat[2] = m.Value(2,1); mat[3] = m.Value(2,2);
+}
+
+void OCCTMat2dRotation(double angle, double* _Nonnull mat) {
+    gp_Mat2d m; m.SetRotation(angle);
+    mat[0] = m.Value(1,1); mat[1] = m.Value(1,2);
+    mat[2] = m.Value(2,1); mat[3] = m.Value(2,2);
+}
+
+void OCCTMat2dScale(double s, double* _Nonnull mat) {
+    gp_Mat2d m; m.SetScale(s);
+    mat[0] = m.Value(1,1); mat[1] = m.Value(1,2);
+    mat[2] = m.Value(2,1); mat[3] = m.Value(2,2);
+}
+
+double OCCTMat2dDeterminant(const double* _Nonnull mat) {
+    gp_Mat2d m;
+    m.SetValue(1,1,mat[0]); m.SetValue(1,2,mat[1]);
+    m.SetValue(2,1,mat[2]); m.SetValue(2,2,mat[3]);
+    return m.Determinant();
+}
+
+bool OCCTMat2dInvert(const double* _Nonnull mat, double* _Nonnull result) {
+    try {
+        gp_Mat2d m;
+        m.SetValue(1,1,mat[0]); m.SetValue(1,2,mat[1]);
+        m.SetValue(2,1,mat[2]); m.SetValue(2,2,mat[3]);
+        gp_Mat2d inv = m.Inverted();
+        result[0] = inv.Value(1,1); result[1] = inv.Value(1,2);
+        result[2] = inv.Value(2,1); result[3] = inv.Value(2,2);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTMat2dMultiply(const double* _Nonnull matA, const double* _Nonnull matB, double* _Nonnull result) {
+    gp_Mat2d a, b;
+    a.SetValue(1,1,matA[0]); a.SetValue(1,2,matA[1]); a.SetValue(2,1,matA[2]); a.SetValue(2,2,matA[3]);
+    b.SetValue(1,1,matB[0]); b.SetValue(1,2,matB[1]); b.SetValue(2,1,matB[2]); b.SetValue(2,2,matB[3]);
+    gp_Mat2d r = a.Multiplied(b);
+    result[0] = r.Value(1,1); result[1] = r.Value(1,2);
+    result[2] = r.Value(2,1); result[3] = r.Value(2,2);
+}
+
+void OCCTMat2dTranspose(const double* _Nonnull mat, double* _Nonnull result) {
+    gp_Mat2d m;
+    m.SetValue(1,1,mat[0]); m.SetValue(1,2,mat[1]); m.SetValue(2,1,mat[2]); m.SetValue(2,2,mat[3]);
+    gp_Mat2d t = m.Transposed();
+    result[0] = t.Value(1,1); result[1] = t.Value(1,2);
+    result[2] = t.Value(2,1); result[3] = t.Value(2,2);
+}
+
+// Quaternion interpolation

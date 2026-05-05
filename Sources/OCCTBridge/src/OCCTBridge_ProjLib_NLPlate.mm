@@ -41,6 +41,8 @@
 #include <Geom_Line.hxx>
 #include <ShapeConstruct_ProjectCurveOnSurface.hxx>
 #include <ProjLib_ProjectOnSurface.hxx>
+#include <ProjLib_Plane.hxx>
+#include <ProjLib_Cylinder.hxx>
 #include <Geom_BSplineCurve.hxx>
 #include <Geom_TrimmedCurve.hxx>
 
@@ -1141,3 +1143,70 @@ bool OCCTPlateLoadLinearXYZ(OCCTPlateRef plate,
         return true;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.116: ProjLib Plane/Cylinder Project Line + Plane Project Circle
+bool OCCTProjLibPlaneProjectLine(double plnPx, double plnPy, double plnPz,
+                                   double plnNx, double plnNy, double plnNz,
+                                   double linPx, double linPy, double linPz,
+                                   double linDx, double linDy, double linDz,
+                                   double* _Nonnull resPx, double* _Nonnull resPy,
+                                   double* _Nonnull resDx, double* _Nonnull resDy) {
+    try {
+        gp_Pln pln(gp_Pnt(plnPx, plnPy, plnPz), gp_Dir(plnNx, plnNy, plnNz));
+        gp_Lin lin(gp_Pnt(linPx, linPy, linPz), gp_Dir(linDx, linDy, linDz));
+        ProjLib_Plane proj(pln, lin);
+        if (proj.IsDone()) {
+            gp_Lin2d l2d = proj.Line();
+            *resPx = l2d.Location().X(); *resPy = l2d.Location().Y();
+            *resDx = l2d.Direction().X(); *resDy = l2d.Direction().Y();
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTProjLibCylinderProjectLine(double cylPx, double cylPy, double cylPz,
+                                      double cylDx, double cylDy, double cylDz,
+                                      double cylRadius,
+                                      double linPx, double linPy, double linPz,
+                                      double linDx, double linDy, double linDz,
+                                      double* _Nonnull resPx, double* _Nonnull resPy,
+                                      double* _Nonnull resDx, double* _Nonnull resDy) {
+    try {
+        gp_Ax3 ax(gp_Pnt(cylPx, cylPy, cylPz), gp_Dir(cylDx, cylDy, cylDz));
+        gp_Cylinder cyl(ax, cylRadius);
+        gp_Lin lin(gp_Pnt(linPx, linPy, linPz), gp_Dir(linDx, linDy, linDz));
+        ProjLib_Cylinder proj(cyl, lin);
+        if (proj.IsDone()) {
+            gp_Lin2d l2d = proj.Line();
+            *resPx = l2d.Location().X(); *resPy = l2d.Location().Y();
+            *resDx = l2d.Direction().X(); *resDy = l2d.Direction().Y();
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTProjLibPlaneProjectCircle(double plnPx, double plnPy, double plnPz,
+                                     double plnNx, double plnNy, double plnNz,
+                                     double cirCx, double cirCy, double cirCz,
+                                     double cirNx, double cirNy, double cirNz,
+                                     double cirRadius,
+                                     double* _Nonnull resCx, double* _Nonnull resCy,
+                                     double* _Nonnull resRadius) {
+    try {
+        gp_Pln pln(gp_Pnt(plnPx, plnPy, plnPz), gp_Dir(plnNx, plnNy, plnNz));
+        gp_Ax2 ax(gp_Pnt(cirCx, cirCy, cirCz), gp_Dir(cirNx, cirNy, cirNz));
+        gp_Circ circ(ax, cirRadius);
+        ProjLib_Plane proj(pln, circ);
+        if (proj.IsDone()) {
+            gp_Circ2d c2d = proj.Circle();
+            *resCx = c2d.Location().X(); *resCy = c2d.Location().Y();
+            *resRadius = c2d.Radius();
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+// end of v0.117.0 implementations

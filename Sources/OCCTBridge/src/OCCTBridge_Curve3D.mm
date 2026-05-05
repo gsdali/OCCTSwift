@@ -59,6 +59,10 @@
 #include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <Extrema_GenLocateExtPS.hxx>
 #include <TColStd_HArray1OfReal.hxx>
+#include <HelixGeom_BuilderHelix.hxx>
+#include <HelixGeom_BuilderHelixCoil.hxx>
+#include <HelixGeom_HelixCurve.hxx>
+#include <HelixGeom_Tools.hxx>
 #include <ShapeUpgrade_SplitCurve3dContinuity.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -4694,3 +4698,167 @@ double OCCTCurve3DArcLengthBetween(OCCTCurve3DRef curve, double param1, double p
         return GCPnts_AbscissaPoint::Length(adaptor, param1, param2);
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.116: HelixGeom (BuilderHelix/Coil + HelixCurve eval/D1/D2 + ApproxToBSpline)
+#include <math_IntegerVector.hxx>
+
+// HelixGeom
+
+OCCTCurve3DRef _Nullable OCCTHelixBuild(double posX, double posY, double posZ,
+                                          double dirX, double dirY, double dirZ,
+                                          double xDirX, double xDirY, double xDirZ,
+                                          double t1, double t2, double pitch, double rStart,
+                                          double taperAngle, bool isClockwise,
+                                          double tolerance, double* _Nonnull tolReached) {
+    try {
+        HelixGeom_BuilderHelix builder;
+        gp_Ax2 ax2(gp_Pnt(posX, posY, posZ), gp_Dir(dirX, dirY, dirZ), gp_Dir(xDirX, xDirY, xDirZ));
+        builder.SetPosition(ax2);
+        builder.SetCurveParameters(t1, t2, pitch, rStart, taperAngle, isClockwise);
+        builder.SetTolerance(tolerance);
+        builder.Perform();
+        if (builder.ErrorStatus() != 0 || builder.Curves().IsEmpty()) return nullptr;
+        *tolReached = builder.ToleranceReached();
+        auto curve = builder.Curves().First();
+        auto* ref = new OCCTCurve3D;
+        ref->curve = curve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef _Nullable OCCTHelixCoilBuild(double t1, double t2, double pitch, double rStart,
+                                              double taperAngle, bool isClockwise,
+                                              double tolerance, double* _Nonnull tolReached) {
+    try {
+        HelixGeom_BuilderHelixCoil builder;
+        builder.SetCurveParameters(t1, t2, pitch, rStart, taperAngle, isClockwise);
+        builder.SetTolerance(tolerance);
+        builder.Perform();
+        if (builder.ErrorStatus() != 0 || builder.Curves().IsEmpty()) return nullptr;
+        *tolReached = builder.ToleranceReached();
+        auto curve = builder.Curves().First();
+        auto* ref = new OCCTCurve3D;
+        ref->curve = curve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTHelixCurveEval(double t1, double t2, double pitch, double rStart,
+                          double taperAngle, bool isClockwise, double u,
+                          double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz) {
+    try {
+        HelixGeom_HelixCurve hc;
+        hc.Load(t1, t2, pitch, rStart, taperAngle, isClockwise);
+        gp_Pnt p = hc.Value(u);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+    } catch (...) { *px = *py = *pz = 0; }
+}
+
+void OCCTHelixCurveD1(double t1, double t2, double pitch, double rStart,
+                        double taperAngle, bool isClockwise, double u,
+                        double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                        double* _Nonnull vx, double* _Nonnull vy, double* _Nonnull vz) {
+    try {
+        HelixGeom_HelixCurve hc;
+        hc.Load(t1, t2, pitch, rStart, taperAngle, isClockwise);
+        gp_Pnt p; gp_Vec v;
+        hc.D1(u, p, v);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *vx = v.X(); *vy = v.Y(); *vz = v.Z();
+    } catch (...) { *px = *py = *pz = *vx = *vy = *vz = 0; }
+}
+
+void OCCTHelixCurveD2(double t1, double t2, double pitch, double rStart,
+                        double taperAngle, bool isClockwise, double u,
+                        double* _Nonnull px, double* _Nonnull py, double* _Nonnull pz,
+                        double* _Nonnull v1x, double* _Nonnull v1y, double* _Nonnull v1z,
+                        double* _Nonnull v2x, double* _Nonnull v2y, double* _Nonnull v2z) {
+    try {
+        HelixGeom_HelixCurve hc;
+        hc.Load(t1, t2, pitch, rStart, taperAngle, isClockwise);
+        gp_Pnt p; gp_Vec v1, v2;
+        hc.D2(u, p, v1, v2);
+        *px = p.X(); *py = p.Y(); *pz = p.Z();
+        *v1x = v1.X(); *v1y = v1.Y(); *v1z = v1.Z();
+        *v2x = v2.X(); *v2y = v2.Y(); *v2z = v2.Z();
+    } catch (...) { *px = *py = *pz = *v1x = *v1y = *v1z = *v2x = *v2y = *v2z = 0; }
+}
+
+OCCTCurve3DRef _Nullable OCCTHelixApproxToBSpline(double t1, double t2, double pitch, double rStart,
+                                                     double taperAngle, bool isClockwise,
+                                                     double tolerance, double* _Nonnull maxError) {
+    try {
+        Handle(Geom_BSplineCurve) bspl;
+        double err = 0;
+        int status = HelixGeom_Tools::ApprHelix(t1, t2, pitch, rStart, taperAngle, isClockwise, tolerance, bspl, err);
+        if (status != 0 || bspl.IsNull()) return nullptr;
+        *maxError = err;
+        auto* ref = new OCCTCurve3D;
+        ref->curve = bspl;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// gp_Ax3
+
+// MARK: - v0.116: Curve3D Local Curvature/Tangent/Normal/CentreOfCurvature
+double OCCTCurve3DLocalCurvature(OCCTCurve3DRef _Nonnull curve, double u) {
+    try {
+        GeomLProp_CLProps props(curve->curve, u, 2, 1e-10);
+        return props.Curvature();
+    } catch (...) { return 0.0; }
+}
+
+void OCCTCurve3DLocalTangent(OCCTCurve3DRef _Nonnull curve, double u,
+                               double* _Nonnull tx, double* _Nonnull ty, double* _Nonnull tz,
+                               bool* _Nonnull isDefined) {
+    try {
+        GeomLProp_CLProps props(curve->curve, u, 1, 1e-10);
+        *isDefined = props.IsTangentDefined();
+        if (*isDefined) {
+            gp_Dir d;
+            props.Tangent(d);
+            *tx = d.X(); *ty = d.Y(); *tz = d.Z();
+        } else {
+            *tx = 0; *ty = 0; *tz = 0;
+        }
+    } catch (...) { *isDefined = false; *tx = 0; *ty = 0; *tz = 0; }
+}
+
+void OCCTCurve3DLocalNormal(OCCTCurve3DRef _Nonnull curve, double u,
+                              double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz,
+                              bool* _Nonnull isDefined) {
+    try {
+        GeomLProp_CLProps props(curve->curve, u, 2, 1e-10);
+        *isDefined = props.IsTangentDefined();
+        if (*isDefined) {
+            gp_Dir n;
+            props.Normal(n);
+            *nx = n.X(); *ny = n.Y(); *nz = n.Z();
+        } else {
+            *nx = 0; *ny = 0; *nz = 0;
+        }
+    } catch (...) { *isDefined = false; *nx = 0; *ny = 0; *nz = 0; }
+}
+
+void OCCTCurve3DLocalCentreOfCurvature(OCCTCurve3DRef _Nonnull curve, double u,
+                                         double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz,
+                                         bool* _Nonnull isDefined) {
+    try {
+        GeomLProp_CLProps props(curve->curve, u, 2, 1e-10);
+        double curv = props.Curvature();
+        if (curv > 1e-10 && props.IsTangentDefined()) {
+            gp_Pnt p;
+            props.CentreOfCurvature(p);
+            *cx = p.X(); *cy = p.Y(); *cz = p.Z();
+            *isDefined = true;
+        } else {
+            *cx = 0; *cy = 0; *cz = 0;
+            *isDefined = false;
+        }
+    } catch (...) { *isDefined = false; *cx = 0; *cy = 0; *cz = 0; }
+}
+
+// GeomLProp_SLProps (was LProp3d_SLProps in RC4)
+
+#include <GeomLProp_SLProps.hxx>

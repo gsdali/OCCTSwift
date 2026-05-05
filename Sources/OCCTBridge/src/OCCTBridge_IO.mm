@@ -53,6 +53,7 @@
 #include <Message_Gravity.hxx>
 #include <APIHeaderSection_MakeHeader.hxx>
 #include <Resource_Manager.hxx>
+#include <UnitsMethods.hxx>
 #include <sstream>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <TDF_LabelSequence.hxx>
@@ -2674,3 +2675,27 @@ bool OCCTMessageMsgHasMsg(const char* key) {
         return Message_MsgFile::HasMsg(TCollection_AsciiString(key));
     } catch (...) { return false; }
 }
+
+// MARK: - v0.116: UnitsAPI helpers
+double OCCTUnitsGetLengthFactor(int32_t unit) {
+    try {
+        return UnitsMethods::GetLengthFactorValue(unit);
+    } catch (...) { return 0.0; }
+}
+
+double OCCTUnitsGetLengthUnitScale(int32_t fromUnit, int32_t toUnit) {
+    try {
+        return UnitsMethods::GetLengthUnitScale((UnitsMethods_LengthUnit)fromUnit,
+                                                 (UnitsMethods_LengthUnit)toUnit);
+    } catch (...) { return 0.0; }
+}
+
+const char* _Nullable OCCTUnitsDumpLengthUnit(int32_t unit) {
+    try {
+        return UnitsMethods::DumpLengthUnit((UnitsMethods_LengthUnit)unit);
+    } catch (...) { return nullptr; }
+}
+
+// GeomLProp_CLProps (was LProp3d_CLProps in RC4)
+
+#include <GeomLProp_CLProps.hxx>
