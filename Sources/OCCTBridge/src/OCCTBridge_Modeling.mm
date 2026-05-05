@@ -6910,3 +6910,50 @@ int32_t OCCTSewingNbDegeneratedShapes(OCCTSewingRef sewing) {
     if (!sewing) return 0;
     try { return sewing->sewing.NbDegeneratedShapes(); } catch (...) { return 0; }
 }
+
+// MARK: - v0.109: BRepAlgo_NormalProjection
+// MARK: - BRepAlgo_NormalProjection (v0.109.0)
+
+#include <BRepAlgo_NormalProjection.hxx>
+
+struct OCCTNormalProjection {
+    BRepAlgo_NormalProjection proj;
+    OCCTNormalProjection(const TopoDS_Shape& s) : proj(s) {}
+};
+
+OCCTNormalProjectionRef OCCTNormalProjectionCreate(OCCTShapeRef targetShape) {
+    if (!targetShape) return nullptr;
+    try {
+        return new OCCTNormalProjection(targetShape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTNormalProjectionRelease(OCCTNormalProjectionRef proj) {
+    delete proj;
+}
+
+void OCCTNormalProjectionAdd(OCCTNormalProjectionRef proj, OCCTShapeRef wire) {
+    if (!proj || !wire) return;
+    try {
+        proj->proj.Add(wire->shape);
+    } catch (...) {}
+}
+
+bool OCCTNormalProjectionBuild(OCCTNormalProjectionRef proj) {
+    if (!proj) return false;
+    try {
+        proj->proj.SetDefaultParams();
+        proj->proj.Build();
+        return proj->proj.IsDone();
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTNormalProjectionResult(OCCTNormalProjectionRef proj) {
+    if (!proj) return nullptr;
+    try {
+        if (!proj->proj.IsDone()) return nullptr;
+        TopoDS_Shape result = proj->proj.Projection();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}

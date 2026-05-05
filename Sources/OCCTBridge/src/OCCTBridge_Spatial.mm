@@ -1100,3 +1100,465 @@ void OCCTIntAnaConeSphereGetDomain(double semiAngle, double refRadius,
         curve.Domain(*first, *last);
     } catch (...) {}
 }
+
+// MARK: - v0.109-v0.111: math_TrigonometricFunctionRoots + Math Solver Adapters + math_FunctionRoot/SetRoot/BFGS/Powell/Brent + math_PSO + GlobOptMin + FunctionRoots + GaussSingleIntegration + NewtonFunctionSetRoot + MathPoly_Laguerre + math_NewtonMinimum
+// MARK: - math_TrigonometricFunctionRoots (v0.109.0)
+
+#include <math_TrigonometricFunctionRoots.hxx>
+
+int32_t OCCTTrigRoots(double A, double B, double C, double D, double E,
+                       double inf, double sup,
+                       double* roots, int32_t maxRoots) {
+    try {
+        math_TrigonometricFunctionRoots solver(A, B, C, D, E, inf, sup);
+        if (!solver.IsDone()) return -1;
+        int n = solver.NbSolutions();
+        int count = 0;
+        for (int i = 1; i <= n && count < maxRoots; i++) {
+            roots[count++] = solver.Value(i);
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+bool OCCTTrigRootsInfinite(double A, double B, double C, double D, double E,
+                            double inf, double sup) {
+    try {
+        math_TrigonometricFunctionRoots solver(A, B, C, D, E, inf, sup);
+        if (!solver.IsDone()) return false;
+        return solver.InfiniteRoots();
+    } catch (...) { return false; }
+}
+// MARK: - Math Solver Callback Adapters (v0.110.0)
+
+#include <math_FunctionWithDerivative.hxx>
+#include <math_FunctionSetWithDerivatives.hxx>
+#include <math_MultipleVarFunction.hxx>
+#include <math_MultipleVarFunctionWithGradient.hxx>
+#include <math_FunctionRoot.hxx>
+#include <math_BissecNewton.hxx>
+#include <math_FunctionSetRoot.hxx>
+#include <math_BFGS.hxx>
+#include <math_Powell.hxx>
+#include <math_BrentMinimum.hxx>
+
+// C++ adapter: wraps a C callback into math_FunctionWithDerivative
+class OCCTMathFuncAdapter : public math_FunctionWithDerivative {
+    OCCTMathFuncDerivCallback callback;
+    void* ctx;
+public:
+    OCCTMathFuncAdapter(OCCTMathFuncDerivCallback cb, void* c) : callback(cb), ctx(c) {}
+    bool Value(const double X, double& F) override {
+        double d;
+        return callback(X, &F, &d, ctx);
+    }
+    bool Derivative(const double X, double& D) override {
+        double f;
+        return callback(X, &f, &D, ctx);
+    }
+    bool Values(const double X, double& F, double& D) override {
+        return callback(X, &F, &D, ctx);
+    }
+};
+
+// C++ adapter: wraps C callbacks into math_FunctionSetWithDerivatives
+class OCCTMathFuncSetAdapter : public math_FunctionSetWithDerivatives {
+    OCCTMathFuncSetCallback valueCallback;
+    OCCTMathFuncSetDerivCallback derivCallback;
+    void* ctx;
+    int nVars, nEqs;
+public:
+    OCCTMathFuncSetAdapter(int nv, int ne, OCCTMathFuncSetCallback vcb, OCCTMathFuncSetDerivCallback dcb, void* c)
+        : nVars(nv), nEqs(ne), valueCallback(vcb), derivCallback(dcb), ctx(c) {}
+    int NbVariables() const override { return nVars; }
+    int NbEquations() const override { return nEqs; }
+    bool Value(const math_Vector& X, math_Vector& F) override {
+        std::vector<double> x(nVars), f(nEqs);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = valueCallback(x.data(), nVars, f.data(), nEqs, ctx);
+        for (int i = 0; i < nEqs; i++) F(i+1) = f[i];
+        return ok;
+    }
+    bool Derivatives(const math_Vector& X, math_Matrix& D) override {
+        std::vector<double> x(nVars), jac(nVars*nEqs);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = derivCallback(x.data(), nVars, jac.data(), nEqs, ctx);
+        for (int i = 0; i < nEqs; i++)
+            for (int j = 0; j < nVars; j++)
+                D(i+1, j+1) = jac[i*nVars + j];
+        return ok;
+    }
+    bool Values(const math_Vector& X, math_Vector& F, math_Matrix& D) override {
+        return Value(X, F) && Derivatives(X, D);
+    }
+};
+
+// C++ adapter: wraps a C callback into math_MultipleVarFunction
+class OCCTMathMultiVarAdapter : public math_MultipleVarFunction {
+    OCCTMathMultiVarCallback callback;
+    void* ctx;
+    int nVars;
+public:
+    OCCTMathMultiVarAdapter(int nv, OCCTMathMultiVarCallback cb, void* c) : nVars(nv), callback(cb), ctx(c) {}
+    int NbVariables() const override { return nVars; }
+    bool Value(const math_Vector& X, double& F) override {
+        std::vector<double> x(nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        return callback(x.data(), nVars, &F, ctx);
+    }
+};
+
+// C++ adapter: wraps a C callback into math_MultipleVarFunctionWithGradient
+class OCCTMathMultiVarGradAdapter : public math_MultipleVarFunctionWithGradient {
+    OCCTMathMultiVarGradCallback callback;
+    void* ctx;
+    int nVars;
+public:
+    OCCTMathMultiVarGradAdapter(int nv, OCCTMathMultiVarGradCallback cb, void* c) : nVars(nv), callback(cb), ctx(c) {}
+    int NbVariables() const override { return nVars; }
+    bool Value(const math_Vector& X, double& F) override {
+        std::vector<double> x(nVars), g(nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        return callback(x.data(), nVars, &F, g.data(), ctx);
+    }
+    bool Gradient(const math_Vector& X, math_Vector& G) override {
+        std::vector<double> x(nVars), g(nVars);
+        double f;
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &f, g.data(), ctx);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        return ok;
+    }
+    bool Values(const math_Vector& X, double& F, math_Vector& G) override {
+        std::vector<double> x(nVars), g(nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &F, g.data(), ctx);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        return ok;
+    }
+};
+
+// MARK: - math_FunctionRoot (v0.110.0)
+
+double OCCTMathFunctionRoot(OCCTMathFuncDerivCallback callback, void* context,
+                             double guess, double tolerance, int32_t maxIter, bool* isDone) {
+    *isDone = false;
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_FunctionRoot root(func, guess, tolerance, maxIter);
+        *isDone = root.IsDone();
+        return root.IsDone() ? root.Root() : 0.0;
+    } catch (...) { return 0.0; }
+}
+
+double OCCTMathFunctionRootBounded(OCCTMathFuncDerivCallback callback, void* context,
+                                     double guess, double tolerance, double a, double b, int32_t maxIter, bool* isDone) {
+    *isDone = false;
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_FunctionRoot root(func, guess, tolerance, a, b, maxIter);
+        *isDone = root.IsDone();
+        return root.IsDone() ? root.Root() : 0.0;
+    } catch (...) { return 0.0; }
+}
+
+double OCCTMathBissecNewton(OCCTMathFuncDerivCallback callback, void* context,
+                              double a, double b, double tolerance, int32_t maxIter, bool* isDone) {
+    *isDone = false;
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_BissecNewton bn(tolerance);
+        bn.Perform(func, a, b, maxIter);
+        *isDone = bn.IsDone();
+        return bn.IsDone() ? bn.Root() : 0.0;
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - math_FunctionSetRoot (v0.110.0)
+
+bool OCCTMathFunctionSetRoot(int32_t nVars, int32_t nEqs,
+                              OCCTMathFuncSetCallback valueCallback,
+                              OCCTMathFuncSetDerivCallback derivCallback,
+                              void* context,
+                              const double* startPoint, double tolerance,
+                              int32_t maxIter, double* result) {
+    try {
+        OCCTMathFuncSetAdapter sys(nVars, nEqs, valueCallback, derivCallback, context);
+        math_Vector start(1, nVars);
+        math_Vector tol(1, nVars, tolerance);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        math_FunctionSetRoot solver(sys, tol, maxIter);
+        solver.Perform(sys, start);
+        if (!solver.IsDone()) return false;
+        const math_Vector& sol = solver.Root();
+        for (int i = 0; i < nVars; i++) result[i] = sol(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_BFGS (v0.110.0)
+
+bool OCCTMathBFGS(int32_t nVars,
+                    OCCTMathMultiVarGradCallback callback, void* context,
+                    const double* startPoint, double tolerance, int32_t maxIter,
+                    double* result, double* minimum) {
+    try {
+        OCCTMathMultiVarGradAdapter func(nVars, callback, context);
+        math_Vector start(1, nVars);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        math_BFGS bfgs(nVars, tolerance, maxIter, tolerance);
+        bfgs.Perform(func, start);
+        if (!bfgs.IsDone()) return false;
+        const math_Vector& loc = bfgs.Location();
+        for (int i = 0; i < nVars; i++) result[i] = loc(i+1);
+        *minimum = bfgs.Minimum();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_Powell (v0.110.0)
+
+bool OCCTMathPowell(int32_t nVars,
+                     OCCTMathMultiVarCallback callback, void* context,
+                     const double* startPoint, double tolerance, int32_t maxIter,
+                     double* result, double* minimum) {
+    try {
+        OCCTMathMultiVarAdapter func(nVars, callback, context);
+        math_Vector start(1, nVars);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        math_Matrix dirs(1, nVars, 1, nVars, 0.0);
+        for (int i = 1; i <= nVars; i++) dirs(i, i) = 1.0;
+        math_Powell powell(func, tolerance, maxIter);
+        powell.Perform(func, start, dirs);
+        if (!powell.IsDone()) return false;
+        const math_Vector& loc = powell.Location();
+        for (int i = 0; i < nVars; i++) result[i] = loc(i+1);
+        *minimum = powell.Minimum();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_BrentMinimum (v0.110.0)
+
+bool OCCTMathBrentMinimum(OCCTMathFuncDerivCallback callback, void* context,
+                            double ax, double bx, double cx, double tolerance, int32_t maxIter,
+                            double* location, double* minimum) {
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_BrentMinimum brent(tolerance, maxIter, tolerance);
+        brent.Perform(func, ax, bx, cx);
+        if (!brent.IsDone()) return false;
+        *location = brent.Location();
+        *minimum = brent.Minimum();
+        return true;
+    } catch (...) { return false; }
+}
+// MARK: - math_PSO (v0.111.0)
+
+#include <math_PSO.hxx>
+#include <math_GlobOptMin.hxx>
+#include <math_FunctionRoots.hxx>
+#include <math_GaussSingleIntegration.hxx>
+#include <math_NewtonFunctionSetRoot.hxx>
+#include <GeomGridEval_Curve.hxx>
+#include <Geom2dGridEval_Curve.hxx>
+#include <GeomGridEval_Surface.hxx>
+#include <BRepLProp_CLProps.hxx>
+#include <BRepLProp_SLProps.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <MathPoly_Laguerre.hxx>
+
+// Simple math_Function adapter for GaussSingleIntegration
+class OCCTMathSimpleFuncAdapter : public math_Function {
+    OCCTMathSimpleFuncCallback cb;
+    void* ctx;
+public:
+    OCCTMathSimpleFuncAdapter(OCCTMathSimpleFuncCallback c, void* x) : cb(c), ctx(x) {}
+    bool Value(const double X, double& F) override { return cb(X, &F, ctx); }
+};
+
+bool OCCTMathPSO(int32_t nVars, OCCTMathMultiVarCallback callback, void* context,
+                  const double* lower, const double* upper, const double* steps,
+                  int32_t nbParticles, int32_t nbIter, double* result, double* minimum) {
+    try {
+        OCCTMathMultiVarAdapter func(nVars, callback, context);
+        math_Vector lo(1, nVars), hi(1, nVars), st(1, nVars);
+        for (int i = 0; i < nVars; i++) {
+            lo(i+1) = lower[i]; hi(i+1) = upper[i]; st(i+1) = steps[i];
+        }
+        math_PSO pso(&func, lo, hi, st, nbParticles, nbIter);
+        math_Vector res(1, nVars);
+        double val;
+        pso.Perform(st, val, res);
+        for (int i = 0; i < nVars; i++) result[i] = res(i+1);
+        *minimum = val;
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_GlobOptMin (v0.111.0)
+
+bool OCCTMathGlobOptMin(int32_t nVars, OCCTMathMultiVarCallback callback, void* context,
+                          const double* lower, const double* upper, double* result, double* minimum) {
+    try {
+        OCCTMathMultiVarAdapter func(nVars, callback, context);
+        math_Vector lo(1, nVars), hi(1, nVars);
+        for (int i = 0; i < nVars; i++) { lo(i+1) = lower[i]; hi(i+1) = upper[i]; }
+        math_GlobOptMin gom(&func, lo, hi);
+        gom.Perform();
+        if (!gom.isDone() || gom.NbExtrema() == 0) return false;
+        math_Vector sol(1, nVars);
+        gom.Points(1, sol);
+        for (int i = 0; i < nVars; i++) result[i] = sol(i+1);
+        *minimum = gom.GetF();
+        return true;
+    } catch (...) { return false; }
+}
+
+// MARK: - math_FunctionRoots (v0.111.0)
+
+int32_t OCCTMathFunctionRoots(OCCTMathFuncDerivCallback callback, void* context,
+                                double a, double b, int32_t nbSample,
+                                double* roots, int32_t maxRoots) {
+    try {
+        OCCTMathFuncAdapter func(callback, context);
+        math_FunctionRoots fr(func, a, b, nbSample);
+        if (!fr.IsDone()) return 0;
+        int32_t n = std::min((int32_t)fr.NbSolutions(), maxRoots);
+        for (int32_t i = 0; i < n; i++) roots[i] = fr.Value(i+1);
+        return n;
+    } catch (...) { return 0; }
+}
+
+// MARK: - math_GaussSingleIntegration (v0.111.0)
+
+double OCCTMathGaussIntegrate(OCCTMathSimpleFuncCallback callback, void* context,
+                                double lower, double upper, int32_t order) {
+    try {
+        OCCTMathSimpleFuncAdapter func(callback, context);
+        math_GaussSingleIntegration gauss(func, lower, upper, order);
+        if (!gauss.IsDone()) return 0.0;
+        return gauss.Value();
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - math_NewtonFunctionSetRoot (v0.111.0)
+
+bool OCCTMathNewtonFuncSetRoot(int32_t nVars, int32_t nEqs,
+                                 OCCTMathFuncSetCallback valCb, OCCTMathFuncSetDerivCallback derivCb,
+                                 void* context, const double* start, double tol, int32_t maxIter,
+                                 double* result) {
+    try {
+        OCCTMathFuncSetAdapter sys(nVars, nEqs, valCb, derivCb, context);
+        math_Vector tolVec(1, nVars, tol);
+        math_NewtonFunctionSetRoot solver(sys, tolVec, tol, maxIter);
+        math_Vector startVec(1, nVars);
+        for (int i = 0; i < nVars; i++) startVec(i+1) = start[i];
+        solver.Perform(sys, startVec);
+        if (!solver.IsDone()) return false;
+        const math_Vector& sol = solver.Root();
+        for (int i = 0; i < nVars; i++) result[i] = sol(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+// MARK: - MathPoly_Laguerre (v0.111.0)
+
+int32_t OCCTPolyLaguerreRoots(const double* coefficients, int32_t degree,
+                                double* roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Laguerre(coefficients, degree);
+        if (!result.IsDone()) return 0;
+        int32_t n = std::min((int32_t)result.NbRoots, maxRoots);
+        for (int32_t i = 0; i < n; i++) roots[i] = result.Roots[i];
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTPolyLaguerreComplexRoots(const double* coefficients, int32_t degree,
+                                        double* realParts, double* imagParts, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Laguerre(coefficients, degree);
+        if (!result.IsDone()) return 0;
+        int32_t n = std::min((int32_t)result.NbComplexRoots, maxRoots);
+        for (int32_t i = 0; i < n; i++) {
+            realParts[i] = result.ComplexRoots[i].real();
+            imagParts[i] = result.ComplexRoots[i].imag();
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTPolyQuinticRoots(double a, double b, double c, double d, double e, double f,
+                                double* roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Quintic(a, b, c, d, e, f);
+        if (!result.IsDone()) return 0;
+        int32_t n = std::min((int32_t)result.NbRoots, maxRoots);
+        for (int32_t i = 0; i < n; i++) roots[i] = result.Roots[i];
+        return n;
+    } catch (...) { return 0; }
+}
+// MARK: - math_NewtonMinimum (v0.111.1)
+
+#include <math_NewtonMinimum.hxx>
+#include <math_MultipleVarFunctionWithHessian.hxx>
+
+class OCCTMathHessianAdapter : public math_MultipleVarFunctionWithHessian {
+    OCCTMathHessianCallback callback;
+    void* context;
+    int nVars;
+public:
+    OCCTMathHessianAdapter(int n, OCCTMathHessianCallback cb, void* ctx)
+        : nVars(n), callback(cb), context(ctx) {}
+    int NbVariables() const override { return nVars; }
+    bool Value(const math_Vector& X, double& F) override {
+        std::vector<double> x(nVars), g(nVars), h(nVars*nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        return callback(x.data(), nVars, &F, g.data(), h.data(), context);
+    }
+    bool Gradient(const math_Vector& X, math_Vector& G) override {
+        std::vector<double> x(nVars), g(nVars), h(nVars*nVars);
+        double f;
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &f, g.data(), h.data(), context);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        return ok;
+    }
+    bool Values(const math_Vector& X, double& F, math_Vector& G) override {
+        std::vector<double> x(nVars), g(nVars), h(nVars*nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &F, g.data(), h.data(), context);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        return ok;
+    }
+    bool Values(const math_Vector& X, double& F, math_Vector& G, math_Matrix& H) override {
+        std::vector<double> x(nVars), g(nVars), h(nVars*nVars);
+        for (int i = 0; i < nVars; i++) x[i] = X(i+1);
+        bool ok = callback(x.data(), nVars, &F, g.data(), h.data(), context);
+        for (int i = 0; i < nVars; i++) G(i+1) = g[i];
+        for (int i = 0; i < nVars; i++)
+            for (int j = 0; j < nVars; j++)
+                H(i+1, j+1) = h[i*nVars + j];
+        return ok;
+    }
+};
+
+bool OCCTMathNewtonMinimum(int32_t nVars,
+                             OCCTMathHessianCallback callback, void* context,
+                             const double* startPoint,
+                             double tolerance, int32_t maxIter,
+                             double* result, double* minimum) {
+    try {
+        OCCTMathHessianAdapter adapter(nVars, callback, context);
+        math_NewtonMinimum newton(adapter, tolerance, maxIter);
+        math_Vector start(1, nVars);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        newton.Perform(adapter, start);
+        if (!newton.IsDone()) return false;
+        const math_Vector& loc = newton.Location();
+        for (int i = 0; i < nVars; i++) result[i] = loc(i+1);
+        *minimum = newton.Minimum();
+        return true;
+    } catch (...) { return false; }
+}

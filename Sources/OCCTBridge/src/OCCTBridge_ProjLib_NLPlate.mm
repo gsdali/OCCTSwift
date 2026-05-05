@@ -1098,3 +1098,46 @@ bool OCCTPlateLoadFreeG1Constraint(OCCTPlateRef plate, double u, double v,
         return true;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.109: Plate Constraints Extensions
+// MARK: - Plate Constraints Extensions (v0.109.0)
+
+#include <Plate_GlobalTranslationConstraint.hxx>
+#include <Plate_LinearXYZConstraint.hxx>
+
+bool OCCTPlateLoadGlobalTranslation(OCCTPlateRef plate, const double* uvs, int32_t count) {
+    if (!plate || !uvs || count <= 0) return false;
+    try {
+        Plate_Plate* pp = (Plate_Plate*)plate;
+        NCollection_Sequence<gp_XY> pts;
+        for (int i = 0; i < count; i++) {
+            pts.Append(gp_XY(uvs[i * 2], uvs[i * 2 + 1]));
+        }
+        Plate_GlobalTranslationConstraint constraint(pts);
+        pp->Load(constraint.LXYZC());
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTPlateLoadLinearXYZ(OCCTPlateRef plate,
+                             const double* uvs,
+                             const double* targets,
+                             const double* coeffs,
+                             int32_t count) {
+    if (!plate || !uvs || !targets || !coeffs || count <= 0) return false;
+    try {
+        Plate_Plate* pp = (Plate_Plate*)plate;
+        // Build PinpointConstraints from UV+target pairs
+        NCollection_Array1<Plate_PinpointConstraint> ppc(1, count);
+        NCollection_Array2<double> coefs(1, 1, 1, count);
+        for (int i = 0; i < count; i++) {
+            gp_XY uv(uvs[i * 2], uvs[i * 2 + 1]);
+            gp_XYZ target(targets[i * 3], targets[i * 3 + 1], targets[i * 3 + 2]);
+            ppc.SetValue(i + 1, Plate_PinpointConstraint(uv, target));
+            coefs.SetValue(1, i + 1, coeffs[i]);
+        }
+        Plate_LinearXYZConstraint lc(ppc, coefs);
+        pp->Load(lc);
+        return true;
+    } catch (...) { return false; }
+}

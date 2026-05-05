@@ -2555,3 +2555,122 @@ int32_t OCCTFileList(const char* path, const char* mask, char** names, int32_t m
         return count;
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.109: OSD_Disk + OSD_SharedLibrary + Message_Msg
+// MARK: - OSD_Disk (v0.109.0)
+
+#include <OSD_Disk.hxx>
+#include <OSD_Path.hxx>
+
+int64_t OCCTDiskSize(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        OSD_Disk disk(opath);
+        return (int64_t)disk.DiskSize();
+    } catch (...) { return 0; }
+}
+
+int64_t OCCTDiskFree(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        OSD_Disk disk(opath);
+        return (int64_t)disk.DiskFree();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDiskIsValid(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        OSD_Disk disk(opath);
+        // If it doesn't throw, it's valid enough
+        disk.DiskSize();
+        return true;
+    } catch (...) { return false; }
+}
+
+char* OCCTDiskName(const char* path) {
+    try {
+        TCollection_AsciiString apath(path);
+        OSD_Path opath(apath);
+        OSD_Disk disk(opath);
+        OSD_Path namePath = disk.Name();
+        TCollection_AsciiString nameStr;
+        namePath.SystemName(nameStr);
+        return strdup(nameStr.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - OSD_SharedLibrary (v0.109.0)
+
+#include <OSD_SharedLibrary.hxx>
+
+struct OCCTSharedLib {
+    OSD_SharedLibrary lib;
+    OCCTSharedLib(const char* name) : lib(name) {}
+};
+
+OCCTSharedLibRef OCCTSharedLibCreate(const char* name) {
+    try {
+        return new OCCTSharedLib(name);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTSharedLibRelease(OCCTSharedLibRef lib) {
+    delete lib;
+}
+
+bool OCCTSharedLibOpen(OCCTSharedLibRef lib) {
+    if (!lib) return false;
+    try {
+        return lib->lib.DlOpen(OSD_RTLD_LAZY);
+    } catch (...) { return false; }
+}
+
+void OCCTSharedLibClose(OCCTSharedLibRef lib) {
+    if (!lib) return;
+    try {
+        lib->lib.DlClose();
+    } catch (...) {}
+}
+
+char* OCCTSharedLibName(OCCTSharedLibRef lib) {
+    if (!lib) return nullptr;
+    try {
+        const char* name = lib->lib.Name();
+        return name ? strdup(name) : nullptr;
+    } catch (...) { return nullptr; }
+}
+// MARK: - Message_Msg (v0.109.0)
+
+#include <Message_Msg.hxx>
+#include <Message_MsgFile.hxx>
+
+char* OCCTMessageMsgGet(const char* key) {
+    try {
+        Message_Msg msg(key);
+        TCollection_ExtendedString str = msg.Get();
+        TCollection_AsciiString astr(str);
+        return strdup(astr.ToCString());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTMessageMsgFileLoad(const char* fileName) {
+    try {
+        return Message_MsgFile::LoadFile(fileName);
+    } catch (...) { return false; }
+}
+
+bool OCCTMessageMsgFileLoadDefault(void) {
+    try {
+        return Message_MsgFile::LoadFromEnv("CSF_XHatch", "");
+    } catch (...) { return false; }
+}
+
+bool OCCTMessageMsgHasMsg(const char* key) {
+    try {
+        return Message_MsgFile::HasMsg(TCollection_AsciiString(key));
+    } catch (...) { return false; }
+}

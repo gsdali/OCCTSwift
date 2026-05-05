@@ -39,6 +39,8 @@
 #include <BRepGProp_Sinert.hxx>
 #include <BRepGProp_Vinert.hxx>
 #include <BRepGProp_VinertGK.hxx>
+#include <BRepLProp_CLProps.hxx>
+#include <BRepLProp_SLProps.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
 
@@ -1462,4 +1464,172 @@ void OCCTGPropBarycentre(const double* points, int32_t count,
         gp_Pnt cm = props.CentreOfMass();
         *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
     } catch (...) {}
+}
+
+// MARK: - v0.111: BRepLProp_CLProps + SLProps
+// MARK: - BRepLProp_CLProps (v0.111.0)
+
+void OCCTEdgeLPropValue(OCCTShapeRef edge, double param, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        gp_Pnt p = props.Value();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+bool OCCTEdgeLPropTangent(OCCTShapeRef edge, double param, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!edge) return false;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        if (!props.IsTangentDefined()) return false;
+        gp_Dir tan;
+        props.Tangent(tan);
+        *dx = tan.X(); *dy = tan.Y(); *dz = tan.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTEdgeLPropCurvature(OCCTShapeRef edge, double param) {
+    if (!edge) return 0.0;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        return props.Curvature();
+    } catch (...) { return 0.0; }
+}
+
+void OCCTEdgeLPropNormal(OCCTShapeRef edge, double param, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        gp_Dir n;
+        props.Normal(n);
+        *dx = n.X(); *dy = n.Y(); *dz = n.Z();
+    } catch (...) {}
+}
+
+void OCCTEdgeLPropCentreOfCurvature(OCCTShapeRef edge, double param, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 2, 1e-6);
+        props.SetParameter(param);
+        gp_Pnt p;
+        props.CentreOfCurvature(p);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+void OCCTEdgeLPropD1(OCCTShapeRef edge, double param, double* d1x, double* d1y, double* d1z) {
+    *d1x = 0; *d1y = 0; *d1z = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        BRepLProp_CLProps props(ac, 1, 1e-6);
+        props.SetParameter(param);
+        const gp_Vec& d1 = props.D1();
+        *d1x = d1.X(); *d1y = d1.Y(); *d1z = d1.Z();
+    } catch (...) {}
+}
+
+// MARK: - BRepLProp_SLProps (v0.111.0)
+
+void OCCTFaceLPropValue(OCCTShapeRef face, double u, double v, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!face) return;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        gp_Pnt p = props.Value();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+bool OCCTFaceLPropNormal(OCCTShapeRef face, double u, double v, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!face) return false;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsNormalDefined()) return false;
+        gp_Dir n = props.Normal();
+        *dx = n.X(); *dy = n.Y(); *dz = n.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTFaceLPropMaxCurvature(OCCTShapeRef face, double u, double v) {
+    if (!face) return 0.0;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return 0.0;
+        return props.MaxCurvature();
+    } catch (...) { return 0.0; }
+}
+
+double OCCTFaceLPropMinCurvature(OCCTShapeRef face, double u, double v) {
+    if (!face) return 0.0;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return 0.0;
+        return props.MinCurvature();
+    } catch (...) { return 0.0; }
+}
+
+double OCCTFaceLPropMeanCurvature(OCCTShapeRef face, double u, double v) {
+    if (!face) return 0.0;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return 0.0;
+        return props.MeanCurvature();
+    } catch (...) { return 0.0; }
+}
+
+double OCCTFaceLPropGaussianCurvature(OCCTShapeRef face, double u, double v) {
+    if (!face) return 0.0;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return 0.0;
+        return props.GaussianCurvature();
+    } catch (...) { return 0.0; }
+}
+
+bool OCCTFaceLPropIsUmbilic(OCCTShapeRef face, double u, double v) {
+    if (!face) return false;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsCurvatureDefined()) return false;
+        return props.IsUmbilic();
+    } catch (...) { return false; }
+}
+
+bool OCCTFaceLPropTangentU(OCCTShapeRef face, double u, double v, double* dx, double* dy, double* dz) {
+    *dx = 0; *dy = 0; *dz = 0;
+    if (!face) return false;
+    try {
+        BRepAdaptor_Surface as(TopoDS::Face(face->shape));
+        BRepLProp_SLProps props(as, u, v, 2, 1e-6);
+        if (!props.IsTangentUDefined()) return false;
+        gp_Dir tan;
+        props.TangentU(tan);
+        *dx = tan.X(); *dy = tan.Y(); *dz = tan.Z();
+        return true;
+    } catch (...) { return false; }
 }

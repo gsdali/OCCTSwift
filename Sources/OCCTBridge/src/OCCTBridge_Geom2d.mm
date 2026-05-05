@@ -3812,3 +3812,176 @@ OCCTCurve2DRef OCCTCurve2DOffsetBasisCurve(OCCTCurve2DRef curve) {
         return new OCCTCurve2D(basis);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.109-v0.111: IntAna2d_Conic + Curve2D Extras + Curve2D Evaluation + GridEval
+// MARK: - IntAna2d_Conic (v0.109.0)
+
+#include <IntAna2d_Conic.hxx>
+#include <IntAna2d_AnaIntersection.hxx>
+#include <IntAna2d_IntPoint.hxx>
+#include <gp_Lin2d.hxx>
+#include <gp_Circ2d.hxx>
+#include <gp_Elips2d.hxx>
+
+void OCCTConic2dFromCircle(double cx, double cy, double dx, double dy, double radius,
+                            double* coeffs) {
+    try {
+        gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy)), radius);
+        IntAna2d_Conic conic(circ);
+        double A, B, C, D, E, F;
+        conic.Coefficients(A, B, C, D, E, F);
+        coeffs[0] = A; coeffs[1] = B; coeffs[2] = C;
+        coeffs[3] = D; coeffs[4] = E; coeffs[5] = F;
+    } catch (...) {
+        for (int i = 0; i < 6; i++) coeffs[i] = 0;
+    }
+}
+
+void OCCTConic2dFromLine(double px, double py, double dx, double dy,
+                          double* coeffs) {
+    try {
+        gp_Lin2d line(gp_Pnt2d(px, py), gp_Dir2d(dx, dy));
+        IntAna2d_Conic conic(line);
+        double A, B, C, D, E, F;
+        conic.Coefficients(A, B, C, D, E, F);
+        coeffs[0] = A; coeffs[1] = B; coeffs[2] = C;
+        coeffs[3] = D; coeffs[4] = E; coeffs[5] = F;
+    } catch (...) {
+        for (int i = 0; i < 6; i++) coeffs[i] = 0;
+    }
+}
+
+void OCCTConic2dFromEllipse(double cx, double cy, double dx, double dy,
+                             double majorRadius, double minorRadius,
+                             double* coeffs) {
+    try {
+        gp_Elips2d elips(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy)), majorRadius, minorRadius);
+        IntAna2d_Conic conic(elips);
+        double A, B, C, D, E, F;
+        conic.Coefficients(A, B, C, D, E, F);
+        coeffs[0] = A; coeffs[1] = B; coeffs[2] = C;
+        coeffs[3] = D; coeffs[4] = E; coeffs[5] = F;
+    } catch (...) {
+        for (int i = 0; i < 6; i++) coeffs[i] = 0;
+    }
+}
+
+int32_t OCCTConic2dLineCircleIntersect(double lpx, double lpy, double ldx, double ldy,
+                                        double cx, double cy, double cdx, double cdy, double radius,
+                                        double* xs, double* ys, int32_t max) {
+    try {
+        gp_Lin2d line(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(cdx, cdy)), radius);
+        IntAna2d_AnaIntersection inter(line, IntAna2d_Conic(circ));
+        if (!inter.IsDone()) return -1;
+        int n = inter.NbPoints();
+        int count = 0;
+        for (int i = 1; i <= n && count < max; i++) {
+            const IntAna2d_IntPoint& pt = inter.Point(i);
+            xs[count] = pt.Value().X();
+            ys[count] = pt.Value().Y();
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+// MARK: - Curve2D Extras (v0.109.0)
+
+bool OCCTCurve2DReverse(OCCTCurve2DRef curve) {
+    if (!curve) return false;
+    try {
+        curve->curve->Reverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTCurve2DRef OCCTCurve2DCopy(OCCTCurve2DRef curve) {
+    if (!curve) return nullptr;
+    try {
+        Handle(Geom2d_Curve) copy = Handle(Geom2d_Curve)::DownCast(curve->curve->Copy());
+        if (copy.IsNull()) return nullptr;
+        return new OCCTCurve2D(copy);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTCurve2DContinuity(OCCTCurve2DRef curve) {
+    if (!curve) return -1;
+    try {
+        GeomAbs_Shape cont = curve->curve->Continuity();
+        switch (cont) {
+            case GeomAbs_C0: return 0;
+            case GeomAbs_C1: return 1;
+            case GeomAbs_C2: return 2;
+            case GeomAbs_C3: return 3;
+            case GeomAbs_CN: return 99;
+            case GeomAbs_G1: return -2;
+            case GeomAbs_G2: return -3;
+            default: return -1;
+        }
+    } catch (...) { return -1; }
+}
+// MARK: - Curve2D Evaluation (v0.110.0)
+
+void OCCTCurve2DEvalD0(OCCTCurve2DRef curve, double u, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        gp_Pnt2d p = curve->curve->EvalD0(u);
+        *x = p.X(); *y = p.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DEvalD1(OCCTCurve2DRef curve, double u,
+                         double* px, double* py, double* d1x, double* d1y) {
+    *px = 0; *py = 0; *d1x = 0; *d1y = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        Geom2d_Curve::ResD1 r = curve->curve->EvalD1(u);
+        *px = r.Point.X(); *py = r.Point.Y();
+        *d1x = r.D1.X(); *d1y = r.D1.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DEvalD2(OCCTCurve2DRef curve, double u,
+                         double* px, double* py,
+                         double* d1x, double* d1y,
+                         double* d2x, double* d2y) {
+    *px = 0; *py = 0; *d1x = 0; *d1y = 0; *d2x = 0; *d2y = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        Geom2d_Curve::ResD2 r = curve->curve->EvalD2(u);
+        *px = r.Point.X(); *py = r.Point.Y();
+        *d1x = r.D1.X(); *d1y = r.D1.Y();
+        *d2x = r.D2.X(); *d2y = r.D2.Y();
+    } catch (...) {}
+}
+// MARK: - Geom2dGridEval_Curve (v0.111.0)
+
+void OCCTGridEvalCurve2dD0(OCCTCurve2DRef curve, const double* params, int32_t count,
+                              double* xs, double* ys) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        Geom2dGridEval_Curve eval(curve->curve);
+        NCollection_Array1<double> pArr(1, count);
+        for (int i = 0; i < count; i++) pArr(i+1) = params[i];
+        NCollection_Array1<gp_Pnt2d> results = eval.EvaluateGrid(pArr);
+        for (int i = 0; i < count; i++) {
+            xs[i] = results(i+1).X(); ys[i] = results(i+1).Y();
+        }
+    } catch (...) {}
+}
+
+void OCCTGridEvalCurve2dD1(OCCTCurve2DRef curve, const double* params, int32_t count,
+                              double* xs, double* ys, double* d1xs, double* d1ys) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return;
+    try {
+        Geom2dGridEval_Curve eval(curve->curve);
+        NCollection_Array1<double> pArr(1, count);
+        for (int i = 0; i < count; i++) pArr(i+1) = params[i];
+        NCollection_Array1<Geom2dGridEval::CurveD1> results = eval.EvaluateGridD1(pArr);
+        for (int i = 0; i < count; i++) {
+            xs[i] = results(i+1).Point.X(); ys[i] = results(i+1).Point.Y();
+            d1xs[i] = results(i+1).D1.X(); d1ys[i] = results(i+1).D1.Y();
+        }
+    } catch (...) {}
+}

@@ -2472,3 +2472,41 @@ void OCCTVertexGetPoint(OCCTShapeRef vertex, double* x, double* y, double* z) {
         *x = p.X(); *y = p.Y(); *z = p.Z();
     } catch (...) {}
 }
+
+// MARK: - v0.109: Shape Topology Counting
+// MARK: - Shape Topology Counting (v0.109.0)
+
+int32_t OCCTShapeCountFaces(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        int count = 0;
+        for (TopExp_Explorer ex(shape->shape, TopAbs_FACE); ex.More(); ex.Next()) count++;
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTShapeCountEdges(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        int count = 0;
+        for (TopExp_Explorer ex(shape->shape, TopAbs_EDGE); ex.More(); ex.Next()) count++;
+        return count;
+    } catch (...) { return 0; }
+}
+
+char* OCCTShapeTypeString(OCCTShapeRef shape) {
+    if (!shape) return strdup("null");
+    try {
+        switch (shape->shape.ShapeType()) {
+            case TopAbs_COMPOUND:  return strdup("compound");
+            case TopAbs_COMPSOLID: return strdup("compsolid");
+            case TopAbs_SOLID:     return strdup("solid");
+            case TopAbs_SHELL:     return strdup("shell");
+            case TopAbs_FACE:      return strdup("face");
+            case TopAbs_WIRE:      return strdup("wire");
+            case TopAbs_EDGE:      return strdup("edge");
+            case TopAbs_VERTEX:    return strdup("vertex");
+            default:               return strdup("shape");
+        }
+    } catch (...) { return strdup("unknown"); }
+}
