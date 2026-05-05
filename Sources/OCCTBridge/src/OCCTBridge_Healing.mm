@@ -2938,3 +2938,188 @@ OCCTShapeRef _Nullable OCCTShapeFixComposeShell(OCCTShapeRef _Nonnull faceRef, d
         return nullptr;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - ShapeFix_Solid + EdgeConnect (v0.85)
+// MARK: - ShapeFix_Solid
+
+#include <ShapeFix_Solid.hxx>
+
+OCCTShapeRef OCCTShapeFixSolid(OCCTShapeRef shape) {
+    try {
+        TopExp_Explorer exp(shape->shape, TopAbs_SOLID);
+        if (!exp.More()) return nullptr;
+        TopoDS_Solid solid = TopoDS::Solid(exp.Current());
+        ShapeFix_Solid fixer(solid);
+        fixer.Perform();
+        TopoDS_Shape result = fixer.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeSolidFromShell(OCCTShapeRef shape) {
+    try {
+        TopExp_Explorer exp(shape->shape, TopAbs_SHELL);
+        if (!exp.More()) return nullptr;
+        TopoDS_Shell shell = TopoDS::Shell(exp.Current());
+        ShapeFix_Solid fixer;
+        TopoDS_Solid result = fixer.SolidFromShell(shell);
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - ShapeFix_EdgeConnect
+
+#include <ShapeFix_EdgeConnect.hxx>
+
+OCCTShapeRef OCCTShapeFixEdgeConnect(OCCTShapeRef shape) {
+    try {
+        ShapeFix_EdgeConnect connector;
+        connector.Add(shape->shape);
+        connector.Build();
+        // EdgeConnect modifies edges in-place; return the original shape
+        auto* ref = new OCCTShape();
+        ref->shape = shape->shape;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - ShapeAnalysis_Shell + CanonicalRecognition (v0.85)
+// MARK: - ShapeAnalysis_Shell
+
+#include <ShapeAnalysis_Shell.hxx>
+
+OCCTShellAnalysisResult OCCTShapeAnalyzeShell(OCCTShapeRef shape) {
+    OCCTShellAnalysisResult result = {false, false, false, false, 0};
+    try {
+        ShapeAnalysis_Shell analyzer;
+        // CheckOrientedShells returns true if BAD orientation found
+        result.hasOrientationProblems = analyzer.CheckOrientedShells(shape->shape, true, true);
+        result.hasFreeEdges = analyzer.HasFreeEdges();
+        result.hasBadEdges = analyzer.HasBadEdges();
+        result.hasConnectedEdges = analyzer.HasConnectedEdges();
+        if (result.hasFreeEdges) {
+            TopoDS_Compound freeEdges = analyzer.FreeEdges();
+            TopExp_Explorer edgeExp(freeEdges, TopAbs_EDGE);
+            int count = 0;
+            while (edgeExp.More()) { count++; edgeExp.Next(); }
+            result.freeEdgeCount = count;
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - ShapeAnalysis_CanonicalRecognition
+
+#include <ShapeAnalysis_CanonicalRecognition.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Cylinder.hxx>
+#include <gp_Cone.hxx>
+#include <gp_Sphere.hxx>
+#include <gp_Lin.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Elips.hxx>
+
+OCCTCanonicalResult OCCTShapeRecognizeCanonicalSurface(OCCTShapeRef faceShape, double tolerance) {
+    OCCTCanonicalResult result = {};
+    try {
+        ShapeAnalysis_CanonicalRecognition recog(faceShape->shape);
+
+        gp_Pln pln;
+        if (recog.IsPlane(tolerance, pln)) {
+            result.type = OCCTCanonicalTypePlane;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = pln.Location();
+            gp_Dir dir = pln.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            return result;
+        }
+
+        gp_Cylinder cyl;
+        if (recog.IsCylinder(tolerance, cyl)) {
+            result.type = OCCTCanonicalTypeCylinder;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = cyl.Location();
+            gp_Dir dir = cyl.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            result.param1 = cyl.Radius();
+            return result;
+        }
+
+        gp_Cone cone;
+        if (recog.IsCone(tolerance, cone)) {
+            result.type = OCCTCanonicalTypeCone;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = cone.Location();
+            gp_Dir dir = cone.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            result.param1 = cone.RefRadius();
+            result.param2 = cone.SemiAngle();
+            return result;
+        }
+
+        gp_Sphere sph;
+        if (recog.IsSphere(tolerance, sph)) {
+            result.type = OCCTCanonicalTypeSphere;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = sph.Location();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.param1 = sph.Radius();
+            return result;
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTCanonicalResult OCCTShapeRecognizeCanonicalCurve(OCCTShapeRef edgeShape, double tolerance) {
+    OCCTCanonicalResult result = {};
+    try {
+        ShapeAnalysis_CanonicalRecognition recog(edgeShape->shape);
+
+        gp_Lin lin;
+        if (recog.IsLine(tolerance, lin)) {
+            result.type = OCCTCanonicalTypeLine;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = lin.Location();
+            gp_Dir dir = lin.Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            return result;
+        }
+
+        gp_Circ circ;
+        if (recog.IsCircle(tolerance, circ)) {
+            result.type = OCCTCanonicalTypeCircle;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = circ.Location();
+            gp_Dir dir = circ.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            result.param1 = circ.Radius();
+            return result;
+        }
+
+        gp_Elips elips;
+        if (recog.IsEllipse(tolerance, elips)) {
+            result.type = OCCTCanonicalTypeEllipse;
+            result.gap = recog.GetGap();
+            gp_Pnt loc = elips.Location();
+            gp_Dir dir = elips.Axis().Direction();
+            result.originX = loc.X(); result.originY = loc.Y(); result.originZ = loc.Z();
+            result.dirX = dir.X(); result.dirY = dir.Y(); result.dirZ = dir.Z();
+            result.param1 = elips.MajorRadius();
+            result.param2 = elips.MinorRadius();
+            return result;
+        }
+    } catch (...) {}
+    return result;
+}
+
