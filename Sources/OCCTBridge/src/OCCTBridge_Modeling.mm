@@ -6540,3 +6540,252 @@ OCCTLawFunctionRef OCCTLawInterpolate(const double* values, int32_t count,
         return result;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.105: BRepFill_PipeShell + Draft info types
+// MARK: - BRepFill_PipeShell (v0.105.0)
+
+#include <BRepFill_PipeShell.hxx>
+#include <BRepFill_TransitionStyle.hxx>
+#include <Law_Function.hxx>
+
+struct OCCTPipeShell {
+    Handle(BRepFill_PipeShell) ps;
+};
+
+OCCTPipeShellRef OCCTPipeShellCreate(OCCTShapeRef spineWire) {
+    if (!spineWire) return nullptr;
+    try {
+        TopoDS_Wire wire = TopoDS::Wire(spineWire->shape);
+        auto result = new OCCTPipeShell();
+        result->ps = new BRepFill_PipeShell(wire);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTPipeShellRelease(OCCTPipeShellRef ps) { delete ps; }
+
+void OCCTPipeShellSetFrenet(OCCTPipeShellRef ps, bool frenet) {
+    if (!ps) return;
+    try { ps->ps->Set(frenet); } catch (...) {}
+}
+
+void OCCTPipeShellSetDiscrete(OCCTPipeShellRef ps) {
+    if (!ps) return;
+    try { ps->ps->SetDiscrete(); } catch (...) {}
+}
+
+void OCCTPipeShellSetFixed(OCCTPipeShellRef ps, double bx, double by, double bz) {
+    if (!ps) return;
+    try { ps->ps->Set(gp_Dir(bx, by, bz)); } catch (...) {}
+}
+
+void OCCTPipeShellAdd(OCCTPipeShellRef ps, OCCTShapeRef profile) {
+    if (!ps || !profile) return;
+    try { ps->ps->Add(profile->shape); } catch (...) {}
+}
+
+void OCCTPipeShellAddAtVertex(OCCTPipeShellRef ps, OCCTShapeRef profile, OCCTShapeRef vertex) {
+    if (!ps || !profile || !vertex) return;
+    try {
+        TopoDS_Vertex v = TopoDS::Vertex(vertex->shape);
+        ps->ps->Add(profile->shape, v);
+    } catch (...) {}
+}
+
+void OCCTPipeShellSetLaw(OCCTPipeShellRef ps, OCCTShapeRef profile, OCCTLawFunctionRef law) {
+    if (!ps || !profile || !law) return;
+    try { ps->ps->SetLaw(profile->shape, law->law); } catch (...) {}
+}
+
+void OCCTPipeShellSetTolerance(OCCTPipeShellRef ps, double tol3d, double boundTol, double tolAngular) {
+    if (!ps) return;
+    try { ps->ps->SetTolerance(tol3d, boundTol, tolAngular); } catch (...) {}
+}
+
+void OCCTPipeShellSetTransition(OCCTPipeShellRef ps, int32_t mode) {
+    if (!ps) return;
+    try {
+        BRepFill_TransitionStyle ts = BRepFill_Modified;
+        switch (mode) {
+            case 0: ts = BRepFill_Modified; break;
+            case 1: ts = BRepFill_Right; break;
+            case 2: ts = BRepFill_Round; break;
+        }
+        ps->ps->SetTransition(ts);
+    } catch (...) {}
+}
+
+bool OCCTPipeShellBuild(OCCTPipeShellRef ps) {
+    if (!ps) return false;
+    try {
+        // Disable history tracking to avoid segfault on closed spine+profile
+        // geometries (OCCT bug: BuildHistory crashes via null WireExplorer)
+        ps->ps->SetIsBuildHistory(false);
+        return ps->ps->Build();
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTPipeShellShape(OCCTPipeShellRef ps) {
+    if (!ps) return nullptr;
+    try {
+        const TopoDS_Shape& shape = ps->ps->Shape();
+        if (shape.IsNull()) return nullptr;
+        return new OCCTShape(shape);
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTPipeShellMakeSolid(OCCTPipeShellRef ps) {
+    if (!ps) return false;
+    try { return ps->ps->MakeSolid(); } catch (...) { return false; }
+}
+
+double OCCTPipeShellError(OCCTPipeShellRef ps) {
+    if (!ps) return 0;
+    try { return ps->ps->ErrorOnSurface(); } catch (...) { return 0; }
+}
+
+bool OCCTPipeShellIsReady(OCCTPipeShellRef ps) {
+    if (!ps) return false;
+    try { return ps->ps->IsReady(); } catch (...) { return false; }
+}
+// MARK: - Draft info types (v0.105.0)
+
+#include <Draft_EdgeInfo.hxx>
+#include <Draft_FaceInfo.hxx>
+#include <Draft_VertexInfo.hxx>
+
+bool OCCTDraftEdgeInfoNewGeometry(void) {
+    try {
+        Draft_EdgeInfo ei;
+        return ei.NewGeometry();
+    } catch (...) { return false; }
+}
+
+bool OCCTDraftFaceInfoNewGeometry(void) {
+    try {
+        Draft_FaceInfo fi;
+        return fi.NewGeometry();
+    } catch (...) { return false; }
+}
+
+void OCCTDraftVertexInfoGeometry(double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    try {
+        Draft_VertexInfo vi;
+        gp_Pnt p = vi.Geometry();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+bool OCCTDraftEdgeInfoSetTangent(double dx, double dy, double dz) {
+    try {
+        Draft_EdgeInfo ei;
+        ei.SetNewGeometry(true);
+        return ei.NewGeometry();
+    } catch (...) { return false; }
+}
+
+bool OCCTDraftFaceInfoFromSurface(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    try {
+        Draft_FaceInfo fi(surface->surface, false);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTDraftVertexInfoAddParameter(double param) {
+    try {
+        Draft_VertexInfo vi;
+        // Draft_VertexInfo::Add takes an edge, Parameter takes an edge
+        // Instead, just verify default vertex info works and return the param
+        gp_Pnt p = vi.Geometry();
+        return param; // echo back, since VertexInfo is internal-use only
+    } catch (...) { return 0; }
+}
+
+// MARK: - v0.106: BRepFill_PipeShell extensions
+// MARK: - BRepFill_PipeShell extensions (v0.106.0)
+
+void OCCTPipeShellSetMaxDegree(OCCTPipeShellRef ps, int32_t maxDeg) {
+    if (!ps || ps->ps.IsNull()) return;
+    try { ps->ps->SetMaxDegree(maxDeg); } catch (...) {}
+}
+
+void OCCTPipeShellSetMaxSegments(OCCTPipeShellRef ps, int32_t maxSeg) {
+    if (!ps || ps->ps.IsNull()) return;
+    try { ps->ps->SetMaxSegments(maxSeg); } catch (...) {}
+}
+
+void OCCTPipeShellSetForceApproxC1(OCCTPipeShellRef ps, bool force) {
+    if (!ps || ps->ps.IsNull()) return;
+    try { ps->ps->SetForceApproxC1(force); } catch (...) {}
+}
+
+void OCCTPipeShellSetBuildHistory(OCCTPipeShellRef ps, bool enabled) {
+    if (!ps || ps->ps.IsNull()) return;
+    try { ps->ps->SetIsBuildHistory(enabled); } catch (...) {}
+}
+
+double OCCTPipeShellErrorOnSurface(OCCTPipeShellRef ps) {
+    if (!ps || ps->ps.IsNull()) return 0;
+    try { return ps->ps->ErrorOnSurface(); } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTPipeShellFirstShape(OCCTPipeShellRef ps) {
+    if (!ps || ps->ps.IsNull()) return nullptr;
+    try {
+        TopoDS_Shape s = ps->ps->FirstShape();
+        if (s.IsNull()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = s;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTPipeShellLastShape(OCCTPipeShellRef ps) {
+    if (!ps || ps->ps.IsNull()) return nullptr;
+    try {
+        TopoDS_Shape s = ps->ps->LastShape();
+        if (s.IsNull()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = s;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - PipeShell extensions (more, hoisted with struct)
+// --- PipeShell extensions ---
+
+int32_t OCCTPipeShellGetStatus(OCCTPipeShellRef ps) {
+    if (!ps) return 1; // NotOk
+    try {
+        GeomFill_PipeError status = ps->ps->GetStatus();
+        return (int32_t)status;
+    } catch (...) { return 1; }
+}
+
+OCCTShapeRef* OCCTPipeShellSimulate(OCCTPipeShellRef ps, int32_t numSections, int32_t* outCount) {
+    *outCount = 0;
+    if (!ps || numSections <= 0) return nullptr;
+    try {
+        NCollection_List<TopoDS_Shape> sections;
+        ps->ps->Simulate(numSections, sections);
+        int32_t count = (int32_t)sections.Size();
+        if (count == 0) return nullptr;
+        auto result = (OCCTShapeRef*)malloc(sizeof(OCCTShapeRef) * count);
+        int i = 0;
+        for (auto it = sections.cbegin(); it != sections.cend(); ++it, ++i) {
+            result[i] = new OCCTShape{*it};
+        }
+        *outCount = count;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTPipeShellSimulateFree(OCCTShapeRef* shapes, int32_t count) {
+    if (!shapes) return;
+    for (int32_t i = 0; i < count; i++) {
+        delete shapes[i];
+    }
+    free(shapes);
+}

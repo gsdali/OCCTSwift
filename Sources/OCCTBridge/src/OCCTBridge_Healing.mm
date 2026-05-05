@@ -3275,3 +3275,377 @@ OCCTShapeRef OCCTShapeFreeBoundsOpen(OCCTShapeRef shape, double tolerance) {
         return new OCCTShape(open);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.106: ShapeAnalysis_Wire + ShapeAnalysis_Edge
+// MARK: - ShapeAnalysis_Wire (v0.106.0)
+
+#include <ShapeAnalysis_Wire.hxx>
+#include <ShapeExtend_WireData.hxx>
+#include <BRep_Tool.hxx>
+
+bool OCCTWireCheckOrder(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckOrder();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckConnected(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckConnected();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckSmall(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckSmall();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckDegenerated(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckDegenerated();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckClosed(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckClosed();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckSelfIntersection(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckSelfIntersection();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckGaps3d(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckGaps3d();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckGaps2d(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckGaps2d();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckEdgeCurves(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckEdgeCurves();
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckLacking(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckLacking();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTWireEdgeCount(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return 0;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return 0;
+        return saw.NbEdges();
+    } catch (...) { return 0; }
+}
+
+double OCCTWireMinDistance3d(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return 0;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return 0;
+        saw.CheckGaps3d();
+        return saw.MinDistance3d();
+    } catch (...) { return 0; }
+}
+
+double OCCTWireMaxDistance3d(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return 0;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return 0;
+        saw.CheckGaps3d();
+        return saw.MaxDistance3d();
+    } catch (...) { return 0; }
+}
+
+double OCCTWireMinDistance2d(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return 0;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return 0;
+        saw.CheckGaps2d();
+        return saw.MinDistance2d();
+    } catch (...) { return 0; }
+}
+
+double OCCTWireMaxDistance2d(OCCTShapeRef wire, OCCTShapeRef face, double prec) {
+    if (!wire || !face) return 0;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return 0;
+        saw.CheckGaps2d();
+        return saw.MaxDistance2d();
+    } catch (...) { return 0; }
+}
+
+bool OCCTWireCheckConnectedEdge(OCCTShapeRef wire, OCCTShapeRef face, double prec, int32_t edgeIndex) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckConnected(edgeIndex);
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckSmallEdge(OCCTShapeRef wire, OCCTShapeRef face, double prec, int32_t edgeIndex) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckSmall(edgeIndex);
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckDegeneratedEdge(OCCTShapeRef wire, OCCTShapeRef face, double prec, int32_t edgeIndex) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckDegenerated(edgeIndex);
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckGap3dEdge(OCCTShapeRef wire, OCCTShapeRef face, double prec, int32_t edgeIndex) {
+    if (!wire || !face) return false;
+    try {
+        ShapeAnalysis_Wire saw;
+        saw.Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), prec);
+        if (!saw.IsReady()) return false;
+        return saw.CheckGap3d(edgeIndex);
+    } catch (...) { return false; }
+}
+
+bool OCCTWireCheckOuterBound(OCCTShapeRef face, double prec) {
+    if (!face) return false;
+    try {
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        // Check if face has at least one wire (outer bound)
+        TopExp_Explorer wexp(f, TopAbs_WIRE);
+        return wexp.More();
+    } catch (...) { return false; }
+}
+// MARK: - ShapeAnalysis_Edge (v0.106.0)
+
+#include <ShapeAnalysis_Edge.hxx>
+
+bool OCCTEdgeHasCurve3dSA(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.HasCurve3d(TopoDS::Edge(edge->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeIsClosed3dSA(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.IsClosed3d(TopoDS::Edge(edge->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeHasPCurveSA(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.HasPCurve(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeIsSeamSA(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.IsSeam(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeCheckSameParameter(OCCTShapeRef edge, double* maxdev) {
+    if (!edge) { *maxdev = 0; return false; }
+    try {
+        ShapeAnalysis_Edge sae;
+        *maxdev = 0;
+        return sae.CheckSameParameter(TopoDS::Edge(edge->shape), *maxdev);
+    } catch (...) { *maxdev = 0; return false; }
+}
+
+bool OCCTEdgeCheckVerticesWithCurve3d(OCCTShapeRef edge, double prec) {
+    if (!edge) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.CheckVerticesWithCurve3d(TopoDS::Edge(edge->shape), prec);
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeCheckVerticesWithPCurve(OCCTShapeRef edge, OCCTShapeRef face, double prec) {
+    if (!edge || !face) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.CheckVerticesWithPCurve(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape), prec);
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeCheckCurve3dWithPCurve(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.CheckCurve3dWithPCurve(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape));
+    } catch (...) { return false; }
+}
+
+void OCCTEdgeFirstVertexSA(OCCTShapeRef edge, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!edge) return;
+    try {
+        ShapeAnalysis_Edge sae;
+        TopoDS_Vertex v = sae.FirstVertex(TopoDS::Edge(edge->shape));
+        if (v.IsNull()) return;
+        gp_Pnt p = BRep_Tool::Pnt(v);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+void OCCTEdgeLastVertexSA(OCCTShapeRef edge, double* x, double* y, double* z) {
+    *x = 0; *y = 0; *z = 0;
+    if (!edge) return;
+    try {
+        ShapeAnalysis_Edge sae;
+        TopoDS_Vertex v = sae.LastVertex(TopoDS::Edge(edge->shape));
+        if (v.IsNull()) return;
+        gp_Pnt p = BRep_Tool::Pnt(v);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+bool OCCTEdgeCheckVertexTolerance(OCCTShapeRef edge, OCCTShapeRef face,
+                                   double* toler1, double* toler2) {
+    *toler1 = 0; *toler2 = 0;
+    if (!edge || !face) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.CheckVertexTolerance(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape),
+                                         *toler1, *toler2);
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeCheckOverlapping(OCCTShapeRef edge1, OCCTShapeRef edge2, double* tolOverlap) {
+    *tolOverlap = 0;
+    if (!edge1 || !edge2) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        return sae.CheckOverlapping(TopoDS::Edge(edge1->shape), TopoDS::Edge(edge2->shape),
+                                     *tolOverlap, 0.0);
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeBoundUV(OCCTShapeRef edge, OCCTShapeRef face,
+                      double* uFirst, double* vFirst, double* uLast, double* vLast) {
+    *uFirst = 0; *vFirst = 0; *uLast = 0; *vLast = 0;
+    if (!edge || !face) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        gp_Pnt2d pFirst, pLast;
+        bool ok = sae.BoundUV(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape),
+                               pFirst, pLast);
+        if (ok) {
+            *uFirst = pFirst.X(); *vFirst = pFirst.Y();
+            *uLast = pLast.X(); *vLast = pLast.Y();
+        }
+        return ok;
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeGetEndTangent2d(OCCTShapeRef edge, OCCTShapeRef face, bool atEnd,
+                              double* px, double* py, double* tx, double* ty) {
+    *px = 0; *py = 0; *tx = 0; *ty = 0;
+    if (!edge || !face) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        gp_Pnt2d pos;
+        gp_Vec2d tang;
+        bool ok = sae.GetEndTangent2d(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape),
+                                       atEnd, pos, tang);
+        if (ok) {
+            *px = pos.X(); *py = pos.Y();
+            *tx = tang.X(); *ty = tang.Y();
+        }
+        return ok;
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeCheckPCurveRange(OCCTShapeRef edge, OCCTShapeRef face, double first, double last) {
+    if (!edge || !face) return false;
+    try {
+        ShapeAnalysis_Edge sae;
+        // Check if the pcurve parameter range [first, last] is valid for the edge on the face
+        // Get pcurve and check its range
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        double cf, cl;
+        Handle(Geom2d_Curve) pc = BRep_Tool::CurveOnSurface(e, f, cf, cl);
+        if (pc.IsNull()) return false;
+        return (first >= cf - 1e-10 && last <= cl + 1e-10);
+    } catch (...) { return false; }
+}

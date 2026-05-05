@@ -2148,3 +2148,197 @@ int32_t OCCTWireExplorerVertices(OCCTShapeRef wire, OCCTShapeRef face,
         return count;
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.105: BRepTools_ReShape + BRepLib_MakeVertex
+// MARK: - BRepTools_ReShape (v0.105.0)
+
+struct OCCTReShape {
+    Handle(BRepTools_ReShape) rs;
+    OCCTReShape() : rs(new BRepTools_ReShape()) {}
+};
+
+OCCTReShapeRef OCCTReShapeCreate(void) {
+    return new OCCTReShape();
+}
+
+void OCCTReShapeRelease(OCCTReShapeRef rs) { delete rs; }
+
+void OCCTReShapeClear(OCCTReShapeRef rs) {
+    if (!rs) return;
+    try { rs->rs->Clear(); } catch (...) {}
+}
+
+void OCCTReShapeRemove(OCCTReShapeRef rs, OCCTShapeRef shape) {
+    if (!rs || !shape) return;
+    try { rs->rs->Remove(shape->shape); } catch (...) {}
+}
+
+void OCCTReShapeReplace(OCCTReShapeRef rs, OCCTShapeRef oldShape, OCCTShapeRef newShape) {
+    if (!rs || !oldShape || !newShape) return;
+    try { rs->rs->Replace(oldShape->shape, newShape->shape); } catch (...) {}
+}
+
+bool OCCTReShapeIsRecorded(OCCTReShapeRef rs, OCCTShapeRef shape) {
+    if (!rs || !shape) return false;
+    try { return rs->rs->IsRecorded(shape->shape); } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTReShapeApply(OCCTReShapeRef rs, OCCTShapeRef shape) {
+    if (!rs || !shape) return nullptr;
+    try {
+        TopoDS_Shape result = rs->rs->Apply(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTReShapeValue(OCCTReShapeRef rs, OCCTShapeRef shape) {
+    if (!rs || !shape) return nullptr;
+    try {
+        TopoDS_Shape result = rs->rs->Value(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BRepTools_Substitution (v0.105.0)
+
+#include <BRepTools_Substitution.hxx>
+
+OCCTShapeRef OCCTShapeSubstitute(OCCTShapeRef shape, OCCTShapeRef oldSub,
+                                  OCCTShapeRef* newSubs, int32_t newCount) {
+    if (!shape || !oldSub) return nullptr;
+    try {
+        BRepTools_Substitution sub;
+        NCollection_List<TopoDS_Shape> newList;
+        if (newSubs && newCount > 0) {
+            for (int32_t i = 0; i < newCount; i++) {
+                if (newSubs[i]) newList.Append(newSubs[i]->shape);
+            }
+        }
+        sub.Substitute(oldSub->shape, newList);
+        sub.Build(shape->shape);
+        if (!sub.IsCopied(shape->shape)) return nullptr;
+        const NCollection_List<TopoDS_Shape>& copies = sub.Copy(shape->shape);
+        if (copies.IsEmpty()) return nullptr;
+        return new OCCTShape(copies.First());
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTSubstitutionIsCopied(OCCTShapeRef shape, OCCTShapeRef subshape) {
+    if (!shape || !subshape) return false;
+    try {
+        BRepTools_Substitution sub;
+        NCollection_List<TopoDS_Shape> empty;
+        sub.Substitute(subshape->shape, empty);
+        sub.Build(shape->shape);
+        return sub.IsCopied(shape->shape);
+    } catch (...) { return false; }
+}
+// MARK: - BRepLib_MakeVertex (v0.105.0)
+
+#include <BRepLib_MakeVertex.hxx>
+#include <BRep_Tool.hxx>
+
+OCCTShapeRef OCCTMakeVertex(double x, double y, double z) {
+    try {
+        BRepLib_MakeVertex mv(gp_Pnt(x, y, z));
+        TopoDS_Vertex v = mv.Vertex();
+        return new OCCTShape(v);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - v0.106: Shape topology extensions
+// MARK: - Shape topology extensions (v0.106.0)
+
+int32_t OCCTShapeGetOrientation(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    return static_cast<int32_t>(shape->shape.Orientation());
+}
+
+void OCCTShapeSetOrientation(OCCTShapeRef shape, int32_t orientation) {
+    if (!shape) return;
+    shape->shape.Orientation(static_cast<TopAbs_Orientation>(orientation));
+}
+
+OCCTShapeRef OCCTShapeReversed(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        auto result = new OCCTShape();
+        result->shape = shape->shape.Reversed();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeComplemented(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        auto result = new OCCTShape();
+        result->shape = shape->shape.Complemented();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeComposed(OCCTShapeRef shape, int32_t orientation) {
+    if (!shape) return nullptr;
+    try {
+        auto result = new OCCTShape();
+        result->shape = shape->shape.Composed(static_cast<TopAbs_Orientation>(orientation));
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeIsFree(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Free();
+}
+
+bool OCCTShapeIsModified(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Modified();
+}
+
+bool OCCTShapeIsChecked(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Checked();
+}
+
+bool OCCTShapeIsOrientable(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Orientable();
+}
+
+bool OCCTShapeIsInfinite(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Infinite();
+}
+
+bool OCCTShapeIsConvex(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Convex();
+}
+
+bool OCCTShapeIsEmpty(OCCTShapeRef shape) {
+    if (!shape) return true;
+    return shape->shape.IsNull();
+}
+
+bool OCCTShapeIsPartner(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1 || !shape2) return false;
+    return shape1->shape.IsPartner(shape2->shape);
+}
+
+bool OCCTShapeIsEqual(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1 || !shape2) return false;
+    return shape1->shape.IsEqual(shape2->shape);
+}
+
+int32_t OCCTShapeNbChildren(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    return shape->shape.NbChildren();
+}
+
+int32_t OCCTShapeHashCode(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    return static_cast<int32_t>(std::hash<TopoDS_Shape>{}(shape->shape) & 0x7FFFFFFF);
+}

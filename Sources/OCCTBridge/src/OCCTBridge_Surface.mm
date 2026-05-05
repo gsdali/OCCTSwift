@@ -3533,3 +3533,227 @@ bool OCCTSurfaceIsVClosedSA(OCCTSurfaceRef surface, double preci) {
         return sas->IsVClosed(preci);
     } catch (...) { return false; }
 }
+
+// MARK: - v0.105: GeomConvert_BSplineSurfaceKnotSplitting
+// MARK: - GeomConvert_BSplineSurfaceKnotSplitting (v0.105.0)
+
+#include <GeomConvert_BSplineSurfaceKnotSplitting.hxx>
+#include <Geom_BSplineSurface.hxx>
+
+int32_t OCCTBSplineSurfaceKnotSplitsU(OCCTSurfaceRef surface, int32_t continuity) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_BSplineSurface) bsurf = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bsurf.IsNull()) return 0;
+        GeomConvert_BSplineSurfaceKnotSplitting splitter(bsurf, continuity, continuity);
+        return (int32_t)splitter.NbUSplits();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBSplineSurfaceKnotSplitsV(OCCTSurfaceRef surface, int32_t continuity) {
+    if (!surface) return 0;
+    try {
+        Handle(Geom_BSplineSurface) bsurf = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bsurf.IsNull()) return 0;
+        GeomConvert_BSplineSurfaceKnotSplitting splitter(bsurf, continuity, continuity);
+        return (int32_t)splitter.NbVSplits();
+    } catch (...) { return 0; }
+}
+
+void OCCTBSplineSurfaceKnotSplitValues(OCCTSurfaceRef surface, int32_t continuity,
+                                        int32_t* uSplits, int32_t* vSplits) {
+    if (!surface || !uSplits || !vSplits) return;
+    try {
+        Handle(Geom_BSplineSurface) bsurf = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bsurf.IsNull()) return;
+        GeomConvert_BSplineSurfaceKnotSplitting splitter(bsurf, continuity, continuity);
+        for (int i = 1; i <= splitter.NbUSplits(); i++) {
+            uSplits[i - 1] = splitter.USplitValue(i);
+        }
+        for (int i = 1; i <= splitter.NbVSplits(); i++) {
+            vSplits[i - 1] = splitter.VSplitValue(i);
+        }
+    } catch (...) {}
+}
+
+// MARK: - v0.106: GC_MakeConical/Cylindrical/TrimmedCone/TrimmedCylinder + Surface continuity
+// MARK: - GC_MakeConicalSurface (v0.106.0)
+
+#include <GC_MakeConicalSurface.hxx>
+#include <Geom_ConicalSurface.hxx>
+
+OCCTSurfaceRef OCCTGCMakeConicalSurface(double cx, double cy, double cz,
+                                         double nx, double ny, double nz,
+                                         double semiAngle, double radius) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        GC_MakeConicalSurface mc(ax, semiAngle, radius);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeConicalSurface2Pts(double x1, double y1, double z1,
+                                              double x2, double y2, double z2,
+                                              double r1, double r2) {
+    try {
+        GC_MakeConicalSurface mc(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2), r1, r2);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeConicalSurface4Pts(double x1, double y1, double z1,
+                                              double x2, double y2, double z2,
+                                              double x3, double y3, double z3,
+                                              double x4, double y4, double z4) {
+    try {
+        GC_MakeConicalSurface mc(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2),
+                                  gp_Pnt(x3, y3, z3), gp_Pnt(x4, y4, z4));
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+// MARK: - GC_MakeCylindricalSurface (v0.106.0)
+
+#include <GC_MakeCylindricalSurface.hxx>
+#include <Geom_CylindricalSurface.hxx>
+
+OCCTSurfaceRef OCCTGCMakeCylindricalSurface(double cx, double cy, double cz,
+                                              double nx, double ny, double nz,
+                                              double radius) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        GC_MakeCylindricalSurface mc(ax, radius);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeCylindricalSurface3Pts(double x1, double y1, double z1,
+                                                  double x2, double y2, double z2,
+                                                  double x3, double y3, double z3) {
+    try {
+        GC_MakeCylindricalSurface mc(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2),
+                                      gp_Pnt(x3, y3, z3));
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeCylindricalSurfaceFromCircle(double cx, double cy, double cz,
+                                                        double nx, double ny, double nz,
+                                                        double radius) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Circ circ(ax, radius);
+        GC_MakeCylindricalSurface mc(circ);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeCylindricalSurfaceParallel(double cx, double cy, double cz,
+                                                      double nx, double ny, double nz,
+                                                      double radius, double dist) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Cylinder cyl(ax, radius);
+        GC_MakeCylindricalSurface mc(cyl, dist);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeCylindricalSurfaceAxis(double px, double py, double pz,
+                                                  double dx, double dy, double dz,
+                                                  double radius) {
+    try {
+        gp_Ax1 ax(gp_Pnt(px, py, pz), gp_Dir(dx, dy, dz));
+        GC_MakeCylindricalSurface mc(ax, radius);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+// MARK: - GC_MakeTrimmedCone (v0.106.0)
+
+#include <GC_MakeTrimmedCone.hxx>
+#include <Geom_RectangularTrimmedSurface.hxx>
+
+OCCTSurfaceRef OCCTGCMakeTrimmedCone2Pts(double x1, double y1, double z1,
+                                           double x2, double y2, double z2,
+                                           double r1, double r2) {
+    try {
+        GC_MakeTrimmedCone mc(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2), r1, r2);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeTrimmedCone4Pts(double x1, double y1, double z1,
+                                           double x2, double y2, double z2,
+                                           double x3, double y3, double z3,
+                                           double x4, double y4, double z4) {
+    try {
+        GC_MakeTrimmedCone mc(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2),
+                               gp_Pnt(x3, y3, z3), gp_Pnt(x4, y4, z4));
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+// MARK: - GC_MakeTrimmedCylinder (v0.106.0)
+
+#include <GC_MakeTrimmedCylinder.hxx>
+
+OCCTSurfaceRef OCCTGCMakeTrimmedCylinderCircle(double cx, double cy, double cz,
+                                                 double nx, double ny, double nz,
+                                                 double radius, double height) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Circ circ(ax, radius);
+        GC_MakeTrimmedCylinder mc(circ, height);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeTrimmedCylinderAxis(double px, double py, double pz,
+                                               double dx, double dy, double dz,
+                                               double radius, double height) {
+    try {
+        gp_Ax1 ax(gp_Pnt(px, py, pz), gp_Dir(dx, dy, dz));
+        GC_MakeTrimmedCylinder mc(ax, radius, height);
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef OCCTGCMakeTrimmedCylinder3Pts(double x1, double y1, double z1,
+                                               double x2, double y2, double z2,
+                                               double x3, double y3, double z3) {
+    try {
+        GC_MakeTrimmedCylinder mc(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2),
+                                   gp_Pnt(x3, y3, z3));
+        if (!mc.IsDone()) return nullptr;
+        return new OCCTSurface(mc.Value());
+    } catch (...) { return nullptr; }
+}
+// MARK: - Surface continuity (v0.106.0)
+
+int32_t OCCTSurfaceGetContinuity(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    try {
+        return static_cast<int32_t>(surface->surface->Continuity());
+    } catch (...) { return 0; }
+}
+
+void OCCTSurfaceGetNBounds(OCCTSurfaceRef surface, int32_t* uSpans, int32_t* vSpans) {
+    *uSpans = 0; *vSpans = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        double u1, u2, v1, v2;
+        surface->surface->Bounds(u1, u2, v1, v2);
+        *uSpans = (u2 > u1) ? 1 : 0;
+        *vSpans = (v2 > v1) ? 1 : 0;
+    } catch (...) {}
+}

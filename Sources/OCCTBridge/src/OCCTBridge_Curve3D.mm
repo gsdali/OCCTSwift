@@ -2818,3 +2818,277 @@ bool OCCTCurve3DSetTrim(OCCTCurve3DRef curve, double u1, double u2) {
         return true;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.105: GC_MakeCircle/Ellipse/Hyperbola, GCPnts_UniformAbscissa, GeomConvert_CompCurveToBSplineCurve, GeomLib_LogSample
+// MARK: - GC_MakeCircle (v0.105.0)
+
+#include <GC_MakeCircle.hxx>
+#include <GC_MakeEllipse.hxx>
+#include <GC_MakeHyperbola.hxx>
+#include <Geom_Circle.hxx>
+#include <Geom_Ellipse.hxx>
+#include <Geom_Hyperbola.hxx>
+
+OCCTCurve3DRef OCCTGCMakeCircle(double cx, double cy, double cz,
+                                  double nx, double ny, double nz,
+                                  double radius) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        GC_MakeCircle mc(ax, radius);
+        if (!mc.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = mc.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGCMakeCircle3Points(double x1, double y1, double z1,
+                                         double x2, double y2, double z2,
+                                         double x3, double y3, double z3) {
+    try {
+        GC_MakeCircle mc(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2), gp_Pnt(x3, y3, z3));
+        if (!mc.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = mc.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGCMakeCircleCenterNormal(double cx, double cy, double cz,
+                                               double nx, double ny, double nz,
+                                               double radius) {
+    try {
+        GC_MakeCircle mc(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), radius);
+        if (!mc.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = mc.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGCMakeCircleParallel(double cx, double cy, double cz,
+                                          double nx, double ny, double nz,
+                                          double radius, double dist) {
+    try {
+        gp_Circ circ(gp_Ax2(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), radius);
+        GC_MakeCircle mc(circ, dist);
+        if (!mc.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = mc.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - GC_MakeEllipse (v0.105.0)
+
+OCCTCurve3DRef OCCTGCMakeEllipse(double cx, double cy, double cz,
+                                   double nx, double ny, double nz,
+                                   double major, double minor) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        GC_MakeEllipse me(ax, major, minor);
+        if (!me.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = me.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGCMakeEllipse3Points(double x1, double y1, double z1,
+                                          double x2, double y2, double z2,
+                                          double x3, double y3, double z3) {
+    try {
+        GC_MakeEllipse me(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2), gp_Pnt(x3, y3, z3));
+        if (!me.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = me.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGCMakeEllipseFromElips(double cx, double cy, double cz,
+                                            double nx, double ny, double nz,
+                                            double xdx, double xdy, double xdz,
+                                            double major, double minor) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), gp_Dir(xdx, xdy, xdz));
+        GC_MakeEllipse me(ax, major, minor);
+        if (!me.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = me.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - GC_MakeHyperbola (v0.105.0)
+
+OCCTCurve3DRef OCCTGCMakeHyperbola(double cx, double cy, double cz,
+                                     double nx, double ny, double nz,
+                                     double major, double minor) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        GC_MakeHyperbola mh(ax, major, minor);
+        if (!mh.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = mh.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTGCMakeHyperbola3Points(double x1, double y1, double z1,
+                                            double x2, double y2, double z2,
+                                            double x3, double y3, double z3) {
+    try {
+        // GC_MakeHyperbola from 3 points: S1, S2, Center
+        gp_Hypr hypr;
+        // There's no 3-point constructor for GC_MakeHyperbola, use gp_Hypr approach
+        // S1 and S2 are on the hyperbola, center is the center
+        // We'll construct from the geometry directly
+        gp_Pnt s1(x1, y1, z1), s2(x2, y2, z2), center(x3, y3, z3);
+        // Compute major axis direction
+        gp_Dir xDir(s1.XYZ() - center.XYZ());
+        double majorR = center.Distance(s1);
+        // Minor axis from S2
+        gp_Vec toS2(center, s2);
+        gp_Vec majorVec(center, s1);
+        double proj = toS2.Dot(gp_Vec(xDir));
+        gp_Vec perp = toS2 - proj * gp_Vec(xDir);
+        double minorR = perp.Magnitude();
+        if (minorR < 1e-10) return nullptr;
+        gp_Dir normal = gp_Dir(majorVec.Crossed(perp));
+        gp_Ax2 ax(center, normal, xDir);
+        GC_MakeHyperbola mh(ax, majorR, minorR);
+        if (!mh.IsDone()) return nullptr;
+        auto result = new OCCTCurve3D();
+        result->curve = mh.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+// MARK: - GCPnts_UniformAbscissa (v0.105.0)
+
+#include <GCPnts_UniformAbscissa.hxx>
+#include <BRepAdaptor_Curve.hxx>
+
+int32_t OCCTUniformAbscissaByCount(OCCTShapeRef edge, int32_t nbPoints, double* params) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        GCPnts_UniformAbscissa ua(ac, nbPoints);
+        if (!ua.IsDone()) return 0;
+        int32_t n = (int32_t)ua.NbPoints();
+        if (params) {
+            for (int32_t i = 0; i < n; i++) {
+                params[i] = ua.Parameter(i + 1);
+            }
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTUniformAbscissaByDistance(OCCTShapeRef edge, double abscissa, double* params) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        GCPnts_UniformAbscissa ua(ac, abscissa);
+        if (!ua.IsDone()) return 0;
+        int32_t n = (int32_t)ua.NbPoints();
+        if (params) {
+            for (int32_t i = 0; i < n; i++) {
+                params[i] = ua.Parameter(i + 1);
+            }
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTUniformAbscissaByCountRange(OCCTShapeRef edge, int32_t nbPoints,
+                                         double u1, double u2, double* params) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        GCPnts_UniformAbscissa ua(ac, nbPoints, u1, u2);
+        if (!ua.IsDone()) return 0;
+        int32_t n = (int32_t)ua.NbPoints();
+        if (params) {
+            for (int32_t i = 0; i < n; i++) {
+                params[i] = ua.Parameter(i + 1);
+            }
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTUniformAbscissaByDistanceRange(OCCTShapeRef edge, double abscissa,
+                                            double u1, double u2, double* params) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve ac(TopoDS::Edge(edge->shape));
+        GCPnts_UniformAbscissa ua(ac, abscissa, u1, u2);
+        if (!ua.IsDone()) return 0;
+        int32_t n = (int32_t)ua.NbPoints();
+        if (params) {
+            for (int32_t i = 0; i < n; i++) {
+                params[i] = ua.Parameter(i + 1);
+            }
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+// MARK: - GeomConvert_CompCurveToBSplineCurve (v0.105.0)
+
+#include <GeomConvert_CompCurveToBSplineCurve.hxx>
+#include <Geom_TrimmedCurve.hxx>
+#include <Geom_BSplineCurve.hxx>
+
+OCCTCurve3DRef OCCTConcatenateCurves3D(OCCTCurve3DRef* curves, int32_t count, double tolerance) {
+    if (!curves || count <= 0) return nullptr;
+    try {
+        // First curve must be bounded — try to cast
+        Handle(Geom_BoundedCurve) first = Handle(Geom_BoundedCurve)::DownCast(curves[0]->curve);
+        if (first.IsNull()) {
+            // Try trimming the curve using its parameter range
+            double f = curves[0]->curve->FirstParameter();
+            double l = curves[0]->curve->LastParameter();
+            first = new Geom_TrimmedCurve(curves[0]->curve, f, l);
+        }
+        GeomConvert_CompCurveToBSplineCurve comp(first);
+        for (int32_t i = 1; i < count; i++) {
+            Handle(Geom_BoundedCurve) bc = Handle(Geom_BoundedCurve)::DownCast(curves[i]->curve);
+            if (bc.IsNull()) {
+                double f = curves[i]->curve->FirstParameter();
+                double l = curves[i]->curve->LastParameter();
+                bc = new Geom_TrimmedCurve(curves[i]->curve, f, l);
+            }
+            if (!comp.Add(bc, tolerance)) return nullptr;
+        }
+        Handle(Geom_BSplineCurve) result = comp.BSplineCurve();
+        if (result.IsNull()) return nullptr;
+        auto r = new OCCTCurve3D();
+        r->curve = result;
+        return r;
+    } catch (...) { return nullptr; }
+}
+// MARK: - GeomLib_LogSample (v0.105.0)
+
+#include <GeomLib_LogSample.hxx>
+
+void OCCTLogSample(double a, double b, int32_t n, double* params) {
+    try {
+        GeomLib_LogSample sampler(a, b, n);
+        for (int32_t i = 1; i <= n; i++) {
+            params[i - 1] = sampler.GetParameter(i);
+        }
+    } catch (...) {
+        for (int32_t i = 0; i < n; i++) params[i] = 0;
+    }
+}
+
+// MARK: - v0.106: Curve3D continuity
+// MARK: - Curve3D continuity (v0.106.0)
+
+int32_t OCCTCurve3DGetContinuity(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        return static_cast<int32_t>(curve->curve->Continuity());
+    } catch (...) { return 0; }
+}
