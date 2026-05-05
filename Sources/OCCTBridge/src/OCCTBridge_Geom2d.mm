@@ -3363,3 +3363,452 @@ int32_t OCCTCurve2DGetContinuity(OCCTCurve2DRef curve) {
         return static_cast<int32_t>(curve->curve->Continuity());
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.107: Geom2d_BSplineCurve Methods + Hatch_Hatcher
+// MARK: - Geom2d_BSplineCurve Methods (v0.107.0)
+
+int32_t OCCTCurve2DBSplineKnotCount(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->NbKnots();
+}
+
+int32_t OCCTCurve2DBSplinePoleCount(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->NbPoles();
+}
+
+int32_t OCCTCurve2DBSplineDegree(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0;
+    return bs->Degree();
+}
+
+bool OCCTCurve2DBSplineIsRational(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    return bs->IsRational();
+}
+
+void OCCTCurve2DBSplineGetPole(OCCTCurve2DRef curve, int32_t index, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve || curve->curve.IsNull()) return;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return;
+    gp_Pnt2d p = bs->Pole(index);
+    *x = p.X(); *y = p.Y();
+}
+
+bool OCCTCurve2DBSplineSetPole(OCCTCurve2DRef curve, int32_t index, double x, double y) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return false;
+    try { bs->SetPole(index, gp_Pnt2d(x, y)); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineSetWeight(OCCTCurve2DRef curve, int32_t index, double weight) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbPoles()) return false;
+    try { bs->SetWeight(index, weight); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineInsertKnot(OCCTCurve2DRef curve, double u, int32_t mult, double tol) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->InsertKnot(u, mult, tol); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineRemoveKnot(OCCTCurve2DRef curve, int32_t index, int32_t mult, double tol) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull() || index < 1 || index > bs->NbKnots()) return false;
+    try { return bs->RemoveKnot(index, mult, tol); } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineSegment(OCCTCurve2DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->Segment(u1, u2); return true; } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBSplineIncreaseDegree(OCCTCurve2DRef curve, int32_t degree) {
+    if (!curve || curve->curve.IsNull()) return false;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return false;
+    try { bs->IncreaseDegree(degree); return true; } catch (...) { return false; }
+}
+
+double OCCTCurve2DBSplineResolution(OCCTCurve2DRef curve, double tolerance) {
+    if (!curve || curve->curve.IsNull()) return 0.0;
+    Handle(Geom2d_BSplineCurve) bs = Handle(Geom2d_BSplineCurve)::DownCast(curve->curve);
+    if (bs.IsNull()) return 0.0;
+    double uTol = 0;
+    bs->Resolution(tolerance, uTol);
+    return uTol;
+}
+// MARK: - Hatch_Hatcher (v0.107.0)
+
+struct OCCTHatcher {
+    Hatch_Hatcher hatcher;
+    OCCTHatcher(double tol) : hatcher(tol, false) {}
+};
+
+OCCTHatcherRef OCCTHatcherCreate(double tolerance) {
+    try { return new OCCTHatcher(tolerance); } catch (...) { return nullptr; }
+}
+
+void OCCTHatcherRelease(OCCTHatcherRef hatcher) {
+    delete hatcher;
+}
+
+void OCCTHatcherAddXLine(OCCTHatcherRef hatcher, double x) {
+    if (!hatcher) return;
+    try { hatcher->hatcher.AddXLine(x); } catch (...) {}
+}
+
+void OCCTHatcherAddYLine(OCCTHatcherRef hatcher, double y) {
+    if (!hatcher) return;
+    try { hatcher->hatcher.AddYLine(y); } catch (...) {}
+}
+
+void OCCTHatcherTrim(OCCTHatcherRef hatcher, double x1, double y1, double x2, double y2) {
+    if (!hatcher) return;
+    try { hatcher->hatcher.Trim(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2)); } catch (...) {}
+}
+
+int32_t OCCTHatcherNbLines(OCCTHatcherRef hatcher) {
+    if (!hatcher) return 0;
+    try { return hatcher->hatcher.NbLines(); } catch (...) { return 0; }
+}
+
+int32_t OCCTHatcherNbIntervals(OCCTHatcherRef hatcher, int32_t lineIndex) {
+    if (!hatcher) return 0;
+    try { return hatcher->hatcher.NbIntervals(lineIndex); } catch (...) { return 0; }
+}
+
+// MARK: - v0.108: Geom2d_Circle/Ellipse/Hyperbola/Parabola/Line/OffsetCurve Methods
+// MARK: - Geom2d_Circle Methods (v0.108.0)
+
+double OCCTCurve2DCircleRadius(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Circle) c = Handle(Geom2d_Circle)::DownCast(curve->curve);
+        if (c.IsNull()) return 0;
+        return c->Radius();
+    } catch (...) { return 0; }
+}
+
+bool OCCTCurve2DCircleSetRadius(OCCTCurve2DRef curve, double r) {
+    if (!curve) return false;
+    try {
+        Handle(Geom2d_Circle) c = Handle(Geom2d_Circle)::DownCast(curve->curve);
+        if (c.IsNull()) return false;
+        c->SetRadius(r);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DCircleEccentricity(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Circle) c = Handle(Geom2d_Circle)::DownCast(curve->curve);
+        if (c.IsNull()) return 0;
+        return c->Eccentricity();
+    } catch (...) { return 0; }
+}
+
+void OCCTCurve2DCircleCenter(OCCTCurve2DRef curve, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve) return;
+    try {
+        Handle(Geom2d_Circle) c = Handle(Geom2d_Circle)::DownCast(curve->curve);
+        if (c.IsNull()) return;
+        gp_Pnt2d ctr = c->Circ2d().Location();
+        *x = ctr.X(); *y = ctr.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DCircleXAxis(OCCTCurve2DRef curve, double* px, double* py, double* dx, double* dy) {
+    *px = 0; *py = 0; *dx = 0; *dy = 0;
+    if (!curve) return;
+    try {
+        Handle(Geom2d_Circle) c = Handle(Geom2d_Circle)::DownCast(curve->curve);
+        if (c.IsNull()) return;
+        gp_Ax2d ax = c->XAxis();
+        *px = ax.Location().X(); *py = ax.Location().Y();
+        *dx = ax.Direction().X(); *dy = ax.Direction().Y();
+    } catch (...) {}
+}
+
+// MARK: - Geom2d_Ellipse Methods (v0.108.0)
+
+double OCCTCurve2DEllipseMajorRadius(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Ellipse) e = Handle(Geom2d_Ellipse)::DownCast(curve->curve);
+        if (e.IsNull()) return 0;
+        return e->MajorRadius();
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve2DEllipseMinorRadius(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Ellipse) e = Handle(Geom2d_Ellipse)::DownCast(curve->curve);
+        if (e.IsNull()) return 0;
+        return e->MinorRadius();
+    } catch (...) { return 0; }
+}
+
+bool OCCTCurve2DEllipseSetMajorRadius(OCCTCurve2DRef curve, double r) {
+    if (!curve) return false;
+    try {
+        Handle(Geom2d_Ellipse) e = Handle(Geom2d_Ellipse)::DownCast(curve->curve);
+        if (e.IsNull()) return false;
+        e->SetMajorRadius(r);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DEllipseSetMinorRadius(OCCTCurve2DRef curve, double r) {
+    if (!curve) return false;
+    try {
+        Handle(Geom2d_Ellipse) e = Handle(Geom2d_Ellipse)::DownCast(curve->curve);
+        if (e.IsNull()) return false;
+        e->SetMinorRadius(r);
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DEllipseEccentricity(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Ellipse) e = Handle(Geom2d_Ellipse)::DownCast(curve->curve);
+        if (e.IsNull()) return 0;
+        return e->Eccentricity();
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve2DEllipseFocal(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Ellipse) e = Handle(Geom2d_Ellipse)::DownCast(curve->curve);
+        if (e.IsNull()) return 0;
+        return e->Focal();
+    } catch (...) { return 0; }
+}
+
+void OCCTCurve2DEllipseFocus1(OCCTCurve2DRef curve, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve) return;
+    try {
+        Handle(Geom2d_Ellipse) e = Handle(Geom2d_Ellipse)::DownCast(curve->curve);
+        if (e.IsNull()) return;
+        gp_Pnt2d f = e->Focus1();
+        *x = f.X(); *y = f.Y();
+    } catch (...) {}
+}
+
+// MARK: - Geom2d_Hyperbola Methods (v0.108.0)
+
+double OCCTCurve2DHyperbolaMajorRadius(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Hyperbola) h = Handle(Geom2d_Hyperbola)::DownCast(curve->curve);
+        if (h.IsNull()) return 0;
+        return h->MajorRadius();
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve2DHyperbolaMinorRadius(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Hyperbola) h = Handle(Geom2d_Hyperbola)::DownCast(curve->curve);
+        if (h.IsNull()) return 0;
+        return h->MinorRadius();
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve2DHyperbolaEccentricity(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Hyperbola) h = Handle(Geom2d_Hyperbola)::DownCast(curve->curve);
+        if (h.IsNull()) return 0;
+        return h->Eccentricity();
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve2DHyperbolaFocal(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Hyperbola) h = Handle(Geom2d_Hyperbola)::DownCast(curve->curve);
+        if (h.IsNull()) return 0;
+        return h->Focal();
+    } catch (...) { return 0; }
+}
+
+void OCCTCurve2DHyperbolaFocus1(OCCTCurve2DRef curve, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve) return;
+    try {
+        Handle(Geom2d_Hyperbola) h = Handle(Geom2d_Hyperbola)::DownCast(curve->curve);
+        if (h.IsNull()) return;
+        gp_Pnt2d f = h->Focus1();
+        *x = f.X(); *y = f.Y();
+    } catch (...) {}
+}
+
+// MARK: - Geom2d_Parabola Methods (v0.108.0)
+
+double OCCTCurve2DParabolaFocal(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Parabola) p = Handle(Geom2d_Parabola)::DownCast(curve->curve);
+        if (p.IsNull()) return 0;
+        return p->Focal();
+    } catch (...) { return 0; }
+}
+
+bool OCCTCurve2DParabolaSetFocal(OCCTCurve2DRef curve, double focal) {
+    if (!curve) return false;
+    try {
+        Handle(Geom2d_Parabola) p = Handle(Geom2d_Parabola)::DownCast(curve->curve);
+        if (p.IsNull()) return false;
+        p->SetFocal(focal);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTCurve2DParabolaFocus(OCCTCurve2DRef curve, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve) return;
+    try {
+        Handle(Geom2d_Parabola) p = Handle(Geom2d_Parabola)::DownCast(curve->curve);
+        if (p.IsNull()) return;
+        gp_Pnt2d f = p->Focus();
+        *x = f.X(); *y = f.Y();
+    } catch (...) {}
+}
+
+double OCCTCurve2DParabolaEccentricity(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Parabola) p = Handle(Geom2d_Parabola)::DownCast(curve->curve);
+        if (p.IsNull()) return 0;
+        return p->Eccentricity();
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve2DParabolaParameter(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Parabola) p = Handle(Geom2d_Parabola)::DownCast(curve->curve);
+        if (p.IsNull()) return 0;
+        return p->Parameter();
+    } catch (...) { return 0; }
+}
+
+// MARK: - Geom2d_Line Methods (v0.108.0)
+
+void OCCTCurve2DLineDirection(OCCTCurve2DRef curve, double* dx, double* dy) {
+    *dx = 0; *dy = 0;
+    if (!curve) return;
+    try {
+        Handle(Geom2d_Line) l = Handle(Geom2d_Line)::DownCast(curve->curve);
+        if (l.IsNull()) return;
+        gp_Dir2d d = l->Direction();
+        *dx = d.X(); *dy = d.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DLineLocation(OCCTCurve2DRef curve, double* x, double* y) {
+    *x = 0; *y = 0;
+    if (!curve) return;
+    try {
+        Handle(Geom2d_Line) l = Handle(Geom2d_Line)::DownCast(curve->curve);
+        if (l.IsNull()) return;
+        gp_Pnt2d loc = l->Location();
+        *x = loc.X(); *y = loc.Y();
+    } catch (...) {}
+}
+
+bool OCCTCurve2DLineSetDirection(OCCTCurve2DRef curve, double dx, double dy) {
+    if (!curve) return false;
+    try {
+        Handle(Geom2d_Line) l = Handle(Geom2d_Line)::DownCast(curve->curve);
+        if (l.IsNull()) return false;
+        l->SetDirection(gp_Dir2d(dx, dy));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DLineSetLocation(OCCTCurve2DRef curve, double x, double y) {
+    if (!curve) return false;
+    try {
+        Handle(Geom2d_Line) l = Handle(Geom2d_Line)::DownCast(curve->curve);
+        if (l.IsNull()) return false;
+        l->SetLocation(gp_Pnt2d(x, y));
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DLineDistance(OCCTCurve2DRef curve, double px, double py) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_Line) l = Handle(Geom2d_Line)::DownCast(curve->curve);
+        if (l.IsNull()) return 0;
+        return l->Distance(gp_Pnt2d(px, py));
+    } catch (...) { return 0; }
+}
+
+void OCCTCurve2DLineLin2d(OCCTCurve2DRef curve, double* px, double* py, double* dx, double* dy) {
+    *px = 0; *py = 0; *dx = 0; *dy = 0;
+    if (!curve) return;
+    try {
+        Handle(Geom2d_Line) l = Handle(Geom2d_Line)::DownCast(curve->curve);
+        if (l.IsNull()) return;
+        gp_Lin2d gl = l->Lin2d();
+        *px = gl.Location().X(); *py = gl.Location().Y();
+        *dx = gl.Direction().X(); *dy = gl.Direction().Y();
+    } catch (...) {}
+}
+
+// MARK: - Geom2d_OffsetCurve Methods (v0.108.0)
+
+double OCCTCurve2DOffsetValue(OCCTCurve2DRef curve) {
+    if (!curve) return 0;
+    try {
+        Handle(Geom2d_OffsetCurve) oc = Handle(Geom2d_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return 0;
+        return oc->Offset();
+    } catch (...) { return 0; }
+}
+
+bool OCCTCurve2DOffsetSetValue(OCCTCurve2DRef curve, double offset) {
+    if (!curve) return false;
+    try {
+        Handle(Geom2d_OffsetCurve) oc = Handle(Geom2d_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return false;
+        oc->SetOffsetValue(offset);
+        return true;
+    } catch (...) { return false; }
+}
+
+OCCTCurve2DRef OCCTCurve2DOffsetBasisCurve(OCCTCurve2DRef curve) {
+    if (!curve) return nullptr;
+    try {
+        Handle(Geom2d_OffsetCurve) oc = Handle(Geom2d_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return nullptr;
+        Handle(Geom2d_Curve) basis = oc->BasisCurve();
+        if (basis.IsNull()) return nullptr;
+        return new OCCTCurve2D(basis);
+    } catch (...) { return nullptr; }
+}
