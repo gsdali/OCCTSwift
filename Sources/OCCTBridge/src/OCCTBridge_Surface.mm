@@ -68,6 +68,8 @@
 #include <GeomFill_Frenet.hxx>
 #include <GeomFill_NSections.hxx>
 #include <GeomFill_BoundWithSurf.hxx>
+#include <GeomLib_Tool.hxx>
+#include <GeomLib_IsPlanarSurface.hxx>
 #include <GeomFill_DegeneratedBound.hxx>
 #include <GeomFill_Generator.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
@@ -2662,4 +2664,52 @@ OCCTApproxSurfaceResult OCCTGeomConvertApproxSurface(OCCTSurfaceRef _Nonnull sur
         }
     } catch (...) {}
     return result;
+}
+
+// MARK: - GeomLib_Tool Surface Param + IsPlanar (v0.77)
+bool OCCTGeomLibToolParametersSurface(OCCTSurfaceRef _Nonnull surfRef,
+                                       double px, double py, double pz,
+                                       double maxDist,
+                                       double* _Nonnull outU, double* _Nonnull outV) {
+    try {
+        auto& surf = reinterpret_cast<OCCTSurface*>(surfRef)->surface;
+        double u = 0, v = 0;
+        bool ok = GeomLib_Tool::Parameters(surf, gp_Pnt(px, py, pz), maxDist, u, v);
+        if (ok) { *outU = u; *outV = v; }
+        return ok;
+    } catch (...) {
+        return false;
+    }
+}
+// MARK: - GeomLib_IsPlanarSurface
+
+bool OCCTGeomLibIsPlanarSurface(OCCTSurfaceRef _Nonnull surfRef, double tolerance) {
+    try {
+        auto& surf = reinterpret_cast<OCCTSurface*>(surfRef)->surface;
+        GeomLib_IsPlanarSurface checker(surf, tolerance);
+        return checker.IsPlanar();
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTGeomLibPlanarSurfacePlane(OCCTSurfaceRef _Nonnull surfRef, double tolerance,
+                                    double* _Nonnull ox, double* _Nonnull oy, double* _Nonnull oz,
+                                    double* _Nonnull nx, double* _Nonnull ny, double* _Nonnull nz,
+                                    double* _Nonnull xx, double* _Nonnull xy, double* _Nonnull xz) {
+    try {
+        auto& surf = reinterpret_cast<OCCTSurface*>(surfRef)->surface;
+        GeomLib_IsPlanarSurface checker(surf, tolerance);
+        if (!checker.IsPlanar()) return false;
+        const gp_Pln& pln = checker.Plan();
+        gp_Pnt loc = pln.Location();
+        gp_Dir dir = pln.Axis().Direction();
+        gp_Dir xdir = pln.XAxis().Direction();
+        *ox = loc.X(); *oy = loc.Y(); *oz = loc.Z();
+        *nx = dir.X(); *ny = dir.Y(); *nz = dir.Z();
+        *xx = xdir.X(); *xy = xdir.Y(); *xz = xdir.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
 }

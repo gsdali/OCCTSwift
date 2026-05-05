@@ -33,6 +33,13 @@
 #include <IntRes2d_IntersectionPoint.hxx>
 #include <Intf_InterferencePolygon2d.hxx>
 #include <ShapeConstruct_Curve.hxx>
+#include <GeomLib_Tool.hxx>
+#include <GeomLib_Check2dBSplineCurve.hxx>
+#include <ShapeUpgrade_SplitCurve2dContinuity.hxx>
+#include <ShapeUpgrade_ConvertCurve2dToBezier.hxx>
+#include <GccAna_Circ2d2TanRad.hxx>
+#include <GccAna_Circ2dTanCen.hxx>
+#include <GccAna_Lin2d2Tan.hxx>
 #include <Intf_Polygon2d.hxx>
 #include <BRepBuilderAPI_MakeEdge2d.hxx>
 #include <GC_MakeLine2d.hxx>
@@ -2511,6 +2518,280 @@ int OCCTBisectorInterPointPoint(double ax, double ay, double bx, double by,
                 outPoints[written].y = ip.Value().Y();
                 outPoints[written].paramOnFirst = ip.ParamOnFirst();
                 outPoints[written].paramOnSecond = ip.ParamOnSecond();
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - GeomLib_Tool Param2D (v0.77)
+bool OCCTGeomLibToolParameter2D(OCCTCurve2DRef _Nonnull curveRef, double px, double py,
+                                 double maxDist, double* _Nonnull outParam) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve2D*>(curveRef)->curve;
+        double param = 0;
+        bool ok = GeomLib_Tool::Parameter(curve, gp_Pnt2d(px, py), maxDist, param);
+        if (ok) *outParam = param;
+        return ok;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - GeomLib_Check + Fix BSpline 2D (v0.77)
+bool OCCTGeomLibCheckBSpline2D(OCCTCurve2DRef _Nonnull curveRef, double tolerance, double angularTol,
+                                bool* _Nonnull needFixFirst, bool* _Nonnull needFixLast) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve2D*>(curveRef)->curve;
+        Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(curve);
+        if (bsp.IsNull()) return false;
+        GeomLib_Check2dBSplineCurve checker(bsp, tolerance, angularTol);
+        if (!checker.IsDone()) return false;
+        bool f = false, l = false;
+        checker.NeedTangentFix(f, l);
+        *needFixFirst = f;
+        *needFixLast = l;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTCurve2DRef _Nullable OCCTGeomLibFixBSpline2D(OCCTCurve2DRef _Nonnull curveRef,
+                                                   double tolerance, double angularTol,
+                                                   bool fixFirst, bool fixLast) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve2D*>(curveRef)->curve;
+        Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(curve);
+        if (bsp.IsNull()) return nullptr;
+        GeomLib_Check2dBSplineCurve checker(bsp, tolerance, angularTol);
+        Handle(Geom2d_BSplineCurve) fixed = checker.FixedTangent(fixFirst, fixLast);
+        if (fixed.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTCurve2DRef>(new OCCTCurve2D{fixed});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - GccAna Circ2d2TanRad / TanCen / Lin2d2Tan (v0.77)
+// MARK: - GccAna_Circ2d2TanRad
+
+#include <GccAna_Circ2d2TanRad.hxx>
+#include <GccAna_Circ2dTanCen.hxx>
+#include <GccAna_Lin2d2Tan.hxx>
+#include <GccEnt.hxx>
+#include <GccEnt_QualifiedLin.hxx>
+#include <GccEnt_QualifiedCirc.hxx>
+
+int OCCTGccAnaCirc2d2TanRadLineLin(double l1px, double l1py, double l1dx, double l1dy,
+                                     double l2px, double l2py, double l2dx, double l2dy,
+                                     double radius, double tolerance,
+                                     OCCTCircle2DSolution* _Nullable outSolutions, int maxSolutions) {
+    try {
+        gp_Lin2d l1(gp_Pnt2d(l1px, l1py), gp_Dir2d(l1dx, l1dy));
+        gp_Lin2d l2(gp_Pnt2d(l2px, l2py), gp_Dir2d(l2dx, l2dy));
+        GccEnt_QualifiedLin ql1(l1, GccEnt_unqualified);
+        GccEnt_QualifiedLin ql2(l2, GccEnt_unqualified);
+        GccAna_Circ2d2TanRad solver(ql1, ql2, radius, tolerance);
+        if (!solver.IsDone()) return 0;
+        int n = solver.NbSolutions();
+        int written = 0;
+        for (int i = 1; i <= n && written < maxSolutions; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i);
+            if (outSolutions) {
+                outSolutions[written].centerX = circ.Location().X();
+                outSolutions[written].centerY = circ.Location().Y();
+                outSolutions[written].radius = circ.Radius();
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int OCCTGccAnaCirc2d2TanRadPntPnt(double p1x, double p1y, double p2x, double p2y,
+                                    double radius, double tolerance,
+                                    OCCTCircle2DSolution* _Nullable outSolutions, int maxSolutions) {
+    try {
+        GccAna_Circ2d2TanRad solver(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y), radius, tolerance);
+        if (!solver.IsDone()) return 0;
+        int n = solver.NbSolutions();
+        int written = 0;
+        for (int i = 1; i <= n && written < maxSolutions; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i);
+            if (outSolutions) {
+                outSolutions[written].centerX = circ.Location().X();
+                outSolutions[written].centerY = circ.Location().Y();
+                outSolutions[written].radius = circ.Radius();
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - GccAna_Circ2dTanCen
+
+int OCCTGccAnaCirc2dTanCenPntPnt(double px, double py, double cx, double cy,
+                                   OCCTCircle2DSolution* _Nullable outSolutions, int maxSolutions) {
+    try {
+        GccAna_Circ2dTanCen solver(gp_Pnt2d(px, py), gp_Pnt2d(cx, cy));
+        if (!solver.IsDone()) return 0;
+        int n = solver.NbSolutions();
+        int written = 0;
+        for (int i = 1; i <= n && written < maxSolutions; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i);
+            if (outSolutions) {
+                outSolutions[written].centerX = circ.Location().X();
+                outSolutions[written].centerY = circ.Location().Y();
+                outSolutions[written].radius = circ.Radius();
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int OCCTGccAnaCirc2dTanCenLinPnt(double lpx, double lpy, double ldx, double ldy,
+                                   double cx, double cy,
+                                   OCCTCircle2DSolution* _Nullable outSolutions, int maxSolutions) {
+    try {
+        gp_Lin2d line(gp_Pnt2d(lpx, lpy), gp_Dir2d(ldx, ldy));
+        GccAna_Circ2dTanCen solver(line, gp_Pnt2d(cx, cy));
+        if (!solver.IsDone()) return 0;
+        int n = solver.NbSolutions();
+        int written = 0;
+        for (int i = 1; i <= n && written < maxSolutions; i++) {
+            gp_Circ2d circ = solver.ThisSolution(i);
+            if (outSolutions) {
+                outSolutions[written].centerX = circ.Location().X();
+                outSolutions[written].centerY = circ.Location().Y();
+                outSolutions[written].radius = circ.Radius();
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - GccAna_Lin2d2Tan
+
+int OCCTGccAnaLin2d2TanPntPnt(double p1x, double p1y, double p2x, double p2y,
+                                double tolerance,
+                                OCCTLine2DSolution* _Nullable outSolutions, int maxSolutions) {
+    try {
+        GccAna_Lin2d2Tan solver(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y), tolerance);
+        if (!solver.IsDone()) return 0;
+        int n = solver.NbSolutions();
+        int written = 0;
+        for (int i = 1; i <= n && written < maxSolutions; i++) {
+            gp_Lin2d lin = solver.ThisSolution(i);
+            if (outSolutions) {
+                outSolutions[written].originX = lin.Location().X();
+                outSolutions[written].originY = lin.Location().Y();
+                outSolutions[written].dirX = lin.Direction().X();
+                outSolutions[written].dirY = lin.Direction().Y();
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int OCCTGccAnaLin2d2TanCircPnt(double cx, double cy, double radius,
+                                 double px, double py, double tolerance,
+                                 OCCTLine2DSolution* _Nullable outSolutions, int maxSolutions) {
+    try {
+        gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), radius);
+        GccEnt_QualifiedCirc qc(circ, GccEnt_unqualified);
+        GccAna_Lin2d2Tan solver(qc, gp_Pnt2d(px, py), tolerance);
+        if (!solver.IsDone()) return 0;
+        int n = solver.NbSolutions();
+        int written = 0;
+        for (int i = 1; i <= n && written < maxSolutions; i++) {
+            gp_Lin2d lin = solver.ThisSolution(i);
+            if (outSolutions) {
+                outSolutions[written].originX = lin.Location().X();
+                outSolutions[written].originY = lin.Location().Y();
+                outSolutions[written].dirX = lin.Direction().X();
+                outSolutions[written].dirY = lin.Direction().Y();
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - ShapeUpgrade_SplitCurve2dContinuity (v0.77, with continuityFromInt helper)
+static GeomAbs_Shape continuityFromInt(int val) {
+    switch (val) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_CN;
+    }
+}
+// MARK: - ShapeUpgrade_SplitCurve2dContinuity
+
+int OCCTSplitCurve2dContinuity(OCCTCurve2DRef _Nonnull curveRef, int criterion, double tolerance,
+                                 OCCTCurve2DRef _Nullable* _Nullable outCurves, int maxCurves) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve2D*>(curveRef)->curve;
+        Handle(ShapeUpgrade_SplitCurve2dContinuity) splitter = new ShapeUpgrade_SplitCurve2dContinuity();
+        splitter->Init(curve);
+        splitter->SetCriterion(continuityFromInt(criterion));
+        splitter->SetTolerance(tolerance);
+        splitter->Perform(true);
+        auto curves = splitter->GetCurves();
+        if (curves.IsNull()) return 0;
+        int n = curves->Length();
+        int written = 0;
+        for (int i = curves->Lower(); i <= curves->Upper() && written < maxCurves; i++) {
+            Handle(Geom2d_Curve) c = curves->Value(i);
+            if (!c.IsNull() && outCurves) {
+                outCurves[written] = reinterpret_cast<OCCTCurve2DRef>(new OCCTCurve2D{c});
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - ShapeUpgrade_ConvertCurve2dToBezier (v0.77)
+// MARK: - ShapeUpgrade_ConvertCurve2dToBezier
+
+int OCCTConvertCurve2dToBezier(OCCTCurve2DRef _Nonnull curveRef,
+                                OCCTCurve2DRef _Nullable* _Nullable outCurves, int maxCurves) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve2D*>(curveRef)->curve;
+        Handle(ShapeUpgrade_ConvertCurve2dToBezier) converter = new ShapeUpgrade_ConvertCurve2dToBezier();
+        converter->Init(curve);
+        converter->Perform(true);
+        auto curves = converter->GetCurves();
+        if (curves.IsNull()) return 0;
+        int written = 0;
+        for (int i = curves->Lower(); i <= curves->Upper() && written < maxCurves; i++) {
+            Handle(Geom2d_Curve) c = curves->Value(i);
+            if (!c.IsNull() && outCurves) {
+                outCurves[written] = reinterpret_cast<OCCTCurve2DRef>(new OCCTCurve2D{c});
             }
             written++;
         }
