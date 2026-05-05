@@ -92,6 +92,9 @@
 #include <BRepTools_CopyModification.hxx>
 #include <BRepTools_GTrsfModification.hxx>
 #include <BRepTools_TrsfModification.hxx>
+#include <BRepFill_Evolved.hxx>
+#include <BRepFill_NSections.hxx>
+#include <BRepFill_OffsetAncestors.hxx>
 #include <HLRAppli_ReflectLines.hxx>
 #include <HLRBRep_TypeOfResultingEdge.hxx>
 #include <BRepFeat_Status.hxx>
@@ -6117,4 +6120,140 @@ OCCTShapeRef _Nullable OCCTShapeCopyModification(OCCTShapeRef _Nonnull shapeRef,
     } catch (...) {
         return nullptr;
     }
+}
+
+// MARK: - BRepFill_Evolved (v0.79)
+// --- BRepFill_Evolved ---
+OCCTShapeRef _Nullable OCCTBRepFillEvolved(OCCTShapeRef _Nonnull spineFaceRef,
+                                            OCCTShapeRef _Nonnull profileWireRef,
+                                            double axOriginX, double axOriginY, double axOriginZ,
+                                            double axNormalX, double axNormalY, double axNormalZ,
+                                            double axXDirX, double axXDirY, double axXDirZ,
+                                            int joinType, bool makeSolid) {
+    try {
+        const TopoDS_Shape& spineShape = *(const TopoDS_Shape*)spineFaceRef;
+        const TopoDS_Shape& profileShape = *(const TopoDS_Shape*)profileWireRef;
+
+        gp_Ax3 axe(gp_Pnt(axOriginX, axOriginY, axOriginZ),
+                    gp_Dir(axNormalX, axNormalY, axNormalZ),
+                    gp_Dir(axXDirX, axXDirY, axXDirZ));
+
+        GeomAbs_JoinType jt = GeomAbs_Arc;
+        if (joinType == 1) jt = GeomAbs_Tangent;
+        else if (joinType == 2) jt = GeomAbs_Intersection;
+
+        TopoDS_Wire profile = TopoDS::Wire(profileShape);
+
+        BRepFill_Evolved evolved;
+        if (spineShape.ShapeType() == TopAbs_FACE) {
+            evolved.Perform(TopoDS::Face(spineShape), profile, axe, jt, makeSolid);
+        } else if (spineShape.ShapeType() == TopAbs_WIRE) {
+            evolved.Perform(TopoDS::Wire(spineShape), profile, axe, jt, makeSolid);
+        } else {
+            return nullptr;
+        }
+
+        if (!evolved.IsDone()) return nullptr;
+        return (OCCTShapeRef)new TopoDS_Shape(evolved.Shape());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BRepFill_OffsetAncestors (v0.79)
+// --- BRepFill_OffsetAncestors ---
+struct OffsetAncestorsOpaque {
+    BRepFill_OffsetWire offsetWire;
+    BRepFill_OffsetAncestors ancestors;
+    bool isDone;
+};
+
+OCCTOffsetAncestorsRef OCCTBRepFillOffsetAncestorsCreate(OCCTShapeRef _Nonnull faceRef, double offset, int joinType) {
+    try {
+        const TopoDS_Shape& shape = *(const TopoDS_Shape*)faceRef;
+        TopoDS_Face face = TopoDS::Face(shape);
+
+        GeomAbs_JoinType jt = GeomAbs_Arc;
+        if (joinType == 1) jt = GeomAbs_Tangent;
+        else if (joinType == 2) jt = GeomAbs_Intersection;
+
+        auto* opaque = new OffsetAncestorsOpaque();
+        opaque->offsetWire.Init(face, jt);
+        opaque->offsetWire.Perform(offset);
+        if (opaque->offsetWire.IsDone()) {
+            opaque->ancestors.Perform(opaque->offsetWire);
+            opaque->isDone = opaque->ancestors.IsDone();
+        } else {
+            opaque->isDone = false;
+        }
+        return opaque;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTBRepFillOffsetAncestorsIsDone(OCCTOffsetAncestorsRef _Nonnull ref) {
+    return ((OffsetAncestorsOpaque*)ref)->isDone;
+}
+
+bool OCCTBRepFillOffsetAncestorsHasAncestor(OCCTOffsetAncestorsRef _Nonnull ref, OCCTShapeRef _Nonnull edgeRef) {
+    try {
+        auto* opaque = (OffsetAncestorsOpaque*)ref;
+        const TopoDS_Shape& edgeShape = *(const TopoDS_Shape*)edgeRef;
+        return opaque->ancestors.HasAncestor(TopoDS::Edge(edgeShape));
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepFillOffsetAncestorsGetAncestor(OCCTOffsetAncestorsRef _Nonnull ref, OCCTShapeRef _Nonnull edgeRef) {
+    try {
+        auto* opaque = (OffsetAncestorsOpaque*)ref;
+        const TopoDS_Shape& edgeShape = *(const TopoDS_Shape*)edgeRef;
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape);
+        if (!opaque->ancestors.HasAncestor(edge)) return nullptr;
+        return (OCCTShapeRef)new TopoDS_Shape(opaque->ancestors.Ancestor(edge));
+    } catch (...) { return nullptr; }
+}
+
+void OCCTBRepFillOffsetAncestorsRelease(OCCTOffsetAncestorsRef _Nonnull ref) {
+    delete (OffsetAncestorsOpaque*)ref;
+}
+
+// MARK: - BRepFill_NSections (v0.79)
+// --- BRepFill_NSections ---
+struct NSectionsOpaque {
+    Handle(BRepFill_NSections) nsec;
+};
+
+OCCTNSectionsRef OCCTBRepFillNSectionsCreate(const OCCTShapeRef _Nonnull * _Nonnull wireRefs, int count) {
+    try {
+        NCollection_Sequence<TopoDS_Shape> sections;
+        for (int i = 0; i < count; i++) {
+            const TopoDS_Shape& shape = *(const TopoDS_Shape*)wireRefs[i];
+            sections.Append(shape);
+        }
+        auto* opaque = new NSectionsOpaque();
+        opaque->nsec = new BRepFill_NSections(sections);
+        return opaque;
+    } catch (...) { return nullptr; }
+}
+
+int OCCTBRepFillNSectionsNbLaw(OCCTNSectionsRef _Nonnull ref) {
+    try {
+        auto* opaque = (NSectionsOpaque*)ref;
+        return opaque->nsec->NbLaw();
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepFillNSectionsIsConstant(OCCTNSectionsRef _Nonnull ref) {
+    try {
+        auto* opaque = (NSectionsOpaque*)ref;
+        return opaque->nsec->IsConstant();
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepFillNSectionsIsVertex(OCCTNSectionsRef _Nonnull ref) {
+    try {
+        auto* opaque = (NSectionsOpaque*)ref;
+        return opaque->nsec->IsVertex();
+    } catch (...) { return false; }
+}
+
+void OCCTBRepFillNSectionsRelease(OCCTNSectionsRef _Nonnull ref) {
+    delete (NSectionsOpaque*)ref;
 }

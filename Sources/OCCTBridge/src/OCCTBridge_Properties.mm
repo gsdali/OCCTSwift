@@ -38,6 +38,7 @@
 #include <BRepGProp_Cinert.hxx>
 #include <BRepGProp_Sinert.hxx>
 #include <BRepGProp_Vinert.hxx>
+#include <BRepGProp_VinertGK.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
 
@@ -1260,6 +1261,34 @@ OCCTFaceVolumeInertia OCCTBRepGPropVinertPlane(OCCTFaceRef _Nonnull face,
         result.centerX = cm.X();
         result.centerY = cm.Y();
         result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - BRepGProp_VinertGK (v0.79)
+// --- BRepGProp_VinertGK ---
+OCCTVinertGKResult OCCTBRepGPropVinertGK(OCCTShapeRef _Nonnull faceRef,
+                                           double locX, double locY, double locZ,
+                                           double tolerance, bool computeCG) {
+    OCCTVinertGKResult result = {};
+    try {
+        const TopoDS_Shape& shape = *(const TopoDS_Shape*)faceRef;
+        TopoDS_Face face = TopoDS::Face(shape);
+
+        BRepGProp_Face bface(face);
+        gp_Pnt loc(locX, locY, locZ);
+
+        BRepGProp_VinertGK vgk(bface, loc, tolerance, computeCG, false);
+        result.mass = vgk.Mass();
+        result.errorReached = 0.0;  // GetErrorReached is inline-only in OCCT 8.0.0
+        result.absoluteError = 0.0;
+
+        if (computeCG) {
+            gp_Pnt cg = vgk.CentreOfMass();
+            result.centerX = cg.X();
+            result.centerY = cg.Y();
+            result.centerZ = cg.Z();
+        }
     } catch (...) {}
     return result;
 }

@@ -31,6 +31,10 @@
 #include <Poly_Polygon2D.hxx>
 #include <Poly_Polygon3D.hxx>
 #include <Poly_PolygonOnTriangulation.hxx>
+#include <Poly_CoherentTriangulation.hxx>
+#include <Poly_CoherentNode.hxx>
+#include <Poly_CoherentTriangle.hxx>
+#include <Poly_CoherentLink.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <BRep_Builder.hxx>
@@ -1171,4 +1175,138 @@ int OCCTPolyMergeNodes(OCCTShapeRef _Nonnull shapeRef,
     } catch (...) {
         return 0;
     }
+}
+
+// MARK: - Poly_CoherentTriangulation (v0.79)
+// --- Poly_CoherentTriangulation opaque ---
+struct Poly_CoherentTriangulationOpaque {
+    Handle(Poly_CoherentTriangulation) ct;
+    Handle(Poly_Triangulation) resultTri;  // cached result
+    // Track triangle pointers for removal by index
+    std::vector<Poly_CoherentTriangle*> triangles;
+};
+
+OCCTCoherentTriangulationRef OCCTCoherentTriangulationCreate(void) {
+    try {
+        auto* opaque = new Poly_CoherentTriangulationOpaque();
+        opaque->ct = new Poly_CoherentTriangulation();
+        return opaque;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCoherentTriangulationRef OCCTCoherentTriangulationCreateFromMesh(OCCTShapeRef _Nonnull shapeRef) {
+    try {
+        const TopoDS_Shape& shape = *(const TopoDS_Shape*)shapeRef;
+        // Mesh the shape first
+        BRepMesh_IncrementalMesh mesh(shape, 0.1);
+        // Find first face triangulation
+        for (TopExp_Explorer exp(shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            TopoDS_Face face = TopoDS::Face(exp.Current());
+            TopLoc_Location loc;
+            Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(face, loc);
+            if (!tri.IsNull()) {
+                auto* opaque = new Poly_CoherentTriangulationOpaque();
+                opaque->ct = new Poly_CoherentTriangulation(tri);
+                return opaque;
+            }
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+int OCCTCoherentTriangulationSetNode(OCCTCoherentTriangulationRef _Nonnull ref, double x, double y, double z) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        return opaque->ct->SetNode(gp_XYZ(x, y, z));
+    } catch (...) { return -1; }
+}
+
+bool OCCTCoherentTriangulationAddTriangle(OCCTCoherentTriangulationRef _Nonnull ref, int n0, int n1, int n2) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        const Poly_CoherentTriangle* tri = opaque->ct->AddTriangle(n0, n1, n2);
+        if (tri) {
+            opaque->triangles.push_back(const_cast<Poly_CoherentTriangle*>(tri));
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTCoherentTriangulationRemoveTriangle(OCCTCoherentTriangulationRef _Nonnull ref, int triIndex) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        if (triIndex < 0 || triIndex >= (int)opaque->triangles.size()) return false;
+        Poly_CoherentTriangle& tri = *opaque->triangles[triIndex];
+        return opaque->ct->RemoveTriangle(tri);
+    } catch (...) { return false; }
+}
+
+int OCCTCoherentTriangulationNTriangles(OCCTCoherentTriangulationRef _Nonnull ref) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        return opaque->ct->NTriangles();
+    } catch (...) { return 0; }
+}
+
+int OCCTCoherentTriangulationComputeLinks(OCCTCoherentTriangulationRef _Nonnull ref) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        return opaque->ct->ComputeLinks();
+    } catch (...) { return 0; }
+}
+
+int OCCTCoherentTriangulationNLinks(OCCTCoherentTriangulationRef _Nonnull ref) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        return opaque->ct->NLinks();
+    } catch (...) { return 0; }
+}
+
+void OCCTCoherentTriangulationSetDeflection(OCCTCoherentTriangulationRef _Nonnull ref, double deflection) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        opaque->ct->SetDeflection(deflection);
+    } catch (...) {}
+}
+
+double OCCTCoherentTriangulationDeflection(OCCTCoherentTriangulationRef _Nonnull ref) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        return opaque->ct->Deflection();
+    } catch (...) { return 0.0; }
+}
+
+bool OCCTCoherentTriangulationRemoveDegenerated(OCCTCoherentTriangulationRef _Nonnull ref, double tolerance) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        return opaque->ct->RemoveDegenerated(tolerance);
+    } catch (...) { return false; }
+}
+
+bool OCCTCoherentTriangulationGetResult(OCCTCoherentTriangulationRef _Nonnull ref,
+                                         int* _Nonnull outNbNodes, int* _Nonnull outNbTriangles) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        opaque->resultTri = opaque->ct->GetTriangulation();
+        if (opaque->resultTri.IsNull()) return false;
+        *outNbNodes = opaque->resultTri->NbNodes();
+        *outNbTriangles = opaque->resultTri->NbTriangles();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCoherentTriangulationNodeCoords(OCCTCoherentTriangulationRef _Nonnull ref, int nodeIndex,
+                                          double* _Nonnull x, double* _Nonnull y, double* _Nonnull z) {
+    try {
+        auto* opaque = (Poly_CoherentTriangulationOpaque*)ref;
+        if (opaque->resultTri.IsNull()) return false;
+        gp_Pnt p = opaque->resultTri->Node(nodeIndex);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTCoherentTriangulationRelease(OCCTCoherentTriangulationRef _Nonnull ref) {
+    delete (Poly_CoherentTriangulationOpaque*)ref;
 }
