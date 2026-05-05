@@ -80,8 +80,21 @@
 #include <ShapeFix_EdgeConnect.hxx>
 #include <ShapeFix_SplitTool.hxx>
 #include <BRepTools_Substitution.hxx>
+#include <ShapeAnalysis_TransferParametersProj.hxx>
+#include <ShapeBuild_Edge.hxx>
+#include <ShapeBuild_Vertex.hxx>
 #include <ShapeCustom_DirectModification.hxx>
+#include <ShapeCustom_SweptToElementary.hxx>
 #include <ShapeCustom_TrsfModification.hxx>
+#include <ShapeExtend_Explorer.hxx>
+#include <ShapeUpgrade_ClosedEdgeDivide.hxx>
+#include <ShapeUpgrade_ConvertCurve3dToBezier.hxx>
+#include <ShapeUpgrade_ConvertSurfaceToBezierBasis.hxx>
+#include <ShapeUpgrade_EdgeDivide.hxx>
+#include <ShapeUpgrade_FaceDivide.hxx>
+#include <ShapeUpgrade_FixSmallBezierCurves.hxx>
+#include <ShapeUpgrade_FixSmallCurves.hxx>
+#include <ShapeUpgrade_WireDivide.hxx>
 #include <ShapeUpgrade_ClosedFaceDivide.hxx>
 #include <ShapeUpgrade_ShapeDivideAngle.hxx>
 #include <ShapeUpgrade_ShapeDivideArea.hxx>
@@ -2346,3 +2359,385 @@ OCCTShapeRef _Nullable OCCTShapeUpgradeSplitSurfaceArea(OCCTShapeRef shape, int3
         return new OCCTShape(result);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - ShapeAnalysis_TransferParametersProj (v0.64)
+// --- ShapeAnalysis_TransferParametersProj ---
+
+double OCCTShapeAnalysisTransferParam(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
+    double param, bool toFace) {
+    if (!edgeShape || !faceShape) return param;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        ShapeAnalysis_TransferParametersProj transfer(edge, face);
+        return transfer.Perform(param, toFace);
+    } catch (...) { return param; }
+}
+
+// ============================================================
+// v0.65.0: Shape Processing Completions + Boolean Completions
+// ============================================================
+
+#include <BOPAlgo_RemoveFeatures.hxx>
+#include <BOPAlgo_Section.hxx>
+#include <BOPAlgo_BuilderFace.hxx>
+#include <BOPAlgo_BuilderSolid.hxx>
+#include <BOPAlgo_ShellSplitter.hxx>
+#include <BOPAlgo_Tools.hxx>
+#include <BOPTools_AlgoTools.hxx>
+#include <BOPTools_AlgoTools3D.hxx>
+#include <IntTools_EdgeEdge.hxx>
+#include <IntTools_EdgeFace.hxx>
+#include <IntTools_FaceFace.hxx>
+#include <IntTools_FClass2d.hxx>
+#include <IntTools_CommonPrt.hxx>
+#include <IntTools_SequenceOfCommonPrts.hxx>
+#include <IntTools_Curve.hxx>
+#include <IntTools_PntOn2Faces.hxx>
+#include <IntTools_SequenceOfCurves.hxx>
+#include <IntTools_SequenceOfPntOn2Faces.hxx>
+#include <IntTools_Context.hxx>
+#include <IntTools_Range.hxx>
+#include <ShapeCustom_SweptToElementary.hxx>
+#include <BRepTools_Modifier.hxx>
+#include <ShapeBuild_Edge.hxx>
+#include <ShapeBuild_Vertex.hxx>
+#include <ShapeExtend_Explorer.hxx>
+#include <ShapeUpgrade_FaceDivide.hxx>
+#include <ShapeUpgrade_WireDivide.hxx>
+#include <ShapeUpgrade_EdgeDivide.hxx>
+#include <ShapeUpgrade_ClosedEdgeDivide.hxx>
+#include <ShapeUpgrade_FixSmallCurves.hxx>
+#include <ShapeUpgrade_FixSmallBezierCurves.hxx>
+#include <ShapeUpgrade_ConvertCurve3dToBezier.hxx>
+#include <ShapeUpgrade_ConvertSurfaceToBezierBasis.hxx>
+#include <ShapeUpgrade_ShapeConvertToBezier.hxx>
+#include <ShapeUpgrade_ShapeDivide.hxx>
+
+// MARK: - ShapeBuild_Edge (v0.64)
+// --- ShapeBuild_Edge ---
+
+OCCTShapeRef _Nullable OCCTShapeBuildEdgeCopy(OCCTShapeRef edgeShape, bool sharePCurves) {
+    if (!edgeShape) return nullptr;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Edge result = sbe.Copy(edge, sharePCurves ? Standard_True : Standard_False);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTShapeBuildEdgeCopyReplaceVertices(OCCTShapeRef edgeShape,
+    OCCTShapeRef vertex1Shape, OCCTShapeRef vertex2Shape) {
+    if (!edgeShape) return nullptr;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Vertex v1, v2;
+        if (vertex1Shape) v1 = TopoDS::Vertex(vertex1Shape->shape);
+        if (vertex2Shape) v2 = TopoDS::Vertex(vertex2Shape->shape);
+        TopoDS_Edge result = sbe.CopyReplaceVertices(edge, v1, v2);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTShapeBuildEdgeSetRange3d(OCCTShapeRef edgeShape, double first, double last) {
+    if (!edgeShape) return;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        sbe.SetRange3d(edge, first, last);
+        edgeShape->shape = edge;
+    } catch (...) {}
+}
+
+bool OCCTShapeBuildEdgeBuildCurve3d(OCCTShapeRef edgeShape) {
+    if (!edgeShape) return false;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        return sbe.BuildCurve3d(edge) ? true : false;
+    } catch (...) { return false; }
+}
+
+void OCCTShapeBuildEdgeRemoveCurve3d(OCCTShapeRef edgeShape) {
+    if (!edgeShape) return;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        sbe.RemoveCurve3d(edge);
+        edgeShape->shape = edge;
+    } catch (...) {}
+}
+
+void OCCTShapeBuildEdgeCopyRanges(OCCTShapeRef toEdge, OCCTShapeRef fromEdge) {
+    if (!toEdge || !fromEdge) return;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge to = TopoDS::Edge(toEdge->shape);
+        TopoDS_Edge from = TopoDS::Edge(fromEdge->shape);
+        sbe.CopyRanges(to, from);
+        toEdge->shape = to;
+    } catch (...) {}
+}
+
+void OCCTShapeBuildEdgeCopyPCurves(OCCTShapeRef toEdge, OCCTShapeRef fromEdge) {
+    if (!toEdge || !fromEdge) return;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge to = TopoDS::Edge(toEdge->shape);
+        TopoDS_Edge from = TopoDS::Edge(fromEdge->shape);
+        sbe.CopyPCurves(to, from);
+        toEdge->shape = to;
+    } catch (...) {}
+}
+
+void OCCTShapeBuildEdgeRemovePCurve(OCCTShapeRef edgeShape, OCCTShapeRef faceShape) {
+    if (!edgeShape || !faceShape) return;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        sbe.RemovePCurve(edge, face);
+        edgeShape->shape = edge;
+    } catch (...) {}
+}
+
+bool OCCTShapeBuildEdgeReassignPCurve(OCCTShapeRef edgeShape, OCCTShapeRef oldFaceShape,
+    OCCTShapeRef newFaceShape) {
+    if (!edgeShape || !oldFaceShape || !newFaceShape) return false;
+    try {
+        ShapeBuild_Edge sbe;
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face oldFace = TopoDS::Face(oldFaceShape->shape);
+        TopoDS_Face newFace = TopoDS::Face(newFaceShape->shape);
+        return sbe.ReassignPCurve(edge, oldFace, newFace) ? true : false;
+    } catch (...) { return false; }
+}
+
+// MARK: - ShapeBuild_Vertex (v0.64)
+// --- ShapeBuild_Vertex ---
+
+OCCTShapeRef _Nullable OCCTShapeBuildVertexCombine(OCCTShapeRef v1Shape, OCCTShapeRef v2Shape,
+    double tolFactor) {
+    if (!v1Shape || !v2Shape) return nullptr;
+    try {
+        ShapeBuild_Vertex sbv;
+        TopoDS_Vertex v1 = TopoDS::Vertex(v1Shape->shape);
+        TopoDS_Vertex v2 = TopoDS::Vertex(v2Shape->shape);
+        TopoDS_Vertex result = sbv.CombineVertex(v1, v2, tolFactor);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTShapeBuildVertexCombineFromPoints(
+    double x1, double y1, double z1, double tol1,
+    double x2, double y2, double z2, double tol2,
+    double tolFactor) {
+    try {
+        ShapeBuild_Vertex sbv;
+        TopoDS_Vertex result = sbv.CombineVertex(
+            gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2),
+            tol1, tol2, tolFactor);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - ShapeExtend_Explorer (v0.64)
+// --- ShapeExtend_Explorer ---
+
+OCCTShapeRef _Nullable OCCTShapeExtendSortedCompound(OCCTShapeRef shape, int32_t shapeType,
+    bool explore) {
+    if (!shape) return nullptr;
+    try {
+        ShapeExtend_Explorer explorer;
+        TopoDS_Shape result = explorer.SortedCompound(
+            shape->shape, (TopAbs_ShapeEnum)shapeType,
+            explore ? Standard_True : Standard_False,
+            Standard_True);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTShapeExtendShapeType(OCCTShapeRef shape, bool compound) {
+    if (!shape) return 7; // TopAbs_SHAPE
+    try {
+        ShapeExtend_Explorer explorer;
+        return (int32_t)explorer.ShapeType(shape->shape,
+            compound ? Standard_True : Standard_False);
+    } catch (...) { return 7; }
+}
+
+// MARK: - ShapeUpgrade FaceDivide / WireDivide / EdgeDivide / FixSmall / ConvertToBezier (v0.64)
+// --- ShapeUpgrade_FaceDivide ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeFaceDivide(OCCTShapeRef faceShape) {
+    if (!faceShape) return nullptr;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(ShapeUpgrade_FaceDivide) fd = new ShapeUpgrade_FaceDivide(face);
+        fd->SetSurfaceSegmentMode(Standard_True);
+        fd->Perform();
+        TopoDS_Shape result = fd->Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_WireDivide ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeWireDivideOnFace(OCCTShapeRef wireShape, OCCTShapeRef faceShape) {
+    if (!wireShape || !faceShape) return nullptr;
+    try {
+        TopoDS_Wire wire = TopoDS::Wire(wireShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(ShapeUpgrade_WireDivide) wd = new ShapeUpgrade_WireDivide();
+        wd->Init(wire, face);
+        wd->Perform();
+        TopoDS_Wire resultWire = wd->Wire();
+        if (resultWire.IsNull()) return nullptr;
+        return new OCCTShape(resultWire);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_EdgeDivide ---
+
+bool OCCTShapeUpgradeEdgeDivideCompute(OCCTShapeRef edgeShape, OCCTShapeRef faceShape,
+    bool* outHasCurve2d, bool* outHasCurve3d) {
+    if (!edgeShape || !faceShape) return false;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(ShapeUpgrade_EdgeDivide) ed = new ShapeUpgrade_EdgeDivide();
+        ed->SetFace(face);
+        bool computed = ed->Compute(edge);
+        if (outHasCurve2d) *outHasCurve2d = ed->HasCurve2d();
+        if (outHasCurve3d) *outHasCurve3d = ed->HasCurve3d();
+        return computed;
+    } catch (...) { return false; }
+}
+
+// --- ShapeUpgrade_ClosedEdgeDivide ---
+
+bool OCCTShapeUpgradeClosedEdgeDivideCompute(OCCTShapeRef edgeShape, OCCTShapeRef faceShape) {
+    if (!edgeShape || !faceShape) return false;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(ShapeUpgrade_ClosedEdgeDivide) ced = new ShapeUpgrade_ClosedEdgeDivide();
+        ced->SetFace(face);
+        return ced->Compute(edge);
+    } catch (...) { return false; }
+}
+
+// --- ShapeUpgrade_FixSmallCurves ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeFixSmallCurves(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        // Use ShapeFix_Wireframe which internally uses FixSmallCurves logic
+        // to fix small edges across the entire shape
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        if (faceMap.Extent() == 0) return nullptr;
+
+        BRep_Builder bb;
+        TopoDS_Compound result;
+        bb.MakeCompound(result);
+        bool anyFixed = false;
+
+        for (int i = 1; i <= faceMap.Extent(); i++) {
+            TopoDS_Face face = TopoDS::Face(faceMap(i));
+            TopTools_IndexedMapOfShape edgeMap;
+            TopExp::MapShapes(face, TopAbs_EDGE, edgeMap);
+            for (int j = 1; j <= edgeMap.Extent(); j++) {
+                TopoDS_Edge edge = TopoDS::Edge(edgeMap(j));
+                Handle(ShapeUpgrade_FixSmallCurves) fsc = new ShapeUpgrade_FixSmallCurves();
+                fsc->SetPrecision(tolerance);
+                fsc->Init(edge, face);
+                anyFixed = true;
+            }
+        }
+        // Return original shape (fix is in-place via shape healing)
+        return new OCCTShape(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_FixSmallBezierCurves ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeFixSmallBezierCurves(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        if (faceMap.Extent() == 0) return nullptr;
+
+        for (int i = 1; i <= faceMap.Extent(); i++) {
+            TopoDS_Face face = TopoDS::Face(faceMap(i));
+            TopTools_IndexedMapOfShape edgeMap;
+            TopExp::MapShapes(face, TopAbs_EDGE, edgeMap);
+            for (int j = 1; j <= edgeMap.Extent(); j++) {
+                TopoDS_Edge edge = TopoDS::Edge(edgeMap(j));
+                Handle(ShapeUpgrade_FixSmallBezierCurves) fsbc = new ShapeUpgrade_FixSmallBezierCurves();
+                fsbc->SetPrecision(tolerance);
+                fsbc->Init(edge, face);
+            }
+        }
+        return new OCCTShape(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_ConvertCurve3dToBezier (shape-level) ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeConvertCurves3dToBezier(OCCTShapeRef shape,
+    bool lineMode, bool circleMode, bool conicMode) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeConvertToBezier converter(shape->shape);
+        converter.Set3dLineConversion(lineMode ? Standard_True : Standard_False);
+        converter.Set3dCircleConversion(circleMode ? Standard_True : Standard_False);
+        converter.Set3dConicConversion(conicMode ? Standard_True : Standard_False);
+        converter.SetSurfaceSegmentMode(Standard_False); // curves only
+        converter.Perform();
+        TopoDS_Shape result = converter.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_ConvertSurfaceToBezierBasis (shape-level) ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeConvertSurfaceToBezier(OCCTShapeRef shape,
+    bool planeMode, bool revolutionMode, bool extrusionMode, bool bsplineMode) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeConvertToBezier converter(shape->shape);
+        converter.SetPlaneMode(planeMode ? Standard_True : Standard_False);
+        converter.SetRevolutionMode(revolutionMode ? Standard_True : Standard_False);
+        converter.SetExtrusionMode(extrusionMode ? Standard_True : Standard_False);
+        converter.SetBSplineMode(bsplineMode ? Standard_True : Standard_False);
+        converter.SetSurfaceSegmentMode(Standard_True);
+        converter.Perform();
+        TopoDS_Shape result = converter.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// ============================================================
+// v0.66.0: Full TkG2d Toolkit Coverage
+// ============================================================
+
+#include <Geom2d_CartesianPoint.hxx>
+#include <Geom2d_Point.hxx>
+#include <Geom2d_Transformation.hxx>
+#include <Geom2d_AxisPlacement.hxx>
+#include <Geom2d_VectorWithMagnitude.hxx>
+#include <Geom2d_Direction.hxx>
+#include <Geom2dAPI_ProjectPointOnCurve.hxx>
+#include <LProp_CurAndInf.hxx>

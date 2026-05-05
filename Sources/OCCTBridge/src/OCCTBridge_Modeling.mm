@@ -76,7 +76,10 @@
 #include <BRepLib_MakeEdge.hxx>
 #include <BRepLib_MakeFace.hxx>
 #include <BRepLib_MakeShell.hxx>
+#include <BOPAlgo_RemoveFeatures.hxx>
+#include <BOPAlgo_Section.hxx>
 #include <BRepFeat_Builder.hxx>
+#include <BRepOffset_Offset.hxx>
 #include <BRepOffset_SimpleOffset.hxx>
 #include <BRepTools_Modifier.hxx>
 #include <BRepTools_NurbsConvertModification.hxx>
@@ -4698,6 +4701,64 @@ OCCTShapeRef _Nullable OCCTBRepFeatBuilderCut(OCCTShapeRef shape, OCCTShapeRef t
         builder.PerformResult();
         if (builder.HasErrors()) return nullptr;
         TopoDS_Shape result = builder.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BRepOffset_Offset Face (v0.64)
+// --- BRepOffset_Offset ---
+
+OCCTShapeRef _Nullable OCCTBRepOffsetOffsetFace(OCCTShapeRef faceShape, double offset) {
+    if (!faceShape) return nullptr;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        BRepOffset_Offset off(face, offset, false, GeomAbs_Arc);
+        TopoDS_Face result = off.Face();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BOPAlgo RemoveFeatures (v0.64)
+// --- BOPAlgo_RemoveFeatures ---
+
+OCCTShapeRef _Nullable OCCTBOPAlgoRemoveFeatures(OCCTShapeRef shape,
+    const OCCTShapeRef _Nonnull * _Nonnull facesToRemove, int32_t faceCount) {
+    if (!shape || faceCount <= 0) return nullptr;
+    try {
+        BOPAlgo_RemoveFeatures remover;
+        remover.SetShape(shape->shape);
+        for (int32_t i = 0; i < faceCount; i++) {
+            if (facesToRemove[i]) {
+                remover.AddFaceToRemove(facesToRemove[i]->shape);
+            }
+        }
+        remover.Perform();
+        if (remover.HasErrors()) return nullptr;
+        TopoDS_Shape result = remover.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BOPAlgo Section (v0.64)
+// --- BOPAlgo_Section ---
+
+OCCTShapeRef _Nullable OCCTBOPAlgoSection(const OCCTShapeRef _Nonnull * _Nonnull objects, int32_t objCount,
+    const OCCTShapeRef _Nonnull * _Nonnull tools, int32_t toolCount) {
+    if (objCount <= 0) return nullptr;
+    try {
+        BOPAlgo_Section section;
+        for (int32_t i = 0; i < objCount; i++) {
+            if (objects[i]) section.AddArgument(objects[i]->shape);
+        }
+        for (int32_t i = 0; i < toolCount; i++) {
+            if (tools[i]) section.AddArgument(tools[i]->shape);
+        }
+        section.Perform();
+        if (section.HasErrors()) return nullptr;
+        TopoDS_Shape result = section.Shape();
         if (result.IsNull()) return nullptr;
         return new OCCTShape(result);
     } catch (...) { return nullptr; }
