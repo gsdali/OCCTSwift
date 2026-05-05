@@ -19,8 +19,14 @@
 #import "../include/OCCTBridge.h"
 #import "OCCTBridge_Internal.h"
 
+#include <Adaptor2d_Curve2d.hxx>
+#include <Approx_Curve2d.hxx>
+#include <GC_MakeLine2d.hxx>
+#include <Geom2d_BSplineCurve.hxx>
 #include <Geom2d_Curve.hxx>
 #include <Geom2dAdaptor_Curve.hxx>
+#include <ShapeCustom_Curve2d.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
 
 #include <gp_Pnt2d.hxx>
 #include <gp_Vec2d.hxx>
@@ -564,3 +570,99 @@ int32_t OCCTMedialAxisGetBasicEltCount(OCCTMedialAxisRef ma) {
 }
 
 
+
+// MARK: - GC_MakeLine2d (v0.51)
+// --- GC_MakeLine2d ---
+
+OCCTCurve2DRef _Nullable OCCTCurve2DMakeLineThroughPoints(double p1x, double p1y,
+    double p2x, double p2y) {
+    try {
+        GC_MakeLine2d ml(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y));
+        if (!ml.IsDone()) return nullptr;
+        auto* curve = new OCCTCurve2D();
+        curve->curve = ml.Value();
+        return curve;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve2DRef _Nullable OCCTCurve2DMakeLineParallel(double px, double py,
+    double dx, double dy, double distance) {
+    try {
+        gp_Lin2d lin(gp_Pnt2d(px, py), gp_Dir2d(dx, dy));
+        GC_MakeLine2d ml(lin, distance);
+        if (!ml.IsDone()) return nullptr;
+        auto* curve = new OCCTCurve2D();
+        curve->curve = ml.Value();
+        return curve;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeCustom_Curve2d (v0.52)
+// --- ShapeCustom_Curve2d ---
+
+bool OCCTCurve2DIsLinear(OCCTCurve2DRef curve2D, double tolerance, double* deviation) {
+    if (!curve2D || !deviation) return false;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(curve2D->curve);
+        if (bsp.IsNull()) return false;
+        TColgp_Array1OfPnt2d poles(1, bsp->NbPoles());
+        for (int i = 1; i <= bsp->NbPoles(); i++) {
+            poles(i) = bsp->Pole(i);
+        }
+        return ShapeCustom_Curve2d::IsLinear(poles, tolerance, *deviation);
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTCurve2DRef _Nullable OCCTCurve2DConvertToLine(OCCTCurve2DRef curve2D,
+    double first, double last, double tolerance,
+    double* newFirst, double* newLast, double* deviation) {
+    if (!curve2D || !newFirst || !newLast || !deviation) return nullptr;
+    try {
+        Handle(Geom2d_Line) line = ShapeCustom_Curve2d::ConvertToLine2d(
+            curve2D->curve, first, last, tolerance, *newFirst, *newLast, *deviation);
+        if (line.IsNull()) return nullptr;
+        auto* result = new OCCTCurve2D();
+        result->curve = line;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTCurve2DSimplifyBSpline(OCCTCurve2DRef curve2D, double tolerance) {
+    if (!curve2D) return false;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Handle(Geom2d_BSplineCurve)::DownCast(curve2D->curve);
+        if (bsp.IsNull()) return false;
+        return ShapeCustom_Curve2d::SimplifyBSpline2d(bsp, tolerance);
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Approx_Curve2d (v0.52)
+// --- Approx_Curve2d ---
+
+OCCTCurve2DRef _Nullable OCCTApproxCurve2d(OCCTCurve2DRef curve2D,
+    double first, double last, double tolU, double tolV,
+    int32_t maxDegree, int32_t maxSegments) {
+    if (!curve2D) return nullptr;
+    try {
+        Handle(Adaptor2d_Curve2d) adaptor = new Geom2dAdaptor_Curve(curve2D->curve, first, last);
+        Approx_Curve2d approx(adaptor, first, last, tolU, tolV, GeomAbs_C2, maxDegree, maxSegments);
+        if (!approx.IsDone() || !approx.HasResult()) return nullptr;
+        Handle(Geom2d_BSplineCurve) bsp = approx.Curve();
+        if (bsp.IsNull()) return nullptr;
+        auto* result = new OCCTCurve2D();
+        result->curve = bsp;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
