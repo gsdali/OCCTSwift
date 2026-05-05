@@ -91,6 +91,7 @@
 #include <Convert_ConeToBSplineSurface.hxx>
 #include <Convert_TorusToBSplineSurface.hxx>
 #include <Convert_SphereToBSplineSurface.hxx>
+#include <BiTgte_CurveOnEdge.hxx>
 #include <TColgp_Array2OfPnt.hxx>
 #include <TColStd_Array2OfReal.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
@@ -4541,4 +4542,52 @@ void OCCTGridEvalSurfaceD1(OCCTSurfaceRef surface, const double* uParams, int32_
             }
         }
     } catch (...) {}
+}
+
+// MARK: - v0.112: BiTgte_CurveOnEdge + Surface extras
+// --- BiTgte_CurveOnEdge ---
+
+struct OCCTBiTgteCurveOnEdge {
+    BiTgte_CurveOnEdge curve;
+    OCCTBiTgteCurveOnEdge(const TopoDS_Edge& e1, const TopoDS_Edge& e2)
+        : curve(e1, e2) {}
+};
+
+OCCTBiTgteCurveOnEdgeRef OCCTBiTgteCurveOnEdgeCreate(OCCTShapeRef edgeOnFace, OCCTShapeRef edge) {
+    if (!edgeOnFace || !edge) return nullptr;
+    try {
+        TopoDS_Edge e1 = TopoDS::Edge(edgeOnFace->shape);
+        TopoDS_Edge e2 = TopoDS::Edge(edge->shape);
+        return new OCCTBiTgteCurveOnEdge(e1, e2);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTBiTgteCurveOnEdgeRelease(OCCTBiTgteCurveOnEdgeRef curve) { delete curve; }
+
+void OCCTBiTgteCurveOnEdgeDomain(OCCTBiTgteCurveOnEdgeRef curve,
+                                 double* first, double* last) {
+    if (!curve) return;
+    try {
+        *first = curve->curve.FirstParameter();
+        *last = curve->curve.LastParameter();
+    } catch (...) {}
+}
+
+void OCCTBiTgteCurveOnEdgeValue(OCCTBiTgteCurveOnEdgeRef curve, double u,
+                                double* x, double* y, double* z) {
+    if (!curve) return;
+    try {
+        gp_Pnt p;
+        curve->curve.D0(u, p);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+// --- Surface extras ---
+
+int32_t OCCTSurfaceGetType(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 10; // OtherSurface
+    try {
+        GeomAdaptor_Surface as(surface->surface);
+        return (int32_t)as.GetType();
+    } catch (...) { return 10; }
 }

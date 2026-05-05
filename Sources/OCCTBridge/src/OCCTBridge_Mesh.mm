@@ -37,6 +37,8 @@
 #include <Poly_CoherentLink.hxx>
 #include <RWMesh_CoordinateSystem.hxx>
 #include <RWMesh_CoordinateSystemConverter.hxx>
+#include <RWMesh_FaceIterator.hxx>
+#include <RWMesh_VertexIterator.hxx>
 #include <RWStl.hxx>
 #include <OSD_Path.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
@@ -1460,4 +1462,108 @@ int32_t OCCTMeshNodeTriangleCount(OCCTShapeRef shape, int32_t faceIndex, int32_t
         while (connect.More()) { count++; connect.Next(); }
         return (int32_t)count;
     } catch (...) { return 0; }
+}
+
+// MARK: - v0.112: RWMesh iterators
+// --- RWMesh_FaceIterator ---
+
+struct OCCTMeshFaceIter {
+    RWMesh_FaceIterator iter;
+    OCCTMeshFaceIter(const TopoDS_Shape& shape) : iter(shape) {}
+};
+
+OCCTMeshFaceIterRef OCCTMeshFaceIterCreate(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        return new OCCTMeshFaceIter(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTMeshFaceIterRelease(OCCTMeshFaceIterRef iter) { delete iter; }
+
+bool OCCTMeshFaceIterMore(OCCTMeshFaceIterRef iter) {
+    if (!iter) return false;
+    return iter->iter.More();
+}
+
+void OCCTMeshFaceIterNext(OCCTMeshFaceIterRef iter) {
+    if (!iter) return;
+    try { iter->iter.Next(); } catch (...) {}
+}
+
+int32_t OCCTMeshFaceIterNbNodes(OCCTMeshFaceIterRef iter) {
+    if (!iter || !iter->iter.More()) return 0;
+    return iter->iter.NbNodes();
+}
+
+int32_t OCCTMeshFaceIterNbTriangles(OCCTMeshFaceIterRef iter) {
+    if (!iter || !iter->iter.More()) return 0;
+    return iter->iter.NbTriangles();
+}
+
+void OCCTMeshFaceIterNode(OCCTMeshFaceIterRef iter, int32_t index,
+                          double* x, double* y, double* z) {
+    if (!iter || !iter->iter.More()) return;
+    try {
+        gp_Pnt p = iter->iter.NodeTransformed(index);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+bool OCCTMeshFaceIterHasNormals(OCCTMeshFaceIterRef iter) {
+    if (!iter || !iter->iter.More()) return false;
+    return iter->iter.HasNormals();
+}
+
+void OCCTMeshFaceIterNormal(OCCTMeshFaceIterRef iter, int32_t index,
+                            double* nx, double* ny, double* nz) {
+    if (!iter || !iter->iter.More()) return;
+    try {
+        gp_Dir n = iter->iter.NormalTransformed(index);
+        *nx = n.X(); *ny = n.Y(); *nz = n.Z();
+    } catch (...) {}
+}
+
+void OCCTMeshFaceIterTriangle(OCCTMeshFaceIterRef iter, int32_t index,
+                              int32_t* n1, int32_t* n2, int32_t* n3) {
+    if (!iter || !iter->iter.More()) return;
+    try {
+        Poly_Triangle tri = iter->iter.TriangleOriented(index);
+        *n1 = tri.Value(1); *n2 = tri.Value(2); *n3 = tri.Value(3);
+    } catch (...) {}
+}
+
+// --- RWMesh_VertexIterator ---
+
+struct OCCTMeshVertexIter {
+    RWMesh_VertexIterator iter;
+    OCCTMeshVertexIter(const TopoDS_Shape& shape) : iter(shape) {}
+};
+
+OCCTMeshVertexIterRef OCCTMeshVertexIterCreate(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        return new OCCTMeshVertexIter(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTMeshVertexIterRelease(OCCTMeshVertexIterRef iter) { delete iter; }
+
+bool OCCTMeshVertexIterMore(OCCTMeshVertexIterRef iter) {
+    if (!iter) return false;
+    return iter->iter.More();
+}
+
+void OCCTMeshVertexIterNext(OCCTMeshVertexIterRef iter) {
+    if (!iter) return;
+    try { iter->iter.Next(); } catch (...) {}
+}
+
+void OCCTMeshVertexIterPoint(OCCTMeshVertexIterRef iter,
+                             double* x, double* y, double* z) {
+    if (!iter || !iter->iter.More()) return;
+    try {
+        gp_Pnt p = iter->iter.Point();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
 }

@@ -35,6 +35,8 @@
 #include <BRepIntCurveSurface_Inter.hxx>
 #include <BRepTools.hxx>
 #include <BRepLib.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
+#include <BRepBuilderAPI_MakeShell.hxx>
 #include <BRepExtrema_DistanceSS.hxx>
 #include <BRepExtrema_SolutionElem.hxx>
 #include <BRepLib_FindSurface.hxx>
@@ -2509,4 +2511,195 @@ char* OCCTShapeTypeString(OCCTShapeRef shape) {
             default:               return strdup("shape");
         }
     } catch (...) { return strdup("unknown"); }
+}
+
+// MARK: - v0.112: Additional Shape operations + Wire/Face construction
+// --- Additional Shape operations ---
+
+OCCTShapeRef OCCTShapeChild(OCCTShapeRef shape, int32_t index) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Iterator it(shape->shape);
+        for (int32_t i = 0; i < index && it.More(); i++, it.Next()) {}
+        if (!it.More()) return nullptr;
+        OCCTShape* result = new OCCTShape();
+        result->shape = it.Value();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeIsLocked(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Locked();
+}
+
+void OCCTShapeSetLocked(OCCTShapeRef shape, bool locked) {
+    if (!shape) return;
+    shape->shape.Locked(locked);
+}
+
+static gp_Trsf trsfFromMatrix12(const double* m) {
+    gp_Trsf t;
+    t.SetValues(m[0], m[1], m[2], m[3],
+                m[4], m[5], m[6], m[7],
+                m[8], m[9], m[10], m[11]);
+    return t;
+}
+
+static void matrix12FromTrsf(const gp_Trsf& t, double* m) {
+    m[0] = t.Value(1,1); m[1] = t.Value(1,2); m[2] = t.Value(1,3); m[3] = t.Value(1,4);
+    m[4] = t.Value(2,1); m[5] = t.Value(2,2); m[6] = t.Value(2,3); m[7] = t.Value(2,4);
+    m[8] = t.Value(3,1); m[9] = t.Value(3,2); m[10] = t.Value(3,3); m[11] = t.Value(3,4);
+}
+
+OCCTShapeRef OCCTShapeLocated(OCCTShapeRef shape, const double* matrix12) {
+    if (!shape) return nullptr;
+    try {
+        gp_Trsf t = trsfFromMatrix12(matrix12);
+        TopLoc_Location loc(t);
+        OCCTShape* result = new OCCTShape();
+        result->shape = shape->shape.Located(loc);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTShapeGetLocation(OCCTShapeRef shape, double* matrix12) {
+    if (!shape) return;
+    try {
+        gp_Trsf t = shape->shape.Location().IsIdentity() ? gp_Trsf() : shape->shape.Location().Transformation();
+        matrix12FromTrsf(t, matrix12);
+    } catch (...) {}
+}
+
+void OCCTShapeSetLocation(OCCTShapeRef shape, const double* matrix12) {
+    if (!shape) return;
+    try {
+        gp_Trsf t = trsfFromMatrix12(matrix12);
+        TopLoc_Location loc(t);
+        shape->shape.Location(loc);
+    } catch (...) {}
+}
+
+OCCTShapeRef OCCTShapeOriented(OCCTShapeRef shape, int32_t orientation) {
+    if (!shape) return nullptr;
+    try {
+        OCCTShape* result = new OCCTShape();
+        result->shape = shape->shape.Oriented(static_cast<TopAbs_Orientation>(orientation));
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeCompounded(const OCCTShapeRef* shapes, int32_t count) {
+    try {
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+        for (int32_t i = 0; i < count; i++) {
+            if (shapes[i]) builder.Add(compound, shapes[i]->shape);
+        }
+        OCCTShape* result = new OCCTShape();
+        result->shape = compound;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeEmpty(int32_t type) {
+    try {
+        BRep_Builder builder;
+        OCCTShape* result = new OCCTShape();
+        switch (type) {
+            case 0: { // COMPOUND
+                TopoDS_Compound c;
+                builder.MakeCompound(c);
+                result->shape = c;
+                break;
+            }
+            case 1: { // COMPSOLID
+                TopoDS_CompSolid cs;
+                builder.MakeCompSolid(cs);
+                result->shape = cs;
+                break;
+            }
+            case 2: { // SOLID
+                TopoDS_Solid s;
+                builder.MakeSolid(s);
+                result->shape = s;
+                break;
+            }
+            case 3: { // SHELL
+                TopoDS_Shell sh;
+                builder.MakeShell(sh);
+                result->shape = sh;
+                break;
+            }
+            case 5: { // WIRE
+                TopoDS_Wire w;
+                builder.MakeWire(w);
+                result->shape = w;
+                break;
+            }
+            default:
+                delete result;
+                return nullptr;
+        }
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// --- Wire/Face construction ---
+
+OCCTShapeRef OCCTMakeWireFromEdges(const OCCTShapeRef* edges, int32_t count) {
+    try {
+        BRepBuilderAPI_MakeWire mw;
+        for (int32_t i = 0; i < count; i++) {
+            if (edges[i]) mw.Add(TopoDS::Edge(edges[i]->shape));
+        }
+        if (!mw.IsDone()) return nullptr;
+        OCCTShape* result = new OCCTShape();
+        result->shape = mw.Wire();
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeCompound(const OCCTShapeRef* shapes, int32_t count) {
+    return OCCTShapeCompounded(shapes, count);
+}
+
+OCCTShapeRef OCCTMakeShell(const OCCTShapeRef* faces, int32_t count) {
+    try {
+        BRep_Builder builder;
+        TopoDS_Shell shell;
+        builder.MakeShell(shell);
+        for (int32_t i = 0; i < count; i++) {
+            if (faces[i]) builder.Add(shell, TopoDS::Face(faces[i]->shape));
+        }
+        OCCTShape* result = new OCCTShape();
+        result->shape = shell;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeIsCompound(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_COMPOUND;
+}
+
+bool OCCTShapeIsSolid(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_SOLID;
+}
+
+bool OCCTShapeIsShell(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_SHELL;
+}
+
+bool OCCTShapeIsFace(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_FACE;
+}
+
+bool OCCTShapeIsEdge(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.ShapeType() == TopAbs_EDGE;
 }
