@@ -28,9 +28,13 @@
 // === Area-specific OCCT headers ===
 
 #include <Approx_Curve3d.hxx>
+#include <Approx_CurveOnSurface.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepLib.hxx>
+#include <Geom2dAdaptor_Curve.hxx>
+#include <GeomAdaptor_Surface.hxx>
 
 #include <GC_MakeArcOfCircle.hxx>
 #include <GC_MakeArcOfEllipse.hxx>
@@ -1367,4 +1371,40 @@ OCCTCurve3DRef _Nullable OCCTCurve3DMakeHyperbolaThreePoints(
     } catch (...) {
         return nullptr;
     }
+}
+
+// MARK: - Approx_CurveOnSurface (v0.61)
+// MARK: - Approx_CurveOnSurface (v0.61.0)
+
+OCCTShapeRef OCCTApproxCurveOnSurface(OCCTShapeRef edge, OCCTShapeRef face,
+    double tolerance, int32_t maxSegments, int32_t maxDegree) {
+    if (!edge || !face) return nullptr;
+    try {
+        if (edge->shape.ShapeType() != TopAbs_EDGE) return nullptr;
+        if (face->shape.ShapeType() != TopAbs_FACE) return nullptr;
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+
+        // Get PCurve and surface
+        double first, last;
+        Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(e, f, first, last);
+        if (pcurve.IsNull()) return nullptr;
+
+        Handle(Geom_Surface) surface = BRep_Tool::Surface(f);
+        if (surface.IsNull()) return nullptr;
+
+        Handle(Geom2dAdaptor_Curve) curveAdaptor = new Geom2dAdaptor_Curve(pcurve, first, last);
+        Handle(GeomAdaptor_Surface) surfAdaptor = new GeomAdaptor_Surface(surface);
+
+        Approx_CurveOnSurface approx(curveAdaptor, surfAdaptor, first, last, tolerance);
+        approx.Perform(maxSegments, maxDegree, GeomAbs_C2);
+
+        if (!approx.IsDone() || !approx.HasResult()) return nullptr;
+        Handle(Geom_BSplineCurve) curve3d = approx.Curve3d();
+        if (curve3d.IsNull()) return nullptr;
+
+        BRepBuilderAPI_MakeEdge edgeMaker(curve3d);
+        if (!edgeMaker.IsDone()) return nullptr;
+        return new OCCTShape(edgeMaker.Edge());
+    } catch (...) { return nullptr; }
 }

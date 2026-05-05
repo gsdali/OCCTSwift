@@ -28,6 +28,7 @@
 #include <BRepClass3d_SolidClassifier.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepGProp.hxx>
+#include <IntCurvesFace_Intersector.hxx>
 #include <BRepLib_FindSurface.hxx>
 #include <BRepTools_ReShape.hxx>
 #include <BRepTools_WireExplorer.hxx>
@@ -1277,4 +1278,32 @@ OCCTPolyDistanceResult OCCTShapePolyhedralDistance(OCCTShapeRef shape1, OCCTShap
         }
     } catch (...) {}
     return result;
+}
+
+// MARK: - IntCurvesFace Curve-Face Intersection (v0.61)
+// MARK: - IntCurvesFace — Curve-Face Intersection (v0.61.0)
+
+int32_t OCCTIntersectLineFace(OCCTShapeRef face,
+    double origX, double origY, double origZ,
+    double dirX, double dirY, double dirZ,
+    double pInf, double pSup,
+    double* outPoints, double* outParams, int32_t maxPts) {
+    if (!face || !outPoints || !outParams || maxPts <= 0) return 0;
+    try {
+        if (face->shape.ShapeType() != TopAbs_FACE) return 0;
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        IntCurvesFace_Intersector intersector(f, 1e-6);
+        gp_Lin line(gp_Pnt(origX, origY, origZ), gp_Dir(dirX, dirY, dirZ));
+        intersector.Perform(line, pInf, pSup);
+        if (!intersector.IsDone()) return 0;
+        int32_t nb = std::min((int32_t)intersector.NbPnt(), maxPts);
+        for (int32_t i = 0; i < nb; i++) {
+            gp_Pnt pt = intersector.Pnt(i + 1);
+            outPoints[i * 3] = pt.X();
+            outPoints[i * 3 + 1] = pt.Y();
+            outPoints[i * 3 + 2] = pt.Z();
+            outParams[i] = intersector.WParameter(i + 1);
+        }
+        return nb;
+    } catch (...) { return 0; }
 }
