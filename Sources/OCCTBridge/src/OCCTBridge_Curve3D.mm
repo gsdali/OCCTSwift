@@ -2744,3 +2744,77 @@ bool OCCTConvertCompBezier2dToBSpline2d(const double* poles, int32_t segCount, i
         return true;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.100: ShapeAnalysis_Curve statics + Geom_OffsetCurve basis
+// --- ShapeAnalysis_Curve static methods ---
+
+bool OCCTCurve3DIsClosedWithPreci(OCCTCurve3DRef curve, double preci) {
+    if (!curve) return false;
+    try {
+        return ShapeAnalysis_Curve::IsClosed(curve->curve, preci);
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DIsPeriodicSA(OCCTCurve3DRef curve) {
+    if (!curve) return false;
+    try {
+        return ShapeAnalysis_Curve::IsPeriodic(curve->curve);
+    } catch (...) { return false; }
+}
+// --- Geom_OffsetCurve basis curve ---
+
+OCCTCurve3DRef OCCTCurve3DOffsetBasis(OCCTCurve3DRef curve) {
+    if (!curve) return nullptr;
+    try {
+        Handle(Geom_OffsetCurve) oc = Handle(Geom_OffsetCurve)::DownCast(curve->curve);
+        if (oc.IsNull()) return nullptr;
+        Handle(Geom_Curve) basis = oc->BasisCurve();
+        if (basis.IsNull()) return nullptr;
+        return new OCCTCurve3D(basis);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - v0.101: Geom_TrimmedCurve operations
+// --- Geom_TrimmedCurve ---
+
+OCCTCurve3DRef OCCTCurve3DTrimmed(OCCTCurve3DRef basisCurve, double u1, double u2) {
+    try {
+        Handle(Geom_TrimmedCurve) tc = new Geom_TrimmedCurve(basisCurve->curve, u1, u2);
+        OCCTCurve3D* c = new OCCTCurve3D();
+        c->curve = tc;
+        return c;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTCurve3DStartPoint(OCCTCurve3DRef curve, double* x, double* y, double* z) {
+    try {
+        gp_Pnt p = curve->curve->Value(curve->curve->FirstParameter());
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = 0; *y = 0; *z = 0; }
+}
+
+void OCCTCurve3DEndPoint(OCCTCurve3DRef curve, double* x, double* y, double* z) {
+    try {
+        gp_Pnt p = curve->curve->Value(curve->curve->LastParameter());
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = 0; *y = 0; *z = 0; }
+}
+
+OCCTCurve3DRef OCCTCurve3DTrimmedBasis(OCCTCurve3DRef curve) {
+    try {
+        Handle(Geom_TrimmedCurve) tc = Handle(Geom_TrimmedCurve)::DownCast(curve->curve);
+        if (tc.IsNull()) return nullptr;
+        OCCTCurve3D* c = new OCCTCurve3D();
+        c->curve = tc->BasisCurve();
+        return c;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTCurve3DSetTrim(OCCTCurve3DRef curve, double u1, double u2) {
+    try {
+        Handle(Geom_TrimmedCurve) tc = Handle(Geom_TrimmedCurve)::DownCast(curve->curve);
+        if (tc.IsNull()) return false;
+        tc->SetTrim(u1, u2);
+        return true;
+    } catch (...) { return false; }
+}

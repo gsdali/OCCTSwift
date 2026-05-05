@@ -51,6 +51,8 @@
 #include <Message_PrinterOStream.hxx>
 #include <Message_Report.hxx>
 #include <Message_Gravity.hxx>
+#include <APIHeaderSection_MakeHeader.hxx>
+#include <Resource_Manager.hxx>
 #include <sstream>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <TDF_LabelSequence.hxx>
@@ -2098,3 +2100,176 @@ bool OCCTFileIsAtEnd(OCCTOSDFileRef file) {
 void OCCTFileFreeString(char* str) {
     free(str);
 }
+
+// MARK: - v0.100: APIHeaderSection_MakeHeader (STEP header)
+// --- APIHeaderSection_MakeHeader ---
+
+struct OCCTStepHeader {
+    APIHeaderSection_MakeHeader header;
+    OCCTStepHeader(const char* filename) : header(0) {
+        header.Init(filename);
+    }
+};
+
+OCCTStepHeaderRef OCCTStepHeaderCreate(const char* filename) {
+    if (!filename) return nullptr;
+    try {
+        return new OCCTStepHeader(filename);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderRelease(OCCTStepHeaderRef header) {
+    delete header;
+}
+
+bool OCCTStepHeaderIsDone(OCCTStepHeaderRef header) {
+    if (!header) return false;
+    try { return header->header.IsDone(); } catch (...) { return false; }
+}
+
+char* OCCTStepHeaderGetName(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        auto name = header->header.Name();
+        if (name.IsNull()) return nullptr;
+        return strdup(name->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetName(OCCTStepHeaderRef header, const char* name) {
+    if (!header || !name) return;
+    try {
+        header->header.SetName(new TCollection_HAsciiString(name));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetTimeStamp(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        auto ts = header->header.TimeStamp();
+        if (ts.IsNull()) return nullptr;
+        return strdup(ts->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetTimeStamp(OCCTStepHeaderRef header, const char* timestamp) {
+    if (!header || !timestamp) return;
+    try {
+        header->header.SetTimeStamp(new TCollection_HAsciiString(timestamp));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetAuthor(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        if (header->header.NbAuthor() < 1) return nullptr;
+        auto val = header->header.AuthorValue(1);
+        if (val.IsNull()) return nullptr;
+        return strdup(val->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetAuthor(OCCTStepHeaderRef header, const char* author) {
+    if (!header || !author) return;
+    try {
+        header->header.SetAuthorValue(1, new TCollection_HAsciiString(author));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetOrganization(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        if (header->header.NbOrganization() < 1) return nullptr;
+        auto val = header->header.OrganizationValue(1);
+        if (val.IsNull()) return nullptr;
+        return strdup(val->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetOrganization(OCCTStepHeaderRef header, const char* org) {
+    if (!header || !org) return;
+    try {
+        header->header.SetOrganizationValue(1, new TCollection_HAsciiString(org));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetPreprocessorVersion(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        auto val = header->header.PreprocessorVersion();
+        if (val.IsNull()) return nullptr;
+        return strdup(val->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetPreprocessorVersion(OCCTStepHeaderRef header, const char* ppv) {
+    if (!header || !ppv) return;
+    try {
+        header->header.SetPreprocessorVersion(new TCollection_HAsciiString(ppv));
+    } catch (...) {}
+}
+
+char* OCCTStepHeaderGetOriginatingSystem(OCCTStepHeaderRef header) {
+    if (!header) return nullptr;
+    try {
+        auto val = header->header.OriginatingSystem();
+        if (val.IsNull()) return nullptr;
+        return strdup(val->ToCString());
+    } catch (...) { return nullptr; }
+}
+
+void OCCTStepHeaderSetOriginatingSystem(OCCTStepHeaderRef header, const char* os) {
+    if (!header || !os) return;
+    try {
+        header->header.SetOriginatingSystem(new TCollection_HAsciiString(os));
+    } catch (...) {}
+}
+
+// MARK: - v0.101: Resource_Manager
+// --- Resource_Manager ---
+
+struct OCCTResourceManager {
+    Handle(Resource_Manager) mgr;
+};
+
+OCCTResourceManagerRef OCCTResourceManagerCreate(void) {
+    OCCTResourceManager* rm = new OCCTResourceManager();
+    rm->mgr = new Resource_Manager();
+    return rm;
+}
+
+void OCCTResourceManagerRelease(OCCTResourceManagerRef mgr) {
+    delete mgr;
+}
+
+void OCCTResourceManagerSetString(OCCTResourceManagerRef mgr, const char* key, const char* value) {
+    try { mgr->mgr->SetResource(key, value); } catch (...) {}
+}
+
+void OCCTResourceManagerSetInt(OCCTResourceManagerRef mgr, const char* key, int32_t value) {
+    try { mgr->mgr->SetResource(key, (int)value); } catch (...) {}
+}
+
+void OCCTResourceManagerSetReal(OCCTResourceManagerRef mgr, const char* key, double value) {
+    try { mgr->mgr->SetResource(key, value); } catch (...) {}
+}
+
+bool OCCTResourceManagerFind(OCCTResourceManagerRef mgr, const char* key) {
+    try { return mgr->mgr->Find(key); } catch (...) { return false; }
+}
+
+char* OCCTResourceManagerGetString(OCCTResourceManagerRef mgr, const char* key) {
+    try {
+        const char* val = mgr->mgr->Value(key);
+        return strdup(val);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTResourceManagerGetInt(OCCTResourceManagerRef mgr, const char* key) {
+    try { return (int32_t)mgr->mgr->Integer(key); } catch (...) { return 0; }
+}
+
+double OCCTResourceManagerGetReal(OCCTResourceManagerRef mgr, const char* key) {
+    try { return mgr->mgr->Real(key); } catch (...) { return 0.0; }
+}
+

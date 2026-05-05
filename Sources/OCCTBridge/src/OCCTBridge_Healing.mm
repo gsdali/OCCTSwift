@@ -3238,3 +3238,40 @@ OCCTShapeRef OCCTShapeFixSmallEdges(OCCTShapeRef shape, double tolerance,
         return new OCCTShape(result);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.100: ShapeAnalysis_FreeBounds simplified API
+// --- ShapeAnalysis_FreeBounds simplified API ---
+
+int32_t OCCTShapeFreeBoundsClosedCount(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_FreeBounds analyzer(shape->shape, tolerance);
+        TopoDS_Compound closed = analyzer.GetClosedWires();
+        if (closed.IsNull()) return 0;
+        int32_t count = 0;
+        for (TopExp_Explorer ex(closed, TopAbs_WIRE); ex.More(); ex.Next()) {
+            count++;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTShapeFreeBoundsClosed(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        ShapeAnalysis_FreeBounds analyzer(shape->shape, tolerance);
+        TopoDS_Compound closed = analyzer.GetClosedWires();
+        if (closed.IsNull()) return nullptr;
+        return new OCCTShape(closed);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeFreeBoundsOpen(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        ShapeAnalysis_FreeBounds analyzer(shape->shape, tolerance);
+        TopoDS_Compound open = analyzer.GetOpenWires();
+        if (open.IsNull()) return nullptr;
+        return new OCCTShape(open);
+    } catch (...) { return nullptr; }
+}

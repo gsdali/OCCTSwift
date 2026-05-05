@@ -1792,3 +1792,68 @@ int32_t OCCTBoundSortBoxCompare(OCCTBoundSortBoxRef bsb,
         return count;
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.100: BRepExtrema_SelfIntersection face pair reporting
+// --- BRepExtrema_SelfIntersection face pair reporting ---
+
+int32_t OCCTShapeSelfIntersectionPairs(OCCTShapeRef shape, double tolerance,
+                                        int32_t* outFaceIdx1, int32_t* outFaceIdx2,
+                                        int32_t maxPairs) {
+    if (!shape || !outFaceIdx1 || !outFaceIdx2 || maxPairs <= 0) return -1;
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, 0.1);
+
+        BRepExtrema_SelfIntersection selfInt(shape->shape, tolerance);
+        selfInt.Perform();
+
+        if (!selfInt.IsDone()) return -1;
+
+        const auto& overlaps = selfInt.OverlapElements();
+        int32_t count = 0;
+
+        for (NCollection_DataMap<int, TColStd_PackedMapOfInteger>::Iterator it(overlaps);
+             it.More() && count < maxPairs; it.Next()) {
+            int faceIdx1 = it.Key();
+            const TColStd_PackedMapOfInteger& partners = it.Value();
+            for (TColStd_PackedMapOfInteger::Iterator mit(partners);
+                 mit.More() && count < maxPairs; mit.Next()) {
+                int faceIdx2 = mit.Key();
+                if (faceIdx2 > faceIdx1) { // avoid duplicates
+                    outFaceIdx1[count] = (int32_t)faceIdx1;
+                    outFaceIdx2[count] = (int32_t)faceIdx2;
+                    count++;
+                }
+            }
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// MARK: - v0.101: BRepLib_FindSurface
+// --- BRepLib_FindSurface ---
+
+OCCTSurfaceRef OCCTFindSurface(OCCTShapeRef shape, double tolerance, bool onlyPlane) {
+    try {
+        BRepLib_FindSurface finder(shape->shape, tolerance, onlyPlane);
+        if (!finder.Found()) return nullptr;
+        Handle(Geom_Surface) surf = finder.Surface();
+        if (surf.IsNull()) return nullptr;
+        return new OCCTSurface(surf);
+    } catch (...) { return nullptr; }
+}
+
+double OCCTFindSurfaceTolerance(OCCTShapeRef shape, double tolerance, bool onlyPlane) {
+    try {
+        BRepLib_FindSurface finder(shape->shape, tolerance, onlyPlane);
+        if (!finder.Found()) return -1.0;
+        return finder.ToleranceReached();
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTFindSurfaceExisted(OCCTShapeRef shape, double tolerance, bool onlyPlane) {
+    try {
+        BRepLib_FindSurface finder(shape->shape, tolerance, onlyPlane);
+        if (!finder.Found()) return false;
+        return finder.Existed();
+    } catch (...) { return false; }
+}
