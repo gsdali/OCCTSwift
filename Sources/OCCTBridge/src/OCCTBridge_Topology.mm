@@ -26,6 +26,7 @@
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepClass_FaceClassifier.hxx>
 #include <BRepClass3d_SolidClassifier.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepGProp.hxx>
 #include <BRepLib_FindSurface.hxx>
 #include <BRepTools_ReShape.hxx>
@@ -46,6 +47,12 @@
 #include <Geom_SurfaceOfLinearExtrusion.hxx>
 #include <GProp_PrincipalProps.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepExtrema_ExtCC.hxx>
+#include <BRepExtrema_ExtCF.hxx>
+#include <BRepExtrema_ExtFF.hxx>
+#include <BRepExtrema_ExtPC.hxx>
+#include <BRepExtrema_ExtPF.hxx>
+#include <BRepExtrema_Poly.hxx>
 #include <BRepExtrema_SelfIntersection.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepOffset_Analyse.hxx>
@@ -995,4 +1002,279 @@ int32_t OCCTShapeCountEdgeConcavity(OCCTShapeRef shape, double angle, int32_t ty
     } catch (...) {
         return -1;
     }
+}
+
+// MARK: - BRepExtrema Ext CC/PF/FF (v0.48)
+OCCTEdgeEdgeExtremaResult OCCTBRepExtremaExtCC(OCCTShapeRef shape1, int32_t edgeIndex1,
+                                                OCCTShapeRef shape2, int32_t edgeIndex2) {
+    OCCTEdgeEdgeExtremaResult result = {};
+    if (!shape1 || !shape2) return result;
+    try {
+        // Find edges
+        TopoDS_Edge e1, e2;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape1->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex1) { e1 = TopoDS::Edge(exp.Current()); break; }
+            idx++;
+        }
+        idx = 0;
+        for (TopExp_Explorer exp(shape2->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex2) { e2 = TopoDS::Edge(exp.Current()); break; }
+            idx++;
+        }
+        if (e1.IsNull() || e2.IsNull()) return result;
+
+        BRepExtrema_ExtCC extCC(e1, e2);
+        if (!extCC.IsDone()) return result;
+
+        result.isParallel = extCC.IsParallel();
+        if (result.isParallel) {
+            result.solutionCount = 0;
+            return result;
+        }
+        result.solutionCount = extCC.NbExt();
+
+        if (result.solutionCount >= 1 && !result.isParallel) {
+            result.distance = sqrt(extCC.SquareDistance(1));
+            result.paramOnE1 = extCC.ParameterOnE1(1);
+            result.paramOnE2 = extCC.ParameterOnE2(1);
+            gp_Pnt p1 = extCC.PointOnE1(1);
+            gp_Pnt p2 = extCC.PointOnE2(1);
+            result.pt1x = p1.X(); result.pt1y = p1.Y(); result.pt1z = p1.Z();
+            result.pt2x = p2.X(); result.pt2y = p2.Y(); result.pt2z = p2.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTEdgeEdgeExtremaResult OCCTBRepExtremaExtCCEdges(OCCTShapeRef edge1, OCCTShapeRef edge2) {
+    OCCTEdgeEdgeExtremaResult result = {};
+    if (!edge1 || !edge2) return result;
+    try {
+        TopoDS_Edge e1, e2;
+        if (edge1->shape.ShapeType() == TopAbs_EDGE) {
+            e1 = TopoDS::Edge(edge1->shape);
+        } else {
+            for (TopExp_Explorer exp(edge1->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+                e1 = TopoDS::Edge(exp.Current()); break;
+            }
+        }
+        if (edge2->shape.ShapeType() == TopAbs_EDGE) {
+            e2 = TopoDS::Edge(edge2->shape);
+        } else {
+            for (TopExp_Explorer exp(edge2->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+                e2 = TopoDS::Edge(exp.Current()); break;
+            }
+        }
+        if (e1.IsNull() || e2.IsNull()) return result;
+
+        BRepExtrema_ExtCC extCC(e1, e2);
+        if (!extCC.IsDone()) return result;
+
+        result.isParallel = extCC.IsParallel();
+        if (result.isParallel) {
+            result.solutionCount = 0;
+            return result;
+        }
+        result.solutionCount = extCC.NbExt();
+
+        if (result.solutionCount >= 1 && !result.isParallel) {
+            result.distance = sqrt(extCC.SquareDistance(1));
+            result.paramOnE1 = extCC.ParameterOnE1(1);
+            result.paramOnE2 = extCC.ParameterOnE2(1);
+            gp_Pnt p1 = extCC.PointOnE1(1);
+            gp_Pnt p2 = extCC.PointOnE2(1);
+            result.pt1x = p1.X(); result.pt1y = p1.Y(); result.pt1z = p1.Z();
+            result.pt2x = p2.X(); result.pt2y = p2.Y(); result.pt2z = p2.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTPointFaceExtremaResult OCCTBRepExtremaExtPF(double px, double py, double pz,
+                                                 OCCTShapeRef shape, int32_t faceIndex) {
+    OCCTPointFaceExtremaResult result = {};
+    if (!shape) return result;
+    try {
+        // Find face
+        TopoDS_Face face;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex) { face = TopoDS::Face(exp.Current()); break; }
+            idx++;
+        }
+        if (face.IsNull()) return result;
+
+        TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(gp_Pnt(px, py, pz));
+        BRepExtrema_ExtPF extPF(vertex, face);
+        if (!extPF.IsDone()) return result;
+
+        result.solutionCount = extPF.NbExt();
+        if (result.solutionCount >= 1) {
+            result.distance = sqrt(extPF.SquareDistance(1));
+            gp_Pnt pt = extPF.Point(1);
+            result.ptx = pt.X(); result.pty = pt.Y(); result.ptz = pt.Z();
+            extPF.Parameter(1, result.u, result.v);
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTFaceFaceExtremaResult OCCTBRepExtremaExtFF(OCCTShapeRef shape1, int32_t faceIndex1,
+                                                OCCTShapeRef shape2, int32_t faceIndex2) {
+    OCCTFaceFaceExtremaResult result = {};
+    if (!shape1 || !shape2) return result;
+    try {
+        // Find faces
+        TopoDS_Face f1, f2;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape1->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex1) { f1 = TopoDS::Face(exp.Current()); break; }
+            idx++;
+        }
+        idx = 0;
+        for (TopExp_Explorer exp(shape2->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex2) { f2 = TopoDS::Face(exp.Current()); break; }
+            idx++;
+        }
+        if (f1.IsNull() || f2.IsNull()) return result;
+
+        BRepExtrema_ExtFF extFF(f1, f2);
+        if (!extFF.IsDone()) return result;
+
+        result.solutionCount = extFF.NbExt();
+        if (result.solutionCount >= 1) {
+            result.distance = sqrt(extFF.SquareDistance(1));
+            extFF.ParameterOnFace1(1, result.u1, result.v1);
+            extFF.ParameterOnFace2(1, result.u2, result.v2);
+            gp_Pnt p1 = extFF.PointOnFace1(1);
+            gp_Pnt p2 = extFF.PointOnFace2(1);
+            result.pt1x = p1.X(); result.pt1y = p1.Y(); result.pt1z = p1.Z();
+            result.pt2x = p2.X(); result.pt2y = p2.Y(); result.pt2z = p2.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// MARK: - BRepExtrema Ext PC/CF (v0.49)
+OCCTPointEdgeExtremaResult OCCTBRepExtremaExtPC(double px, double py, double pz,
+                                                 OCCTShapeRef shape, int32_t edgeIndex) {
+    OCCTPointEdgeExtremaResult result = {};
+    if (!shape) return result;
+    try {
+        TopoDS_Edge edge;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex) { edge = TopoDS::Edge(exp.Current()); break; }
+            idx++;
+        }
+        if (edge.IsNull()) return result;
+
+        TopoDS_Vertex vertex = BRepBuilderAPI_MakeVertex(gp_Pnt(px, py, pz));
+        BRepExtrema_ExtPC ext(vertex, edge);
+        if (!ext.IsDone()) return result;
+
+        result.solutionCount = ext.NbExt();
+        if (result.solutionCount >= 1) {
+            // Find minimum distance
+            double minDist2 = ext.SquareDistance(1);
+            int minIdx = 1;
+            for (int i = 2; i <= ext.NbExt(); i++) {
+                if (ext.SquareDistance(i) < minDist2) {
+                    minDist2 = ext.SquareDistance(i);
+                    minIdx = i;
+                }
+            }
+            result.distance = sqrt(minDist2);
+            result.parameter = ext.Parameter(minIdx);
+            gp_Pnt pt = ext.Point(minIdx);
+            result.ptx = pt.X(); result.pty = pt.Y(); result.ptz = pt.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+// --- BRepExtrema_ExtCF ---
+
+OCCTEdgeFaceExtremaResult OCCTBRepExtremaExtCF(OCCTShapeRef shape1, int32_t edgeIndex,
+                                                OCCTShapeRef shape2, int32_t faceIndex) {
+    OCCTEdgeFaceExtremaResult result = {};
+    if (!shape1 || !shape2) return result;
+    try {
+        TopoDS_Edge edge;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape1->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            if (idx == edgeIndex) { edge = TopoDS::Edge(exp.Current()); break; }
+            idx++;
+        }
+        if (edge.IsNull()) return result;
+
+        TopoDS_Face face;
+        idx = 0;
+        for (TopExp_Explorer exp(shape2->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            if (idx == faceIndex) { face = TopoDS::Face(exp.Current()); break; }
+            idx++;
+        }
+        if (face.IsNull()) return result;
+
+        BRepExtrema_ExtCF ext(edge, face);
+        if (!ext.IsDone()) return result;
+
+        result.isParallel = ext.IsParallel();
+        if (result.isParallel) {
+            result.solutionCount = 0;
+            return result;
+        }
+
+        result.solutionCount = ext.NbExt();
+        if (result.solutionCount >= 1) {
+            // Find minimum distance
+            double minDist2 = ext.SquareDistance(1);
+            int minIdx = 1;
+            for (int i = 2; i <= ext.NbExt(); i++) {
+                if (ext.SquareDistance(i) < minDist2) {
+                    minDist2 = ext.SquareDistance(i);
+                    minIdx = i;
+                }
+            }
+            result.distance = sqrt(minDist2);
+            result.paramOnEdge = ext.ParameterOnEdge(minIdx);
+            ext.ParameterOnFace(minIdx, result.uOnFace, result.vOnFace);
+            gp_Pnt pe = ext.PointOnEdge(minIdx);
+            result.edgePtx = pe.X(); result.edgePty = pe.Y(); result.edgePtz = pe.Z();
+            gp_Pnt pf = ext.PointOnFace(minIdx);
+            result.facePtx = pf.X(); result.facePty = pf.Y(); result.facePtz = pf.Z();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// MARK: - BRepExtrema_Poly Distance (v0.50)
+OCCTPolyDistanceResult OCCTShapePolyhedralDistance(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    OCCTPolyDistanceResult result = {};
+    if (!shape1 || !shape2) return result;
+    try {
+        gp_Pnt p1, p2;
+        Standard_Real dist;
+        Standard_Boolean ok = BRepExtrema_Poly::Distance(
+            shape1->shape, shape2->shape, p1, p2, dist);
+        if (ok) {
+            result.success = true;
+            result.distance = dist;
+            result.p1x = p1.X(); result.p1y = p1.Y(); result.p1z = p1.Z();
+            result.p2x = p2.X(); result.p2y = p2.Y(); result.p2z = p2.Z();
+        }
+    } catch (...) {}
+    return result;
 }

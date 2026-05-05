@@ -36,6 +36,7 @@
 #include <BRepCheck_Status.hxx>
 #include <BRepCheck_Vertex.hxx>
 #include <BRepCheck_Wire.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <ChFi2d_Builder.hxx>
 #include <ChFi2d_ConstructionError.hxx>
@@ -69,7 +70,24 @@
 #include <ShapeCustom.hxx>
 #include <ShapeCustom_RestrictionParameters.hxx>
 #include <BRepAlgo_FaceRestrictor.hxx>
+#include <ShapeAnalysis_FreeBoundData.hxx>
+#include <ShapeAnalysis_FreeBoundsProperties.hxx>
+#include <ShapeAnalysis_Geom.hxx>
+#include <ShapeAnalysis_WireVertex.hxx>
+#include <TColgp_Array1OfPnt.hxx>
+#include <ShapeBuild_ReShape.hxx>
+#include <ShapeFix_Edge.hxx>
 #include <ShapeFix_EdgeConnect.hxx>
+#include <ShapeFix_SplitTool.hxx>
+#include <BRepTools_Substitution.hxx>
+#include <ShapeUpgrade_ShellSewing.hxx>
+#include <ShapeFix_FaceConnect.hxx>
+#include <ShapeFix_FixSmallSolid.hxx>
+#include <ShapeFix_ShapeTolerance.hxx>
+#include <ShapeFix_SplitCommonVertex.hxx>
+#include <ShapeFix_WireVertex.hxx>
+#include <ShapeUpgrade_ShapeDivideClosed.hxx>
+#include <ShapeUpgrade_ShapeDivideContinuity.hxx>
 #include <ShapeFix_Wireframe.hxx>
 #include <ShapeAnalysis_FreeBounds.hxx>
 #include <ShapeAnalysis_WireOrder.hxx>
@@ -1787,3 +1805,465 @@ OCCTShapeCheckResult OCCTCheckVertex(OCCTShapeRef shape, int32_t vertexIndex) {
     return checkSubShape(shape, TopAbs_VERTEX, vertexIndex);
 }
 
+
+// MARK: - ShapeFix Tolerance + Vertex/Connect Repair (v0.48)
+bool OCCTShapeFixLimitTolerance(OCCTShapeRef shape, double minTolerance, double maxTolerance) {
+    if (!shape) return false;
+    try {
+        ShapeFix_ShapeTolerance tolFixer;
+        return tolFixer.LimitTolerance(shape->shape, minTolerance, maxTolerance);
+    } catch (...) {
+        return false;
+    }
+}
+
+void OCCTShapeFixSetTolerance(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return;
+    try {
+        ShapeFix_ShapeTolerance tolFixer;
+        tolFixer.SetTolerance(shape->shape, tolerance);
+    } catch (...) {
+    }
+}
+
+OCCTShapeRef OCCTShapeFixSplitCommonVertex(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        ShapeFix_SplitCommonVertex splitter;
+        splitter.Init(shape->shape);
+        splitter.Perform();
+        TopoDS_Shape result = splitter.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFixFaceConnect(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        // Get shell from shape
+        TopoDS_Shell shell;
+        if (shape->shape.ShapeType() == TopAbs_SHELL) {
+            shell = TopoDS::Shell(shape->shape);
+        } else {
+            for (TopExp_Explorer exp(shape->shape, TopAbs_SHELL); exp.More(); exp.Next()) {
+                shell = TopoDS::Shell(exp.Current());
+                break;
+            }
+        }
+        if (shell.IsNull()) return nullptr;
+
+        // Get face pairs and connect them
+        ShapeFix_FaceConnect connector;
+
+        // Collect all faces
+        std::vector<TopoDS_Face> faces;
+        for (TopExp_Explorer exp(shell, TopAbs_FACE); exp.More(); exp.Next()) {
+            faces.push_back(TopoDS::Face(exp.Current()));
+        }
+
+        // Add adjacent face pairs
+        for (size_t i = 0; i + 1 < faces.size(); i++) {
+            connector.Add(faces[i], faces[i + 1]);
+        }
+
+        TopoDS_Shell result = connector.Build(shell, tolerance, tolerance);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTShapeFixEdgeSameParameter(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return 0;
+    try {
+        Handle(ShapeFix_Edge) edgeFixer = new ShapeFix_Edge();
+        int32_t count = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            if (edgeFixer->FixSameParameter(edge, tolerance)) {
+                count++;
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTShapeFixEdgeVertexTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        Handle(ShapeFix_Edge) edgeFixer = new ShapeFix_Edge();
+        int32_t count = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            if (edgeFixer->FixVertexTolerance(edge)) {
+                count++;
+            }
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTShapeFixWireVertex(OCCTShapeRef shape, double precision) {
+    if (!shape) return 0;
+    try {
+        int32_t totalFixed = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_WIRE); exp.More(); exp.Next()) {
+            TopoDS_Wire wire = TopoDS::Wire(exp.Current());
+            ShapeFix_WireVertex wireVertex;
+            wireVertex.Init(wire, precision);
+            totalFixed += wireVertex.Fix();
+        }
+        return totalFixed;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - ShapeUpgrade Divide Closed/Continuity (v0.48)
+OCCTShapeRef OCCTShapeUpgradeDivideClosed(OCCTShapeRef shape, int32_t nbSplitPoints) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideClosed divider(shape->shape);
+        divider.SetNbSplitPoints(nbSplitPoints);
+        bool ok = divider.Perform();
+        if (!ok) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeUpgradeDivideContinuity(OCCTShapeRef shape, int32_t boundaryCriterion, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideContinuity divider(shape->shape);
+
+        GeomAbs_Shape criterion;
+        switch (boundaryCriterion) {
+            case 0: criterion = GeomAbs_C0; break;
+            case 1: criterion = GeomAbs_C1; break;
+            case 2: criterion = GeomAbs_C2; break;
+            case 3: criterion = GeomAbs_C3; break;
+            case 4: criterion = GeomAbs_CN; break;
+            case 5: criterion = GeomAbs_G1; break;
+            case 6: criterion = GeomAbs_G2; break;
+            default: criterion = GeomAbs_C1; break;
+        }
+
+        divider.SetBoundaryCriterion(criterion);
+        divider.SetTolerance(tolerance);
+        bool ok = divider.Perform();
+        if (!ok) return nullptr;
+        TopoDS_Shape result = divider.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeFix Small Solids (v0.49)
+// --- ShapeFix_FixSmallSolid ---
+
+OCCTShapeRef OCCTShapeFixRemoveSmallSolids(OCCTShapeRef shape, double volumeThreshold) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_FixSmallSolid) fixer = new ShapeFix_FixSmallSolid();
+        fixer->SetFixMode(2); // volume only
+        fixer->SetVolumeThreshold(volumeThreshold);
+        Handle(ShapeBuild_ReShape) ctx = new ShapeBuild_ReShape();
+        TopoDS_Shape result = fixer->Remove(shape->shape, ctx);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTShapeFixMergeSmallSolids(OCCTShapeRef shape, double widthFactorThreshold) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_FixSmallSolid) fixer = new ShapeFix_FixSmallSolid();
+        fixer->SetFixMode(1); // width only
+        fixer->SetWidthFactorThreshold(widthFactorThreshold);
+        Handle(ShapeBuild_ReShape) ctx = new ShapeBuild_ReShape();
+        TopoDS_Shape result = fixer->Merge(shape->shape, ctx);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeCustom Direct Faces / BSpline Restriction (v0.49)
+// --- ShapeCustom ---
+
+OCCTShapeRef OCCTShapeCustomDirectFaces(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        TopoDS_Shape result = ShapeCustom::DirectFaces(shape->shape);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+static GeomAbs_Shape mapContinuity(int32_t val) {
+    switch (val) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C1;
+    }
+}
+
+OCCTShapeRef OCCTShapeCustomBSplineRestriction(OCCTShapeRef shape,
+    double tol3d, double tol2d, int32_t maxDegree, int32_t maxSegments,
+    int32_t continuity3d, int32_t continuity2d, bool degreePriority, bool rational) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeCustom_RestrictionParameters) params = new ShapeCustom_RestrictionParameters();
+        TopoDS_Shape result = ShapeCustom::BSplineRestriction(
+            shape->shape, tol3d, tol2d, maxDegree, maxSegments,
+            mapContinuity(continuity3d), mapContinuity(continuity2d),
+            degreePriority, rational, params);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeAnalysis_FreeBoundsProperties (v0.49)
+// --- ShapeAnalysis_FreeBoundsProperties ---
+
+OCCTFreeBoundsResult OCCTFreeBoundsAnalyze(OCCTShapeRef shape, double tolerance) {
+    OCCTFreeBoundsResult result = {};
+    if (!shape) return result;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return result;
+        result.totalFreeBounds = fbp.NbFreeBounds();
+        result.closedFreeBounds = fbp.NbClosedFreeBounds();
+        result.openFreeBounds = fbp.NbOpenFreeBounds();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTFreeBoundInfo OCCTFreeBoundsGetClosedBoundInfo(OCCTShapeRef shape, double tolerance, int32_t index) {
+    OCCTFreeBoundInfo result = {};
+    if (!shape) return result;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return result;
+        if (index < 0 || index >= fbp.NbClosedFreeBounds()) return result;
+        Handle(ShapeAnalysis_FreeBoundData) fbd = fbp.ClosedFreeBound(index + 1); // 1-indexed
+        if (fbd.IsNull()) return result;
+        result.area = fbd->Area();
+        result.perimeter = fbd->Perimeter();
+        result.ratio = fbd->Ratio();
+        result.width = fbd->Width();
+        result.notchCount = fbd->NbNotches();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTFreeBoundInfo OCCTFreeBoundsGetOpenBoundInfo(OCCTShapeRef shape, double tolerance, int32_t index) {
+    OCCTFreeBoundInfo result = {};
+    if (!shape) return result;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return result;
+        if (index < 0 || index >= fbp.NbOpenFreeBounds()) return result;
+        Handle(ShapeAnalysis_FreeBoundData) fbd = fbp.OpenFreeBound(index + 1); // 1-indexed
+        if (fbd.IsNull()) return result;
+        result.area = fbd->Area();
+        result.perimeter = fbd->Perimeter();
+        result.ratio = fbd->Ratio();
+        result.width = fbd->Width();
+        result.notchCount = fbd->NbNotches();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTShapeRef OCCTFreeBoundsGetClosedBoundWire(OCCTShapeRef shape, double tolerance, int32_t index) {
+    if (!shape) return nullptr;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return nullptr;
+        if (index < 0 || index >= fbp.NbClosedFreeBounds()) return nullptr;
+        Handle(ShapeAnalysis_FreeBoundData) fbd = fbp.ClosedFreeBound(index + 1);
+        if (fbd.IsNull()) return nullptr;
+        TopoDS_Wire wire = fbd->FreeBound();
+        if (wire.IsNull()) return nullptr;
+        return new OCCTShape(wire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTFreeBoundsGetOpenBoundWire(OCCTShapeRef shape, double tolerance, int32_t index) {
+    if (!shape) return nullptr;
+    try {
+        ShapeAnalysis_FreeBoundsProperties fbp(shape->shape, tolerance);
+        if (!fbp.Perform()) return nullptr;
+        if (index < 0 || index >= fbp.NbOpenFreeBounds()) return nullptr;
+        Handle(ShapeAnalysis_FreeBoundData) fbd = fbp.OpenFreeBound(index + 1);
+        if (fbd.IsNull()) return nullptr;
+        TopoDS_Wire wire = fbd->FreeBound();
+        if (wire.IsNull()) return nullptr;
+        return new OCCTShape(wire);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeAnalysis_WireVertex (v0.50)
+OCCTWireVertexResult OCCTShapeWireVertexAnalysis(OCCTShapeRef wire, double precision) {
+    OCCTWireVertexResult result = {};
+    if (!wire) return result;
+    try {
+        TopoDS_Wire w = TopoDS::Wire(wire->shape);
+        ShapeAnalysis_WireVertex wv;
+        wv.Init(w, precision);
+        wv.Analyze();
+        result.isDone = wv.IsDone();
+        result.nbEdges = wv.NbEdges();
+    } catch (...) {}
+    return result;
+}
+
+int32_t OCCTShapeWireVertexStatus(OCCTShapeRef wire, double precision, int32_t vertexIndex) {
+    if (!wire) return -2;
+    try {
+        TopoDS_Wire w = TopoDS::Wire(wire->shape);
+        ShapeAnalysis_WireVertex wv;
+        wv.Init(w, precision);
+        wv.Analyze();
+        if (!wv.IsDone()) return -2;
+        if (vertexIndex < 0 || vertexIndex >= wv.NbEdges()) return -2;
+        return wv.Status(vertexIndex + 1);
+    } catch (...) {
+        return -2;
+    }
+}
+
+// MARK: - ShapeAnalysis_Geom NearestPlane (v0.50)
+OCCTNearestPlaneResult OCCTShapeNearestPlane(const double* points, int32_t nPoints) {
+    OCCTNearestPlaneResult result = {};
+    if (!points || nPoints < 3) return result;
+    try {
+        TColgp_Array1OfPnt pts(1, nPoints);
+        for (int32_t i = 0; i < nPoints; i++) {
+            pts.SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        gp_Pln pln;
+        Standard_Real dmax;
+        if (ShapeAnalysis_Geom::NearestPlane(pts, pln, dmax)) {
+            result.success = true;
+            result.maxDeviation = dmax;
+            gp_Dir normal = pln.Axis().Direction();
+            result.normalX = normal.X();
+            result.normalY = normal.Y();
+            result.normalZ = normal.Z();
+            gp_Pnt loc = pln.Location();
+            result.originX = loc.X();
+            result.originY = loc.Y();
+            result.originZ = loc.Z();
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - BRepTools_Substitution + ShapeUpgrade_ShellSewing (v0.52)
+// --- BRepTools_Substitution ---
+
+OCCTShapeRef _Nullable OCCTBRepToolsSubstitute(OCCTShapeRef parentShape,
+    OCCTShapeRef oldSubShape, OCCTShapeRef newSubShape) {
+    if (!parentShape || !oldSubShape || !newSubShape) return nullptr;
+    try {
+        TopTools_ListOfShape newShapes;
+        newShapes.Append(newSubShape->shape);
+        BRepTools_Substitution sub;
+        sub.Substitute(oldSubShape->shape, newShapes);
+        sub.Build(parentShape->shape);
+        if (!sub.IsCopied(parentShape->shape)) return nullptr;
+        auto& copies = sub.Copy(parentShape->shape);
+        if (copies.Size() == 0) return nullptr;
+        auto* result = new OCCTShape();
+        result->shape = copies.First();
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- ShapeUpgrade_ShellSewing ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeShellSewing(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShellSewing ss;
+        TopoDS_Shape sewn = ss.ApplySewing(shape->shape, tolerance);
+        if (sewn.IsNull()) return nullptr;
+        auto* result = new OCCTShape();
+        result->shape = sewn;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeFix_SplitTool (v0.52)
+// --- ShapeFix_SplitTool ---
+
+bool OCCTShapeFixSplitEdge(OCCTEdgeRef edge, double param,
+    double vertexX, double vertexY, double vertexZ,
+    OCCTEdgeRef _Nullable * _Nonnull outEdge1,
+    OCCTEdgeRef _Nullable * _Nonnull outEdge2) {
+    if (!edge || !outEdge1 || !outEdge2) return false;
+    try {
+        TopoDS_Vertex vert = BRepBuilderAPI_MakeVertex(gp_Pnt(vertexX, vertexY, vertexZ)).Vertex();
+        // Create a minimal planar face for the split context
+        double f, l;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge->edge, f, l);
+        if (curve.IsNull()) return false;
+        gp_Pnt mid = curve->Value((f + l) / 2.0);
+        gp_Pln plane(mid, gp_Dir(0, 0, 1));
+        TopoDS_Face face = BRepBuilderAPI_MakeFace(plane, -1000, 1000, -1000, 1000).Face();
+
+        ShapeFix_SplitTool tool;
+        TopoDS_Edge newE1, newE2;
+        bool ok = tool.SplitEdge(edge->edge, param, vert, face, newE1, newE2, 1e-6, 1e-6);
+        if (!ok || newE1.IsNull() || newE2.IsNull()) return false;
+
+        auto* e1 = new OCCTEdge();
+        e1->edge = newE1;
+        *outEdge1 = e1;
+
+        auto* e2 = new OCCTEdge();
+        e2->edge = newE2;
+        *outEdge2 = e2;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
