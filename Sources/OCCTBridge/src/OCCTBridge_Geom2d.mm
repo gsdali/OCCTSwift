@@ -22,6 +22,9 @@
 #include <Adaptor2d_Curve2d.hxx>
 #include <Approx_Curve2d.hxx>
 #include <BRepAdaptor_Curve2d.hxx>
+#include <FairCurve_AnalysisCode.hxx>
+#include <FairCurve_Batten.hxx>
+#include <FairCurve_MinimalVariation.hxx>
 #include <BRepBuilderAPI_MakeEdge2d.hxx>
 #include <GC_MakeLine2d.hxx>
 #include <GccEnt_Position.hxx>
@@ -2140,4 +2143,71 @@ double OCCTCurve2DProjectPoint2D(OCCTCurve2DRef _Nonnull curve, OCCTPoint2DRef _
         *outDistance = proj.LowerDistance();
         return proj.LowerDistanceParameter();
     } catch (...) { *outDistance = -1.0; return 0.0; }
+}
+
+// MARK: - FairCurve Batten / MinimalVariation (v0.67)
+// --- FairCurve_Batten ---
+
+OCCTCurve2DRef _Nullable OCCTFairCurveBatten(double p1x, double p1y, double p2x, double p2y,
+    double height, double slope, double angle1, double angle2,
+    int32_t constraintOrder1, int32_t constraintOrder2, bool freeSliding,
+    int32_t* _Nonnull outCode) {
+    try {
+        gp_Pnt2d P1(p1x, p1y);
+        gp_Pnt2d P2(p2x, p2y);
+        FairCurve_Batten batten(P1, P2, height, slope);
+        batten.SetAngle1(angle1);
+        batten.SetAngle2(angle2);
+        batten.SetConstraintOrder1(constraintOrder1);
+        batten.SetConstraintOrder2(constraintOrder2);
+        batten.SetFreeSliding(freeSliding);
+
+        FairCurve_AnalysisCode code;
+        bool ok = batten.Compute(code, 50, 1.0e-3);
+        *outCode = (int32_t)code;
+        if (!ok) return nullptr;
+
+        Handle(Geom2d_BSplineCurve) bspline = batten.Curve();
+        if (bspline.IsNull()) return nullptr;
+
+        // Convert to Geom2d_Curve handle
+        Handle(Geom2d_Curve) curve = bspline;
+        auto ref = new OCCTCurve2D();
+        ref->curve = curve;
+        return ref;
+    } catch (...) { *outCode = -1; return nullptr; }
+}
+
+// --- FairCurve_MinimalVariation ---
+
+OCCTCurve2DRef _Nullable OCCTFairCurveMinimalVariation(double p1x, double p1y, double p2x, double p2y,
+    double height, double slope, double angle1, double angle2,
+    int32_t constraintOrder1, int32_t constraintOrder2, bool freeSliding,
+    double physicalRatio, double curvature1, double curvature2,
+    int32_t* _Nonnull outCode) {
+    try {
+        gp_Pnt2d P1(p1x, p1y);
+        gp_Pnt2d P2(p2x, p2y);
+        FairCurve_MinimalVariation mv(P1, P2, height, slope, physicalRatio);
+        mv.SetAngle1(angle1);
+        mv.SetAngle2(angle2);
+        mv.SetConstraintOrder1(constraintOrder1);
+        mv.SetConstraintOrder2(constraintOrder2);
+        mv.SetFreeSliding(freeSliding);
+        if (constraintOrder1 >= 2) mv.SetCurvature1(curvature1);
+        if (constraintOrder2 >= 2) mv.SetCurvature2(curvature2);
+
+        FairCurve_AnalysisCode code;
+        bool ok = mv.Compute(code, 50, 1.0e-3);
+        *outCode = (int32_t)code;
+        if (!ok) return nullptr;
+
+        Handle(Geom2d_BSplineCurve) bspline = mv.Curve();
+        if (bspline.IsNull()) return nullptr;
+
+        Handle(Geom2d_Curve) curve = bspline;
+        auto ref = new OCCTCurve2D();
+        ref->curve = curve;
+        return ref;
+    } catch (...) { *outCode = -1; return nullptr; }
 }

@@ -30,6 +30,7 @@
 #include <BRepGProp.hxx>
 #include <IntCurvesFace_Intersector.hxx>
 #include <IntCurvesFace_ShapeIntersector.hxx>
+#include <TopTrans_SurfaceTransition.hxx>
 #include <BRepLib_FindSurface.hxx>
 #include <BRepTools_ReShape.hxx>
 #include <BRepTools_WireExplorer.hxx>
@@ -1358,4 +1359,126 @@ bool OCCTIntCurvesFaceShapeIntersectNearest(OCCTShapeRef shape,
         *outParam = si.WParameter(1);
         return true;
     } catch (...) { return false; }
+}
+
+// MARK: - TopTrans_SurfaceTransition (v0.67)
+// --- TopTrans_SurfaceTransition ---
+
+static TopAbs_Orientation intToOrientation(int32_t o) {
+    switch (o) {
+        case 0: return TopAbs_FORWARD;
+        case 1: return TopAbs_REVERSED;
+        case 2: return TopAbs_INTERNAL;
+        case 3: return TopAbs_EXTERNAL;
+        default: return TopAbs_FORWARD;
+    }
+}
+
+void OCCTTopTransSurfaceTransition(
+    double tgtX, double tgtY, double tgtZ,
+    double normX, double normY, double normZ,
+    double surfNormX, double surfNormY, double surfNormZ,
+    double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter) {
+    try {
+        TopTrans_SurfaceTransition st;
+        st.Reset(gp_Dir(tgtX, tgtY, tgtZ), gp_Dir(normX, normY, normZ));
+        st.Compare(tolerance, gp_Dir(surfNormX, surfNormY, surfNormZ),
+                   intToOrientation(surfOrientation), intToOrientation(boundOrientation));
+        *outStateBefore = (int32_t)st.StateBefore();
+        *outStateAfter = (int32_t)st.StateAfter();
+    } catch (...) {
+        *outStateBefore = 3; // UNKNOWN
+        *outStateAfter = 3;
+    }
+}
+
+void OCCTTopTransSurfaceTransitionCurvature(
+    double tgtX, double tgtY, double tgtZ,
+    double normX, double normY, double normZ,
+    double maxDX, double maxDY, double maxDZ,
+    double minDX, double minDY, double minDZ,
+    double maxCurv, double minCurv,
+    double surfNormX, double surfNormY, double surfNormZ,
+    double surfMaxDX, double surfMaxDY, double surfMaxDZ,
+    double surfMinDX, double surfMinDY, double surfMinDZ,
+    double surfMaxCurv, double surfMinCurv,
+    double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* _Nonnull outStateBefore, int32_t* _Nonnull outStateAfter) {
+    try {
+        TopTrans_SurfaceTransition st;
+        st.Reset(gp_Dir(tgtX, tgtY, tgtZ), gp_Dir(normX, normY, normZ),
+                 gp_Dir(maxDX, maxDY, maxDZ), gp_Dir(minDX, minDY, minDZ),
+                 maxCurv, minCurv);
+        st.Compare(tolerance,
+                   gp_Dir(surfNormX, surfNormY, surfNormZ),
+                   gp_Dir(surfMaxDX, surfMaxDY, surfMaxDZ),
+                   gp_Dir(surfMinDX, surfMinDY, surfMinDZ),
+                   surfMaxCurv, surfMinCurv,
+                   intToOrientation(surfOrientation), intToOrientation(boundOrientation));
+        *outStateBefore = (int32_t)st.StateBefore();
+        *outStateAfter = (int32_t)st.StateAfter();
+    } catch (...) {
+        *outStateBefore = 3;
+        *outStateAfter = 3;
+    }
+}
+
+// MARK: - TopTrans_CurveTransition (helper located alongside SurfaceTransition)
+// --- TopTrans_CurveTransition ---
+
+void OCCTTopTransCurveTransition(
+    double tgtX, double tgtY, double tgtZ,
+    double tangX, double tangY, double tangZ,
+    double normX, double normY, double normZ,
+    double curvature, double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* outStateBefore, int32_t* outStateAfter)
+{
+    try {
+        TopTrans_CurveTransition ct;
+        ct.Reset(gp_Dir(tgtX, tgtY, tgtZ));
+        ct.Compare(tolerance,
+                   gp_Dir(tangX, tangY, tangZ),
+                   gp_Dir(normX, normY, normZ),
+                   curvature,
+                   intToOrientation(surfOrientation),
+                   intToOrientation(boundOrientation));
+        *outStateBefore = (int32_t)ct.StateBefore();
+        *outStateAfter = (int32_t)ct.StateAfter();
+    } catch (...) {
+        *outStateBefore = 3;
+        *outStateAfter = 3;
+    }
+}
+
+void OCCTTopTransCurveTransitionWithCurvature(
+    double tgtX, double tgtY, double tgtZ,
+    double curveNormX, double curveNormY, double curveNormZ,
+    double curveCurv,
+    double tangX, double tangY, double tangZ,
+    double normX, double normY, double normZ,
+    double surfCurv, double tolerance,
+    int32_t surfOrientation, int32_t boundOrientation,
+    int32_t* outStateBefore, int32_t* outStateAfter)
+{
+    try {
+        TopTrans_CurveTransition ct;
+        ct.Reset(gp_Dir(tgtX, tgtY, tgtZ),
+                 gp_Dir(curveNormX, curveNormY, curveNormZ),
+                 curveCurv);
+        ct.Compare(tolerance,
+                   gp_Dir(tangX, tangY, tangZ),
+                   gp_Dir(normX, normY, normZ),
+                   surfCurv,
+                   intToOrientation(surfOrientation),
+                   intToOrientation(boundOrientation));
+        *outStateBefore = (int32_t)ct.StateBefore();
+        *outStateAfter = (int32_t)ct.StateAfter();
+    } catch (...) {
+        *outStateBefore = 3;
+        *outStateAfter = 3;
+    }
 }

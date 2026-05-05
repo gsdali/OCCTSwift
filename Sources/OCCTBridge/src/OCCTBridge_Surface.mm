@@ -61,6 +61,7 @@
 #include <GeomFill_BSplineCurves.hxx>
 #include <Adaptor3d_IsoCurve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
+#include <LocalAnalysis_SurfaceContinuity.hxx>
 #include <BRepTopAdaptor_TopolTool.hxx>
 #include <Contap_ContAna.hxx>
 #include <Contap_Contour.hxx>
@@ -2275,4 +2276,71 @@ OCCTShapeRef _Nullable OCCTAdaptor3dIsoCurveEdge(OCCTShapeRef faceShape, int iso
         if (!me.IsDone()) return nullptr;
         return new OCCTShape(me.Edge());
     } catch (...) { return nullptr; }
+}
+
+// MARK: - LocalAnalysis_SurfaceContinuity (v0.67)
+static GeomAbs_Shape orderToShape(int32_t order) {
+    switch (order) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_G1;
+        case 2: return GeomAbs_C1;
+        case 3: return GeomAbs_G2;
+        case 4: return GeomAbs_C2;
+        default: return GeomAbs_C2;
+    }
+}
+
+static int32_t shapeToOrder(GeomAbs_Shape shape) {
+    switch (shape) {
+        case GeomAbs_C0: return 0;
+        case GeomAbs_G1: return 1;
+        case GeomAbs_C1: return 2;
+        case GeomAbs_G2: return 3;
+        case GeomAbs_C2: return 4;
+        default: return -1;
+    }
+}
+
+// --- LocalAnalysis_SurfaceContinuity ---
+
+bool OCCTLocalAnalysisSurfaceContinuity(OCCTSurfaceRef _Nonnull surface1, double u1, double v1,
+    OCCTSurfaceRef _Nonnull surface2, double u2, double v2, int32_t order,
+    int32_t* _Nonnull outStatus,
+    double* _Nonnull outC0Value, double* _Nonnull outG1Angle,
+    double* _Nonnull outC1UAngle, double* _Nonnull outC1VAngle) {
+    try {
+        auto s1 = (OCCTSurface*)surface1;
+        auto s2 = (OCCTSurface*)surface2;
+
+        LocalAnalysis_SurfaceContinuity sc(s1->surface, u1, v1, s2->surface, u2, v2,
+                                            orderToShape(order));
+        if (!sc.IsDone()) return false;
+
+        *outStatus = shapeToOrder(sc.ContinuityStatus());
+        *outC0Value = sc.C0Value();
+        *outG1Angle = sc.IsG1() ? sc.G1Angle() : -1.0;
+        *outC1UAngle = sc.IsC1() ? sc.C1UAngle() : -1.0;
+        *outC1VAngle = sc.IsC1() ? sc.C1VAngle() : -1.0;
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTLocalAnalysisSurfaceContinuityFlags(OCCTSurfaceRef _Nonnull surface1, double u1, double v1,
+    OCCTSurfaceRef _Nonnull surface2, double u2, double v2, int32_t order) {
+    try {
+        auto s1 = (OCCTSurface*)surface1;
+        auto s2 = (OCCTSurface*)surface2;
+
+        LocalAnalysis_SurfaceContinuity sc(s1->surface, u1, v1, s2->surface, u2, v2,
+                                            orderToShape(order));
+        if (!sc.IsDone()) return 0;
+
+        int32_t flags = 0;
+        if (sc.IsC0()) flags |= 1;
+        if (sc.IsG1()) flags |= 2;
+        if (sc.IsC1()) flags |= 4;
+        if (sc.IsG2()) flags |= 8;
+        if (sc.IsC2()) flags |= 16;
+        return flags;
+    } catch (...) { return 0; }
 }
