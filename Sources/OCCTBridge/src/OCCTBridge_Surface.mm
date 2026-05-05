@@ -70,7 +70,16 @@
 #include <GeomFill_BoundWithSurf.hxx>
 #include <GeomLib_Tool.hxx>
 #include <GeomLib_IsPlanarSurface.hxx>
+#include <GeomFill_AppSurf.hxx>
 #include <GeomFill_DegeneratedBound.hxx>
+#include <GeomFill_GuideTrihedronAC.hxx>
+#include <GeomFill_GuideTrihedronPlan.hxx>
+#include <GeomFill_Line.hxx>
+#include <GeomFill_LocationDraft.hxx>
+#include <GeomFill_Profiler.hxx>
+#include <GeomFill_SectionGenerator.hxx>
+#include <GeomFill_SectionPlacement.hxx>
+#include <GeomFill_Stretch.hxx>
 #include <GeomFill_Generator.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
 #include <BRepTopAdaptor_TopolTool.hxx>
@@ -2757,4 +2766,355 @@ bool OCCTGeomConvertIsCanonical(OCCTSurfaceRef _Nonnull surfaceRef) {
     } catch (...) {
         return false;
     }
+}
+
+// MARK: - GeomFill_Profiler (v0.79)
+// --- GeomFill_Profiler ---
+struct GeomFillProfilerOpaque {
+    GeomFill_Profiler profiler;
+    bool isDone;
+};
+
+OCCTGeomFillProfilerRef OCCTGeomFillProfilerCreate(void) {
+    try {
+        auto* opaque = new GeomFillProfilerOpaque();
+        opaque->isDone = false;
+        return opaque;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomFillProfilerAddCurve(OCCTGeomFillProfilerRef _Nonnull ref, OCCTCurve3DRef _Nonnull curveRef) {
+    try {
+        auto* opaque = (GeomFillProfilerOpaque*)ref;
+        const Handle(Geom_Curve)& curve = *(const Handle(Geom_Curve)*)curveRef;
+        opaque->profiler.AddCurve(curve);
+    } catch (...) {}
+}
+
+bool OCCTGeomFillProfilerPerform(OCCTGeomFillProfilerRef _Nonnull ref, double tolerance) {
+    try {
+        auto* opaque = (GeomFillProfilerOpaque*)ref;
+        opaque->profiler.Perform(tolerance);
+        opaque->isDone = true;
+        return true;
+    } catch (...) { return false; }
+}
+
+int OCCTGeomFillProfilerDegree(OCCTGeomFillProfilerRef _Nonnull ref) {
+    try {
+        auto* opaque = (GeomFillProfilerOpaque*)ref;
+        return opaque->profiler.Degree();
+    } catch (...) { return 0; }
+}
+
+int OCCTGeomFillProfilerNbPoles(OCCTGeomFillProfilerRef _Nonnull ref) {
+    try {
+        auto* opaque = (GeomFillProfilerOpaque*)ref;
+        return opaque->profiler.NbPoles();
+    } catch (...) { return 0; }
+}
+
+int OCCTGeomFillProfilerNbKnots(OCCTGeomFillProfilerRef _Nonnull ref) {
+    try {
+        auto* opaque = (GeomFillProfilerOpaque*)ref;
+        return opaque->profiler.NbKnots();
+    } catch (...) { return 0; }
+}
+
+bool OCCTGeomFillProfilerIsPeriodic(OCCTGeomFillProfilerRef _Nonnull ref) {
+    try {
+        auto* opaque = (GeomFillProfilerOpaque*)ref;
+        return opaque->profiler.IsPeriodic();
+    } catch (...) { return false; }
+}
+
+bool OCCTGeomFillProfilerPoles(OCCTGeomFillProfilerRef _Nonnull ref, int curveIndex,
+                                double* _Nonnull outX, double* _Nonnull outY, double* _Nonnull outZ, int maxPoles) {
+    try {
+        auto* opaque = (GeomFillProfilerOpaque*)ref;
+        int nPoles = opaque->profiler.NbPoles();
+        if (nPoles > maxPoles) return false;
+        NCollection_Array1<gp_Pnt> poles(1, nPoles);
+        opaque->profiler.Poles(curveIndex, poles);
+        for (int i = 1; i <= nPoles; i++) {
+            outX[i-1] = poles(i).X();
+            outY[i-1] = poles(i).Y();
+            outZ[i-1] = poles(i).Z();
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTGeomFillProfilerKnotsAndMults(OCCTGeomFillProfilerRef _Nonnull ref,
+                                        double* _Nonnull outKnots, int* _Nonnull outMults, int maxKnots) {
+    try {
+        auto* opaque = (GeomFillProfilerOpaque*)ref;
+        int nKnots = opaque->profiler.NbKnots();
+        if (nKnots > maxKnots) return false;
+        NCollection_Array1<double> knots(1, nKnots);
+        NCollection_Array1<int> mults(1, nKnots);
+        opaque->profiler.KnotsAndMults(knots, mults);
+        for (int i = 1; i <= nKnots; i++) {
+            outKnots[i-1] = knots(i);
+            outMults[i-1] = mults(i);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTGeomFillProfilerRelease(OCCTGeomFillProfilerRef _Nonnull ref) {
+    delete (GeomFillProfilerOpaque*)ref;
+}
+
+// MARK: - GeomFill_Stretch (v0.79)
+// --- GeomFill_Stretch ---
+OCCTStretchFillResult OCCTGeomFillStretch(const double* _Nonnull p1, const double* _Nonnull p2,
+                                           const double* _Nonnull p3, const double* _Nonnull p4,
+                                           int count,
+                                           double* _Nullable outPoles, int maxPoles) {
+    OCCTStretchFillResult result = {};
+    try {
+        NCollection_Array1<gp_Pnt> P1(1, count), P2(1, count), P3(1, count), P4(1, count);
+        for (int i = 0; i < count; i++) {
+            P1(i+1) = gp_Pnt(p1[i*3], p1[i*3+1], p1[i*3+2]);
+            P2(i+1) = gp_Pnt(p2[i*3], p2[i*3+1], p2[i*3+2]);
+            P3(i+1) = gp_Pnt(p3[i*3], p3[i*3+1], p3[i*3+2]);
+            P4(i+1) = gp_Pnt(p4[i*3], p4[i*3+1], p4[i*3+2]);
+        }
+
+        GeomFill_Stretch stretch(P1, P2, P3, P4);
+        result.nbUPoles = stretch.NbUPoles();
+        result.nbVPoles = stretch.NbVPoles();
+        result.isRational = stretch.isRational();
+
+        if (outPoles && maxPoles >= result.nbUPoles * result.nbVPoles) {
+            NCollection_Array2<gp_Pnt> poles(1, result.nbUPoles, 1, result.nbVPoles);
+            stretch.Poles(poles);
+            int idx = 0;
+            for (int u = 1; u <= result.nbUPoles; u++) {
+                for (int v = 1; v <= result.nbVPoles; v++) {
+                    outPoles[idx++] = poles(u, v).X();
+                    outPoles[idx++] = poles(u, v).Y();
+                    outPoles[idx++] = poles(u, v).Z();
+                }
+            }
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - GeomFill_LocationDraft (v0.79)
+// --- GeomFill_LocationDraft ---
+struct LocationDraftOpaque {
+    Handle(GeomFill_LocationDraft) loc;
+};
+
+OCCTLocationDraftRef OCCTGeomFillLocationDraftCreate(double dirX, double dirY, double dirZ, double angle) {
+    try {
+        auto* opaque = new LocationDraftOpaque();
+        opaque->loc = new GeomFill_LocationDraft(gp_Dir(dirX, dirY, dirZ), angle);
+        return opaque;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTGeomFillLocationDraftSetCurve(OCCTLocationDraftRef _Nonnull ref, OCCTCurve3DRef _Nonnull curveRef) {
+    try {
+        auto* opaque = (LocationDraftOpaque*)ref;
+        const Handle(Geom_Curve)& curve = *(const Handle(Geom_Curve)*)curveRef;
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve);
+        return opaque->loc->SetCurve(adaptor);
+    } catch (...) { return false; }
+}
+
+bool OCCTGeomFillLocationDraftD0(OCCTLocationDraftRef _Nonnull ref, double param,
+                                  double* _Nonnull mat, double* _Nonnull vecX, double* _Nonnull vecY, double* _Nonnull vecZ) {
+    try {
+        auto* opaque = (LocationDraftOpaque*)ref;
+        gp_Mat M;
+        gp_Vec V;
+        bool ok = opaque->loc->D0(param, M, V);
+        if (ok) {
+            // Store 3x3 matrix row-major
+            for (int r = 1; r <= 3; r++)
+                for (int c = 1; c <= 3; c++)
+                    mat[(r-1)*3 + (c-1)] = M.Value(r, c);
+            *vecX = V.X(); *vecY = V.Y(); *vecZ = V.Z();
+        }
+        return ok;
+    } catch (...) { return false; }
+}
+
+void OCCTGeomFillLocationDraftSetAngle(OCCTLocationDraftRef _Nonnull ref, double angle) {
+    try {
+        auto* opaque = (LocationDraftOpaque*)ref;
+        opaque->loc->SetAngle(angle);
+    } catch (...) {}
+}
+
+void OCCTGeomFillLocationDraftDirection(OCCTLocationDraftRef _Nonnull ref,
+                                         double* _Nonnull x, double* _Nonnull y, double* _Nonnull z) {
+    try {
+        auto* opaque = (LocationDraftOpaque*)ref;
+        gp_Dir d = opaque->loc->Direction();
+        *x = d.X(); *y = d.Y(); *z = d.Z();
+    } catch (...) {}
+}
+
+void OCCTGeomFillLocationDraftRelease(OCCTLocationDraftRef _Nonnull ref) {
+    delete (LocationDraftOpaque*)ref;
+}
+
+// MARK: - GeomFill_GuideTrihedronAC (v0.79)
+// --- GeomFill_GuideTrihedronAC ---
+struct GuideTrihedronACOpaque {
+    Handle(GeomFill_GuideTrihedronAC) tri;
+};
+
+OCCTGuideTrihedronACRef OCCTGeomFillGuideTrihedronACCreate(OCCTCurve3DRef _Nonnull guideCurveRef) {
+    try {
+        const Handle(Geom_Curve)& curve = *(const Handle(Geom_Curve)*)guideCurveRef;
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve);
+        auto* opaque = new GuideTrihedronACOpaque();
+        opaque->tri = new GeomFill_GuideTrihedronAC(adaptor);
+        return opaque;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTGeomFillGuideTrihedronACSetCurve(OCCTGuideTrihedronACRef _Nonnull ref, OCCTCurve3DRef _Nonnull pathCurveRef) {
+    try {
+        auto* opaque = (GuideTrihedronACOpaque*)ref;
+        const Handle(Geom_Curve)& curve = *(const Handle(Geom_Curve)*)pathCurveRef;
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve);
+        return opaque->tri->SetCurve(adaptor);
+    } catch (...) { return false; }
+}
+
+bool OCCTGeomFillGuideTrihedronACD0(OCCTGuideTrihedronACRef _Nonnull ref, double param,
+                                     double* _Nonnull tX, double* _Nonnull tY, double* _Nonnull tZ,
+                                     double* _Nonnull nX, double* _Nonnull nY, double* _Nonnull nZ,
+                                     double* _Nonnull bX, double* _Nonnull bY, double* _Nonnull bZ) {
+    try {
+        auto* opaque = (GuideTrihedronACOpaque*)ref;
+        gp_Vec T, N, B;
+        bool ok = opaque->tri->D0(param, T, N, B);
+        if (ok) {
+            *tX = T.X(); *tY = T.Y(); *tZ = T.Z();
+            *nX = N.X(); *nY = N.Y(); *nZ = N.Z();
+            *bX = B.X(); *bY = B.Y(); *bZ = B.Z();
+        }
+        return ok;
+    } catch (...) { return false; }
+}
+
+void OCCTGeomFillGuideTrihedronACRelease(OCCTGuideTrihedronACRef _Nonnull ref) {
+    delete (GuideTrihedronACOpaque*)ref;
+}
+
+// MARK: - GeomFill_GuideTrihedronPlan (v0.79)
+// --- GeomFill_GuideTrihedronPlan ---
+struct GuideTrihedronPlanOpaque {
+    Handle(GeomFill_GuideTrihedronPlan) tri;
+};
+
+OCCTGuideTrihedronPlanRef OCCTGeomFillGuideTrihedronPlanCreate(OCCTCurve3DRef _Nonnull guideCurveRef) {
+    try {
+        const Handle(Geom_Curve)& curve = *(const Handle(Geom_Curve)*)guideCurveRef;
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve);
+        auto* opaque = new GuideTrihedronPlanOpaque();
+        opaque->tri = new GeomFill_GuideTrihedronPlan(adaptor);
+        return opaque;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTGeomFillGuideTrihedronPlanSetCurve(OCCTGuideTrihedronPlanRef _Nonnull ref, OCCTCurve3DRef _Nonnull pathCurveRef) {
+    try {
+        auto* opaque = (GuideTrihedronPlanOpaque*)ref;
+        const Handle(Geom_Curve)& curve = *(const Handle(Geom_Curve)*)pathCurveRef;
+        Handle(GeomAdaptor_Curve) adaptor = new GeomAdaptor_Curve(curve);
+        return opaque->tri->SetCurve(adaptor);
+    } catch (...) { return false; }
+}
+
+bool OCCTGeomFillGuideTrihedronPlanD0(OCCTGuideTrihedronPlanRef _Nonnull ref, double param,
+                                       double* _Nonnull tX, double* _Nonnull tY, double* _Nonnull tZ,
+                                       double* _Nonnull nX, double* _Nonnull nY, double* _Nonnull nZ,
+                                       double* _Nonnull bX, double* _Nonnull bY, double* _Nonnull bZ) {
+    try {
+        auto* opaque = (GuideTrihedronPlanOpaque*)ref;
+        gp_Vec T, N, B;
+        bool ok = opaque->tri->D0(param, T, N, B);
+        if (ok) {
+            *tX = T.X(); *tY = T.Y(); *tZ = T.Z();
+            *nX = N.X(); *nY = N.Y(); *nZ = N.Z();
+            *bX = B.X(); *bY = B.Y(); *bZ = B.Z();
+        }
+        return ok;
+    } catch (...) { return false; }
+}
+
+void OCCTGeomFillGuideTrihedronPlanRelease(OCCTGuideTrihedronPlanRef _Nonnull ref) {
+    delete (GuideTrihedronPlanOpaque*)ref;
+}
+
+// MARK: - GeomFill_SectionPlacement (v0.79)
+// --- GeomFill_SectionPlacement ---
+OCCTSectionPlacementResult OCCTGeomFillSectionPlacement(OCCTCurve3DRef _Nonnull pathCurveRef,
+                                                         OCCTCurve3DRef _Nonnull sectionCurveRef,
+                                                         double dirX, double dirY, double dirZ,
+                                                         double draftAngle, double tolerance) {
+    OCCTSectionPlacementResult result = {};
+    try {
+        const Handle(Geom_Curve)& pathCurve = *(const Handle(Geom_Curve)*)pathCurveRef;
+        const Handle(Geom_Curve)& sectionCurve = *(const Handle(Geom_Curve)*)sectionCurveRef;
+
+        Handle(GeomFill_LocationDraft) loc = new GeomFill_LocationDraft(gp_Dir(dirX, dirY, dirZ), draftAngle);
+        Handle(GeomAdaptor_Curve) pathAdaptor = new GeomAdaptor_Curve(pathCurve);
+        loc->SetCurve(pathAdaptor);
+
+        GeomFill_SectionPlacement placement(loc, sectionCurve);
+        placement.Perform(tolerance);
+
+        result.isDone = placement.IsDone();
+        if (result.isDone) {
+            result.parameterOnPath = placement.ParameterOnPath();
+            result.parameterOnSection = placement.ParameterOnSection();
+            result.distance = placement.Distance();
+            result.angle = placement.Angle();
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - GeomFill_AppSurf (v0.79)
+// --- GeomFill_AppSurf ---
+OCCTAppSurfResult OCCTGeomFillAppSurf(const OCCTCurve3DRef _Nonnull * _Nonnull curveRefs, int count,
+                                       int degMin, int degMax, double tol3d, double tol2d) {
+    OCCTAppSurfResult result = {};
+    try {
+        GeomFill_SectionGenerator secGen;
+        for (int i = 0; i < count; i++) {
+            const Handle(Geom_Curve)& curve = *(const Handle(Geom_Curve)*)curveRefs[i];
+            secGen.AddCurve(curve);
+        }
+        secGen.Perform(1e-6);
+
+        Handle(NCollection_HArray1<double>) params = new NCollection_HArray1<double>(1, count);
+        for (int i = 0; i < count; i++) {
+            params->SetValue(i + 1, (double)i / (double)(count - 1));
+        }
+        secGen.SetParam(params);
+
+        Handle(GeomFill_Line) line = new GeomFill_Line(count);
+
+        GeomFill_AppSurf appSurf(degMin, degMax, tol3d, tol2d, 10, false);
+        appSurf.Perform(line, secGen, false);
+
+        result.isDone = appSurf.IsDone();
+        if (result.isDone) {
+            appSurf.SurfShape(result.uDegree, result.vDegree,
+                             result.nbUPoles, result.nbVPoles,
+                             result.nbUKnots, result.nbVKnots);
+        }
+    } catch (...) {}
+    return result;
 }

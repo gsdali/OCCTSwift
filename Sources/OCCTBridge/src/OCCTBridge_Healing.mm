@@ -102,6 +102,8 @@
 #include <ShapeUpgrade_SplitSurfaceAngle.hxx>
 #include <ShapeUpgrade_SplitSurfaceArea.hxx>
 #include <ShapeUpgrade_SplitSurfaceContinuity.hxx>
+#include <ShapeExtend_CompositeSurface.hxx>
+#include <ShapeFix_ComposeShell.hxx>
 #include <ShapeUpgrade_ClosedFaceDivide.hxx>
 #include <ShapeUpgrade_ShapeDivideAngle.hxx>
 #include <ShapeUpgrade_ShapeDivideArea.hxx>
@@ -2905,4 +2907,34 @@ int OCCTSplitSurfaceArea(OCCTSurfaceRef _Nonnull surfaceRef, int nbParts, bool i
     } catch (...) {
         return 0;
     }
+}
+
+// MARK: - ShapeFix_ComposeShell (v0.79)
+// --- ShapeFix_ComposeShell ---
+OCCTShapeRef _Nullable OCCTShapeFixComposeShell(OCCTShapeRef _Nonnull faceRef, double precision) {
+    try {
+        const TopoDS_Shape& shape = *(const TopoDS_Shape*)faceRef;
+        TopoDS_Face face = TopoDS::Face(shape);
+
+        // Get the surface from the face
+        Handle(Geom_Surface) surf = BRep_Tool::Surface(face);
+        if (surf.IsNull()) return nullptr;
+
+        // Create a 1x1 composite surface grid
+        Handle(NCollection_HArray2<Handle(Geom_Surface)>) grid =
+            new NCollection_HArray2<Handle(Geom_Surface)>(1, 1, 1, 1);
+        grid->SetValue(1, 1, surf);
+
+        Handle(ShapeExtend_CompositeSurface) compSurf = new ShapeExtend_CompositeSurface(grid);
+
+        Handle(ShapeFix_ComposeShell) cs = new ShapeFix_ComposeShell();
+        cs->Init(compSurf, TopLoc_Location(), face, precision);
+        bool ok = cs->Perform();
+
+        if (ok) {
+            const TopoDS_Shape& result = cs->Result();
+            if (!result.IsNull()) return (OCCTShapeRef)new TopoDS_Shape(result);
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
 }

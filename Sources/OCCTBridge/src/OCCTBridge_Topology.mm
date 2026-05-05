@@ -33,6 +33,8 @@
 #include <TopCnx_EdgeFaceTransition.hxx>
 #include <TopTrans_SurfaceTransition.hxx>
 #include <BRepIntCurveSurface_Inter.hxx>
+#include <BRepExtrema_DistanceSS.hxx>
+#include <BRepExtrema_SolutionElem.hxx>
 #include <BRepLib_FindSurface.hxx>
 #include <BRepTools_ReShape.hxx>
 #include <BRepTools_WireExplorer.hxx>
@@ -1619,4 +1621,33 @@ int32_t OCCTCurveSurfaceInterAllHits(OCCTCurveSurfaceInterRef _Nonnull inter,
         }
     } catch (...) {}
     return count;
+}
+
+// MARK: - BRepExtrema_DistanceSS (v0.79)
+// --- BRepExtrema_DistanceSS ---
+OCCTDistanceSSResult OCCTBRepExtremaDistanceSS(OCCTShapeRef _Nonnull shape1Ref,
+                                                OCCTShapeRef _Nonnull shape2Ref,
+                                                double deflection) {
+    OCCTDistanceSSResult result = {};
+    try {
+        const TopoDS_Shape& s1 = *(const TopoDS_Shape*)shape1Ref;
+        const TopoDS_Shape& s2 = *(const TopoDS_Shape*)shape2Ref;
+
+        Bnd_Box b1, b2;
+        BRepBndLib::Add(s1, b1);
+        BRepBndLib::Add(s2, b2);
+
+        BRepExtrema_DistanceSS dss(s1, s2, b1, b2, 1e10, deflection);
+        result.isDone = dss.IsDone();
+        result.distance = dss.DistValue();
+        result.solutionCount = (int)dss.Seq1Value().Size();
+
+        if (result.solutionCount > 0) {
+            gp_Pnt p1 = dss.Seq1Value().First().Point();
+            gp_Pnt p2 = dss.Seq2Value().First().Point();
+            result.point1X = p1.X(); result.point1Y = p1.Y(); result.point1Z = p1.Z();
+            result.point2X = p2.X(); result.point2Y = p2.Y(); result.point2Z = p2.Z();
+        }
+    } catch (...) {}
+    return result;
 }
