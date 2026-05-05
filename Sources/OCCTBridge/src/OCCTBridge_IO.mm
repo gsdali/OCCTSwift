@@ -36,6 +36,10 @@
 #include <Message_ProgressIndicator.hxx>
 #include <Message_ProgressScope.hxx>
 #include <Message_ProgressRange.hxx>
+#include <GeomTools_CurveSet.hxx>
+#include <GeomTools_Curve2dSet.hxx>
+#include <GeomTools_SurfaceSet.hxx>
+#include <sstream>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <TDF_LabelSequence.hxx>
 #include <TDF_Label.hxx>
@@ -1321,3 +1325,162 @@ OCCTDocumentRef OCCTDocumentLoadOBJWithCS(const char* path,
     } catch (...) { return nullptr; }
 }
 
+
+// MARK: - GeomTools persistence: CurveSet / Curve2dSet / SurfaceSet (v0.80)
+// --- GeomTools_CurveSet ---
+
+const char * _Nullable OCCTGeomToolsCurveSetWrite(const OCCTCurve3DRef * curveRefs, int count) {
+    try {
+        GeomTools_CurveSet cs;
+        for (int i = 0; i < count; i++) {
+            auto* c = (OCCTCurve3D*)curveRefs[i];
+            cs.Add(c->curve);
+        }
+        std::ostringstream oss;
+        cs.Write(oss);
+        std::string s = oss.str();
+        char* result = (char*)malloc(s.size() + 1);
+        memcpy(result, s.c_str(), s.size() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef * _Nullable OCCTGeomToolsCurveSetRead(const char * data, int * outCount) {
+    *outCount = 0;
+    try {
+        std::istringstream iss(data);
+        GeomTools_CurveSet cs;
+        cs.Read(iss);
+        // Count curves (1-based indexing, index 0 returns null)
+        int n = 0;
+        for (int i = 1; ; i++) {
+            try {
+                Handle(Geom_Curve) c = cs.Curve(i);
+                if (c.IsNull()) break;
+                n++;
+            } catch (...) { break; }
+        }
+        if (n == 0) return nullptr;
+        OCCTCurve3DRef* arr = (OCCTCurve3DRef*)malloc(sizeof(OCCTCurve3DRef) * n);
+        for (int i = 0; i < n; i++) {
+            Handle(Geom_Curve) c = cs.Curve(i + 1);
+            arr[i] = (OCCTCurve3DRef)new OCCTCurve3D{c};
+        }
+        *outCount = n;
+        return arr;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomToolsCurveSetFreeArray(OCCTCurve3DRef * array, int count) {
+    if (!array) return;
+    for (int i = 0; i < count; i++) {
+        if (array[i]) OCCTCurve3DRelease(array[i]);
+    }
+    free(array);
+}
+
+// --- GeomTools_Curve2dSet ---
+
+const char * _Nullable OCCTGeomToolsCurve2dSetWrite(const OCCTCurve2DRef * curveRefs, int count) {
+    try {
+        GeomTools_Curve2dSet cs;
+        for (int i = 0; i < count; i++) {
+            auto* c = (OCCTCurve2D*)curveRefs[i];
+            cs.Add(c->curve);
+        }
+        std::ostringstream oss;
+        cs.Write(oss);
+        std::string s = oss.str();
+        char* result = (char*)malloc(s.size() + 1);
+        memcpy(result, s.c_str(), s.size() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef * _Nullable OCCTGeomToolsCurve2dSetRead(const char * data, int * outCount) {
+    *outCount = 0;
+    try {
+        std::istringstream iss(data);
+        GeomTools_Curve2dSet cs;
+        cs.Read(iss);
+        int n = 0;
+        for (int i = 1; ; i++) {
+            try {
+                Handle(Geom2d_Curve) c = cs.Curve2d(i);
+                if (c.IsNull()) break;
+                n++;
+            } catch (...) { break; }
+        }
+        if (n == 0) return nullptr;
+        OCCTCurve2DRef* arr = (OCCTCurve2DRef*)malloc(sizeof(OCCTCurve2DRef) * n);
+        for (int i = 0; i < n; i++) {
+            Handle(Geom2d_Curve) c = cs.Curve2d(i + 1);
+            arr[i] = (OCCTCurve2DRef)new OCCTCurve2D{c};
+        }
+        *outCount = n;
+        return arr;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomToolsCurve2dSetFreeArray(OCCTCurve2DRef * array, int count) {
+    if (!array) return;
+    for (int i = 0; i < count; i++) {
+        if (array[i]) OCCTCurve2DRelease(array[i]);
+    }
+    free(array);
+}
+
+// --- GeomTools_SurfaceSet ---
+
+const char * _Nullable OCCTGeomToolsSurfaceSetWrite(const OCCTSurfaceRef * surfRefs, int count) {
+    try {
+        GeomTools_SurfaceSet ss;
+        for (int i = 0; i < count; i++) {
+            auto* s = (OCCTSurface*)surfRefs[i];
+            ss.Add(s->surface);
+        }
+        std::ostringstream oss;
+        ss.Write(oss);
+        std::string s = oss.str();
+        char* result = (char*)malloc(s.size() + 1);
+        memcpy(result, s.c_str(), s.size() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef * _Nullable OCCTGeomToolsSurfaceSetRead(const char * data, int * outCount) {
+    *outCount = 0;
+    try {
+        std::istringstream iss(data);
+        GeomTools_SurfaceSet ss;
+        ss.Read(iss);
+        int n = 0;
+        for (int i = 1; ; i++) {
+            try {
+                Handle(Geom_Surface) s = ss.Surface(i);
+                if (s.IsNull()) break;
+                n++;
+            } catch (...) { break; }
+        }
+        if (n == 0) return nullptr;
+        OCCTSurfaceRef* arr = (OCCTSurfaceRef*)malloc(sizeof(OCCTSurfaceRef) * n);
+        for (int i = 0; i < n; i++) {
+            Handle(Geom_Surface) s = ss.Surface(i + 1);
+            arr[i] = (OCCTSurfaceRef)new OCCTSurface{s};
+        }
+        *outCount = n;
+        return arr;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomToolsSurfaceSetFreeArray(OCCTSurfaceRef * array, int count) {
+    if (!array) return;
+    for (int i = 0; i < count; i++) {
+        if (array[i]) OCCTSurfaceRelease(array[i]);
+    }
+    free(array);
+}
+
+void OCCTGeomToolsFreeString(const char * str) {
+    if (str) free((void*)str);
+}

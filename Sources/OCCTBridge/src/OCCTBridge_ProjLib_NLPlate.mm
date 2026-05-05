@@ -40,6 +40,9 @@
 #include <Plate_Plate.hxx>
 #include <Geom_Line.hxx>
 #include <ShapeConstruct_ProjectCurveOnSurface.hxx>
+#include <ProjLib_ProjectOnSurface.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_TrimmedCurve.hxx>
 
 #include <Geom_BSplineSurface.hxx>
 #include <Geom_Curve.hxx>
@@ -1017,4 +1020,28 @@ OCCTCurve2DRef _Nullable OCCTProjectCurveOnSurface(OCCTCurve3DRef _Nonnull curve
     } catch (...) {
         return nullptr;
     }
+}
+
+// MARK: - ProjLib_ProjectOnSurface (v0.80)
+// --- ProjLib_ProjectOnSurface ---
+
+OCCTCurve3DRef _Nullable OCCTProjLibProjectOnSurface(OCCTCurve3DRef curve, double uFirst, double uLast,
+                                                      OCCTSurfaceRef surface, double tolerance) {
+    try {
+        auto* c = (OCCTCurve3D*)curve;
+        auto* s = (OCCTSurface*)surface;
+        Handle(GeomAdaptor_Surface) as = new GeomAdaptor_Surface(s->surface);
+        Handle(Geom_TrimmedCurve) trimmed = new Geom_TrimmedCurve(c->curve, uFirst, uLast);
+        Handle(GeomAdaptor_Curve) ac = new GeomAdaptor_Curve(trimmed);
+
+        ProjLib_ProjectOnSurface proj;
+        proj.Load(as);
+        proj.Load(ac, tolerance);
+
+        if (proj.IsDone()) {
+            Handle(Geom_BSplineCurve) bsp = proj.BSpline();
+            if (!bsp.IsNull()) return (OCCTCurve3DRef)new OCCTCurve3D{bsp};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
 }

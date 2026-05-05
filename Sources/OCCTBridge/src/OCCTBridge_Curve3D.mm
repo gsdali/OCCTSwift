@@ -44,6 +44,17 @@
 #include <GeomLib_CheckBSplineCurve.hxx>
 #include <GeomLib_Interpolate.hxx>
 #include <Approx_SameParameter.hxx>
+#include <Extrema_ExtCC.hxx>
+#include <Extrema_ExtCS.hxx>
+#include <Extrema_LocateExtCC.hxx>
+#include <Extrema_POnCurv.hxx>
+#include <Extrema_POnSurf.hxx>
+#include <gce_MakeCirc.hxx>
+#include <gce_MakeDir.hxx>
+#include <gce_MakeElips.hxx>
+#include <gce_MakeHypr.hxx>
+#include <gce_MakeLin.hxx>
+#include <gce_MakeParab.hxx>
 #include <ShapeUpgrade_SplitCurve3dContinuity.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -2162,4 +2173,198 @@ bool OCCTGeomConvertIsLinear(const double* _Nonnull points, int count, double to
     } catch (...) {
         return false;
     }
+}
+
+// MARK: - Extrema_ExtCC + ExtCS (v0.80)
+// --- Extrema_ExtCC ---
+
+OCCTExtremaExtCCResult OCCTExtremaExtCC(OCCTCurve3DRef curve1, double u1First, double u1Last,
+                                         OCCTCurve3DRef curve2, double u2First, double u2Last) {
+    OCCTExtremaExtCCResult result = {false, false, 0};
+    try {
+        auto* c1 = (OCCTCurve3D*)curve1;
+        auto* c2 = (OCCTCurve3D*)curve2;
+        Handle(GeomAdaptor_Curve) ac1 = new GeomAdaptor_Curve(c1->curve, u1First, u1Last);
+        Handle(GeomAdaptor_Curve) ac2 = new GeomAdaptor_Curve(c2->curve, u2First, u2Last);
+        Extrema_ExtCC ext(*ac1, *ac2);
+        result.isDone = ext.IsDone();
+        if (result.isDone) {
+            result.isParallel = ext.IsParallel();
+            if (!result.isParallel) result.nbExt = ext.NbExt();
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTExtremaPointPair OCCTExtremaExtCCPoint(OCCTCurve3DRef curve1, double u1First, double u1Last,
+                                            OCCTCurve3DRef curve2, double u2First, double u2Last,
+                                            int index) {
+    OCCTExtremaPointPair result = {};
+    try {
+        auto* c1 = (OCCTCurve3D*)curve1;
+        auto* c2 = (OCCTCurve3D*)curve2;
+        Handle(GeomAdaptor_Curve) ac1 = new GeomAdaptor_Curve(c1->curve, u1First, u1Last);
+        Handle(GeomAdaptor_Curve) ac2 = new GeomAdaptor_Curve(c2->curve, u2First, u2Last);
+        Extrema_ExtCC ext(*ac1, *ac2);
+        if (ext.IsDone() && !ext.IsParallel() && index >= 1 && index <= ext.NbExt()) {
+            result.squareDistance = ext.SquareDistance(index);
+            Extrema_POnCurv p1, p2;
+            ext.Points(index, p1, p2);
+            result.x1 = p1.Value().X(); result.y1 = p1.Value().Y(); result.z1 = p1.Value().Z();
+            result.param1 = p1.Parameter();
+            result.x2 = p2.Value().X(); result.y2 = p2.Value().Y(); result.z2 = p2.Value().Z();
+            result.param2 = p2.Parameter();
+        }
+    } catch (...) {}
+    return result;
+}
+
+// --- Extrema_ExtCS ---
+
+OCCTExtremaExtCSResult OCCTExtremaExtCS(OCCTCurve3DRef curve, double uFirst, double uLast,
+                                         OCCTSurfaceRef surface) {
+    OCCTExtremaExtCSResult result = {false, false, 0};
+    try {
+        auto* c = (OCCTCurve3D*)curve;
+        auto* s = (OCCTSurface*)surface;
+        Handle(GeomAdaptor_Curve) ac = new GeomAdaptor_Curve(c->curve, uFirst, uLast);
+        Handle(GeomAdaptor_Surface) as = new GeomAdaptor_Surface(s->surface);
+        Extrema_ExtCS ext(*ac, *as, 1e-6, 1e-6);
+        result.isDone = ext.IsDone();
+        if (result.isDone) {
+            result.isParallel = ext.IsParallel();
+            if (!result.isParallel) result.nbExt = ext.NbExt();
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTExtremaPointPair OCCTExtremaExtCSPoint(OCCTCurve3DRef curve, double uFirst, double uLast,
+                                            OCCTSurfaceRef surface, int index) {
+    OCCTExtremaPointPair result = {};
+    try {
+        auto* c = (OCCTCurve3D*)curve;
+        auto* s = (OCCTSurface*)surface;
+        Handle(GeomAdaptor_Curve) ac = new GeomAdaptor_Curve(c->curve, uFirst, uLast);
+        Handle(GeomAdaptor_Surface) as = new GeomAdaptor_Surface(s->surface);
+        Extrema_ExtCS ext(*ac, *as, 1e-6, 1e-6);
+        if (ext.IsDone() && !ext.IsParallel() && index >= 1 && index <= ext.NbExt()) {
+            result.squareDistance = ext.SquareDistance(index);
+            Extrema_POnCurv pc;
+            Extrema_POnSurf ps;
+            ext.Points(index, pc, ps);
+            result.x1 = pc.Value().X(); result.y1 = pc.Value().Y(); result.z1 = pc.Value().Z();
+            result.param1 = pc.Parameter();
+            result.x2 = ps.Value().X(); result.y2 = ps.Value().Y(); result.z2 = ps.Value().Z();
+            double u, v;
+            ps.Parameter(u, v);
+            result.param2 = u; // Store U in param2; V not directly available in this struct
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - Extrema_LocateExtCC (v0.80)
+// --- Extrema_LocateExtCC ---
+
+OCCTExtremaLocateExtCCResult OCCTExtremaLocateExtCC(OCCTCurve3DRef curve1, double u1First, double u1Last,
+                                                     OCCTCurve3DRef curve2, double u2First, double u2Last,
+                                                     double seedU, double seedV) {
+    OCCTExtremaLocateExtCCResult result = {};
+    try {
+        auto* c1 = (OCCTCurve3D*)curve1;
+        auto* c2 = (OCCTCurve3D*)curve2;
+        Handle(GeomAdaptor_Curve) ac1 = new GeomAdaptor_Curve(c1->curve, u1First, u1Last);
+        Handle(GeomAdaptor_Curve) ac2 = new GeomAdaptor_Curve(c2->curve, u2First, u2Last);
+        Extrema_LocateExtCC ext(*ac1, *ac2, seedU, seedV);
+        result.isDone = ext.IsDone();
+        if (result.isDone) {
+            result.squareDistance = ext.SquareDistance();
+            Extrema_POnCurv p1, p2;
+            ext.Point(p1, p2);
+            result.x1 = p1.Value().X(); result.y1 = p1.Value().Y(); result.z1 = p1.Value().Z();
+            result.param1 = p1.Parameter();
+            result.x2 = p2.Value().X(); result.y2 = p2.Value().Y(); result.z2 = p2.Value().Z();
+            result.param2 = p2.Parameter();
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - gce_Make Circ / Lin / Dir / Elips / Hypr / Parab (v0.80)
+// --- gce factories ---
+
+OCCTCurve3DRef _Nullable OCCTGceMakeCircFrom3Points(double p1x, double p1y, double p1z,
+                                                     double p2x, double p2y, double p2z,
+                                                     double p3x, double p3y, double p3z) {
+    try {
+        gce_MakeCirc mc(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z), gp_Pnt(p3x, p3y, p3z));
+        if (!mc.IsDone()) return nullptr;
+        Handle(Geom_Circle) circ = new Geom_Circle(mc.Value());
+        return (OCCTCurve3DRef)new OCCTCurve3D{circ};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef _Nullable OCCTGceMakeCircFromCenterNormal(double cx, double cy, double cz,
+                                                          double nx, double ny, double nz,
+                                                          double radius) {
+    try {
+        gce_MakeCirc mc(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz), radius);
+        if (!mc.IsDone()) return nullptr;
+        Handle(Geom_Circle) circ = new Geom_Circle(mc.Value());
+        return (OCCTCurve3DRef)new OCCTCurve3D{circ};
+    } catch (...) { return nullptr; }
+}
+OCCTCurve3DRef _Nullable OCCTGceMakeLinFrom2Points(double p1x, double p1y, double p1z,
+                                                    double p2x, double p2y, double p2z) {
+    try {
+        gce_MakeLin ml(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z));
+        if (!ml.IsDone()) return nullptr;
+        Handle(Geom_Line) line = new Geom_Line(ml.Value());
+        return (OCCTCurve3DRef)new OCCTCurve3D{line};
+    } catch (...) { return nullptr; }
+}
+bool OCCTGceMakeDir(double p1x, double p1y, double p1z,
+                     double p2x, double p2y, double p2z,
+                     double * outX, double * outY, double * outZ) {
+    try {
+        gce_MakeDir md(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z));
+        if (!md.IsDone()) return false;
+        *outX = md.Value().X();
+        *outY = md.Value().Y();
+        *outZ = md.Value().Z();
+        return true;
+    } catch (...) { return false; }
+}
+OCCTCurve3DRef _Nullable OCCTGceMakeElips(double cx, double cy, double cz,
+                                           double nx, double ny, double nz,
+                                           double majorRadius, double minorRadius) {
+    try {
+        gce_MakeElips me(gp_Ax2(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), majorRadius, minorRadius);
+        if (!me.IsDone()) return nullptr;
+        Handle(Geom_Ellipse) elips = new Geom_Ellipse(me.Value());
+        return (OCCTCurve3DRef)new OCCTCurve3D{elips};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef _Nullable OCCTGceMakeHypr(double cx, double cy, double cz,
+                                          double nx, double ny, double nz,
+                                          double majorRadius, double minorRadius) {
+    try {
+        gce_MakeHypr mh(gp_Ax2(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), majorRadius, minorRadius);
+        if (!mh.IsDone()) return nullptr;
+        Handle(Geom_Hyperbola) hypr = new Geom_Hyperbola(mh.Value());
+        return (OCCTCurve3DRef)new OCCTCurve3D{hypr};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef _Nullable OCCTGceMakeParab(double cx, double cy, double cz,
+                                           double nx, double ny, double nz,
+                                           double focal) {
+    try {
+        gce_MakeParab mp(gp_Ax2(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz)), focal);
+        if (!mp.IsDone()) return nullptr;
+        Handle(Geom_Parabola) parab = new Geom_Parabola(mp.Value());
+        return (OCCTCurve3DRef)new OCCTCurve3D{parab};
+    } catch (...) { return nullptr; }
 }
