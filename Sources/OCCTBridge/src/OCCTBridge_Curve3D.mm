@@ -34,8 +34,18 @@
 
 #include <GC_MakeArcOfCircle.hxx>
 #include <GC_MakeArcOfEllipse.hxx>
+#include <GC_MakeArcOfHyperbola.hxx>
+#include <GC_MakeArcOfParabola.hxx>
 #include <GC_MakeCircle.hxx>
+#include <GC_MakeEllipse.hxx>
+#include <GC_MakeHyperbola.hxx>
 #include <GC_MakeSegment.hxx>
+#include <ShapeCustom_Curve.hxx>
+#include <ShapeUpgrade_SplitCurve3d.hxx>
+#include <TColGeom_HArray1OfCurve.hxx>
+#include <TColStd_HSequenceOfReal.hxx>
+#include <gp_Hypr.hxx>
+#include <gp_Parab.hxx>
 
 #include <GCPnts_TangentialDeflection.hxx>
 #include <GCPnts_UniformAbscissa.hxx>
@@ -1107,5 +1117,254 @@ bool OCCTEdgeApproxCurveInfo(OCCTEdgeRef edge, double tolerance,
         return true;
     } catch (...) {
         return false;
+    }
+}
+
+// MARK: - GeomConvert_CompCurveToBSplineCurve Join (v0.49)
+// --- GeomConvert_CompCurveToBSplineCurve ---
+
+OCCTCurve3DRef OCCTCurve3DJoinCurves(const OCCTCurve3DRef* curves, int32_t count, double tolerance) {
+    if (!curves || count < 1) return nullptr;
+    try {
+        // First curve initializes the joiner
+        Handle(Geom_BoundedCurve) first = Handle(Geom_BoundedCurve)::DownCast(curves[0]->curve);
+        if (first.IsNull()) return nullptr;
+
+        GeomConvert_CompCurveToBSplineCurve joiner(first);
+
+        for (int i = 1; i < count; i++) {
+            if (!curves[i]) return nullptr;
+            Handle(Geom_BoundedCurve) bc = Handle(Geom_BoundedCurve)::DownCast(curves[i]->curve);
+            if (bc.IsNull()) return nullptr;
+            if (!joiner.Add(bc, tolerance)) return nullptr;
+        }
+
+        Handle(Geom_BSplineCurve) bsp = joiner.BSplineCurve();
+        if (bsp.IsNull()) return nullptr;
+
+        auto* result = new OCCTCurve3D();
+        result->curve = bsp;
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Curve3D Projection / Validate / Sample (v0.49)
+// --- ShapeAnalysis_Curve expansion ---
+
+OCCTCurveProjectResult OCCTCurve3DProjectPoint(OCCTCurve3DRef curve,
+    double px, double py, double pz, double precision) {
+    OCCTCurveProjectResult result = {};
+    if (!curve) return result;
+    try {
+        ShapeAnalysis_Curve sac;
+        gp_Pnt proj;
+        double param;
+        double dist = sac.Project(curve->curve, gp_Pnt(px, py, pz), precision, proj, param);
+        result.distance = dist;
+        result.parameter = param;
+        result.projX = proj.X();
+        result.projY = proj.Y();
+        result.projZ = proj.Z();
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTCurveValidateRangeResult OCCTCurve3DValidateRange(OCCTCurve3DRef curve,
+    double first, double last, double precision) {
+    OCCTCurveValidateRangeResult result = {};
+    result.first = first;
+    result.last = last;
+    result.wasAdjusted = false;
+    if (!curve) return result;
+    try {
+        ShapeAnalysis_Curve sac;
+        double f = first, l = last;
+        bool adjusted = sac.ValidateRange(curve->curve, f, l, precision);
+        result.first = f;
+        result.last = l;
+        result.wasAdjusted = adjusted;
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+int32_t OCCTCurve3DGetSamplePoints3D(OCCTCurve3DRef curve, double first, double last,
+    double* outXYZ, int32_t maxPoints) {
+    if (!curve || !outXYZ || maxPoints <= 0) return 0;
+    try {
+        ShapeAnalysis_Curve sac;
+        NCollection_Sequence<gp_Pnt> pts;
+        if (!sac.GetSamplePoints(curve->curve, first, last, pts)) return 0;
+
+        int32_t count = std::min((int32_t)pts.Length(), maxPoints);
+        for (int32_t i = 0; i < count; i++) {
+            const gp_Pnt& p = pts.Value(i + 1); // 1-indexed
+            outXYZ[i * 3]     = p.X();
+            outXYZ[i * 3 + 1] = p.Y();
+            outXYZ[i * 3 + 2] = p.Z();
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - GC ArcOfHyperbola / ArcOfParabola (v0.50)
+OCCTCurve3DRef OCCTCurve3DArcOfHyperbola(
+    double majorRadius, double minorRadius,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double alpha1, double alpha2, bool sense) {
+    try {
+        gp_Ax2 ax(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        gp_Hypr hypr(ax, majorRadius, minorRadius);
+        GC_MakeArcOfHyperbola maker(hypr, alpha1, alpha2, sense ? Standard_True : Standard_False);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_TrimmedCurve) arc = maker.Value();
+        if (arc.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D();
+        ref->curve = arc;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve3DRef OCCTCurve3DArcOfParabola(
+    double focalDistance,
+    double axisX, double axisY, double axisZ,
+    double dirX, double dirY, double dirZ,
+    double alpha1, double alpha2, bool sense) {
+    try {
+        gp_Ax2 ax(gp_Pnt(axisX, axisY, axisZ), gp_Dir(dirX, dirY, dirZ));
+        gp_Parab parab(ax, focalDistance);
+        GC_MakeArcOfParabola maker(parab, alpha1, alpha2, sense ? Standard_True : Standard_False);
+        if (!maker.IsDone()) return nullptr;
+        Handle(Geom_TrimmedCurve) arc = maker.Value();
+        if (arc.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D();
+        ref->curve = arc;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Curve3D ConvertToPeriodic / SplitAt (v0.50)
+OCCTCurve3DRef OCCTCurve3DConvertToPeriodic(OCCTCurve3DRef curve) {
+    if (!curve) return nullptr;
+    try {
+        ShapeCustom_Curve scc(curve->curve);
+        Handle(Geom_Curve) periodic = scc.ConvertToPeriodic(Standard_False);
+        if (periodic.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D();
+        ref->curve = periodic;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTCurve3DSplitAt(OCCTCurve3DRef curve, double splitParam,
+    OCCTCurve3DRef* outCurve1, OCCTCurve3DRef* outCurve2) {
+    if (!curve || !outCurve1 || !outCurve2) return false;
+    *outCurve1 = nullptr;
+    *outCurve2 = nullptr;
+    try {
+        Handle(Geom_Curve) c = curve->curve;
+        double first = c->FirstParameter();
+        double last = c->LastParameter();
+        if (splitParam <= first || splitParam >= last) return false;
+
+        Handle(ShapeUpgrade_SplitCurve3d) splitter = new ShapeUpgrade_SplitCurve3d();
+        splitter->Init(c, first, last);
+        Handle(TColStd_HSequenceOfReal) splitVals = new TColStd_HSequenceOfReal();
+        splitVals->Append(splitParam);
+        splitter->SetSplitValues(splitVals);
+        splitter->Perform(Standard_True);
+
+        Handle(TColGeom_HArray1OfCurve) curves = splitter->GetCurves();
+        if (curves.IsNull() || curves->Length() < 2) return false;
+
+        auto* ref1 = new OCCTCurve3D();
+        ref1->curve = curves->Value(1);
+        *outCurve1 = ref1;
+
+        auto* ref2 = new OCCTCurve3D();
+        ref2->curve = curves->Value(2);
+        *outCurve2 = ref2;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - GC MakeEllipse / MakeHyperbola (v0.51)
+// --- GC_MakeEllipse ---
+
+OCCTCurve3DRef _Nullable OCCTCurve3DMakeEllipse(double cx, double cy, double cz,
+    double dx, double dy, double dz, double majorRadius, double minorRadius) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(dx, dy, dz));
+        GC_MakeEllipse me(ax, majorRadius, minorRadius);
+        if (!me.IsDone()) return nullptr;
+        auto* curve = new OCCTCurve3D();
+        curve->curve = me.Value();
+        return curve;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve3DRef _Nullable OCCTCurve3DMakeEllipseThreePoints(
+    double s1x, double s1y, double s1z,
+    double s2x, double s2y, double s2z,
+    double centerX, double centerY, double centerZ) {
+    try {
+        GC_MakeEllipse me(gp_Pnt(s1x, s1y, s1z), gp_Pnt(s2x, s2y, s2z),
+                          gp_Pnt(centerX, centerY, centerZ));
+        if (!me.IsDone()) return nullptr;
+        auto* curve = new OCCTCurve3D();
+        curve->curve = me.Value();
+        return curve;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- GC_MakeHyperbola ---
+
+OCCTCurve3DRef _Nullable OCCTCurve3DMakeHyperbola(double cx, double cy, double cz,
+    double dx, double dy, double dz, double majorRadius, double minorRadius) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(dx, dy, dz));
+        GC_MakeHyperbola mh(ax, majorRadius, minorRadius);
+        if (!mh.IsDone()) return nullptr;
+        auto* curve = new OCCTCurve3D();
+        curve->curve = mh.Value();
+        return curve;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurve3DRef _Nullable OCCTCurve3DMakeHyperbolaThreePoints(
+    double s1x, double s1y, double s1z,
+    double s2x, double s2y, double s2z,
+    double centerX, double centerY, double centerZ) {
+    try {
+        GC_MakeHyperbola mh(gp_Pnt(s1x, s1y, s1z), gp_Pnt(s2x, s2y, s2z),
+                            gp_Pnt(centerX, centerY, centerZ));
+        if (!mh.IsDone()) return nullptr;
+        auto* curve = new OCCTCurve3D();
+        curve->curve = mh.Value();
+        return curve;
+    } catch (...) {
+        return nullptr;
     }
 }
