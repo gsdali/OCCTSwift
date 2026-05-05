@@ -4435,3 +4435,31 @@ int32_t OCCTCurve3DBSplineLocateU(OCCTCurve3DRef curve, double u, double tol) {
         return (int32_t)ki;
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.114: Curve3D isBounded + DN + type-name
+// --- Curve isBounded ---
+
+bool OCCTCurve3DIsBounded(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    try {
+        Handle(Geom_BoundedCurve) bc = Handle(Geom_BoundedCurve)::DownCast(curve->curve);
+        return !bc.IsNull();
+    } catch (...) { return false; }
+}
+// --- Geom_Curve DN ---
+
+void OCCTCurve3DDN(OCCTCurve3DRef curve, double u, int32_t n,
+                    double* x, double* y, double* z) {
+    if (!curve || curve->curve.IsNull()) { *x = *y = *z = 0; return; }
+    try {
+        gp_Vec v = curve->curve->DN(u, n);
+        *x = v.X(); *y = v.Y(); *z = v.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+const char* OCCTCurve3DTypeName(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        return curve->curve->DynamicType()->Name();
+    } catch (...) { return nullptr; }
+}
+

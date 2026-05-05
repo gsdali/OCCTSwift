@@ -1633,3 +1633,57 @@ bool OCCTFaceLPropTangentU(OCCTShapeRef face, double u, double v, double* dx, do
         return true;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.114: Shape mass properties expansion
+// --- Shape mass properties expansion ---
+
+double OCCTShapeLinearProperties(OCCTShapeRef shape, double* cx, double* cy, double* cz) {
+    if (!shape) { *cx = *cy = *cz = 0; return 0; }
+    try {
+        GProp_GProps props;
+        BRepGProp::LinearProperties(shape->shape, props);
+        gp_Pnt com = props.CentreOfMass();
+        *cx = com.X(); *cy = com.Y(); *cz = com.Z();
+        return props.Mass();
+    } catch (...) { *cx = *cy = *cz = 0; return 0; }
+}
+
+void OCCTShapeMomentOfInertia(OCCTShapeRef shape,
+                                double* ixx, double* iyy, double* izz,
+                                double* ixy, double* ixz, double* iyz) {
+    if (!shape) { *ixx = *iyy = *izz = *ixy = *ixz = *iyz = 0; return; }
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+        gp_Mat mat = props.MatrixOfInertia();
+        *ixx = mat(1,1); *iyy = mat(2,2); *izz = mat(3,3);
+        *ixy = mat(1,2); *ixz = mat(1,3); *iyz = mat(2,3);
+    } catch (...) { *ixx = *iyy = *izz = *ixy = *ixz = *iyz = 0; }
+}
+
+void OCCTShapePrincipalAxes(OCCTShapeRef shape, double* axes9) {
+    if (!shape) { for (int i=0;i<9;i++) axes9[i]=0; return; }
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+        GProp_PrincipalProps pp = props.PrincipalProperties();
+        const gp_Vec& v1 = pp.FirstAxisOfInertia();
+        const gp_Vec& v2 = pp.SecondAxisOfInertia();
+        const gp_Vec& v3 = pp.ThirdAxisOfInertia();
+        axes9[0] = v1.X(); axes9[1] = v1.Y(); axes9[2] = v1.Z();
+        axes9[3] = v2.X(); axes9[4] = v2.Y(); axes9[5] = v2.Z();
+        axes9[6] = v3.X(); axes9[7] = v3.Y(); axes9[8] = v3.Z();
+    } catch (...) { for (int i=0;i<9;i++) axes9[i]=0; }
+}
+
+double OCCTShapeRadiusOfGyration(OCCTShapeRef shape,
+                                    double ax, double ay, double az,
+                                    double dx, double dy, double dz) {
+    if (!shape) return 0;
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+        gp_Ax1 axis(gp_Pnt(ax, ay, az), gp_Dir(dx, dy, dz));
+        return props.RadiusOfGyration(axis);
+    } catch (...) { return 0; }
+}

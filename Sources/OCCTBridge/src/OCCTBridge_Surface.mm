@@ -4763,3 +4763,21 @@ bool OCCTSurfaceBSplineRemoveUKnot(OCCTSurfaceRef surface, int32_t index, int32_
     } catch (...) { return false; }
 }
 
+
+// MARK: - v0.114: Surface DN + type-name
+
+void OCCTSurfaceDN(OCCTSurfaceRef surface, double u, double v,
+                    int32_t nu, int32_t nv,
+                    double* x, double* y, double* z) {
+    if (!surface || surface->surface.IsNull()) { *x = *y = *z = 0; return; }
+    try {
+        gp_Vec vec = surface->surface->DN(u, v, nu, nv);
+        *x = vec.X(); *y = vec.Y(); *z = vec.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+const char* OCCTSurfaceTypeName(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    try {
+        return surface->surface->DynamicType()->Name();
+    } catch (...) { return nullptr; }
+}
