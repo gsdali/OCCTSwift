@@ -62,6 +62,11 @@
 #include <Adaptor3d_IsoCurve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <LocalAnalysis_SurfaceContinuity.hxx>
+#include <GeomFill_ConstantBiNormal.hxx>
+#include <GeomFill_Darboux.hxx>
+#include <GeomFill_Fixed.hxx>
+#include <GeomFill_Frenet.hxx>
+#include <GeomFill_NSections.hxx>
 #include <BRepTopAdaptor_TopolTool.hxx>
 #include <Contap_ContAna.hxx>
 #include <Contap_Contour.hxx>
@@ -2343,4 +2348,145 @@ int32_t OCCTLocalAnalysisSurfaceContinuityFlags(OCCTSurfaceRef _Nonnull surface1
         if (sc.IsC2()) flags |= 16;
         return flags;
     } catch (...) { return 0; }
+}
+
+// MARK: - GeomFill Trihedrons (Darboux/Fixed/Frenet/ConstantBiNormal) (v0.68)
+// --- GeomFill Trihedrons ---
+
+OCCTTrihedronFrame OCCTGeomFillDarbouxTrihedron(OCCTShapeRef edgeShape, OCCTShapeRef faceShape, double param) {
+    OCCTTrihedronFrame frame = {};
+    try {
+        auto* edgeWrapper = reinterpret_cast<OCCTShape*>(edgeShape);
+        auto* faceWrapper = reinterpret_cast<OCCTShape*>(faceShape);
+        TopoDS_Edge edge = TopoDS::Edge(edgeWrapper->shape);
+        TopoDS_Face face = TopoDS::Face(faceWrapper->shape);
+
+        Handle(GeomFill_Darboux) darboux = new GeomFill_Darboux();
+        // Darboux needs a curve on surface — use BRepAdaptor_Curve with face context
+        Handle(BRepAdaptor_Curve) adaptor = new BRepAdaptor_Curve(edge);
+        darboux->SetCurve(adaptor);
+
+        gp_Vec t, n, b;
+        if (darboux->D0(param, t, n, b)) {
+            frame.tx = t.X(); frame.ty = t.Y(); frame.tz = t.Z();
+            frame.nx = n.X(); frame.ny = n.Y(); frame.nz = n.Z();
+            frame.bx = b.X(); frame.by = b.Y(); frame.bz = b.Z();
+        }
+    } catch (...) {}
+    return frame;
+}
+
+OCCTTrihedronFrame OCCTGeomFillFixedTrihedron(
+    double tangentX, double tangentY, double tangentZ,
+    double normalX, double normalY, double normalZ, double param)
+{
+    OCCTTrihedronFrame frame = {};
+    try {
+        Handle(GeomFill_Fixed) fixed = new GeomFill_Fixed(
+            gp_Vec(tangentX, tangentY, tangentZ),
+            gp_Vec(normalX, normalY, normalZ));
+        gp_Vec t, n, b;
+        if (fixed->D0(param, t, n, b)) {
+            frame.tx = t.X(); frame.ty = t.Y(); frame.tz = t.Z();
+            frame.nx = n.X(); frame.ny = n.Y(); frame.nz = n.Z();
+            frame.bx = b.X(); frame.by = b.Y(); frame.bz = b.Z();
+        }
+    } catch (...) {}
+    return frame;
+}
+
+OCCTTrihedronFrame OCCTGeomFillFrenetTrihedron(OCCTShapeRef edgeShape, double param) {
+    OCCTTrihedronFrame frame = {};
+    try {
+        auto* wrapper = reinterpret_cast<OCCTShape*>(edgeShape);
+        TopoDS_Edge edge = TopoDS::Edge(wrapper->shape);
+        Handle(BRepAdaptor_Curve) adaptor = new BRepAdaptor_Curve(edge);
+
+        Handle(GeomFill_Frenet) frenet = new GeomFill_Frenet();
+        frenet->SetCurve(adaptor);
+
+        gp_Vec t, n, b;
+        if (frenet->D0(param, t, n, b)) {
+            frame.tx = t.X(); frame.ty = t.Y(); frame.tz = t.Z();
+            frame.nx = n.X(); frame.ny = n.Y(); frame.nz = n.Z();
+            frame.bx = b.X(); frame.by = b.Y(); frame.bz = b.Z();
+        }
+    } catch (...) {}
+    return frame;
+}
+
+OCCTTrihedronFrame OCCTGeomFillConstantBiNormalTrihedron(OCCTShapeRef edgeShape, double param,
+    double biNormalX, double biNormalY, double biNormalZ)
+{
+    OCCTTrihedronFrame frame = {};
+    try {
+        auto* wrapper = reinterpret_cast<OCCTShape*>(edgeShape);
+        TopoDS_Edge edge = TopoDS::Edge(wrapper->shape);
+        Handle(BRepAdaptor_Curve) adaptor = new BRepAdaptor_Curve(edge);
+
+        Handle(GeomFill_ConstantBiNormal) cbn = new GeomFill_ConstantBiNormal(
+            gp_Dir(biNormalX, biNormalY, biNormalZ));
+        cbn->SetCurve(adaptor);
+
+        gp_Vec t, n, b;
+        if (cbn->D0(param, t, n, b)) {
+            frame.tx = t.X(); frame.ty = t.Y(); frame.tz = t.Z();
+            frame.nx = n.X(); frame.ny = n.Y(); frame.nz = n.Z();
+            frame.bx = b.X(); frame.by = b.Y(); frame.bz = b.Z();
+        }
+    } catch (...) {}
+    return frame;
+}
+
+// MARK: - GeomFill_NSections (v0.68)
+// --- GeomFill_NSections ---
+
+OCCTSurfaceRef OCCTGeomFillNSections(
+    const OCCTCurve3DRef* curveRefs,
+    const double* params, int32_t count)
+{
+    try {
+        NCollection_Sequence<Handle(Geom_Curve)> sections;
+        NCollection_Sequence<double> paramSeq;
+        for (int32_t i = 0; i < count; i++) {
+            auto* wrapper = reinterpret_cast<OCCTCurve3D*>(curveRefs[i]);
+            sections.Append(wrapper->curve);
+            paramSeq.Append(params[i]);
+        }
+
+        Handle(GeomFill_NSections) nsec = new GeomFill_NSections(sections, paramSeq);
+        nsec->ComputeSurface();
+        Handle(Geom_BSplineSurface) surf = nsec->BSplineSurface();
+        if (surf.IsNull()) return nullptr;
+
+        auto* result = new OCCTSurface();
+        result->surface = surf;
+        return reinterpret_cast<OCCTSurfaceRef>(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTGeomFillNSectionsInfo(
+    const OCCTCurve3DRef* curveRefs,
+    const double* params, int32_t count,
+    int32_t* outNbPoles, int32_t* outNbKnots, int32_t* outDegree)
+{
+    *outNbPoles = 0; *outNbKnots = 0; *outDegree = 0;
+    try {
+        NCollection_Sequence<Handle(Geom_Curve)> sections;
+        NCollection_Sequence<double> paramSeq;
+        for (int32_t i = 0; i < count; i++) {
+            auto* wrapper = reinterpret_cast<OCCTCurve3D*>(curveRefs[i]);
+            sections.Append(wrapper->curve);
+            paramSeq.Append(params[i]);
+        }
+
+        Handle(GeomFill_NSections) nsec = new GeomFill_NSections(sections, paramSeq);
+        int nbP = 0, nbK = 0, deg = 0;
+        nsec->SectionShape(nbP, nbK, deg);
+        *outNbPoles = (int32_t)nbP;
+        *outNbKnots = (int32_t)nbK;
+        *outDegree = (int32_t)deg;
+    } catch (...) {}
 }

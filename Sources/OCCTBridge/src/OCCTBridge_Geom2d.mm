@@ -25,6 +25,9 @@
 #include <FairCurve_AnalysisCode.hxx>
 #include <FairCurve_Batten.hxx>
 #include <FairCurve_MinimalVariation.hxx>
+#include <GccAna_Circ2d3Tan.hxx>
+#include <Intf_InterferencePolygon2d.hxx>
+#include <Intf_Polygon2d.hxx>
 #include <BRepBuilderAPI_MakeEdge2d.hxx>
 #include <GC_MakeLine2d.hxx>
 #include <GccEnt_Position.hxx>
@@ -2210,4 +2213,201 @@ OCCTCurve2DRef _Nullable OCCTFairCurveMinimalVariation(double p1x, double p1y, d
         ref->curve = curve;
         return ref;
     } catch (...) { *outCode = -1; return nullptr; }
+}
+
+// MARK: - GccAna_Circ2d3Tan + variants (v0.68)
+// --- GccAna_Circ2d3Tan ---
+
+static void extractCircSolutions(const GccAna_Circ2d3Tan& solver,
+    OCCTCircle2DSolution* outSolutions, int32_t maxSolutions, int32_t* count)
+{
+    if (!solver.IsDone()) { *count = 0; return; }
+    int nb = std::min((int)maxSolutions, solver.NbSolutions());
+    for (int i = 0; i < nb; i++) {
+        gp_Circ2d sol = solver.ThisSolution(i + 1);
+        outSolutions[i].centerX = sol.Location().X();
+        outSolutions[i].centerY = sol.Location().Y();
+        outSolutions[i].radius = sol.Radius();
+    }
+    *count = (int32_t)nb;
+}
+
+int32_t OCCTGccAnaCirc2d3TanPoints(double p1x, double p1y, double p2x, double p2y,
+    double p3x, double p3y, double tolerance,
+    OCCTCircle2DSolution* outSolutions, int32_t maxSolutions)
+{
+    try {
+        GccAna_Circ2d3Tan solver(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y),
+                                  gp_Pnt2d(p3x, p3y), tolerance);
+        int32_t count = 0;
+        extractCircSolutions(solver, outSolutions, maxSolutions, &count);
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTGccAnaCirc2d3TanLines(
+    double l1px, double l1py, double l1dx, double l1dy,
+    double l2px, double l2py, double l2dx, double l2dy,
+    double l3px, double l3py, double l3dx, double l3dy,
+    double tolerance,
+    OCCTCircle2DSolution* outSolutions, int32_t maxSolutions)
+{
+    try {
+        gp_Lin2d lin1(gp_Pnt2d(l1px, l1py), gp_Dir2d(l1dx, l1dy));
+        gp_Lin2d lin2(gp_Pnt2d(l2px, l2py), gp_Dir2d(l2dx, l2dy));
+        gp_Lin2d lin3(gp_Pnt2d(l3px, l3py), gp_Dir2d(l3dx, l3dy));
+        GccAna_Circ2d3Tan solver(
+            GccEnt_QualifiedLin(lin1, GccEnt_unqualified),
+            GccEnt_QualifiedLin(lin2, GccEnt_unqualified),
+            GccEnt_QualifiedLin(lin3, GccEnt_unqualified),
+            tolerance);
+        int32_t count = 0;
+        extractCircSolutions(solver, outSolutions, maxSolutions, &count);
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTGccAnaCirc2d3TanCircles(
+    double c1x, double c1y, double c1r,
+    double c2x, double c2y, double c2r,
+    double c3x, double c3y, double c3r,
+    double tolerance,
+    OCCTCircle2DSolution* outSolutions, int32_t maxSolutions)
+{
+    try {
+        gp_Circ2d circ1(gp_Ax2d(gp_Pnt2d(c1x, c1y), gp_Dir2d(1, 0)), c1r);
+        gp_Circ2d circ2(gp_Ax2d(gp_Pnt2d(c2x, c2y), gp_Dir2d(1, 0)), c2r);
+        gp_Circ2d circ3(gp_Ax2d(gp_Pnt2d(c3x, c3y), gp_Dir2d(1, 0)), c3r);
+        GccAna_Circ2d3Tan solver(
+            GccEnt_QualifiedCirc(circ1, GccEnt_unqualified),
+            GccEnt_QualifiedCirc(circ2, GccEnt_unqualified),
+            GccEnt_QualifiedCirc(circ3, GccEnt_unqualified),
+            tolerance);
+        int32_t count = 0;
+        extractCircSolutions(solver, outSolutions, maxSolutions, &count);
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTGccAnaCirc2d2CirclesPoint(
+    double c1x, double c1y, double c1r,
+    double c2x, double c2y, double c2r,
+    double px, double py, double tolerance,
+    OCCTCircle2DSolution* outSolutions, int32_t maxSolutions)
+{
+    try {
+        gp_Circ2d circ1(gp_Ax2d(gp_Pnt2d(c1x, c1y), gp_Dir2d(1, 0)), c1r);
+        gp_Circ2d circ2(gp_Ax2d(gp_Pnt2d(c2x, c2y), gp_Dir2d(1, 0)), c2r);
+        GccAna_Circ2d3Tan solver(
+            GccEnt_QualifiedCirc(circ1, GccEnt_unqualified),
+            GccEnt_QualifiedCirc(circ2, GccEnt_unqualified),
+            gp_Pnt2d(px, py), tolerance);
+        int32_t count = 0;
+        extractCircSolutions(solver, outSolutions, maxSolutions, &count);
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTGccAnaCirc2dCircle2Points(
+    double cx, double cy, double cr,
+    double p1x, double p1y, double p2x, double p2y, double tolerance,
+    OCCTCircle2DSolution* outSolutions, int32_t maxSolutions)
+{
+    try {
+        gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), cr);
+        GccAna_Circ2d3Tan solver(
+            GccEnt_QualifiedCirc(circ, GccEnt_unqualified),
+            gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y), tolerance);
+        int32_t count = 0;
+        extractCircSolutions(solver, outSolutions, maxSolutions, &count);
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTGccAnaCirc2d2LinesPoint(
+    double l1px, double l1py, double l1dx, double l1dy,
+    double l2px, double l2py, double l2dx, double l2dy,
+    double px, double py, double tolerance,
+    OCCTCircle2DSolution* outSolutions, int32_t maxSolutions)
+{
+    try {
+        gp_Lin2d lin1(gp_Pnt2d(l1px, l1py), gp_Dir2d(l1dx, l1dy));
+        gp_Lin2d lin2(gp_Pnt2d(l2px, l2py), gp_Dir2d(l2dx, l2dy));
+        GccAna_Circ2d3Tan solver(
+            GccEnt_QualifiedLin(lin1, GccEnt_unqualified),
+            GccEnt_QualifiedLin(lin2, GccEnt_unqualified),
+            gp_Pnt2d(px, py), tolerance);
+        int32_t count = 0;
+        extractCircSolutions(solver, outSolutions, maxSolutions, &count);
+        return count;
+    } catch (...) { return 0; }
+}
+
+// MARK: - Intf_InterferencePolygon2d (v0.68)
+// --- Intf_InterferencePolygon2d ---
+
+// Concrete adapter for Intf_Polygon2d (abstract base)
+class OCCTSimplePolygon2d : public Intf_Polygon2d {
+public:
+    OCCTSimplePolygon2d(const double* coords, int32_t count) {
+        for (int32_t i = 0; i < count; i++) {
+            myPoints.push_back(gp_Pnt2d(coords[i * 2], coords[i * 2 + 1]));
+        }
+        for (const auto& p : myPoints) {
+            myBox.Add(p);
+        }
+    }
+
+    Standard_Real DeflectionOverEstimation() const override { return 0.0; }
+    Standard_Integer NbSegments() const override { return (Standard_Integer)myPoints.size() - 1; }
+    void Segment(const Standard_Integer theIndex,
+                 gp_Pnt2d& theBegin, gp_Pnt2d& theEnd) const override {
+        theBegin = myPoints[theIndex - 1];
+        theEnd = myPoints[theIndex];
+    }
+
+private:
+    std::vector<gp_Pnt2d> myPoints;
+};
+
+int32_t OCCTIntfInterferencePolygon2d(
+    const double* poly1, int32_t count1,
+    const double* poly2, int32_t count2,
+    OCCTIntfPoint2D* outPoints, int32_t maxPoints)
+{
+    try {
+        OCCTSimplePolygon2d sp1(poly1, count1);
+        OCCTSimplePolygon2d sp2(poly2, count2);
+        Intf_InterferencePolygon2d intf(sp1, sp2);
+
+        int nb = std::min((int)maxPoints, intf.NbSectionPoints());
+        for (int i = 0; i < nb; i++) {
+            gp_Pnt2d pt = intf.Pnt2dValue(i + 1);
+            outPoints[i].x = pt.X();
+            outPoints[i].y = pt.Y();
+        }
+        return (int32_t)nb;
+    } catch (...) {
+        return 0;
+    }
+}
+
+int32_t OCCTIntfSelfInterferencePolygon2d(
+    const double* poly, int32_t count,
+    OCCTIntfPoint2D* outPoints, int32_t maxPoints)
+{
+    try {
+        OCCTSimplePolygon2d sp(poly, count);
+        Intf_InterferencePolygon2d intf(sp);
+
+        int nb = std::min((int)maxPoints, intf.NbSectionPoints());
+        for (int i = 0; i < nb; i++) {
+            gp_Pnt2d pt = intf.Pnt2dValue(i + 1);
+            outPoints[i].x = pt.X();
+            outPoints[i].y = pt.Y();
+        }
+        return (int32_t)nb;
+    } catch (...) {
+        return 0;
+    }
 }

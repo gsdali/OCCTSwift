@@ -79,6 +79,8 @@
 #include <BOPAlgo_RemoveFeatures.hxx>
 #include <BOPAlgo_Section.hxx>
 #include <BRepFeat_Builder.hxx>
+#include <Law_BSplineKnotSplitting.hxx>
+#include <Law_Composite.hxx>
 #include <BRepOffset_Offset.hxx>
 #include <BRepOffset_SimpleOffset.hxx>
 #include <BRepTools_Modifier.hxx>
@@ -4762,4 +4764,55 @@ OCCTShapeRef _Nullable OCCTBOPAlgoSection(const OCCTShapeRef _Nonnull * _Nonnull
         if (result.IsNull()) return nullptr;
         return new OCCTShape(result);
     } catch (...) { return nullptr; }
+}
+
+// MARK: - Law_BSplineKnotSplitting + Law_Composite (v0.68)
+// --- Law_BSplineKnotSplitting ---
+
+int32_t OCCTLawBSplineKnotSplitting(OCCTLawFunctionRef law,
+    int32_t continuityOrder,
+    int32_t* outIndices, int32_t maxIndices)
+{
+    try {
+        auto* wrapper = reinterpret_cast<OCCTLawFunction*>(law);
+        // The law must be a BSpline-based law (Law_BSpFunc or similar)
+        Handle(Law_BSpFunc) bspFunc = Handle(Law_BSpFunc)::DownCast(wrapper->law);
+        if (bspFunc.IsNull()) return 0;
+
+        Handle(Law_BSpline) bspl = bspFunc->Curve();
+        if (bspl.IsNull()) return 0;
+
+        Law_BSplineKnotSplitting splitter(bspl, continuityOrder);
+        int nb = splitter.NbSplits();
+        int count = std::min((int)maxIndices, nb);
+        NCollection_Array1<int> splits(1, nb);
+        splitter.Splitting(splits);
+        for (int i = 0; i < count; i++) {
+            outIndices[i] = (int32_t)splits(i + 1);
+        }
+        return (int32_t)count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// --- Law_Composite ---
+
+OCCTLawFunctionRef OCCTLawComposite(const OCCTLawFunctionRef* lawRefs,
+    int32_t count, double first, double last)
+{
+    try {
+        Handle(Law_Composite) composite = new Law_Composite(first, last, 1.0e-6);
+        NCollection_List<Handle(Law_Function)>& laws = composite->ChangeLaws();
+        for (int32_t i = 0; i < count; i++) {
+            auto* wrapper = reinterpret_cast<OCCTLawFunction*>(lawRefs[i]);
+            laws.Append(wrapper->law);
+        }
+
+        auto* result = new OCCTLawFunction();
+        result->law = composite;
+        return reinterpret_cast<OCCTLawFunctionRef>(result);
+    } catch (...) {
+        return nullptr;
+    }
 }
