@@ -73,6 +73,16 @@
 #include <BOPAlgo_CellsBuilder.hxx>
 #include <BOPAlgo_Splitter.hxx>
 #include <BRepBuilderAPI_MakeShapeOnMesh.hxx>
+#include <BRepLib_MakeEdge.hxx>
+#include <BRepLib_MakeFace.hxx>
+#include <BRepLib_MakeShell.hxx>
+#include <BRepTools_Modifier.hxx>
+#include <BRepTools_NurbsConvertModification.hxx>
+#include <Geom_CylindricalSurface.hxx>
+#include <LocOpe_BuildWires.hxx>
+#include <LocOpe_CurveShapeIntersector.hxx>
+#include <LocOpe_Spliter.hxx>
+#include <LocOpe_WiresOnShape.hxx>
 #include <Poly_Array1OfTriangle.hxx>
 #include <Poly_Triangulation.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
@@ -4449,3 +4459,190 @@ void OCCTCellsBuilderMakeContainers(OCCTCellsBuilderRef builder) {
     try { builder->builder.MakeContainers(); } catch (...) {}
 }
 
+
+// MARK: - BRepLib MakeEdge / MakeFace (v0.62)
+// --- BRepLib_MakeEdge ---
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromLine(
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double p1, double p2) {
+    try {
+        gp_Lin line(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        BRepLib_MakeEdge me(line, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromPoints(
+    double x1, double y1, double z1,
+    double x2, double y2, double z2) {
+    try {
+        BRepLib_MakeEdge me(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2));
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeEdgeFromCircle(
+    double cx, double cy, double cz,
+    double dx, double dy, double dz,
+    double radius, double p1, double p2) {
+    try {
+        gp_Circ circ(gp_Ax2(gp_Pnt(cx, cy, cz), gp_Dir(dx, dy, dz)), radius);
+        BRepLib_MakeEdge me(circ, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+// --- BRepLib_MakeFace ---
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeFaceFromPlane(
+    double ox, double oy, double oz,
+    double nx, double ny, double nz,
+    double uMin, double uMax, double vMin, double vMax, double tolerance) {
+    try {
+        gp_Pln pln(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        Handle(Geom_Plane) plane = new Geom_Plane(pln);
+        BRepLib_MakeFace mf(plane, uMin, uMax, vMin, vMax, tolerance);
+        if (!mf.IsDone()) return nullptr;
+        return new OCCTShape(mf.Face());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeFaceFromCylinder(
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double radius,
+    double uMin, double uMax, double vMin, double vMax, double tolerance) {
+    try {
+        Handle(Geom_CylindricalSurface) cyl = new Geom_CylindricalSurface(
+            gp_Ax2(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz)), radius);
+        BRepLib_MakeFace mf(cyl, uMin, uMax, vMin, vMax, tolerance);
+        if (!mf.IsDone()) return nullptr;
+        return new OCCTShape(mf.Face());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BRepLib MakeShell (v0.62)
+// --- BRepLib_MakeShell ---
+
+OCCTShapeRef _Nullable OCCTBRepLibMakeShellFromPlane(
+    double ox, double oy, double oz,
+    double nx, double ny, double nz,
+    double uMin, double uMax, double vMin, double vMax) {
+    try {
+        Handle(Geom_Plane) plane = new Geom_Plane(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        BRepLib_MakeShell ms(plane, uMin, uMax, vMin, vMax, false);
+        if (!ms.IsDone()) return nullptr;
+        return new OCCTShape(ms.Shell());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BRepTools_Modifier NurbsConvert (v0.62)
+// --- BRepTools_Modifier ---
+
+OCCTShapeRef _Nullable OCCTBRepToolsModifierNurbsConvert(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        Handle(BRepTools_NurbsConvertModification) mod = new BRepTools_NurbsConvertModification();
+        BRepTools_Modifier modifier(shape->shape);
+        modifier.Perform(mod);
+        if (!modifier.IsDone()) return nullptr;
+        return new OCCTShape(modifier.ModifiedShape(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - LocOpe BuildWires / WiresOnShape+Spliter / CurveShapeIntersector (v0.62)
+// --- LocOpe_BuildWires ---
+
+bool OCCTLocOpeBuildWires(OCCTShapeRef shape, int32_t faceIndex,
+    OCCTShapeRef _Nullable * _Nullable * _Nonnull outWires,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        NCollection_List<TopoDS_Shape> edges;
+        if (faceIndex > 0) {
+            TopTools_IndexedMapOfShape faceMap;
+            TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+            if (faceIndex > faceMap.Extent()) return false;
+            TopoDS_Face face = TopoDS::Face(faceMap(faceIndex));
+            TopExp_Explorer exp(face, TopAbs_EDGE);
+            for (; exp.More(); exp.Next()) edges.Append(exp.Current());
+        } else {
+            TopExp_Explorer exp(shape->shape, TopAbs_EDGE);
+            for (; exp.More(); exp.Next()) edges.Append(exp.Current());
+        }
+
+        Handle(LocOpe_WiresOnShape) wos = new LocOpe_WiresOnShape(shape->shape);
+        LocOpe_BuildWires bw(edges, wos);
+        if (!bw.IsDone()) return false;
+
+        const NCollection_List<TopoDS_Shape>& result = bw.Result();
+        int32_t n = result.Size();
+        *outCount = n;
+        if (n == 0) { *outWires = nullptr; return true; }
+        *outWires = (OCCTShapeRef*)malloc(n * sizeof(OCCTShapeRef));
+        int32_t i = 0;
+        for (auto it = result.cbegin(); it != result.cend(); ++it, ++i) {
+            (*outWires)[i] = new OCCTShape(*it);
+        }
+        return true;
+    } catch (...) { return false; }
+}
+// --- LocOpe_WiresOnShape + LocOpe_Spliter ---
+
+OCCTShapeRef _Nullable OCCTLocOpeSplitByWireOnFace(OCCTShapeRef shape,
+    OCCTShapeRef wire, int32_t faceIndex) {
+    if (!shape || !wire) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        if (faceIndex < 1 || faceIndex > faceMap.Extent()) return nullptr;
+        TopoDS_Face face = TopoDS::Face(faceMap(faceIndex));
+
+        TopoDS_Wire w;
+        if (wire->shape.ShapeType() == TopAbs_WIRE) {
+            w = TopoDS::Wire(wire->shape);
+        } else {
+            TopExp_Explorer exp(wire->shape, TopAbs_WIRE);
+            if (exp.More()) w = TopoDS::Wire(exp.Current());
+            else return nullptr;
+        }
+
+        Handle(LocOpe_WiresOnShape) wos = new LocOpe_WiresOnShape(shape->shape);
+        wos->Bind(w, face);
+        wos->BindAll();
+
+        LocOpe_Spliter spliter(shape->shape);
+        spliter.Perform(wos);
+        if (!spliter.IsDone()) return nullptr;
+
+        return new OCCTShape(spliter.ResultingShape());
+    } catch (...) { return nullptr; }
+}
+// --- LocOpe_CurveShapeIntersector ---
+
+bool OCCTLocOpeCurveShapeIntersectLine(OCCTShapeRef shape,
+    double ox, double oy, double oz,
+    double dx, double dy, double dz,
+    double* _Nullable * _Nonnull outParams,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        gp_Ax1 axis(gp_Pnt(ox, oy, oz), gp_Dir(dx, dy, dz));
+        LocOpe_CurveShapeIntersector csi(axis, shape->shape);
+        if (!csi.IsDone()) return false;
+        int32_t n = csi.NbPoints();
+        *outCount = n;
+        if (n == 0) { *outParams = nullptr; return true; }
+        *outParams = (double*)malloc(n * sizeof(double));
+        for (int32_t i = 0; i < n; i++) {
+            const LocOpe_PntFace& pf = csi.Point(i + 1);
+            (*outParams)[i] = pf.Parameter();
+        }
+        return true;
+    } catch (...) { return false; }
+}

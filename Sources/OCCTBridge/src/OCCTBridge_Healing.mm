@@ -80,6 +80,11 @@
 #include <ShapeFix_EdgeConnect.hxx>
 #include <ShapeFix_SplitTool.hxx>
 #include <BRepTools_Substitution.hxx>
+#include <ShapeCustom_DirectModification.hxx>
+#include <ShapeCustom_TrsfModification.hxx>
+#include <ShapeUpgrade_ClosedFaceDivide.hxx>
+#include <ShapeUpgrade_ShapeDivideAngle.hxx>
+#include <ShapeUpgrade_ShapeDivideArea.hxx>
 #include <ShapeUpgrade_ShellSewing.hxx>
 #include <ShapeFix_FaceConnect.hxx>
 #include <ShapeFix_FixSmallSolid.hxx>
@@ -2266,4 +2271,78 @@ bool OCCTShapeFixSplitEdge(OCCTEdgeRef edge, double param,
     } catch (...) {
         return false;
     }
+}
+
+// MARK: - ShapeCustom Direct + Trsf Modification (v0.62)
+// --- ShapeCustom_DirectModification ---
+
+OCCTShapeRef _Nullable OCCTShapeCustomDirectModification(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeCustom_DirectModification) mod = new ShapeCustom_DirectModification();
+        BRepTools_Modifier modifier(shape->shape);
+        modifier.Perform(mod);
+        if (!modifier.IsDone()) return nullptr;
+        return new OCCTShape(modifier.ModifiedShape(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeCustom_TrsfModification ---
+
+OCCTShapeRef _Nullable OCCTShapeCustomTrsfModificationScale(OCCTShapeRef shape, double scaleFactor) {
+    if (!shape) return nullptr;
+    try {
+        gp_Trsf trsf;
+        trsf.SetScale(gp_Pnt(0,0,0), scaleFactor);
+        Handle(ShapeCustom_TrsfModification) mod = new ShapeCustom_TrsfModification(trsf);
+        BRepTools_Modifier modifier(shape->shape);
+        modifier.Perform(mod);
+        if (!modifier.IsDone()) return nullptr;
+        return new OCCTShape(modifier.ModifiedShape(shape->shape));
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - ShapeUpgrade ClosedFaceDivide / SplitSurfaceAngle / SplitSurfaceArea (v0.62)
+// --- ShapeUpgrade_ClosedFaceDivide ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeClosedFaceDivide(OCCTShapeRef shape, int32_t nbSplitPoints) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivide sd(shape->shape);
+        Handle(ShapeUpgrade_ClosedFaceDivide) cfd = new ShapeUpgrade_ClosedFaceDivide();
+        cfd->SetNbSplitPoints(nbSplitPoints > 0 ? nbSplitPoints : 1);
+        sd.SetSplitFaceTool(cfd);
+        if (!sd.Perform()) return nullptr;
+        TopoDS_Shape result = sd.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_SplitSurfaceAngle ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeSplitSurfaceAngle(OCCTShapeRef shape, double maxAngleDegrees) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideAngle sd(maxAngleDegrees * M_PI / 180.0, shape->shape);
+        if (!sd.Perform()) return nullptr;
+        TopoDS_Shape result = sd.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeUpgrade_SplitSurfaceArea ---
+
+OCCTShapeRef _Nullable OCCTShapeUpgradeSplitSurfaceArea(OCCTShapeRef shape, int32_t nbParts) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeDivideArea sd(shape->shape);
+        sd.SetSplittingByNumber(true);
+        sd.NbParts() = (nbParts > 0 ? nbParts : 4);
+        if (!sd.Perform()) return nullptr;
+        TopoDS_Shape result = sd.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
 }

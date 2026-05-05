@@ -29,6 +29,7 @@
 
 #include <Approx_Curve3d.hxx>
 #include <Approx_CurveOnSurface.hxx>
+#include <CPnts_UniformDeflection.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -1407,4 +1408,72 @@ OCCTShapeRef OCCTApproxCurveOnSurface(OCCTShapeRef edge, OCCTShapeRef face,
         if (!edgeMaker.IsDone()) return nullptr;
         return new OCCTShape(edgeMaker.Edge());
     } catch (...) { return nullptr; }
+}
+
+// MARK: - CPnts_UniformDeflection (v0.62)
+// --- CPnts_UniformDeflection ---
+
+bool OCCTCPntsUniformDeflection(OCCTShapeRef shape, double deflection,
+    double* _Nullable * _Nonnull outParams,
+    double* _Nullable * _Nonnull outPoints,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(shape->shape);
+        BRepAdaptor_Curve bac(edge);
+        CPnts_UniformDeflection ud(bac, deflection, 1e-7, true);
+        std::vector<double> params;
+        std::vector<gp_Pnt> pts;
+        while (ud.More()) {
+            double p = ud.Value();
+            params.push_back(p);
+            pts.push_back(bac.Value(p));
+            ud.Next();
+        }
+        int32_t n = (int32_t)params.size();
+        *outCount = n;
+        if (n == 0) { *outParams = nullptr; *outPoints = nullptr; return false; }
+        *outParams = (double*)malloc(n * sizeof(double));
+        *outPoints = (double*)malloc(n * 3 * sizeof(double));
+        for (int32_t i = 0; i < n; i++) {
+            (*outParams)[i] = params[i];
+            (*outPoints)[i*3]   = pts[i].X();
+            (*outPoints)[i*3+1] = pts[i].Y();
+            (*outPoints)[i*3+2] = pts[i].Z();
+        }
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCPntsUniformDeflectionRange(OCCTShapeRef shape, double deflection,
+    double u1, double u2,
+    double* _Nullable * _Nonnull outParams,
+    double* _Nullable * _Nonnull outPoints,
+    int32_t* outCount) {
+    if (!shape) return false;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(shape->shape);
+        BRepAdaptor_Curve bac(edge);
+        CPnts_UniformDeflection ud(bac, deflection, u1, u2, 1e-7, true);
+        std::vector<double> params;
+        std::vector<gp_Pnt> pts;
+        while (ud.More()) {
+            double p = ud.Value();
+            params.push_back(p);
+            pts.push_back(bac.Value(p));
+            ud.Next();
+        }
+        int32_t n = (int32_t)params.size();
+        *outCount = n;
+        if (n == 0) { *outParams = nullptr; *outPoints = nullptr; return false; }
+        *outParams = (double*)malloc(n * sizeof(double));
+        *outPoints = (double*)malloc(n * 3 * sizeof(double));
+        for (int32_t i = 0; i < n; i++) {
+            (*outParams)[i] = params[i];
+            (*outPoints)[i*3]   = pts[i].X();
+            (*outPoints)[i*3+1] = pts[i].Y();
+            (*outPoints)[i*3+2] = pts[i].Z();
+        }
+        return true;
+    } catch (...) { return false; }
 }

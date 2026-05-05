@@ -22,6 +22,7 @@
 #include <Adaptor2d_Curve2d.hxx>
 #include <Approx_Curve2d.hxx>
 #include <BRepAdaptor_Curve2d.hxx>
+#include <BRepBuilderAPI_MakeEdge2d.hxx>
 #include <GC_MakeLine2d.hxx>
 #include <GccEnt_Position.hxx>
 #include <Geom2d_BSplineCurve.hxx>
@@ -1696,4 +1697,37 @@ bool OCCTEdgePCurveValue(OCCTShapeRef edge, OCCTShapeRef face, double t,
         *outV = pt.Y();
         return true;
     } catch (...) { return false; }
+}
+
+// MARK: - BRepBuilderAPI_MakeEdge2d (v0.62)
+// --- BRepBuilderAPI_MakeEdge2d ---
+
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromPoints(double x1, double y1, double x2, double y2) {
+    try {
+        BRepBuilderAPI_MakeEdge2d me(gp_Pnt2d(x1, y1), gp_Pnt2d(x2, y2));
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromCircle(
+    double cx, double cy, double dx, double dy,
+    double radius, double p1, double p2) {
+    try {
+        gp_Circ2d circ(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dx, dy)), radius);
+        BRepBuilderAPI_MakeEdge2d me(circ, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTMakeEdge2dFromLine(
+    double ox, double oy, double dx, double dy,
+    double p1, double p2) {
+    try {
+        Handle(Geom2d_Line) line = new Geom2d_Line(gp_Pnt2d(ox, oy), gp_Dir2d(dx, dy));
+        BRepBuilderAPI_MakeEdge2d me(line, p1, p2);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
 }
