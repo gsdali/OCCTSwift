@@ -69,6 +69,12 @@
 #include <ChFi2d_AnaFilletAlgo.hxx>
 #include <ChFi2d_FilletAlgo.hxx>
 #include <LocOpe_BuildShape.hxx>
+#include <BOPAlgo_ArgumentAnalyzer.hxx>
+#include <BOPAlgo_CellsBuilder.hxx>
+#include <BOPAlgo_Splitter.hxx>
+#include <BRepBuilderAPI_MakeShapeOnMesh.hxx>
+#include <Poly_Array1OfTriangle.hxx>
+#include <Poly_Triangulation.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
 #include <BRepOffsetAPI_MakePipeShell.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
@@ -4250,5 +4256,196 @@ OCCTAnaFilletResult OCCTChFi2dAnaFillet(OCCTShapeRef edge1, OCCTShapeRef edge2,
     } catch (...) {
         return result;
     }
+}
+
+
+// MARK: - BOPAlgo Splitter (v0.61)
+// MARK: - BOPAlgo — Splitter (v0.61.0)
+
+OCCTShapeRef OCCTBOPAlgoSplit(const OCCTShapeRef* objects, int32_t objCount,
+    const OCCTShapeRef* tools, int32_t toolCount) {
+    if (!objects || objCount <= 0) return nullptr;
+    try {
+        BOPAlgo_Splitter splitter;
+        for (int32_t i = 0; i < objCount; i++) {
+            if (objects[i]) splitter.AddArgument(objects[i]->shape);
+        }
+        if (tools) {
+            for (int32_t i = 0; i < toolCount; i++) {
+                if (tools[i]) splitter.AddTool(tools[i]->shape);
+            }
+        }
+        splitter.Perform();
+        if (splitter.HasErrors()) return nullptr;
+        return new OCCTShape(splitter.Shape());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BOPAlgo CellsBuilder (v0.61)
+// MARK: - BOPAlgo — CellsBuilder (v0.61.0)
+
+struct OCCTCellsBuilder {
+    BOPAlgo_CellsBuilder builder;
+};
+
+OCCTCellsBuilderRef OCCTCellsBuilderCreate(const OCCTShapeRef* shapes, int32_t count) {
+    if (!shapes || count <= 0) return nullptr;
+    try {
+        auto* cb = new OCCTCellsBuilder();
+        int added = 0;
+        for (int32_t i = 0; i < count; i++) {
+            if (shapes[i] && !shapes[i]->shape.IsNull()) {
+                cb->builder.AddArgument(shapes[i]->shape);
+                added++;
+            }
+        }
+        // Need at least one valid shape to partition
+        if (added == 0) {
+            delete cb;
+            return nullptr;
+        }
+        cb->builder.Perform();
+        if (cb->builder.HasErrors()) {
+            delete cb;
+            return nullptr;
+        }
+        return cb;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTCellsBuilderRelease(OCCTCellsBuilderRef builder) {
+    delete builder;
+}
+
+void OCCTCellsBuilderAddAllToResult(OCCTCellsBuilderRef builder, int32_t material) {
+    if (!builder) return;
+    try {
+        builder->builder.AddAllToResult(material, true);
+    } catch (...) {}
+}
+
+void OCCTCellsBuilderRemoveAllFromResult(OCCTCellsBuilderRef builder) {
+    if (!builder) return;
+    try {
+        builder->builder.RemoveAllFromResult();
+    } catch (...) {}
+}
+
+void OCCTCellsBuilderRemoveInternalBoundaries(OCCTCellsBuilderRef builder) {
+    if (!builder) return;
+    try {
+        builder->builder.RemoveInternalBoundaries();
+    } catch (...) {}
+}
+
+OCCTShapeRef OCCTCellsBuilderGetResult(OCCTCellsBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        TopoDS_Shape result = builder->builder.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - BOPAlgo ArgumentAnalyzer (v0.61)
+// MARK: - BOPAlgo — ArgumentAnalyzer (v0.61.0)
+
+bool OCCTBOPAlgoAnalyzeArguments(OCCTShapeRef shape1, OCCTShapeRef shape2, int32_t operation) {
+    if (!shape1 || !shape2) return false;
+    try {
+        BOPAlgo_ArgumentAnalyzer analyzer;
+        analyzer.SetShape1(shape1->shape);
+        analyzer.SetShape2(shape2->shape);
+        switch (operation) {
+            case 0: analyzer.OperationType() = BOPAlgo_FUSE; break;
+            case 1: analyzer.OperationType() = BOPAlgo_COMMON; break;
+            case 2: analyzer.OperationType() = BOPAlgo_CUT; break;
+            case 3: analyzer.OperationType() = BOPAlgo_CUT21; break;
+            case 4: analyzer.OperationType() = BOPAlgo_SECTION; break;
+            default: analyzer.OperationType() = BOPAlgo_FUSE; break;
+        }
+        analyzer.ArgumentTypeMode() = true;
+        analyzer.SelfInterMode() = true;
+        analyzer.SmallEdgeMode() = true;
+        analyzer.Perform();
+        return !analyzer.HasFaulty();
+    } catch (...) { return false; }
+}
+
+// MARK: - BRepBuilderAPI_MakeShapeOnMesh (v0.61)
+// MARK: - BRepBuilderAPI_MakeShapeOnMesh (v0.61.0)
+
+OCCTShapeRef OCCTShapeFromMesh(const double* points, int32_t nodeCount,
+    const int32_t* triangles, int32_t triCount) {
+    if (!points || nodeCount < 3 || !triangles || triCount < 1) return nullptr;
+    try {
+        TColgp_Array1OfPnt nodes(1, nodeCount);
+        for (int32_t i = 0; i < nodeCount; i++) {
+            nodes.SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+
+        Poly_Array1OfTriangle tris(1, triCount);
+        for (int32_t i = 0; i < triCount; i++) {
+            tris.SetValue(i + 1, Poly_Triangle(triangles[i*3], triangles[i*3+1], triangles[i*3+2]));
+        }
+
+        Handle(Poly_Triangulation) mesh = new Poly_Triangulation(nodes, tris);
+        if (mesh.IsNull()) return nullptr;
+
+        BRepBuilderAPI_MakeShapeOnMesh maker(mesh);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        return new OCCTShape(maker.Shape());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - CellsBuilder Extensions (later release)
+// --- CellsBuilder extensions ---
+
+void OCCTCellsBuilderAddToResultSelective(OCCTCellsBuilderRef builder,
+                                           const OCCTShapeRef* takeShapes, int32_t takeCount,
+                                           const OCCTShapeRef* avoidShapes, int32_t avoidCount,
+                                           int32_t material, bool update) {
+    if (!builder) return;
+    try {
+        NCollection_List<TopoDS_Shape> take, avoid;
+        for (int32_t i = 0; i < takeCount; i++) {
+            if (takeShapes[i]) take.Append(takeShapes[i]->shape);
+        }
+        for (int32_t i = 0; i < avoidCount; i++) {
+            if (avoidShapes[i]) avoid.Append(avoidShapes[i]->shape);
+        }
+        builder->builder.AddToResult(take, avoid, material, update);
+    } catch (...) {}
+}
+
+void OCCTCellsBuilderRemoveFromResult(OCCTCellsBuilderRef builder,
+                                       const OCCTShapeRef* takeShapes, int32_t takeCount,
+                                       const OCCTShapeRef* avoidShapes, int32_t avoidCount) {
+    if (!builder) return;
+    try {
+        NCollection_List<TopoDS_Shape> take, avoid;
+        for (int32_t i = 0; i < takeCount; i++) {
+            if (takeShapes[i]) take.Append(takeShapes[i]->shape);
+        }
+        for (int32_t i = 0; i < avoidCount; i++) {
+            if (avoidShapes[i]) avoid.Append(avoidShapes[i]->shape);
+        }
+        builder->builder.RemoveFromResult(take, avoid);
+    } catch (...) {}
+}
+
+OCCTShapeRef OCCTCellsBuilderGetAllParts(OCCTCellsBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        const TopoDS_Shape& parts = builder->builder.GetAllParts();
+        if (parts.IsNull()) return nullptr;
+        return new OCCTShape{parts};
+    } catch (...) { return nullptr; }
+}
+
+void OCCTCellsBuilderMakeContainers(OCCTCellsBuilderRef builder) {
+    if (!builder) return;
+    try { builder->builder.MakeContainers(); } catch (...) {}
 }
 

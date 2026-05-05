@@ -489,3 +489,37 @@ OCCTSurfaceRef OCCTSurfaceNLPlateG1(OCCTSurfaceRef initialSurface,
 }
 
 
+
+// MARK: - GeomPlate_Surface (v0.61)
+// MARK: - GeomPlate_Surface (v0.61.0)
+
+OCCTShapeRef OCCTGeomPlateSurface(const double* points, int32_t ptCount,
+    double tolerance, int32_t maxDegree, int32_t maxSegments) {
+    if (!points || ptCount < 3) return nullptr;
+    try {
+        GeomPlate_BuildPlateSurface builder(3, 10, 5, tolerance);
+
+        for (int32_t i = 0; i < ptCount; i++) {
+            Handle(GeomPlate_PointConstraint) pc =
+                new GeomPlate_PointConstraint(
+                    gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]), 0);
+            builder.Add(pc);
+        }
+
+        builder.Perform();
+        if (!builder.IsDone()) return nullptr;
+
+        Handle(GeomPlate_Surface) plateSurf = builder.Surface();
+        if (plateSurf.IsNull()) return nullptr;
+
+        // Convert to BSpline for use as a face
+        GeomPlate_MakeApprox approx(plateSurf, tolerance, maxSegments, maxDegree,
+                                     tolerance * 0.1, 0);
+        Handle(Geom_BSplineSurface) bspline = approx.Surface();
+        if (bspline.IsNull()) return nullptr;
+
+        BRepBuilderAPI_MakeFace faceMaker(bspline, tolerance);
+        if (!faceMaker.IsDone()) return nullptr;
+        return new OCCTShape(faceMaker.Face());
+    } catch (...) { return nullptr; }
+}
