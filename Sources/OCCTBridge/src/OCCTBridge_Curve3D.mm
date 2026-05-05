@@ -2514,3 +2514,146 @@ bool OCCTCurve3DOffsetDirection(OCCTCurve3DRef curve,
         return true;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.91: ElCLib + gp_Quaternion
+// MARK: - ElCLib (v0.91.0)
+
+#include <ElCLib.hxx>
+
+void OCCTElCLibValueOnLine(double u, double ox, double oy, double oz,
+                            double dx, double dy, double dz,
+                            double* outX, double* outY, double* outZ) {
+    gp_Pnt p = ElCLib::Value(u, gp_Lin(gp_Pnt(ox,oy,oz), gp_Dir(dx,dy,dz)));
+    *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+}
+
+void OCCTElCLibValueOnCircle(double u, double cx, double cy, double cz,
+                              double nx, double ny, double nz, double radius,
+                              double* outX, double* outY, double* outZ) {
+    gp_Pnt p = ElCLib::Value(u, gp_Circ(gp_Ax2(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz)), radius));
+    *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+}
+
+void OCCTElCLibValueOnEllipse(double u, double cx, double cy, double cz,
+                               double nx, double ny, double nz,
+                               double majorRadius, double minorRadius,
+                               double* outX, double* outY, double* outZ) {
+    gp_Pnt p = ElCLib::Value(u, gp_Elips(gp_Ax2(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz)), majorRadius, minorRadius));
+    *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+}
+
+void OCCTElCLibD1OnLine(double u, double ox, double oy, double oz,
+                         double dx, double dy, double dz,
+                         double* outPX, double* outPY, double* outPZ,
+                         double* outVX, double* outVY, double* outVZ) {
+    gp_Pnt p; gp_Vec v;
+    ElCLib::D1(u, gp_Lin(gp_Pnt(ox,oy,oz), gp_Dir(dx,dy,dz)), p, v);
+    *outPX = p.X(); *outPY = p.Y(); *outPZ = p.Z();
+    *outVX = v.X(); *outVY = v.Y(); *outVZ = v.Z();
+}
+
+void OCCTElCLibD1OnCircle(double u, double cx, double cy, double cz,
+                           double nx, double ny, double nz, double radius,
+                           double* outPX, double* outPY, double* outPZ,
+                           double* outVX, double* outVY, double* outVZ) {
+    gp_Pnt p; gp_Vec v;
+    ElCLib::D1(u, gp_Circ(gp_Ax2(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz)), radius), p, v);
+    *outPX = p.X(); *outPY = p.Y(); *outPZ = p.Z();
+    *outVX = v.X(); *outVY = v.Y(); *outVZ = v.Z();
+}
+
+double OCCTElCLibParameterOnLine(double ox, double oy, double oz,
+                                  double dx, double dy, double dz,
+                                  double px, double py, double pz) {
+    return ElCLib::Parameter(gp_Lin(gp_Pnt(ox,oy,oz), gp_Dir(dx,dy,dz)), gp_Pnt(px,py,pz));
+}
+
+double OCCTElCLibParameterOnCircle(double cx, double cy, double cz,
+                                    double nx, double ny, double nz, double radius,
+                                    double px, double py, double pz) {
+    return ElCLib::Parameter(gp_Circ(gp_Ax2(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz)), radius), gp_Pnt(px,py,pz));
+}
+
+double OCCTElCLibInPeriod(double u, double uFirst, double uLast) {
+    return ElCLib::InPeriod(u, uFirst, uLast);
+}
+// MARK: - gp_Quaternion (v0.91.0)
+
+#include <gp_Quaternion.hxx>
+#include <gp_EulerSequence.hxx>
+
+struct OCCTQuaternion {
+    gp_Quaternion q;
+};
+
+OCCTQuaternionRef OCCTQuaternionCreate(double x, double y, double z, double w) {
+    auto* ref = new OCCTQuaternion();
+    ref->q = gp_Quaternion(x, y, z, w);
+    return ref;
+}
+
+OCCTQuaternionRef OCCTQuaternionCreateFromAxisAngle(double ax, double ay, double az, double angle) {
+    auto* ref = new OCCTQuaternion();
+    ref->q = gp_Quaternion(gp_Vec(ax, ay, az), angle);
+    return ref;
+}
+
+OCCTQuaternionRef OCCTQuaternionCreateFromVectors(double fromX, double fromY, double fromZ,
+                                                    double toX, double toY, double toZ) {
+    auto* ref = new OCCTQuaternion();
+    ref->q = gp_Quaternion(gp_Vec(fromX, fromY, fromZ), gp_Vec(toX, toY, toZ));
+    return ref;
+}
+
+void OCCTQuaternionRelease(OCCTQuaternionRef q) {
+    delete q;
+}
+
+void OCCTQuaternionGetComponents(OCCTQuaternionRef q, double* x, double* y, double* z, double* w) {
+    *x = q->q.X(); *y = q->q.Y(); *z = q->q.Z(); *w = q->q.W();
+}
+
+void OCCTQuaternionSetEulerAngles(OCCTQuaternionRef q, int32_t order,
+                                   double alpha, double beta, double gamma) {
+    q->q.SetEulerAngles((gp_EulerSequence)order, alpha, beta, gamma);
+}
+
+void OCCTQuaternionGetEulerAngles(OCCTQuaternionRef q, int32_t order,
+                                   double* alpha, double* beta, double* gamma) {
+    q->q.GetEulerAngles((gp_EulerSequence)order, *alpha, *beta, *gamma);
+}
+
+void OCCTQuaternionGetMatrix(OCCTQuaternionRef q, double* matrix9) {
+    gp_Mat m = q->q.GetMatrix();
+    matrix9[0] = m.Value(1,1); matrix9[1] = m.Value(1,2); matrix9[2] = m.Value(1,3);
+    matrix9[3] = m.Value(2,1); matrix9[4] = m.Value(2,2); matrix9[5] = m.Value(2,3);
+    matrix9[6] = m.Value(3,1); matrix9[7] = m.Value(3,2); matrix9[8] = m.Value(3,3);
+}
+
+void OCCTQuaternionMultiplyVec(OCCTQuaternionRef q, double vx, double vy, double vz,
+                                double* outX, double* outY, double* outZ) {
+    gp_Vec result = q->q.Multiply(gp_Vec(vx, vy, vz));
+    *outX = result.X(); *outY = result.Y(); *outZ = result.Z();
+}
+
+OCCTQuaternionRef OCCTQuaternionMultiply(OCCTQuaternionRef q1, OCCTQuaternionRef q2) {
+    auto* ref = new OCCTQuaternion();
+    ref->q = q1->q.Multiplied(q2->q);
+    return ref;
+}
+
+void OCCTQuaternionGetVectorAndAngle(OCCTQuaternionRef q, double* ax, double* ay, double* az, double* angle) {
+    gp_Vec axis; double a;
+    q->q.GetVectorAndAngle(axis, a);
+    *ax = axis.X(); *ay = axis.Y(); *az = axis.Z(); *angle = a;
+}
+
+double OCCTQuaternionGetRotationAngle(OCCTQuaternionRef q) {
+    return q->q.GetRotationAngle();
+}
+
+void OCCTQuaternionNormalize(OCCTQuaternionRef q) {
+    q->q.Normalize();
+}
+
+// MARK: - v0.94: Convert_CircleToBSplineCurve

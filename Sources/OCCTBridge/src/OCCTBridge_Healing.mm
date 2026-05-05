@@ -3123,3 +3123,88 @@ OCCTCanonicalResult OCCTShapeRecognizeCanonicalCurve(OCCTShapeRef edgeShape, dou
     return result;
 }
 
+
+// MARK: - v0.93: ShapeFix_EdgeProjAux + BRepAlgo_FaceRestrictor
+// MARK: - ShapeFix_EdgeProjAux (v0.93.0)
+
+#include <ShapeFix_EdgeProjAux.hxx>
+
+bool OCCTShapeFixEdgeProjAux(OCCTShapeRef shape, int32_t faceIndex, int32_t edgeIndex,
+                              double precision, double* outFirst, double* outLast) {
+    if (!shape) return false;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return false;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        TopExp_Explorer edgeExp(face, TopAbs_EDGE);
+        for (int i = 0; i < edgeIndex && edgeExp.More(); i++) edgeExp.Next();
+        if (!edgeExp.More()) return false;
+        TopoDS_Edge edge = TopoDS::Edge(edgeExp.Current());
+
+        Handle(ShapeFix_EdgeProjAux) aux = new ShapeFix_EdgeProjAux(face, edge);
+        aux->Compute(precision);
+
+        if (aux->IsFirstDone()) *outFirst = aux->FirstParam(); else *outFirst = 0;
+        if (aux->IsLastDone()) *outLast = aux->LastParam(); else *outLast = 0;
+        return aux->IsFirstDone() && aux->IsLastDone();
+    } catch (...) { return false; }
+}
+// MARK: - BRepAlgo_FaceRestrictor (v0.93.0)
+
+#include <BRepAlgo_FaceRestrictor.hxx>
+
+int32_t OCCTShapeFaceRestrictAlgo(OCCTShapeRef shape, int32_t faceIndex,
+                                    OCCTShapeRef* outFaces, int32_t maxFaces) {
+    if (!shape) return -1;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return -1;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepAlgo_FaceRestrictor restrictor;
+        restrictor.Init(face, false, true);
+
+        TopExp_Explorer wireExp(face, TopAbs_WIRE);
+        for (; wireExp.More(); wireExp.Next()) {
+            TopoDS_Wire w = TopoDS::Wire(wireExp.Current());
+            restrictor.Add(w);
+        }
+
+        restrictor.Perform();
+        if (!restrictor.IsDone()) return -1;
+
+        int count = 0;
+        for (; restrictor.More() && count < maxFaces; restrictor.Next()) {
+            if (outFaces) {
+                OCCTShape* result = new OCCTShape();
+                result->shape = restrictor.Current();
+                outFaces[count] = result;
+            }
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// MARK: - v0.95: ShapeFix_IntersectionTool
+// MARK: - ShapeFix_IntersectionTool (v0.95.0)
+
+#include <ShapeFix_IntersectionTool.hxx>
+#include <ShapeBuild_ReShape.hxx>
+
+bool OCCTShapeFixIntersectingWires(OCCTShapeRef shape, int32_t faceIndex, double precision) {
+    if (!shape) return false;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return false;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        Handle(ShapeBuild_ReShape) ctx = new ShapeBuild_ReShape();
+        ShapeFix_IntersectionTool tool(ctx, precision, 1.0);
+        return tool.FixIntersectingWires(face);
+    } catch (...) { return false; }
+}

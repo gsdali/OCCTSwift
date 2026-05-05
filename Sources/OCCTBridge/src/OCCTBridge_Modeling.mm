@@ -6274,3 +6274,43 @@ OCCTContigousEdgeResult OCCTShapeFindContigousEdges(OCCTShapeRef shape, double t
     } catch (...) {}
     return result;
 }
+
+// MARK: - v0.90: IntTools_Tools
+// MARK: - IntTools_Tools (v0.90.0)
+
+#include <IntTools_Tools.hxx>
+
+int32_t OCCTIntToolsComputeVV(OCCTShapeRef vertex1, OCCTShapeRef vertex2) {
+    if (!vertex1 || !vertex2) return -1;
+    try {
+        return IntTools_Tools::ComputeVV(
+            TopoDS::Vertex(vertex1->shape),
+            TopoDS::Vertex(vertex2->shape));
+    } catch (...) { return -1; }
+}
+
+double OCCTIntToolsIntermediatePoint(double first, double last) {
+    try {
+        return IntTools_Tools::IntermediatePoint(first, last);
+    } catch (...) { return 0.5 * (first + last); }
+}
+
+bool OCCTIntToolsIsDirsCoinside(double dx1, double dy1, double dz1,
+                                 double dx2, double dy2, double dz2) {
+    try {
+        return IntTools_Tools::IsDirsCoinside(gp_Dir(dx1, dy1, dz1), gp_Dir(dx2, dy2, dz2));
+    } catch (...) { return false; }
+}
+
+bool OCCTIntToolsIsDirsCoinisdeWithTol(double dx1, double dy1, double dz1,
+                                        double dx2, double dy2, double dz2, double tol) {
+    try {
+        return IntTools_Tools::IsDirsCoinside(gp_Dir(dx1, dy1, dz1), gp_Dir(dx2, dy2, dz2), tol);
+    } catch (...) { return false; }
+}
+
+double OCCTIntToolsComputeIntRange(double tol1, double tol2, double angle) {
+    try {
+        return IntTools_Tools::ComputeIntRange(tol1, tol2, angle);
+    } catch (...) { return 0.0; }
+}

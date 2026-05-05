@@ -45,6 +45,8 @@
 #include <gce_MakeHypr2d.hxx>
 #include <gce_MakeLin2d.hxx>
 #include <gce_MakeParab2d.hxx>
+#include <TColStd_Array1OfInteger.hxx>
+#include <TColStd_Array1OfReal.hxx>
 #include <GccAna_Circ2d2TanRad.hxx>
 #include <GccAna_Circ2dTanCen.hxx>
 #include <GccAna_Lin2d2Tan.hxx>
@@ -2932,5 +2934,130 @@ OCCTCurve2DRef _Nullable OCCTGceMakeParab2d(double cx, double cy,
         if (!mp.IsDone()) return nullptr;
         Handle(Geom2d_Parabola) parab = new Geom2d_Parabola(mp.Value());
         return (OCCTCurve2DRef)new OCCTCurve2D{parab};
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - v0.93: Geom2dAPI_Interpolate + PointsToBSpline
+// MARK: - Geom2dAPI_Interpolate (v0.93.0)
+
+#include <Geom2dAPI_Interpolate.hxx>
+
+OCCTCurve2DRef OCCTCurve2DInterpolate2D(const double* xs, const double* ys,
+                                          int32_t count, bool periodic, double tolerance) {
+    if (!xs || !ys || count < 2) return nullptr;
+    try {
+        Handle(NCollection_HArray1<gp_Pnt2d>) pts = new NCollection_HArray1<gp_Pnt2d>(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(xs[i], ys[i]));
+        }
+        Geom2dAPI_Interpolate interp(pts, periodic, tolerance);
+        interp.Perform();
+        if (!interp.IsDone()) return nullptr;
+        Handle(Geom2d_BSplineCurve) curve = interp.Curve();
+        if (curve.IsNull()) return nullptr;
+        OCCTCurve2D* result = new OCCTCurve2D();
+        result->curve = curve;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Geom2dAPI_PointsToBSpline (v0.93.0)
+
+#include <Geom2dAPI_PointsToBSpline.hxx>
+
+OCCTCurve2DRef OCCTCurve2DApproximate2D(const double* xs, const double* ys, int32_t count) {
+    if (!xs || !ys || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt2d pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt2d(xs[i], ys[i]));
+        }
+        Geom2dAPI_PointsToBSpline approx(pts);
+        if (!approx.IsDone()) return nullptr;
+        Handle(Geom2d_BSplineCurve) curve = approx.Curve();
+        if (curve.IsNull()) return nullptr;
+        OCCTCurve2D* result = new OCCTCurve2D();
+        result->curve = curve;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - v0.95: Convert_Ellipse/Hyperbola/Parabola → BSpline 2D
+// MARK: - Convert conic/surface helpers (v0.95.0)
+
+#include <Convert_EllipseToBSplineCurve.hxx>
+#include <Convert_HyperbolaToBSplineCurve.hxx>
+#include <Convert_ParabolaToBSplineCurve.hxx>
+#include <Convert_CylinderToBSplineSurface.hxx>
+#include <Convert_ConeToBSplineSurface.hxx>
+#include <Convert_TorusToBSplineSurface.hxx>
+
+// Helper: build Geom2d_BSplineCurve from Convert_ConicToBSplineCurve result
+static OCCTCurve2DRef buildCurve2DFromConic(const Convert_ConicToBSplineCurve& conv) {
+    int np = conv.NbPoles(), nk = conv.NbKnots(), deg = conv.Degree();
+    TColgp_Array1OfPnt2d poles(1, np);
+    TColStd_Array1OfReal weights(1, np), knots(1, nk);
+    TColStd_Array1OfInteger mults(1, nk);
+    for (int i = 1; i <= np; i++) { poles(i) = conv.Pole(i); weights(i) = conv.Weight(i); }
+    for (int i = 1; i <= nk; i++) { knots(i) = conv.Knot(i); mults(i) = conv.Multiplicity(i); }
+    Handle(Geom2d_BSplineCurve) bsc = new Geom2d_BSplineCurve(poles, weights, knots, mults, deg);
+    if (bsc.IsNull()) return nullptr;
+    OCCTCurve2D* result = new OCCTCurve2D();
+    result->curve = bsc;
+    return result;
+}
+
+OCCTCurve2DRef OCCTConvertEllipseToBSpline2D(double cx, double cy,
+                                               double majorRadius, double minorRadius,
+                                               double u1, double u2) {
+    try {
+        gp_Elips2d e(gp_Ax22d(gp_Pnt2d(cx,cy), gp_Dir2d(1,0), gp_Dir2d(0,1)), majorRadius, minorRadius);
+        Convert_EllipseToBSplineCurve conv(e, u1, u2);
+        return buildCurve2DFromConic(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTConvertHyperbolaToBSpline2D(double cx, double cy,
+                                                 double majorRadius, double minorRadius,
+                                                 double u1, double u2) {
+    try {
+        gp_Hypr2d h(gp_Ax22d(gp_Pnt2d(cx,cy), gp_Dir2d(1,0), gp_Dir2d(0,1)), majorRadius, minorRadius);
+        Convert_HyperbolaToBSplineCurve conv(h, u1, u2);
+        return buildCurve2DFromConic(conv);
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTConvertParabolaToBSpline2D(double cx, double cy, double focal,
+                                                double u1, double u2) {
+    try {
+        gp_Parab2d p(gp_Ax22d(gp_Pnt2d(cx,cy), gp_Dir2d(1,0), gp_Dir2d(0,1)), focal);
+        Convert_ParabolaToBSplineCurve conv(p, u1, u2);
+        return buildCurve2DFromConic(conv);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - Convert_CircleToBSplineCurve 2D (v0.94)
+// MARK: - Convert_CircleToBSplineCurve (v0.94.0)
+
+#include <Convert_CircleToBSplineCurve.hxx>
+
+OCCTCurve2DRef OCCTConvertCircleToBSpline2D(double cx, double cy, double radius,
+                                              double u1, double u2) {
+    try {
+        gp_Circ2d circle(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(1, 0)), radius);
+        Convert_CircleToBSplineCurve conv(circle, u1, u2);
+        int np = conv.NbPoles(), nk = conv.NbKnots(), deg = conv.Degree();
+
+        TColgp_Array1OfPnt2d poles(1, np);
+        TColStd_Array1OfReal weights(1, np), knots(1, nk);
+        TColStd_Array1OfInteger mults(1, nk);
+        for (int i = 1; i <= np; i++) { poles(i) = conv.Pole(i); weights(i) = conv.Weight(i); }
+        for (int i = 1; i <= nk; i++) { knots(i) = conv.Knot(i); mults(i) = conv.Multiplicity(i); }
+
+        Handle(Geom2d_BSplineCurve) bsc = new Geom2d_BSplineCurve(poles, weights, knots, mults, deg);
+        if (bsc.IsNull()) return nullptr;
+        OCCTCurve2D* result = new OCCTCurve2D();
+        result->curve = bsc;
+        return result;
     } catch (...) { return nullptr; }
 }
