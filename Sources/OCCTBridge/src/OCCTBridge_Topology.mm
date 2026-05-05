@@ -2703,3 +2703,108 @@ bool OCCTShapeIsEdge(OCCTShapeRef shape) {
     if (!shape) return false;
     return shape->shape.ShapeType() == TopAbs_EDGE;
 }
+
+// MARK: - v0.113: BRepExtrema_DistShapeShape (full results)
+// --- BRepExtrema_DistShapeShape (full results) ---
+
+struct OCCTDistSS {
+    BRepExtrema_DistShapeShape dist;
+};
+
+OCCTDistSSRef OCCTDistSSCreate(OCCTShapeRef s1, OCCTShapeRef s2) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        auto ref = new OCCTDistSS();
+        ref->dist.LoadS1(s1->shape);
+        ref->dist.LoadS2(s2->shape);
+        ref->dist.Perform();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTDistSSRelease(OCCTDistSSRef dist) {
+    delete dist;
+}
+
+bool OCCTDistSSIsDone(OCCTDistSSRef dist) {
+    if (!dist) return false;
+    return dist->dist.IsDone();
+}
+
+double OCCTDistSSValue(OCCTDistSSRef dist) {
+    if (!dist) return -1;
+    try { return dist->dist.Value(); }
+    catch (...) { return -1; }
+}
+
+int32_t OCCTDistSSNbSolution(OCCTDistSSRef dist) {
+    if (!dist) return 0;
+    try { return (int32_t)dist->dist.NbSolution(); }
+    catch (...) { return 0; }
+}
+
+void OCCTDistSSPointOnShape1(OCCTDistSSRef dist, int32_t index,
+                              double* x, double* y, double* z) {
+    if (!dist) { *x = *y = *z = 0; return; }
+    try {
+        gp_Pnt p = dist->dist.PointOnShape1(index);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+void OCCTDistSSPointOnShape2(OCCTDistSSRef dist, int32_t index,
+                              double* x, double* y, double* z) {
+    if (!dist) { *x = *y = *z = 0; return; }
+    try {
+        gp_Pnt p = dist->dist.PointOnShape2(index);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+int32_t OCCTDistSSSupportType1(OCCTDistSSRef dist, int32_t index) {
+    if (!dist) return -1;
+    try {
+        BRepExtrema_SupportType t = dist->dist.SupportTypeShape1(index);
+        switch (t) {
+            case BRepExtrema_IsVertex: return 0;
+            case BRepExtrema_IsOnEdge: return 1;
+            case BRepExtrema_IsInFace: return 2;
+            default: return -1;
+        }
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTDistSSSupportType2(OCCTDistSSRef dist, int32_t index) {
+    if (!dist) return -1;
+    try {
+        BRepExtrema_SupportType t = dist->dist.SupportTypeShape2(index);
+        switch (t) {
+            case BRepExtrema_IsVertex: return 0;
+            case BRepExtrema_IsOnEdge: return 1;
+            case BRepExtrema_IsInFace: return 2;
+            default: return -1;
+        }
+    } catch (...) { return -1; }
+}
+
+OCCTShapeRef OCCTDistSSSupportShape1(OCCTDistSSRef dist, int32_t index) {
+    if (!dist) return nullptr;
+    try {
+        TopoDS_Shape s = dist->dist.SupportOnShape1(index);
+        if (s.IsNull()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = s;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTDistSSSupportShape2(OCCTDistSSRef dist, int32_t index) {
+    if (!dist) return nullptr;
+    try {
+        TopoDS_Shape s = dist->dist.SupportOnShape2(index);
+        if (s.IsNull()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = s;
+        return ref;
+    } catch (...) { return nullptr; }
+}

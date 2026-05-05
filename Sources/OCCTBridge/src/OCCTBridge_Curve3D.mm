@@ -4280,3 +4280,158 @@ int32_t OCCTExtremaPointSurface(OCCTSurfaceRef surface,
         return n;
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.113: GeomAPI_ProjectPointOnCurve (multi-result) + BSplineCurve mutations
+// --- GeomAPI_ProjectPointOnCurve (multi-result) ---
+
+struct OCCTProjOnCurve {
+    GeomAPI_ProjectPointOnCurve proj;
+};
+
+OCCTProjOnCurveRef OCCTProjOnCurveCreate(OCCTCurve3DRef curve, double px, double py, double pz) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        auto ref = new OCCTProjOnCurve();
+        ref->proj.Init(gp_Pnt(px, py, pz), curve->curve);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTProjOnCurveRelease(OCCTProjOnCurveRef proj) {
+    delete proj;
+}
+
+int32_t OCCTProjOnCurveNbPoints(OCCTProjOnCurveRef proj) {
+    if (!proj) return 0;
+    try { return (int32_t)proj->proj.NbPoints(); }
+    catch (...) { return 0; }
+}
+
+void OCCTProjOnCurvePoint(OCCTProjOnCurveRef proj, int32_t index,
+                           double* x, double* y, double* z) {
+    if (!proj) { *x = *y = *z = 0; return; }
+    try {
+        gp_Pnt p = proj->proj.Point(index);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+double OCCTProjOnCurveParameter(OCCTProjOnCurveRef proj, int32_t index) {
+    if (!proj) return 0;
+    try { return proj->proj.Parameter(index); }
+    catch (...) { return 0; }
+}
+
+double OCCTProjOnCurveDistance(OCCTProjOnCurveRef proj, int32_t index) {
+    if (!proj) return -1;
+    try { return proj->proj.Distance(index); }
+    catch (...) { return -1; }
+}
+
+double OCCTProjOnCurveLowerDistance(OCCTProjOnCurveRef proj) {
+    if (!proj) return -1;
+    try { return proj->proj.LowerDistance(); }
+    catch (...) { return -1; }
+}
+
+double OCCTProjOnCurveLowerParam(OCCTProjOnCurveRef proj) {
+    if (!proj) return 0;
+    try { return proj->proj.LowerDistanceParameter(); }
+    catch (...) { return 0; }
+}
+// --- BSplineCurve remaining mutations ---
+
+bool OCCTCurve3DBSplineSetKnot(OCCTCurve3DRef curve, int32_t index, double knot) {
+    if (!curve || curve->curve.IsNull()) return false;
+    try {
+        Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bsc.IsNull()) return false;
+        bsc->SetKnot(index, knot);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTCurve3DBSplineGetKnotSequence(OCCTCurve3DRef curve, double* knotSeq, int32_t* count) {
+    if (!curve || curve->curve.IsNull()) { *count = 0; return; }
+    try {
+        Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bsc.IsNull()) { *count = 0; return; }
+        TColStd_Array1OfReal seq(1, bsc->NbPoles() + bsc->Degree() + 1);
+        bsc->KnotSequence(seq);
+        *count = seq.Length();
+        for (int i = 1; i <= seq.Length(); i++) {
+            knotSeq[i - 1] = seq(i);
+        }
+    } catch (...) { *count = 0; }
+}
+
+void OCCTCurve3DBSplineGetWeights(OCCTCurve3DRef curve, double* weights) {
+    if (!curve || curve->curve.IsNull()) return;
+    try {
+        Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bsc.IsNull()) return;
+        TColStd_Array1OfReal w(1, bsc->NbPoles());
+        bsc->Weights(w);
+        for (int i = 1; i <= w.Length(); i++) {
+            weights[i - 1] = w(i);
+        }
+    } catch (...) {}
+}
+
+bool OCCTCurve3DBSplineInsertKnots(OCCTCurve3DRef curve,
+                                     const double* knots, const int32_t* mults,
+                                     int32_t count, double tol) {
+    if (!curve || curve->curve.IsNull() || count <= 0) return false;
+    try {
+        Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bsc.IsNull()) return false;
+        TColStd_Array1OfReal knotsArr(1, count);
+        TColStd_Array1OfInteger multsArr(1, count);
+        for (int i = 0; i < count; i++) {
+            knotsArr(i + 1) = knots[i];
+            multsArr(i + 1) = mults[i];
+        }
+        bsc->InsertKnots(knotsArr, multsArr, tol);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve3DBSplineMovePoint(OCCTCurve3DRef curve, double u,
+                                   double x, double y, double z,
+                                   int32_t index1, int32_t index2) {
+    if (!curve || curve->curve.IsNull()) return false;
+    try {
+        Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bsc.IsNull()) return false;
+        int first, last;
+        bsc->MovePoint(u, gp_Pnt(x, y, z), index1, index2, first, last);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTCurve3DBSplineLocalValue(OCCTCurve3DRef curve, double u,
+                                    int32_t fromK1, int32_t toK2,
+                                    double* x, double* y, double* z) {
+    if (!curve || curve->curve.IsNull()) { *x = *y = *z = 0; return; }
+    try {
+        Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bsc.IsNull()) { *x = *y = *z = 0; return; }
+        gp_Pnt p = bsc->LocalValue(u, fromK1, toK2);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+int32_t OCCTCurve3DBSplineMaxDegree() {
+    return (int32_t)Geom_BSplineCurve::MaxDegree();
+}
+
+int32_t OCCTCurve3DBSplineLocateU(OCCTCurve3DRef curve, double u, double tol) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        Handle(Geom_BSplineCurve) bsc = Handle(Geom_BSplineCurve)::DownCast(curve->curve);
+        if (bsc.IsNull()) return 0;
+        int ki = 0;
+        bsc->LocateU(u, tol, ki, ki);
+        return (int32_t)ki;
+    } catch (...) { return 0; }
+}
