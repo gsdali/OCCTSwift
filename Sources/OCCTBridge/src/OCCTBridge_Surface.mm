@@ -59,7 +59,26 @@
 #include <GeomConvert_CompBezierSurfacesToBSplineSurface.hxx>
 #include <GeomFill_Pipe.hxx>
 #include <GeomFill_BSplineCurves.hxx>
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepTopAdaptor_TopolTool.hxx>
 #include <Contap_ContAna.hxx>
+#include <Contap_Contour.hxx>
+#include <Contap_IType.hxx>
+#include <Contap_Line.hxx>
+#include <Approx_MCurvesToBSpCurve.hxx>
+#include <GeomFill_Coons.hxx>
+#include <GeomFill_CoonsAlgPatch.hxx>
+#include <GeomFill_CorrectedFrenet.hxx>
+#include <GeomFill_Curved.hxx>
+#include <GeomFill_CurveAndTrihedron.hxx>
+#include <GeomFill_DiscreteTrihedron.hxx>
+#include <GeomFill_DraftTrihedron.hxx>
+#include <GeomFill_EvolvedSection.hxx>
+#include <GeomFill_Sweep.hxx>
+#include <GeomFill_UniformSection.hxx>
+#include <GeomInt_IntSS.hxx>
+#include <IntSurf_PntOn2S.hxx>
+#include <Law_Constant.hxx>
 #include <GeomFill_ConstrainedFilling.hxx>
 #include <GeomFill_SimpleBound.hxx>
 #include <ShapeCustom_Surface.hxx>
@@ -1825,4 +1844,379 @@ int32_t OCCTContapSphereEye(double cx, double cy, double cz, double radius,
         }
         return nb;
     } catch (...) { return -1; }
+}
+
+// MARK: - GeomInt_IntSS (v0.63)
+// --- GeomInt_IntSS ---
+
+struct OCCTGeomIntSS {
+    GeomInt_IntSS intss;
+    bool valid;
+};
+
+OCCTGeomIntSSRef _Nullable OCCTGeomIntSSCreate(OCCTShapeRef face1, OCCTShapeRef face2, double tolerance) {
+    if (!face1 || !face2) return nullptr;
+    try {
+        TopoDS_Face f1 = TopoDS::Face(face1->shape);
+        TopoDS_Face f2 = TopoDS::Face(face2->shape);
+        Handle(Geom_Surface) s1 = BRep_Tool::Surface(f1);
+        Handle(Geom_Surface) s2 = BRep_Tool::Surface(f2);
+        if (s1.IsNull() || s2.IsNull()) return nullptr;
+        auto* ref = new OCCTGeomIntSS();
+        ref->intss.Perform(s1, s2, tolerance, true, false, false);
+        ref->valid = ref->intss.IsDone();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+int OCCTGeomIntSSLineCount(OCCTGeomIntSSRef ref) {
+    if (!ref) return 0;
+    auto* r = static_cast<OCCTGeomIntSS*>(ref);
+    if (!r->valid) return 0;
+    return r->intss.NbLines();
+}
+
+OCCTShapeRef _Nullable OCCTGeomIntSSLine(OCCTGeomIntSSRef ref, int index) {
+    if (!ref) return nullptr;
+    auto* r = static_cast<OCCTGeomIntSS*>(ref);
+    if (!r->valid || index < 1 || index > r->intss.NbLines()) return nullptr;
+    try {
+        Handle(Geom_Curve) curve = r->intss.Line(index);
+        if (curve.IsNull()) return nullptr;
+        BRepBuilderAPI_MakeEdge me(curve);
+        if (!me.IsDone()) return nullptr;
+        return new OCCTShape(me.Edge());
+    } catch (...) { return nullptr; }
+}
+
+int OCCTGeomIntSSPointCount(OCCTGeomIntSSRef ref) {
+    if (!ref) return 0;
+    auto* r = static_cast<OCCTGeomIntSS*>(ref);
+    if (!r->valid) return 0;
+    return r->intss.NbPoints();
+}
+
+void OCCTGeomIntSSPoint(OCCTGeomIntSSRef ref, int index, double* x, double* y, double* z) {
+    if (!ref || !x || !y || !z) return;
+    auto* r = static_cast<OCCTGeomIntSS*>(ref);
+    if (!r->valid || index < 1 || index > r->intss.NbPoints()) return;
+    try {
+        gp_Pnt pt = r->intss.Point(index);
+        *x = pt.X(); *y = pt.Y(); *z = pt.Z();
+    } catch (...) {}
+}
+
+void OCCTGeomIntSSRelease(OCCTGeomIntSSRef ref) {
+    if (ref) delete static_cast<OCCTGeomIntSS*>(ref);
+}
+
+// MARK: - Contap_Contour (v0.63)
+// --- Contap_Contour ---
+
+struct OCCTContapContour {
+    Contap_Contour contour;
+    bool valid;
+    bool empty;
+};
+
+OCCTContapContourRef _Nullable OCCTContapContourDirection(OCCTShapeRef faceShape,
+    double dx, double dy, double dz) {
+    if (!faceShape) return nullptr;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(BRepAdaptor_Surface) surf = new BRepAdaptor_Surface(face);
+        Handle(BRepTopAdaptor_TopolTool) tool = new BRepTopAdaptor_TopolTool(surf);
+        auto* ref = new OCCTContapContour();
+        ref->contour.Init(gp_Vec(dx, dy, dz));
+        ref->contour.Perform(surf, tool);
+        ref->valid = ref->contour.IsDone();
+        ref->empty = ref->contour.IsEmpty();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTContapContourRef _Nullable OCCTContapContourEye(OCCTShapeRef faceShape,
+    double ex, double ey, double ez) {
+    if (!faceShape) return nullptr;
+    try {
+        TopoDS_Face face = TopoDS::Face(faceShape->shape);
+        Handle(BRepAdaptor_Surface) surf = new BRepAdaptor_Surface(face);
+        Handle(BRepTopAdaptor_TopolTool) tool = new BRepTopAdaptor_TopolTool(surf);
+        auto* ref = new OCCTContapContour();
+        ref->contour.Init(gp_Pnt(ex, ey, ez));
+        ref->contour.Perform(surf, tool);
+        ref->valid = ref->contour.IsDone();
+        ref->empty = ref->contour.IsEmpty();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+int OCCTContapContourLineCount(OCCTContapContourRef ref) {
+    if (!ref) return 0;
+    auto* r = static_cast<OCCTContapContour*>(ref);
+    if (!r->valid || r->empty) return 0;
+    return r->contour.NbLines();
+}
+
+int OCCTContapContourLinePointCount(OCCTContapContourRef ref, int lineIndex) {
+    if (!ref) return 0;
+    auto* r = static_cast<OCCTContapContour*>(ref);
+    if (!r->valid || r->empty) return 0;
+    if (lineIndex < 1 || lineIndex > r->contour.NbLines()) return 0;
+    try {
+        return r->contour.Line(lineIndex).NbPnts();
+    } catch (...) { return 0; }
+}
+
+void OCCTContapContourLinePoint(OCCTContapContourRef ref, int lineIndex, int pointIndex,
+    double* x, double* y, double* z) {
+    if (!ref || !x || !y || !z) return;
+    auto* r = static_cast<OCCTContapContour*>(ref);
+    if (!r->valid || r->empty) return;
+    try {
+        const Contap_Line& line = r->contour.Line(lineIndex);
+        if (pointIndex < 1 || pointIndex > line.NbPnts()) return;
+        gp_Pnt pt = line.Point(pointIndex).Value();
+        *x = pt.X(); *y = pt.Y(); *z = pt.Z();
+    } catch (...) {}
+}
+
+int OCCTContapContourLineType(OCCTContapContourRef ref, int lineIndex) {
+    if (!ref) return -1;
+    auto* r = static_cast<OCCTContapContour*>(ref);
+    if (!r->valid || r->empty) return -1;
+    if (lineIndex < 1 || lineIndex > r->contour.NbLines()) return -1;
+    try {
+        Contap_IType t = r->contour.Line(lineIndex).TypeContour();
+        return static_cast<int>(t);
+    } catch (...) { return -1; }
+}
+
+void OCCTContapContourRelease(OCCTContapContourRef ref) {
+    if (ref) delete static_cast<OCCTContapContour*>(ref);
+}
+
+// MARK: - GeomFill Trihedron Laws + Coons/Curved Filling Poles (v0.63)
+// --- GeomFill Trihedron Laws ---
+
+static OCCTTrihedronFrame makeEmptyFrame() {
+    return {0,0,0, 0,0,0, 0,0,0};
+}
+
+OCCTTrihedronFrame OCCTGeomFillDraftTrihedron(OCCTShapeRef edgeShape, double param,
+    double biNormalX, double biNormalY, double biNormalZ, double angle) {
+    if (!edgeShape) return makeEmptyFrame();
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        Handle(BRepAdaptor_Curve) adaptor = new BRepAdaptor_Curve(edge);
+        GeomFill_DraftTrihedron draft(gp_Vec(biNormalX, biNormalY, biNormalZ), angle);
+        draft.SetCurve(adaptor);
+        gp_Vec tangent, normal, binormal;
+        if (!draft.D0(param, tangent, normal, binormal)) return makeEmptyFrame();
+        return {tangent.X(), tangent.Y(), tangent.Z(),
+                normal.X(), normal.Y(), normal.Z(),
+                binormal.X(), binormal.Y(), binormal.Z()};
+    } catch (...) { return makeEmptyFrame(); }
+}
+
+OCCTTrihedronFrame OCCTGeomFillDiscreteTrihedron(OCCTShapeRef edgeShape, double param) {
+    if (!edgeShape) return makeEmptyFrame();
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        Handle(BRepAdaptor_Curve) adaptor = new BRepAdaptor_Curve(edge);
+        GeomFill_DiscreteTrihedron discrete;
+        discrete.SetCurve(adaptor);
+        gp_Vec tangent, normal, binormal;
+        if (!discrete.D0(param, tangent, normal, binormal)) return makeEmptyFrame();
+        return {tangent.X(), tangent.Y(), tangent.Z(),
+                normal.X(), normal.Y(), normal.Z(),
+                binormal.X(), binormal.Y(), binormal.Z()};
+    } catch (...) { return makeEmptyFrame(); }
+}
+
+OCCTTrihedronFrame OCCTGeomFillCorrectedFrenet(OCCTShapeRef edgeShape, double param) {
+    if (!edgeShape) return makeEmptyFrame();
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        Handle(BRepAdaptor_Curve) adaptor = new BRepAdaptor_Curve(edge);
+        GeomFill_CorrectedFrenet corrected;
+        corrected.SetCurve(adaptor);
+        gp_Vec tangent, normal, binormal;
+        if (!corrected.D0(param, tangent, normal, binormal)) return makeEmptyFrame();
+        return {tangent.X(), tangent.Y(), tangent.Z(),
+                normal.X(), normal.Y(), normal.Z(),
+                binormal.X(), binormal.Y(), binormal.Z()};
+    } catch (...) { return makeEmptyFrame(); }
+}
+
+// --- GeomFill_Coons / GeomFill_Curved ---
+
+// Helper: extract poles from GeomFill_Filling into flat array
+// Returns actual pole count (nbU * nbV), outPoints must be pre-sized
+static int extractFillingPoles(GeomFill_Filling& filling, double* outPoints, int maxPoints) {
+    int nbU = filling.NbUPoles();
+    int nbV = filling.NbVPoles();
+    int total = nbU * nbV;
+    if (total > maxPoints) total = maxPoints;
+    NCollection_Array2<gp_Pnt> poles(1, nbU, 1, nbV);
+    filling.Poles(poles);
+    int idx = 0;
+    for (int i = 1; i <= nbU && idx < maxPoints; i++) {
+        for (int j = 1; j <= nbV && idx < maxPoints; j++) {
+            gp_Pnt pt = poles(i, j);
+            outPoints[idx*3]     = pt.X();
+            outPoints[idx*3 + 1] = pt.Y();
+            outPoints[idx*3 + 2] = pt.Z();
+            idx++;
+        }
+    }
+    return total;
+}
+
+int OCCTGeomFillCoonsPoles(
+    const double* b1, const double* b2, const double* b3, const double* b4,
+    int pointsPerSide, double* outPoints, int maxPoints,
+    int* outNbU, int* outNbV) {
+    if (!b1 || !b2 || !b3 || !b4 || !outPoints || pointsPerSide < 2) return 0;
+    try {
+        NCollection_Array1<gp_Pnt> P1(1, pointsPerSide), P2(1, pointsPerSide),
+                                    P3(1, pointsPerSide), P4(1, pointsPerSide);
+        for (int i = 0; i < pointsPerSide; i++) {
+            P1(i+1) = gp_Pnt(b1[i*3], b1[i*3+1], b1[i*3+2]);
+            P2(i+1) = gp_Pnt(b2[i*3], b2[i*3+1], b2[i*3+2]);
+            P3(i+1) = gp_Pnt(b3[i*3], b3[i*3+1], b3[i*3+2]);
+            P4(i+1) = gp_Pnt(b4[i*3], b4[i*3+1], b4[i*3+2]);
+        }
+        GeomFill_Coons coons(P1, P2, P3, P4);
+        if (outNbU) *outNbU = coons.NbUPoles();
+        if (outNbV) *outNbV = coons.NbVPoles();
+        return extractFillingPoles(coons, outPoints, maxPoints);
+    } catch (...) { return 0; }
+}
+
+int OCCTGeomFillCurvedPoles(
+    const double* b1, const double* b2, const double* b3, const double* b4,
+    int pointsPerSide, double* outPoints, int maxPoints,
+    int* outNbU, int* outNbV) {
+    if (!b1 || !b2 || !b3 || !b4 || !outPoints || pointsPerSide < 2) return 0;
+    try {
+        NCollection_Array1<gp_Pnt> P1(1, pointsPerSide), P2(1, pointsPerSide),
+                                    P3(1, pointsPerSide), P4(1, pointsPerSide);
+        for (int i = 0; i < pointsPerSide; i++) {
+            P1(i+1) = gp_Pnt(b1[i*3], b1[i*3+1], b1[i*3+2]);
+            P2(i+1) = gp_Pnt(b2[i*3], b2[i*3+1], b2[i*3+2]);
+            P3(i+1) = gp_Pnt(b3[i*3], b3[i*3+1], b3[i*3+2]);
+            P4(i+1) = gp_Pnt(b4[i*3], b4[i*3+1], b4[i*3+2]);
+        }
+        GeomFill_Curved curved(P1, P2, P3, P4);
+        if (outNbU) *outNbU = curved.NbUPoles();
+        if (outNbV) *outNbV = curved.NbVPoles();
+        return extractFillingPoles(curved, outPoints, maxPoints);
+    } catch (...) { return 0; }
+}
+
+// MARK: - GeomFill_CoonsAlgPatch (v0.63)
+// --- GeomFill_CoonsAlgPatch ---
+
+void OCCTGeomFillCoonsAlgPatchEval(
+    OCCTShapeRef edge1, OCCTShapeRef edge2, OCCTShapeRef edge3, OCCTShapeRef edge4,
+    int evalU, int evalV, double* outPoints) {
+    if (!edge1 || !edge2 || !edge3 || !edge4 || !outPoints) return;
+    try {
+        auto makeAdaptor = [](OCCTShapeRef e) -> Handle(GeomAdaptor_Curve) {
+            TopoDS_Edge edge = TopoDS::Edge(e->shape);
+            double f, l;
+            Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, f, l);
+            return new GeomAdaptor_Curve(curve, f, l);
+        };
+        Handle(GeomAdaptor_Curve) ac1 = makeAdaptor(edge1);
+        Handle(GeomAdaptor_Curve) ac2 = makeAdaptor(edge2);
+        Handle(GeomAdaptor_Curve) ac3 = makeAdaptor(edge3);
+        Handle(GeomAdaptor_Curve) ac4 = makeAdaptor(edge4);
+
+        Handle(GeomFill_SimpleBound) b1 = new GeomFill_SimpleBound(ac1, 1e-3, 1e-3);
+        Handle(GeomFill_SimpleBound) b2 = new GeomFill_SimpleBound(ac2, 1e-3, 1e-3);
+        Handle(GeomFill_SimpleBound) b3 = new GeomFill_SimpleBound(ac3, 1e-3, 1e-3);
+        Handle(GeomFill_SimpleBound) b4 = new GeomFill_SimpleBound(ac4, 1e-3, 1e-3);
+
+        GeomFill_CoonsAlgPatch patch(b1, b2, b3, b4);
+        for (int i = 0; i < evalU; i++) {
+            for (int j = 0; j < evalV; j++) {
+                double u = (evalU > 1) ? (double)i / (evalU - 1) : 0.5;
+                double v = (evalV > 1) ? (double)j / (evalV - 1) : 0.5;
+                gp_Pnt pt = patch.Value(u, v);
+                int idx = (i * evalV + j) * 3;
+                outPoints[idx]     = pt.X();
+                outPoints[idx + 1] = pt.Y();
+                outPoints[idx + 2] = pt.Z();
+            }
+        }
+    } catch (...) {}
+}
+
+// MARK: - GeomFill_Sweep (v0.63)
+// --- GeomFill_Sweep ---
+
+OCCTShapeRef _Nullable OCCTGeomFillSweep(OCCTShapeRef pathEdge, OCCTShapeRef sectionEdge) {
+    if (!pathEdge || !sectionEdge) return nullptr;
+    try {
+        // Path curve
+        TopoDS_Edge path = TopoDS::Edge(pathEdge->shape);
+        double pf, pl;
+        Handle(Geom_Curve) pathCurve = BRep_Tool::Curve(path, pf, pl);
+        if (pathCurve.IsNull()) return nullptr;
+        Handle(GeomAdaptor_Curve) pathAdaptor = new GeomAdaptor_Curve(pathCurve, pf, pl);
+
+        // Section curve
+        TopoDS_Edge section = TopoDS::Edge(sectionEdge->shape);
+        double sf, sl;
+        Handle(Geom_Curve) sectionCurve = BRep_Tool::Curve(section, sf, sl);
+        if (sectionCurve.IsNull()) return nullptr;
+
+        // Trihedron + location
+        Handle(GeomFill_CorrectedFrenet) trihedron = new GeomFill_CorrectedFrenet();
+        Handle(GeomFill_CurveAndTrihedron) location = new GeomFill_CurveAndTrihedron(trihedron);
+        location->SetCurve(pathAdaptor);
+
+        // Section law
+        Handle(GeomFill_UniformSection) sectionLaw = new GeomFill_UniformSection(sectionCurve);
+
+        // Sweep
+        GeomFill_Sweep sweep(location);
+        sweep.Build(sectionLaw, GeomFill_Location, GeomAbs_C2, 10, 50);
+        if (!sweep.IsDone()) return nullptr;
+
+        Handle(Geom_Surface) surface = sweep.Surface();
+        if (surface.IsNull()) return nullptr;
+
+        BRepBuilderAPI_MakeFace mf(surface, 1e-6);
+        if (!mf.IsDone()) return nullptr;
+        return new OCCTShape(mf.Face());
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - GeomFill_EvolvedSection (v0.63)
+// --- GeomFill_EvolvedSection ---
+
+OCCTEvolvedSectionInfo OCCTGeomFillEvolvedSectionInfo(OCCTShapeRef edgeShape) {
+    OCCTEvolvedSectionInfo result = {0, 0, 0, false};
+    if (!edgeShape) return result;
+    try {
+        TopoDS_Edge edge = TopoDS::Edge(edgeShape->shape);
+        double f, l;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, f, l);
+        if (curve.IsNull()) return result;
+
+        Handle(Law_Constant) law = new Law_Constant();
+        law->Set(1.0, 0.0, 1.0);
+        GeomFill_EvolvedSection evolved(curve, law);
+
+        int nbPoles, nbKnots, degree;
+        evolved.SectionShape(nbPoles, nbKnots, degree);
+        result.nbPoles = nbPoles;
+        result.nbKnots = nbKnots;
+        result.degree = degree;
+        result.isRational = evolved.IsRational();
+    } catch (...) {}
+    return result;
 }
