@@ -97,6 +97,7 @@
 #include <BRepFill_OffsetAncestors.hxx>
 #include <BRepAlgo_AsDes.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <ShapeUpgrade_UnifySameDomain.hxx>
 #include <HLRAppli_ReflectLines.hxx>
 #include <HLRBRep_TypeOfResultingEdge.hxx>
 #include <BRepFeat_Status.hxx>
@@ -7385,5 +7386,308 @@ OCCTShapeRef OCCTThickSolidWithOptions(OCCTShapeRef shape,
         auto ref = new OCCTShape();
         ref->shape = maker.Shape();
         return ref;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - v0.115: BRepBuilderAPI_Transform + BRepAlgoAPI + ThruSections
+// --- BRepBuilderAPI_Transform expansion ---
+
+OCCTShapeRef OCCTShapeTransformed(OCCTShapeRef shape, const double* matrix12) {
+    if (!shape || !matrix12) return nullptr;
+    try {
+        gp_Trsf trsf;
+        trsf.SetValues(matrix12[0], matrix12[1], matrix12[2], matrix12[9],
+                        matrix12[3], matrix12[4], matrix12[5], matrix12[10],
+                        matrix12[6], matrix12[7], matrix12[8], matrix12[11]);
+        BRepBuilderAPI_Transform xform(shape->shape, trsf, Standard_True);
+        if (xform.IsDone()) {
+            return new OCCTShape{xform.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeGTransformed(OCCTShapeRef shape, const double* matrix12) {
+    if (!shape || !matrix12) return nullptr;
+    try {
+        gp_GTrsf gtrsf;
+        gtrsf.SetValue(1, 1, matrix12[0]); gtrsf.SetValue(1, 2, matrix12[1]); gtrsf.SetValue(1, 3, matrix12[2]); gtrsf.SetValue(1, 4, matrix12[3]);
+        gtrsf.SetValue(2, 1, matrix12[4]); gtrsf.SetValue(2, 2, matrix12[5]); gtrsf.SetValue(2, 3, matrix12[6]); gtrsf.SetValue(2, 4, matrix12[7]);
+        gtrsf.SetValue(3, 1, matrix12[8]); gtrsf.SetValue(3, 2, matrix12[9]); gtrsf.SetValue(3, 3, matrix12[10]); gtrsf.SetValue(3, 4, matrix12[11]);
+        BRepBuilderAPI_GTransform xform(shape->shape, gtrsf, Standard_True);
+        if (xform.IsDone()) {
+            return new OCCTShape{xform.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+// --- BRepAlgoAPI expansion ---
+
+OCCTShapeRef OCCTBooleanSectionWithTolerance(OCCTShapeRef s1, OCCTShapeRef s2, double fuzzyTol) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        BRepAlgoAPI_Section sec(s1->shape, s2->shape, Standard_False);
+        sec.SetFuzzyValue(fuzzyTol);
+        sec.Build();
+        if (sec.IsDone()) {
+            return new OCCTShape{sec.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBooleanSplitMulti(OCCTShapeRef shape, const OCCTShapeRef* tools,
+                                     int32_t toolCount, double fuzzyTol) {
+    if (!shape || !tools || toolCount < 1) return nullptr;
+    try {
+        BRepAlgoAPI_Splitter splitter;
+        TopTools_ListOfShape args, toolShapes;
+        args.Append(shape->shape);
+        for (int i = 0; i < toolCount; i++) {
+            if (tools[i]) toolShapes.Append(tools[i]->shape);
+        }
+        splitter.SetArguments(args);
+        splitter.SetTools(toolShapes);
+        if (fuzzyTol > 0) splitter.SetFuzzyValue(fuzzyTol);
+        splitter.Build();
+        if (splitter.IsDone()) {
+            return new OCCTShape{splitter.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBooleanCutWithHistory(OCCTShapeRef s1, OCCTShapeRef s2, double fuzzyTol,
+                                         bool* hasDeleted, bool* hasModified, bool* hasGenerated) {
+    if (!s1 || !s2) return nullptr;
+    *hasDeleted = false; *hasModified = false; *hasGenerated = false;
+    try {
+        BRepAlgoAPI_Cut cut;
+        TopTools_ListOfShape args, tools;
+        args.Append(s1->shape);
+        tools.Append(s2->shape);
+        cut.SetArguments(args);
+        cut.SetTools(tools);
+        if (fuzzyTol > 0) cut.SetFuzzyValue(fuzzyTol);
+        cut.Build();
+        if (cut.IsDone()) {
+            *hasDeleted = cut.HasDeleted();
+            *hasModified = cut.HasModified();
+            *hasGenerated = cut.HasGenerated();
+            return new OCCTShape{cut.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTDefeatureWithTolerance(OCCTShapeRef shape, const OCCTShapeRef* facesToRemove,
+                                          int32_t count, double fuzzyTol) {
+    if (!shape || !facesToRemove || count < 1) return nullptr;
+    try {
+        BRepAlgoAPI_Defeaturing def;
+        def.SetShape(shape->shape);
+        for (int i = 0; i < count; i++) {
+            if (facesToRemove[i]) def.AddFaceToRemove(facesToRemove[i]->shape);
+        }
+        if (fuzzyTol > 0) def.SetFuzzyValue(fuzzyTol);
+        def.Build();
+        if (def.IsDone()) {
+            return new OCCTShape{def.Shape()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+// --- ThruSections builder ---
+
+struct OCCTThruSections {
+    BRepOffsetAPI_ThruSections* builder;
+    int sectionCount = 0;
+};
+
+OCCTThruSectionsRef OCCTThruSectionsCreate(bool isSolid, bool isRuled, double pres3d) {
+    auto ts = new OCCTThruSections();
+    ts->builder = new BRepOffsetAPI_ThruSections(isSolid, isRuled, pres3d);
+    return (OCCTThruSectionsRef)ts;
+}
+
+void OCCTThruSectionsRelease(OCCTThruSectionsRef ref) {
+    auto ts = (OCCTThruSections*)ref;
+    if (ts) {
+        delete ts->builder;
+        delete ts;
+    }
+}
+
+void OCCTThruSectionsAddWire(OCCTThruSectionsRef ref, OCCTShapeRef wire) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts || !wire) return;
+    try {
+        ts->builder->AddWire(TopoDS::Wire(wire->shape));
+        ts->sectionCount++;
+    } catch (...) {}
+}
+
+void OCCTThruSectionsAddVertex(OCCTThruSectionsRef ref, OCCTShapeRef vertex) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts || !vertex) return;
+    try {
+        ts->builder->AddVertex(TopoDS::Vertex(vertex->shape));
+        ts->sectionCount++;
+    } catch (...) {}
+}
+
+void OCCTThruSectionsSetSmoothing(OCCTThruSectionsRef ref, bool smoothing) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    ts->builder->SetSmoothing(smoothing);
+}
+
+void OCCTThruSectionsSetMaxDegree(OCCTThruSectionsRef ref, int32_t maxDeg) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    ts->builder->SetMaxDegree(maxDeg);
+}
+
+void OCCTThruSectionsSetContinuity(OCCTThruSectionsRef ref, int32_t continuity) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    ts->builder->SetCriteriumWeight(1.0, 1.0, 1.0); // ensure defaults
+    // Map 0=C0, 1=C1, 2=C2
+    GeomAbs_Shape cont = GeomAbs_C2;
+    if (continuity == 0) cont = GeomAbs_C0;
+    else if (continuity == 1) cont = GeomAbs_C1;
+    ts->builder->SetContinuity(cont);
+}
+
+bool OCCTThruSectionsBuild(OCCTThruSectionsRef ref) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return false;
+    // ThruSections requires at least 2 sections — OCCT segfaults otherwise
+    if (ts->sectionCount < 2) return false;
+    try {
+        ts->builder->Build();
+        return ts->builder->IsDone();
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTThruSectionsShape(OCCTThruSectionsRef ref) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return nullptr;
+    try {
+        if (!ts->builder->IsDone()) return nullptr;
+        return new OCCTShape{ts->builder->Shape()};
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - ThruSections extensions (hoisted with struct)
+// MARK: - v0.123.0: Builder extensions, Section ops, Curve/Surface queries
+
+// --- ThruSections extensions ---
+
+void OCCTThruSectionsCheckCompatibility(OCCTThruSectionsRef ref, bool check) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    try { ts->builder->CheckCompatibility(check); } catch (...) {}
+}
+
+void OCCTThruSectionsSetParType(OCCTThruSectionsRef ref, int32_t parType) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    try {
+        Approx_ParametrizationType pt = Approx_ChordLength;
+        switch (parType) {
+            case 0: pt = Approx_ChordLength; break;
+            case 1: pt = Approx_Centripetal; break;
+            case 2: pt = Approx_IsoParametric; break;
+        }
+        ts->builder->SetParType(pt);
+    } catch (...) {}
+}
+
+void OCCTThruSectionsSetCriteriumWeight(OCCTThruSectionsRef ref, double w1, double w2, double w3) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts) return;
+    try { ts->builder->SetCriteriumWeight(w1, w2, w3); } catch (...) {}
+}
+
+OCCTShapeRef OCCTThruSectionsGeneratedFace(OCCTThruSectionsRef ref, OCCTShapeRef edge) {
+    auto ts = (OCCTThruSections*)ref;
+    if (!ts || !edge) return nullptr;
+    try {
+        TopoDS_Shape face = ts->builder->GeneratedFace(edge->shape);
+        if (face.IsNull()) return nullptr;
+        return new OCCTShape{face};
+    } catch (...) { return nullptr; }
+}
+
+
+// --- UnifySameDomain builder ---
+
+struct OCCTUnifySameDomain {
+    ShapeUpgrade_UnifySameDomain* usd;
+};
+
+// MARK: - UnifySameDomain extension funcs (hoisted with struct)
+
+OCCTUnifySameDomainRef OCCTUnifySameDomainCreate(OCCTShapeRef shape, bool unifyEdges, bool unifyFaces, bool concatBSplines) {
+    if (!shape) return nullptr;
+    try {
+        auto result = new OCCTUnifySameDomain();
+        result->usd = new ShapeUpgrade_UnifySameDomain(shape->shape, unifyEdges, unifyFaces, concatBSplines);
+        return (OCCTUnifySameDomainRef)result;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTUnifySameDomainRelease(OCCTUnifySameDomainRef ref) {
+    auto usd = (OCCTUnifySameDomain*)ref;
+    if (usd) {
+        delete usd->usd;
+        delete usd;
+    }
+}
+
+void OCCTUnifySameDomainAllowInternalEdges(OCCTUnifySameDomainRef ref, bool allow) {
+    auto usd = (OCCTUnifySameDomain*)ref;
+    if (!usd) return;
+    try { usd->usd->AllowInternalEdges(allow); } catch (...) {}
+}
+
+void OCCTUnifySameDomainKeepShape(OCCTUnifySameDomainRef ref, OCCTShapeRef shape) {
+    auto usd = (OCCTUnifySameDomain*)ref;
+    if (!usd || !shape) return;
+    try { usd->usd->KeepShape(shape->shape); } catch (...) {}
+}
+
+void OCCTUnifySameDomainSetSafeInputMode(OCCTUnifySameDomainRef ref, bool safe) {
+    auto usd = (OCCTUnifySameDomain*)ref;
+    if (!usd) return;
+    try { usd->usd->SetSafeInputMode(safe); } catch (...) {}
+}
+
+void OCCTUnifySameDomainSetLinearTolerance(OCCTUnifySameDomainRef ref, double tol) {
+    auto usd = (OCCTUnifySameDomain*)ref;
+    if (!usd) return;
+    try { usd->usd->SetLinearTolerance(tol); } catch (...) {}
+}
+
+void OCCTUnifySameDomainSetAngularTolerance(OCCTUnifySameDomainRef ref, double tol) {
+    auto usd = (OCCTUnifySameDomain*)ref;
+    if (!usd) return;
+    try { usd->usd->SetAngularTolerance(tol); } catch (...) {}
+}
+
+void OCCTUnifySameDomainBuild(OCCTUnifySameDomainRef ref) {
+    auto usd = (OCCTUnifySameDomain*)ref;
+    if (!usd) return;
+    try { usd->usd->Build(); } catch (...) {}
+}
+
+OCCTShapeRef OCCTUnifySameDomainShape(OCCTUnifySameDomainRef ref) {
+    auto usd = (OCCTUnifySameDomain*)ref;
+    if (!usd) return nullptr;
+    try {
+        TopoDS_Shape result = usd->usd->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape{result};
     } catch (...) { return nullptr; }
 }

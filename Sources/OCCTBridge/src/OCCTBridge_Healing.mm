@@ -4100,3 +4100,69 @@ OCCTShapeRef OCCTFreeBoundsPropsOpenWire(OCCTFreeBoundsPropsRef props, int32_t i
         return ref;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.115: ShapeFix_Shape builder
+// --- ShapeFix_Shape builder ---
+
+struct OCCTShapeFixer {
+    Handle(ShapeFix_Shape) fixer;
+};
+
+OCCTShapeFixerRef OCCTShapeFixerCreate(OCCTShapeRef shape) {
+    auto f = new OCCTShapeFixer();
+    f->fixer = new ShapeFix_Shape(shape->shape);
+    return (OCCTShapeFixerRef)f;
+}
+
+void OCCTShapeFixerRelease(OCCTShapeFixerRef ref) {
+    auto f = (OCCTShapeFixer*)ref;
+    delete f;
+}
+
+void OCCTShapeFixerSetPrecision(OCCTShapeFixerRef ref, double precision) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (f) f->fixer->SetPrecision(precision);
+}
+
+void OCCTShapeFixerSetMaxTolerance(OCCTShapeFixerRef ref, double maxTol) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (f) f->fixer->SetMaxTolerance(maxTol);
+}
+
+void OCCTShapeFixerSetMinTolerance(OCCTShapeFixerRef ref, double minTol) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (f) f->fixer->SetMinTolerance(minTol);
+}
+
+bool OCCTShapeFixerPerform(OCCTShapeFixerRef ref) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (!f) return false;
+    try {
+        return f->fixer->Perform();
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTShapeFixerShape(OCCTShapeFixerRef ref) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (!f) return nullptr;
+    try {
+        TopoDS_Shape result = f->fixer->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape{result};
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeFixerStatus(OCCTShapeFixerRef ref, int32_t statusType) {
+    auto f = (OCCTShapeFixer*)ref;
+    if (!f) return false;
+    try {
+        ShapeExtend_Status st;
+        switch (statusType) {
+            case 1: st = ShapeExtend_OK; break;
+            case 2: st = ShapeExtend_DONE; break;
+            case 3: st = ShapeExtend_FAIL; break;
+            default: return false;
+        }
+        return f->fixer->Status(st);
+    } catch (...) { return false; }
+}

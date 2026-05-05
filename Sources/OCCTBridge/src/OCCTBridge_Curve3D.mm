@@ -58,6 +58,7 @@
 #include <GeomAPI_ProjectPointOnCurve.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <Extrema_GenLocateExtPS.hxx>
+#include <TColStd_HArray1OfReal.hxx>
 #include <ShapeUpgrade_SplitCurve3dContinuity.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -4463,3 +4464,233 @@ const char* OCCTCurve3DTypeName(OCCTCurve3DRef curve) {
     } catch (...) { return nullptr; }
 }
 
+
+// MARK: - v0.115: GeomAPI_Interpolate expansion + PointsToBSpline + GeomConvert utilities + Curve extras + Arc Length
+// --- GeomAPI_Interpolate expansion ---
+
+OCCTCurve3DRef OCCTInterpolateWithTangents(const double* points, int32_t count,
+                                             double t1x, double t1y, double t1z,
+                                             double t2x, double t2y, double t2z) {
+    if (!points || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        GeomAPI_Interpolate interp(pts, Standard_False, 1e-6);
+        gp_Vec v1(t1x, t1y, t1z), v2(t2x, t2y, t2z);
+        interp.Load(v1, v2);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTInterpolateWithAllTangents(const double* points, int32_t count,
+                                                const double* tangents,
+                                                const bool* tangentFlags) {
+    if (!points || !tangents || !tangentFlags || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        GeomAPI_Interpolate interp(pts, Standard_False, 1e-6);
+        NCollection_Array1<gp_Vec> tans(1, count);
+        Handle(NCollection_HArray1<bool>) flags = new NCollection_HArray1<bool>(1, count);
+        for (int i = 0; i < count; i++) {
+            tans.SetValue(i + 1, gp_Vec(tangents[i*3], tangents[i*3+1], tangents[i*3+2]));
+            flags->SetValue(i + 1, tangentFlags[i]);
+        }
+        interp.Load(tans, flags);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTInterpolateWithParameters(const double* points, int32_t count,
+                                               const double* parameters) {
+    if (!points || !parameters || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        Handle(TColStd_HArray1OfReal) params = new TColStd_HArray1OfReal(1, count);
+        for (int i = 0; i < count; i++) {
+            params->SetValue(i + 1, parameters[i]);
+        }
+        GeomAPI_Interpolate interp(pts, params, Standard_False, 1e-6);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTInterpolatePeriodic(const double* points, int32_t count) {
+    if (!points || count < 3) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt) pts = new TColgp_HArray1OfPnt(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        GeomAPI_Interpolate interp(pts, Standard_True, 1e-6);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+
+static GeomAbs_Shape mapContinuityV115(int32_t c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C2;
+    }
+}
+
+OCCTCurve3DRef OCCTPointsToBSplineWithParams(const double* points, int32_t count,
+                                               int32_t degMin, int32_t degMax,
+                                               int32_t continuity, double tol) {
+    if (!points || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+        }
+        GeomAPI_PointsToBSpline approx(pts, degMin, degMax, mapContinuityV115(continuity), tol);
+        if (approx.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{approx.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve3DRef OCCTPointsToBSplineWithParameters(const double* points, const double* params,
+                                                   int32_t count, int32_t degMin, int32_t degMax,
+                                                   int32_t continuity, double tol) {
+    if (!points || !params || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt pts(1, count);
+        TColStd_Array1OfReal prms(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]));
+            prms.SetValue(i + 1, params[i]);
+        }
+        GeomAPI_PointsToBSpline approx(pts, prms, degMin, degMax, mapContinuityV115(continuity), tol);
+        if (approx.IsDone()) {
+            return (OCCTCurve3DRef)new OCCTCurve3D{approx.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+
+
+int32_t OCCTCurve3DSplitAtContinuity(OCCTCurve3DRef curve, int32_t continuity, double tol,
+                                       OCCTCurve3DRef* outSegments, int32_t maxSegments) {
+    if (!curve || curve->curve.IsNull() || !outSegments || maxSegments < 1) return 0;
+    try {
+        Handle(Geom_BSplineCurve) bsp = GeomConvert::CurveToBSplineCurve(curve->curve);
+        if (bsp.IsNull()) return 0;
+
+        if (continuity <= 1) {
+            // Split at C1 discontinuities
+            Handle(NCollection_HArray1<Handle(Geom_BSplineCurve)>) arr;
+            GeomConvert::C0BSplineToArrayOfC1BSplineCurve(bsp, arr, tol);
+            if (arr.IsNull()) return 0;
+            int n = std::min((int)arr->Length(), (int)maxSegments);
+            for (int i = 0; i < n; i++) {
+                outSegments[i] = (OCCTCurve3DRef)new OCCTCurve3D{arr->Value(arr->Lower() + i)};
+            }
+            return n;
+        } else {
+            // For higher continuity, just return the single BSpline
+            outSegments[0] = (OCCTCurve3DRef)new OCCTCurve3D{bsp};
+            return 1;
+        }
+    } catch (...) { return 0; }
+}
+
+// TColGeom/TColGeom2d deprecated — use NCollection_HArray1 directly
+
+
+OCCTCurve3DRef OCCTCurve3DConcatenateG1(const OCCTCurve3DRef* curves, int32_t count, double tol) {
+    if (!curves || count < 1) return nullptr;
+    try {
+        Handle(Geom_BSplineCurve) first = GeomConvert::CurveToBSplineCurve(((OCCTCurve3D*)curves[0])->curve);
+        if (first.IsNull()) return nullptr;
+        GeomConvert_CompCurveToBSplineCurve concat(first);
+        for (int i = 1; i < count; i++) {
+            Handle(Geom_BSplineCurve) bsp = GeomConvert::CurveToBSplineCurve(((OCCTCurve3D*)curves[i])->curve);
+            if (!bsp.IsNull()) {
+                concat.Add(bsp, tol);
+            }
+        }
+        Handle(Geom_BSplineCurve) result = concat.BSplineCurve();
+        if (result.IsNull()) return nullptr;
+        return (OCCTCurve3DRef)new OCCTCurve3D{result};
+    } catch (...) { return nullptr; }
+}
+// --- Curve3D/2D additional (new in v0.115.0) ---
+
+#include <CPnts_AbscissaPoint.hxx>
+#include <GeomAdaptor_Curve.hxx>
+
+double OCCTCurve3DLength(OCCTCurve3DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        GeomAdaptor_Curve ac(curve->curve, u1, u2);
+        return GCPnts_AbscissaPoint::Length(ac);
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve3DClosestParameter(OCCTCurve3DRef curve, double px, double py, double pz) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        GeomAPI_ProjectPointOnCurve proj(gp_Pnt(px, py, pz), curve->curve);
+        if (proj.NbPoints() > 0) {
+            return proj.LowerDistanceParameter();
+        }
+        return 0;
+    } catch (...) { return 0; }
+}
+
+
+double OCCTCurve3DParameterAtLength(OCCTCurve3DRef curve, double arcLength, double fromParam) {
+    if (!curve) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        GCPnts_AbscissaPoint ap(adaptor, arcLength, fromParam);
+        if (ap.IsDone()) return ap.Parameter();
+        return 0;
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve3DArcLength(OCCTCurve3DRef curve) {
+    if (!curve) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        return GCPnts_AbscissaPoint::Length(adaptor);
+    } catch (...) { return 0; }
+}
+
+double OCCTCurve3DArcLengthBetween(OCCTCurve3DRef curve, double param1, double param2) {
+    if (!curve) return 0;
+    try {
+        GeomAdaptor_Curve adaptor(curve->curve);
+        return GCPnts_AbscissaPoint::Length(adaptor, param1, param2);
+    } catch (...) { return 0; }
+}

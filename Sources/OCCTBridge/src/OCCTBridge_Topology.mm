@@ -37,6 +37,8 @@
 #include <BRepLib.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_MakeShell.hxx>
+#include <ShapeAnalysis_ShapeTolerance.hxx>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <BRepExtrema_DistanceSS.hxx>
 #include <BRepExtrema_SolutionElem.hxx>
 #include <BRepLib_FindSurface.hxx>
@@ -3032,3 +3034,216 @@ OCCTShapeRef OCCTShapeEmptyCopied(OCCTShapeRef shape) {
     } catch (...) { return nullptr; }
 }
 
+
+// MARK: - v0.115: GCPnts_AbscissaPoint expansion (edge) + BRepAdaptor exposure + Additional shape queries
+// --- GCPnts_AbscissaPoint expansion ---
+
+double OCCTEdgeParameterAtArcLength(OCCTShapeRef edge, double arcLength, double startParam) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        GCPnts_AbscissaPoint ap(adaptor, arcLength, startParam);
+        if (ap.IsDone()) return ap.Parameter();
+        return 0;
+    } catch (...) { return 0; }
+}
+
+double OCCTEdgeArcLength(OCCTShapeRef edge) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        return GCPnts_AbscissaPoint::Length(adaptor);
+    } catch (...) { return 0; }
+}
+
+double OCCTEdgeArcLengthBetween(OCCTShapeRef edge, double u1, double u2) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        return GCPnts_AbscissaPoint::Length(adaptor, u1, u2);
+    } catch (...) { return 0; }
+}
+
+double OCCTEdgeParameterAtFraction(OCCTShapeRef edge, double fraction) {
+    if (!edge) return 0;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        double totalLen = GCPnts_AbscissaPoint::Length(adaptor);
+        double targetLen = totalLen * fraction;
+        GCPnts_AbscissaPoint ap(adaptor, targetLen, adaptor.FirstParameter());
+        if (ap.IsDone()) return ap.Parameter();
+        return 0;
+    } catch (...) { return 0; }
+}
+// --- BRepAdaptor exposure ---
+
+void OCCTEdgeAdaptorDomain(OCCTShapeRef edge, double* first, double* last) {
+    *first = *last = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        *first = adaptor.FirstParameter();
+        *last = adaptor.LastParameter();
+    } catch (...) {}
+}
+
+void OCCTEdgeAdaptorValue(OCCTShapeRef edge, double param,
+                            double* x, double* y, double* z) {
+    *x = *y = *z = 0;
+    if (!edge) return;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        gp_Pnt p = adaptor.Value(param);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+int32_t OCCTEdgeAdaptorCurveType(OCCTShapeRef edge) {
+    if (!edge) return -1;
+    try {
+        BRepAdaptor_Curve adaptor(TopoDS::Edge(edge->shape));
+        return (int32_t)adaptor.GetType();
+    } catch (...) { return -1; }
+}
+
+void OCCTFaceAdaptorBounds(OCCTShapeRef face,
+                             double* uMin, double* uMax,
+                             double* vMin, double* vMax) {
+    *uMin = *uMax = *vMin = *vMax = 0;
+    if (!face) return;
+    try {
+        BRepAdaptor_Surface adaptor(TopoDS::Face(face->shape));
+        *uMin = adaptor.FirstUParameter();
+        *uMax = adaptor.LastUParameter();
+        *vMin = adaptor.FirstVParameter();
+        *vMax = adaptor.LastVParameter();
+    } catch (...) {}
+}
+
+void OCCTFaceAdaptorValue(OCCTShapeRef face, double u, double v,
+                            double* x, double* y, double* z) {
+    *x = *y = *z = 0;
+    if (!face) return;
+    try {
+        BRepAdaptor_Surface adaptor(TopoDS::Face(face->shape));
+        gp_Pnt p = adaptor.Value(u, v);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) {}
+}
+
+int32_t OCCTFaceAdaptorSurfaceType(OCCTShapeRef face) {
+    if (!face) return -1;
+    try {
+        BRepAdaptor_Surface adaptor(TopoDS::Face(face->shape));
+        return (int32_t)adaptor.GetType();
+    } catch (...) { return -1; }
+}
+// --- Additional shape queries ---
+
+double OCCTShapeOBBVolume(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        Bnd_OBB obb;
+        BRepBndLib::AddOBB(shape->shape, obb);
+        if (obb.IsVoid()) return 0;
+        // Volume = 8 * halfX * halfY * halfZ
+        double hx = obb.XHSize(), hy = obb.YHSize(), hz = obb.ZHSize();
+        return 8.0 * hx * hy * hz;
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeMaxEdgeTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        return sat.Tolerance(shape->shape, 1, TopAbs_EDGE); // 1 = max
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeMaxFaceTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        return sat.Tolerance(shape->shape, 1, TopAbs_FACE); // 1 = max
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeMaxVertexTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        return sat.Tolerance(shape->shape, 1, TopAbs_VERTEX); // 1 = max
+    } catch (...) { return 0; }
+}
+
+bool OCCTShapeHasFreeEdges(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        // Count edges that appear in only one face
+        TopTools_IndexedDataMapOfShapeListOfShape edgeFaceMap;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_EDGE, TopAbs_FACE, edgeFaceMap);
+        for (int i = 1; i <= edgeFaceMap.Extent(); i++) {
+            if (edgeFaceMap(i).Extent() < 2) return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+
+bool OCCTShapeHasFreeWires(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        TopTools_IndexedDataMapOfShapeListOfShape wireFaceMap;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_WIRE, TopAbs_FACE, wireFaceMap);
+        for (int i = 1; i <= wireFaceMap.Extent(); i++) {
+            if (wireFaceMap(i).Extent() < 1) return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeHasFreeFaces(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        TopTools_IndexedDataMapOfShapeListOfShape faceShellMap;
+        TopExp::MapShapesAndAncestors(shape->shape, TopAbs_FACE, TopAbs_SHELL, faceShellMap);
+        for (int i = 1; i <= faceShellMap.Extent(); i++) {
+            if (faceShellMap(i).Extent() < 1) return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+double OCCTShapeBoundingDiagonal(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        Bnd_Box box;
+        BRepBndLib::Add(shape->shape, box);
+        if (box.IsVoid()) return 0;
+        double xMin, yMin, zMin, xMax, yMax, zMax;
+        box.Get(xMin, yMin, zMin, xMax, yMax, zMax);
+        double dx = xMax - xMin, dy = yMax - yMin, dz = zMax - zMin;
+        return sqrt(dx*dx + dy*dy + dz*dz);
+    } catch (...) { return 0; }
+}
+
+void OCCTShapeCentroid(OCCTShapeRef shape, double* x, double* y, double* z) {
+    *x = *y = *z = 0;
+    if (!shape) return;
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+        gp_Pnt cg = props.CentreOfMass();
+        *x = cg.X(); *y = cg.Y(); *z = cg.Z();
+    } catch (...) {}
+}
+
+double OCCTShapeTotalEdgeLength(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        GProp_GProps props;
+        BRepGProp::LinearProperties(shape->shape, props);
+        return props.Mass();
+    } catch (...) { return 0; }
+}
