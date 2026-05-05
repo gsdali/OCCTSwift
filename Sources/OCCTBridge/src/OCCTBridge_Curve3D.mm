@@ -40,6 +40,11 @@
 #include <Geom_Vector.hxx>
 #include <Geom_VectorWithMagnitude.hxx>
 #include <ShapeConstruct_Curve.hxx>
+#include <GeomLib_Tool.hxx>
+#include <GeomLib_CheckBSplineCurve.hxx>
+#include <GeomLib_Interpolate.hxx>
+#include <Approx_SameParameter.hxx>
+#include <ShapeUpgrade_SplitCurve3dContinuity.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -1975,5 +1980,147 @@ bool OCCTShapeConstructAdjustCurve3D(OCCTCurve3DRef _Nonnull curve,
         return scc.AdjustCurve(curve->curve, gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z));
     } catch (...) {
         return false;
+    }
+}
+
+// MARK: - GeomLib_Tool Param3D (v0.77)
+bool OCCTGeomLibToolParameter3D(OCCTCurve3DRef _Nonnull curveRef, double px, double py, double pz,
+                                 double maxDist, double* _Nonnull outParam) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve3D*>(curveRef)->curve;
+        double param = 0;
+        bool ok = GeomLib_Tool::Parameter(curve, gp_Pnt(px, py, pz), maxDist, param);
+        if (ok) *outParam = param;
+        return ok;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - GeomLib_Check + Fix BSpline 3D (v0.77)
+// MARK: - GeomLib_CheckBSplineCurve / Check2dBSplineCurve
+
+bool OCCTGeomLibCheckBSpline3D(OCCTCurve3DRef _Nonnull curveRef, double tolerance, double angularTol,
+                                bool* _Nonnull needFixFirst, bool* _Nonnull needFixLast) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve3D*>(curveRef)->curve;
+        Handle(Geom_BSplineCurve) bsp = Handle(Geom_BSplineCurve)::DownCast(curve);
+        if (bsp.IsNull()) return false;
+        GeomLib_CheckBSplineCurve checker(bsp, tolerance, angularTol);
+        if (!checker.IsDone()) return false;
+        bool f = false, l = false;
+        checker.NeedTangentFix(f, l);
+        *needFixFirst = f;
+        *needFixLast = l;
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+OCCTCurve3DRef _Nullable OCCTGeomLibFixBSpline3D(OCCTCurve3DRef _Nonnull curveRef,
+                                                   double tolerance, double angularTol,
+                                                   bool fixFirst, bool fixLast) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve3D*>(curveRef)->curve;
+        Handle(Geom_BSplineCurve) bsp = Handle(Geom_BSplineCurve)::DownCast(curve);
+        if (bsp.IsNull()) return nullptr;
+        GeomLib_CheckBSplineCurve checker(bsp, tolerance, angularTol);
+        Handle(Geom_BSplineCurve) fixed = checker.FixedTangent(fixFirst, fixLast);
+        if (fixed.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTCurve3DRef>(new OCCTCurve3D{fixed});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - GeomLib_Interpolate (v0.77)
+// MARK: - GeomLib_Interpolate
+
+OCCTCurve3DRef _Nullable OCCTGeomLibInterpolate(int degree, int numPoints,
+                                                  const double* _Nonnull pointsXYZ,
+                                                  const double* _Nonnull parameters) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, numPoints);
+        NCollection_Array1<double> params(1, numPoints);
+        for (int i = 0; i < numPoints; i++) {
+            pts(i + 1) = gp_Pnt(pointsXYZ[i*3], pointsXYZ[i*3+1], pointsXYZ[i*3+2]);
+            params(i + 1) = parameters[i];
+        }
+        GeomLib_Interpolate interp(degree, numPoints, pts, params);
+        if (!interp.IsDone()) return nullptr;
+        Handle(Geom_BSplineCurve) curve = interp.Curve();
+        if (curve.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTCurve3DRef>(new OCCTCurve3D{curve});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - Approx_SameParameter (v0.77)
+// MARK: - Approx_SameParameter
+
+#include <Approx_SameParameter.hxx>
+
+bool OCCTApproxSameParameter(OCCTCurve3DRef _Nonnull curve3dRef,
+                              OCCTCurve2DRef _Nonnull curve2dRef,
+                              OCCTSurfaceRef _Nonnull surfRef,
+                              double tolerance,
+                              bool* _Nonnull outIsSame,
+                              double* _Nonnull outTolReached) {
+    try {
+        auto& c3d = reinterpret_cast<OCCTCurve3D*>(curve3dRef)->curve;
+        auto& c2d = reinterpret_cast<OCCTCurve2D*>(curve2dRef)->curve;
+        auto& surf = reinterpret_cast<OCCTSurface*>(surfRef)->surface;
+        Approx_SameParameter checker(c3d, c2d, surf, tolerance);
+        if (!checker.IsDone()) return false;
+        *outIsSame = checker.IsSameParameter();
+        *outTolReached = checker.TolReached();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - ShapeUpgrade_SplitCurve3dContinuity (v0.77)
+// MARK: - ShapeUpgrade_SplitCurve3dContinuity
+
+#include <ShapeUpgrade_SplitCurve3dContinuity.hxx>
+#include <ShapeUpgrade_SplitCurve2dContinuity.hxx>
+#include <ShapeUpgrade_ConvertCurve2dToBezier.hxx>
+
+static GeomAbs_Shape continuityFromInt(int val) {
+    switch (val) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_CN;
+    }
+}
+
+int OCCTSplitCurve3dContinuity(OCCTCurve3DRef _Nonnull curveRef, int criterion, double tolerance,
+                                 OCCTCurve3DRef _Nullable* _Nullable outCurves, int maxCurves) {
+    try {
+        auto& curve = reinterpret_cast<OCCTCurve3D*>(curveRef)->curve;
+        Handle(ShapeUpgrade_SplitCurve3dContinuity) splitter = new ShapeUpgrade_SplitCurve3dContinuity();
+        splitter->Init(curve);
+        splitter->SetCriterion(continuityFromInt(criterion));
+        splitter->SetTolerance(tolerance);
+        splitter->Perform(true);
+        auto curves = splitter->GetCurves();
+        if (curves.IsNull()) return 0;
+        int n = curves->Length();
+        int written = 0;
+        for (int i = curves->Lower(); i <= curves->Upper() && written < maxCurves; i++) {
+            Handle(Geom_Curve) c = curves->Value(i);
+            if (!c.IsNull() && outCurves) {
+                outCurves[written] = reinterpret_cast<OCCTCurve3DRef>(new OCCTCurve3D{c});
+            }
+            written++;
+        }
+        return written;
+    } catch (...) {
+        return 0;
     }
 }
