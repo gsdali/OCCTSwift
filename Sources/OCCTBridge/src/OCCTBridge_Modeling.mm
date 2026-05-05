@@ -6314,3 +6314,90 @@ double OCCTIntToolsComputeIntRange(double tol1, double tol2, double angle) {
         return IntTools_Tools::ComputeIntRange(tol1, tol2, angle);
     } catch (...) { return 0.0; }
 }
+
+// MARK: - v0.96-v0.98: BRepAlgo_Image + BRepAlgo_Loop + Draft_Modification
+// MARK: - BRepAlgo_Image (v0.96.0)
+
+#include <BRepAlgo_Image.hxx>
+
+struct OCCTBRepAlgoImage {
+    BRepAlgo_Image image;
+};
+
+OCCTBRepAlgoImageRef OCCTBRepAlgoImageCreate() { return new OCCTBRepAlgoImage(); }
+void OCCTBRepAlgoImageRelease(OCCTBRepAlgoImageRef img) { delete img; }
+
+void OCCTBRepAlgoImageSetRoot(OCCTBRepAlgoImageRef img, OCCTShapeRef shape) {
+    if (img && shape) img->image.SetRoot(shape->shape);
+}
+
+void OCCTBRepAlgoImageBind(OCCTBRepAlgoImageRef img, OCCTShapeRef oldShape, OCCTShapeRef newShape) {
+    if (img && oldShape && newShape) img->image.Bind(oldShape->shape, newShape->shape);
+}
+
+bool OCCTBRepAlgoImageHasImage(OCCTBRepAlgoImageRef img, OCCTShapeRef shape) {
+    if (!img || !shape) return false;
+    return img->image.HasImage(shape->shape);
+}
+
+bool OCCTBRepAlgoImageIsImage(OCCTBRepAlgoImageRef img, OCCTShapeRef shape) {
+    if (!img || !shape) return false;
+    return img->image.IsImage(shape->shape);
+}
+
+void OCCTBRepAlgoImageClear(OCCTBRepAlgoImageRef img) {
+    if (img) img->image.Clear();
+}
+// MARK: - BRepAlgo_Loop (v0.97.0)
+
+#include <BRepAlgo_Loop.hxx>
+
+int32_t OCCTShapeBuildLoops(OCCTShapeRef shape, int32_t faceIndex) {
+    if (!shape) return -1;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return -1;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        BRepAlgo_Loop loop;
+        loop.Init(face);
+        TopExp_Explorer edgeExp(face, TopAbs_EDGE);
+        while (edgeExp.More()) {
+            loop.AddConstEdge(TopoDS::Edge(edgeExp.Current()));
+            edgeExp.Next();
+        }
+        loop.Perform();
+        return loop.NewWires().Size();
+    } catch (...) { return -1; }
+}
+// MARK: - Draft_Modification (v0.98.0)
+
+#include <Draft_Modification.hxx>
+
+OCCTShapeRef OCCTShapeDraftModification(OCCTShapeRef shape, int32_t faceIndex,
+                              double dirX, double dirY, double dirZ, double angle,
+                              double planeOX, double planeOY, double planeOZ,
+                              double planeNX, double planeNY, double planeNZ) {
+    if (!shape) return nullptr;
+    try {
+        TopExp_Explorer faceExp(shape->shape, TopAbs_FACE);
+        for (int i = 0; i < faceIndex && faceExp.More(); i++) faceExp.Next();
+        if (!faceExp.More()) return nullptr;
+        TopoDS_Face face = TopoDS::Face(faceExp.Current());
+
+        Handle(Draft_Modification) draft = new Draft_Modification(shape->shape);
+        draft->Add(face, gp_Dir(dirX, dirY, dirZ), angle,
+                   gp_Pln(gp_Pnt(planeOX, planeOY, planeOZ), gp_Dir(planeNX, planeNY, planeNZ)));
+        draft->Perform();
+        if (!draft->IsDone()) return nullptr;
+
+        BRepTools_Modifier modifier(shape->shape, draft);
+        if (!modifier.IsDone()) return nullptr;
+        TopoDS_Shape result = modifier.ModifiedShape(shape->shape);
+        if (result.IsNull()) return nullptr;
+        OCCTShape* r = new OCCTShape();
+        r->shape = result;
+        return r;
+    } catch (...) { return nullptr; }
+}

@@ -3208,3 +3208,33 @@ bool OCCTShapeFixIntersectingWires(OCCTShapeRef shape, int32_t faceIndex, double
         return tool.FixIntersectingWires(face);
     } catch (...) { return false; }
 }
+
+// MARK: - v0.99: ShapeFix_Wireframe Extensions
+// MARK: - ShapeFix_Wireframe Extensions (v0.99.0)
+
+OCCTShapeRef OCCTShapeFixWireGaps(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_Wireframe) fixer = new ShapeFix_Wireframe(shape->shape);
+        fixer->SetPrecision(tolerance);
+        fixer->FixWireGaps();
+        TopoDS_Shape result = fixer->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeFixSmallEdges(OCCTShapeRef shape, double tolerance,
+                                    bool dropSmall, double limitAngle) {
+    if (!shape) return nullptr;
+    try {
+        Handle(ShapeFix_Wireframe) fixer = new ShapeFix_Wireframe(shape->shape);
+        fixer->SetPrecision(tolerance);
+        fixer->ModeDropSmallEdges() = dropSmall ? Standard_True : Standard_False;
+        if (limitAngle >= 0.0) fixer->SetLimitAngle(limitAngle);
+        fixer->FixSmallEdges();
+        TopoDS_Shape result = fixer->Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}

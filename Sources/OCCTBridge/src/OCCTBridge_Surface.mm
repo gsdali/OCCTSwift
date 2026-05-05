@@ -3460,3 +3460,34 @@ OCCTSurfaceRef OCCTConvertTorusToBSplineSurface(double ox, double oy, double oz,
         return buildSurfaceFromElementary(conv);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.99: Geom_OffsetSurface Extensions
+// MARK: - Geom_OffsetSurface Extensions (v0.99.0)
+
+#include <Geom_OffsetCurve.hxx>
+#include <Geom_OffsetSurface.hxx>
+
+double OCCTSurfaceOffsetValue(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0.0;
+    Handle(Geom_OffsetSurface) off = Handle(Geom_OffsetSurface)::DownCast(surface->surface);
+    if (off.IsNull()) return 0.0;
+    return off->Offset();
+}
+
+void OCCTSurfaceSetOffsetValue(OCCTSurfaceRef surface, double offset) {
+    if (!surface || surface->surface.IsNull()) return;
+    Handle(Geom_OffsetSurface) off = Handle(Geom_OffsetSurface)::DownCast(surface->surface);
+    if (off.IsNull()) return;
+    try { off->SetOffsetValue(offset); } catch (...) {}
+}
+
+OCCTSurfaceRef OCCTSurfaceOffsetBasis(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    Handle(Geom_OffsetSurface) off = Handle(Geom_OffsetSurface)::DownCast(surface->surface);
+    if (off.IsNull()) return nullptr;
+    Handle(Geom_Surface) basis = off->BasisSurface();
+    if (basis.IsNull()) return nullptr;
+    auto* ref = new OCCTSurface();
+    ref->surface = basis;
+    return ref;
+}

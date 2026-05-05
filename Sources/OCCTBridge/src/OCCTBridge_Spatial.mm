@@ -25,6 +25,8 @@
 #include <gp_Pln.hxx>
 #include <gp_Circ.hxx>
 #include <gp_Sphere.hxx>
+#include <gp_Torus.hxx>
+#include <Precision.hxx>
 #include <TColgp_Array1OfPnt.hxx>
 #include <GProp_PEquation.hxx>
 
@@ -604,4 +606,149 @@ double OCCTMathCroutDeterminant(const double* matrixData, int32_t n) {
         if (!crout.IsDone()) return 0.0;
         return crout.Determinant();
     } catch (...) { return 0.0; }
+}
+
+// MARK: - v0.97/v0.98: Precision + IntAna
+// MARK: - Precision (v0.97.0)
+
+#include <Precision.hxx>
+
+double OCCTPrecisionConfusion() { return Precision::Confusion(); }
+double OCCTPrecisionAngular() { return Precision::Angular(); }
+double OCCTPrecisionIntersection() { return Precision::Intersection(); }
+double OCCTPrecisionApproximation() { return Precision::Approximation(); }
+double OCCTPrecisionInfinite() { return Precision::Infinite(); }
+double OCCTPrecisionPConfusion() { return Precision::PConfusion(); }
+bool OCCTPrecisionIsInfinite(double value) { return Precision::IsInfinite(value); }
+// MARK: - IntAna (v0.98.0)
+
+#include <IntAna_IntConicQuad.hxx>
+#include <IntAna_QuadQuadGeo.hxx>
+#include <IntAna_Int3Pln.hxx>
+#include <IntAna_IntLinTorus.hxx>
+#include <IntAna_Quadric.hxx>
+
+OCCTIntConicQuadResult OCCTIntAnaLineQuad(double lox, double loy, double loz,
+                                            double ldx, double ldy, double ldz,
+                                            double pox, double poy, double poz,
+                                            double pnx, double pny, double pnz) {
+    OCCTIntConicQuadResult r = {};
+    try {
+        gp_Lin line(gp_Pnt(lox,loy,loz), gp_Dir(ldx,ldy,ldz));
+        gp_Pln plane(gp_Pnt(pox,poy,poz), gp_Dir(pnx,pny,pnz));
+        IntAna_IntConicQuad inter(line, plane, Precision::Angular());
+        if (!inter.IsDone()) return r;
+        r.isParallel = inter.IsParallel();
+        r.isInQuadric = inter.IsInQuadric();
+        r.count = inter.NbPoints();
+        for (int i = 0; i < r.count && i < 4; i++) {
+            gp_Pnt p = inter.Point(i+1);
+            r.points[i*3] = p.X(); r.points[i*3+1] = p.Y(); r.points[i*3+2] = p.Z();
+            r.params[i] = inter.ParamOnConic(i+1);
+        }
+    } catch (...) {}
+    return r;
+}
+
+OCCTIntConicQuadResult OCCTIntAnaLineSphere(double lox, double loy, double loz,
+                                              double ldx, double ldy, double ldz,
+                                              double sx, double sy, double sz,
+                                              double snx, double sny, double snz, double radius) {
+    OCCTIntConicQuadResult r = {};
+    try {
+        gp_Lin line(gp_Pnt(lox,loy,loz), gp_Dir(ldx,ldy,ldz));
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sx,sy,sz), gp_Dir(snx,sny,snz)), radius));
+        IntAna_IntConicQuad inter(line, quad);
+        if (!inter.IsDone()) return r;
+        r.isParallel = inter.IsParallel();
+        r.count = inter.NbPoints();
+        for (int i = 0; i < r.count && i < 4; i++) {
+            gp_Pnt p = inter.Point(i+1);
+            r.points[i*3] = p.X(); r.points[i*3+1] = p.Y(); r.points[i*3+2] = p.Z();
+            r.params[i] = inter.ParamOnConic(i+1);
+        }
+    } catch (...) {}
+    return r;
+}
+
+OCCTQuadQuadGeoResult OCCTIntAnaPlanePlane(double p1ox, double p1oy, double p1oz,
+                                             double p1nx, double p1ny, double p1nz,
+                                             double p2ox, double p2oy, double p2oz,
+                                             double p2nx, double p2ny, double p2nz) {
+    OCCTQuadQuadGeoResult r = {};
+    try {
+        gp_Pln pl1(gp_Pnt(p1ox,p1oy,p1oz), gp_Dir(p1nx,p1ny,p1nz));
+        gp_Pln pl2(gp_Pnt(p2ox,p2oy,p2oz), gp_Dir(p2nx,p2ny,p2nz));
+        IntAna_QuadQuadGeo inter(pl1, pl2, Precision::Angular(), Precision::Confusion());
+        if (!inter.IsDone()) return r;
+        r.solutionCount = inter.NbSolutions();
+        r.resultType = (int32_t)inter.TypeInter();
+        for (int i = 0; i < r.solutionCount && i < 4; i++) {
+            try {
+                gp_Lin line = inter.Line(i+1);
+                gp_Pnt o = line.Location();
+                gp_Dir d = line.Direction();
+                r.lines[i*6] = o.X(); r.lines[i*6+1] = o.Y(); r.lines[i*6+2] = o.Z();
+                r.lines[i*6+3] = d.X(); r.lines[i*6+4] = d.Y(); r.lines[i*6+5] = d.Z();
+            } catch (...) {}
+        }
+    } catch (...) {}
+    return r;
+}
+
+OCCTQuadQuadGeoResult OCCTIntAnaPlaneSphere(double pox, double poy, double poz,
+                                              double pnx, double pny, double pnz,
+                                              double sx, double sy, double sz,
+                                              double snx, double sny, double snz, double radius) {
+    OCCTQuadQuadGeoResult r = {};
+    try {
+        gp_Pln plane(gp_Pnt(pox,poy,poz), gp_Dir(pnx,pny,pnz));
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(sx,sy,sz), gp_Dir(snx,sny,snz)), radius);
+        IntAna_QuadQuadGeo inter(plane, sphere);
+        if (!inter.IsDone()) return r;
+        r.solutionCount = inter.NbSolutions();
+        r.resultType = (int32_t)inter.TypeInter();
+        for (int i = 0; i < r.solutionCount && i < 4; i++) {
+            try { gp_Pnt p = inter.Point(i+1);
+                r.points[i*3] = p.X(); r.points[i*3+1] = p.Y(); r.points[i*3+2] = p.Z();
+            } catch (...) {}
+        }
+    } catch (...) {}
+    return r;
+}
+
+bool OCCTIntAna3Planes(double p1ox, double p1oy, double p1oz, double p1nx, double p1ny, double p1nz,
+                        double p2ox, double p2oy, double p2oz, double p2nx, double p2ny, double p2nz,
+                        double p3ox, double p3oy, double p3oz, double p3nx, double p3ny, double p3nz,
+                        double* outX, double* outY, double* outZ) {
+    try {
+        IntAna_Int3Pln inter(gp_Pln(gp_Pnt(p1ox,p1oy,p1oz), gp_Dir(p1nx,p1ny,p1nz)),
+                             gp_Pln(gp_Pnt(p2ox,p2oy,p2oz), gp_Dir(p2nx,p2ny,p2nz)),
+                             gp_Pln(gp_Pnt(p3ox,p3oy,p3oz), gp_Dir(p3nx,p3ny,p3nz)));
+        if (!inter.IsDone() || inter.IsEmpty()) return false;
+        gp_Pnt p = inter.Value();
+        *outX = p.X(); *outY = p.Y(); *outZ = p.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTIntAnaLineTorus(double lox, double loy, double loz,
+                              double ldx, double ldy, double ldz,
+                              double tox, double toy, double toz,
+                              double tnx, double tny, double tnz,
+                              double majorRadius, double minorRadius,
+                              double* outPoints) {
+    try {
+        gp_Lin line(gp_Pnt(lox,loy,loz), gp_Dir(ldx,ldy,ldz));
+        gp_Torus torus(gp_Ax3(gp_Pnt(tox,toy,toz), gp_Dir(tnx,tny,tnz)), majorRadius, minorRadius);
+        IntAna_IntLinTorus inter(line, torus);
+        if (!inter.IsDone()) return 0;
+        int n = inter.NbPoints();
+        for (int i = 0; i < n && i < 4; i++) {
+            gp_Pnt p = inter.Value(i+1);
+            outPoints[i*3] = p.X(); outPoints[i*3+1] = p.Y(); outPoints[i*3+2] = p.Z();
+        }
+        return n;
+    } catch (...) { return 0; }
 }
