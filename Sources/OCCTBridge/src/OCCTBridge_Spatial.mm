@@ -58,6 +58,7 @@
 #include <math_GaussSetIntegration.hxx>
 #include <math_FunctionSample.hxx>
 #include <math_IntegerVector.hxx>
+#include <Convert_CompPolynomialToPoles.hxx>
 #include <TopoDS.hxx>
 #include <TopAbs.hxx>
 #include <TColgp_Array1OfPnt.hxx>
@@ -2278,3 +2279,162 @@ double OCCTMathIntegTanhSinh(OCCTMathSimpleFuncCallback _Nonnull callback, void*
 // UnitsMethods
 
 #include <UnitsMethods.hxx>
+
+// MARK: - v0.118: Polynomial→Poles + TrsfDisplacement/Transformation + gp_Pln/Lin distance/contains
+bool OCCTConvertPolynomialToPoles(int32_t dimension, int32_t maxDegree, int32_t degree,
+                                   const double* coefficients, int32_t coeffCount,
+                                   double polyStart, double polyEnd,
+                                   double trueStart, double trueEnd,
+                                   double** outPoles, int32_t* outPoleCount,
+                                   double** outKnots, int32_t* outKnotCount,
+                                   int32_t* outDegree) {
+    try {
+        NCollection_Array1<double> coeff(1, coeffCount);
+        for (int32_t i = 0; i < coeffCount; i++) coeff(i + 1) = coefficients[i];
+        NCollection_Array1<double> polyIntervals(1, 2);
+        polyIntervals(1) = polyStart; polyIntervals(2) = polyEnd;
+        NCollection_Array1<double> trueIntervals(1, 2);
+        trueIntervals(1) = trueStart; trueIntervals(2) = trueEnd;
+
+        Convert_CompPolynomialToPoles converter(dimension, maxDegree, degree,
+            coeff, polyIntervals, trueIntervals);
+        if (!converter.IsDone()) return false;
+
+        int nbPoles = converter.NbPoles();
+        *outPoleCount = nbPoles;
+        *outDegree = converter.Degree();
+
+        // Get poles (NCollection_Array2: [1..NbPoles][1..Dimension])
+        const NCollection_Array2<double>& poles = converter.Poles();
+        int totalPoleValues = nbPoles * dimension;
+        *outPoles = (double*)malloc(sizeof(double) * totalPoleValues);
+        int idx = 0;
+        for (int i = poles.LowerRow(); i <= poles.UpperRow(); i++) {
+            for (int j = poles.LowerCol(); j <= poles.UpperCol(); j++) {
+                (*outPoles)[idx++] = poles(i, j);
+            }
+        }
+
+        // Get knots
+        const NCollection_Array1<double>& knots = converter.Knots();
+        *outKnotCount = knots.Length();
+        *outKnots = (double*)malloc(sizeof(double) * knots.Length());
+        for (int i = 0; i < knots.Length(); i++) (*outKnots)[i] = knots(knots.Lower() + i);
+
+        return true;
+    } catch (...) {
+        *outPoles = nullptr; *outKnots = nullptr;
+        *outPoleCount = *outKnotCount = *outDegree = 0;
+        return false;
+    }
+}
+
+// === gp_Trsf extras ===
+void OCCTTrsfDisplacement(double fromPx, double fromPy, double fromPz,
+                           double fromDx, double fromDy, double fromDz,
+                           double toPx, double toPy, double toPz,
+                           double toDx, double toDy, double toDz,
+                           double* a11, double* a12, double* a13, double* a14,
+                           double* a21, double* a22, double* a23, double* a24,
+                           double* a31, double* a32, double* a33, double* a34) {
+    try {
+        gp_Ax3 from(gp_Pnt(fromPx, fromPy, fromPz), gp_Dir(fromDx, fromDy, fromDz));
+        gp_Ax3 to(gp_Pnt(toPx, toPy, toPz), gp_Dir(toDx, toDy, toDz));
+        gp_Trsf t;
+        t.SetDisplacement(from, to);
+        *a11 = t.Value(1,1); *a12 = t.Value(1,2); *a13 = t.Value(1,3); *a14 = t.Value(1,4);
+        *a21 = t.Value(2,1); *a22 = t.Value(2,2); *a23 = t.Value(2,3); *a24 = t.Value(2,4);
+        *a31 = t.Value(3,1); *a32 = t.Value(3,2); *a33 = t.Value(3,3); *a34 = t.Value(3,4);
+    } catch (...) {
+        *a11 = 1; *a12 = 0; *a13 = 0; *a14 = 0;
+        *a21 = 0; *a22 = 1; *a23 = 0; *a24 = 0;
+        *a31 = 0; *a32 = 0; *a33 = 1; *a34 = 0;
+    }
+}
+
+void OCCTTrsfTransformation(double fromPx, double fromPy, double fromPz,
+                             double fromDx, double fromDy, double fromDz,
+                             double toPx, double toPy, double toPz,
+                             double toDx, double toDy, double toDz,
+                             double* a11, double* a12, double* a13, double* a14,
+                             double* a21, double* a22, double* a23, double* a24,
+                             double* a31, double* a32, double* a33, double* a34) {
+    try {
+        gp_Ax3 from(gp_Pnt(fromPx, fromPy, fromPz), gp_Dir(fromDx, fromDy, fromDz));
+        gp_Ax3 to(gp_Pnt(toPx, toPy, toPz), gp_Dir(toDx, toDy, toDz));
+        gp_Trsf t;
+        t.SetTransformation(from, to);
+        *a11 = t.Value(1,1); *a12 = t.Value(1,2); *a13 = t.Value(1,3); *a14 = t.Value(1,4);
+        *a21 = t.Value(2,1); *a22 = t.Value(2,2); *a23 = t.Value(2,3); *a24 = t.Value(2,4);
+        *a31 = t.Value(3,1); *a32 = t.Value(3,2); *a33 = t.Value(3,3); *a34 = t.Value(3,4);
+    } catch (...) {
+        *a11 = 1; *a12 = 0; *a13 = 0; *a14 = 0;
+        *a21 = 0; *a22 = 1; *a23 = 0; *a24 = 0;
+        *a31 = 0; *a32 = 0; *a33 = 1; *a34 = 0;
+    }
+}
+
+// === TopExp extras ===
+// --- gp_Pln distance/contains ---
+
+double OCCTPlaneDistanceToPoint(double ox, double oy, double oz,
+                                double nx, double ny, double nz,
+                                double px, double py, double pz) {
+    try {
+        gp_Pln pln(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        return pln.Distance(gp_Pnt(px, py, pz));
+    } catch (...) { return -1.0; }
+}
+
+double OCCTPlaneDistanceToLine(double ox, double oy, double oz,
+                               double nx, double ny, double nz,
+                               double lx, double ly, double lz,
+                               double dx, double dy, double dz) {
+    try {
+        gp_Pln pln(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        gp_Lin lin(gp_Pnt(lx, ly, lz), gp_Dir(dx, dy, dz));
+        return pln.Distance(lin);
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTPlaneContainsPoint(double ox, double oy, double oz,
+                            double nx, double ny, double nz,
+                            double px, double py, double pz,
+                            double tolerance) {
+    try {
+        gp_Pln pln(gp_Pnt(ox, oy, oz), gp_Dir(nx, ny, nz));
+        return pln.Contains(gp_Pnt(px, py, pz), tolerance);
+    } catch (...) { return false; }
+}
+
+// --- gp_Lin distance/contains ---
+
+double OCCTLineDistanceToPoint(double lx, double ly, double lz,
+                               double dx, double dy, double dz,
+                               double px, double py, double pz) {
+    try {
+        gp_Lin lin(gp_Pnt(lx, ly, lz), gp_Dir(dx, dy, dz));
+        return lin.Distance(gp_Pnt(px, py, pz));
+    } catch (...) { return -1.0; }
+}
+
+double OCCTLineDistanceToLine(double l1x, double l1y, double l1z,
+                              double d1x, double d1y, double d1z,
+                              double l2x, double l2y, double l2z,
+                              double d2x, double d2y, double d2z) {
+    try {
+        gp_Lin lin1(gp_Pnt(l1x, l1y, l1z), gp_Dir(d1x, d1y, d1z));
+        gp_Lin lin2(gp_Pnt(l2x, l2y, l2z), gp_Dir(d2x, d2y, d2z));
+        return lin1.Distance(lin2);
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTLineContainsPoint(double lx, double ly, double lz,
+                           double dx, double dy, double dz,
+                           double px, double py, double pz,
+                           double tolerance) {
+    try {
+        gp_Lin lin(gp_Pnt(lx, ly, lz), gp_Dir(dx, dy, dz));
+        return lin.Contains(gp_Pnt(px, py, pz), tolerance);
+    } catch (...) { return false; }
+}

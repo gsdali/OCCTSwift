@@ -38,6 +38,7 @@
 #include <BRepCheck_Wire.hxx>
 #include <BRepCheck_ListOfStatus.hxx>
 #include <ShapeAnalysis_ShapeContents.hxx>
+#include <BRepAlgoAPI_Check.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <ChFi2d_Builder.hxx>
@@ -4166,3 +4167,53 @@ bool OCCTShapeFixerStatus(OCCTShapeFixerRef ref, int32_t statusType) {
         return f->fixer->Status(st);
     } catch (...) { return false; }
 }
+
+// MARK: - v0.118: Tolerance value/over-count/in-range + Boolean check single/pair
+double OCCTShapeToleranceValue(OCCTShapeRef shape, int32_t mode, int32_t shapeType) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        ShapeAnalysis_ShapeTolerance sat;
+        return sat.Tolerance(s->shape, mode, static_cast<TopAbs_ShapeEnum>(shapeType));
+    } catch (...) { return 0.0; }
+}
+
+int32_t OCCTShapeToleranceOverCount(OCCTShapeRef shape, double value, int32_t shapeType) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        ShapeAnalysis_ShapeTolerance sat;
+        auto seq = sat.OverTolerance(s->shape, value, static_cast<TopAbs_ShapeEnum>(shapeType));
+        return seq.IsNull() ? 0 : (int32_t)seq->Length();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTShapeToleranceInRangeCount(OCCTShapeRef shape, double valmin, double valmax, int32_t shapeType) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        ShapeAnalysis_ShapeTolerance sat;
+        auto seq = sat.InTolerance(s->shape, valmin, valmax, static_cast<TopAbs_ShapeEnum>(shapeType));
+        return seq.IsNull() ? 0 : (int32_t)seq->Length();
+    } catch (...) { return 0; }
+}
+
+// === BRepAlgoAPI_Check ===
+bool OCCTShapeBooleanCheckSingle(OCCTShapeRef shape, bool testSmallEdges, bool testSelfInterference) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        BRepAlgoAPI_Check check(s->shape, testSmallEdges, testSelfInterference);
+        return check.IsValid();
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeBooleanCheckPair(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                int32_t operation, bool testSmallEdges, bool testSelfInterference) {
+    try {
+        auto* s1 = static_cast<OCCTShape*>(shape1);
+        auto* s2 = static_cast<OCCTShape*>(shape2);
+        BRepAlgoAPI_Check check(s1->shape, s2->shape,
+            static_cast<BOPAlgo_Operation>(operation), testSmallEdges, testSelfInterference);
+        return check.IsValid();
+    } catch (...) { return false; }
+}
+
+// === BRepAlgoAPI_Defeaturing ===
+#include <BRepAlgoAPI_Defeaturing.hxx>

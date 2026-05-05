@@ -2699,3 +2699,32 @@ const char* _Nullable OCCTUnitsDumpLengthUnit(int32_t unit) {
 // GeomLProp_CLProps (was LProp3d_CLProps in RC4)
 
 #include <GeomLProp_CLProps.hxx>
+
+// MARK: - v0.118: BREP string serialization
+// --- BREP string serialization ---
+
+char* OCCTShapeToBREPString(OCCTShapeRef shape) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        std::ostringstream oss;
+        BRepTools::Write(s->shape, oss);
+        std::string str = oss.str();
+        char* result = (char*)malloc(str.size() + 1);
+        if (!result) return nullptr;
+        memcpy(result, str.c_str(), str.size() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeFromBREPString(const char* brepString) {
+    try {
+        std::istringstream iss(brepString);
+        BRep_Builder builder;
+        TopoDS_Shape shape;
+        BRepTools::Read(shape, iss, builder);
+        if (shape.IsNull()) return nullptr;
+        auto* r = new OCCTShape();
+        r->shape = shape;
+        return r;
+    } catch (...) { return nullptr; }
+}

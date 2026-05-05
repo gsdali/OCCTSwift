@@ -7691,3 +7691,58 @@ OCCTShapeRef OCCTUnifySameDomainShape(OCCTUnifySameDomainRef ref) {
         return new OCCTShape{result};
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.118: Defeature + Sewing nbMultipleEdges
+OCCTShapeRef OCCTShapeDefeature(OCCTShapeRef shape,
+                                 const OCCTShapeRef* faces, int32_t faceCount) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        BRepAlgoAPI_Defeaturing df;
+        df.SetShape(s->shape);
+        for (int32_t i = 0; i < faceCount; i++) {
+            auto* f = static_cast<OCCTShape*>(faces[i]);
+            df.AddFaceToRemove(f->shape);
+        }
+        df.Build();
+        if (df.IsDone() && !df.Shape().IsNull()) {
+            auto* result = new OCCTShape();
+            result->shape = df.Shape();
+            return result;
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// === Convert_CompPolynomialToPoles ===
+#include <Convert_CompPolynomialToPoles.hxx>
+int32_t OCCTSewingNbMultipleEdges(OCCTSewingRef sewing) {
+    try {
+        return (int32_t)sewing->sewing.NbMultipleEdges();
+    } catch (...) { return 0; }
+}
+
+bool OCCTSewingIsMultipleEdge(OCCTSewingRef sewing, int32_t index, OCCTShapeRef* outEdge) {
+    try {
+        if (index < 1 || index > sewing->sewing.NbMultipleEdges()) { *outEdge = nullptr; return false; }
+        const TopoDS_Edge& edge = sewing->sewing.MultipleEdge(index);
+        auto* r = new OCCTShape();
+        r->shape = edge;
+        *outEdge = r;
+        return true;
+    } catch (...) { *outEdge = nullptr; return false; }
+}
+
+// end of v0.118.0 implementations
+
+
+// === v0.119.0: BREP serialization, gp distance/contains, BezierSurface, Curve2D Bezier/BSpline extras ===
+
+#include <sstream>
+#include <BRepTools.hxx>
+#include <BRep_Builder.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Lin.hxx>
+#include <Geom_BezierSurface.hxx>
+#include <Geom2d_BezierCurve.hxx>
+#include <Geom2d_BSplineCurve.hxx>
+#include <Geom_BSplineSurface.hxx>

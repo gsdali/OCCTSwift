@@ -4251,3 +4251,107 @@ void OCCTMat2dTranspose(const double* _Nonnull mat, double* _Nonnull result) {
 }
 
 // Quaternion interpolation
+
+// MARK: - v0.118: Curve2D Bezier + BSpline extras
+// --- Curve2D Bezier ---
+
+void OCCTCurve2DBezierGetPole(OCCTCurve2DRef curve, int32_t index, double* x, double* y) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) { *x = *y = 0; return; }
+        gp_Pnt2d p = bezier->Pole(index);
+        *x = p.X(); *y = p.Y();
+    } catch (...) { *x = *y = 0; }
+}
+
+bool OCCTCurve2DBezierSetPole(OCCTCurve2DRef curve, int32_t index, double x, double y) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return false;
+        bezier->SetPole(index, gp_Pnt2d(x, y));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBezierSetWeight(OCCTCurve2DRef curve, int32_t index, double weight) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return false;
+        bezier->SetWeight(index, weight);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTCurve2DBezierDegree(OCCTCurve2DRef curve) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return -1;
+        return (int32_t)bezier->Degree();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTCurve2DBezierPoleCount(OCCTCurve2DRef curve) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return 0;
+        return (int32_t)bezier->NbPoles();
+    } catch (...) { return 0; }
+}
+
+bool OCCTCurve2DBezierIsRational(OCCTCurve2DRef curve) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return false;
+        return bezier->IsRational();
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DBezierResolution(OCCTCurve2DRef curve, double tolerance) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bezier = occ::handle<Geom2d_BezierCurve>::DownCast(c->curve);
+        if (bezier.IsNull()) return 0;
+        double utol = 0;
+        bezier->Resolution(tolerance, utol);
+        return utol;
+    } catch (...) { return 0; }
+}
+// --- Curve2D BSpline extras ---
+
+bool OCCTCurve2DBSplineSetPeriodic(OCCTCurve2DRef curve, bool periodic) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bsp = occ::handle<Geom2d_BSplineCurve>::DownCast(c->curve);
+        if (bsp.IsNull()) return false;
+        if (periodic) bsp->SetPeriodic(); else bsp->SetNotPeriodic();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTCurve2DBSplineGetWeight(OCCTCurve2DRef curve, int32_t index) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bsp = occ::handle<Geom2d_BSplineCurve>::DownCast(c->curve);
+        if (bsp.IsNull()) return 0;
+        return bsp->Weight(index);
+    } catch (...) { return 0; }
+}
+
+void OCCTCurve2DBSplineGetWeights(OCCTCurve2DRef curve, double* weights) {
+    try {
+        auto* c = static_cast<OCCTCurve2D*>(curve);
+        auto bsp = occ::handle<Geom2d_BSplineCurve>::DownCast(c->curve);
+        if (bsp.IsNull()) return;
+        NCollection_Array1<double> w(1, bsp->NbPoles());
+        bsp->Weights(w);
+        for (int i = 1; i <= bsp->NbPoles(); i++) {
+            weights[i-1] = w(i);
+        }
+    } catch (...) {}
+}
