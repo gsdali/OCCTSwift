@@ -7746,3 +7746,617 @@ bool OCCTSewingIsMultipleEdge(OCCTSewingRef sewing, int32_t index, OCCTShapeRef*
 #include <Geom2d_BezierCurve.hxx>
 #include <Geom2d_BSplineCurve.hxx>
 #include <Geom_BSplineSurface.hxx>
+
+// MARK: - v0.121-v0.124: FilletBuilder + ChamferBuilder + completions
+// --- FilletBuilder (BRepFilletAPI_MakeFillet) ---
+
+struct OCCTFilletBuilder {
+    BRepFilletAPI_MakeFillet fillet;
+    OCCTFilletBuilder(const TopoDS_Shape& s) : fillet(s) {}
+};
+
+OCCTFilletBuilderRef OCCTFilletBuilderCreate(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        return new OCCTFilletBuilder(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTFilletBuilderRelease(OCCTFilletBuilderRef builder) {
+    delete builder;
+}
+
+bool OCCTFilletBuilderAddEdge(OCCTFilletBuilderRef builder, OCCTEdgeRef edge, double radius) {
+    if (!builder || !edge) return false;
+    try { builder->fillet.Add(radius, edge->edge); return true; } catch (...) { return false; }
+}
+
+bool OCCTFilletBuilderAddEdgeEvolving(OCCTFilletBuilderRef builder, OCCTEdgeRef edge, double r1, double r2) {
+    if (!builder || !edge) return false;
+    try { builder->fillet.Add(r1, r2, edge->edge); return true; } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTFilletBuilderBuild(OCCTFilletBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        builder->fillet.Build();
+        if (!builder->fillet.IsDone()) return nullptr;
+        return new OCCTShape(builder->fillet.Shape());
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTFilletBuilderNbContours(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbContours(); } catch (...) { return 0; }
+}
+
+int32_t OCCTFilletBuilderNbEdges(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbEdges(contourIndex); } catch (...) { return 0; }
+}
+
+bool OCCTFilletBuilderHasResult(OCCTFilletBuilderRef builder) {
+    if (!builder) return false;
+    try { return builder->fillet.HasResult(); } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTFilletBuilderBadShape(OCCTFilletBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        const TopoDS_Shape& bad = builder->fillet.BadShape();
+        if (bad.IsNull()) return nullptr;
+        return new OCCTShape(bad);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTFilletBuilderNbFaultyContours(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbFaultyContours(); } catch (...) { return 0; }
+}
+
+int32_t OCCTFilletBuilderNbFaultyVertices(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbFaultyVertices(); } catch (...) { return 0; }
+}
+
+double OCCTFilletBuilderGetRadius(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try { return builder->fillet.Radius(contourIndex); } catch (...) { return 0; }
+}
+
+double OCCTFilletBuilderGetLength(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try { return builder->fillet.Length(contourIndex); } catch (...) { return 0; }
+}
+
+bool OCCTFilletBuilderIsConstant(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->fillet.IsConstant(contourIndex); } catch (...) { return false; }
+}
+
+bool OCCTFilletBuilderRemoveEdge(OCCTFilletBuilderRef builder, OCCTEdgeRef edge) {
+    if (!builder || !edge) return false;
+    try { builder->fillet.Remove(edge->edge); return true; } catch (...) { return false; }
+}
+
+void OCCTFilletBuilderReset(OCCTFilletBuilderRef builder) {
+    if (!builder) return;
+    try { builder->fillet.Reset(); } catch (...) {}
+}
+
+// --- ChamferBuilder (BRepFilletAPI_MakeChamfer) ---
+
+struct OCCTChamferBuilder {
+    BRepFilletAPI_MakeChamfer chamfer;
+    OCCTChamferBuilder(const TopoDS_Shape& s) : chamfer(s) {}
+};
+
+OCCTChamferBuilderRef OCCTChamferBuilderCreate(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        return new OCCTChamferBuilder(shape->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTChamferBuilderRelease(OCCTChamferBuilderRef builder) {
+    delete builder;
+}
+
+bool OCCTChamferBuilderAddEdge(OCCTChamferBuilderRef builder, OCCTEdgeRef edge, double dist) {
+    if (!builder || !edge) return false;
+    try { builder->chamfer.Add(dist, edge->edge); return true; } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderAddEdgeTwoDists(OCCTChamferBuilderRef builder,
+                                        OCCTEdgeRef edge, OCCTFaceRef face,
+                                        double d1, double d2) {
+    if (!builder || !edge || !face) return false;
+    try { builder->chamfer.Add(d1, d2, edge->edge, face->face); return true; } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderAddEdgeDistAngle(OCCTChamferBuilderRef builder,
+                                         OCCTEdgeRef edge, OCCTFaceRef face,
+                                         double dist, double angle) {
+    if (!builder || !edge || !face) return false;
+    try { builder->chamfer.AddDA(dist, angle, edge->edge, face->face); return true; } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTChamferBuilderBuild(OCCTChamferBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        builder->chamfer.Build();
+        if (!builder->chamfer.IsDone()) return nullptr;
+        return new OCCTShape(builder->chamfer.Shape());
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTChamferBuilderNbContours(OCCTChamferBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->chamfer.NbContours(); } catch (...) { return 0; }
+}
+
+bool OCCTChamferBuilderIsDistAngle(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->chamfer.IsDistanceAngle(contourIndex); } catch (...) { return false; }
+}
+
+// MARK: - v0.124.0: ChamferBuilder completions, FilletBuilder completions, WireAnalyzer
+
+// --- ChamferBuilder completions ---
+
+int32_t OCCTChamferBuilderNbEdges(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try { return builder->chamfer.NbEdges(contourIndex); } catch (...) { return 0; }
+}
+
+void OCCTChamferBuilderGetDist(OCCTChamferBuilderRef builder, int32_t contourIndex, double* dist) {
+    if (!builder || !dist) return;
+    try { builder->chamfer.GetDist(contourIndex, *dist); } catch (...) { *dist = -1.0; }
+}
+
+void OCCTChamferBuilderGetDists(OCCTChamferBuilderRef builder, int32_t contourIndex,
+                                 double* d1, double* d2) {
+    if (!builder || !d1 || !d2) return;
+    try { builder->chamfer.Dists(contourIndex, *d1, *d2); } catch (...) { *d1 = -1.0; *d2 = -1.0; }
+}
+
+void OCCTChamferBuilderGetDistAngle(OCCTChamferBuilderRef builder, int32_t contourIndex,
+                                     double* dist, double* angle) {
+    if (!builder || !dist || !angle) return;
+    try { builder->chamfer.GetDistAngle(contourIndex, *dist, *angle); } catch (...) { *dist = -1.0; *angle = -1.0; }
+}
+
+bool OCCTChamferBuilderSetDist(OCCTChamferBuilderRef builder, double dist,
+                                int32_t contourIndex, OCCTFaceRef face) {
+    if (!builder || !face) return false;
+    try { builder->chamfer.SetDist(dist, contourIndex, face->face); return true; } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderSetDists(OCCTChamferBuilderRef builder, double d1, double d2,
+                                 int32_t contourIndex, OCCTFaceRef face) {
+    if (!builder || !face) return false;
+    try { builder->chamfer.SetDists(d1, d2, contourIndex, face->face); return true; } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderSetDistAngle(OCCTChamferBuilderRef builder, double dist, double angle,
+                                     int32_t contourIndex, OCCTFaceRef face) {
+    if (!builder || !face) return false;
+    try { builder->chamfer.SetDistAngle(dist, angle, contourIndex, face->face); return true; } catch (...) { return false; }
+}
+
+double OCCTChamferBuilderLength(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return -1.0;
+    try { return builder->chamfer.Length(contourIndex); } catch (...) { return -1.0; }
+}
+
+bool OCCTChamferBuilderRemoveEdge(OCCTChamferBuilderRef builder, OCCTEdgeRef edge) {
+    if (!builder || !edge) return false;
+    try { builder->chamfer.Remove(edge->edge); return true; } catch (...) { return false; }
+}
+
+void OCCTChamferBuilderReset(OCCTChamferBuilderRef builder) {
+    if (!builder) return;
+    try { builder->chamfer.Reset(); } catch (...) {}
+}
+
+bool OCCTChamferBuilderClosed(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->chamfer.Closed(contourIndex); } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderClosedAndTangent(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->chamfer.ClosedAndTangent(contourIndex); } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderIsSymmetric(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->chamfer.IsSymetric(contourIndex); } catch (...) { return false; }
+}
+
+bool OCCTChamferBuilderIsTwoDists(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->chamfer.IsTwoDistances(contourIndex); } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTChamferBuilderEdge(OCCTChamferBuilderRef builder, int32_t contourIndex, int32_t edgeIndex) {
+    if (!builder) return nullptr;
+    try {
+        const TopoDS_Edge& e = builder->chamfer.Edge(contourIndex, edgeIndex);
+        if (e.IsNull()) return nullptr;
+        return new OCCTShape(e);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTChamferBuilderFirstVertex(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return nullptr;
+    try {
+        TopoDS_Vertex v = builder->chamfer.FirstVertex(contourIndex);
+        if (v.IsNull()) return nullptr;
+        return new OCCTShape(v);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTChamferBuilderLastVertex(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return nullptr;
+    try {
+        TopoDS_Vertex v = builder->chamfer.LastVertex(contourIndex);
+        if (v.IsNull()) return nullptr;
+        return new OCCTShape(v);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTChamferBuilderContour(OCCTChamferBuilderRef builder, OCCTEdgeRef edge) {
+    if (!builder || !edge) return 0;
+    try { return builder->chamfer.Contour(edge->edge); } catch (...) { return 0; }
+}
+
+double OCCTChamferBuilderAbscissa(OCCTChamferBuilderRef builder, int32_t contourIndex, OCCTShapeRef vertex) {
+    if (!builder || !vertex) return -1.0;
+    try {
+        return builder->chamfer.Abscissa(contourIndex, TopoDS::Vertex(vertex->shape));
+    } catch (...) { return -1.0; }
+}
+
+double OCCTChamferBuilderRelativeAbscissa(OCCTChamferBuilderRef builder, int32_t contourIndex, OCCTShapeRef vertex) {
+    if (!builder || !vertex) return -1.0;
+    try {
+        return builder->chamfer.RelativeAbscissa(contourIndex, TopoDS::Vertex(vertex->shape));
+    } catch (...) { return -1.0; }
+}
+
+// --- FilletBuilder completions ---
+
+bool OCCTFilletBuilderSetRadiusOnEdge(OCCTFilletBuilderRef builder, double radius,
+                                       int32_t contourIndex, OCCTEdgeRef edge) {
+    if (!builder || !edge) return false;
+    try { builder->fillet.SetRadius(radius, contourIndex, edge->edge); return true; } catch (...) { return false; }
+}
+
+bool OCCTFilletBuilderSetRadiusAtVertex(OCCTFilletBuilderRef builder, double radius,
+                                         int32_t contourIndex, OCCTShapeRef vertex) {
+    if (!builder || !vertex) return false;
+    try {
+        builder->fillet.SetRadius(radius, contourIndex, TopoDS::Vertex(vertex->shape));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTFilletBuilderSetTwoRadii(OCCTFilletBuilderRef builder, double r1, double r2,
+                                   int32_t contourIndex, int32_t edgeInContour) {
+    if (!builder) return false;
+    try { builder->fillet.SetRadius(r1, r2, contourIndex, edgeInContour); return true; } catch (...) { return false; }
+}
+
+int32_t OCCTFilletBuilderContour(OCCTFilletBuilderRef builder, OCCTEdgeRef edge) {
+    if (!builder || !edge) return 0;
+    try { return builder->fillet.Contour(edge->edge); } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTFilletBuilderEdge(OCCTFilletBuilderRef builder, int32_t contourIndex, int32_t edgeIndex) {
+    if (!builder) return nullptr;
+    try {
+        const TopoDS_Edge& e = builder->fillet.Edge(contourIndex, edgeIndex);
+        if (e.IsNull()) return nullptr;
+        return new OCCTShape(e);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTFilletBuilderFirstVertex(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return nullptr;
+    try {
+        TopoDS_Vertex v = builder->fillet.FirstVertex(contourIndex);
+        if (v.IsNull()) return nullptr;
+        return new OCCTShape(v);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTFilletBuilderLastVertex(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return nullptr;
+    try {
+        TopoDS_Vertex v = builder->fillet.LastVertex(contourIndex);
+        if (v.IsNull()) return nullptr;
+        return new OCCTShape(v);
+    } catch (...) { return nullptr; }
+}
+
+double OCCTFilletBuilderAbscissa(OCCTFilletBuilderRef builder, int32_t contourIndex, OCCTShapeRef vertex) {
+    if (!builder || !vertex) return -1.0;
+    try {
+        return builder->fillet.Abscissa(contourIndex, TopoDS::Vertex(vertex->shape));
+    } catch (...) { return -1.0; }
+}
+
+double OCCTFilletBuilderRelativeAbscissa(OCCTFilletBuilderRef builder, int32_t contourIndex, OCCTShapeRef vertex) {
+    if (!builder || !vertex) return -1.0;
+    try {
+        return builder->fillet.RelativeAbscissa(contourIndex, TopoDS::Vertex(vertex->shape));
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTFilletBuilderClosedAndTangent(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->fillet.ClosedAndTangent(contourIndex); } catch (...) { return false; }
+}
+
+bool OCCTFilletBuilderClosed(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try { return builder->fillet.Closed(contourIndex); } catch (...) { return false; }
+}
+
+int32_t OCCTFilletBuilderNbSurfaces(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbSurfaces(); } catch (...) { return 0; }
+}
+
+int32_t OCCTFilletBuilderNbComputedSurfaces(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try { return builder->fillet.NbComputedSurfaces(contourIndex); } catch (...) { return 0; }
+}
+
+int32_t OCCTFilletBuilderStripeStatus(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return -1;
+    try { return static_cast<int32_t>(builder->fillet.StripeStatus(contourIndex)); } catch (...) { return -1; }
+}
+
+int32_t OCCTFilletBuilderFaultyContour(OCCTFilletBuilderRef builder, int32_t faultIndex) {
+    if (!builder) return 0;
+    try { return builder->fillet.FaultyContour(faultIndex); } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTFilletBuilderFaultyVertex(OCCTFilletBuilderRef builder, int32_t faultIndex) {
+    if (!builder) return nullptr;
+    try {
+        TopoDS_Vertex v = builder->fillet.FaultyVertex(faultIndex);
+        if (v.IsNull()) return nullptr;
+        return new OCCTShape(v);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - FilletBuilder/ChamferBuilder extensions (hoisted with structs)
+void OCCTFilletBuilderSetParams(OCCTFilletBuilderRef builder,
+                                 double tang, double tesp, double t2d,
+                                 double tApp3d, double tApp2d, double fleche) {
+    if (!builder) return;
+    try {
+        builder->fillet.SetParams(tang, tesp, t2d, tApp3d, tApp2d, fleche);
+    } catch (...) {}
+}
+
+void OCCTFilletBuilderSetContinuity(OCCTFilletBuilderRef builder,
+                                     int32_t internalContinuity, double angularTolerance) {
+    if (!builder) return;
+    try {
+        builder->fillet.SetContinuity((GeomAbs_Shape)internalContinuity, angularTolerance);
+    } catch (...) {}
+}
+
+void OCCTFilletBuilderSetFilletShape(OCCTFilletBuilderRef builder, int32_t filletShape) {
+    if (!builder) return;
+    try {
+        builder->fillet.SetFilletShape((ChFi3d_FilletShape)filletShape);
+    } catch (...) {}
+}
+
+int32_t OCCTFilletBuilderGetFilletShape(OCCTFilletBuilderRef builder) {
+    if (!builder) return 0;
+    try {
+        return (int32_t)builder->fillet.GetFilletShape();
+    } catch (...) { return 0; }
+}
+
+void OCCTFilletBuilderResetContour(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return;
+    try {
+        builder->fillet.ResetContour(contourIndex);
+    } catch (...) {}
+}
+
+void OCCTFilletBuilderSimulate(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return;
+    try {
+        builder->fillet.Simulate(contourIndex);
+    } catch (...) {}
+}
+
+int32_t OCCTFilletBuilderNbSimulatedSurf(OCCTFilletBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try {
+        return (int32_t)builder->fillet.NbSurf(contourIndex);
+    } catch (...) { return 0; }
+}
+
+// --- XCAFDoc_ShapeTool completions ---
+
+#import <XCAFDoc_ShapeTool.hxx>
+
+bool OCCTDocumentShapeToolIsFree(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsFree(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsSimpleShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsSimpleShape(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTFilletBuilderGetBounds(OCCTFilletBuilderRef builder, int32_t contourIndex,
+                                 OCCTShapeRef edge, double* outFirst, double* outLast) {
+    if (!builder || !edge || !outFirst || !outLast) return false;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        return builder->fillet.GetBounds(contourIndex, e, *outFirst, *outLast);
+    } catch (...) { return false; }
+}
+
+OCCTLawFunctionRef OCCTFilletBuilderGetLaw(OCCTFilletBuilderRef builder, int32_t contourIndex,
+                                            OCCTShapeRef edge) {
+    if (!builder || !edge) return nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        Handle(Law_Function) law = builder->fillet.GetLaw(contourIndex, e);
+        if (law.IsNull()) return nullptr;
+        return new OCCTLawFunction(law);
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTFilletBuilderSetLaw(OCCTFilletBuilderRef builder, int32_t contourIndex,
+                              OCCTEdgeRef edge, OCCTLawFunctionRef law) {
+    if (!builder || !edge || !law) return false;
+    try {
+        builder->fillet.SetLaw(contourIndex, edge->edge, law->law);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTFilletBuilderGenerated(OCCTFilletBuilderRef builder, OCCTShapeRef shape,
+                                    OCCTShapeRef** outShapes) {
+    if (!builder || !shape || !outShapes) return 0;
+    *outShapes = nullptr;
+    try {
+        const TopTools_ListOfShape& list = builder->fillet.Generated(shape->shape);
+        int count = list.Size();
+        if (count == 0) return 0;
+        OCCTShapeRef* shapes = (OCCTShapeRef*)malloc(count * sizeof(OCCTShapeRef));
+        if (!shapes) return 0;
+        int i = 0;
+        for (auto it = list.cbegin(); it != list.cend(); ++it, ++i) {
+            shapes[i] = new OCCTShape(*it);
+        }
+        *outShapes = shapes;
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTFilletBuilderModified(OCCTFilletBuilderRef builder, OCCTShapeRef shape,
+                                   OCCTShapeRef** outShapes) {
+    if (!builder || !shape || !outShapes) return 0;
+    *outShapes = nullptr;
+    try {
+        const TopTools_ListOfShape& list = builder->fillet.Modified(shape->shape);
+        int count = list.Size();
+        if (count == 0) return 0;
+        OCCTShapeRef* shapes = (OCCTShapeRef*)malloc(count * sizeof(OCCTShapeRef));
+        if (!shapes) return 0;
+        int i = 0;
+        for (auto it = list.cbegin(); it != list.cend(); ++it, ++i) {
+            shapes[i] = new OCCTShape(*it);
+        }
+        *outShapes = shapes;
+        return count;
+    } catch (...) { return 0; }
+}
+
+bool OCCTFilletBuilderIsDeleted(OCCTFilletBuilderRef builder, OCCTShapeRef shape) {
+    if (!builder || !shape) return false;
+    try {
+        return builder->fillet.IsDeleted(shape->shape);
+    } catch (...) { return false; }
+}
+
+// MARK: - v0.128.0: ChamferBuilder history, SectionBuilder, BRep_Tool extras, Curve/Surface Transform
+
+#include <ChFiDS_ChamfMode.hxx>
+#include <gp_Trsf2d.hxx>
+
+// --- ChamferBuilder history & extras ---
+
+int32_t OCCTChamferBuilderGenerated(OCCTChamferBuilderRef builder, OCCTShapeRef shape,
+                                     OCCTShapeRef** outShapes) {
+    if (!builder || !shape || !outShapes) return 0;
+    *outShapes = nullptr;
+    try {
+        const TopTools_ListOfShape& list = builder->chamfer.Generated(shape->shape);
+        int32_t count = list.Size();
+        if (count == 0) return 0;
+        *outShapes = (OCCTShapeRef*)malloc(count * sizeof(OCCTShapeRef));
+        int32_t i = 0;
+        for (auto it = list.cbegin(); it != list.cend(); ++it, ++i) {
+            (*outShapes)[i] = new OCCTShape{*it};
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTChamferBuilderModified(OCCTChamferBuilderRef builder, OCCTShapeRef shape,
+                                    OCCTShapeRef** outShapes) {
+    if (!builder || !shape || !outShapes) return 0;
+    *outShapes = nullptr;
+    try {
+        const TopTools_ListOfShape& list = builder->chamfer.Modified(shape->shape);
+        int32_t count = list.Size();
+        if (count == 0) return 0;
+        *outShapes = (OCCTShapeRef*)malloc(count * sizeof(OCCTShapeRef));
+        int32_t i = 0;
+        for (auto it = list.cbegin(); it != list.cend(); ++it, ++i) {
+            (*outShapes)[i] = new OCCTShape{*it};
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+bool OCCTChamferBuilderIsDeleted(OCCTChamferBuilderRef builder, OCCTShapeRef shape) {
+    if (!builder || !shape) return false;
+    try {
+        return builder->chamfer.IsDeleted(shape->shape);
+    } catch (...) { return false; }
+}
+
+void OCCTChamferBuilderSetMode(OCCTChamferBuilderRef builder, int32_t mode) {
+    if (!builder) return;
+    try {
+        ChFiDS_ChamfMode chamfMode;
+        switch (mode) {
+            case 1: chamfMode = ChFiDS_ConstThroatChamfer; break;
+            case 2: chamfMode = ChFiDS_ConstThroatWithPenetrationChamfer; break;
+            default: chamfMode = ChFiDS_ClassicChamfer; break;
+        }
+        builder->chamfer.SetMode(chamfMode);
+    } catch (...) {}
+}
+
+bool OCCTChamferBuilderSimulate(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return false;
+    try {
+        builder->chamfer.Simulate(contourIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTChamferBuilderNbSurf(OCCTChamferBuilderRef builder, int32_t contourIndex) {
+    if (!builder) return 0;
+    try {
+        return builder->chamfer.NbSurf(contourIndex);
+    } catch (...) { return 0; }
+}
+
+// --- SectionBuilder (BRepAlgoAPI_Section) ---
+

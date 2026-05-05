@@ -2728,3 +2728,77 @@ OCCTShapeRef OCCTShapeFromBREPString(const char* brepString) {
         return r;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.121: GLTF Import/Export
+// end of v0.124.0 implementations
+
+// MARK: - GLTF Import/Export (v0.121.0)
+
+#include <RWGltf_CafReader.hxx>
+#include <RWGltf_CafWriter.hxx>
+
+OCCTShapeRef _Nullable OCCTImportGLTF(const char* _Nonnull path) {
+    if (!path) return nullptr;
+    try {
+        RWGltf_CafReader reader;
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+        reader.SetDocument(doc);
+        TCollection_AsciiString filePath(path);
+        if (!reader.Perform(filePath, Message_ProgressRange())) return nullptr;
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        TopoDS_Shape shape = shapeTool->GetOneShape();
+        if (shape.IsNull()) return nullptr;
+        auto* ref = new OCCTShape;
+        ref->shape = shape;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTExportGLTF(OCCTShapeRef _Nonnull shape, const char* _Nonnull path,
+                      bool isBinary, double deflection) {
+    if (!shape || !path) return false;
+    try {
+        BRepMesh_IncrementalMesh mesher(shape->shape, deflection);
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", doc);
+        Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+        shapeTool->AddShape(shape->shape);
+        TCollection_AsciiString filePath(path);
+        RWGltf_CafWriter writer(filePath, isBinary);
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        return writer.Perform(doc, fileInfo, Message_ProgressRange());
+    } catch (...) { return false; }
+}
+
+OCCTDocumentRef _Nullable OCCTDocumentLoadGLTF(const char* _Nonnull path) {
+    if (!path) return nullptr;
+    try {
+        auto* docRef = new OCCTDocument;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        app->NewDocument("MDTV-XCAF", docRef->doc);
+        RWGltf_CafReader reader;
+        reader.SetDocument(docRef->doc);
+        TCollection_AsciiString filePath(path);
+        if (!reader.Perform(filePath, Message_ProgressRange())) {
+            delete docRef;
+            return nullptr;
+        }
+        return docRef;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentWriteGLTF(OCCTDocumentRef _Nonnull doc, const char* _Nonnull path, bool isBinary) {
+    if (!doc || !path) return false;
+    try {
+        TCollection_AsciiString filePath(path);
+        RWGltf_CafWriter writer(filePath, isBinary);
+        NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString> fileInfo;
+        return writer.Perform(doc->doc, fileInfo, Message_ProgressRange());
+    } catch (...) { return false; }
+}
+
+// end of v0.121.0 implementations
+
