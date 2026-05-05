@@ -46,6 +46,11 @@
 #include <Geom_SurfaceOfLinearExtrusion.hxx>
 #include <GProp_PrincipalProps.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
+#include <BRepExtrema_SelfIntersection.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <BRepOffset_Analyse.hxx>
+#include <BRepOffset_Interval.hxx>
+#include <ChFiDS_TypeOfConcavity.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <gp_Cylinder.hxx>
 #include <gp_Cone.hxx>
@@ -912,3 +917,82 @@ OCCTShapeRef OCCTShapeGetSubShapeByTypeIndex(OCCTShapeRef shape, int32_t type, i
     }
 }
 
+
+// MARK: - BRepExtrema_SelfIntersection (v0.45)
+OCCTSelfIntersectionResult OCCTShapeSelfIntersection(OCCTShapeRef shape, double tolerance,
+                                                      double meshDeflection) {
+    OCCTSelfIntersectionResult result = {0, false};
+    if (!shape) return result;
+    try {
+        // Ensure the shape is meshed
+        BRepMesh_IncrementalMesh mesh(shape->shape, meshDeflection);
+
+        BRepExtrema_SelfIntersection selfInt(shape->shape, tolerance);
+        selfInt.Perform();
+
+        result.isDone = selfInt.IsDone();
+        if (result.isDone) {
+            result.overlapCount = (int32_t)selfInt.OverlapElements().Size();
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// MARK: - BRepOffset_Analyse Edge Concavity (v0.46)
+int32_t OCCTShapeAnalyzeEdgeConcavity(OCCTShapeRef shape, double angle,
+                                       OCCTEdgeConcavity* outEdgeTypes, int32_t maxEntries) {
+    if (!shape || !outEdgeTypes || maxEntries <= 0) return -1;
+    try {
+        BRepOffset_Analyse analyser(shape->shape, angle);
+        if (!analyser.IsDone()) return -1;
+
+        int32_t count = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More() && count < maxEntries; exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            const auto& intervals = analyser.Type(edge);
+            // Use the first interval's type for the overall edge classification
+            for (auto it = intervals.begin(); it != intervals.end(); ++it) {
+                OCCTConcavityType type;
+                if (it->Type() == ChFiDS_Convex) type = OCCTConcavityConvex;
+                else if (it->Type() == ChFiDS_Concave) type = OCCTConcavityConcave;
+                else type = OCCTConcavityTangent;
+                outEdgeTypes[count].type = type;
+                count++;
+                break; // One classification per edge
+            }
+        }
+        return count;
+    } catch (...) {
+        return -1;
+    }
+}
+
+int32_t OCCTShapeCountEdgeConcavity(OCCTShapeRef shape, double angle, int32_t type) {
+    if (!shape) return -1;
+    try {
+        BRepOffset_Analyse analyser(shape->shape, angle);
+        if (!analyser.IsDone()) return -1;
+
+        ChFiDS_TypeOfConcavity targetType;
+        if (type == 0) targetType = ChFiDS_Convex;
+        else if (type == 1) targetType = ChFiDS_Concave;
+        else targetType = ChFiDS_Tangential;
+
+        int32_t count = 0;
+        for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            const auto& intervals = analyser.Type(edge);
+            for (auto it = intervals.begin(); it != intervals.end(); ++it) {
+                if (it->Type() == targetType) {
+                    count++;
+                    break;
+                }
+            }
+        }
+        return count;
+    } catch (...) {
+        return -1;
+    }
+}

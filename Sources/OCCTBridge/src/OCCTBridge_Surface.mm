@@ -52,6 +52,11 @@
 #include <Geom_BezierSurface.hxx>
 #include <GeomFill_Pipe.hxx>
 #include <GeomFill_BSplineCurves.hxx>
+#include <GeomFill_ConstrainedFilling.hxx>
+#include <GeomFill_SimpleBound.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepAdaptor_CompCurve.hxx>
+#include <BRepAdaptor_Curve.hxx>
 #include <GeomLProp_SLProps.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopAbs.hxx>
@@ -1353,6 +1358,82 @@ bool OCCTShapeCheckCurveOnSurface(OCCTShapeRef shape, double* outMaxDist, double
         *outMaxDist = globalMaxDist;
         *outMaxParam = globalMaxParam;
         return anyChecked;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - GeomFill_ConstrainedFilling (v0.47)
+// --- GeomFill_ConstrainedFilling ---
+
+OCCTShapeRef OCCTGeomFillConstrained(OCCTEdgeRef edge1, OCCTEdgeRef edge2,
+                                      OCCTEdgeRef edge3, OCCTEdgeRef edge4,
+                                      int32_t maxDeg, int32_t maxSeg) {
+    if (!edge1 || !edge2 || !edge3) return nullptr;
+    try {
+        // Extract curves from edges
+        auto getCurve = [](const TopoDS_Edge& edge) -> Handle(Geom_TrimmedCurve) {
+            double first, last;
+            Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+            if (curve.IsNull()) return nullptr;
+            return new Geom_TrimmedCurve(curve, first, last);
+        };
+
+        Handle(Geom_TrimmedCurve) c1 = getCurve(edge1->edge);
+        Handle(Geom_TrimmedCurve) c2 = getCurve(edge2->edge);
+        Handle(Geom_TrimmedCurve) c3 = getCurve(edge3->edge);
+        if (c1.IsNull() || c2.IsNull() || c3.IsNull()) return nullptr;
+
+        Handle(GeomFill_SimpleBound) b1 = new GeomFill_SimpleBound(
+            new GeomAdaptor_Curve(c1), 1e-4, 1e-4);
+        Handle(GeomFill_SimpleBound) b2 = new GeomFill_SimpleBound(
+            new GeomAdaptor_Curve(c2), 1e-4, 1e-4);
+        Handle(GeomFill_SimpleBound) b3 = new GeomFill_SimpleBound(
+            new GeomAdaptor_Curve(c3), 1e-4, 1e-4);
+
+        GeomFill_ConstrainedFilling filler(maxDeg, maxSeg);
+
+        if (edge4) {
+            Handle(Geom_TrimmedCurve) c4 = getCurve(edge4->edge);
+            if (c4.IsNull()) return nullptr;
+            Handle(GeomFill_SimpleBound) b4 = new GeomFill_SimpleBound(
+                new GeomAdaptor_Curve(c4), 1e-4, 1e-4);
+            filler.Init(b1, b2, b3, b4);
+        } else {
+            filler.Init(b1, b2, b3);
+        }
+
+        Handle(Geom_BSplineSurface) surface = filler.Surface();
+        if (surface.IsNull()) return nullptr;
+
+        // Build a face from the surface
+        BRepBuilderAPI_MakeFace faceMaker(surface, 1e-6);
+        if (!faceMaker.IsDone()) return nullptr;
+        return new OCCTShape(faceMaker.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTGeomFillConstrainedInfo(OCCTShapeRef face, OCCTConstrainedFillingInfo* info) {
+    if (!face || !info) return false;
+    try {
+        // Extract the BSpline surface from the face
+        for (TopExp_Explorer exp(face->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+            TopoDS_Face f = TopoDS::Face(exp.Current());
+            Handle(Geom_Surface) surf = BRep_Tool::Surface(f);
+            Handle(Geom_BSplineSurface) bspline = Handle(Geom_BSplineSurface)::DownCast(surf);
+            if (!bspline.IsNull()) {
+                info->isValid = true;
+                info->uDegree = bspline->UDegree();
+                info->vDegree = bspline->VDegree();
+                info->uPoles = bspline->NbUPoles();
+                info->vPoles = bspline->NbVPoles();
+                return true;
+            }
+        }
+        info->isValid = false;
+        return false;
     } catch (...) {
         return false;
     }

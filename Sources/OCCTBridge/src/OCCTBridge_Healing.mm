@@ -28,6 +28,14 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepCheck_Analyzer.hxx>
+#include <BRepCheck_Edge.hxx>
+#include <BRepCheck_Face.hxx>
+#include <BRepCheck_Result.hxx>
+#include <BRepCheck_Shell.hxx>
+#include <BRepCheck_Solid.hxx>
+#include <BRepCheck_Status.hxx>
+#include <BRepCheck_Vertex.hxx>
+#include <BRepCheck_Wire.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <ChFi2d_Builder.hxx>
 #include <ChFi2d_ConstructionError.hxx>
@@ -64,7 +72,9 @@
 #include <ShapeFix_EdgeConnect.hxx>
 #include <ShapeFix_Wireframe.hxx>
 #include <ShapeAnalysis_FreeBounds.hxx>
+#include <ShapeAnalysis_WireOrder.hxx>
 #include <ShapeFix_FreeBounds.hxx>
+#include <ShapeUpgrade_ShapeConvertToBezier.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
 #include <BRepLib.hxx>
 
@@ -1415,3 +1425,365 @@ OCCTShapeRef OCCTShapeConnectEdges(OCCTShapeRef shape) {
         return nullptr;
     }
 }
+
+// MARK: - ShapeUpgrade_ShapeConvertToBezier (v0.45)
+OCCTShapeRef OCCTShapeConvertToBezier(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        ShapeUpgrade_ShapeConvertToBezier converter(shape->shape);
+        converter.Set2dConversion(true);
+        converter.Set3dConversion(true);
+        converter.SetSurfaceConversion(true);
+        converter.Set3dLineConversion(true);
+        converter.Set3dCircleConversion(true);
+        converter.Set3dConicConversion(true);
+        converter.SetPlaneMode(true);
+        converter.SetRevolutionMode(true);
+        converter.SetExtrusionMode(true);
+        converter.SetBSplineMode(true);
+        if (!converter.Perform()) return nullptr;
+        TopoDS_Shape result = converter.Result();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - ShapeAnalysis_WireOrder (v0.45)
+OCCTWireOrderResult OCCTWireOrderAnalyze(const double* starts, const double* ends,
+                                          int32_t nbEdges, double tolerance,
+                                          OCCTWireOrderEntry* outOrder) {
+    OCCTWireOrderResult result = {-1, 0};
+    if (!starts || !ends || nbEdges <= 0 || !outOrder) return result;
+    try {
+        ShapeAnalysis_WireOrder order(true, tolerance);
+
+        for (int32_t i = 0; i < nbEdges; i++) {
+            gp_XYZ s(starts[i*3], starts[i*3+1], starts[i*3+2]);
+            gp_XYZ e(ends[i*3], ends[i*3+1], ends[i*3+2]);
+            order.Add(s, e);
+        }
+
+        order.Perform();
+        result.status = order.Status();
+        result.nbEdges = order.NbEdges();
+
+        for (int32_t i = 1; i <= result.nbEdges; i++) {
+            outOrder[i-1].originalIndex = order.Ordered(i);
+        }
+
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTWireOrderResult OCCTWireOrderAnalyzeWire(OCCTWireRef wire, double tolerance,
+                                              OCCTWireOrderEntry* outOrder, int32_t maxEntries) {
+    OCCTWireOrderResult result = {-1, 0};
+    if (!wire || !outOrder || maxEntries <= 0) return result;
+    try {
+        ShapeAnalysis_WireOrder order(true, tolerance);
+
+        // Extract edge endpoints from the wire
+        for (TopExp_Explorer exp(wire->wire, TopAbs_EDGE); exp.More(); exp.Next()) {
+            TopoDS_Edge edge = TopoDS::Edge(exp.Current());
+            double first, last;
+            Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+            if (curve.IsNull()) continue;
+
+            gp_Pnt p1 = curve->Value(first);
+            gp_Pnt p2 = curve->Value(last);
+            order.Add(p1.XYZ(), p2.XYZ());
+        }
+
+        order.Perform();
+        result.status = order.Status();
+        result.nbEdges = std::min(order.NbEdges(), maxEntries);
+
+        for (int32_t i = 1; i <= result.nbEdges; i++) {
+            outOrder[i-1].originalIndex = order.Ordered(i);
+        }
+
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+// MARK: - BRepCheck Validators (v0.47)
+// --- BRepCheck ---
+
+static OCCTCheckStatus mapBRepCheckStatus(BRepCheck_Status status) {
+    switch (status) {
+        case BRepCheck_NoError: return OCCTCheckNoError;
+        case BRepCheck_InvalidPointOnCurve: return OCCTCheckInvalidPointOnCurve;
+        case BRepCheck_InvalidPointOnCurveOnSurface: return OCCTCheckInvalidPointOnCurveOnSurface;
+        case BRepCheck_InvalidPointOnSurface: return OCCTCheckInvalidPointOnSurface;
+        case BRepCheck_No3DCurve: return OCCTCheckNo3DCurve;
+        case BRepCheck_Multiple3DCurve: return OCCTCheckMultiple3DCurve;
+        case BRepCheck_Invalid3DCurve: return OCCTCheckInvalid3DCurve;
+        case BRepCheck_NoCurveOnSurface: return OCCTCheckNoCurveOnSurface;
+        case BRepCheck_InvalidCurveOnSurface: return OCCTCheckInvalidCurveOnSurface;
+        case BRepCheck_InvalidCurveOnClosedSurface: return OCCTCheckInvalidCurveOnClosedSurface;
+        case BRepCheck_InvalidSameRangeFlag: return OCCTCheckInvalidSameRangeFlag;
+        case BRepCheck_InvalidSameParameterFlag: return OCCTCheckInvalidSameParameterFlag;
+        case BRepCheck_InvalidDegeneratedFlag: return OCCTCheckInvalidDegeneratedFlag;
+        case BRepCheck_FreeEdge: return OCCTCheckFreeEdge;
+        case BRepCheck_InvalidMultiConnexity: return OCCTCheckInvalidMultiConnexity;
+        case BRepCheck_InvalidRange: return OCCTCheckInvalidRange;
+        case BRepCheck_EmptyWire: return OCCTCheckEmptyWire;
+        case BRepCheck_RedundantEdge: return OCCTCheckRedundantEdge;
+        case BRepCheck_SelfIntersectingWire: return OCCTCheckSelfIntersectingWire;
+        case BRepCheck_NoSurface: return OCCTCheckNoSurface;
+        case BRepCheck_InvalidWire: return OCCTCheckInvalidWire;
+        case BRepCheck_RedundantWire: return OCCTCheckRedundantWire;
+        case BRepCheck_IntersectingWires: return OCCTCheckIntersectingWires;
+        case BRepCheck_InvalidImbricationOfWires: return OCCTCheckInvalidImbricationOfWires;
+        case BRepCheck_EmptyShell: return OCCTCheckEmptyShell;
+        case BRepCheck_RedundantFace: return OCCTCheckRedundantFace;
+        case BRepCheck_InvalidImbricationOfShells: return OCCTCheckInvalidImbricationOfShells;
+        case BRepCheck_UnorientableShape: return OCCTCheckUnorientableShape;
+        case BRepCheck_NotClosed: return OCCTCheckNotClosed;
+        case BRepCheck_NotConnected: return OCCTCheckNotConnected;
+        case BRepCheck_SubshapeNotInShape: return OCCTCheckSubshapeNotInShape;
+        case BRepCheck_BadOrientation: return OCCTCheckBadOrientation;
+        case BRepCheck_BadOrientationOfSubshape: return OCCTCheckBadOrientationOfSubshape;
+        case BRepCheck_InvalidPolygonOnTriangulation: return OCCTCheckInvalidPolygonOnTriangulation;
+        case BRepCheck_InvalidToleranceValue: return OCCTCheckInvalidToleranceValue;
+        case BRepCheck_EnclosedRegion: return OCCTCheckEnclosedRegion;
+        case BRepCheck_CheckFail: return OCCTCheckCheckFail;
+        default: return OCCTCheckCheckFail;
+    }
+}
+
+OCCTShapeCheckResult OCCTCheckFace(OCCTFaceRef face) {
+    OCCTShapeCheckResult result = {true, 0, OCCTCheckNoError};
+    if (!face) { result.isValid = false; result.firstError = OCCTCheckCheckFail; return result; }
+    try {
+        Handle(BRepCheck_Face) checker = new BRepCheck_Face(face->face);
+        checker->Minimum();
+        const auto& statusList = checker->Status();
+        for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+            if (*it != BRepCheck_NoError) {
+                if (result.errorCount == 0) {
+                    result.firstError = mapBRepCheckStatus(*it);
+                }
+                result.errorCount++;
+                result.isValid = false;
+            }
+        }
+        return result;
+    } catch (...) {
+        result.isValid = false;
+        result.firstError = OCCTCheckCheckFail;
+        return result;
+    }
+}
+
+OCCTShapeCheckResult OCCTCheckSolid(OCCTShapeRef shape) {
+    OCCTShapeCheckResult result = {true, 0, OCCTCheckNoError};
+    if (!shape) { result.isValid = false; result.firstError = OCCTCheckCheckFail; return result; }
+    try {
+        for (TopExp_Explorer exp(shape->shape, TopAbs_SOLID); exp.More(); exp.Next()) {
+            TopoDS_Solid solid = TopoDS::Solid(exp.Current());
+            Handle(BRepCheck_Solid) checker = new BRepCheck_Solid(solid);
+            checker->Minimum();
+            const auto& statusList = checker->Status();
+            for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+                if (*it != BRepCheck_NoError) {
+                    if (result.errorCount == 0) {
+                        result.firstError = mapBRepCheckStatus(*it);
+                    }
+                    result.errorCount++;
+                    result.isValid = false;
+                }
+            }
+        }
+        return result;
+    } catch (...) {
+        result.isValid = false;
+        result.firstError = OCCTCheckCheckFail;
+        return result;
+    }
+}
+
+OCCTShapeCheckResult OCCTCheckShape(OCCTShapeRef shape) {
+    OCCTShapeCheckResult result = {true, 0, OCCTCheckNoError};
+    if (!shape) { result.isValid = false; result.firstError = OCCTCheckCheckFail; return result; }
+    try {
+        BRepCheck_Analyzer analyzer(shape->shape, true);
+        result.isValid = analyzer.IsValid();
+        if (!result.isValid) {
+            // Count errors from sub-shapes
+            for (TopExp_Explorer exp(shape->shape, TopAbs_FACE); exp.More(); exp.Next()) {
+                const Handle(BRepCheck_Result)& res = analyzer.Result(exp.Current());
+                if (!res.IsNull()) {
+                    const auto& statusList = res->Status();
+                    for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+                        if (*it != BRepCheck_NoError) {
+                            if (result.errorCount == 0) {
+                                result.firstError = mapBRepCheckStatus(*it);
+                            }
+                            result.errorCount++;
+                        }
+                    }
+                }
+            }
+            for (TopExp_Explorer exp(shape->shape, TopAbs_EDGE); exp.More(); exp.Next()) {
+                const Handle(BRepCheck_Result)& res = analyzer.Result(exp.Current());
+                if (!res.IsNull()) {
+                    const auto& statusList = res->Status();
+                    for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+                        if (*it != BRepCheck_NoError) {
+                            if (result.errorCount == 0) {
+                                result.firstError = mapBRepCheckStatus(*it);
+                            }
+                            result.errorCount++;
+                        }
+                    }
+                }
+            }
+        }
+        return result;
+    } catch (...) {
+        result.isValid = false;
+        result.firstError = OCCTCheckCheckFail;
+        return result;
+    }
+}
+
+int32_t OCCTCheckShapeDetailed(OCCTShapeRef shape, OCCTCheckStatus* outStatuses, int32_t maxStatuses) {
+    if (!shape || !outStatuses || maxStatuses <= 0) return 0;
+    try {
+        BRepCheck_Analyzer analyzer(shape->shape, true);
+        int32_t count = 0;
+
+        auto collectStatuses = [&](TopAbs_ShapeEnum type) {
+            for (TopExp_Explorer exp(shape->shape, type); exp.More(); exp.Next()) {
+                const Handle(BRepCheck_Result)& res = analyzer.Result(exp.Current());
+                if (!res.IsNull()) {
+                    const auto& statusList = res->Status();
+                    for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+                        if (*it != BRepCheck_NoError && count < maxStatuses) {
+                            outStatuses[count++] = mapBRepCheckStatus(*it);
+                        }
+                    }
+                }
+            }
+        };
+
+        collectStatuses(TopAbs_VERTEX);
+        collectStatuses(TopAbs_EDGE);
+        collectStatuses(TopAbs_WIRE);
+        collectStatuses(TopAbs_FACE);
+        collectStatuses(TopAbs_SHELL);
+        collectStatuses(TopAbs_SOLID);
+
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - BRepCheck Analyzer + Sub-Shape Validators (v0.48)
+bool OCCTBRepCheckAnalyzerIsValid(OCCTShapeRef shape, bool geometryChecks) {
+    if (!shape) return false;
+    try {
+        BRepCheck_Analyzer analyzer(shape->shape, geometryChecks);
+        return analyzer.IsValid();
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTBRepCheckSubShapeValid(OCCTShapeRef parentShape, int32_t subShapeType, int32_t subShapeIndex) {
+    if (!parentShape) return false;
+    try {
+        BRepCheck_Analyzer analyzer(parentShape->shape, true);
+
+        TopAbs_ShapeEnum type = (TopAbs_ShapeEnum)subShapeType;
+        int idx = 0;
+        for (TopExp_Explorer exp(parentShape->shape, type); exp.More(); exp.Next()) {
+            if (idx == subShapeIndex) {
+                return analyzer.IsValid(exp.Current());
+            }
+            idx++;
+        }
+        return false;
+    } catch (...) {
+        return false;
+    }
+}
+
+static OCCTShapeCheckResult checkSubShape(OCCTShapeRef shape, TopAbs_ShapeEnum type, int32_t index) {
+    OCCTShapeCheckResult result = {};
+    result.isValid = false;
+    result.firstError = OCCTCheckNoError;
+    if (!shape) return result;
+
+    try {
+        TopoDS_Shape subShape;
+        int idx = 0;
+        for (TopExp_Explorer exp(shape->shape, type); exp.More(); exp.Next()) {
+            if (idx == index) {
+                subShape = exp.Current();
+                break;
+            }
+            idx++;
+        }
+        if (subShape.IsNull()) return result;
+
+        Handle(BRepCheck_Result) checker;
+        switch (type) {
+            case TopAbs_EDGE:
+                checker = new BRepCheck_Edge(TopoDS::Edge(subShape));
+                break;
+            case TopAbs_WIRE:
+                checker = new BRepCheck_Wire(TopoDS::Wire(subShape));
+                break;
+            case TopAbs_SHELL:
+                checker = new BRepCheck_Shell(TopoDS::Shell(subShape));
+                break;
+            case TopAbs_VERTEX:
+                checker = new BRepCheck_Vertex(TopoDS::Vertex(subShape));
+                break;
+            default:
+                return result;
+        }
+
+        checker->Minimum();
+        auto& statusList = checker->Status();
+
+        result.isValid = true;
+        for (auto it = statusList.begin(); it != statusList.end(); ++it) {
+            if (*it != BRepCheck_NoError) {
+                result.isValid = false;
+                if (result.firstError == OCCTCheckNoError) {
+                    result.firstError = mapBRepCheckStatus(*it);
+                }
+            }
+        }
+        return result;
+    } catch (...) {
+        return result;
+    }
+}
+
+OCCTShapeCheckResult OCCTCheckEdge(OCCTShapeRef shape, int32_t edgeIndex) {
+    return checkSubShape(shape, TopAbs_EDGE, edgeIndex);
+}
+
+OCCTShapeCheckResult OCCTCheckWire(OCCTShapeRef shape, int32_t wireIndex) {
+    return checkSubShape(shape, TopAbs_WIRE, wireIndex);
+}
+
+OCCTShapeCheckResult OCCTCheckShell(OCCTShapeRef shape, int32_t shellIndex) {
+    return checkSubShape(shape, TopAbs_SHELL, shellIndex);
+}
+
+OCCTShapeCheckResult OCCTCheckVertex(OCCTShapeRef shape, int32_t vertexIndex) {
+    return checkSubShape(shape, TopAbs_VERTEX, vertexIndex);
+}
+

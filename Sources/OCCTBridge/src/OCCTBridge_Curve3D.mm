@@ -27,7 +27,9 @@
 
 // === Area-specific OCCT headers ===
 
+#include <Approx_Curve3d.hxx>
 #include <BRep_Tool.hxx>
+#include <BRepAdaptor_Curve.hxx>
 #include <BRepLib.hxx>
 
 #include <GC_MakeArcOfCircle.hxx>
@@ -1068,5 +1070,42 @@ OCCTCurve3DRef OCCTCurve3DArcOfEllipsePoints(double centerX, double centerY, dou
         return new OCCTCurve3D(maker.Value());
     } catch (...) {
         return nullptr;
+    }
+}
+
+// MARK: - Approx_Curve3d (v0.46)
+OCCTCurve3DRef OCCTEdgeApproxCurve(OCCTEdgeRef edge, double tolerance,
+                                     int32_t maxSegments, int32_t maxDegree) {
+    if (!edge) return nullptr;
+    try {
+        BRepAdaptor_Curve adaptorCurve(edge->edge);
+        Approx_Curve3d approx(new BRepAdaptor_Curve(adaptorCurve),
+                               tolerance, GeomAbs_C2, maxSegments, maxDegree);
+        if (!approx.IsDone() && !approx.HasResult()) return nullptr;
+        auto bspline = approx.Curve();
+        if (bspline.IsNull()) return nullptr;
+        return new OCCTCurve3D(bspline);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTEdgeApproxCurveInfo(OCCTEdgeRef edge, double tolerance,
+                              int32_t maxSegments, int32_t maxDegree,
+                              double* outMaxError, int32_t* outDegree, int32_t* outNbPoles) {
+    if (!edge || !outMaxError || !outDegree || !outNbPoles) return false;
+    try {
+        BRepAdaptor_Curve adaptorCurve(edge->edge);
+        Approx_Curve3d approx(new BRepAdaptor_Curve(adaptorCurve),
+                               tolerance, GeomAbs_C2, maxSegments, maxDegree);
+        if (!approx.IsDone() && !approx.HasResult()) return false;
+        *outMaxError = approx.MaxError();
+        auto bspline = approx.Curve();
+        if (bspline.IsNull()) return false;
+        *outDegree = bspline->Degree();
+        *outNbPoles = bspline->NbPoles();
+        return true;
+    } catch (...) {
+        return false;
     }
 }
