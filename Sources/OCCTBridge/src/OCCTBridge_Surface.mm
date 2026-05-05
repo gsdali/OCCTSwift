@@ -2593,3 +2593,32 @@ bool OCCTGeomFillBoundWithSurfEvaluate(
         return false;
     }
 }
+
+// MARK: - ShapeCustom_Surface ConvertToPeriodic + Gap (v0.74)
+// --- ShapeCustom_Surface: ConvertToPeriodic, Gap ---
+
+OCCTSurfaceRef _Nullable OCCTSurfaceConvertToPeriodic(OCCTSurfaceRef _Nonnull surface) {
+    if (!surface) return nullptr;
+    try {
+        ShapeCustom_Surface sc(surface->surface);
+        Handle(Geom_Surface) periodic = sc.ConvertToPeriodic(Standard_False);
+        if (periodic.IsNull()) return nullptr;
+        auto* ref = new OCCTSurface();
+        ref->surface = periodic;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+double OCCTSurfaceConversionGap(OCCTSurfaceRef _Nonnull surface) {
+    if (!surface) return -1.0;
+    try {
+        ShapeCustom_Surface sc(surface->surface);
+        // Trigger a conversion to populate gap
+        sc.ConvertToAnalytical(1e-3, Standard_False);
+        return sc.Gap();
+    } catch (...) {
+        return -1.0;
+    }
+}

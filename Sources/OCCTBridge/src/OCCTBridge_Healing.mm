@@ -95,6 +95,7 @@
 #include <ShapeUpgrade_FixSmallBezierCurves.hxx>
 #include <ShapeUpgrade_FixSmallCurves.hxx>
 #include <ShapeUpgrade_WireDivide.hxx>
+#include <BRepLib_ValidateEdge.hxx>
 #include <ShapeUpgrade_ClosedFaceDivide.hxx>
 #include <ShapeUpgrade_ShapeDivideAngle.hxx>
 #include <ShapeUpgrade_ShapeDivideArea.hxx>
@@ -2741,3 +2742,36 @@ OCCTShapeRef _Nullable OCCTShapeUpgradeConvertSurfaceToBezier(OCCTShapeRef shape
 #include <Geom2d_Direction.hxx>
 #include <Geom2dAPI_ProjectPointOnCurve.hxx>
 #include <LProp_CurAndInf.hxx>
+
+// MARK: - BRepLib_ValidateEdge (v0.74)
+// --- BRepLib_ValidateEdge ---
+
+OCCTValidateEdgeResult OCCTValidateEdge(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _Nonnull face, double tolerance) {
+    OCCTValidateEdgeResult result = {};
+    if (!edge || !face) return result;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->edge);
+        TopoDS_Face f = TopoDS::Face(face->face);
+
+        Handle(BRepAdaptor_Curve) curve3d = new BRepAdaptor_Curve(e);
+
+        double first, last;
+        Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnSurface(e, f, first, last);
+        if (pcurve.IsNull()) return result;
+
+        Handle(BRepAdaptor_Surface) brepSurf = new BRepAdaptor_Surface(f);
+        Handle(Geom2dAdaptor_Curve) gac2d = new Geom2dAdaptor_Curve(pcurve, first, last);
+        Handle(Adaptor3d_CurveOnSurface) curveOnSurf = new Adaptor3d_CurveOnSurface(gac2d, brepSurf);
+
+        BRepLib_ValidateEdge validator(curve3d, curveOnSurf, Standard_True);
+        validator.Process();
+
+        result.isDone = validator.IsDone();
+        if (result.isDone) {
+            result.maxDistance = validator.GetMaxDistance();
+            result.tolerance = tolerance;
+            result.isWithinTolerance = validator.CheckTolerance(tolerance);
+        }
+    } catch (...) {}
+    return result;
+}

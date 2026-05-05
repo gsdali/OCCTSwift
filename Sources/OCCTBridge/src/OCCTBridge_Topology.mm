@@ -30,7 +30,9 @@
 #include <BRepGProp.hxx>
 #include <IntCurvesFace_Intersector.hxx>
 #include <IntCurvesFace_ShapeIntersector.hxx>
+#include <TopCnx_EdgeFaceTransition.hxx>
 #include <TopTrans_SurfaceTransition.hxx>
+#include <BRepIntCurveSurface_Inter.hxx>
 #include <BRepLib_FindSurface.hxx>
 #include <BRepTools_ReShape.hxx>
 #include <BRepTools_WireExplorer.hxx>
@@ -1481,4 +1483,140 @@ void OCCTTopTransCurveTransitionWithCurvature(
         *outStateBefore = 3;
         *outStateAfter = 3;
     }
+}
+
+// MARK: - TopCnx_EdgeFaceTransition (v0.73)
+// --- TopCnx_EdgeFaceTransition ---
+
+OCCTEdgeFaceTransitionResult OCCTTopCnxEdgeFaceTransition(
+    double edgeTangentX, double edgeTangentY, double edgeTangentZ,
+    double edgeNormalX, double edgeNormalY, double edgeNormalZ,
+    double edgeCurvature,
+    const double* _Nonnull faceTangents,
+    const double* _Nonnull faceNormals,
+    const double* _Nonnull faceCurvatures,
+    const int32_t* _Nonnull faceOrientations,
+    const int32_t* _Nonnull faceTransitions,
+    const int32_t* _Nonnull faceBoundaryTransitions,
+    const double* _Nonnull tolerances,
+    int32_t faceCount) {
+    OCCTEdgeFaceTransitionResult result = {0, 0};
+    try {
+        TopCnx_EdgeFaceTransition eft;
+        gp_Dir tgt(edgeTangentX, edgeTangentY, edgeTangentZ);
+
+        // Check if edge is linear (zero normal)
+        double normMag = sqrt(edgeNormalX*edgeNormalX + edgeNormalY*edgeNormalY + edgeNormalZ*edgeNormalZ);
+        if (normMag < 1e-10) {
+            eft.Reset(tgt);
+        } else {
+            gp_Dir norm(edgeNormalX, edgeNormalY, edgeNormalZ);
+            eft.Reset(tgt, norm, edgeCurvature);
+        }
+
+        for (int32_t i = 0; i < faceCount; i++) {
+            gp_Dir faceTang(faceTangents[i*3], faceTangents[i*3+1], faceTangents[i*3+2]);
+            gp_Dir faceNorm(faceNormals[i*3], faceNormals[i*3+1], faceNormals[i*3+2]);
+            eft.AddInterference(tolerances[i], faceTang, faceNorm, faceCurvatures[i],
+                (TopAbs_Orientation)faceOrientations[i],
+                (TopAbs_Orientation)faceTransitions[i],
+                (TopAbs_Orientation)faceBoundaryTransitions[i]);
+        }
+
+        result.transition = (int32_t)eft.Transition();
+        result.boundaryTransition = (int32_t)eft.BoundaryTransition();
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - BRepIntCurveSurface_Inter (v0.74)
+struct OCCTCurveSurfaceInter {
+    BRepIntCurveSurface_Inter inter;
+};
+
+// --- BRepIntCurveSurface_Inter ---
+
+OCCTCurveSurfaceInterRef _Nullable OCCTCurveSurfaceInterCreateLine(
+    OCCTShapeRef _Nonnull shape,
+    double originX, double originY, double originZ,
+    double dirX, double dirY, double dirZ,
+    double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        auto* ref = new OCCTCurveSurfaceInter();
+        gp_Lin line(gp_Pnt(originX, originY, originZ), gp_Dir(dirX, dirY, dirZ));
+        ref->inter.Init(shape->shape, line, tolerance);
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTCurveSurfaceInterRef _Nullable OCCTCurveSurfaceInterCreateCurve(
+    OCCTShapeRef _Nonnull shape,
+    OCCTCurve3DRef _Nonnull curve,
+    double tolerance) {
+    if (!shape || !curve) return nullptr;
+    try {
+        auto* ref = new OCCTCurveSurfaceInter();
+        GeomAdaptor_Curve gac(curve->curve);
+        ref->inter.Init(shape->shape, gac, tolerance);
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTCurveSurfaceInterRelease(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    delete inter;
+}
+
+bool OCCTCurveSurfaceInterMore(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    try { return inter->inter.More(); } catch (...) { return false; }
+}
+
+void OCCTCurveSurfaceInterNext(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    try { inter->inter.Next(); } catch (...) {}
+}
+
+OCCTCurveSurfaceHit OCCTCurveSurfaceInterHit(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    OCCTCurveSurfaceHit hit = {};
+    try {
+        gp_Pnt pt = inter->inter.Pnt();
+        hit.x = pt.X(); hit.y = pt.Y(); hit.z = pt.Z();
+        hit.u = inter->inter.U();
+        hit.v = inter->inter.V();
+        hit.w = inter->inter.W();
+    } catch (...) {}
+    return hit;
+}
+
+OCCTFaceRef _Nullable OCCTCurveSurfaceInterFace(OCCTCurveSurfaceInterRef _Nonnull inter) {
+    try {
+        TopoDS_Face face = inter->inter.Face();
+        if (face.IsNull()) return nullptr;
+        auto* ref = new OCCTFace();
+        ref->face = face;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+int32_t OCCTCurveSurfaceInterAllHits(OCCTCurveSurfaceInterRef _Nonnull inter,
+                                      OCCTCurveSurfaceHit* _Nonnull hits,
+                                      int32_t maxHits) {
+    int32_t count = 0;
+    try {
+        while (inter->inter.More() && count < maxHits) {
+            gp_Pnt pt = inter->inter.Pnt();
+            hits[count].x = pt.X(); hits[count].y = pt.Y(); hits[count].z = pt.Z();
+            hits[count].u = inter->inter.U();
+            hits[count].v = inter->inter.V();
+            hits[count].w = inter->inter.W();
+            count++;
+            inter->inter.Next();
+        }
+    } catch (...) {}
+    return count;
 }

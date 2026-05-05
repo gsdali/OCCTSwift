@@ -87,6 +87,8 @@
 #include <BOPAlgo_WireSplitter.hxx>
 #include <BRepFeat_Gluer.hxx>
 #include <BRepFeat_MakeCylindricalHole.hxx>
+#include <HLRAppli_ReflectLines.hxx>
+#include <HLRBRep_TypeOfResultingEdge.hxx>
 #include <BRepFeat_Status.hxx>
 #include <ChFi2d_ChamferAPI.hxx>
 #include <ChFi2d_FilletAPI.hxx>
@@ -5811,4 +5813,145 @@ int32_t OCCTFilletSurfError(OCCTShapeRef _Nonnull shape,
         fb.Perform();
         return (int32_t)fb.StatusError();
     } catch (...) { return 4; }
+}
+
+// MARK: - HLR Edge Categories (v0.73)
+// --- Extended HLR edge categories ---
+
+OCCTShapeRef _Nullable OCCTHLRGetEdgesByCategory(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    OCCTHLREdgeCategory category) {
+    if (!shape) return nullptr;
+    try {
+        gp_Dir viewDir(dirX, dirY, dirZ);
+        gp_Ax2 projAxis(gp_Pnt(0, 0, 0), viewDir);
+        HLRAlgo_Projector projector(projAxis);
+
+        Handle(HLRBRep_Algo) algo = new HLRBRep_Algo();
+        algo->Add(shape->shape);
+        algo->Projector(projector);
+        algo->Update();
+        algo->Hide();
+
+        HLRBRep_HLRToShape hlrToShape(algo);
+        TopoDS_Shape result;
+
+        switch (category) {
+            case OCCTHLREdgeVisibleSharp:      result = hlrToShape.VCompound(); break;
+            case OCCTHLREdgeVisibleSmooth:     result = hlrToShape.Rg1LineVCompound(); break;
+            case OCCTHLREdgeVisibleSewn:       result = hlrToShape.RgNLineVCompound(); break;
+            case OCCTHLREdgeVisibleOutline:    result = hlrToShape.OutLineVCompound(); break;
+            case OCCTHLREdgeVisibleIso:        result = hlrToShape.IsoLineVCompound(); break;
+            case OCCTHLREdgeVisibleOutline3d:  result = hlrToShape.OutLineVCompound3d(); break;
+            case OCCTHLREdgeHiddenSharp:       result = hlrToShape.HCompound(); break;
+            case OCCTHLREdgeHiddenSmooth:      result = hlrToShape.Rg1LineHCompound(); break;
+            case OCCTHLREdgeHiddenSewn:        result = hlrToShape.RgNLineHCompound(); break;
+            case OCCTHLREdgeHiddenOutline:     result = hlrToShape.OutLineHCompound(); break;
+            case OCCTHLREdgeHiddenIso:         result = hlrToShape.IsoLineHCompound(); break;
+            default: return nullptr;
+        }
+
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTHLRPolyGetEdgesByCategory(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    OCCTHLREdgeCategory category) {
+    if (!shape) return nullptr;
+    // IsoLine and Outline3d not available for poly HLR
+    if (category == OCCTHLREdgeVisibleIso || category == OCCTHLREdgeHiddenIso ||
+        category == OCCTHLREdgeVisibleOutline3d) return nullptr;
+    try {
+        // Ensure triangulation
+        BRepMesh_IncrementalMesh mesh(shape->shape, 0.1);
+
+        gp_Dir viewDir(dirX, dirY, dirZ);
+        gp_Ax2 projAxis(gp_Pnt(0, 0, 0), viewDir);
+        HLRAlgo_Projector projector(projAxis);
+
+        Handle(HLRBRep_PolyAlgo) polyAlgo = new HLRBRep_PolyAlgo();
+        polyAlgo->Load(shape->shape);
+        polyAlgo->Projector(projector);
+        polyAlgo->Update();
+
+        HLRBRep_PolyHLRToShape polyToShape;
+        polyToShape.Update(polyAlgo);
+
+        TopoDS_Shape result;
+        switch (category) {
+            case OCCTHLREdgeVisibleSharp:   result = polyToShape.VCompound(); break;
+            case OCCTHLREdgeVisibleSmooth:  result = polyToShape.Rg1LineVCompound(); break;
+            case OCCTHLREdgeVisibleSewn:    result = polyToShape.RgNLineVCompound(); break;
+            case OCCTHLREdgeVisibleOutline: result = polyToShape.OutLineVCompound(); break;
+            case OCCTHLREdgeHiddenSharp:    result = polyToShape.HCompound(); break;
+            case OCCTHLREdgeHiddenSmooth:   result = polyToShape.Rg1LineHCompound(); break;
+            case OCCTHLREdgeHiddenSewn:     result = polyToShape.RgNLineHCompound(); break;
+            case OCCTHLREdgeHiddenOutline:  result = polyToShape.OutLineHCompound(); break;
+            default: return nullptr;
+        }
+
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTHLRCompoundOfEdges(OCCTShapeRef _Nonnull shape,
+    double dirX, double dirY, double dirZ,
+    int32_t edgeType, bool visible, bool in3d) {
+    if (!shape) return nullptr;
+    try {
+        gp_Dir viewDir(dirX, dirY, dirZ);
+        gp_Ax2 projAxis(gp_Pnt(0, 0, 0), viewDir);
+        HLRAlgo_Projector projector(projAxis);
+
+        Handle(HLRBRep_Algo) algo = new HLRBRep_Algo();
+        algo->Add(shape->shape);
+        algo->Projector(projector);
+        algo->Update();
+        algo->Hide();
+
+        HLRBRep_HLRToShape hlrToShape(algo);
+        TopoDS_Shape result = hlrToShape.CompoundOfEdges(
+            (HLRBRep_TypeOfResultingEdge)edgeType, visible, in3d);
+
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - HLRAppli_ReflectLines (v0.73)
+// --- HLRAppli_ReflectLines ---
+
+OCCTShapeRef _Nullable OCCTHLRReflectLines(OCCTShapeRef _Nonnull shape,
+    double nx, double ny, double nz,
+    double xAt, double yAt, double zAt,
+    double xUp, double yUp, double zUp) {
+    if (!shape) return nullptr;
+    try {
+        HLRAppli_ReflectLines rl(shape->shape);
+        rl.SetAxes(nx, ny, nz, xAt, yAt, zAt, xUp, yUp, zUp);
+        rl.Perform();
+        TopoDS_Shape result = rl.GetResult();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef _Nullable OCCTHLRReflectLinesFiltered(OCCTShapeRef _Nonnull shape,
+    double nx, double ny, double nz,
+    double xAt, double yAt, double zAt,
+    double xUp, double yUp, double zUp,
+    int32_t edgeType, bool visible, bool in3d) {
+    if (!shape) return nullptr;
+    try {
+        HLRAppli_ReflectLines rl(shape->shape);
+        rl.SetAxes(nx, ny, nz, xAt, yAt, zAt, xUp, yUp, zUp);
+        rl.Perform();
+        TopoDS_Shape result = rl.GetCompoundOf3dEdges(
+            (HLRBRep_TypeOfResultingEdge)edgeType, visible, in3d);
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) { return nullptr; }
 }
