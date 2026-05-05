@@ -3081,3 +3081,1200 @@ bool OCCTDocumentEditorRescaleGeometry(OCCTDocumentRef doc, int64_t labelId,
     } catch (...) { return false; }
 }
 
+
+// MARK: - v0.83: XDE Attributes (XCAFDoc_Location/GraphNode/Color/Material/Note*/NotesTool/ClippingPlaneTool/ShapeMapTool/AssemblyGraph/AssemblyItemId/VisMaterial/View/NoteObject/PrsStyle)
+// MARK: - v0.83.0: XDE Attributes
+
+#include <XCAFDoc_Location.hxx>
+#include <XCAFDoc_GraphNode.hxx>
+#include <XCAFDoc_Color.hxx>
+#include <XCAFDoc_Material.hxx>
+#include <XCAFDoc_NoteComment.hxx>
+#include <XCAFDoc_NoteBalloon.hxx>
+#include <XCAFDoc_NoteBinData.hxx>
+#include <XCAFDoc_NotesTool.hxx>
+#include <XCAFDoc_ClippingPlaneTool.hxx>
+#include <XCAFDoc_ShapeMapTool.hxx>
+#include <XCAFDoc_AssemblyGraph.hxx>
+#include <XCAFDoc_AssemblyItemId.hxx>
+#include <XCAFDoc_VisMaterialCommon.hxx>
+#include <XCAFDoc_VisMaterialPBR.hxx>
+#include <XCAFView_Object.hxx>
+#include <XCAFView_ProjectionType.hxx>
+#include <XCAFNoteObjects_NoteObject.hxx>
+#include <XCAFPrs_Style.hxx>
+#include <TopLoc_Location.hxx>
+#include <TCollection_HAsciiString.hxx>
+
+// --- XCAFDoc_Location ---
+
+bool OCCTDocumentSetLocation(OCCTDocumentRef ref, int64_t labelId,
+                              double tx, double ty, double tz) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        gp_Trsf trsf;
+        trsf.SetTranslation(gp_Vec(tx, ty, tz));
+        TopLoc_Location loc(trsf);
+        Handle(XCAFDoc_Location) attr = XCAFDoc_Location::Set(label, loc);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetLocationTranslation(OCCTDocumentRef ref, int64_t labelId,
+                                         double *outX, double *outY, double *outZ) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_Location) attr;
+        if (!label.FindAttribute(XCAFDoc_Location::GetID(), attr)) return false;
+        TopLoc_Location loc = attr->Get();
+        gp_Trsf trsf = loc.Transformation();
+        *outX = trsf.TranslationPart().X();
+        *outY = trsf.TranslationPart().Y();
+        *outZ = trsf.TranslationPart().Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasLocation(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_Location) attr;
+        return label.FindAttribute(XCAFDoc_Location::GetID(), attr);
+    } catch (...) { return false; }
+}
+
+// --- XCAFDoc_GraphNode ---
+
+bool OCCTDocumentSetGraphNodeAttr(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_GraphNode) node = XCAFDoc_GraphNode::Set(label);
+        return !node.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeSetChild(OCCTDocumentRef ref, int64_t parentLabelId, int64_t childLabelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label parentLabel = doc->getLabel(parentLabelId);
+        TDF_Label childLabel = doc->getLabel(childLabelId);
+        if (parentLabel.IsNull() || childLabel.IsNull()) return false;
+        Handle(XCAFDoc_GraphNode) parentNode, childNode;
+        if (!parentLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), parentNode)) return false;
+        if (!childLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), childNode)) return false;
+        parentNode->SetChild(childNode);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeSetFather(OCCTDocumentRef ref, int64_t childLabelId, int64_t parentLabelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label childLabel = doc->getLabel(childLabelId);
+        TDF_Label parentLabel = doc->getLabel(parentLabelId);
+        if (childLabel.IsNull() || parentLabel.IsNull()) return false;
+        Handle(XCAFDoc_GraphNode) childNode, parentNode;
+        if (!childLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), childNode)) return false;
+        if (!parentLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), parentNode)) return false;
+        childNode->SetFather(parentNode);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeUnSetChild(OCCTDocumentRef ref, int64_t parentLabelId, int64_t childLabelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label parentLabel = doc->getLabel(parentLabelId);
+        TDF_Label childLabel = doc->getLabel(childLabelId);
+        if (parentLabel.IsNull() || childLabel.IsNull()) return false;
+        Handle(XCAFDoc_GraphNode) parentNode, childNode;
+        if (!parentLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), parentNode)) return false;
+        if (!childLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), childNode)) return false;
+        parentNode->UnSetChild(childNode);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeUnSetFather(OCCTDocumentRef ref, int64_t childLabelId, int64_t parentLabelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label childLabel = doc->getLabel(childLabelId);
+        TDF_Label parentLabel = doc->getLabel(parentLabelId);
+        if (childLabel.IsNull() || parentLabel.IsNull()) return false;
+        Handle(XCAFDoc_GraphNode) childNode, parentNode;
+        if (!childLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), childNode)) return false;
+        if (!parentLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), parentNode)) return false;
+        childNode->UnSetFather(parentNode);
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentGraphNodeNbChildren(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return 0;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(XCAFDoc_GraphNode) node;
+        if (!label.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), node)) return 0;
+        return node->NbChildren();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTDocumentGraphNodeNbFathers(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return 0;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(XCAFDoc_GraphNode) node;
+        if (!label.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), node)) return 0;
+        return node->NbFathers();
+    } catch (...) { return 0; }
+}
+
+bool OCCTDocumentGraphNodeIsFather(OCCTDocumentRef ref, int64_t labelId, int64_t otherLabelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        TDF_Label otherLabel = doc->getLabel(otherLabelId);
+        if (label.IsNull() || otherLabel.IsNull()) return false;
+        Handle(XCAFDoc_GraphNode) node, otherNode;
+        if (!label.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), node)) return false;
+        if (!otherLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), otherNode)) return false;
+        return node->IsFather(otherNode);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGraphNodeIsChild(OCCTDocumentRef ref, int64_t labelId, int64_t otherLabelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        TDF_Label otherLabel = doc->getLabel(otherLabelId);
+        if (label.IsNull() || otherLabel.IsNull()) return false;
+        Handle(XCAFDoc_GraphNode) node, otherNode;
+        if (!label.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), node)) return false;
+        if (!otherLabel.FindAttribute(XCAFDoc_GraphNode::GetDefaultGraphID(), otherNode)) return false;
+        return node->IsChild(otherNode);
+    } catch (...) { return false; }
+}
+
+// --- XCAFDoc_Color ---
+
+bool OCCTDocumentSetColorAttr(OCCTDocumentRef ref, int64_t labelId,
+                               double r, double g, double b) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Quantity_Color color(r, g, b, Quantity_TOC_sRGB);
+        Handle(XCAFDoc_Color) attr = XCAFDoc_Color::Set(label, color);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentSetColorRGBAAttr(OCCTDocumentRef ref, int64_t labelId,
+                                    double r, double g, double b, float alpha) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Quantity_ColorRGBA rgba(Quantity_Color(r, g, b, Quantity_TOC_sRGB), alpha);
+        Handle(XCAFDoc_Color) attr = XCAFDoc_Color::Set(label, rgba);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentSetColorNOCAttr(OCCTDocumentRef ref, int64_t labelId, int32_t noc) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Quantity_Color color((Quantity_NameOfColor)noc);
+        Handle(XCAFDoc_Color) attr = XCAFDoc_Color::Set(label, color);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetColorAttr(OCCTDocumentRef ref, int64_t labelId,
+                               double *outR, double *outG, double *outB) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_Color) attr;
+        if (!label.FindAttribute(XCAFDoc_Color::GetID(), attr)) return false;
+        Quantity_Color c = attr->GetColor();
+        *outR = c.Red();
+        *outG = c.Green();
+        *outB = c.Blue();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentGetColorRGBAAttr(OCCTDocumentRef ref, int64_t labelId,
+                                    double *outR, double *outG, double *outB,
+                                    float *outAlpha) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_Color) attr;
+        if (!label.FindAttribute(XCAFDoc_Color::GetID(), attr)) return false;
+        Quantity_ColorRGBA rgba = attr->GetColorRGBA();
+        *outR = rgba.GetRGB().Red();
+        *outG = rgba.GetRGB().Green();
+        *outB = rgba.GetRGB().Blue();
+        *outAlpha = rgba.Alpha();
+        return true;
+    } catch (...) { return false; }
+}
+
+float OCCTDocumentGetColorAlphaAttr(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return 1.0f;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 1.0f;
+        Handle(XCAFDoc_Color) attr;
+        if (!label.FindAttribute(XCAFDoc_Color::GetID(), attr)) return 1.0f;
+        return attr->GetAlpha();
+    } catch (...) { return 1.0f; }
+}
+
+int32_t OCCTDocumentGetColorNOCAttr(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return -1;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return -1;
+        Handle(XCAFDoc_Color) attr;
+        if (!label.FindAttribute(XCAFDoc_Color::GetID(), attr)) return -1;
+        return (int32_t)attr->GetNOC();
+    } catch (...) { return -1; }
+}
+
+// --- XCAFDoc_Material ---
+
+bool OCCTDocumentSetMaterialAttr(OCCTDocumentRef ref, int64_t labelId,
+                                  const char *name, const char *description,
+                                  double density,
+                                  const char *densName, const char *densValType) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(TCollection_HAsciiString) hName = new TCollection_HAsciiString(name);
+        Handle(TCollection_HAsciiString) hDesc = new TCollection_HAsciiString(description);
+        Handle(TCollection_HAsciiString) hDensName = new TCollection_HAsciiString(densName);
+        Handle(TCollection_HAsciiString) hDensType = new TCollection_HAsciiString(densValType);
+        Handle(XCAFDoc_Material) attr = XCAFDoc_Material::Set(label, hName, hDesc, density, hDensName, hDensType);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+const char *_Nullable OCCTDocumentGetMaterialAttrName(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return nullptr;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+        Handle(XCAFDoc_Material) attr;
+        if (!label.FindAttribute(XCAFDoc_Material::GetID(), attr)) return nullptr;
+        Handle(TCollection_HAsciiString) n = attr->GetName();
+        if (n.IsNull()) return nullptr;
+        TCollection_AsciiString s = n->String();
+        char *result = (char *)malloc(s.Length() + 1);
+        if (!result) return nullptr;
+        memcpy(result, s.ToCString(), s.Length() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+const char *_Nullable OCCTDocumentGetMaterialAttrDescription(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return nullptr;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+        Handle(XCAFDoc_Material) attr;
+        if (!label.FindAttribute(XCAFDoc_Material::GetID(), attr)) return nullptr;
+        Handle(TCollection_HAsciiString) d = attr->GetDescription();
+        if (d.IsNull()) return nullptr;
+        TCollection_AsciiString s = d->String();
+        char *result = (char *)malloc(s.Length() + 1);
+        if (!result) return nullptr;
+        memcpy(result, s.ToCString(), s.Length() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTDocumentGetMaterialAttrDensity(OCCTDocumentRef ref, int64_t labelId, double *outDensity) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_Material) attr;
+        if (!label.FindAttribute(XCAFDoc_Material::GetID(), attr)) return false;
+        *outDensity = attr->GetDensity();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentHasMaterialAttr(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_Material) attr;
+        return label.FindAttribute(XCAFDoc_Material::GetID(), attr);
+    } catch (...) { return false; }
+}
+
+// --- XCAFDoc_NoteComment ---
+
+bool OCCTDocumentSetNoteComment(OCCTDocumentRef ref, int64_t labelId,
+                                 const char *userName, const char *timeStamp,
+                                 const char *comment) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TCollection_ExtendedString user(userName);
+        TCollection_ExtendedString ts(timeStamp);
+        TCollection_ExtendedString cmt(comment);
+        Handle(XCAFDoc_NoteComment) attr = XCAFDoc_NoteComment::Set(label, user, ts, cmt);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+const char *_Nullable OCCTDocumentGetNoteCommentText(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return nullptr;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+        Handle(XCAFDoc_NoteComment) attr;
+        if (!label.FindAttribute(XCAFDoc_NoteComment::GetID(), attr)) return nullptr;
+        TCollection_ExtendedString es = attr->Comment();
+        TCollection_AsciiString as(es);
+        char *result = (char *)malloc(as.Length() + 1);
+        if (!result) return nullptr;
+        memcpy(result, as.ToCString(), as.Length() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+const char *_Nullable OCCTDocumentGetNoteUserName(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return nullptr;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return nullptr;
+        // Try NoteComment first, then NoteBalloon, then NoteBinData
+        Handle(XCAFDoc_NoteComment) nc;
+        if (label.FindAttribute(XCAFDoc_NoteComment::GetID(), nc)) {
+            TCollection_ExtendedString es = nc->UserName();
+            TCollection_AsciiString as(es);
+            char *result = (char *)malloc(as.Length() + 1);
+            if (!result) return nullptr;
+            memcpy(result, as.ToCString(), as.Length() + 1);
+            return result;
+        }
+        Handle(XCAFDoc_NoteBalloon) nb;
+        if (label.FindAttribute(XCAFDoc_NoteBalloon::GetID(), nb)) {
+            TCollection_ExtendedString es = nb->UserName();
+            TCollection_AsciiString as(es);
+            char *result = (char *)malloc(as.Length() + 1);
+            if (!result) return nullptr;
+            memcpy(result, as.ToCString(), as.Length() + 1);
+            return result;
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+// --- XCAFDoc_NoteBalloon ---
+
+bool OCCTDocumentSetNoteBalloon(OCCTDocumentRef ref, int64_t labelId,
+                                 const char *userName, const char *timeStamp,
+                                 const char *comment) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TCollection_ExtendedString user(userName);
+        TCollection_ExtendedString ts(timeStamp);
+        TCollection_ExtendedString cmt(comment);
+        Handle(XCAFDoc_NoteBalloon) attr = XCAFDoc_NoteBalloon::Set(label, user, ts, cmt);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+// --- XCAFDoc_NoteBinData ---
+
+bool OCCTDocumentSetNoteBinData(OCCTDocumentRef ref, int64_t labelId,
+                                 const char *userName, const char *timeStamp,
+                                 const char *title, const char *mimeType,
+                                 const uint8_t *data, int32_t dataSize) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        TCollection_ExtendedString user(userName);
+        TCollection_ExtendedString ts(timeStamp);
+        TCollection_ExtendedString tit(title);
+        TCollection_AsciiString mime(mimeType);
+        Handle(NCollection_HArray1<uint8_t>) arr = new NCollection_HArray1<uint8_t>(1, dataSize);
+        for (int i = 0; i < dataSize; i++) {
+            arr->SetValue(i + 1, data[i]);
+        }
+        Handle(XCAFDoc_NoteBinData) attr = XCAFDoc_NoteBinData::Set(label, user, ts, tit, mime, arr);
+        return !attr.IsNull();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentGetNoteBinDataSize(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return 0;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(XCAFDoc_NoteBinData) attr;
+        if (!label.FindAttribute(XCAFDoc_NoteBinData::GetID(), attr)) return 0;
+        return attr->Size();
+    } catch (...) { return 0; }
+}
+
+// --- XCAFDoc_NotesTool ---
+
+int32_t OCCTDocumentNotesToolNbNotes(OCCTDocumentRef ref) {
+    if (!ref) return -1;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_NotesTool) tool = XCAFDoc_DocumentTool::NotesTool(main);
+        if (tool.IsNull()) return -1;
+        return tool->NbNotes();
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentNotesToolCreateComment(OCCTDocumentRef ref,
+                                             const char *userName,
+                                             const char *timeStamp,
+                                             const char *comment) {
+    if (!ref) return -1;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_NotesTool) tool = XCAFDoc_DocumentTool::NotesTool(main);
+        if (tool.IsNull()) return -1;
+        TCollection_ExtendedString user(userName);
+        TCollection_ExtendedString ts(timeStamp);
+        TCollection_ExtendedString cmt(comment);
+        Handle(XCAFDoc_Note) note = tool->CreateComment(user, ts, cmt);
+        if (note.IsNull()) return -1;
+        return doc->registerLabel(note->Label());
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentNotesToolCreateBalloon(OCCTDocumentRef ref,
+                                             const char *userName,
+                                             const char *timeStamp,
+                                             const char *comment) {
+    if (!ref) return -1;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_NotesTool) tool = XCAFDoc_DocumentTool::NotesTool(main);
+        if (tool.IsNull()) return -1;
+        TCollection_ExtendedString user(userName);
+        TCollection_ExtendedString ts(timeStamp);
+        TCollection_ExtendedString cmt(comment);
+        Handle(XCAFDoc_Note) note = tool->CreateBalloon(user, ts, cmt);
+        if (note.IsNull()) return -1;
+        return doc->registerLabel(note->Label());
+    } catch (...) { return -1; }
+}
+
+int64_t OCCTDocumentNotesToolCreateBinData(OCCTDocumentRef ref,
+                                             const char *userName,
+                                             const char *timeStamp,
+                                             const char *title,
+                                             const char *mimeType,
+                                             const uint8_t *data,
+                                             int32_t dataSize) {
+    if (!ref) return -1;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_NotesTool) tool = XCAFDoc_DocumentTool::NotesTool(main);
+        if (tool.IsNull()) return -1;
+        TCollection_ExtendedString user(userName);
+        TCollection_ExtendedString ts(timeStamp);
+        TCollection_ExtendedString tit(title);
+        TCollection_AsciiString mime(mimeType);
+        Handle(NCollection_HArray1<uint8_t>) arr = new NCollection_HArray1<uint8_t>(1, dataSize);
+        for (int i = 0; i < dataSize; i++) {
+            arr->SetValue(i + 1, data[i]);
+        }
+        Handle(XCAFDoc_Note) note = tool->CreateBinData(user, ts, tit, mime, arr);
+        if (note.IsNull()) return -1;
+        return doc->registerLabel(note->Label());
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentNotesToolDeleteNote(OCCTDocumentRef ref, int64_t noteLabelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_NotesTool) tool = XCAFDoc_DocumentTool::NotesTool(main);
+        if (tool.IsNull()) return false;
+        TDF_Label noteLabel = doc->getLabel(noteLabelId);
+        if (noteLabel.IsNull()) return false;
+        return tool->DeleteNote(noteLabel);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentNotesToolDeleteAllNotes(OCCTDocumentRef ref) {
+    if (!ref) return 0;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_NotesTool) tool = XCAFDoc_DocumentTool::NotesTool(main);
+        if (tool.IsNull()) return 0;
+        return tool->DeleteAllNotes();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTDocumentNotesToolNbOrphanNotes(OCCTDocumentRef ref) {
+    if (!ref) return 0;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_NotesTool) tool = XCAFDoc_DocumentTool::NotesTool(main);
+        if (tool.IsNull()) return 0;
+        return tool->NbOrphanNotes();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTDocumentNotesToolDeleteOrphanNotes(OCCTDocumentRef ref) {
+    if (!ref) return 0;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_NotesTool) tool = XCAFDoc_DocumentTool::NotesTool(main);
+        if (tool.IsNull()) return 0;
+        return tool->DeleteOrphanNotes();
+    } catch (...) { return 0; }
+}
+
+// --- XCAFDoc_ClippingPlaneTool ---
+
+int64_t OCCTDocumentClipPlaneToolAdd(OCCTDocumentRef ref,
+                                       double planeOrigX, double planeOrigY, double planeOrigZ,
+                                       double planeNormX, double planeNormY, double planeNormZ,
+                                       const char *name, bool capping) {
+    if (!ref) return -1;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_ClippingPlaneTool) tool = XCAFDoc_DocumentTool::ClippingPlaneTool(main);
+        if (tool.IsNull()) return -1;
+        gp_Pln plane(gp_Pnt(planeOrigX, planeOrigY, planeOrigZ),
+                     gp_Dir(planeNormX, planeNormY, planeNormZ));
+        TCollection_ExtendedString eName(name);
+        TDF_Label clipLabel = tool->AddClippingPlane(plane, eName, capping);
+        if (clipLabel.IsNull()) return -1;
+        return doc->registerLabel(clipLabel);
+    } catch (...) { return -1; }
+}
+
+bool OCCTDocumentClipPlaneToolGet(OCCTDocumentRef ref, int64_t labelId,
+                                    double *origX, double *origY, double *origZ,
+                                    double *normX, double *normY, double *normZ,
+                                    bool *capping) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_ClippingPlaneTool) tool = XCAFDoc_DocumentTool::ClippingPlaneTool(main);
+        if (tool.IsNull()) return false;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        gp_Pln plane;
+        TCollection_ExtendedString name;
+        bool cap = false;
+        if (!tool->GetClippingPlane(label, plane, name, cap)) return false;
+        *origX = plane.Location().X();
+        *origY = plane.Location().Y();
+        *origZ = plane.Location().Z();
+        gp_Dir n = plane.Axis().Direction();
+        *normX = n.X();
+        *normY = n.Y();
+        *normZ = n.Z();
+        *capping = cap;
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentClipPlaneToolIsClipPlane(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_ClippingPlaneTool) tool = XCAFDoc_DocumentTool::ClippingPlaneTool(main);
+        if (tool.IsNull()) return false;
+        TDF_Label label = doc->getLabel(labelId);
+        return tool->IsClippingPlane(label);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentClipPlaneToolRemove(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label main = doc->doc->Main();
+        Handle(XCAFDoc_ClippingPlaneTool) tool = XCAFDoc_DocumentTool::ClippingPlaneTool(main);
+        if (tool.IsNull()) return false;
+        TDF_Label label = doc->getLabel(labelId);
+        return tool->RemoveClippingPlane(label);
+    } catch (...) { return false; }
+}
+
+// --- XCAFDoc_ShapeMapTool ---
+
+bool OCCTDocumentSetShapeMapTool(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_ShapeMapTool) tool = XCAFDoc_ShapeMapTool::Set(label);
+        return !tool.IsNull();
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeMapToolSetShape(OCCTDocumentRef ref, int64_t labelId, OCCTShapeRef shape) {
+    if (!ref || !shape) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_ShapeMapTool) tool;
+        if (!label.FindAttribute(XCAFDoc_ShapeMapTool::GetID(), tool)) return false;
+        tool->SetShape(*(const TopoDS_Shape *)shape);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeMapToolIsSubShape(OCCTDocumentRef ref, int64_t labelId, OCCTShapeRef shape) {
+    if (!ref || !shape) return false;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return false;
+        Handle(XCAFDoc_ShapeMapTool) tool;
+        if (!label.FindAttribute(XCAFDoc_ShapeMapTool::GetID(), tool)) return false;
+        return tool->IsSubShape(*(const TopoDS_Shape *)shape);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentShapeMapToolExtent(OCCTDocumentRef ref, int64_t labelId) {
+    if (!ref) return 0;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        TDF_Label label = doc->getLabel(labelId);
+        if (label.IsNull()) return 0;
+        Handle(XCAFDoc_ShapeMapTool) tool;
+        if (!label.FindAttribute(XCAFDoc_ShapeMapTool::GetID(), tool)) return 0;
+        return tool->GetMap().Extent();
+    } catch (...) { return 0; }
+}
+
+// --- XCAFDoc_AssemblyGraph ---
+
+struct OCCTAssemblyGraph {
+    Handle(XCAFDoc_AssemblyGraph) graph;
+};
+
+OCCTAssemblyGraphRef OCCTAssemblyGraphCreate(OCCTDocumentRef ref) {
+    if (!ref) return nullptr;
+    try {
+        auto *doc = (OCCTDocument *)ref;
+        Handle(XCAFDoc_AssemblyGraph) graph = new XCAFDoc_AssemblyGraph(doc->doc);
+        if (graph.IsNull()) return nullptr;
+        return (OCCTAssemblyGraphRef)new OCCTAssemblyGraph{graph};
+    } catch (...) { return nullptr; }
+}
+
+void OCCTAssemblyGraphRelease(OCCTAssemblyGraphRef ref) {
+    delete (OCCTAssemblyGraph *)ref;
+}
+
+int32_t OCCTAssemblyGraphNbNodes(OCCTAssemblyGraphRef ref) {
+    if (!ref) return 0;
+    try {
+        return ((OCCTAssemblyGraph *)ref)->graph->NbNodes();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTAssemblyGraphNbLinks(OCCTAssemblyGraphRef ref) {
+    if (!ref) return 0;
+    try {
+        return ((OCCTAssemblyGraph *)ref)->graph->NbLinks();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTAssemblyGraphNbRoots(OCCTAssemblyGraphRef ref) {
+    if (!ref) return 0;
+    try {
+        auto& roots = ((OCCTAssemblyGraph *)ref)->graph->GetRoots();
+        return roots.Extent();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTAssemblyGraphGetNodeType(OCCTAssemblyGraphRef ref, int32_t nodeIndex) {
+    if (!ref) return -1;
+    try {
+        return (int32_t)((OCCTAssemblyGraph *)ref)->graph->GetNodeType(nodeIndex);
+    } catch (...) { return -1; }
+}
+
+// --- XCAFDoc_AssemblyItemId ---
+
+bool OCCTAssemblyItemIdIsValid(const char *str) {
+    try {
+        TCollection_AsciiString aStr(str);
+        XCAFDoc_AssemblyItemId id(aStr);
+        return !id.IsNull();
+    } catch (...) { return false; }
+}
+
+int32_t OCCTAssemblyItemIdPathCount(const char *str) {
+    try {
+        TCollection_AsciiString aStr(str);
+        XCAFDoc_AssemblyItemId id(aStr);
+        return id.GetPath().Size();
+    } catch (...) { return 0; }
+}
+
+bool OCCTAssemblyItemIdIsEqual(const char *str1, const char *str2) {
+    try {
+        TCollection_AsciiString aStr1(str1);
+        TCollection_AsciiString aStr2(str2);
+        XCAFDoc_AssemblyItemId id1(aStr1);
+        XCAFDoc_AssemblyItemId id2(aStr2);
+        return id1.IsEqual(id2);
+    } catch (...) { return false; }
+}
+
+// --- XCAFView_Object ---
+
+struct OCCTViewObject {
+    Handle(XCAFView_Object) obj;
+};
+
+OCCTViewObjectRef OCCTViewObjectCreate(void) {
+    try {
+        return (OCCTViewObjectRef)new OCCTViewObject{new XCAFView_Object()};
+    } catch (...) { return nullptr; }
+}
+
+void OCCTViewObjectRelease(OCCTViewObjectRef ref) {
+    delete (OCCTViewObject *)ref;
+}
+
+void OCCTViewObjectSetType(OCCTViewObjectRef ref, int32_t type) {
+    if (!ref) return;
+    try {
+        ((OCCTViewObject *)ref)->obj->SetType((XCAFView_ProjectionType)type);
+    } catch (...) {}
+}
+
+int32_t OCCTViewObjectGetType(OCCTViewObjectRef ref) {
+    if (!ref) return 0;
+    try {
+        return (int32_t)((OCCTViewObject *)ref)->obj->Type();
+    } catch (...) { return 0; }
+}
+
+void OCCTViewObjectSetViewDirection(OCCTViewObjectRef ref, double x, double y, double z) {
+    if (!ref) return;
+    try {
+        ((OCCTViewObject *)ref)->obj->SetViewDirection(gp_Dir(x, y, z));
+    } catch (...) {}
+}
+
+void OCCTViewObjectGetViewDirection(OCCTViewObjectRef ref, double *x, double *y, double *z) {
+    if (!ref) { *x = 0; *y = 0; *z = -1; return; }
+    try {
+        gp_Dir dir = ((OCCTViewObject *)ref)->obj->ViewDirection();
+        *x = dir.X(); *y = dir.Y(); *z = dir.Z();
+    } catch (...) { *x = 0; *y = 0; *z = -1; }
+}
+
+void OCCTViewObjectSetUpDirection(OCCTViewObjectRef ref, double x, double y, double z) {
+    if (!ref) return;
+    try {
+        ((OCCTViewObject *)ref)->obj->SetUpDirection(gp_Dir(x, y, z));
+    } catch (...) {}
+}
+
+void OCCTViewObjectGetUpDirection(OCCTViewObjectRef ref, double *x, double *y, double *z) {
+    if (!ref) { *x = 0; *y = 0; *z = 1; return; }
+    try {
+        gp_Dir dir = ((OCCTViewObject *)ref)->obj->UpDirection();
+        *x = dir.X(); *y = dir.Y(); *z = dir.Z();
+    } catch (...) { *x = 0; *y = 0; *z = 1; }
+}
+
+void OCCTViewObjectSetWindowHSize(OCCTViewObjectRef ref, double size) {
+    if (!ref) return;
+    try { ((OCCTViewObject *)ref)->obj->SetWindowHorizontalSize(size); } catch (...) {}
+}
+
+double OCCTViewObjectGetWindowHSize(OCCTViewObjectRef ref) {
+    if (!ref) return 0;
+    try { return ((OCCTViewObject *)ref)->obj->WindowHorizontalSize(); } catch (...) { return 0; }
+}
+
+void OCCTViewObjectSetWindowVSize(OCCTViewObjectRef ref, double size) {
+    if (!ref) return;
+    try { ((OCCTViewObject *)ref)->obj->SetWindowVerticalSize(size); } catch (...) {}
+}
+
+double OCCTViewObjectGetWindowVSize(OCCTViewObjectRef ref) {
+    if (!ref) return 0;
+    try { return ((OCCTViewObject *)ref)->obj->WindowVerticalSize(); } catch (...) { return 0; }
+}
+
+void OCCTViewObjectSetFrontPlaneDistance(OCCTViewObjectRef ref, double dist) {
+    if (!ref) return;
+    try { ((OCCTViewObject *)ref)->obj->SetFrontPlaneDistance(dist); } catch (...) {}
+}
+
+double OCCTViewObjectGetFrontPlaneDistance(OCCTViewObjectRef ref) {
+    if (!ref) return 0;
+    try { return ((OCCTViewObject *)ref)->obj->FrontPlaneDistance(); } catch (...) { return 0; }
+}
+
+bool OCCTViewObjectHasFrontPlaneClipping(OCCTViewObjectRef ref) {
+    if (!ref) return false;
+    try { return ((OCCTViewObject *)ref)->obj->HasFrontPlaneClipping(); } catch (...) { return false; }
+}
+
+void OCCTViewObjectUnsetFrontPlaneClipping(OCCTViewObjectRef ref) {
+    if (!ref) return;
+    try { ((OCCTViewObject *)ref)->obj->UnsetFrontPlaneClipping(); } catch (...) {}
+}
+
+void OCCTViewObjectSetBackPlaneDistance(OCCTViewObjectRef ref, double dist) {
+    if (!ref) return;
+    try { ((OCCTViewObject *)ref)->obj->SetBackPlaneDistance(dist); } catch (...) {}
+}
+
+double OCCTViewObjectGetBackPlaneDistance(OCCTViewObjectRef ref) {
+    if (!ref) return 0;
+    try { return ((OCCTViewObject *)ref)->obj->BackPlaneDistance(); } catch (...) { return 0; }
+}
+
+bool OCCTViewObjectHasBackPlaneClipping(OCCTViewObjectRef ref) {
+    if (!ref) return false;
+    try { return ((OCCTViewObject *)ref)->obj->HasBackPlaneClipping(); } catch (...) { return false; }
+}
+
+void OCCTViewObjectUnsetBackPlaneClipping(OCCTViewObjectRef ref) {
+    if (!ref) return;
+    try { ((OCCTViewObject *)ref)->obj->UnsetBackPlaneClipping(); } catch (...) {}
+}
+
+void OCCTViewObjectSetName(OCCTViewObjectRef ref, const char *name) {
+    if (!ref) return;
+    try {
+        ((OCCTViewObject *)ref)->obj->SetName(new TCollection_HAsciiString(name));
+    } catch (...) {}
+}
+
+const char *_Nullable OCCTViewObjectGetName(OCCTViewObjectRef ref) {
+    if (!ref) return nullptr;
+    try {
+        Handle(TCollection_HAsciiString) n = ((OCCTViewObject *)ref)->obj->Name();
+        if (n.IsNull()) return nullptr;
+        TCollection_AsciiString s = n->String();
+        char *result = (char *)malloc(s.Length() + 1);
+        if (!result) return nullptr;
+        memcpy(result, s.ToCString(), s.Length() + 1);
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+// --- XCAFNoteObjects_NoteObject ---
+
+struct OCCTNoteObject {
+    Handle(XCAFNoteObjects_NoteObject) obj;
+};
+
+OCCTNoteObjectRef OCCTNoteObjectCreate(void) {
+    try {
+        return (OCCTNoteObjectRef)new OCCTNoteObject{new XCAFNoteObjects_NoteObject()};
+    } catch (...) { return nullptr; }
+}
+
+void OCCTNoteObjectRelease(OCCTNoteObjectRef ref) {
+    delete (OCCTNoteObject *)ref;
+}
+
+bool OCCTNoteObjectHasPlane(OCCTNoteObjectRef ref) {
+    if (!ref) return false;
+    try { return ((OCCTNoteObject *)ref)->obj->HasPlane(); } catch (...) { return false; }
+}
+
+bool OCCTNoteObjectHasPoint(OCCTNoteObjectRef ref) {
+    if (!ref) return false;
+    try { return ((OCCTNoteObject *)ref)->obj->HasPoint(); } catch (...) { return false; }
+}
+
+bool OCCTNoteObjectHasPointText(OCCTNoteObjectRef ref) {
+    if (!ref) return false;
+    try { return ((OCCTNoteObject *)ref)->obj->HasPointText(); } catch (...) { return false; }
+}
+
+void OCCTNoteObjectSetPlane(OCCTNoteObjectRef ref,
+                              double origX, double origY, double origZ,
+                              double normX, double normY, double normZ) {
+    if (!ref) return;
+    try {
+        gp_Ax2 ax(gp_Pnt(origX, origY, origZ), gp_Dir(normX, normY, normZ));
+        ((OCCTNoteObject *)ref)->obj->SetPlane(ax);
+    } catch (...) {}
+}
+
+void OCCTNoteObjectGetPlane(OCCTNoteObjectRef ref,
+                              double *origX, double *origY, double *origZ) {
+    if (!ref) { *origX = 0; *origY = 0; *origZ = 0; return; }
+    try {
+        gp_Ax2 ax = ((OCCTNoteObject *)ref)->obj->GetPlane();
+        *origX = ax.Location().X();
+        *origY = ax.Location().Y();
+        *origZ = ax.Location().Z();
+    } catch (...) { *origX = 0; *origY = 0; *origZ = 0; }
+}
+
+void OCCTNoteObjectSetPoint(OCCTNoteObjectRef ref, double x, double y, double z) {
+    if (!ref) return;
+    try { ((OCCTNoteObject *)ref)->obj->SetPoint(gp_Pnt(x, y, z)); } catch (...) {}
+}
+
+void OCCTNoteObjectGetPoint(OCCTNoteObjectRef ref, double *x, double *y, double *z) {
+    if (!ref) { *x = 0; *y = 0; *z = 0; return; }
+    try {
+        gp_Pnt p = ((OCCTNoteObject *)ref)->obj->GetPoint();
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = 0; *y = 0; *z = 0; }
+}
+
+void OCCTNoteObjectSetPresentation(OCCTNoteObjectRef ref, OCCTShapeRef shape) {
+    if (!ref || !shape) return;
+    try {
+        ((OCCTNoteObject *)ref)->obj->SetPresentation(*(const TopoDS_Shape *)shape);
+    } catch (...) {}
+}
+
+OCCTShapeRef OCCTNoteObjectGetPresentation(OCCTNoteObjectRef ref) {
+    if (!ref) return nullptr;
+    try {
+        const TopoDS_Shape& s = ((OCCTNoteObject *)ref)->obj->GetPresentation();
+        if (s.IsNull()) return nullptr;
+        return (OCCTShapeRef)new TopoDS_Shape(s);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTNoteObjectReset(OCCTNoteObjectRef ref) {
+    if (!ref) return;
+    try { ((OCCTNoteObject *)ref)->obj->Reset(); } catch (...) {}
+}
+
+// --- XCAFPrs_Style ---
+
+OCCTXCAFPrsStyle OCCTXCAFPrsStyleCreate(void) {
+    XCAFPrs_Style style;
+    OCCTXCAFPrsStyle result;
+    result.surfR = 0; result.surfG = 0; result.surfB = 0;
+    result.surfAlpha = 1.0f;
+    result.hasSurfColor = false;
+    result.curvR = 0; result.curvG = 0; result.curvB = 0;
+    result.hasCurvColor = false;
+    result.isVisible = style.IsVisible();
+    result.isEmpty = style.IsEmpty();
+    return result;
+}
+
+OCCTXCAFPrsStyle OCCTXCAFPrsStyleCreateWithSurfColor(double r, double g, double b, float alpha) {
+    XCAFPrs_Style style;
+    Quantity_ColorRGBA rgba(Quantity_Color(r, g, b, Quantity_TOC_sRGB), alpha);
+    style.SetColorSurf(rgba);
+    OCCTXCAFPrsStyle result;
+    result.surfR = r; result.surfG = g; result.surfB = b;
+    result.surfAlpha = alpha;
+    result.hasSurfColor = true;
+    result.curvR = 0; result.curvG = 0; result.curvB = 0;
+    result.hasCurvColor = false;
+    result.isVisible = style.IsVisible();
+    result.isEmpty = style.IsEmpty();
+    return result;
+}
+
+OCCTXCAFPrsStyle OCCTXCAFPrsStyleCreateFull(double surfR, double surfG, double surfB, float surfAlpha,
+                                              double curvR, double curvG, double curvB,
+                                              bool visible) {
+    OCCTXCAFPrsStyle result;
+    result.surfR = surfR; result.surfG = surfG; result.surfB = surfB;
+    result.surfAlpha = surfAlpha;
+    result.hasSurfColor = true;
+    result.curvR = curvR; result.curvG = curvG; result.curvB = curvB;
+    result.hasCurvColor = true;
+    result.isVisible = visible;
+    result.isEmpty = false;
+    return result;
+}
+
+bool OCCTXCAFPrsStyleIsEqual(const OCCTXCAFPrsStyle *s1, const OCCTXCAFPrsStyle *s2) {
+    try {
+        XCAFPrs_Style style1, style2;
+        if (s1->hasSurfColor) {
+            style1.SetColorSurf(Quantity_ColorRGBA(Quantity_Color(s1->surfR, s1->surfG, s1->surfB, Quantity_TOC_sRGB), s1->surfAlpha));
+        }
+        if (s1->hasCurvColor) {
+            style1.SetColorCurv(Quantity_Color(s1->curvR, s1->curvG, s1->curvB, Quantity_TOC_sRGB));
+        }
+        style1.SetVisibility(s1->isVisible);
+
+        if (s2->hasSurfColor) {
+            style2.SetColorSurf(Quantity_ColorRGBA(Quantity_Color(s2->surfR, s2->surfG, s2->surfB, Quantity_TOC_sRGB), s2->surfAlpha));
+        }
+        if (s2->hasCurvColor) {
+            style2.SetColorCurv(Quantity_Color(s2->curvR, s2->curvG, s2->curvB, Quantity_TOC_sRGB));
+        }
+        style2.SetVisibility(s2->isVisible);
+
+        return style1.IsEqual(style2);
+    } catch (...) { return false; }
+}
+
+// --- XCAFDoc_VisMaterialCommon ---
+
+OCCTVisMaterialCommon OCCTVisMaterialCommonDefault(void) {
+    XCAFDoc_VisMaterialCommon mat;
+    OCCTVisMaterialCommon result;
+    result.diffuseR = mat.DiffuseColor.Red();
+    result.diffuseG = mat.DiffuseColor.Green();
+    result.diffuseB = mat.DiffuseColor.Blue();
+    result.ambientR = mat.AmbientColor.Red();
+    result.ambientG = mat.AmbientColor.Green();
+    result.ambientB = mat.AmbientColor.Blue();
+    result.specularR = mat.SpecularColor.Red();
+    result.specularG = mat.SpecularColor.Green();
+    result.specularB = mat.SpecularColor.Blue();
+    result.emissiveR = mat.EmissiveColor.Red();
+    result.emissiveG = mat.EmissiveColor.Green();
+    result.emissiveB = mat.EmissiveColor.Blue();
+    result.shininess = mat.Shininess;
+    result.transparency = mat.Transparency;
+    result.isDefined = mat.IsDefined;
+    return result;
+}
+
+bool OCCTVisMaterialCommonIsEqual(const OCCTVisMaterialCommon *a, const OCCTVisMaterialCommon *b) {
+    try {
+        XCAFDoc_VisMaterialCommon ma, mb;
+        ma.DiffuseColor = Quantity_Color(a->diffuseR, a->diffuseG, a->diffuseB, Quantity_TOC_sRGB);
+        ma.AmbientColor = Quantity_Color(a->ambientR, a->ambientG, a->ambientB, Quantity_TOC_sRGB);
+        ma.SpecularColor = Quantity_Color(a->specularR, a->specularG, a->specularB, Quantity_TOC_sRGB);
+        ma.EmissiveColor = Quantity_Color(a->emissiveR, a->emissiveG, a->emissiveB, Quantity_TOC_sRGB);
+        ma.Shininess = a->shininess;
+        ma.Transparency = a->transparency;
+        ma.IsDefined = a->isDefined;
+
+        mb.DiffuseColor = Quantity_Color(b->diffuseR, b->diffuseG, b->diffuseB, Quantity_TOC_sRGB);
+        mb.AmbientColor = Quantity_Color(b->ambientR, b->ambientG, b->ambientB, Quantity_TOC_sRGB);
+        mb.SpecularColor = Quantity_Color(b->specularR, b->specularG, b->specularB, Quantity_TOC_sRGB);
+        mb.EmissiveColor = Quantity_Color(b->emissiveR, b->emissiveG, b->emissiveB, Quantity_TOC_sRGB);
+        mb.Shininess = b->shininess;
+        mb.Transparency = b->transparency;
+        mb.IsDefined = b->isDefined;
+
+        return ma.IsEqual(mb);
+    } catch (...) { return false; }
+}
+
+// --- XCAFDoc_VisMaterialPBR ---
+
+OCCTVisMaterialPBR OCCTVisMaterialPBRDefault(void) {
+    XCAFDoc_VisMaterialPBR pbr;
+    OCCTVisMaterialPBR result;
+    result.baseColorR = pbr.BaseColor.GetRGB().Red();
+    result.baseColorG = pbr.BaseColor.GetRGB().Green();
+    result.baseColorB = pbr.BaseColor.GetRGB().Blue();
+    result.baseColorAlpha = pbr.BaseColor.Alpha();
+    result.metallic = pbr.Metallic;
+    result.roughness = pbr.Roughness;
+    result.refractionIndex = pbr.RefractionIndex;
+    result.emissionR = pbr.EmissiveFactor.r();
+    result.emissionG = pbr.EmissiveFactor.g();
+    result.emissionB = pbr.EmissiveFactor.b();
+    result.isDefined = pbr.IsDefined;
+    return result;
+}
+
+bool OCCTVisMaterialPBRIsEqual(const OCCTVisMaterialPBR *a, const OCCTVisMaterialPBR *b) {
+    try {
+        XCAFDoc_VisMaterialPBR pa, pb;
+        pa.BaseColor = Quantity_ColorRGBA(Quantity_Color(a->baseColorR, a->baseColorG, a->baseColorB, Quantity_TOC_sRGB), a->baseColorAlpha);
+        pa.Metallic = a->metallic;
+        pa.Roughness = a->roughness;
+        pa.RefractionIndex = a->refractionIndex;
+        pa.EmissiveFactor = Graphic3d_Vec3((float)a->emissionR, (float)a->emissionG, (float)a->emissionB);
+        pa.IsDefined = a->isDefined;
+
+        pb.BaseColor = Quantity_ColorRGBA(Quantity_Color(b->baseColorR, b->baseColorG, b->baseColorB, Quantity_TOC_sRGB), b->baseColorAlpha);
+        pb.Metallic = b->metallic;
+        pb.Roughness = b->roughness;
+        pb.RefractionIndex = b->refractionIndex;
+        pb.EmissiveFactor = Graphic3d_Vec3((float)b->emissionR, (float)b->emissionG, (float)b->emissionB);
+        pb.IsDefined = b->isDefined;
+
+        return pa.IsEqual(pb);
+    } catch (...) { return false; }
+}
+
