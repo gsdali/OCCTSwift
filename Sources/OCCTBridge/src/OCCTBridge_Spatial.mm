@@ -36,6 +36,7 @@
 #include <gp_Cylinder.hxx>
 #include <gp_Cone.hxx>
 #include <IntAna_QuadQuadGeo.hxx>
+#include <Intf_Tool.hxx>
 #include <TopoDS.hxx>
 #include <TopAbs.hxx>
 #include <TColgp_Array1OfPnt.hxx>
@@ -1561,4 +1562,46 @@ bool OCCTMathNewtonMinimum(int32_t nVars,
         *minimum = newton.Minimum();
         return true;
     } catch (...) { return false; }
+}
+
+// MARK: - v0.112: Intf_Tool
+// --- Intf_Tool ---
+
+struct OCCTIntfTool {
+    Intf_Tool tool;
+    int nbSeg;
+    OCCTIntfTool() : nbSeg(0) {}
+};
+
+OCCTIntfToolRef OCCTIntfToolCreate(void) {
+    return new OCCTIntfTool();
+}
+
+void OCCTIntfToolRelease(OCCTIntfToolRef tool) { delete tool; }
+
+int32_t OCCTIntfToolLinBox(OCCTIntfToolRef tool,
+                           double px, double py, double pz,
+                           double dx, double dy, double dz,
+                           double xmin, double ymin, double zmin,
+                           double xmax, double ymax, double zmax) {
+    if (!tool) return 0;
+    try {
+        gp_Lin line(gp_Pnt(px, py, pz), gp_Dir(dx, dy, dz));
+        Bnd_Box box;
+        box.Update(xmin, ymin, zmin, xmax, ymax, zmax);
+        Bnd_Box lineBox;
+        tool->tool.LinBox(line, box, lineBox);
+        tool->nbSeg = tool->tool.NbSegments();
+        return tool->nbSeg;
+    } catch (...) { return 0; }
+}
+
+double OCCTIntfToolBeginParam(OCCTIntfToolRef tool, int32_t segIndex) {
+    if (!tool) return 0;
+    try { return tool->tool.BeginParam(segIndex); } catch (...) { return 0; }
+}
+
+double OCCTIntfToolEndParam(OCCTIntfToolRef tool, int32_t segIndex) {
+    if (!tool) return 0;
+    try { return tool->tool.EndParam(segIndex); } catch (...) { return 0; }
 }

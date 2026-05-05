@@ -36,6 +36,7 @@
 #include <BRepCheck_Status.hxx>
 #include <BRepCheck_Vertex.hxx>
 #include <BRepCheck_Wire.hxx>
+#include <BRepCheck_ListOfStatus.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <ChFi2d_Builder.hxx>
@@ -3647,5 +3648,107 @@ bool OCCTEdgeCheckPCurveRange(OCCTShapeRef edge, OCCTShapeRef face, double first
         Handle(Geom2d_Curve) pc = BRep_Tool::CurveOnSurface(e, f, cf, cl);
         if (pc.IsNull()) return false;
         return (first >= cf - 1e-10 && last <= cl + 1e-10);
+    } catch (...) { return false; }
+}
+
+// MARK: - v0.112: BRepCheck extended + tolerance helpers
+// --- BRepCheck extended ---
+
+int32_t OCCTCheckFaceStatus(OCCTShapeRef shape, OCCTShapeRef face) {
+    if (!shape || !face) return -1;
+    try {
+        BRepCheck_Analyzer ana(shape->shape, Standard_True);
+        Handle(BRepCheck_Result) res = ana.Result(face->shape);
+        if (res.IsNull()) return -1;
+        const BRepCheck_ListOfStatus& st = res->Status();
+        if (st.IsEmpty()) return 0; // NoError
+        return (int32_t)st.First();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTCheckEdgeStatus(OCCTShapeRef shape, OCCTShapeRef edge) {
+    if (!shape || !edge) return -1;
+    try {
+        BRepCheck_Analyzer ana(shape->shape, Standard_True);
+        Handle(BRepCheck_Result) res = ana.Result(edge->shape);
+        if (res.IsNull()) return -1;
+        const BRepCheck_ListOfStatus& st = res->Status();
+        if (st.IsEmpty()) return 0;
+        return (int32_t)st.First();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTCheckVertexStatus(OCCTShapeRef shape, OCCTShapeRef vertex) {
+    if (!shape || !vertex) return -1;
+    try {
+        BRepCheck_Analyzer ana(shape->shape, Standard_True);
+        Handle(BRepCheck_Result) res = ana.Result(vertex->shape);
+        if (res.IsNull()) return -1;
+        const BRepCheck_ListOfStatus& st = res->Status();
+        if (st.IsEmpty()) return 0;
+        return (int32_t)st.First();
+    } catch (...) { return -1; }
+}
+
+double OCCTShapeMaxTolerance(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        TopAbs_ShapeEnum se;
+        switch (type) {
+            case 0: se = TopAbs_VERTEX; break;
+            case 1: se = TopAbs_EDGE; break;
+            case 2: se = TopAbs_FACE; break;
+            default: se = TopAbs_SHAPE; break;
+        }
+        return sat.Tolerance(shape->shape, 1, se); // 1 = max
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeMinTolerance(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        TopAbs_ShapeEnum se;
+        switch (type) {
+            case 0: se = TopAbs_VERTEX; break;
+            case 1: se = TopAbs_EDGE; break;
+            case 2: se = TopAbs_FACE; break;
+            default: se = TopAbs_SHAPE; break;
+        }
+        return sat.Tolerance(shape->shape, -1, se); // -1 = min
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeAvgTolerance(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        ShapeAnalysis_ShapeTolerance sat;
+        TopAbs_ShapeEnum se;
+        switch (type) {
+            case 0: se = TopAbs_VERTEX; break;
+            case 1: se = TopAbs_EDGE; break;
+            case 2: se = TopAbs_FACE; break;
+            default: se = TopAbs_SHAPE; break;
+        }
+        return sat.Tolerance(shape->shape, 0, se); // 0 = avg
+    } catch (...) { return 0; }
+}
+
+bool OCCTShapeFixTolerance(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return false;
+    try {
+        ShapeFix_ShapeTolerance sft;
+        sft.SetTolerance(shape->shape, tolerance);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeLimitMaxTolerance(OCCTShapeRef shape, double maxTol) {
+    if (!shape) return false;
+    try {
+        ShapeFix_ShapeTolerance sft;
+        bool limited = sft.LimitTolerance(shape->shape, 0.0, maxTol);
+        return limited;
     } catch (...) { return false; }
 }

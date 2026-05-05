@@ -95,6 +95,7 @@
 #include <BRepFill_Evolved.hxx>
 #include <BRepFill_NSections.hxx>
 #include <BRepFill_OffsetAncestors.hxx>
+#include <BRepAlgo_AsDes.hxx>
 #include <HLRAppli_ReflectLines.hxx>
 #include <HLRBRep_TypeOfResultingEdge.hxx>
 #include <BRepFeat_Status.hxx>
@@ -6956,4 +6957,37 @@ OCCTShapeRef OCCTNormalProjectionResult(OCCTNormalProjectionRef proj) {
         if (result.IsNull()) return nullptr;
         return new OCCTShape(result);
     } catch (...) { return nullptr; }
+}
+
+// MARK: - v0.112: BRepAlgo_AsDes
+// --- BRepAlgo_AsDes ---
+
+struct OCCTAsDes {
+    Handle(BRepAlgo_AsDes) ad;
+    OCCTAsDes() : ad(new BRepAlgo_AsDes()) {}
+};
+
+OCCTAsDesRef OCCTAsDesCreate(void) {
+    return new OCCTAsDes();
+}
+
+void OCCTAsDesRelease(OCCTAsDesRef ad) { delete ad; }
+
+void OCCTAsDesAdd(OCCTAsDesRef ad, OCCTShapeRef parent, OCCTShapeRef child) {
+    if (!ad || !parent || !child) return;
+    try { ad->ad->Add(parent->shape, child->shape); } catch (...) {}
+}
+
+bool OCCTAsDesHasDescendant(OCCTAsDesRef ad, OCCTShapeRef shape) {
+    if (!ad || !shape) return false;
+    try { return ad->ad->HasDescendant(shape->shape); } catch (...) { return false; }
+}
+
+int32_t OCCTAsDesDescendantCount(OCCTAsDesRef ad, OCCTShapeRef shape) {
+    if (!ad || !shape) return 0;
+    try {
+        if (!ad->ad->HasDescendant(shape->shape)) return 0;
+        const TopTools_ListOfShape& desc = ad->ad->Descendant(shape->shape);
+        return (int32_t)desc.Extent();
+    } catch (...) { return 0; }
 }

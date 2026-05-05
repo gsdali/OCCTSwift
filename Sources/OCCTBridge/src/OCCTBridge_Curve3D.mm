@@ -55,6 +55,9 @@
 #include <gce_MakeHypr.hxx>
 #include <gce_MakeLin.hxx>
 #include <gce_MakeParab.hxx>
+#include <GeomAPI_ProjectPointOnCurve.hxx>
+#include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <Extrema_GenLocateExtPS.hxx>
 #include <ShapeUpgrade_SplitCurve3dContinuity.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
@@ -4176,4 +4179,104 @@ void OCCTGridEvalCurveD1(OCCTCurve3DRef curve, const double* params, int32_t cou
             d1xs[i] = results(i+1).D1.X(); d1ys[i] = results(i+1).D1.Y(); d1zs[i] = results(i+1).D1.Z();
         }
     } catch (...) {}
+}
+
+// MARK: - v0.112: Curve3D extras + Extrema extras (LocateOnCurve/Surface)
+// --- Curve3D extras ---
+
+int32_t OCCTCurve3DCurveType(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 7; // OtherCurve
+    try {
+        GeomAdaptor_Curve ac(curve->curve);
+        return (int32_t)ac.GetType();
+    } catch (...) { return 7; }
+}
+
+double OCCTCurve3DParameterAtPoint(OCCTCurve3DRef curve,
+                                   double x, double y, double z) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        GeomAPI_ProjectPointOnCurve proj(gp_Pnt(x, y, z), curve->curve);
+        if (proj.NbPoints() < 1) return curve->curve->FirstParameter();
+        return proj.LowerDistanceParameter();
+    } catch (...) { return 0; }
+}
+// --- Extrema extras ---
+
+bool OCCTExtremaLocateOnCurve(OCCTCurve3DRef curve,
+                              double px, double py, double pz,
+                              double initParam, double tol,
+                              double* param, double* distance) {
+    if (!curve || curve->curve.IsNull()) return false;
+    try {
+        // Use ProjectPointOnCurve in a narrow window around initParam for local search
+        double f = curve->curve->FirstParameter();
+        double l = curve->curve->LastParameter();
+        double range = (l - f) * 0.1;
+        double lo = std::max(f, initParam - range);
+        double hi = std::min(l, initParam + range);
+        GeomAPI_ProjectPointOnCurve proj(gp_Pnt(px, py, pz), curve->curve, lo, hi);
+        if (proj.NbPoints() < 1) {
+            // Fallback to full range
+            GeomAPI_ProjectPointOnCurve projFull(gp_Pnt(px, py, pz), curve->curve);
+            if (projFull.NbPoints() < 1) return false;
+            *param = projFull.LowerDistanceParameter();
+            *distance = projFull.LowerDistance();
+            return true;
+        }
+        *param = proj.LowerDistanceParameter();
+        *distance = proj.LowerDistance();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTExtremaLocateOnSurface(OCCTSurfaceRef surface,
+                                double px, double py, double pz,
+                                double initU, double initV, double tol,
+                                double* u, double* v, double* distance) {
+    if (!surface || surface->surface.IsNull()) return false;
+    try {
+        GeomAdaptor_Surface as(surface->surface);
+        Extrema_GenLocateExtPS ext(as, tol, tol);
+        ext.Perform(gp_Pnt(px, py, pz), initU, initV);
+        if (!ext.IsDone()) return false;
+        ext.Point().Parameter(*u, *v);
+        *distance = sqrt(ext.SquareDistance());
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTExtremaPointCurve(OCCTCurve3DRef curve,
+                              double px, double py, double pz,
+                              double* params, double* distances, int32_t maxResults) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        GeomAPI_ProjectPointOnCurve proj(gp_Pnt(px, py, pz), curve->curve);
+        int32_t n = std::min((int32_t)proj.NbPoints(), maxResults);
+        for (int32_t i = 0; i < n; i++) {
+            params[i] = proj.Parameter(i + 1);
+            distances[i] = proj.Distance(i + 1);
+        }
+        return n;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTExtremaPointSurface(OCCTSurfaceRef surface,
+                                double px, double py, double pz,
+                                double* us, double* vs, double* distances,
+                                int32_t maxResults) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    try {
+        GeomAPI_ProjectPointOnSurf proj(gp_Pnt(px, py, pz), surface->surface);
+        if (!proj.IsDone()) return 0;
+        int32_t n = std::min((int32_t)proj.NbPoints(), maxResults);
+        for (int32_t i = 0; i < n; i++) {
+            double pu, pv;
+            proj.Parameters(i + 1, pu, pv);
+            us[i] = pu;
+            vs[i] = pv;
+            distances[i] = proj.Distance(i + 1);
+        }
+        return n;
+    } catch (...) { return 0; }
 }

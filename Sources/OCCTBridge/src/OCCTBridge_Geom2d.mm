@@ -3985,3 +3985,24 @@ void OCCTGridEvalCurve2dD1(OCCTCurve2DRef curve, const double* params, int32_t c
         }
     } catch (...) {}
 }
+
+// MARK: - v0.112: Curve2D extras
+// --- Curve2D extras ---
+
+int32_t OCCTCurve2DCurveType(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return 7;
+    try {
+        Geom2dAdaptor_Curve ac(curve->curve);
+        return (int32_t)ac.GetType();
+    } catch (...) { return 7; }
+}
+
+double OCCTCurve2DParameterAtPoint(OCCTCurve2DRef curve,
+                                   double x, double y) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        Geom2dAPI_ProjectPointOnCurve proj(gp_Pnt2d(x, y), curve->curve);
+        if (proj.NbPoints() < 1) return curve->curve->FirstParameter();
+        return proj.LowerDistanceParameter();
+    } catch (...) { return 0; }
+}
