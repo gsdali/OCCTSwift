@@ -33,6 +33,8 @@
 #include <BRepExtrema_ShapeProximity.hxx>
 #include <BRepGProp.hxx>
 #include <BRepGProp_Face.hxx>
+#include <BRepGProp_MeshCinert.hxx>
+#include <BRepGProp_MeshProps.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
 
@@ -1094,6 +1096,74 @@ OCCTSurfaceLocalProps OCCTGeomLPropSLProps(OCCTShapeRef faceShape, double u, dou
             result.gaussianCurvature = props.GaussianCurvature();
             result.isUmbilic = props.IsUmbilic();
         }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - BRepGProp_MeshCinert + MeshProps (v0.74)
+// --- BRepGProp_MeshCinert ---
+
+int32_t OCCTMeshCinertPreparePolygon(OCCTEdgeRef _Nonnull edge,
+                                      double* _Nonnull coords,
+                                      int32_t maxPoints) {
+    if (!edge) return 0;
+    try {
+        Handle(NCollection_HArray1<gp_Pnt>) polyPts;
+        BRepGProp_MeshCinert::PreparePolygon(TopoDS::Edge(edge->edge), polyPts);
+        if (polyPts.IsNull() || polyPts->Length() == 0) return 0;
+        int32_t count = std::min((int32_t)polyPts->Length(), maxPoints);
+        for (int32_t i = 0; i < count; i++) {
+            const gp_Pnt& pt = polyPts->Value(polyPts->Lower() + i);
+            coords[i*3] = pt.X();
+            coords[i*3+1] = pt.Y();
+            coords[i*3+2] = pt.Z();
+        }
+        return count;
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTMeshCinertResult OCCTMeshCinertCompute(const double* _Nonnull coords, int32_t pointCount) {
+    OCCTMeshCinertResult result = {};
+    if (pointCount < 2) return result;
+    try {
+        NCollection_Array1<gp_Pnt> points(1, pointCount);
+        for (int32_t i = 0; i < pointCount; i++) {
+            points.SetValue(i + 1, gp_Pnt(coords[i*3], coords[i*3+1], coords[i*3+2]));
+        }
+        BRepGProp_MeshCinert cinert;
+        cinert.SetLocation(gp_Pnt(0, 0, 0));
+        cinert.Perform(points);
+        result.mass = cinert.Mass();
+        gp_Pnt cm = cinert.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
+    } catch (...) {}
+    return result;
+}
+
+// --- BRepGProp_MeshProps ---
+
+OCCTMeshPropsResult OCCTMeshPropsCompute(OCCTFaceRef _Nonnull face, OCCTMeshPropsType type) {
+    OCCTMeshPropsResult result = {};
+    if (!face) return result;
+    try {
+        TopLoc_Location loc;
+        Handle(Poly_Triangulation) tri = BRep_Tool::Triangulation(TopoDS::Face(face->face), loc);
+        if (tri.IsNull()) return result;
+
+        BRepGProp_MeshProps::BRepGProp_MeshObjType objType =
+            (type == OCCTMeshPropsSurface) ? BRepGProp_MeshProps::Sinert : BRepGProp_MeshProps::Vinert;
+        BRepGProp_MeshProps props(objType);
+        props.SetLocation(gp_Pnt(0, 0, 0));
+        props.Perform(tri, loc, TopoDS::Face(face->face).Orientation());
+        result.mass = props.Mass();
+        gp_Pnt cm = props.CentreOfMass();
+        result.centerX = cm.X();
+        result.centerY = cm.Y();
+        result.centerZ = cm.Z();
     } catch (...) {}
     return result;
 }

@@ -14,6 +14,8 @@
 #import "../include/OCCTBridge.h"
 #import "OCCTBridge_Internal.h"
 
+#include <Intrv_Interval.hxx>
+#include <Intrv_Intervals.hxx>
 #include <NCollection_Array1.hxx>
 #include <NCollection_KDTree.hxx>
 #include <math_DirectPolynomialRoots.hxx>
@@ -239,4 +241,138 @@ bool OCCTAnalyzePointCloud(const double* coords, int32_t pointCount,
     } catch (...) {
         return false;
     }
+}
+
+// MARK: - Intrv_Interval (v0.73)
+// --- Intrv_Interval ---
+
+struct OCCTIntrvInterval {
+    Intrv_Interval interval;
+};
+
+OCCTIntrvIntervalRef _Nonnull OCCTIntrvIntervalCreate(double start, double end,
+    float tolStart, float tolEnd) {
+    auto* ref = new OCCTIntrvInterval();
+    ref->interval = Intrv_Interval(start, tolStart, end, tolEnd);
+    return ref;
+}
+
+void OCCTIntrvIntervalRelease(OCCTIntrvIntervalRef _Nonnull interval) {
+    delete interval;
+}
+
+OCCTIntrvBounds OCCTIntrvIntervalBounds(OCCTIntrvIntervalRef _Nonnull interval) {
+    OCCTIntrvBounds b;
+    interval->interval.Bounds(b.start, b.tolStart, b.end, b.tolEnd);
+    return b;
+}
+
+bool OCCTIntrvIntervalIsProbablyEmpty(OCCTIntrvIntervalRef _Nonnull interval) {
+    return interval->interval.IsProbablyEmpty();
+}
+
+int32_t OCCTIntrvIntervalPosition(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return (int32_t)interval->interval.Position(other->interval);
+}
+
+bool OCCTIntrvIntervalIsBefore(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsBefore(other->interval);
+}
+
+bool OCCTIntrvIntervalIsAfter(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsAfter(other->interval);
+}
+
+bool OCCTIntrvIntervalIsInside(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsInside(other->interval);
+}
+
+bool OCCTIntrvIntervalIsEnclosing(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsEnclosing(other->interval);
+}
+
+bool OCCTIntrvIntervalIsSimilar(OCCTIntrvIntervalRef _Nonnull interval,
+    OCCTIntrvIntervalRef _Nonnull other) {
+    return interval->interval.IsSimilar(other->interval);
+}
+
+void OCCTIntrvIntervalSetStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol) {
+    interval->interval.SetStart(start, tol);
+}
+
+void OCCTIntrvIntervalSetEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol) {
+    interval->interval.SetEnd(end, tol);
+}
+
+void OCCTIntrvIntervalFuseAtStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol) {
+    interval->interval.FuseAtStart(start, tol);
+}
+
+void OCCTIntrvIntervalFuseAtEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol) {
+    interval->interval.FuseAtEnd(end, tol);
+}
+
+void OCCTIntrvIntervalCutAtStart(OCCTIntrvIntervalRef _Nonnull interval, double start, float tol) {
+    interval->interval.CutAtStart(start, tol);
+}
+
+void OCCTIntrvIntervalCutAtEnd(OCCTIntrvIntervalRef _Nonnull interval, double end, float tol) {
+    interval->interval.CutAtEnd(end, tol);
+}
+
+// MARK: - Intrv_Intervals (v0.73)
+// --- Intrv_Intervals ---
+
+struct OCCTIntrvIntervals {
+    Intrv_Intervals intervals;
+};
+
+OCCTIntrvIntervalsRef _Nonnull OCCTIntrvIntervalsCreate(double start, double end) {
+    auto* ref = new OCCTIntrvIntervals();
+    ref->intervals = Intrv_Intervals(Intrv_Interval(start, end));
+    return ref;
+}
+
+OCCTIntrvIntervalsRef _Nonnull OCCTIntrvIntervalsCreateEmpty(void) {
+    auto* ref = new OCCTIntrvIntervals();
+    ref->intervals = Intrv_Intervals();
+    return ref;
+}
+
+void OCCTIntrvIntervalsRelease(OCCTIntrvIntervalsRef _Nonnull intervals) {
+    delete intervals;
+}
+
+int32_t OCCTIntrvIntervalsCount(OCCTIntrvIntervalsRef _Nonnull intervals) {
+    return (int32_t)intervals->intervals.NbIntervals();
+}
+
+OCCTIntrvBounds OCCTIntrvIntervalsValue(OCCTIntrvIntervalsRef _Nonnull intervals, int32_t index) {
+    OCCTIntrvBounds b = {0, 0, 0, 0};
+    try {
+        const Intrv_Interval& iv = intervals->intervals.Value(index);
+        iv.Bounds(b.start, b.tolStart, b.end, b.tolEnd);
+    } catch (...) {}
+    return b;
+}
+
+void OCCTIntrvIntervalsUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
+    intervals->intervals.Unite(Intrv_Interval(start, end));
+}
+
+void OCCTIntrvIntervalsSubtract(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
+    intervals->intervals.Subtract(Intrv_Interval(start, end));
+}
+
+void OCCTIntrvIntervalsIntersect(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
+    intervals->intervals.Intersect(Intrv_Interval(start, end));
+}
+
+void OCCTIntrvIntervalsXUnite(OCCTIntrvIntervalsRef _Nonnull intervals, double start, double end) {
+    intervals->intervals.XUnite(Intrv_Interval(start, end));
 }

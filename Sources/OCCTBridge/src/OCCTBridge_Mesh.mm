@@ -20,9 +20,12 @@
 
 // === Area-specific OCCT headers ===
 
+#include <BRepBndLib.hxx>
 #include <BRepLib_PointCloudShape.hxx>
 #include <BRepLib_ToolTriangulatedShape.hxx>
 #include <BRepMesh_Deflection.hxx>
+#include <BRepMesh_ShapeTool.hxx>
+#include <ShapeConstruct_MakeTriangulation.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <BRep_Builder.hxx>
@@ -748,4 +751,84 @@ bool OCCTBRepLibPointCloudByDensity(OCCTShapeRef shape, double density,
         if (!pcs.GeneratePointsByDensity(density)) return false;
         return copyPointCloudResults(pcs, outPoints, outNormals, outCount);
     } catch (...) { return false; }
+}
+
+// MARK: - ShapeConstruct_MakeTriangulation (v0.74)
+// --- ShapeConstruct_MakeTriangulation ---
+
+OCCTShapeRef _Nullable OCCTShapeConstructTriangulationFromPoints(
+    const double* _Nonnull coords, int32_t pointCount) {
+    if (pointCount < 3) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt> points(1, pointCount);
+        for (int32_t i = 0; i < pointCount; i++) {
+            points.SetValue(i + 1, gp_Pnt(coords[i*3], coords[i*3+1], coords[i*3+2]));
+        }
+        ShapeConstruct_MakeTriangulation maker(points);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        TopoDS_Shape result = maker.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef _Nullable OCCTShapeConstructTriangulationFromWire(OCCTWireRef _Nonnull wire) {
+    if (!wire) return nullptr;
+    try {
+        ShapeConstruct_MakeTriangulation maker(wire->wire);
+        maker.Build();
+        if (!maker.IsDone()) return nullptr;
+        TopoDS_Shape result = maker.Shape();
+        if (result.IsNull()) return nullptr;
+        auto* ref = new OCCTShape();
+        ref->shape = result;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - BRepMesh_ShapeTool (v0.74)
+// --- BRepMesh_ShapeTool ---
+
+double OCCTMeshShapeToolMaxFaceTolerance(OCCTFaceRef _Nonnull face) {
+    if (!face) return 0;
+    try {
+        return BRepMesh_ShapeTool::MaxFaceTolerance(TopoDS::Face(face->face));
+    } catch (...) {
+        return 0;
+    }
+}
+
+double OCCTMeshShapeToolBoxMaxDimension(OCCTShapeRef _Nonnull shape) {
+    if (!shape) return 0;
+    try {
+        Bnd_Box bbox;
+        BRepBndLib::Add(shape->shape, bbox);
+        double maxDim = 0;
+        BRepMesh_ShapeTool::BoxMaxDimension(bbox, maxDim);
+        return maxDim;
+    } catch (...) {
+        return 0;
+    }
+}
+
+OCCTUVPointsResult OCCTMeshShapeToolUVPoints(OCCTEdgeRef _Nonnull edge, OCCTFaceRef _Nonnull face) {
+    OCCTUVPointsResult result = {};
+    if (!edge || !face) return result;
+    try {
+        gp_Pnt2d uv1, uv2;
+        result.success = BRepMesh_ShapeTool::UVPoints(
+            TopoDS::Edge(edge->edge), TopoDS::Face(face->face), uv1, uv2);
+        if (result.success) {
+            result.u1 = uv1.X(); result.v1 = uv1.Y();
+            result.u2 = uv2.X(); result.v2 = uv2.Y();
+        }
+    } catch (...) {}
+    return result;
 }
