@@ -4904,3 +4904,157 @@ void OCCTSurfaceLocalCurvatureDirections(OCCTSurfaceRef _Nonnull surface, double
 #include <gp_Lin.hxx>
 #include <gp_Circ.hxx>
 #include <gp_Ax3.hxx>
+
+// MARK: - v0.118: Geom_BezierSurface + BSplineSurface extras
+// --- Geom_BezierSurface ---
+
+int32_t OCCTSurfaceBezierNbUPoles(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return 0;
+        return (int32_t)bezier->NbUPoles();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBezierNbVPoles(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return 0;
+        return (int32_t)bezier->NbVPoles();
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBezierUDegree(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return -1;
+        return (int32_t)bezier->UDegree();
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTSurfaceBezierVDegree(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return -1;
+        return (int32_t)bezier->VDegree();
+    } catch (...) { return -1; }
+}
+
+void OCCTSurfaceBezierGetPole(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex,
+                              double* x, double* y, double* z) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) { *x = *y = *z = 0; return; }
+        gp_Pnt p = bezier->Pole(uIndex, vIndex);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+bool OCCTSurfaceBezierSetPole(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex,
+                              double x, double y, double z) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        bezier->SetPole(uIndex, vIndex, gp_Pnt(x, y, z));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetWeight(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex,
+                                double weight) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        bezier->SetWeight(uIndex, vIndex, weight);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSegment(OCCTSurfaceRef surface,
+                              double u1, double u2, double v1, double v2) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        bezier->Segment(u1, u2, v1, v2);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIsURational(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        return bezier->IsURational();
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIsVRational(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        return bezier->IsVRational();
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierExchangeUV(OCCTSurfaceRef surface) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bezier = occ::handle<Geom_BezierSurface>::DownCast(s->surface);
+        if (bezier.IsNull()) return false;
+        bezier->ExchangeUV();
+        return true;
+    } catch (...) { return false; }
+}
+// --- BSplineSurface extras ---
+
+void OCCTSurfaceBSplineResolution(OCCTSurfaceRef surface, double tolerance3d,
+                                  double* uResolution, double* vResolution) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s->surface);
+        if (bsp.IsNull()) { *uResolution = *vResolution = 0; return; }
+        bsp->Resolution(tolerance3d, *uResolution, *vResolution);
+    } catch (...) { *uResolution = *vResolution = 0; }
+}
+
+bool OCCTSurfaceBSplineSetUPeriodic(OCCTSurfaceRef surface, bool periodic) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s->surface);
+        if (bsp.IsNull()) return false;
+        if (periodic) bsp->SetUPeriodic(); else bsp->SetUNotPeriodic();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetVPeriodic(OCCTSurfaceRef surface, bool periodic) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s->surface);
+        if (bsp.IsNull()) return false;
+        if (periodic) bsp->SetVPeriodic(); else bsp->SetVNotPeriodic();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTSurfaceBSplineGetWeight(OCCTSurfaceRef surface, int32_t uIndex, int32_t vIndex) {
+    try {
+        auto* s = static_cast<OCCTSurface*>(surface);
+        auto bsp = occ::handle<Geom_BSplineSurface>::DownCast(s->surface);
+        if (bsp.IsNull()) return 0;
+        return bsp->Weight(uIndex, vIndex);
+    } catch (...) { return 0; }
+}
+
+// end of v0.119.0 implementations
+

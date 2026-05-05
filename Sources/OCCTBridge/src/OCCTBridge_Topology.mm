@@ -37,6 +37,7 @@
 #include <BRepLib.hxx>
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_MakeShell.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
 #include <ShapeAnalysis_ShapeTolerance.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <BRepExtrema_DistanceSS.hxx>
@@ -3247,3 +3248,166 @@ double OCCTShapeTotalEdgeLength(OCCTShapeRef shape) {
         return props.Mass();
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.118: BoundingBox + Optimal + OBB + Shape transforms + EdgesCommonVertex + SameParam/Range/NaturalRestriction/IsGeometric
+void OCCTShapeBoundingBox(OCCTShapeRef shape,
+                          double* xmin, double* ymin, double* zmin,
+                          double* xmax, double* ymax, double* zmax) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        Bnd_Box box;
+        BRepBndLib::Add(s->shape, box);
+        if (box.IsVoid()) {
+            *xmin = *ymin = *zmin = *xmax = *ymax = *zmax = 0.0;
+        } else {
+            box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+        }
+    } catch (...) {
+        *xmin = *ymin = *zmin = *xmax = *ymax = *zmax = 0.0;
+    }
+}
+
+void OCCTShapeBoundingBoxOptimal(OCCTShapeRef shape, bool useShapeTolerance,
+                                  double* xmin, double* ymin, double* zmin,
+                                  double* xmax, double* ymax, double* zmax) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        Bnd_Box box;
+        BRepBndLib::AddOptimal(s->shape, box, true, useShapeTolerance);
+        if (box.IsVoid()) {
+            *xmin = *ymin = *zmin = *xmax = *ymax = *zmax = 0.0;
+        } else {
+            box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+        }
+    } catch (...) {
+        *xmin = *ymin = *zmin = *xmax = *ymax = *zmax = 0.0;
+    }
+}
+
+#include <Bnd_OBB.hxx>
+
+void OCCTShapeOrientedBoundingBoxDetailed(OCCTShapeRef shape, bool isOptimal,
+                                   double* cx, double* cy, double* cz,
+                                   double* xDirX, double* xDirY, double* xDirZ,
+                                   double* yDirX, double* yDirY, double* yDirZ,
+                                   double* zDirX, double* zDirY, double* zDirZ,
+                                   double* xHSize, double* yHSize, double* zHSize,
+                                   bool* isVoid) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        Bnd_OBB obb;
+        BRepBndLib::AddOBB(s->shape, obb, true, isOptimal, true);
+        *isVoid = obb.IsVoid();
+        if (!obb.IsVoid()) {
+            gp_Pnt center = obb.Center();
+            *cx = center.X(); *cy = center.Y(); *cz = center.Z();
+            gp_XYZ xDir = obb.XDirection();
+            *xDirX = xDir.X(); *xDirY = xDir.Y(); *xDirZ = xDir.Z();
+            gp_XYZ yDir = obb.YDirection();
+            *yDirX = yDir.X(); *yDirY = yDir.Y(); *yDirZ = yDir.Z();
+            gp_XYZ zDir = obb.ZDirection();
+            *zDirX = zDir.X(); *zDirY = zDir.Y(); *zDirZ = zDir.Z();
+            *xHSize = obb.XHSize(); *yHSize = obb.YHSize(); *zHSize = obb.ZHSize();
+        } else {
+            *cx = *cy = *cz = 0.0;
+            *xDirX = 1; *xDirY = 0; *xDirZ = 0;
+            *yDirX = 0; *yDirY = 1; *yDirZ = 0;
+            *zDirX = 0; *zDirY = 0; *zDirZ = 1;
+            *xHSize = *yHSize = *zHSize = 0.0;
+        }
+    } catch (...) {
+        *isVoid = true;
+        *cx = *cy = *cz = 0.0;
+        *xDirX = 1; *xDirY = 0; *xDirZ = 0;
+        *yDirX = 0; *yDirY = 1; *yDirZ = 0;
+        *zDirX = 0; *zDirY = 0; *zDirZ = 1;
+        *xHSize = *yHSize = *zHSize = 0.0;
+    }
+}
+
+// === ShapeAnalysis_ShapeTolerance ===
+#include <ShapeAnalysis_ShapeTolerance.hxx>
+void OCCTShapeTransformFromMatrix(OCCTShapeRef shape,
+                                   double a11, double a12, double a13, double a14,
+                                   double a21, double a22, double a23, double a24,
+                                   double a31, double a32, double a33, double a34,
+                                   OCCTShapeRef* result) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        gp_Trsf trsf;
+        trsf.SetValues(a11, a12, a13, a14,
+                       a21, a22, a23, a24,
+                       a31, a32, a33, a34);
+        BRepBuilderAPI_Transform xform(s->shape, trsf, true);
+        if (xform.IsDone()) {
+            auto* r = new OCCTShape();
+            r->shape = xform.Shape();
+            *result = r;
+        } else {
+            *result = nullptr;
+        }
+    } catch (...) { *result = nullptr; }
+}
+
+bool OCCTShapeTransformIsNegative(OCCTShapeRef shape) {
+    try {
+        auto* s = static_cast<OCCTShape*>(shape);
+        if (s->shape.IsNull()) return false;
+        const TopLoc_Location& loc = s->shape.Location();
+        return loc.IsIdentity() ? false : loc.Transformation().IsNegative();
+    } catch (...) { return false; }
+}
+bool OCCTEdgesCommonVertex(OCCTShapeRef edge1, OCCTShapeRef edge2,
+                            double* x, double* y, double* z) {
+    try {
+        auto* s1 = static_cast<OCCTShape*>(edge1);
+        auto* s2 = static_cast<OCCTShape*>(edge2);
+        TopoDS_Edge e1 = TopoDS::Edge(s1->shape);
+        TopoDS_Edge e2 = TopoDS::Edge(s2->shape);
+        TopoDS_Vertex cv;
+        if (TopExp::CommonVertex(e1, e2, cv)) {
+            gp_Pnt p = BRep_Tool::Pnt(cv);
+            *x = p.X(); *y = p.Y(); *z = p.Z();
+            return true;
+        }
+        return false;
+    } catch (...) { return false; }
+}
+
+// === BRep_Tool extras ===
+bool OCCTEdgeSameParameter(OCCTShapeRef edge) {
+    try {
+        auto* s = static_cast<OCCTShape*>(edge);
+        return BRep_Tool::SameParameter(TopoDS::Edge(s->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeSameRange(OCCTShapeRef edge) {
+    try {
+        auto* s = static_cast<OCCTShape*>(edge);
+        return BRep_Tool::SameRange(TopoDS::Edge(s->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTFaceNaturalRestriction(OCCTShapeRef face) {
+    try {
+        auto* s = static_cast<OCCTShape*>(face);
+        return BRep_Tool::NaturalRestriction(TopoDS::Face(s->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeIsGeometric(OCCTShapeRef edge) {
+    try {
+        auto* s = static_cast<OCCTShape*>(edge);
+        return BRep_Tool::IsGeometric(TopoDS::Edge(s->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTFaceIsGeometric(OCCTShapeRef face) {
+    try {
+        auto* s = static_cast<OCCTShape*>(face);
+        return BRep_Tool::IsGeometric(TopoDS::Face(s->shape));
+    } catch (...) { return false; }
+}
+
+// === Sewing extras ===
