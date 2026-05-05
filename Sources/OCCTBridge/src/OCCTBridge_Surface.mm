@@ -4853,3 +4853,54 @@ OCCTSurfaceRef OCCTPointsToSurfaceBSpline(const double* points, int32_t uCount, 
     } catch (...) { return nullptr; }
 }
 // --- GeomConvert utilities ---
+
+// MARK: - v0.116: Surface Local Curvatures + Curvature Directions
+void OCCTSurfaceLocalCurvatures(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                  double* _Nonnull gaussian, double* _Nonnull mean,
+                                  double* _Nonnull maxCurvature, double* _Nonnull minCurvature,
+                                  bool* _Nonnull isDefined) {
+    try {
+        GeomLProp_SLProps props(surface->surface, u, v, 2, 1e-10);
+        *isDefined = props.IsCurvatureDefined();
+        if (*isDefined) {
+            *gaussian = props.GaussianCurvature();
+            *mean = props.MeanCurvature();
+            *maxCurvature = props.MaxCurvature();
+            *minCurvature = props.MinCurvature();
+        } else {
+            *gaussian = 0; *mean = 0; *maxCurvature = 0; *minCurvature = 0;
+        }
+    } catch (...) { *isDefined = false; *gaussian = 0; *mean = 0; *maxCurvature = 0; *minCurvature = 0; }
+}
+
+void OCCTSurfaceLocalCurvatureDirections(OCCTSurfaceRef _Nonnull surface, double u, double v,
+                                           double* _Nonnull maxDx, double* _Nonnull maxDy, double* _Nonnull maxDz,
+                                           double* _Nonnull minDx, double* _Nonnull minDy, double* _Nonnull minDz,
+                                           bool* _Nonnull isDefined) {
+    try {
+        GeomLProp_SLProps props(surface->surface, u, v, 2, 1e-10);
+        *isDefined = props.IsCurvatureDefined() && !props.IsUmbilic();
+        if (*isDefined) {
+            gp_Dir maxD, minD;
+            props.CurvatureDirections(maxD, minD);
+            *maxDx = maxD.X(); *maxDy = maxD.Y(); *maxDz = maxD.Z();
+            *minDx = minD.X(); *minDy = minD.Y(); *minDz = minD.Z();
+        } else {
+            *maxDx = 0; *maxDy = 0; *maxDz = 0;
+            *minDx = 0; *minDy = 0; *minDz = 0;
+        }
+    } catch (...) {
+        *isDefined = false;
+        *maxDx = 0; *maxDy = 0; *maxDz = 0;
+        *minDx = 0; *minDy = 0; *minDz = 0;
+    }
+}
+
+// ProjLib
+
+#include <ProjLib_Plane.hxx>
+#include <ProjLib_Cylinder.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Lin.hxx>
+#include <gp_Circ.hxx>
+#include <gp_Ax3.hxx>

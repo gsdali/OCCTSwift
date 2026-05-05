@@ -37,6 +37,27 @@
 #include <gp_Cone.hxx>
 #include <IntAna_QuadQuadGeo.hxx>
 #include <Intf_Tool.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Quaternion.hxx>
+#include <gp_QuaternionSLerp.hxx>
+#include <gp_QuaternionNLerp.hxx>
+#include <gp_TrsfNLerp.hxx>
+#include <NCollection_Lerp.hxx>
+#include <gp_XY.hxx>
+#include <gp_XYZ.hxx>
+#include <math_BracketedRoot.hxx>
+#include <math_BracketMinimum.hxx>
+#include <math_FRPR.hxx>
+#include <math_FunctionAllRoots.hxx>
+#include <math_GaussLeastSquare.hxx>
+#include <math_NewtonFunctionRoot.hxx>
+#include <math_Uzawa.hxx>
+#include <math_EigenValuesSearcher.hxx>
+#include <math_KronrodSingleIntegration.hxx>
+#include <math_GaussMultipleIntegration.hxx>
+#include <math_GaussSetIntegration.hxx>
+#include <math_FunctionSample.hxx>
+#include <math_IntegerVector.hxx>
 #include <TopoDS.hxx>
 #include <TopAbs.hxx>
 #include <TColgp_Array1OfPnt.hxx>
@@ -1605,3 +1626,655 @@ double OCCTIntfToolEndParam(OCCTIntfToolRef tool, int32_t segIndex) {
     if (!tool) return 0;
     try { return tool->tool.EndParam(segIndex); } catch (...) { return 0; }
 }
+
+// MARK: - v0.116: Ax3 utilities + Quaternion SLerp/NLerp + Trsf interpolation + XY/XYZ utils + math_BracketedRoot/BracketMinimum/FRPR/FunctionAllRoots/GaussLeastSquare/NewtonFunctionRoot/Uzawa/EigenValues/KronrodIntegration/GaussMultipleIntegration/GaussSetIntegration/Poly* / Integ*
+void OCCTAx3Create(double px, double py, double pz,
+                     double nx, double ny, double nz,
+                     double xDirX, double xDirY, double xDirZ,
+                     bool* _Nonnull isDirect,
+                     double* _Nonnull xDx, double* _Nonnull xDy, double* _Nonnull xDz,
+                     double* _Nonnull yDx, double* _Nonnull yDy, double* _Nonnull yDz) {
+    gp_Ax3 ax3(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz), gp_Dir(xDirX, xDirY, xDirZ));
+    *isDirect = ax3.Direct();
+    const gp_Dir& xd = ax3.XDirection();
+    *xDx = xd.X(); *xDy = xd.Y(); *xDz = xd.Z();
+    const gp_Dir& yd = ax3.YDirection();
+    *yDx = yd.X(); *yDy = yd.Y(); *yDz = yd.Z();
+}
+
+void OCCTAx3CreateFromNormal(double px, double py, double pz,
+                               double nx, double ny, double nz,
+                               bool* _Nonnull isDirect,
+                               double* _Nonnull xDx, double* _Nonnull xDy, double* _Nonnull xDz,
+                               double* _Nonnull yDx, double* _Nonnull yDy, double* _Nonnull yDz) {
+    gp_Ax3 ax3(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz));
+    *isDirect = ax3.Direct();
+    const gp_Dir& xd = ax3.XDirection();
+    *xDx = xd.X(); *xDy = xd.Y(); *xDz = xd.Z();
+    const gp_Dir& yd = ax3.YDirection();
+    *yDx = yd.X(); *yDy = yd.Y(); *yDz = yd.Z();
+}
+
+double OCCTAx3Angle(double p1x, double p1y, double p1z, double n1x, double n1y, double n1z, double x1x, double x1y, double x1z,
+                      double p2x, double p2y, double p2z, double n2x, double n2y, double n2z, double x2x, double x2y, double x2z) {
+    gp_Ax3 a1(gp_Pnt(p1x, p1y, p1z), gp_Dir(n1x, n1y, n1z), gp_Dir(x1x, x1y, x1z));
+    gp_Ax3 a2(gp_Pnt(p2x, p2y, p2z), gp_Dir(n2x, n2y, n2z), gp_Dir(x2x, x2y, x2z));
+    return a1.Angle(a2);
+}
+
+bool OCCTAx3IsCoplanar(double p1x, double p1y, double p1z, double n1x, double n1y, double n1z, double x1x, double x1y, double x1z,
+                         double p2x, double p2y, double p2z, double n2x, double n2y, double n2z, double x2x, double x2y, double x2z,
+                         double linearTol, double angularTol) {
+    gp_Ax3 a1(gp_Pnt(p1x, p1y, p1z), gp_Dir(n1x, n1y, n1z), gp_Dir(x1x, x1y, x1z));
+    gp_Ax3 a2(gp_Pnt(p2x, p2y, p2z), gp_Dir(n2x, n2y, n2z), gp_Dir(x2x, x2y, x2z));
+    return a1.IsCoplanar(a2, linearTol, angularTol);
+}
+
+void OCCTAx3MirrorPoint(double px, double py, double pz, double nx, double ny, double nz, double xDx, double xDy, double xDz,
+                          double mx, double my, double mz,
+                          double* _Nonnull rpx, double* _Nonnull rpy, double* _Nonnull rpz,
+                          double* _Nonnull rnx, double* _Nonnull rny, double* _Nonnull rnz,
+                          double* _Nonnull rxDx, double* _Nonnull rxDy, double* _Nonnull rxDz) {
+    gp_Ax3 ax3(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz), gp_Dir(xDx, xDy, xDz));
+    gp_Ax3 r = ax3.Mirrored(gp_Pnt(mx, my, mz));
+    *rpx = r.Location().X(); *rpy = r.Location().Y(); *rpz = r.Location().Z();
+    *rnx = r.Direction().X(); *rny = r.Direction().Y(); *rnz = r.Direction().Z();
+    *rxDx = r.XDirection().X(); *rxDy = r.XDirection().Y(); *rxDz = r.XDirection().Z();
+}
+
+void OCCTAx3Rotate(double px, double py, double pz, double nx, double ny, double nz, double xDx, double xDy, double xDz,
+                     double axPx, double axPy, double axPz, double axDx, double axDy, double axDz, double angle,
+                     double* _Nonnull rpx, double* _Nonnull rpy, double* _Nonnull rpz,
+                     double* _Nonnull rnx, double* _Nonnull rny, double* _Nonnull rnz,
+                     double* _Nonnull rxDx, double* _Nonnull rxDy, double* _Nonnull rxDz) {
+    gp_Ax3 ax3(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz), gp_Dir(xDx, xDy, xDz));
+    gp_Ax3 r = ax3.Rotated(gp_Ax1(gp_Pnt(axPx, axPy, axPz), gp_Dir(axDx, axDy, axDz)), angle);
+    *rpx = r.Location().X(); *rpy = r.Location().Y(); *rpz = r.Location().Z();
+    *rnx = r.Direction().X(); *rny = r.Direction().Y(); *rnz = r.Direction().Z();
+    *rxDx = r.XDirection().X(); *rxDy = r.XDirection().Y(); *rxDz = r.XDirection().Z();
+}
+
+void OCCTAx3Translate(double px, double py, double pz, double nx, double ny, double nz, double xDx, double xDy, double xDz,
+                        double vx, double vy, double vz,
+                        double* _Nonnull rpx, double* _Nonnull rpy, double* _Nonnull rpz) {
+    gp_Ax3 ax3(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz), gp_Dir(xDx, xDy, xDz));
+    gp_Ax3 r = ax3.Translated(gp_Vec(vx, vy, vz));
+    *rpx = r.Location().X(); *rpy = r.Location().Y(); *rpz = r.Location().Z();
+}
+
+// gp_GTrsf2d
+void OCCTQuaternionSLerp(double x1, double y1, double z1, double w1,
+                           double x2, double y2, double z2, double w2,
+                           double t,
+                           double* _Nonnull rx, double* _Nonnull ry, double* _Nonnull rz, double* _Nonnull rw) {
+    gp_Quaternion q1(x1, y1, z1, w1), q2(x2, y2, z2, w2);
+    gp_Quaternion r = gp_QuaternionSLerp::Interpolate(q1, q2, t);
+    *rx = r.X(); *ry = r.Y(); *rz = r.Z(); *rw = r.W();
+}
+
+void OCCTQuaternionNLerp(double x1, double y1, double z1, double w1,
+                           double x2, double y2, double z2, double w2,
+                           double t,
+                           double* _Nonnull rx, double* _Nonnull ry, double* _Nonnull rz, double* _Nonnull rw) {
+    gp_Quaternion q1(x1, y1, z1, w1), q2(x2, y2, z2, w2);
+    gp_Quaternion r = gp_QuaternionNLerp::Interpolate(q1, q2, t);
+    r.Normalize();
+    *rx = r.X(); *ry = r.Y(); *rz = r.Z(); *rw = r.W();
+}
+
+void OCCTTrsfInterpolate(double tx1, double ty1, double tz1, double qx1, double qy1, double qz1, double qw1,
+                           double tx2, double ty2, double tz2, double qx2, double qy2, double qz2, double qw2,
+                           double t,
+                           double* _Nonnull rtx, double* _Nonnull rty, double* _Nonnull rtz,
+                           double* _Nonnull rqx, double* _Nonnull rqy, double* _Nonnull rqz, double* _Nonnull rqw) {
+    try {
+        gp_Trsf t1, t2;
+        t1.SetTranslation(gp_Vec(tx1, ty1, tz1));
+        gp_Quaternion q1(qx1, qy1, qz1, qw1);
+        gp_Mat m1 = q1.GetMatrix();
+        gp_Trsf tr1; tr1.SetValues(m1(1,1),m1(1,2),m1(1,3),tx1,
+                                     m1(2,1),m1(2,2),m1(2,3),ty1,
+                                     m1(3,1),m1(3,2),m1(3,3),tz1);
+
+        gp_Quaternion q2(qx2, qy2, qz2, qw2);
+        gp_Mat m2 = q2.GetMatrix();
+        gp_Trsf tr2; tr2.SetValues(m2(1,1),m2(1,2),m2(1,3),tx2,
+                                     m2(2,1),m2(2,2),m2(2,3),ty2,
+                                     m2(3,1),m2(3,2),m2(3,3),tz2);
+
+        NCollection_Lerp<gp_Trsf> lerp(tr1, tr2);
+        gp_Trsf result;
+        lerp.Interpolate(t, result);
+        gp_XYZ trans = result.TranslationPart();
+        *rtx = trans.X(); *rty = trans.Y(); *rtz = trans.Z();
+        gp_Quaternion rq = result.GetRotation();
+        *rqx = rq.X(); *rqy = rq.Y(); *rqz = rq.Z(); *rqw = rq.W();
+    } catch (...) {
+        *rtx = *rty = *rtz = 0;
+        *rqx = *rqy = *rqz = 0; *rqw = 1;
+    }
+}
+
+// gp_XY / gp_XYZ
+double OCCTXYModulus(double x, double y) { return gp_XY(x, y).Modulus(); }
+double OCCTXYCrossed(double x1, double y1, double x2, double y2) { return gp_XY(x1, y1).Crossed(gp_XY(x2, y2)); }
+double OCCTXYDot(double x1, double y1, double x2, double y2) { return gp_XY(x1, y1).Dot(gp_XY(x2, y2)); }
+
+bool OCCTXYNormalize(double x, double y, double* _Nonnull rx, double* _Nonnull ry) {
+    try {
+        gp_XY v(x, y);
+        gp_XY n = v.Normalized();
+        *rx = n.X(); *ry = n.Y();
+        return true;
+    } catch (...) { *rx = *ry = 0; return false; }
+}
+
+double OCCTXYZModulus(double x, double y, double z) { return gp_XYZ(x, y, z).Modulus(); }
+
+void OCCTXYZCrossed(double x1, double y1, double z1, double x2, double y2, double z2,
+                      double* _Nonnull rx, double* _Nonnull ry, double* _Nonnull rz) {
+    gp_XYZ r = gp_XYZ(x1, y1, z1).Crossed(gp_XYZ(x2, y2, z2));
+    *rx = r.X(); *ry = r.Y(); *rz = r.Z();
+}
+
+double OCCTXYZDot(double x1, double y1, double z1, double x2, double y2, double z2) {
+    return gp_XYZ(x1, y1, z1).Dot(gp_XYZ(x2, y2, z2));
+}
+
+double OCCTXYZDotCross(double ax, double ay, double az, double bx, double by, double bz, double cx, double cy, double cz) {
+    return gp_XYZ(ax, ay, az).DotCross(gp_XYZ(bx, by, bz), gp_XYZ(cx, cy, cz));
+}
+
+bool OCCTXYZNormalize(double x, double y, double z,
+                        double* _Nonnull rx, double* _Nonnull ry, double* _Nonnull rz) {
+    try {
+        gp_XYZ v(x, y, z);
+        gp_XYZ n = v.Normalized();
+        *rx = n.X(); *ry = n.Y(); *rz = n.Z();
+        return true;
+    } catch (...) { *rx = *ry = *rz = 0; return false; }
+}
+
+// math_BracketedRoot
+
+double OCCTMathBracketedRoot(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                               double bound1, double bound2, double tolerance, int32_t maxIter,
+                               bool* _Nonnull isDone, int32_t* _Nonnull nbIter) {
+    class Adapter : public math_FunctionWithDerivative {
+        OCCTMathFuncDerivCallback cb; void* ctx;
+    public:
+        Adapter(OCCTMathFuncDerivCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(const double x, double& f) override { double d; return cb(x, &f, &d, ctx); }
+        bool Derivative(const double x, double& d) override { double f; return cb(x, &f, &d, ctx); }
+        bool Values(const double x, double& f, double& d) override { return cb(x, &f, &d, ctx); }
+    };
+    try {
+        Adapter f(callback, context);
+        math_BracketedRoot br(f, bound1, bound2, tolerance, maxIter);
+        *isDone = br.IsDone();
+        *nbIter = br.IsDone() ? br.NbIterations() : 0;
+        return br.IsDone() ? br.Root() : 0;
+    } catch (...) { *isDone = false; *nbIter = 0; return 0; }
+}
+
+// math_BracketMinimum
+
+bool OCCTMathBracketMinimum(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                              double a, double b,
+                              double* _Nonnull ra, double* _Nonnull rb, double* _Nonnull rc,
+                              double* _Nonnull fa, double* _Nonnull fb, double* _Nonnull fc) {
+    class Adapter : public math_Function {
+        OCCTMathSimpleFuncCallback cb; void* ctx;
+    public:
+        Adapter(OCCTMathSimpleFuncCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(const double x, double& f) override { return cb(x, &f, ctx); }
+    };
+    try {
+        Adapter f(callback, context);
+        math_BracketMinimum bm(f, a, b);
+        if (!bm.IsDone()) return false;
+        bm.Values(*ra, *rb, *rc);
+        bm.FunctionValues(*fa, *fb, *fc);
+        return true;
+    } catch (...) { return false; }
+}
+
+// math_FRPR
+
+bool OCCTMathFRPR(int32_t nVars,
+                    OCCTMathMultiVarGradCallback _Nonnull callback, void* _Nullable context,
+                    const double* _Nonnull startPoint, double tolerance, int32_t maxIter,
+                    double* _Nonnull result, double* _Nonnull minimum, int32_t* _Nonnull nbIter) {
+    class Adapter : public math_MultipleVarFunctionWithGradient {
+        OCCTMathMultiVarGradCallback cb; void* ctx; int n;
+    public:
+        Adapter(OCCTMathMultiVarGradCallback c, void* x, int nv) : cb(c), ctx(x), n(nv) {}
+        int NbVariables() const override { return n; }
+        bool Value(const math_Vector& X, double& F) override {
+            std::vector<double> g(n);
+            return cb(&X(1), n, &F, g.data(), ctx);
+        }
+        bool Gradient(const math_Vector& X, math_Vector& G) override {
+            double f; std::vector<double> g(n);
+            bool ok = cb(&X(1), n, &f, g.data(), ctx);
+            for (int i = 0; i < n; i++) G(i+1) = g[i];
+            return ok;
+        }
+        bool Values(const math_Vector& X, double& F, math_Vector& G) override {
+            std::vector<double> g(n);
+            bool ok = cb(&X(1), n, &F, g.data(), ctx);
+            for (int i = 0; i < n; i++) G(i+1) = g[i];
+            return ok;
+        }
+    };
+    try {
+        Adapter f(callback, context, nVars);
+        math_FRPR frpr(f, tolerance, maxIter);
+        math_Vector start(1, nVars);
+        for (int i = 0; i < nVars; i++) start(i+1) = startPoint[i];
+        frpr.Perform(f, start);
+        if (!frpr.IsDone()) return false;
+        const math_Vector& loc = frpr.Location();
+        for (int i = 0; i < nVars; i++) result[i] = loc(i+1);
+        *minimum = frpr.Minimum();
+        *nbIter = frpr.NbIterations();
+        return true;
+    } catch (...) { return false; }
+}
+
+// math_FunctionAllRoots
+
+int32_t OCCTMathFunctionAllRoots(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                                   double a, double b, int32_t nbSamples,
+                                   double epsX, double epsF, double epsNul,
+                                   double* _Nonnull roots, int32_t maxRoots) {
+    class Adapter : public math_FunctionWithDerivative {
+        OCCTMathFuncDerivCallback cb; void* ctx;
+    public:
+        Adapter(OCCTMathFuncDerivCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(const double x, double& f) override { double d; return cb(x, &f, &d, ctx); }
+        bool Derivative(const double x, double& d) override { double f; return cb(x, &f, &d, ctx); }
+        bool Values(const double x, double& f, double& d) override { return cb(x, &f, &d, ctx); }
+    };
+    try {
+        Adapter f(callback, context);
+        math_FunctionSample sample(a, b, nbSamples);
+        math_FunctionAllRoots allRoots(f, sample, epsX, epsF, epsNul);
+        if (!allRoots.IsDone()) return 0;
+        int n = allRoots.NbPoints();
+        int count = std::min(n, (int)maxRoots);
+        for (int i = 0; i < count; i++) roots[i] = allRoots.GetPoint(i + 1);
+        return count;
+    } catch (...) { return 0; }
+}
+
+// math_GaussLeastSquare
+
+bool OCCTMathGaussLeastSquare(const double* _Nonnull matA, int32_t nRows, int32_t nCols,
+                                const double* _Nonnull b, double* _Nonnull x) {
+    try {
+        math_Matrix A(1, nRows, 1, nCols);
+        for (int i = 0; i < nRows; i++)
+            for (int j = 0; j < nCols; j++)
+                A(i+1, j+1) = matA[i * nCols + j];
+        math_GaussLeastSquare gls(A);
+        if (!gls.IsDone()) return false;
+        math_Vector bv(1, nRows);
+        for (int i = 0; i < nRows; i++) bv(i+1) = b[i];
+        math_Vector xv(1, nCols);
+        gls.Solve(bv, xv);
+        for (int i = 0; i < nCols; i++) x[i] = xv(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// math_NewtonFunctionRoot
+
+double OCCTMathNewtonFunctionRoot(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                                    double guess, double epsX, double epsF, int32_t maxIter,
+                                    bool* _Nonnull isDone, double* _Nonnull derivative, int32_t* _Nonnull nbIter) {
+    class Adapter : public math_FunctionWithDerivative {
+        OCCTMathFuncDerivCallback cb; void* ctx;
+    public:
+        Adapter(OCCTMathFuncDerivCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(const double x, double& f) override { double d; return cb(x, &f, &d, ctx); }
+        bool Derivative(const double x, double& d) override { double f; return cb(x, &f, &d, ctx); }
+        bool Values(const double x, double& f, double& d) override { return cb(x, &f, &d, ctx); }
+    };
+    try {
+        Adapter f(callback, context);
+        math_NewtonFunctionRoot nr(f, guess, epsX, epsF, maxIter);
+        *isDone = nr.IsDone();
+        *derivative = nr.IsDone() ? nr.Derivative() : 0;
+        *nbIter = nr.IsDone() ? nr.NbIterations() : 0;
+        return nr.IsDone() ? nr.Root() : 0;
+    } catch (...) { *isDone = false; *derivative = 0; *nbIter = 0; return 0; }
+}
+
+double OCCTMathNewtonFunctionRootBounded(OCCTMathFuncDerivCallback _Nonnull callback, void* _Nullable context,
+                                           double guess, double epsX, double epsF, double a, double b,
+                                           int32_t maxIter, bool* _Nonnull isDone) {
+    class Adapter : public math_FunctionWithDerivative {
+        OCCTMathFuncDerivCallback cb; void* ctx;
+    public:
+        Adapter(OCCTMathFuncDerivCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(const double x, double& f) override { double d; return cb(x, &f, &d, ctx); }
+        bool Derivative(const double x, double& d) override { double f; return cb(x, &f, &d, ctx); }
+        bool Values(const double x, double& f, double& d) override { return cb(x, &f, &d, ctx); }
+    };
+    try {
+        Adapter f(callback, context);
+        math_NewtonFunctionRoot nr(f, guess, epsX, epsF, a, b, maxIter);
+        *isDone = nr.IsDone();
+        return nr.IsDone() ? nr.Root() : 0;
+    } catch (...) { *isDone = false; return 0; }
+}
+
+// math_Uzawa
+
+bool OCCTMathUzawa(const double* _Nonnull contData, int32_t nConstraints, int32_t nVars,
+                     const double* _Nonnull secont, const double* _Nonnull startPoint,
+                     double epsLix, double epsLic, int32_t maxIter,
+                     double* _Nonnull result, int32_t* _Nonnull nbIter) {
+    try {
+        math_Matrix Cont(1, nConstraints, 1, nVars);
+        for (int i = 0; i < nConstraints; i++)
+            for (int j = 0; j < nVars; j++)
+                Cont(i+1, j+1) = contData[i * nVars + j];
+        math_Vector Sec(1, nConstraints);
+        for (int i = 0; i < nConstraints; i++) Sec(i+1) = secont[i];
+        math_Vector Start(1, nVars);
+        for (int i = 0; i < nVars; i++) Start(i+1) = startPoint[i];
+        math_Uzawa uzawa(Cont, Sec, Start, epsLix, epsLic, maxIter);
+        if (!uzawa.IsDone()) return false;
+        const math_Vector& v = uzawa.Value();
+        for (int i = 0; i < nVars; i++) result[i] = v(i+1);
+        *nbIter = uzawa.NbIterations();
+        return true;
+    } catch (...) { return false; }
+}
+
+// math_EigenValuesSearcher
+
+int32_t OCCTMathEigenValues(const double* _Nonnull diagonal, const double* _Nonnull subdiagonal,
+                              int32_t n, double* _Nonnull eigenvalues) {
+    try {
+        NCollection_Array1<double> diag(1, n);
+        NCollection_Array1<double> subdiag(1, n);
+        for (int i = 0; i < n; i++) {
+            diag(i+1) = diagonal[i];
+            subdiag(i+1) = subdiagonal[i];
+        }
+        math_EigenValuesSearcher evs(diag, subdiag);
+        if (!evs.IsDone()) return 0;
+        int dim = evs.Dimension();
+        for (int i = 0; i < dim; i++) eigenvalues[i] = evs.EigenValue(i+1);
+        return dim;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTMathEigenValuesAndVectors(const double* _Nonnull diagonal, const double* _Nonnull subdiagonal,
+                                        int32_t n, double* _Nonnull eigenvalues, double* _Nonnull eigenvectors) {
+    try {
+        NCollection_Array1<double> diag(1, n);
+        NCollection_Array1<double> subdiag(1, n);
+        for (int i = 0; i < n; i++) {
+            diag(i+1) = diagonal[i];
+            subdiag(i+1) = subdiagonal[i];
+        }
+        math_EigenValuesSearcher evs(diag, subdiag);
+        if (!evs.IsDone()) return 0;
+        int dim = evs.Dimension();
+        for (int i = 0; i < dim; i++) {
+            eigenvalues[i] = evs.EigenValue(i+1);
+            math_Vector ev = evs.EigenVector(i+1);
+            for (int j = 0; j < dim; j++) eigenvectors[i * dim + j] = ev(j+1);
+        }
+        return dim;
+    } catch (...) { return 0; }
+}
+
+// math_KronrodSingleIntegration
+
+double OCCTMathKronrodIntegration(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                    double lower, double upper, int32_t nbPoints,
+                                    bool* _Nonnull isDone, double* _Nonnull errorReached) {
+    class Adapter : public math_Function {
+        OCCTMathSimpleFuncCallback cb; void* ctx;
+    public:
+        Adapter(OCCTMathSimpleFuncCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(const double x, double& f) override { return cb(x, &f, ctx); }
+    };
+    try {
+        Adapter f(callback, context);
+        math_KronrodSingleIntegration ksi(f, lower, upper, nbPoints);
+        *isDone = ksi.IsDone();
+        *errorReached = ksi.IsDone() ? ksi.ErrorReached() : 0;
+        return ksi.IsDone() ? ksi.Value() : 0;
+    } catch (...) { *isDone = false; *errorReached = 0; return 0; }
+}
+
+double OCCTMathKronrodIntegrationAdaptive(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                            double lower, double upper, int32_t nbPoints,
+                                            double tolerance, int32_t maxIter,
+                                            bool* _Nonnull isDone, double* _Nonnull errorReached,
+                                            int32_t* _Nonnull nbIterReached) {
+    class Adapter : public math_Function {
+        OCCTMathSimpleFuncCallback cb; void* ctx;
+    public:
+        Adapter(OCCTMathSimpleFuncCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(const double x, double& f) override { return cb(x, &f, ctx); }
+    };
+    try {
+        Adapter f(callback, context);
+        math_KronrodSingleIntegration ksi(f, lower, upper, nbPoints, tolerance, maxIter);
+        *isDone = ksi.IsDone();
+        *errorReached = ksi.IsDone() ? ksi.ErrorReached() : 0;
+        *nbIterReached = ksi.IsDone() ? ksi.NbIterReached() : 0;
+        return ksi.IsDone() ? ksi.Value() : 0;
+    } catch (...) { *isDone = false; *errorReached = 0; *nbIterReached = 0; return 0; }
+}
+
+// math_GaussMultipleIntegration
+
+double OCCTMathGaussMultipleIntegration(OCCTMathMultiVarCallback _Nonnull callback, void* _Nullable context,
+                                          int32_t nVars, const double* _Nonnull lower, const double* _Nonnull upper,
+                                          const int32_t* _Nonnull order, bool* _Nonnull isDone) {
+    class Adapter : public math_MultipleVarFunction {
+        OCCTMathMultiVarCallback cb; void* ctx; int n;
+    public:
+        Adapter(OCCTMathMultiVarCallback c, void* x, int nv) : cb(c), ctx(x), n(nv) {}
+        int NbVariables() const override { return n; }
+        bool Value(const math_Vector& X, double& F) override {
+            return cb(&X(1), n, &F, ctx);
+        }
+    };
+    try {
+        Adapter f(callback, context, nVars);
+        math_Vector lo(1, nVars), up(1, nVars);
+        math_IntegerVector ord(1, nVars);
+        for (int i = 0; i < nVars; i++) { lo(i+1) = lower[i]; up(i+1) = upper[i]; ord(i+1) = order[i]; }
+        math_GaussMultipleIntegration gmi(f, lo, up, ord);
+        *isDone = gmi.IsDone();
+        return gmi.IsDone() ? gmi.Value() : 0;
+    } catch (...) { *isDone = false; return 0; }
+}
+
+// math_GaussSetIntegration
+
+bool OCCTMathGaussSetIntegration(OCCTMathFuncSetCallback _Nonnull callback, void* _Nullable context,
+                                   int32_t nVars, int32_t nEqs,
+                                   const double* _Nonnull lower, const double* _Nonnull upper,
+                                   const int32_t* _Nonnull order, double* _Nonnull result) {
+    class Adapter : public math_FunctionSet {
+        OCCTMathFuncSetCallback cb; void* ctx; int nv, ne;
+    public:
+        Adapter(OCCTMathFuncSetCallback c, void* x, int v, int e) : cb(c), ctx(x), nv(v), ne(e) {}
+        int NbVariables() const override { return nv; }
+        int NbEquations() const override { return ne; }
+        bool Value(const math_Vector& X, math_Vector& F) override {
+            std::vector<double> vals(ne);
+            bool ok = cb(&X(1), nv, vals.data(), ne, ctx);
+            for (int i = 0; i < ne; i++) F(i+1) = vals[i];
+            return ok;
+        }
+    };
+    try {
+        Adapter f(callback, context, nVars, nEqs);
+        math_Vector lo(1, nVars), up(1, nVars);
+        math_IntegerVector ord(1, nVars);
+        for (int i = 0; i < nVars; i++) { lo(i+1) = lower[i]; up(i+1) = upper[i]; ord(i+1) = order[i]; }
+        math_GaussSetIntegration gsi(f, lo, up, ord);
+        if (!gsi.IsDone()) return false;
+        const math_Vector& v = gsi.Value();
+        for (int i = 0; i < nEqs; i++) result[i] = v(i+1);
+        return true;
+    } catch (...) { return false; }
+}
+
+// end of v0.116.0 implementations
+
+// ============================================================================
+// v0.117.0 implementations
+// ============================================================================
+
+// MathPoly rc4 polynomial solvers
+
+#include <MathPoly_Quadratic.hxx>
+#include <MathPoly_Cubic.hxx>
+#include <MathPoly_Quartic.hxx>
+
+int32_t OCCTMathPolyLinear(double a, double b, double* _Nonnull roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Linear(a, b);
+        if (!result.IsDone()) return -1;
+        int32_t n = (int32_t)result.NbRoots;
+        for (int32_t i = 0; i < n && i < maxRoots; i++) roots[i] = result.Roots[i];
+        return std::min(n, maxRoots);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTMathPolyQuadratic(double a, double b, double c, double* _Nonnull roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Quadratic(a, b, c);
+        if (!result.IsDone()) return -1;
+        int32_t n = (int32_t)result.NbRoots;
+        for (int32_t i = 0; i < n && i < maxRoots; i++) roots[i] = result.Roots[i];
+        return std::min(n, maxRoots);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTMathPolyCubic(double a, double b, double c, double d, double* _Nonnull roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Cubic(a, b, c, d);
+        if (!result.IsDone()) return -1;
+        int32_t n = (int32_t)result.NbRoots;
+        for (int32_t i = 0; i < n && i < maxRoots; i++) roots[i] = result.Roots[i];
+        return std::min(n, maxRoots);
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTMathPolyQuartic(double a, double b, double c, double d, double e, double* _Nonnull roots, int32_t maxRoots) {
+    try {
+        auto result = MathPoly::Quartic(a, b, c, d, e);
+        if (!result.IsDone()) return -1;
+        int32_t n = (int32_t)result.NbRoots;
+        for (int32_t i = 0; i < n && i < maxRoots; i++) roots[i] = result.Roots[i];
+        return std::min(n, maxRoots);
+    } catch (...) { return -1; }
+}
+
+// MathInteg rc4 integration
+
+#include <MathInteg_Gauss.hxx>
+#include <MathInteg_Kronrod.hxx>
+#include <MathInteg_DoubleExp.hxx>
+
+namespace {
+    class MathIntegFuncAdapter {
+        OCCTMathSimpleFuncCallback cb; void* ctx;
+    public:
+        MathIntegFuncAdapter(OCCTMathSimpleFuncCallback c, void* x) : cb(c), ctx(x) {}
+        bool Value(double x, double& f) { return cb(x, &f, ctx); }
+    };
+}
+
+double OCCTMathIntegGauss(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                           double lower, double upper, int32_t nbPoints,
+                           bool* _Nonnull isDone, double* _Nonnull error) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        auto result = MathInteg::Gauss(f, lower, upper, nbPoints);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; return 0.0; }
+}
+
+double OCCTMathIntegGaussAdaptive(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                    double lower, double upper,
+                                    double tolerance, int32_t maxIter,
+                                    bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        MathUtils::IntegConfig config;
+        config.Tolerance = tolerance;
+        config.MaxIterations = maxIter;
+        auto result = MathInteg::GaussAdaptive(f, lower, upper, config);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        *nbIter = (int32_t)result.NbIterations;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; *nbIter = 0; return 0.0; }
+}
+
+double OCCTMathIntegKronrod(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                              double lower, double upper, int32_t nbGaussPoints,
+                              bool* _Nonnull isDone, double* _Nonnull error) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        auto result = MathInteg::KronrodRule(f, lower, upper, nbGaussPoints);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; return 0.0; }
+}
+
+double OCCTMathIntegKronrodAdaptive(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                                      double lower, double upper, int32_t nbGaussPoints,
+                                      double tolerance, int32_t maxIter,
+                                      bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        MathInteg::KronrodConfig config;
+        config.NbGaussPoints = nbGaussPoints;
+        config.Tolerance = tolerance;
+        config.MaxIterations = maxIter;
+        config.Adaptive = true;
+        auto result = MathInteg::Kronrod(f, lower, upper, config);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        *nbIter = (int32_t)result.NbIterations;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; *nbIter = 0; return 0.0; }
+}
+
+double OCCTMathIntegTanhSinh(OCCTMathSimpleFuncCallback _Nonnull callback, void* _Nullable context,
+                               double lower, double upper, double tolerance, int32_t maxLevels,
+                               bool* _Nonnull isDone, double* _Nonnull error, int32_t* _Nonnull nbIter) {
+    try {
+        MathIntegFuncAdapter f(callback, context);
+        MathInteg::DoubleExpConfig config;
+        config.Tolerance = tolerance;
+        config.NbLevels = maxLevels;
+        auto result = MathInteg::TanhSinh(f, lower, upper, config);
+        *isDone = result.IsDone();
+        *error = result.AbsoluteError ? *result.AbsoluteError : 0.0;
+        *nbIter = (int32_t)result.NbIterations;
+        return result.IsDone() && result.Value ? *result.Value : 0.0;
+    } catch (...) { *isDone = false; *error = 0.0; *nbIter = 0; return 0.0; }
+}
+
+// UnitsMethods
+
+#include <UnitsMethods.hxx>
