@@ -1412,3 +1412,52 @@ OCCTShapeRef OCCTShapeReadSTL(const char* filePath) {
         return new OCCTShape(face);
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.102: Poly_Connect Mesh Adjacency
+// MARK: - Poly_Connect Mesh Adjacency (v0.102.0)
+
+static Handle(Poly_Triangulation) _getFaceTriangulation(OCCTShapeRef shape, int32_t faceIndex) {
+    NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> faceMap;
+    TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+    if (faceIndex < 1 || faceIndex > faceMap.Extent()) return nullptr;
+    TopoDS_Face face = TopoDS::Face(faceMap(faceIndex));
+    TopLoc_Location loc;
+    return BRep_Tool::Triangulation(face, loc);
+}
+
+bool OCCTMeshTriangleAdjacency(OCCTShapeRef shape, int32_t faceIndex, int32_t triangleIndex,
+                                int32_t* adj1, int32_t* adj2, int32_t* adj3) {
+    try {
+        Handle(Poly_Triangulation) tri = _getFaceTriangulation(shape, faceIndex);
+        if (tri.IsNull()) return false;
+        if (triangleIndex < 1 || triangleIndex > tri->NbTriangles()) return false;
+        Poly_Connect connect(tri);
+        int t1, t2, t3;
+        connect.Triangles(triangleIndex, t1, t2, t3);
+        *adj1 = (int32_t)t1; *adj2 = (int32_t)t2; *adj3 = (int32_t)t3;
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTMeshNodeTriangle(OCCTShapeRef shape, int32_t faceIndex, int32_t nodeIndex) {
+    try {
+        Handle(Poly_Triangulation) tri = _getFaceTriangulation(shape, faceIndex);
+        if (tri.IsNull()) return 0;
+        if (nodeIndex < 1 || nodeIndex > tri->NbNodes()) return 0;
+        Poly_Connect connect(tri);
+        return (int32_t)connect.Triangle(nodeIndex);
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTMeshNodeTriangleCount(OCCTShapeRef shape, int32_t faceIndex, int32_t nodeIndex) {
+    try {
+        Handle(Poly_Triangulation) tri = _getFaceTriangulation(shape, faceIndex);
+        if (tri.IsNull()) return 0;
+        if (nodeIndex < 1 || nodeIndex > tri->NbNodes()) return 0;
+        Poly_Connect connect(tri);
+        int count = 0;
+        connect.Initialize(nodeIndex);
+        while (connect.More()) { count++; connect.Next(); }
+        return (int32_t)count;
+    } catch (...) { return 0; }
+}

@@ -6633,3 +6633,71 @@ bool OCCTDocumentNamingIsDefined(OCCTDocumentRef doc, int64_t labelId) {
         return naming->IsDefined();
     } catch (...) { return false; }
 }
+
+// MARK: - v0.104: XCAFPrs_DocumentExplorer
+// MARK: - XCAFPrs_DocumentExplorer (v0.104.0)
+
+#include <XCAFPrs_DocumentExplorer.hxx>
+#include <XCAFPrs_DocumentNode.hxx>
+
+int32_t OCCTDocumentExplorerCount(OCCTDocumentRef docRef) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t count = 0;
+        while (explorer.More()) { count++; explorer.Next(); }
+        return count;
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTDocumentExplorerShape(OCCTDocumentRef docRef, int32_t index) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t i = 0;
+        while (explorer.More()) {
+            if (i == index) {
+                const XCAFPrs_DocumentNode& node = explorer.Current();
+                Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+                TopoDS_Shape shape;
+                shapeTool->GetShape(node.RefLabel.IsNull() ? node.Label : node.RefLabel, shape);
+                if (shape.IsNull()) return nullptr;
+                auto result = new OCCTShape();
+                result->shape = shape;
+                if (!node.Location.IsIdentity()) result->shape.Location(node.Location);
+                return result;
+            }
+            i++;
+            explorer.Next();
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+char* OCCTDocumentExplorerPathId(OCCTDocumentRef docRef, int32_t index) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        XCAFPrs_DocumentExplorer explorer(doc, XCAFPrs_DocumentExplorerFlags_OnlyLeafNodes, XCAFPrs_Style());
+        int32_t i = 0;
+        while (explorer.More()) {
+            if (i == index) {
+                return strdup(explorer.Current().Id.ToCString());
+            }
+            i++;
+            explorer.Next();
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTDocumentExplorerFindShape(OCCTDocumentRef docRef, const char* pathId) {
+    try {
+        Handle(TDocStd_Document) doc = docRef->doc;
+        TCollection_AsciiString id(pathId);
+        TopoDS_Shape shape = XCAFPrs_DocumentExplorer::FindShapeFromPathId(doc, id);
+        if (shape.IsNull()) return nullptr;
+        auto result = new OCCTShape();
+        result->shape = shape;
+        return result;
+    } catch (...) { return nullptr; }
+}

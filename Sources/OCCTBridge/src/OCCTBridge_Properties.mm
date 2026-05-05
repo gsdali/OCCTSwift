@@ -1313,3 +1313,104 @@ int32_t OCCTShapeFaceDomainEdgeCount(OCCTShapeRef shape, int32_t faceIndex) {
         return count;
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.103/v0.104: GProp Element/Cylinder/Cone Properties
+// MARK: - GProp Element Properties (v0.103.0)
+
+#include <GProp_CelGProps.hxx>
+#include <GProp_PGProps.hxx>
+#include <GProp_SelGProps.hxx>
+#include <GProp_VelGProps.hxx>
+
+double OCCTGPropLineSegment(double x1, double y1, double z1, double x2, double y2, double z2,
+                             double* cx, double* cy, double* cz) {
+    try {
+        gp_Pnt p1(x1,y1,z1), p2(x2,y2,z2);
+        gp_Lin line(p1, gp_Dir(gp_Vec(p1, p2)));
+        double u2 = p1.Distance(p2);
+        GProp_CelGProps props(line, 0.0, u2, gp_Pnt(0,0,0));
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropCircularArc(double centerX, double centerY, double centerZ,
+                             double normalX, double normalY, double normalZ,
+                             double radius, double u1, double u2,
+                             double* cx, double* cy, double* cz) {
+    try {
+        gp_Ax2 ax(gp_Pnt(centerX,centerY,centerZ), gp_Dir(normalX,normalY,normalZ));
+        gp_Circ circ(ax, radius);
+        GProp_CelGProps props(circ, u1, u2, gp_Pnt(0,0,0));
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropPointSetCentroid(const double* points, int32_t count, double* cx, double* cy, double* cz) {
+    try {
+        NCollection_Array1<gp_Pnt> pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts(i+1) = gp_Pnt(points[i*3], points[i*3+1], points[i*3+2]);
+        }
+        GProp_PGProps props(pts);
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropSphereSurface(double radius, double* cx, double* cy, double* cz) {
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), radius);
+        GProp_SelGProps props(sphere, 0, 2*M_PI, -M_PI/2, M_PI/2, gp_Pnt(0,0,0));
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropSphereVolume(double radius, double* cx, double* cy, double* cz) {
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), radius);
+        GProp_VelGProps props(sphere, 0, 2*M_PI, -M_PI/2, M_PI/2, gp_Pnt(0,0,0));
+        gp_Pnt cm = props.CentreOfMass();
+        *cx = cm.X(); *cy = cm.Y(); *cz = cm.Z();
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+// MARK: - GProp Cylinder/Cone (v0.104.0)
+
+double OCCTGPropCylinderSurface(double radius, double height) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), radius);
+        GProp_SelGProps props(cyl, 0, 2*M_PI, 0, height, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropCylinderVolume(double radius, double height) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), radius);
+        GProp_VelGProps props(cyl, 0, 2*M_PI, 0, height, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropConeSurface(double semiAngle, double refRadius, double height) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), semiAngle, refRadius);
+        GProp_SelGProps props(cone, 0, 2*M_PI, 0, height, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}
+
+double OCCTGPropConeVolume(double semiAngle, double refRadius, double height) {
+    try {
+        gp_Cone cone(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), semiAngle, refRadius);
+        GProp_VelGProps props(cone, 0, 2*M_PI, 0, height, gp_Pnt(0,0,0));
+        return props.Mass();
+    } catch (...) { return 0; }
+}

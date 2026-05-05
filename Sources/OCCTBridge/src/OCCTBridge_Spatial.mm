@@ -27,6 +27,17 @@
 #include <gp_Sphere.hxx>
 #include <gp_Torus.hxx>
 #include <Precision.hxx>
+#include <Bnd_Sphere.hxx>
+#include <BndLib.hxx>
+#include <BndLib_Add3dCurve.hxx>
+#include <BndLib_AddSurface.hxx>
+#include <BRepAdaptor_Curve.hxx>
+#include <BRepAdaptor_Surface.hxx>
+#include <gp_Cylinder.hxx>
+#include <gp_Cone.hxx>
+#include <IntAna_QuadQuadGeo.hxx>
+#include <TopoDS.hxx>
+#include <TopAbs.hxx>
 #include <TColgp_Array1OfPnt.hxx>
 #include <GProp_PEquation.hxx>
 
@@ -751,4 +762,161 @@ int32_t OCCTIntAnaLineTorus(double lox, double loy, double loz,
         }
         return n;
     } catch (...) { return 0; }
+}
+
+// MARK: - v0.103/v0.104: Bnd_Sphere + BndLib Analytic + IntAna_IntQuadQuad
+// MARK: - Bnd_Sphere (v0.103.0)
+
+struct OCCTBndSphere {
+    Bnd_Sphere sphere;
+};
+
+OCCTBndSphereRef OCCTBndSphereCreate(double cx, double cy, double cz, double radius) {
+    auto s = new OCCTBndSphere();
+    s->sphere = Bnd_Sphere(gp_XYZ(cx, cy, cz), radius, 0, 0);
+    s->sphere.SetValid(true);
+    return s;
+}
+
+void OCCTBndSphereRelease(OCCTBndSphereRef sphere) { delete sphere; }
+
+double OCCTBndSphereRadius(OCCTBndSphereRef sphere) { return sphere->sphere.Radius(); }
+
+void OCCTBndSphereCenter(OCCTBndSphereRef sphere, double* x, double* y, double* z) {
+    gp_XYZ c = sphere->sphere.Center();
+    *x = c.X(); *y = c.Y(); *z = c.Z();
+}
+
+double OCCTBndSphereDistance(OCCTBndSphereRef sphere, double x, double y, double z) {
+    return sphere->sphere.Distance(gp_XYZ(x, y, z));
+}
+
+bool OCCTBndSphereIsOut(OCCTBndSphereRef sphere, double x, double y, double z) {
+    double maxDist = 0;
+    return sphere->sphere.IsOut(gp_XYZ(x, y, z), maxDist);
+}
+
+bool OCCTBndSphereIsOutSphere(OCCTBndSphereRef s1, OCCTBndSphereRef s2) {
+    return s1->sphere.IsOut(s2->sphere);
+}
+
+void OCCTBndSphereAdd(OCCTBndSphereRef sphere, OCCTBndSphereRef other) {
+    sphere->sphere.Add(other->sphere);
+}
+// MARK: - BndLib Analytic Bounding (v0.104.0)
+
+#include <BndLib.hxx>
+#include <BndLib_Add3dCurve.hxx>
+#include <BndLib_AddSurface.hxx>
+
+void OCCTBndLibLine(double px, double py, double pz, double dx, double dy, double dz,
+                     double p1, double p2, double tol,
+                     double* xmin, double* ymin, double* zmin,
+                     double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Lin line(gp_Pnt(px,py,pz), gp_Dir(dx,dy,dz));
+        BndLib::Add(line, p1, p2, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibCircle(double cx, double cy, double cz, double nx, double ny, double nz,
+                       double radius, double tol,
+                       double* xmin, double* ymin, double* zmin,
+                       double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Ax2 ax(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz));
+        gp_Circ circ(ax, radius);
+        BndLib::Add(circ, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibSphere(double cx, double cy, double cz, double radius, double tol,
+                       double* xmin, double* ymin, double* zmin,
+                       double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(cx,cy,cz), gp_Dir(0,0,1)), radius);
+        BndLib::Add(sphere, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibCylinder(double cx, double cy, double cz, double nx, double ny, double nz,
+                          double radius, double vmin, double vmax, double tol,
+                          double* xmin, double* ymin, double* zmin,
+                          double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz)), radius);
+        BndLib::Add(cyl, vmin, vmax, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibTorus(double cx, double cy, double cz, double nx, double ny, double nz,
+                      double majorRadius, double minorRadius, double tol,
+                      double* xmin, double* ymin, double* zmin,
+                      double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        gp_Torus torus(gp_Ax3(gp_Pnt(cx,cy,cz), gp_Dir(nx,ny,nz)), majorRadius, minorRadius);
+        BndLib::Add(torus, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibEdge(OCCTShapeRef shape, double tol,
+                     double* xmin, double* ymin, double* zmin,
+                     double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        BRepAdaptor_Curve ac(TopoDS::Edge(shape->shape));
+        BndLib_Add3dCurve::Add(ac, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+
+void OCCTBndLibFace(OCCTShapeRef shape, double tol,
+                     double* xmin, double* ymin, double* zmin,
+                     double* xmax, double* ymax, double* zmax) {
+    try {
+        Bnd_Box box;
+        BRepAdaptor_Surface as(TopoDS::Face(shape->shape));
+        BndLib_AddSurface::Add(as, tol, box);
+        box.Get(*xmin, *ymin, *zmin, *xmax, *ymax, *zmax);
+    } catch (...) { *xmin=*ymin=*zmin=*xmax=*ymax=*zmax=0; }
+}
+// MARK: - IntAna_IntQuadQuad (v0.104.0)
+
+#include <IntAna_IntQuadQuad.hxx>
+#include <IntAna_Quadric.hxx>
+
+int32_t OCCTIntAnaCylinderSphere(double cylRadius,
+                                   double sphCx, double sphCy, double sphCz, double sphRadius,
+                                   double tol) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), cylRadius);
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sphCx,sphCy,sphCz), gp_Dir(0,0,1)), sphRadius));
+        IntAna_IntQuadQuad iqq(cyl, quad, tol);
+        if (!iqq.IsDone()) return -1;
+        if (iqq.IdenticalElements()) return -2;
+        return (int32_t)iqq.NbCurve();
+    } catch (...) { return -1; }
+}
+
+bool OCCTIntAnaCylinderSphereIdentical(double cylRadius,
+                                         double sphCx, double sphCy, double sphCz, double sphRadius,
+                                         double tol) {
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(0,0,0), gp_Dir(0,0,1)), cylRadius);
+        IntAna_Quadric quad;
+        quad.SetQuadric(gp_Sphere(gp_Ax3(gp_Pnt(sphCx,sphCy,sphCz), gp_Dir(0,0,1)), sphRadius));
+        IntAna_IntQuadQuad iqq(cyl, quad, tol);
+        return iqq.IsDone() && iqq.IdenticalElements();
+    } catch (...) { return false; }
 }
