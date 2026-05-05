@@ -67,6 +67,10 @@
 #include <GeomFill_Fixed.hxx>
 #include <GeomFill_Frenet.hxx>
 #include <GeomFill_NSections.hxx>
+#include <GeomFill_BoundWithSurf.hxx>
+#include <GeomFill_DegeneratedBound.hxx>
+#include <GeomFill_Generator.hxx>
+#include <Adaptor3d_CurveOnSurface.hxx>
 #include <BRepTopAdaptor_TopolTool.hxx>
 #include <Contap_ContAna.hxx>
 #include <Contap_Contour.hxx>
@@ -2489,4 +2493,103 @@ void OCCTGeomFillNSectionsInfo(
         *outNbKnots = (int32_t)nbK;
         *outDegree = (int32_t)deg;
     } catch (...) {}
+}
+
+// MARK: - GeomFill_Generator (v0.69)
+// --- GeomFill_Generator ---
+
+OCCTSurfaceRef OCCTGeomFillGenerator(
+    const OCCTCurve3DRef* curves, int32_t curveCount,
+    double tolerance)
+{
+    try {
+        GeomFill_Generator gen;
+
+        for (int i = 0; i < curveCount; i++) {
+            auto* cw = (OCCTCurve3D*)curves[i];
+            if (!cw || cw->curve.IsNull()) return nullptr;
+            gen.AddCurve(cw->curve);
+        }
+
+        gen.Perform(tolerance);
+        Handle(Geom_Surface) surf = gen.Surface();
+        if (surf.IsNull()) return nullptr;
+
+        auto* out = new OCCTSurface();
+        out->surface = surf;
+        return (OCCTSurfaceRef)out;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - GeomFill_DegeneratedBound (v0.69)
+// --- GeomFill_DegeneratedBound ---
+
+OCCTBoundaryPoint OCCTGeomFillDegeneratedBoundValue(
+    double px, double py, double pz,
+    double first, double last, double param)
+{
+    OCCTBoundaryPoint result = {};
+    try {
+        Handle(GeomFill_DegeneratedBound) db = new GeomFill_DegeneratedBound(
+            gp_Pnt(px, py, pz), first, last, 1e-3, 1e-3);
+        gp_Pnt val = db->Value(param);
+        result.x = val.X();
+        result.y = val.Y();
+        result.z = val.Z();
+    } catch (...) {}
+    return result;
+}
+
+bool OCCTGeomFillDegeneratedBoundIsDegenerated(
+    double px, double py, double pz, double first, double last)
+{
+    try {
+        Handle(GeomFill_DegeneratedBound) db = new GeomFill_DegeneratedBound(
+            gp_Pnt(px, py, pz), first, last, 1e-3, 1e-3);
+        return db->IsDegenerated();
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - GeomFill_BoundWithSurf Eval (v0.69)
+// --- GeomFill_BoundWithSurf ---
+
+bool OCCTGeomFillBoundWithSurfEvaluate(
+    OCCTSurfaceRef surface,
+    OCCTCurve2DRef curve2d,
+    double first, double last, double param,
+    double* outX, double* outY, double* outZ,
+    double* outNX, double* outNY, double* outNZ)
+{
+    try {
+        auto* sw = (OCCTSurface*)surface;
+        auto* cw = (OCCTCurve2D*)curve2d;
+        if (!sw || sw->surface.IsNull() || !cw || cw->curve.IsNull()) return false;
+
+        Handle(GeomAdaptor_Surface) adapSurf = new GeomAdaptor_Surface(sw->surface);
+        Handle(Geom2dAdaptor_Curve) adapCurve = new Geom2dAdaptor_Curve(cw->curve, first, last);
+
+        Adaptor3d_CurveOnSurface cos(adapCurve, adapSurf);
+        Handle(GeomFill_BoundWithSurf) bws = new GeomFill_BoundWithSurf(cos, 1e-3, 1e-3);
+
+        gp_Pnt val = bws->Value(param);
+        *outX = val.X();
+        *outY = val.Y();
+        *outZ = val.Z();
+
+        if (bws->HasNormals()) {
+            gp_Vec norm = bws->Norm(param);
+            *outNX = norm.X();
+            *outNY = norm.Y();
+            *outNZ = norm.Z();
+        } else {
+            *outNX = *outNY = *outNZ = 0;
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
 }
