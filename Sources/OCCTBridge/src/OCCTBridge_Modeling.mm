@@ -39,7 +39,11 @@
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
 #include <BRepFill.hxx>
+#include <BRepFill_Filling.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
+#include <LocOpe_DPrism.hxx>
+#include <LocOpe_Prism.hxx>
+#include <LocOpe_Revol.hxx>
 #include <BRepOffsetAPI_DraftAngle.hxx>
 #include <BRepOffsetAPI_MakePipeShell.hxx>
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
@@ -3182,6 +3186,212 @@ OCCTShapeRef OCCTFace2DChamfer(OCCTShapeRef shape,
         chamfer.Build();
         if (!chamfer.IsDone()) return nullptr;
         return new OCCTShape(chamfer.Shape());
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - BRepFill_Filling (v0.45)
+struct OCCTFilling {
+    BRepFill_Filling filler;
+};
+
+OCCTFillingRef OCCTFillingCreate(int32_t degree, int32_t nbPtsOnCur, int32_t maxDegree,
+                                  int32_t maxSegments, double tolerance3d) {
+    try {
+        auto* filling = new OCCTFilling();
+        filling->filler.SetConstrParam(tolerance3d, tolerance3d, 0.0001, 0.1);
+        filling->filler.SetResolParam(degree, nbPtsOnCur, maxDegree, maxSegments);
+        return filling;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+void OCCTFillingRelease(OCCTFillingRef filling) {
+    delete filling;
+}
+
+bool OCCTFillingAddEdge(OCCTFillingRef filling, OCCTEdgeRef edge, int32_t continuity) {
+    if (!filling || !edge) return false;
+    try {
+        GeomAbs_Shape cont = GeomAbs_C0;
+        if (continuity == 1) cont = GeomAbs_C1;
+        else if (continuity >= 2) cont = GeomAbs_C2;
+        filling->filler.Add(edge->edge, cont);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFillingAddFreeEdge(OCCTFillingRef filling, OCCTEdgeRef edge, int32_t continuity) {
+    if (!filling || !edge) return false;
+    try {
+        GeomAbs_Shape cont = GeomAbs_C0;
+        if (continuity == 1) cont = GeomAbs_C1;
+        else if (continuity >= 2) cont = GeomAbs_C2;
+        filling->filler.Add(edge->edge, cont, /*IsBound=*/false);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFillingAddPoint(OCCTFillingRef filling, double x, double y, double z) {
+    if (!filling) return false;
+    try {
+        filling->filler.Add(gp_Pnt(x, y, z));
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFillingBuild(OCCTFillingRef filling) {
+    if (!filling) return false;
+    try {
+        filling->filler.Build();
+        return filling->filler.IsDone();
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFillingIsDone(OCCTFillingRef filling) {
+    if (!filling) return false;
+    return filling->filler.IsDone();
+}
+
+OCCTShapeRef OCCTFillingGetFace(OCCTFillingRef filling) {
+    if (!filling || !filling->filler.IsDone()) return nullptr;
+    try {
+        TopoDS_Face face = filling->filler.Face();
+        if (face.IsNull()) return nullptr;
+        return new OCCTShape(face);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+double OCCTFillingG0Error(OCCTFillingRef filling) {
+    if (!filling || !filling->filler.IsDone()) return -1.0;
+    try {
+        return filling->filler.G0Error();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+double OCCTFillingG1Error(OCCTFillingRef filling) {
+    if (!filling || !filling->filler.IsDone()) return -1.0;
+    try {
+        return filling->filler.G1Error();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+double OCCTFillingG2Error(OCCTFillingRef filling) {
+    if (!filling || !filling->filler.IsDone()) return -1.0;
+    try {
+        return filling->filler.G2Error();
+    } catch (...) {
+        return -1.0;
+    }
+}
+
+// MARK: - LocOpe_Prism (v0.46)
+OCCTShapeRef OCCTLocOpePrism(OCCTShapeRef face, double dx, double dy, double dz) {
+    if (!face) return nullptr;
+    try {
+        LocOpe_Prism prism(face->shape, gp_Vec(dx, dy, dz));
+        TopoDS_Shape result = prism.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpePrismWithTranslation(OCCTShapeRef face,
+                                             double dx, double dy, double dz,
+                                             double tx, double ty, double tz) {
+    if (!face) return nullptr;
+    try {
+        LocOpe_Prism prism(face->shape, gp_Vec(dx, dy, dz), gp_Vec(tx, ty, tz));
+        TopoDS_Shape result = prism.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// MARK: - LocOpe_Revol / LocOpe_DPrism (v0.47)
+// --- LocOpe_Revol ---
+
+OCCTShapeRef OCCTLocOpeRevol(OCCTShapeRef profile,
+                              double axisOriginX, double axisOriginY, double axisOriginZ,
+                              double axisDirX, double axisDirY, double axisDirZ,
+                              double angle) {
+    if (!profile) return nullptr;
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+        LocOpe_Revol revol;
+        revol.Perform(profile->shape, axis, angle);
+        TopoDS_Shape result = revol.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeRevolWithOffset(OCCTShapeRef profile,
+                                        double axisOriginX, double axisOriginY, double axisOriginZ,
+                                        double axisDirX, double axisDirY, double axisDirZ,
+                                        double angle, double angledec) {
+    if (!profile) return nullptr;
+    try {
+        gp_Ax1 axis(gp_Pnt(axisOriginX, axisOriginY, axisOriginZ),
+                     gp_Dir(axisDirX, axisDirY, axisDirZ));
+        LocOpe_Revol revol;
+        revol.Perform(profile->shape, axis, angle, angledec);
+        TopoDS_Shape result = revol.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- LocOpe_DPrism ---
+
+OCCTShapeRef OCCTLocOpeDPrism(OCCTFaceRef spineFace,
+                               double height1, double height2, double angle) {
+    if (!spineFace) return nullptr;
+    try {
+        LocOpe_DPrism dprism(spineFace->face, height1, height2, angle);
+        if (!dprism.IsDone()) return nullptr;
+        TopoDS_Shape result = dprism.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTShapeRef OCCTLocOpeDPrismSingleHeight(OCCTFaceRef spineFace,
+                                            double height, double angle) {
+    if (!spineFace) return nullptr;
+    try {
+        LocOpe_DPrism dprism(spineFace->face, height, angle);
+        if (!dprism.IsDone()) return nullptr;
+        TopoDS_Shape result = dprism.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape(result);
     } catch (...) {
         return nullptr;
     }

@@ -32,6 +32,7 @@
 #include <BRepExtrema_OverlapTool.hxx>
 #include <BRepExtrema_ShapeProximity.hxx>
 #include <BRepGProp.hxx>
+#include <BRepGProp_Face.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
 
@@ -906,3 +907,113 @@ OCCTCurvePoint OCCTWireGetCurvePointAt(OCCTWireRef wire, double param) {
     }
 }
 
+
+// MARK: - BRepGProp_Face (v0.45)
+bool OCCTFaceGetNaturalBounds(OCCTFaceRef face, double* uMin, double* uMax,
+                               double* vMin, double* vMax) {
+    if (!face || !uMin || !uMax || !vMin || !vMax) return false;
+    try {
+        BRepGProp_Face gpropFace(face->face);
+        gpropFace.Bounds(*uMin, *uMax, *vMin, *vMax);
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTFaceEvaluateNormalAtUV(OCCTFaceRef face, double u, double v,
+                                 double* px, double* py, double* pz,
+                                 double* nx, double* ny, double* nz) {
+    if (!face || !px || !py || !pz || !nx || !ny || !nz) return false;
+    try {
+        BRepGProp_Face gpropFace(face->face);
+        gp_Pnt point;
+        gp_Vec normal;
+        gpropFace.Normal(u, v, point, normal);
+        *px = point.X(); *py = point.Y(); *pz = point.Z();
+        *nx = normal.X(); *ny = normal.Y(); *nz = normal.Z();
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - GProp Principal Inertia (v0.46)
+bool OCCTShapeVolumeInertia(OCCTShapeRef shape, OCCTVolumeInertiaResult* result) {
+    if (!shape || !result) return false;
+    try {
+        GProp_GProps props;
+        BRepGProp::VolumeProperties(shape->shape, props);
+
+        result->volume = props.Mass();
+
+        gp_Pnt com = props.CentreOfMass();
+        result->centerX = com.X();
+        result->centerY = com.Y();
+        result->centerZ = com.Z();
+
+        // Matrix of inertia about center of mass
+        GProp_GProps comProps;
+        BRepGProp::VolumeProperties(shape->shape, comProps);
+        gp_Mat mat = comProps.MatrixOfInertia();
+        result->inertia[0] = mat(1,1); result->inertia[1] = mat(1,2); result->inertia[2] = mat(1,3);
+        result->inertia[3] = mat(2,1); result->inertia[4] = mat(2,2); result->inertia[5] = mat(2,3);
+        result->inertia[6] = mat(3,1); result->inertia[7] = mat(3,2); result->inertia[8] = mat(3,3);
+
+        // Principal properties
+        GProp_PrincipalProps principal = comProps.PrincipalProperties();
+        double I1, I2, I3;
+        principal.Moments(I1, I2, I3);
+        result->principalMoment1 = I1;
+        result->principalMoment2 = I2;
+        result->principalMoment3 = I3;
+
+        const gp_Vec& a1 = principal.FirstAxisOfInertia();
+        result->axis1X = a1.X(); result->axis1Y = a1.Y(); result->axis1Z = a1.Z();
+
+        const gp_Vec& a2 = principal.SecondAxisOfInertia();
+        result->axis2X = a2.X(); result->axis2Y = a2.Y(); result->axis2Z = a2.Z();
+
+        const gp_Vec& a3 = principal.ThirdAxisOfInertia();
+        result->axis3X = a3.X(); result->axis3Y = a3.Y(); result->axis3Z = a3.Z();
+
+        principal.RadiusOfGyration(result->gyrationRadius1,
+                                    result->gyrationRadius2,
+                                    result->gyrationRadius3);
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTShapeSurfaceInertia(OCCTShapeRef shape, OCCTSurfaceInertiaResult* result) {
+    if (!shape || !result) return false;
+    try {
+        GProp_GProps props;
+        BRepGProp::SurfaceProperties(shape->shape, props);
+
+        result->area = props.Mass();
+
+        gp_Pnt com = props.CentreOfMass();
+        result->centerX = com.X();
+        result->centerY = com.Y();
+        result->centerZ = com.Z();
+
+        gp_Mat mat = props.MatrixOfInertia();
+        result->inertia[0] = mat(1,1); result->inertia[1] = mat(1,2); result->inertia[2] = mat(1,3);
+        result->inertia[3] = mat(2,1); result->inertia[4] = mat(2,2); result->inertia[5] = mat(2,3);
+        result->inertia[6] = mat(3,1); result->inertia[7] = mat(3,2); result->inertia[8] = mat(3,3);
+
+        GProp_PrincipalProps principal = props.PrincipalProperties();
+        double I1, I2, I3;
+        principal.Moments(I1, I2, I3);
+        result->principalMoment1 = I1;
+        result->principalMoment2 = I2;
+        result->principalMoment3 = I3;
+
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
