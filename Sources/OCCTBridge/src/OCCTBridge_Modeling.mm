@@ -8570,3 +8570,211 @@ OCCTShapeRef OCCTSectionAncestorFaceOn2(OCCTShapeRef shape1, OCCTShapeRef shape2
         return nullptr;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.126: FilletBuilder completions + v0.127: BRepAlgoAPI_Section + SectionBuilder
+// --- FilletBuilder completions ---
+
+
+bool OCCTDocumentShapeToolIsComponent(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsComponent(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsCompound(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsCompound(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsSubShape(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsSubShape(lab);
+    } catch (...) { return false; }
+}
+
+bool OCCTDocumentShapeToolIsExternRef(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return false;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return false;
+        return XCAFDoc_ShapeTool::IsExternRef(lab);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTDocumentShapeToolGetUsers(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return 0;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return 0;
+        NCollection_Sequence<TDF_Label> users;
+        return (int32_t)XCAFDoc_ShapeTool::GetUsers(lab, users);
+    } catch (...) { return 0; }
+}
+
+#include <XCAFDoc_DocumentTool.hxx>
+
+void OCCTDocumentShapeToolComputeShapes(OCCTDocumentRef doc, int64_t labelId) {
+    if (!doc) return;
+    try {
+        auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->doc->Main());
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return;
+        shapeTool->ComputeShapes(lab);
+    } catch (...) {}
+}
+
+int32_t OCCTDocumentShapeToolNbComponents(OCCTDocumentRef doc, int64_t labelId, bool getSubChildren) {
+    if (!doc) return 0;
+    try {
+        TDF_Label lab = doc->getLabel(labelId);
+        if (lab.IsNull()) return 0;
+        return (int32_t)XCAFDoc_ShapeTool::NbComponents(lab, getSubChildren);
+    } catch (...) { return 0; }
+}
+// --- BRepAlgoAPI_Section with plane ---
+
+OCCTShapeRef OCCTShapeSectionWithPlane(OCCTShapeRef shape,
+                                        double normalX, double normalY, double normalZ,
+                                        double originX, double originY, double originZ) {
+    if (!shape) return nullptr;
+    try {
+        gp_Pln plane(gp_Pnt(originX, originY, originZ), gp_Dir(normalX, normalY, normalZ));
+        BRepAlgoAPI_Section section(shape->shape, plane);
+        section.Build();
+        if (!section.IsDone() || section.Shape().IsNull()) return nullptr;
+        return new OCCTShape(section.Shape());
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTShapeSectionWithSurface(OCCTShapeRef shape, OCCTSurfaceRef surface) {
+    if (!shape || !surface) return nullptr;
+    try {
+        BRepAlgoAPI_Section section(shape->shape, surface->surface);
+        section.Build();
+        if (!section.IsDone() || section.Shape().IsNull()) return nullptr;
+        return new OCCTShape(section.Shape());
+    } catch (...) { return nullptr; }
+}
+// --- FilletBuilder history queries ---
+
+
+// --- SectionBuilder (BRepAlgoAPI_Section) ---
+
+struct OCCTSectionBuilder {
+    BRepAlgoAPI_Section section;
+    bool built;
+    OCCTSectionBuilder() : section(), built(false) {}
+    OCCTSectionBuilder(const TopoDS_Shape& s1, const TopoDS_Shape& s2) : section(s1, s2, false), built(false) {}
+};
+
+OCCTSectionBuilderRef OCCTSectionBuilderCreate(void) {
+    try {
+        return new OCCTSectionBuilder();
+    } catch (...) { return nullptr; }
+}
+
+OCCTSectionBuilderRef OCCTSectionBuilderCreateFromShapes(OCCTShapeRef shape1, OCCTShapeRef shape2) {
+    if (!shape1 || !shape2) return nullptr;
+    try {
+        return new OCCTSectionBuilder(shape1->shape, shape2->shape);
+    } catch (...) { return nullptr; }
+}
+
+void OCCTSectionBuilderRelease(OCCTSectionBuilderRef builder) {
+    delete builder;
+}
+
+void OCCTSectionBuilderInit1Shape(OCCTSectionBuilderRef builder, OCCTShapeRef shape) {
+    if (!builder || !shape) return;
+    try { builder->section.Init1(shape->shape); } catch (...) {}
+}
+
+void OCCTSectionBuilderInit1Plane(OCCTSectionBuilderRef builder,
+                                   double a, double b, double c, double d) {
+    if (!builder) return;
+    try {
+        gp_Pln plane(a, b, c, d);
+        builder->section.Init1(plane);
+    } catch (...) {}
+}
+
+void OCCTSectionBuilderInit1Surface(OCCTSectionBuilderRef builder, OCCTSurfaceRef surface) {
+    if (!builder || !surface) return;
+    try { builder->section.Init1(surface->surface); } catch (...) {}
+}
+
+void OCCTSectionBuilderInit2Shape(OCCTSectionBuilderRef builder, OCCTShapeRef shape) {
+    if (!builder || !shape) return;
+    try { builder->section.Init2(shape->shape); } catch (...) {}
+}
+
+void OCCTSectionBuilderInit2Plane(OCCTSectionBuilderRef builder,
+                                   double a, double b, double c, double d) {
+    if (!builder) return;
+    try {
+        gp_Pln plane(a, b, c, d);
+        builder->section.Init2(plane);
+    } catch (...) {}
+}
+
+void OCCTSectionBuilderInit2Surface(OCCTSectionBuilderRef builder, OCCTSurfaceRef surface) {
+    if (!builder || !surface) return;
+    try { builder->section.Init2(surface->surface); } catch (...) {}
+}
+
+void OCCTSectionBuilderSetApproximation(OCCTSectionBuilderRef builder, bool approx) {
+    if (!builder) return;
+    try { builder->section.Approximation(approx); } catch (...) {}
+}
+
+void OCCTSectionBuilderComputePCurveOn1(OCCTSectionBuilderRef builder, bool compute) {
+    if (!builder) return;
+    try { builder->section.ComputePCurveOn1(compute); } catch (...) {}
+}
+
+void OCCTSectionBuilderComputePCurveOn2(OCCTSectionBuilderRef builder, bool compute) {
+    if (!builder) return;
+    try { builder->section.ComputePCurveOn2(compute); } catch (...) {}
+}
+
+OCCTShapeRef OCCTSectionBuilderBuild(OCCTSectionBuilderRef builder) {
+    if (!builder) return nullptr;
+    try {
+        builder->section.Build();
+        if (!builder->section.IsDone()) return nullptr;
+        builder->built = true;
+        return new OCCTShape{builder->section.Shape()};
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTSectionBuilderAncestorFaceOn1(OCCTSectionBuilderRef builder, OCCTShapeRef edge) {
+    if (!builder || !edge || !builder->built) return nullptr;
+    try {
+        TopoDS_Shape face;
+        if (builder->section.HasAncestorFaceOn1(edge->shape, face)) {
+            return new OCCTShape{face};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTSectionBuilderAncestorFaceOn2(OCCTSectionBuilderRef builder, OCCTShapeRef edge) {
+    if (!builder || !edge || !builder->built) return nullptr;
+    try {
+        TopoDS_Shape face;
+        if (builder->section.HasAncestorFaceOn2(edge->shape, face)) {
+            return new OCCTShape{face};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}

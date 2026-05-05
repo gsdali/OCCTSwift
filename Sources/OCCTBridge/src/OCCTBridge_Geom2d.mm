@@ -4652,3 +4652,239 @@ bool OCCTCurve2DBSplineIsCN(OCCTCurve2DRef curve, int32_t n) {
     if (bs.IsNull()) return false;
     try { return bs->IsCN(n); } catch (...) { return false; }
 }
+
+// MARK: - v0.126: Geom2d_BezierCurve completions + v0.128: Curve2D Transform + v0.130: Geom2dEval Curves + v0.131: Geom2dEval_TBezier/AHTBezier
+// --- Geom2d_BezierCurve completions ---
+
+#import <Geom2d_BezierCurve.hxx>
+
+bool OCCTCurve2DBezierInsertPoleAfter(OCCTCurve2DRef curve, int32_t index, double x, double y) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->InsertPoleAfter(index, gp_Pnt2d(x, y));
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBezierRemovePole(OCCTCurve2DRef curve, int32_t index) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->RemovePole(index);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBezierSegment(OCCTCurve2DRef curve, double u1, double u2) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Segment(u1, u2);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTCurve2DBezierIncreaseDegree(OCCTCurve2DRef curve, int32_t degree) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Increase(degree);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTCurve2DBezierStartPoint(OCCTCurve2DRef curve, double* x, double* y) {
+    if (!curve) return;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        gp_Pnt2d p = bz->StartPoint();
+        *x = p.X();
+        *y = p.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBezierEndPoint(OCCTCurve2DRef curve, double* x, double* y) {
+    if (!curve) return;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        gp_Pnt2d p = bz->EndPoint();
+        *x = p.X();
+        *y = p.Y();
+    } catch (...) {}
+}
+
+void OCCTCurve2DBezierGetPoles(OCCTCurve2DRef curve, double* poles) {
+    if (!curve || !poles) return;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return;
+    try {
+        int n = bz->NbPoles();
+        for (int i = 1; i <= n; i++) {
+            gp_Pnt2d p = bz->Pole(i);
+            poles[(i-1)*2] = p.X();
+            poles[(i-1)*2+1] = p.Y();
+        }
+    } catch (...) {}
+}
+
+bool OCCTCurve2DBezierReverse(OCCTCurve2DRef curve) {
+    if (!curve) return false;
+    auto bz = Handle(Geom2d_BezierCurve)::DownCast(curve->curve);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Reverse();
+        return true;
+    } catch (...) { return false; }
+}
+bool OCCTCurve2DTransform(OCCTCurve2DRef curve, int32_t transformType,
+                           double p1, double p2, double p3, double p4, double p5) {
+    if (!curve) return false;
+    try {
+        gp_Trsf2d trsf;
+        switch (transformType) {
+            case 0: // translation (dx, dy)
+                trsf.SetTranslation(gp_Vec2d(p1, p2));
+                break;
+            case 1: // rotation (cx, cy, angle)
+                trsf.SetRotation(gp_Pnt2d(p1, p2), p3);
+                break;
+            case 2: // scale (cx, cy, factor)
+                trsf.SetScaleFactor(p3);
+                trsf.SetTranslationPart(gp_Vec2d(p1 * (1.0 - p3), p2 * (1.0 - p3)));
+                break;
+            case 3: // mirror point (px, py)
+                trsf.SetMirror(gp_Pnt2d(p1, p2));
+                break;
+            case 4: // mirror axis (ox, oy, dx, dy)
+                trsf.SetMirror(gp_Ax2d(gp_Pnt2d(p1, p2), gp_Dir2d(p3, p4)));
+                break;
+            default:
+                return false;
+        }
+        curve->curve->Transform(trsf);
+        return true;
+    } catch (...) { return false; }
+}
+// --- Geom2dEval Curves ---
+
+#include <Geom2dEval_ArchimedeanSpiralCurve.hxx>
+#include <Geom2dEval_LogarithmicSpiralCurve.hxx>
+#include <Geom2dEval_CircleInvoluteCurve.hxx>
+#include <Geom2dEval_SineWaveCurve.hxx>
+#include <Geom2dEval_TBezierCurve.hxx>
+#include <Geom2dEval_AHTBezierCurve.hxx>
+
+void OCCTGeom2dEvalArchimedeanSpiralD0(double initialRadius, double growthRate, double u,
+                                        double* px, double* py) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_ArchimedeanSpiralCurve sp(ax, initialRadius, growthRate);
+    gp_Pnt2d p = sp.EvalD0(u);
+    *px = p.X(); *py = p.Y();
+}
+
+void OCCTGeom2dEvalArchimedeanSpiralD1(double initialRadius, double growthRate, double u,
+                                        double* px, double* py,
+                                        double* vx, double* vy) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_ArchimedeanSpiralCurve sp(ax, initialRadius, growthRate);
+    auto res = sp.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y();
+    *vx = res.D1.X(); *vy = res.D1.Y();
+}
+
+void OCCTGeom2dEvalLogSpiralD0(double scale, double growthExponent, double u,
+                                double* px, double* py) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_LogarithmicSpiralCurve sp(ax, scale, growthExponent);
+    gp_Pnt2d p = sp.EvalD0(u);
+    *px = p.X(); *py = p.Y();
+}
+
+void OCCTGeom2dEvalLogSpiralD1(double scale, double growthExponent, double u,
+                                double* px, double* py,
+                                double* vx, double* vy) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_LogarithmicSpiralCurve sp(ax, scale, growthExponent);
+    auto res = sp.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y();
+    *vx = res.D1.X(); *vy = res.D1.Y();
+}
+
+void OCCTGeom2dEvalCircleInvoluteD0(double radius, double u,
+                                     double* px, double* py) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_CircleInvoluteCurve inv(ax, radius);
+    gp_Pnt2d p = inv.EvalD0(u);
+    *px = p.X(); *py = p.Y();
+}
+
+void OCCTGeom2dEvalCircleInvoluteD1(double radius, double u,
+                                     double* px, double* py,
+                                     double* vx, double* vy) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_CircleInvoluteCurve inv(ax, radius);
+    auto res = inv.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y();
+    *vx = res.D1.X(); *vy = res.D1.Y();
+}
+
+void OCCTGeom2dEvalSineWaveD0(double amplitude, double omega, double phase, double u,
+                               double* px, double* py) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_SineWaveCurve sw(ax, amplitude, omega, phase);
+    gp_Pnt2d p = sw.EvalD0(u);
+    *px = p.X(); *py = p.Y();
+}
+
+void OCCTGeom2dEvalSineWaveD1(double amplitude, double omega, double phase, double u,
+                               double* px, double* py,
+                               double* vx, double* vy) {
+    gp_Ax2d ax(gp_Pnt2d(0,0), gp_Dir2d(1,0));
+    Geom2dEval_SineWaveCurve sw(ax, amplitude, omega, phase);
+    auto res = sw.EvalD1(u);
+    *px = res.Point.X(); *py = res.Point.Y();
+    *vx = res.D1.X(); *vy = res.D1.Y();
+}
+// --- Geom2dEval_TBezierCurve ---
+
+OCCTCurve2DRef OCCTGeom2dEvalTBezierCurveCreate(
+    const double* poles, int32_t count, double alpha) {
+    if (!poles || count < 3 || count % 2 == 0) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt2d> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt2d(poles[i*2], poles[i*2+1]);
+        auto tc = new Geom2dEval_TBezierCurve(pts, alpha);
+        occ::handle<Geom2d_Curve> hCurve(tc);
+        auto ref = new OCCTCurve2D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- Geom2dEval_AHTBezierCurve ---
+
+OCCTCurve2DRef OCCTGeom2dEvalAHTBezierCurveCreate(
+    const double* poles, int32_t count,
+    int32_t algDegree, double alpha, double beta) {
+    if (!poles || count < 1) return nullptr;
+    try {
+        NCollection_Array1<gp_Pnt2d> pts(1, count);
+        for (int i = 0; i < count; i++)
+            pts(i + 1) = gp_Pnt2d(poles[i*2], poles[i*2+1]);
+        auto ac = new Geom2dEval_AHTBezierCurve(pts, algDegree, alpha, beta);
+        occ::handle<Geom2d_Curve> hCurve(ac);
+        auto ref = new OCCTCurve2D();
+        ref->curve = hCurve;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// end of v0.131.0 implementations

@@ -38,6 +38,7 @@
 #include <BRepBuilderAPI_MakeWire.hxx>
 #include <BRepBuilderAPI_MakeShell.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
+#include <TColgp_Array1OfPnt2d.hxx>
 #include <ShapeAnalysis_ShapeTolerance.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <BRepExtrema_DistanceSS.hxx>
@@ -3619,3 +3620,249 @@ int32_t OCCTShapeNbVertices(OCCTShapeRef shape) {
 }
 
 // end of v0.123.0 implementations
+
+// MARK: - v0.126: BRep_Tool completions
+// --- BRep_Tool completions ---
+
+#import <BRep_Tool.hxx>
+#import <Geom2d_Curve.hxx>
+
+OCCTCurve2DRef OCCTBRepToolCurveOnSurface(OCCTShapeRef edge, OCCTShapeRef face,
+                                           double* outFirst, double* outLast) {
+    if (!edge || !face) return nullptr;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        double first, last;
+        auto c2d = BRep_Tool::CurveOnSurface(e, f, first, last);
+        if (c2d.IsNull()) return nullptr;
+        *outFirst = first;
+        *outLast = last;
+        auto* result = new OCCTCurve2D();
+        result->curve = c2d;
+        return result;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTBRepToolHasContinuity(OCCTShapeRef edge, OCCTShapeRef face1, OCCTShapeRef face2) {
+    if (!edge || !face1 || !face2) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f1 = TopoDS::Face(face1->shape);
+        const TopoDS_Face& f2 = TopoDS::Face(face2->shape);
+        return BRep_Tool::HasContinuity(e, f1, f2);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepToolContinuity(OCCTShapeRef edge, OCCTShapeRef face1, OCCTShapeRef face2) {
+    if (!edge || !face1 || !face2) return 0;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f1 = TopoDS::Face(face1->shape);
+        const TopoDS_Face& f2 = TopoDS::Face(face2->shape);
+        return (int32_t)BRep_Tool::Continuity(e, f1, f2);
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepToolHasAnyContinuity(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        return BRep_Tool::HasContinuity(e);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepToolMaxContinuity(OCCTShapeRef edge) {
+    if (!edge) return 0;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        return (int32_t)BRep_Tool::MaxContinuity(e);
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepToolDegenerated(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        return BRep_Tool::Degenerated(e);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolNaturalRestriction(OCCTShapeRef face) {
+    if (!face) return false;
+    try {
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        return BRep_Tool::NaturalRestriction(f);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolRangeOnFace(OCCTShapeRef edge, OCCTShapeRef face,
+                              double* outFirst, double* outLast) {
+    if (!edge || !face) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        double first, last;
+        BRep_Tool::Range(e, f, first, last);
+        *outFirst = first;
+        *outLast = last;
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolParameterOnFace(OCCTShapeRef vertex, OCCTShapeRef edge,
+                                  OCCTShapeRef face, double* outParam) {
+    if (!vertex || !edge || !face) return false;
+    try {
+        const TopoDS_Vertex& v = TopoDS::Vertex(vertex->shape);
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        *outParam = BRep_Tool::Parameter(v, e, f);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolParametersOnFace(OCCTShapeRef vertex, OCCTShapeRef face,
+                                   double* outU, double* outV) {
+    if (!vertex || !face) return false;
+    try {
+        const TopoDS_Vertex& v = TopoDS::Vertex(vertex->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        gp_Pnt2d uv = BRep_Tool::Parameters(v, f);
+        *outU = uv.X();
+        *outV = uv.Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepToolUVPoints(OCCTShapeRef edge, OCCTShapeRef face,
+                           double* firstU, double* firstV,
+                           double* lastU, double* lastV) {
+    if (!edge || !face) return false;
+    try {
+        const TopoDS_Edge& e = TopoDS::Edge(edge->shape);
+        const TopoDS_Face& f = TopoDS::Face(face->shape);
+        gp_Pnt2d pFirst, pLast;
+        BRep_Tool::UVPoints(e, f, pFirst, pLast);
+        *firstU = pFirst.X();
+        *firstV = pFirst.Y();
+        *lastU = pLast.X();
+        *lastV = pLast.Y();
+        return true;
+    } catch (...) { return false; }
+}
+
+double OCCTBRepToolMaxTolerance(OCCTShapeRef shape, int32_t subShapeType) {
+    if (!shape) return 0.0;
+    try {
+        return BRep_Tool::MaxTolerance(shape->shape, (TopAbs_ShapeEnum)subShapeType);
+    } catch (...) { return 0.0; }
+}
+
+// MARK: - v0.127: BRep_Tool completions (continued)
+// --- BRep_Tool completions ---
+
+OCCTCurve2DRef OCCTBRepToolCurveOnPlane(OCCTShapeRef edge, OCCTSurfaceRef surface,
+                                         double* outFirst, double* outLast) {
+    if (!edge || !surface || !outFirst || !outLast) return nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopLoc_Location loc;
+        double first = 0, last = 0;
+        Handle(Geom2d_Curve) pcurve = BRep_Tool::CurveOnPlane(e, surface->surface, loc, first, last);
+        if (pcurve.IsNull()) return nullptr;
+        *outFirst = first;
+        *outLast = last;
+        return new OCCTCurve2D(pcurve);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTBRepToolPolygon3D(OCCTShapeRef edge, double** outPoints) {
+    if (!edge || !outPoints) return 0;
+    *outPoints = nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopLoc_Location loc;
+        Handle(Poly_Polygon3D) poly = BRep_Tool::Polygon3D(e, loc);
+        if (poly.IsNull()) return 0;
+        int nb = poly->NbNodes();
+        if (nb == 0) return 0;
+        double* pts = (double*)malloc(nb * 3 * sizeof(double));
+        if (!pts) return 0;
+        gp_Trsf trsf = loc.IsIdentity() ? gp_Trsf() : loc.Transformation();
+        const NCollection_Array1<gp_Pnt>& nodes = poly->Nodes();
+        for (int i = 1; i <= nb; i++) {
+            gp_Pnt p = nodes.Value(i).Transformed(trsf);
+            pts[(i-1)*3+0] = p.X();
+            pts[(i-1)*3+1] = p.Y();
+            pts[(i-1)*3+2] = p.Z();
+        }
+        *outPoints = pts;
+        return nb;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTBRepToolPolygonOnTriangulation(OCCTShapeRef edge, int32_t** outIndices) {
+    if (!edge || !outIndices) return 0;
+    *outIndices = nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopLoc_Location loc;
+        Handle(Poly_PolygonOnTriangulation) pot;
+        Handle(Poly_Triangulation) tri;
+        BRep_Tool::PolygonOnTriangulation(e, pot, tri, loc);
+        if (pot.IsNull()) return 0;
+        int nb = pot->NbNodes();
+        if (nb == 0) return 0;
+        int32_t* indices = (int32_t*)malloc(nb * sizeof(int32_t));
+        if (!indices) return 0;
+        for (int i = 1; i <= nb; i++) {
+            indices[i-1] = pot->Node(i);
+        }
+        *outIndices = indices;
+        return nb;
+    } catch (...) { return 0; }
+}
+// --- BRep_Tool completions ---
+
+bool OCCTBRepToolIsClosedOnFace(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return false;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        return BRep_Tool::IsClosed(e, f);
+    } catch (...) { return false; }
+}
+
+int32_t OCCTBRepToolPolygonOnSurface(OCCTShapeRef edge, OCCTShapeRef face,
+                                      double** outPoints) {
+    if (!edge || !face || !outPoints) return 0;
+    *outPoints = nullptr;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        Handle(Poly_Polygon2D) poly = BRep_Tool::PolygonOnSurface(e, f);
+        if (poly.IsNull()) return 0;
+        int32_t count = poly->NbNodes();
+        if (count == 0) return 0;
+        *outPoints = (double*)malloc(count * 2 * sizeof(double));
+        const TColgp_Array1OfPnt2d& nodes = poly->Nodes();
+        for (int i = 1; i <= count; i++) {
+            (*outPoints)[(i-1)*2] = nodes.Value(i).X();
+            (*outPoints)[(i-1)*2+1] = nodes.Value(i).Y();
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+bool OCCTBRepToolSetUVPoints(OCCTShapeRef edge, OCCTShapeRef face,
+                              double fU, double fV, double lU, double lV) {
+    if (!edge || !face) return false;
+    try {
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        gp_Pnt2d p1(fU, fV), p2(lU, lV);
+        BRep_Tool::SetUVPoints(e, f, p1, p2);
+        return true;
+    } catch (...) { return false; }
+}

@@ -5666,3 +5666,573 @@ void OCCTSurfaceBezierBounds(OCCTSurfaceRef surface,
 }
 
 // end of v0.125.0 implementations
+
+// MARK: - v0.126/v0.127: BSplineSurface bulk + Surface BSpline+Bezier + Bezier insert/remove + GeomEval Surfaces + GeomFill_Gordon + GeomEval_TBezier/AHTBezierSurface
+// --- BSpline Surface bulk multiplicities and reverse ---
+
+void OCCTSurfaceBSplineGetUMultiplicities(OCCTSurfaceRef surface, int32_t* mults) {
+    if (!surface || !mults) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        int n = bs->NbUKnots();
+        for (int i = 1; i <= n; i++) {
+            mults[i-1] = bs->UMultiplicity(i);
+        }
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineGetVMultiplicities(OCCTSurfaceRef surface, int32_t* mults) {
+    if (!surface || !mults) return;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return;
+    try {
+        int n = bs->NbVKnots();
+        for (int i = 1; i <= n; i++) {
+            mults[i-1] = bs->VMultiplicity(i);
+        }
+    } catch (...) {}
+}
+
+bool OCCTSurfaceBSplineUReverse(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        bs->UReverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineVReverse(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        bs->VReverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplinePeriodicNormalization(OCCTSurfaceRef surface, double* u, double* v) {
+    if (!surface) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        bs->PeriodicNormalization(*u, *v);
+        return true;
+    } catch (...) { return false; }
+}
+// --- Bezier Surface insert/remove poles ---
+
+bool OCCTSurfaceBezierInsertPoleColAfter(OCCTSurfaceRef surface, int32_t colIndex,
+                                          const double* poles, int32_t poleCount) {
+    if (!surface || !poles) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        int nbUPoles = bz->NbUPoles();
+        if (poleCount != nbUPoles) return false;
+        NCollection_Array1<gp_Pnt> col(1, nbUPoles);
+        for (int i = 0; i < nbUPoles; i++) {
+            col.SetValue(i+1, gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]));
+        }
+        bz->InsertPoleColAfter(colIndex, col);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierInsertPoleRowAfter(OCCTSurfaceRef surface, int32_t rowIndex,
+                                          const double* poles, int32_t poleCount) {
+    if (!surface || !poles) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        int nbVPoles = bz->NbVPoles();
+        if (poleCount != nbVPoles) return false;
+        NCollection_Array1<gp_Pnt> row(1, nbVPoles);
+        for (int i = 0; i < nbVPoles; i++) {
+            row.SetValue(i+1, gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]));
+        }
+        bz->InsertPoleRowAfter(rowIndex, row);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierRemovePoleCol(OCCTSurfaceRef surface, int32_t colIndex) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->RemovePoleCol(colIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierRemovePoleRow(OCCTSurfaceRef surface, int32_t rowIndex) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->RemovePoleRow(rowIndex);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierIncreaseDegree(OCCTSurfaceRef surface, int32_t uDeg, int32_t vDeg) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->Increase(uDeg, vDeg);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierUReverse(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->UReverse();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierVReverse(OCCTSurfaceRef surface) {
+    if (!surface) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        bz->VReverse();
+        return true;
+    } catch (...) { return false; }
+}
+// --- Geom_BezierSurface completions ---
+
+bool OCCTSurfaceBezierSetPoleColWeights(OCCTSurfaceRef surface, int32_t vIndex,
+                                         const double* poles, const double* weights,
+                                         int32_t count) {
+    if (!surface || !poles || !weights || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        NCollection_Array1<gp_Pnt> colPoles(1, count);
+        NCollection_Array1<double> colWeights(1, count);
+        for (int i = 0; i < count; i++) {
+            colPoles.SetValue(i+1, gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]));
+            colWeights.SetValue(i+1, weights[i]);
+        }
+        bz->SetPoleCol(vIndex, colPoles, colWeights);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetPoleRowWeights(OCCTSurfaceRef surface, int32_t uIndex,
+                                         const double* poles, const double* weights,
+                                         int32_t count) {
+    if (!surface || !poles || !weights || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        NCollection_Array1<gp_Pnt> rowPoles(1, count);
+        NCollection_Array1<double> rowWeights(1, count);
+        for (int i = 0; i < count; i++) {
+            rowPoles.SetValue(i+1, gp_Pnt(poles[i*3], poles[i*3+1], poles[i*3+2]));
+            rowWeights.SetValue(i+1, weights[i]);
+        }
+        bz->SetPoleRow(uIndex, rowPoles, rowWeights);
+        return true;
+    } catch (...) { return false; }
+}
+static bool buildTrsf3D(gp_Trsf& trsf, int32_t type,
+                          double p1, double p2, double p3,
+                          double p4, double p5, double p6, double p7) {
+    switch (type) {
+        case 0: // translation (dx, dy, dz)
+            trsf.SetTranslation(gp_Vec(p1, p2, p3));
+            return true;
+        case 1: // rotation (ox, oy, oz, dx, dy, dz, angle)
+            trsf.SetRotation(gp_Ax1(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)), p7);
+            return true;
+        case 2: // scale (cx, cy, cz, factor)
+            trsf.SetScale(gp_Pnt(p1, p2, p3), p4);
+            return true;
+        case 3: // mirror point (px, py, pz)
+            trsf.SetMirror(gp_Pnt(p1, p2, p3));
+            return true;
+        case 4: // mirror axis (ox, oy, oz, dx, dy, dz)
+            trsf.SetMirror(gp_Ax1(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)));
+            return true;
+        case 5: // mirror plane (ox, oy, oz, nx, ny, nz)
+            trsf.SetMirror(gp_Ax2(gp_Pnt(p1, p2, p3), gp_Dir(p4, p5, p6)));
+            return true;
+        default:
+            return false;
+    }
+}
+
+bool OCCTSurfaceTransform(OCCTSurfaceRef surface, int32_t transformType,
+                           double p1, double p2, double p3,
+                           double p4, double p5, double p6, double p7) {
+    if (!surface) return false;
+    try {
+        gp_Trsf trsf;
+        if (!buildTrsf3D(trsf, transformType, p1, p2, p3, p4, p5, p6, p7)) return false;
+        surface->surface->Transform(trsf);
+        return true;
+    } catch (...) { return false; }
+}
+bool OCCTSurfaceBSplineSetWeightCol(OCCTSurfaceRef surface, int32_t vIndex,
+                                     const double* weights, int32_t count) {
+    if (!surface || surface->surface.IsNull() || !weights || count <= 0) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal w(1, count);
+        for (int i = 0; i < count; i++) w.SetValue(i + 1, weights[i]);
+        bs->SetWeightCol(vIndex, w);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetWeightRow(OCCTSurfaceRef surface, int32_t uIndex,
+                                     const double* weights, int32_t count) {
+    if (!surface || surface->surface.IsNull() || !weights || count <= 0) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal w(1, count);
+        for (int i = 0; i < count; i++) w.SetValue(i + 1, weights[i]);
+        bs->SetWeightRow(uIndex, w);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncrementUMultiplicity(OCCTSurfaceRef surface,
+                                               int32_t fromIndex, int32_t toIndex, int32_t step) {
+    if (!surface || surface->surface.IsNull()) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncrementUMultiplicity(fromIndex, toIndex, step); return true; } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineIncrementVMultiplicity(OCCTSurfaceRef surface,
+                                               int32_t fromIndex, int32_t toIndex, int32_t step) {
+    if (!surface || surface->surface.IsNull()) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->IncrementVMultiplicity(fromIndex, toIndex, step); return true; } catch (...) { return false; }
+}
+
+int32_t OCCTSurfaceBSplineFirstUKnotIndex(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->FirstUKnotIndex(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineLastUKnotIndex(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->LastUKnotIndex(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineFirstVKnotIndex(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->FirstVKnotIndex(); } catch (...) { return 0; }
+}
+
+int32_t OCCTSurfaceBSplineLastVKnotIndex(OCCTSurfaceRef surface) {
+    if (!surface || surface->surface.IsNull()) return 0;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return 0;
+    try { return (int32_t)bs->LastVKnotIndex(); } catch (...) { return 0; }
+}
+
+bool OCCTSurfaceBSplineCheckAndSegment(OCCTSurfaceRef surface,
+                                        double u1, double u2, double v1, double v2,
+                                        double uTol, double vTol) {
+    if (!surface || surface->surface.IsNull()) return false;
+    auto bs = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+    if (bs.IsNull()) return false;
+    try { bs->CheckAndSegment(u1, u2, v1, v2, uTol, vTol); return true; } catch (...) { return false; }
+}
+
+// BezierSurface completions
+
+bool OCCTSurfaceBezierInsertPoleColBefore(OCCTSurfaceRef surface, int32_t colIndex,
+                                           const double* poles, int32_t poleCount) {
+    if (!surface || !poles) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        int nbUPoles = bz->NbUPoles();
+        if (poleCount != nbUPoles) return false;
+        NCollection_Array1<gp_Pnt> col(1, nbUPoles);
+        for (int i = 0; i < nbUPoles; i++) {
+            col.SetValue(i + 1, gp_Pnt(poles[i * 3], poles[i * 3 + 1], poles[i * 3 + 2]));
+        }
+        bz->InsertPoleColBefore(colIndex, col);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierInsertPoleRowBefore(OCCTSurfaceRef surface, int32_t rowIndex,
+                                           const double* poles, int32_t poleCount) {
+    if (!surface || !poles) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        int nbVPoles = bz->NbVPoles();
+        if (poleCount != nbVPoles) return false;
+        NCollection_Array1<gp_Pnt> row(1, nbVPoles);
+        for (int i = 0; i < nbVPoles; i++) {
+            row.SetValue(i + 1, gp_Pnt(poles[i * 3], poles[i * 3 + 1], poles[i * 3 + 2]));
+        }
+        bz->InsertPoleRowBefore(rowIndex, row);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetPoleCol(OCCTSurfaceRef surface, int32_t vIndex,
+                                  const double* poles, int32_t count) {
+    if (!surface || !poles || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        NCollection_Array1<gp_Pnt> col(1, count);
+        for (int i = 0; i < count; i++) {
+            col.SetValue(i + 1, gp_Pnt(poles[i * 3], poles[i * 3 + 1], poles[i * 3 + 2]));
+        }
+        bz->SetPoleCol(vIndex, col);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetPoleRow(OCCTSurfaceRef surface, int32_t uIndex,
+                                  const double* poles, int32_t count) {
+    if (!surface || !poles || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        NCollection_Array1<gp_Pnt> row(1, count);
+        for (int i = 0; i < count; i++) {
+            row.SetValue(i + 1, gp_Pnt(poles[i * 3], poles[i * 3 + 1], poles[i * 3 + 2]));
+        }
+        bz->SetPoleRow(uIndex, row);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetWeightCol(OCCTSurfaceRef surface, int32_t vIndex,
+                                    const double* weights, int32_t count) {
+    if (!surface || !weights || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal w(1, count);
+        for (int i = 0; i < count; i++) w.SetValue(i + 1, weights[i]);
+        bz->SetWeightCol(vIndex, w);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBezierSetWeightRow(OCCTSurfaceRef surface, int32_t uIndex,
+                                    const double* weights, int32_t count) {
+    if (!surface || !weights || count <= 0) return false;
+    auto bz = Handle(Geom_BezierSurface)::DownCast(surface->surface);
+    if (bz.IsNull()) return false;
+    try {
+        TColStd_Array1OfReal w(1, count);
+        for (int i = 0; i < count; i++) w.SetValue(i + 1, weights[i]);
+        bz->SetWeightRow(uIndex, w);
+        return true;
+    } catch (...) { return false; }
+}
+
+// end of v0.128.0 implementations
+// --- GeomEval Surfaces ---
+
+#include <GeomEval_EllipsoidSurface.hxx>
+#include <GeomEval_HyperboloidSurface.hxx>
+#include <GeomEval_ParaboloidSurface.hxx>
+#include <GeomEval_CircularHelicoidSurface.hxx>
+#include <GeomEval_HypParaboloidSurface.hxx>
+#include <GeomFill_Gordon.hxx>
+#include <GeomEval_TBezierSurface.hxx>
+#include <GeomEval_AHTBezierSurface.hxx>
+
+void OCCTGeomEvalEllipsoidD0(double a, double b, double c, double u, double v,
+                              double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_EllipsoidSurface ell(ax, a, b, c);
+    gp_Pnt p = ell.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalEllipsoidCreate(double a, double b, double c) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto ell = new GeomEval_EllipsoidSurface(ax, a, b, c);
+        occ::handle<Geom_Surface> hSurf(ell);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomEvalHyperboloidD0(double r1, double r2, int32_t mode, double u, double v,
+                                double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    auto sm = mode == 0 ? GeomEval_HyperboloidSurface::SheetMode::OneSheet
+                        : GeomEval_HyperboloidSurface::SheetMode::TwoSheets;
+    GeomEval_HyperboloidSurface hyp(ax, r1, r2, sm);
+    gp_Pnt p = hyp.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalHyperboloidCreate(double r1, double r2, int32_t mode) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto sm = mode == 0 ? GeomEval_HyperboloidSurface::SheetMode::OneSheet
+                            : GeomEval_HyperboloidSurface::SheetMode::TwoSheets;
+        auto hyp = new GeomEval_HyperboloidSurface(ax, r1, r2, sm);
+        occ::handle<Geom_Surface> hSurf(hyp);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomEvalParaboloidD0(double focal, double u, double v,
+                               double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_ParaboloidSurface par(ax, focal);
+    gp_Pnt p = par.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalParaboloidCreate(double focal) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto par = new GeomEval_ParaboloidSurface(ax, focal);
+        occ::handle<Geom_Surface> hSurf(par);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomEvalCircularHelicoidD0(double pitch, double u, double v,
+                                     double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_CircularHelicoidSurface hel(ax, pitch);
+    gp_Pnt p = hel.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalCircularHelicoidCreate(double pitch) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto hel = new GeomEval_CircularHelicoidSurface(ax, pitch);
+        occ::handle<Geom_Surface> hSurf(hel);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTGeomEvalHypParaboloidD0(double a, double b, double u, double v,
+                                  double* px, double* py, double* pz) {
+    gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+    GeomEval_HypParaboloidSurface hp(ax, a, b);
+    gp_Pnt p = hp.EvalD0(u, v);
+    *px = p.X(); *py = p.Y(); *pz = p.Z();
+}
+
+OCCTSurfaceRef OCCTGeomEvalHypParaboloidCreate(double a, double b) {
+    try {
+        gp_Ax3 ax(gp_Pnt(0,0,0), gp_Dir(0,0,1));
+        auto hp = new GeomEval_HypParaboloidSurface(ax, a, b);
+        occ::handle<Geom_Surface> hSurf(hp);
+        auto ref = new OCCTSurface();
+        ref->surface = hSurf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+// --- GeomFill_Gordon ---
+
+OCCTSurfaceRef OCCTGeomFillGordon(const OCCTCurve3DRef* profiles, int32_t profileCount,
+                                   const OCCTCurve3DRef* guides, int32_t guideCount,
+                                   double tolerance) {
+    if (!profiles || !guides || profileCount < 2 || guideCount < 2) return nullptr;
+    try {
+        NCollection_Array1<occ::handle<Geom_Curve>> profs(0, profileCount - 1);
+        for (int i = 0; i < profileCount; i++) {
+            if (!profiles[i]) return nullptr;
+            profs.SetValue(i, profiles[i]->curve);
+        }
+        NCollection_Array1<occ::handle<Geom_Curve>> gds(0, guideCount - 1);
+        for (int i = 0; i < guideCount; i++) {
+            if (!guides[i]) return nullptr;
+            gds.SetValue(i, guides[i]->curve);
+        }
+
+        GeomFill_Gordon gordon;
+        gordon.Init(profs, gds, tolerance);
+        gordon.Perform();
+        if (!gordon.IsDone()) return nullptr;
+
+        auto surf = gordon.Surface();
+        if (surf.IsNull()) return nullptr;
+
+        auto ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+// --- GeomEval_TBezierSurface ---
+
+OCCTSurfaceRef OCCTGeomEvalTBezierSurfaceCreate(
+    const double* poles, int32_t uCount, int32_t vCount,
+    double alphaU, double alphaV) {
+    if (!poles || uCount < 3 || vCount < 3 || uCount % 2 == 0 || vCount % 2 == 0) return nullptr;
+    try {
+        NCollection_Array2<gp_Pnt> pts(1, uCount, 1, vCount);
+        for (int i = 0; i < uCount; i++)
+            for (int j = 0; j < vCount; j++) {
+                int idx = (i * vCount + j) * 3;
+                pts(i + 1, j + 1) = gp_Pnt(poles[idx], poles[idx+1], poles[idx+2]);
+            }
+        auto ts = new GeomEval_TBezierSurface(pts, alphaU, alphaV);
+        occ::handle<Geom_Surface> hSurf(ts);
+        auto ref = new OCCTSurface(hSurf);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- GeomEval_AHTBezierSurface ---
+
+OCCTSurfaceRef OCCTGeomEvalAHTBezierSurfaceCreate(
+    const double* poles, int32_t uCount, int32_t vCount,
+    int32_t algDegreeU, int32_t algDegreeV,
+    double alphaU, double alphaV, double betaU, double betaV) {
+    if (!poles || uCount < 1 || vCount < 1) return nullptr;
+    try {
+        NCollection_Array2<gp_Pnt> pts(1, uCount, 1, vCount);
+        for (int i = 0; i < uCount; i++)
+            for (int j = 0; j < vCount; j++) {
+                int idx = (i * vCount + j) * 3;
+                pts(i + 1, j + 1) = gp_Pnt(poles[idx], poles[idx+1], poles[idx+2]);
+            }
+        auto as = new GeomEval_AHTBezierSurface(pts, algDegreeU, algDegreeV,
+                                                  alphaU, alphaV, betaU, betaV);
+        occ::handle<Geom_Surface> hSurf(as);
+        auto ref = new OCCTSurface(hSurf);
+        return ref;
+    } catch (...) { return nullptr; }
+}
