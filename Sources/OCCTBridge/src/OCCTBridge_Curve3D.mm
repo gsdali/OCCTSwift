@@ -32,6 +32,14 @@
 #include <Approx_CurvilinearParameter.hxx>
 #include <CPnts_UniformDeflection.hxx>
 #include <LocalAnalysis_CurveContinuity.hxx>
+#include <Geom_Axis1Placement.hxx>
+#include <Geom_Axis2Placement.hxx>
+#include <Geom_CartesianPoint.hxx>
+#include <Geom_Direction.hxx>
+#include <Geom_Point.hxx>
+#include <Geom_Vector.hxx>
+#include <Geom_VectorWithMagnitude.hxx>
+#include <ShapeConstruct_Curve.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -1704,5 +1712,268 @@ int32_t OCCTGCPntsTangentialDeflectionCurve(OCCTCurve3DRef _Nonnull curve,
         return count;
     } catch (...) {
         return 0;
+    }
+}
+
+// MARK: - Geom 3D Entities (CartesianPoint / Direction / Vector / Axis1+2 Placement) (v0.76)
+// --- Geom_CartesianPoint ---
+
+struct OCCTGeomPoint3D {
+    Handle(Geom_CartesianPoint) point;
+};
+
+OCCTGeomPoint3DRef _Nonnull OCCTGeomPoint3DCreate(double x, double y, double z) {
+    auto* ref = new OCCTGeomPoint3D();
+    ref->point = new Geom_CartesianPoint(x, y, z);
+    return ref;
+}
+
+void OCCTGeomPoint3DRelease(OCCTGeomPoint3DRef _Nonnull ref) {
+    delete ref;
+}
+
+double OCCTGeomPoint3DX(OCCTGeomPoint3DRef _Nonnull ref) { return ref->point->X(); }
+double OCCTGeomPoint3DY(OCCTGeomPoint3DRef _Nonnull ref) { return ref->point->Y(); }
+double OCCTGeomPoint3DZ(OCCTGeomPoint3DRef _Nonnull ref) { return ref->point->Z(); }
+
+void OCCTGeomPoint3DSetCoord(OCCTGeomPoint3DRef _Nonnull ref, double x, double y, double z) {
+    ref->point->SetCoord(x, y, z);
+}
+
+double OCCTGeomPoint3DDistance(OCCTGeomPoint3DRef _Nonnull ref, OCCTGeomPoint3DRef _Nonnull other) {
+    return ref->point->Distance(other->point);
+}
+
+double OCCTGeomPoint3DSquareDistance(OCCTGeomPoint3DRef _Nonnull ref, OCCTGeomPoint3DRef _Nonnull other) {
+    return ref->point->SquareDistance(other->point);
+}
+
+void OCCTGeomPoint3DTranslate(OCCTGeomPoint3DRef _Nonnull ref, double dx, double dy, double dz) {
+    gp_Trsf t;
+    t.SetTranslation(gp_Vec(dx, dy, dz));
+    ref->point->Transform(t);
+}
+
+// --- Geom_Direction ---
+
+struct OCCTGeomDirection {
+    Handle(Geom_Direction) direction;
+};
+
+OCCTGeomDirectionRef _Nonnull OCCTGeomDirectionCreate(double x, double y, double z) {
+    auto* ref = new OCCTGeomDirection();
+    ref->direction = new Geom_Direction(x, y, z);
+    return ref;
+}
+
+void OCCTGeomDirectionRelease(OCCTGeomDirectionRef _Nonnull ref) {
+    delete ref;
+}
+
+void OCCTGeomDirectionCoords(OCCTGeomDirectionRef _Nonnull ref, double* x, double* y, double* z) {
+    gp_Dir d = ref->direction->Dir();
+    *x = d.X(); *y = d.Y(); *z = d.Z();
+}
+
+void OCCTGeomDirectionSetCoord(OCCTGeomDirectionRef _Nonnull ref, double x, double y, double z) {
+    ref->direction->SetCoord(x, y, z);
+}
+
+OCCTGeomDirectionRef _Nullable OCCTGeomDirectionCrossed(OCCTGeomDirectionRef _Nonnull ref, OCCTGeomDirectionRef _Nonnull other) {
+    try {
+        Handle(Geom_Vector) cross = ref->direction->Crossed(other->direction);
+        if (cross.IsNull()) return nullptr;
+        gp_Vec v = cross->Vec();
+        auto* result = new OCCTGeomDirection();
+        result->direction = new Geom_Direction(v.X(), v.Y(), v.Z());
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// --- Geom_VectorWithMagnitude ---
+
+struct OCCTGeomVector3D {
+    Handle(Geom_VectorWithMagnitude) vector;
+};
+
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DCreate(double x, double y, double z) {
+    auto* ref = new OCCTGeomVector3D();
+    ref->vector = new Geom_VectorWithMagnitude(x, y, z);
+    return ref;
+}
+
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DFromPoints(double x1, double y1, double z1,
+                                                         double x2, double y2, double z2) {
+    auto* ref = new OCCTGeomVector3D();
+    ref->vector = new Geom_VectorWithMagnitude(gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2));
+    return ref;
+}
+
+void OCCTGeomVector3DRelease(OCCTGeomVector3DRef _Nonnull ref) {
+    delete ref;
+}
+
+void OCCTGeomVector3DCoords(OCCTGeomVector3DRef _Nonnull ref, double* x, double* y, double* z) {
+    gp_Vec v = ref->vector->Vec();
+    *x = v.X(); *y = v.Y(); *z = v.Z();
+}
+
+double OCCTGeomVector3DMagnitude(OCCTGeomVector3DRef _Nonnull ref) {
+    return ref->vector->Magnitude();
+}
+
+double OCCTGeomVector3DDot(OCCTGeomVector3DRef _Nonnull ref, OCCTGeomVector3DRef _Nonnull other) {
+    return ref->vector->Dot(other->vector);
+}
+
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DAdded(OCCTGeomVector3DRef _Nonnull ref, OCCTGeomVector3DRef _Nonnull other) {
+    auto* result = new OCCTGeomVector3D();
+    result->vector = ref->vector->Added(other->vector);
+    return result;
+}
+
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DMultiplied(OCCTGeomVector3DRef _Nonnull ref, double scalar) {
+    auto* result = new OCCTGeomVector3D();
+    result->vector = ref->vector->Multiplied(scalar);
+    return result;
+}
+
+OCCTGeomVector3DRef _Nullable OCCTGeomVector3DNormalized(OCCTGeomVector3DRef _Nonnull ref) {
+    try {
+        auto* result = new OCCTGeomVector3D();
+        result->vector = ref->vector->Normalized();
+        return result;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTGeomVector3DRef _Nonnull OCCTGeomVector3DCrossed(OCCTGeomVector3DRef _Nonnull ref, OCCTGeomVector3DRef _Nonnull other) {
+    Handle(Geom_Vector) cross = ref->vector->Crossed(other->vector);
+    gp_Vec v = cross->Vec();
+    auto* result = new OCCTGeomVector3D();
+    result->vector = new Geom_VectorWithMagnitude(v);
+    return result;
+}
+
+// --- Geom_Axis1Placement ---
+
+struct OCCTAxis1Placement {
+    Handle(Geom_Axis1Placement) axis;
+};
+
+OCCTAxis1PlacementRef _Nonnull OCCTAxis1PlacementCreate(double px, double py, double pz,
+                                                         double dx, double dy, double dz) {
+    auto* ref = new OCCTAxis1Placement();
+    ref->axis = new Geom_Axis1Placement(gp_Pnt(px, py, pz), gp_Dir(dx, dy, dz));
+    return ref;
+}
+
+void OCCTAxis1PlacementRelease(OCCTAxis1PlacementRef _Nonnull ref) {
+    delete ref;
+}
+
+void OCCTAxis1PlacementLocation(OCCTAxis1PlacementRef _Nonnull ref, double* x, double* y, double* z) {
+    gp_Pnt p = ref->axis->Location();
+    *x = p.X(); *y = p.Y(); *z = p.Z();
+}
+
+void OCCTAxis1PlacementDirection(OCCTAxis1PlacementRef _Nonnull ref, double* x, double* y, double* z) {
+    gp_Dir d = ref->axis->Direction();
+    *x = d.X(); *y = d.Y(); *z = d.Z();
+}
+
+void OCCTAxis1PlacementReverse(OCCTAxis1PlacementRef _Nonnull ref) {
+    ref->axis->Reverse();
+}
+
+OCCTAxis1PlacementRef _Nonnull OCCTAxis1PlacementReversed(OCCTAxis1PlacementRef _Nonnull ref) {
+    auto* result = new OCCTAxis1Placement();
+    result->axis = ref->axis->Reversed();
+    return result;
+}
+
+void OCCTAxis1PlacementSetDirection(OCCTAxis1PlacementRef _Nonnull ref, double dx, double dy, double dz) {
+    ref->axis->SetDirection(gp_Dir(dx, dy, dz));
+}
+
+void OCCTAxis1PlacementSetLocation(OCCTAxis1PlacementRef _Nonnull ref, double px, double py, double pz) {
+    ref->axis->SetLocation(gp_Pnt(px, py, pz));
+}
+
+// --- Geom_Axis2Placement ---
+
+struct OCCTAxis2Placement {
+    Handle(Geom_Axis2Placement) axis;
+};
+
+OCCTAxis2PlacementRef _Nonnull OCCTAxis2PlacementCreate(double px, double py, double pz,
+                                                         double nx, double ny, double nz,
+                                                         double vx, double vy, double vz) {
+    auto* ref = new OCCTAxis2Placement();
+    ref->axis = new Geom_Axis2Placement(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz), gp_Dir(vx, vy, vz));
+    return ref;
+}
+
+void OCCTAxis2PlacementRelease(OCCTAxis2PlacementRef _Nonnull ref) {
+    delete ref;
+}
+
+void OCCTAxis2PlacementLocation(OCCTAxis2PlacementRef _Nonnull ref, double* x, double* y, double* z) {
+    gp_Pnt p = ref->axis->Location();
+    *x = p.X(); *y = p.Y(); *z = p.Z();
+}
+
+void OCCTAxis2PlacementDirection(OCCTAxis2PlacementRef _Nonnull ref, double* x, double* y, double* z) {
+    gp_Dir d = ref->axis->Direction();
+    *x = d.X(); *y = d.Y(); *z = d.Z();
+}
+
+void OCCTAxis2PlacementXDirection(OCCTAxis2PlacementRef _Nonnull ref, double* x, double* y, double* z) {
+    gp_Dir d = ref->axis->XDirection();
+    *x = d.X(); *y = d.Y(); *z = d.Z();
+}
+
+void OCCTAxis2PlacementYDirection(OCCTAxis2PlacementRef _Nonnull ref, double* x, double* y, double* z) {
+    gp_Dir d = ref->axis->YDirection();
+    *x = d.X(); *y = d.Y(); *z = d.Z();
+}
+
+void OCCTAxis2PlacementSetDirection(OCCTAxis2PlacementRef _Nonnull ref, double nx, double ny, double nz) {
+    ref->axis->SetDirection(gp_Dir(nx, ny, nz));
+}
+
+void OCCTAxis2PlacementSetXDirection(OCCTAxis2PlacementRef _Nonnull ref, double vx, double vy, double vz) {
+    ref->axis->SetXDirection(gp_Dir(vx, vy, vz));
+}
+
+// MARK: - ShapeConstruct Curve3D Convert + Adjust (v0.76)
+// --- ShapeConstruct_Curve ---
+
+OCCTCurve3DRef _Nullable OCCTShapeConstructConvertToBSpline3D(OCCTCurve3DRef _Nonnull curve,
+                                                                double first, double last, double precision) {
+    if (!curve) return nullptr;
+    try {
+        ShapeConstruct_Curve scc;
+        Handle(Geom_BSplineCurve) bsp = scc.ConvertToBSpline(curve->curve, first, last, precision);
+        if (bsp.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve3D();
+        ref->curve = bsp;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+bool OCCTShapeConstructAdjustCurve3D(OCCTCurve3DRef _Nonnull curve,
+                                      double p1x, double p1y, double p1z,
+                                      double p2x, double p2y, double p2z) {
+    if (!curve) return false;
+    try {
+        ShapeConstruct_Curve scc;
+        return scc.AdjustCurve(curve->curve, gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z));
+    } catch (...) {
+        return false;
     }
 }
