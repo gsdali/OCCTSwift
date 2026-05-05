@@ -4323,3 +4323,46 @@ bool OCCTWireAnalyzerIsReady(OCCTWireAnalyzerRef analyzer) {
     if (!analyzer || analyzer->analyzer.IsNull()) return false;
     try { return analyzer->analyzer->IsReady(); } catch (...) { return false; }
 }
+
+// MARK: - v0.122: ShapeFix_Edge extended
+// --- ShapeFix_Edge extended ---
+
+bool OCCTShapeFixEdgeAddCurve3d(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try {
+        ShapeFix_Edge fixer;
+        return fixer.FixAddCurve3d(TopoDS::Edge(edge->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeFixEdgeAddPCurve(OCCTShapeRef edge, OCCTShapeRef face, bool isSeam) {
+    if (!edge || !face) return false;
+    try {
+        ShapeFix_Edge fixer;
+        return fixer.FixAddPCurve(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape), isSeam);
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeFixEdgeRemoveCurve3d(OCCTShapeRef edge) {
+    if (!edge) return false;
+    try {
+        ShapeFix_Edge fixer;
+        return fixer.FixRemoveCurve3d(TopoDS::Edge(edge->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeFixEdgeRemovePCurve(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return false;
+    try {
+        ShapeFix_Edge fixer;
+        return fixer.FixRemovePCurve(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape));
+    } catch (...) { return false; }
+}
+
+bool OCCTShapeFixEdgeFixReversed2d(OCCTShapeRef edge, OCCTShapeRef face) {
+    if (!edge || !face) return false;
+    try {
+        ShapeFix_Edge fixer;
+        return fixer.FixReversed2d(TopoDS::Edge(edge->shape), TopoDS::Face(face->shape));
+    } catch (...) { return false; }
+}

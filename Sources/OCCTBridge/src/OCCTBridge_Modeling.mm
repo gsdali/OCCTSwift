@@ -8360,3 +8360,213 @@ int32_t OCCTChamferBuilderNbSurf(OCCTChamferBuilderRef builder, int32_t contourI
 
 // --- SectionBuilder (BRepAlgoAPI_Section) ---
 
+
+// MARK: - v0.122: History extended + Sewing extended + BRepAlgoAPI_Section extended
+// --- History extended ---
+
+void OCCTHistoryMerge(OCCTHistoryRef history, OCCTHistoryRef other) {
+    if (!history || !other) return;
+    try {
+        auto h1 = static_cast<Handle(BRepTools_History)*>(history);
+        auto h2 = static_cast<Handle(BRepTools_History)*>(other);
+        if (!h1->IsNull() && !h2->IsNull()) {
+            (*h1)->Merge(*h2);
+        }
+    } catch (...) {}
+}
+
+void OCCTHistoryReplaceGenerated(OCCTHistoryRef history, OCCTShapeRef initial, OCCTShapeRef generated) {
+    if (!history || !initial || !generated) return;
+    try {
+        auto h = static_cast<Handle(BRepTools_History)*>(history);
+        if (!h->IsNull()) {
+            (*h)->ReplaceGenerated(initial->shape, generated->shape);
+        }
+    } catch (...) {}
+}
+
+void OCCTHistoryReplaceModified(OCCTHistoryRef history, OCCTShapeRef initial, OCCTShapeRef modified) {
+    if (!history || !initial || !modified) return;
+    try {
+        auto h = static_cast<Handle(BRepTools_History)*>(history);
+        if (!h->IsNull()) {
+            (*h)->ReplaceModified(initial->shape, modified->shape);
+        }
+    } catch (...) {}
+}
+
+int32_t OCCTHistoryGetModifiedShapes(OCCTHistoryRef history, OCCTShapeRef initial,
+                                      OCCTShapeRef* outShapes, int32_t maxCount) {
+    if (!history || !initial || !outShapes || maxCount <= 0) return 0;
+    try {
+        auto h = static_cast<Handle(BRepTools_History)*>(history);
+        if (h->IsNull()) return 0;
+        const auto& modified = (*h)->Modified(initial->shape);
+        int32_t count = 0;
+        for (auto it = modified.cbegin(); it != modified.cend() && count < maxCount; ++it, ++count) {
+            auto* ref = new OCCTShape;
+            ref->shape = *it;
+            outShapes[count] = ref;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+
+int32_t OCCTHistoryGetGeneratedShapes(OCCTHistoryRef history, OCCTShapeRef initial,
+                                       OCCTShapeRef* outShapes, int32_t maxCount) {
+    if (!history || !initial || !outShapes || maxCount <= 0) return 0;
+    try {
+        auto h = static_cast<Handle(BRepTools_History)*>(history);
+        if (h->IsNull()) return 0;
+        const auto& generated = (*h)->Generated(initial->shape);
+        int32_t count = 0;
+        for (auto it = generated.cbegin(); it != generated.cend() && count < maxCount; ++it, ++count) {
+            auto* ref = new OCCTShape;
+            ref->shape = *it;
+            outShapes[count] = ref;
+        }
+        return count;
+    } catch (...) { return 0; }
+}
+// --- Sewing extended ---
+
+int32_t OCCTSewingNbDeletedFaces(OCCTSewingRef sewing) {
+    if (!sewing) return 0;
+    try { return (int32_t)sewing->sewing.NbDeletedFaces(); } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTSewingDeletedFace(OCCTSewingRef sewing, int32_t index) {
+    if (!sewing) return nullptr;
+    try {
+        const TopoDS_Face& f = sewing->sewing.DeletedFace(index);
+        if (f.IsNull()) return nullptr;
+        auto* ref = new OCCTShape;
+        ref->shape = f;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTSewingIsModified(OCCTSewingRef sewing, OCCTShapeRef shape) {
+    if (!sewing || !shape) return false;
+    try { return sewing->sewing.IsModified(shape->shape); } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTSewingModified(OCCTSewingRef sewing, OCCTShapeRef shape) {
+    if (!sewing || !shape) return nullptr;
+    try {
+        const TopoDS_Shape& mod = sewing->sewing.Modified(shape->shape);
+        if (mod.IsNull()) return nullptr;
+        auto* ref = new OCCTShape;
+        ref->shape = mod;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTSewingIsDegenerated(OCCTSewingRef sewing, OCCTShapeRef shape) {
+    if (!sewing || !shape) return false;
+    try { return sewing->sewing.IsDegenerated(shape->shape); } catch (...) { return false; }
+}
+
+bool OCCTSewingIsSectionBound(OCCTSewingRef sewing, OCCTShapeRef edge) {
+    if (!sewing || !edge) return false;
+    try {
+        return sewing->sewing.IsSectionBound(TopoDS::Edge(edge->shape));
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTSewingWhichFace(OCCTSewingRef sewing, OCCTShapeRef edge) {
+    if (!sewing || !edge) return nullptr;
+    try {
+        TopoDS_Face f = sewing->sewing.WhichFace(TopoDS::Edge(edge->shape));
+        if (f.IsNull()) return nullptr;
+        auto* ref = new OCCTShape;
+        ref->shape = f;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTSewingLoad(OCCTSewingRef sewing, OCCTShapeRef shape) {
+    if (!sewing || !shape) return;
+    try { sewing->sewing.Load(shape->shape); } catch (...) {}
+}
+
+void OCCTSewingSetNonManifoldMode(OCCTSewingRef sewing, bool nonManifold) {
+    if (!sewing) return;
+    try { sewing->sewing.SetNonManifoldMode(nonManifold); } catch (...) {}
+}
+
+void OCCTSewingSetFaceMode(OCCTSewingRef sewing, bool faceMode) {
+    if (!sewing) return;
+    try { sewing->sewing.SetFaceMode(faceMode); } catch (...) {}
+}
+
+void OCCTSewingSetFloatingEdgesMode(OCCTSewingRef sewing, bool floatingEdges) {
+    if (!sewing) return;
+    try { sewing->sewing.SetFloatingEdgesMode(floatingEdges); } catch (...) {}
+}
+
+void OCCTSewingSetMinTolerance(OCCTSewingRef sewing, double minTol) {
+    if (!sewing) return;
+    try { sewing->sewing.SetMinTolerance(minTol); } catch (...) {}
+}
+
+void OCCTSewingSetMaxTolerance(OCCTSewingRef sewing, double maxTol) {
+    if (!sewing) return;
+    try { sewing->sewing.SetMaxTolerance(maxTol); } catch (...) {}
+}
+
+// --- BRepAlgoAPI_Section extended ---
+
+OCCTShapeRef OCCTShapeSectionWithOptions(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                          bool approximation, bool computePCurve1, bool computePCurve2) {
+    if (!shape1 || !shape2) return nullptr;
+    try {
+        BRepAlgoAPI_Section section(shape1->shape, shape2->shape, false);
+        section.Approximation(approximation);
+        section.ComputePCurveOn1(computePCurve1);
+        section.ComputePCurveOn2(computePCurve2);
+        section.Build();
+        if (!section.IsDone()) return nullptr;
+        TopoDS_Shape result = section.Shape();
+        if (result.IsNull()) return nullptr;
+        return new OCCTShape{result};
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTSectionAncestorFaceOn1(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                          OCCTShapeRef edge,
+                                          bool approximation, bool computePCurve1, bool computePCurve2) {
+    if (!shape1 || !shape2 || !edge) return nullptr;
+    try {
+        BRepAlgoAPI_Section section(shape1->shape, shape2->shape, false);
+        section.Approximation(approximation);
+        section.ComputePCurveOn1(computePCurve1);
+        section.ComputePCurveOn2(computePCurve2);
+        section.Build();
+        if (!section.IsDone()) return nullptr;
+        TopoDS_Shape face;
+        if (section.HasAncestorFaceOn1(edge->shape, face)) {
+            return new OCCTShape{face};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTSectionAncestorFaceOn2(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                          OCCTShapeRef edge,
+                                          bool approximation, bool computePCurve1, bool computePCurve2) {
+    if (!shape1 || !shape2 || !edge) return nullptr;
+    try {
+        BRepAlgoAPI_Section section(shape1->shape, shape2->shape, false);
+        section.Approximation(approximation);
+        section.ComputePCurveOn1(computePCurve1);
+        section.ComputePCurveOn2(computePCurve2);
+        section.Build();
+        if (!section.IsDone()) return nullptr;
+        TopoDS_Shape face;
+        if (section.HasAncestorFaceOn2(edge->shape, face)) {
+            return new OCCTShape{face};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
