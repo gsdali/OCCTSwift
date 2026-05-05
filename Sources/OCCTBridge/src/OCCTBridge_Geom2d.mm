@@ -26,7 +26,13 @@
 #include <FairCurve_Batten.hxx>
 #include <FairCurve_MinimalVariation.hxx>
 #include <GccAna_Circ2d3Tan.hxx>
+#include <Bisector_Inter.hxx>
+#include <Bisector_PointOnBis.hxx>
+#include <Bisector_PolyBis.hxx>
+#include <IntRes2d_Domain.hxx>
+#include <IntRes2d_IntersectionPoint.hxx>
 #include <Intf_InterferencePolygon2d.hxx>
+#include <ShapeConstruct_Curve.hxx>
 #include <Intf_Polygon2d.hxx>
 #include <BRepBuilderAPI_MakeEdge2d.hxx>
 #include <GC_MakeLine2d.hxx>
@@ -2407,6 +2413,108 @@ int32_t OCCTIntfSelfInterferencePolygon2d(
             outPoints[i].y = pt.Y();
         }
         return (int32_t)nb;
+    } catch (...) {
+        return 0;
+    }
+}
+
+// MARK: - ShapeConstruct Curve2D Convert + Adjust (v0.76)
+OCCTCurve2DRef _Nullable OCCTShapeConstructConvertToBSpline2D(OCCTCurve2DRef _Nonnull curve,
+                                                                double first, double last, double precision) {
+    if (!curve) return nullptr;
+    try {
+        ShapeConstruct_Curve scc;
+        Handle(Geom2d_BSplineCurve) bsp = scc.ConvertToBSpline(curve->curve, first, last, precision);
+        if (bsp.IsNull()) return nullptr;
+        auto* ref = new OCCTCurve2D();
+        ref->curve = bsp;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+bool OCCTShapeConstructAdjustCurve2D(OCCTCurve2DRef _Nonnull curve,
+                                      double p1x, double p1y,
+                                      double p2x, double p2y) {
+    if (!curve) return false;
+    try {
+        ShapeConstruct_Curve scc;
+        return scc.AdjustCurve2d(curve->curve, gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y));
+    } catch (...) {
+        return false;
+    }
+}
+
+// MARK: - Bisector_PointOnBis + Bisector_Inter (v0.76)
+// --- Bisector_PointOnBis ---
+
+OCCTBisectorPointOnBis OCCTBisectorPointOnBisCreate(double param1, double param2,
+                                                      double paramBis, double distance,
+                                                      double px, double py) {
+    OCCTBisectorPointOnBis result = {};
+    result.paramOnC1 = param1;
+    result.paramOnC2 = param2;
+    result.paramOnBis = paramBis;
+    result.distance = distance;
+    result.pointX = px;
+    result.pointY = py;
+    result.isInfinite = false;
+    return result;
+}
+// --- Bisector_Inter ---
+
+int OCCTBisectorInterPointPoint(double ax, double ay, double bx, double by,
+                                 double cx, double cy, double dx, double dy,
+                                 OCCTBisectorIntersectionPoint* outPoints,
+                                 int maxPoints) {
+    try {
+        // Build bisector 1: between points A and B
+        Bisector_Bisec b1;
+        Handle(Geom2d_CartesianPoint) pA = new Geom2d_CartesianPoint(gp_Pnt2d(ax, ay));
+        Handle(Geom2d_CartesianPoint) pB = new Geom2d_CartesianPoint(gp_Pnt2d(bx, by));
+        gp_Pnt2d midAB((ax+bx)/2, (ay+by)/2);
+        gp_Vec2d vAB(bx-ax, by-ay);
+        gp_Vec2d perpAB(-vAB.Y(), vAB.X());
+        gp_Vec2d v1 = perpAB; v1.Normalize();
+        gp_Vec2d v2 = perpAB.Reversed(); v2.Normalize();
+        b1.Perform(pA, pB, midAB, v1, v2, 1.0, 1e-6);
+        if (b1.Value().IsNull()) return 0;
+
+        // Build bisector 2: between points C and D
+        Bisector_Bisec b2;
+        Handle(Geom2d_CartesianPoint) pC = new Geom2d_CartesianPoint(gp_Pnt2d(cx, cy));
+        Handle(Geom2d_CartesianPoint) pD = new Geom2d_CartesianPoint(gp_Pnt2d(dx, dy));
+        gp_Pnt2d midCD((cx+dx)/2, (cy+dy)/2);
+        gp_Vec2d vCD(dx-cx, dy-cy);
+        gp_Vec2d perpCD(-vCD.Y(), vCD.X());
+        gp_Vec2d v3 = perpCD; v3.Normalize();
+        gp_Vec2d v4 = perpCD.Reversed(); v4.Normalize();
+        b2.Perform(pC, pD, midCD, v3, v4, 1.0, 1e-6);
+        if (b2.Value().IsNull()) return 0;
+
+        // Set up domains — use large parameter range
+        IntRes2d_Domain d1(gp_Pnt2d(b1.Value()->Value(-100)), -100.0, 1e-6,
+                          gp_Pnt2d(b1.Value()->Value(100)), 100.0, 1e-6);
+        IntRes2d_Domain d2(gp_Pnt2d(b2.Value()->Value(-100)), -100.0, 1e-6,
+                          gp_Pnt2d(b2.Value()->Value(100)), 100.0, 1e-6);
+
+        Bisector_Inter inter;
+        inter.Perform(b1, d1, b2, d2, 1e-6, 1e-6, false);
+
+        if (!inter.IsDone()) return 0;
+        int count = inter.NbPoints();
+        int written = 0;
+        for (int i = 1; i <= count && written < maxPoints; ++i) {
+            const IntRes2d_IntersectionPoint& ip = inter.Point(i);
+            if (outPoints) {
+                outPoints[written].x = ip.Value().X();
+                outPoints[written].y = ip.Value().Y();
+                outPoints[written].paramOnFirst = ip.ParamOnFirst();
+                outPoints[written].paramOnSecond = ip.ParamOnSecond();
+            }
+            written++;
+        }
+        return written;
     } catch (...) {
         return 0;
     }
