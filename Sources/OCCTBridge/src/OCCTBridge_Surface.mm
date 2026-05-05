@@ -92,6 +92,7 @@
 #include <Convert_TorusToBSplineSurface.hxx>
 #include <Convert_SphereToBSplineSurface.hxx>
 #include <BiTgte_CurveOnEdge.hxx>
+#include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <TColgp_Array2OfPnt.hxx>
 #include <TColStd_Array2OfReal.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
@@ -4591,3 +4592,174 @@ int32_t OCCTSurfaceGetType(OCCTSurfaceRef surface) {
         return (int32_t)as.GetType();
     } catch (...) { return 10; }
 }
+
+// MARK: - v0.113: GeomAPI_ProjectPointOnSurf (multi-result) + GeomAPI_IntCS + BSplineSurface mutations
+// --- GeomAPI_ProjectPointOnSurf (multi-result) ---
+
+struct OCCTProjOnSurf {
+    GeomAPI_ProjectPointOnSurf proj;
+};
+
+OCCTProjOnSurfRef OCCTProjOnSurfCreate(OCCTSurfaceRef surface, double px, double py, double pz) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    try {
+        auto ref = new OCCTProjOnSurf();
+        ref->proj.Init(gp_Pnt(px, py, pz), surface->surface);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTProjOnSurfRelease(OCCTProjOnSurfRef proj) {
+    delete proj;
+}
+
+int32_t OCCTProjOnSurfNbPoints(OCCTProjOnSurfRef proj) {
+    if (!proj) return 0;
+    try { return (int32_t)proj->proj.NbPoints(); }
+    catch (...) { return 0; }
+}
+
+void OCCTProjOnSurfPoint(OCCTProjOnSurfRef proj, int32_t index,
+                          double* x, double* y, double* z) {
+    if (!proj) { *x = *y = *z = 0; return; }
+    try {
+        gp_Pnt p = proj->proj.Point(index);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+void OCCTProjOnSurfParameters(OCCTProjOnSurfRef proj, int32_t index,
+                               double* u, double* v) {
+    if (!proj) { *u = *v = 0; return; }
+    try { proj->proj.Parameters(index, *u, *v); }
+    catch (...) { *u = *v = 0; }
+}
+
+double OCCTProjOnSurfDistance(OCCTProjOnSurfRef proj, int32_t index) {
+    if (!proj) return -1;
+    try { return proj->proj.Distance(index); }
+    catch (...) { return -1; }
+}
+
+double OCCTProjOnSurfLowerDistance(OCCTProjOnSurfRef proj) {
+    if (!proj) return -1;
+    try { return proj->proj.LowerDistance(); }
+    catch (...) { return -1; }
+}
+
+void OCCTProjOnSurfLowerParams(OCCTProjOnSurfRef proj, double* u, double* v) {
+    if (!proj) { *u = *v = 0; return; }
+    try { proj->proj.LowerDistanceParameters(*u, *v); }
+    catch (...) { *u = *v = 0; }
+}
+// --- GeomAPI_IntCS full results ---
+
+struct OCCTIntCS {
+    GeomAPI_IntCS intcs;
+};
+
+OCCTIntCSRef OCCTIntCSCreate(OCCTCurve3DRef curve, OCCTSurfaceRef surface) {
+    if (!curve || curve->curve.IsNull() || !surface || surface->surface.IsNull()) return nullptr;
+    try {
+        auto ref = new OCCTIntCS();
+        ref->intcs.Perform(curve->curve, surface->surface);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTIntCSRelease(OCCTIntCSRef intcs) {
+    delete intcs;
+}
+
+int32_t OCCTIntCSNbPoints(OCCTIntCSRef intcs) {
+    if (!intcs) return 0;
+    try { return (int32_t)intcs->intcs.NbPoints(); }
+    catch (...) { return 0; }
+}
+
+void OCCTIntCSPoint(OCCTIntCSRef intcs, int32_t index,
+                     double* x, double* y, double* z,
+                     double* w, double* u, double* v) {
+    if (!intcs) { *x = *y = *z = *w = *u = *v = 0; return; }
+    try {
+        gp_Pnt p = intcs->intcs.Point(index);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+        intcs->intcs.Parameters(index, *u, *v, *w);
+    } catch (...) { *x = *y = *z = *w = *u = *v = 0; }
+}
+
+int32_t OCCTIntCSNbSegments(OCCTIntCSRef intcs) {
+    if (!intcs) return 0;
+    try { return (int32_t)intcs->intcs.NbSegments(); }
+    catch (...) { return 0; }
+}
+// --- BSplineSurface remaining mutations ---
+
+bool OCCTSurfaceBSplineSetUKnot(OCCTSurfaceRef surface, int32_t index, double knot) {
+    if (!surface || surface->surface.IsNull()) return false;
+    try {
+        Handle(Geom_BSplineSurface) bss = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bss.IsNull()) return false;
+        bss->SetUKnot(index, knot);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTSurfaceBSplineSetVKnot(OCCTSurfaceRef surface, int32_t index, double knot) {
+    if (!surface || surface->surface.IsNull()) return false;
+    try {
+        Handle(Geom_BSplineSurface) bss = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bss.IsNull()) return false;
+        bss->SetVKnot(index, knot);
+        return true;
+    } catch (...) { return false; }
+}
+
+void OCCTSurfaceBSplineGetUKnots(OCCTSurfaceRef surface, double* knots) {
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        Handle(Geom_BSplineSurface) bss = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bss.IsNull()) return;
+        TColStd_Array1OfReal k(1, bss->NbUKnots());
+        bss->UKnots(k);
+        for (int i = 1; i <= k.Length(); i++) knots[i - 1] = k(i);
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineGetVKnots(OCCTSurfaceRef surface, double* knots) {
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        Handle(Geom_BSplineSurface) bss = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bss.IsNull()) return;
+        TColStd_Array1OfReal k(1, bss->NbVKnots());
+        bss->VKnots(k);
+        for (int i = 1; i <= k.Length(); i++) knots[i - 1] = k(i);
+    } catch (...) {}
+}
+
+void OCCTSurfaceBSplineGetWeights(OCCTSurfaceRef surface, double* weights,
+                                    int32_t* rows, int32_t* cols) {
+    if (!surface || surface->surface.IsNull()) { *rows = *cols = 0; return; }
+    try {
+        Handle(Geom_BSplineSurface) bss = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bss.IsNull()) { *rows = *cols = 0; return; }
+        int nr = bss->NbUPoles(), nc = bss->NbVPoles();
+        *rows = nr; *cols = nc;
+        TColStd_Array2OfReal w(1, nr, 1, nc);
+        bss->Weights(w);
+        int idx = 0;
+        for (int i = 1; i <= nr; i++)
+            for (int j = 1; j <= nc; j++)
+                weights[idx++] = w(i, j);
+    } catch (...) { *rows = *cols = 0; }
+}
+
+bool OCCTSurfaceBSplineRemoveUKnot(OCCTSurfaceRef surface, int32_t index, int32_t mult, double tol) {
+    if (!surface || surface->surface.IsNull()) return false;
+    try {
+        Handle(Geom_BSplineSurface) bss = Handle(Geom_BSplineSurface)::DownCast(surface->surface);
+        if (bss.IsNull()) return false;
+        return bss->RemoveUKnot(index, mult, tol);
+    } catch (...) { return false; }
+}
+

@@ -3752,3 +3752,189 @@ bool OCCTShapeLimitMaxTolerance(OCCTShapeRef shape, double maxTol) {
         return limited;
     } catch (...) { return false; }
 }
+
+// MARK: - v0.113: ShapeFix_Wire + ShapeFix_Face individual fixes
+// --- ShapeFix_Wire individual fixes ---
+
+struct OCCTWireFixer {
+    Handle(ShapeFix_Wire) fixer;
+};
+
+OCCTWireFixerRef OCCTWireFixerCreate(OCCTShapeRef wire, OCCTShapeRef face, double precision) {
+    if (!wire || !face) return nullptr;
+    try {
+        auto ref = new OCCTWireFixer();
+        ref->fixer = new ShapeFix_Wire();
+        ref->fixer->Init(TopoDS::Wire(wire->shape), TopoDS::Face(face->shape), precision);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTWireFixerRelease(OCCTWireFixerRef fixer) {
+    delete fixer;
+}
+
+bool OCCTWireFixerFixReorder(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixReorder(); }
+    catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixConnected(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixConnected(); }
+    catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixSmall(OCCTWireFixerRef fixer, double precSmall) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixSmall(false, precSmall); }
+    catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixDegenerated(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixDegenerated(); }
+    catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixSelfIntersection(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixSelfIntersection(); }
+    catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixLacking(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixLacking(); }
+    catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixClosed(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixClosed(); }
+    catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixGaps3d(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixGaps3d(); }
+    catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixEdgeCurves(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixEdgeCurves(); }
+    catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTWireFixerWire(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return nullptr;
+    try {
+        TopoDS_Wire w = fixer->fixer->Wire();
+        if (w.IsNull()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = w;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// --- ShapeFix_Face individual fixes ---
+
+struct OCCTFaceFixer {
+    Handle(ShapeFix_Face) fixer;
+};
+
+OCCTFaceFixerRef OCCTFaceFixerCreate(OCCTShapeRef face, double precision) {
+    if (!face) return nullptr;
+    try {
+        auto ref = new OCCTFaceFixer();
+        ref->fixer = new ShapeFix_Face(TopoDS::Face(face->shape));
+        ref->fixer->SetPrecision(precision);
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTFaceFixerRelease(OCCTFaceFixerRef fixer) {
+    delete fixer;
+}
+
+bool OCCTFaceFixerPerform(OCCTFaceFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->Perform(); }
+    catch (...) { return false; }
+}
+
+bool OCCTFaceFixerFixOrientation(OCCTFaceFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixOrientation(); }
+    catch (...) { return false; }
+}
+
+bool OCCTFaceFixerFixAddNaturalBound(OCCTFaceFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixAddNaturalBound(); }
+    catch (...) { return false; }
+}
+
+bool OCCTFaceFixerFixMissingSeam(OCCTFaceFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixMissingSeam(); }
+    catch (...) { return false; }
+}
+
+bool OCCTFaceFixerFixSmallAreaWire(OCCTFaceFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixSmallAreaWire(true); }
+    catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTFaceFixerFace(OCCTFaceFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return nullptr;
+    try {
+        TopoDS_Face f = fixer->fixer->Face();
+        if (f.IsNull()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = f;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+// MARK: - WireFixer extended (hoisted with struct)
+// --- WireFixer extended ---
+
+bool OCCTWireFixerFixGaps2d(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixGaps2d(); } catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixSeam(OCCTWireFixerRef fixer, int32_t edgeIndex) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixSeam(edgeIndex); } catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixShifted(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixShifted(); } catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixNotchedEdges(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixNotchedEdges(); } catch (...) { return false; }
+}
+
+bool OCCTWireFixerFixTails(OCCTWireFixerRef fixer) {
+    if (!fixer || fixer->fixer.IsNull()) return false;
+    try { return fixer->fixer->FixTails(); } catch (...) { return false; }
+}
+
+void OCCTWireFixerSetMaxTailAngle(OCCTWireFixerRef fixer, double angle) {
+    if (!fixer || fixer->fixer.IsNull()) return;
+    try { fixer->fixer->SetMaxTailAngle(angle); } catch (...) {}
+}
+
+void OCCTWireFixerSetMaxTailWidth(OCCTWireFixerRef fixer, double width) {
+    if (!fixer || fixer->fixer.IsNull()) return;
+    try { fixer->fixer->SetMaxTailWidth(width); } catch (...) {}
+}
+

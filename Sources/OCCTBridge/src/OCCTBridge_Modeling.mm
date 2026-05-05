@@ -96,6 +96,7 @@
 #include <BRepFill_NSections.hxx>
 #include <BRepFill_OffsetAncestors.hxx>
 #include <BRepAlgo_AsDes.hxx>
+#include <BRepCheck_Analyzer.hxx>
 #include <HLRAppli_ReflectLines.hxx>
 #include <HLRBRep_TypeOfResultingEdge.hxx>
 #include <BRepFeat_Status.hxx>
@@ -6990,4 +6991,199 @@ int32_t OCCTAsDesDescendantCount(OCCTAsDesRef ad, OCCTShapeRef shape) {
         const TopTools_ListOfShape& desc = ad->ad->Descendant(shape->shape);
         return (int32_t)desc.Extent();
     } catch (...) { return 0; }
+}
+
+// MARK: - v0.113: BRepBuilderAPI_MakeEdge completions + MakeFace completions
+// --- BRepBuilderAPI_MakeEdge completions ---
+
+OCCTShapeRef OCCTMakeEdgeFromEllipse(double cx, double cy, double cz,
+                                      double nx, double ny, double nz,
+                                      double major, double minor) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Elips elips(ax, major, minor);
+        BRepBuilderAPI_MakeEdge me(elips);
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeEdgeFromEllipseArc(double cx, double cy, double cz,
+                                          double nx, double ny, double nz,
+                                          double major, double minor,
+                                          double u1, double u2) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Elips elips(ax, major, minor);
+        BRepBuilderAPI_MakeEdge me(elips, u1, u2);
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeEdgeFromHyperbolaArc(double cx, double cy, double cz,
+                                            double nx, double ny, double nz,
+                                            double major, double minor,
+                                            double u1, double u2) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Hypr hypr(ax, major, minor);
+        BRepBuilderAPI_MakeEdge me(hypr, u1, u2);
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeEdgeFromParabolaArc(double cx, double cy, double cz,
+                                           double nx, double ny, double nz,
+                                           double focal, double u1, double u2) {
+    try {
+        gp_Ax2 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Parab parab(ax, focal);
+        BRepBuilderAPI_MakeEdge me(parab, u1, u2);
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeEdgeFromCurve(OCCTCurve3DRef curve) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeEdge me(curve->curve);
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeEdgeFromCurveParams(OCCTCurve3DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeEdge me(curve->curve, u1, u2);
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeEdgeFromCurvePoints(OCCTCurve3DRef curve,
+                                           double x1, double y1, double z1,
+                                           double x2, double y2, double z2) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeEdge me(curve->curve, gp_Pnt(x1, y1, z1), gp_Pnt(x2, y2, z2));
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeEdgeOnSurface(OCCTCurve2DRef pcurve, OCCTSurfaceRef surface) {
+    if (!pcurve || pcurve->curve.IsNull() || !surface || surface->surface.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeEdge me(pcurve->curve, surface->surface);
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeEdgeOnSurfaceParams(OCCTCurve2DRef pcurve, OCCTSurfaceRef surface,
+                                           double u1, double u2) {
+    if (!pcurve || pcurve->curve.IsNull() || !surface || surface->surface.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeEdge me(pcurve->curve, surface->surface, u1, u2);
+        if (!me.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = me.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTEdgeVertex1(OCCTShapeRef edge, double* x, double* y, double* z) {
+    if (!edge) { *x = *y = *z = 0; return; }
+    try {
+        TopoDS_Vertex v1, v2;
+        TopExp::Vertices(TopoDS::Edge(edge->shape), v1, v2);
+        if (v1.IsNull()) { *x = *y = *z = 0; return; }
+        gp_Pnt p = BRep_Tool::Pnt(v1);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+void OCCTEdgeVertex2(OCCTShapeRef edge, double* x, double* y, double* z) {
+    if (!edge) { *x = *y = *z = 0; return; }
+    try {
+        TopoDS_Vertex v1, v2;
+        TopExp::Vertices(TopoDS::Edge(edge->shape), v1, v2);
+        if (v2.IsNull()) { *x = *y = *z = 0; return; }
+        gp_Pnt p = BRep_Tool::Pnt(v2);
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+int32_t OCCTMakeEdgeError(OCCTShapeRef edge) {
+    // This returns a generic check - we use BRepCheck_Analyzer as a proxy
+    // 0 = valid, nonzero = error
+    if (!edge) return -1;
+    try {
+        BRepCheck_Analyzer analyzer(edge->shape);
+        return analyzer.IsValid() ? 0 : 1;
+    } catch (...) { return -1; }
+}
+// --- BRepBuilderAPI_MakeFace completions ---
+
+OCCTShapeRef OCCTMakeFaceFromSurfaceUV(OCCTSurfaceRef surface,
+                                         double umin, double umax,
+                                         double vmin, double vmax, double tol) {
+    if (!surface || surface->surface.IsNull()) return nullptr;
+    try {
+        BRepBuilderAPI_MakeFace mf(surface->surface, umin, umax, vmin, vmax, tol);
+        if (!mf.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = mf.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceFromGpPlane(double px, double py, double pz,
+                                       double nx, double ny, double nz,
+                                       double umin, double umax,
+                                       double vmin, double vmax) {
+    try {
+        gp_Pln pln(gp_Pnt(px, py, pz), gp_Dir(nx, ny, nz));
+        BRepBuilderAPI_MakeFace mf(pln, umin, umax, vmin, vmax);
+        if (!mf.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = mf.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTMakeFaceFromGpCylinder(double cx, double cy, double cz,
+                                          double nx, double ny, double nz,
+                                          double radius,
+                                          double umin, double umax,
+                                          double vmin, double vmax) {
+    try {
+        gp_Ax3 ax(gp_Pnt(cx, cy, cz), gp_Dir(nx, ny, nz));
+        gp_Cylinder cyl(ax, radius);
+        BRepBuilderAPI_MakeFace mf(cyl, umin, umax, vmin, vmax);
+        if (!mf.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = mf.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
 }
