@@ -1567,3 +1567,93 @@ void OCCTMeshVertexIterPoint(OCCTMeshVertexIterRef iter,
         *x = p.X(); *y = p.Y(); *z = p.Z();
     } catch (...) {}
 }
+
+// MARK: - v0.115: Poly_Triangulation queries
+// --- Poly_Triangulation queries ---
+
+static Handle(Poly_Triangulation) getTriangulation(OCCTShapeRef face, TopLoc_Location& loc) {
+    if (!face) return nullptr;
+    try {
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        return BRep_Tool::Triangulation(f, loc);
+    } catch (...) { return nullptr; }
+}
+
+int32_t OCCTFaceTriangulationNodeCount(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return 0;
+    return tri->NbNodes();
+}
+
+int32_t OCCTFaceTriangulationTriangleCount(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return 0;
+    return tri->NbTriangles();
+}
+
+double OCCTFaceTriangulationDeflection(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return 0;
+    return tri->Deflection();
+}
+
+void OCCTFaceTriangulationNode(OCCTShapeRef face, int32_t index,
+                                 double* x, double* y, double* z) {
+    *x = *y = *z = 0;
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull() || index < 1 || index > tri->NbNodes()) return;
+    gp_Pnt p = tri->Node(index).Transformed(loc.Transformation());
+    *x = p.X(); *y = p.Y(); *z = p.Z();
+}
+
+void OCCTFaceTriangulationTriangle(OCCTShapeRef face, int32_t index,
+                                     int32_t* n1, int32_t* n2, int32_t* n3) {
+    *n1 = *n2 = *n3 = 0;
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull() || index < 1 || index > tri->NbTriangles()) return;
+    Poly_Triangle t = tri->Triangle(index);
+    int a, b, c;
+    t.Get(a, b, c);
+    *n1 = a; *n2 = b; *n3 = c;
+}
+
+bool OCCTFaceTriangulationHasNormals(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return false;
+    return tri->HasNormals();
+}
+
+void OCCTFaceTriangulationNormal(OCCTShapeRef face, int32_t index,
+                                   double* nx, double* ny, double* nz) {
+    *nx = *ny = *nz = 0;
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull() || !tri->HasNormals() || index < 1 || index > tri->NbNodes()) return;
+    gp_Dir n = tri->Normal(index);
+    // Transform normal by rotation part of location
+    n = n.Transformed(loc.Transformation());
+    *nx = n.X(); *ny = n.Y(); *nz = n.Z();
+}
+
+bool OCCTFaceTriangulationHasUVNodes(OCCTShapeRef face) {
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull()) return false;
+    return tri->HasUVNodes();
+}
+
+void OCCTFaceTriangulationUVNode(OCCTShapeRef face, int32_t index,
+                                   double* u, double* v) {
+    *u = *v = 0;
+    TopLoc_Location loc;
+    auto tri = getTriangulation(face, loc);
+    if (tri.IsNull() || !tri->HasUVNodes() || index < 1 || index > tri->NbNodes()) return;
+    gp_Pnt2d uv = tri->UVNode(index);
+    *u = uv.X(); *v = uv.Y();
+}

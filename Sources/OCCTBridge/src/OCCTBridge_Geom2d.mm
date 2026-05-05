@@ -47,6 +47,9 @@
 #include <gce_MakeParab2d.hxx>
 #include <TColStd_Array1OfInteger.hxx>
 #include <TColStd_Array1OfReal.hxx>
+#include <TColgp_HArray1OfPnt2d.hxx>
+#include <TColStd_HArray1OfReal.hxx>
+#include <Geom2dConvert.hxx>
 #include <GccAna_Circ2d2TanRad.hxx>
 #include <GccAna_Circ2dTanCen.hxx>
 #include <GccAna_Lin2d2Tan.hxx>
@@ -4032,3 +4035,108 @@ const char* OCCTCurve2DTypeName(OCCTCurve2DRef curve) {
     } catch (...) { return nullptr; }
 }
 
+
+// MARK: - v0.115: 2D interpolate / PointsToBSpline / SplitAtContinuity / Trimmed / Length (re-routed from Curve3D)
+OCCTCurve2DRef OCCTInterpolate2DWithTangents(const double* points, int32_t count,
+                                               double t1x, double t1y,
+                                               double t2x, double t2y) {
+    if (!points || count < 2) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt2d) pts = new TColgp_HArray1OfPnt2d(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(points[i*2], points[i*2+1]));
+        }
+        Geom2dAPI_Interpolate interp(pts, Standard_False, 1e-6);
+        gp_Vec2d v1(t1x, t1y), v2(t2x, t2y);
+        interp.Load(v1, v2);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve2DRef)new OCCTCurve2D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef OCCTInterpolate2DPeriodic(const double* points, int32_t count) {
+    if (!points || count < 3) return nullptr;
+    try {
+        Handle(TColgp_HArray1OfPnt2d) pts = new TColgp_HArray1OfPnt2d(1, count);
+        for (int i = 0; i < count; i++) {
+            pts->SetValue(i + 1, gp_Pnt2d(points[i*2], points[i*2+1]));
+        }
+        Geom2dAPI_Interpolate interp(pts, Standard_True, 1e-6);
+        interp.Perform();
+        if (interp.IsDone()) {
+            return (OCCTCurve2DRef)new OCCTCurve2D{interp.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+// --- GeomAPI_PointsToBSpline expansion ---
+// Helper: map continuity int → GeomAbs_Shape (duplicate of Curve3D's mapContinuityV115, ODR-safe)
+static GeomAbs_Shape mapContinuityV115(int32_t c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C2;
+    }
+}
+
+OCCTCurve2DRef OCCTPoints2DToBSplineWithParams(const double* points, int32_t count,
+                                                  int32_t degMin, int32_t degMax,
+                                                  int32_t continuity, double tol) {
+    if (!points || count < 2) return nullptr;
+    try {
+        TColgp_Array1OfPnt2d pts(1, count);
+        for (int i = 0; i < count; i++) {
+            pts.SetValue(i + 1, gp_Pnt2d(points[i*2], points[i*2+1]));
+        }
+        Geom2dAPI_PointsToBSpline approx(pts, degMin, degMax, mapContinuityV115(continuity), tol);
+        if (approx.IsDone()) {
+            return (OCCTCurve2DRef)new OCCTCurve2D{approx.Curve()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+int32_t OCCTCurve2DSplitAtContinuity(OCCTCurve2DRef curve, int32_t continuity, double tol,
+                                       OCCTCurve2DRef* outSegments, int32_t maxSegments) {
+    if (!curve || curve->curve.IsNull() || !outSegments || maxSegments < 1) return 0;
+    try {
+        Handle(Geom2d_BSplineCurve) bsp = Geom2dConvert::CurveToBSplineCurve(curve->curve);
+        if (bsp.IsNull()) return 0;
+
+        if (continuity <= 1) {
+            Handle(NCollection_HArray1<Handle(Geom2d_BSplineCurve)>) arr;
+            Geom2dConvert::C0BSplineToArrayOfC1BSplineCurve(bsp, arr, tol);
+            if (arr.IsNull()) return 0;
+            int n = std::min((int)arr->Length(), (int)maxSegments);
+            for (int i = 0; i < n; i++) {
+                outSegments[i] = (OCCTCurve2DRef)new OCCTCurve2D{arr->Value(arr->Lower() + i)};
+            }
+            return n;
+        } else {
+            outSegments[0] = (OCCTCurve2DRef)new OCCTCurve2D{bsp};
+            return 1;
+        }
+    } catch (...) { return 0; }
+}
+OCCTCurve2DRef OCCTCurve2DTrimmed(OCCTCurve2DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        Handle(Geom2d_TrimmedCurve) trimmed = new Geom2d_TrimmedCurve(curve->curve, u1, u2);
+        return (OCCTCurve2DRef)new OCCTCurve2D{trimmed};
+    } catch (...) { return nullptr; }
+}
+
+#include <Geom2dAdaptor_Curve.hxx>
+
+double OCCTCurve2DLength(OCCTCurve2DRef curve, double u1, double u2) {
+    if (!curve || curve->curve.IsNull()) return 0;
+    try {
+        Geom2dAdaptor_Curve ac(curve->curve, u1, u2);
+        return GCPnts_AbscissaPoint::Length(ac);
+    } catch (...) { return 0; }
+}
+// --- Curve3D Arc Length (GCPnts_AbscissaPoint) ---

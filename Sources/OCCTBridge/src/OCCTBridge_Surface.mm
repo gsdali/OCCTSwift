@@ -93,6 +93,8 @@
 #include <Convert_SphereToBSplineSurface.hxx>
 #include <BiTgte_CurveOnEdge.hxx>
 #include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <GeomAPI_PointsToBSplineSurface.hxx>
+#include <TColgp_HArray2OfPnt.hxx>
 #include <TColgp_Array2OfPnt.hxx>
 #include <TColStd_Array2OfReal.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
@@ -4781,3 +4783,73 @@ const char* OCCTSurfaceTypeName(OCCTSurfaceRef surface) {
         return surface->surface->DynamicType()->Name();
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.115: Surface additional (Normal + Curvatures)
+// --- Surface additional (new in v0.115.0) ---
+
+void OCCTSurfaceNormal(OCCTSurfaceRef surface, double u, double v,
+                         double* nx, double* ny, double* nz) {
+    *nx = *ny = *nz = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        gp_Pnt p;
+        gp_Vec d1u, d1v;
+        surface->surface->D1(u, v, p, d1u, d1v);
+        gp_Vec normal = d1u.Crossed(d1v);
+        if (normal.Magnitude() > 1e-15) {
+            normal.Normalize();
+            *nx = normal.X(); *ny = normal.Y(); *nz = normal.Z();
+        }
+    } catch (...) {}
+}
+
+#include <GeomLProp_SLProps.hxx>
+
+void OCCTSurfaceCurvatures(OCCTSurfaceRef surface, double u, double v,
+                             double* gaussian, double* mean) {
+    *gaussian = *mean = 0;
+    if (!surface || surface->surface.IsNull()) return;
+    try {
+        GeomLProp_SLProps props(surface->surface, u, v, 2, 1e-6);
+        if (props.IsCurvatureDefined()) {
+            *gaussian = props.GaussianCurvature();
+            *mean = props.MeanCurvature();
+        }
+    } catch (...) {}
+}
+
+// end of v0.115.0 implementations
+
+// MARK: - v0.115: PointsToSurfaceBSpline (re-routed from Curve3D)
+
+// Helper duplicate of mapContinuityV115
+static GeomAbs_Shape mapContinuityV115(int32_t c) {
+    switch (c) {
+        case 0: return GeomAbs_C0;
+        case 1: return GeomAbs_C1;
+        case 2: return GeomAbs_C2;
+        case 3: return GeomAbs_C3;
+        default: return GeomAbs_C2;
+    }
+}
+
+OCCTSurfaceRef OCCTPointsToSurfaceBSpline(const double* points, int32_t uCount, int32_t vCount,
+                                            int32_t degMin, int32_t degMax,
+                                            int32_t continuity, double tol) {
+    if (!points || uCount < 2 || vCount < 2) return nullptr;
+    try {
+        TColgp_Array2OfPnt pts(1, uCount, 1, vCount);
+        for (int v = 0; v < vCount; v++) {
+            for (int u = 0; u < uCount; u++) {
+                int idx = (v * uCount + u) * 3;
+                pts.SetValue(u + 1, v + 1, gp_Pnt(points[idx], points[idx+1], points[idx+2]));
+            }
+        }
+        GeomAPI_PointsToBSplineSurface approx(pts, degMin, degMax, mapContinuityV115(continuity), tol);
+        if (approx.IsDone()) {
+            return (OCCTSurfaceRef)new OCCTSurface{approx.Surface()};
+        }
+        return nullptr;
+    } catch (...) { return nullptr; }
+}
+// --- GeomConvert utilities ---
