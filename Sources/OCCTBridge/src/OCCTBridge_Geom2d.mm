@@ -38,6 +38,13 @@
 #include <GeomLib_Check2dBSplineCurve.hxx>
 #include <ShapeUpgrade_SplitCurve2dContinuity.hxx>
 #include <ShapeUpgrade_ConvertCurve2dToBezier.hxx>
+#include <Extrema_LocateExtCC2d.hxx>
+#include <Extrema_POnCurv2d.hxx>
+#include <gce_MakeCirc2d.hxx>
+#include <gce_MakeElips2d.hxx>
+#include <gce_MakeHypr2d.hxx>
+#include <gce_MakeLin2d.hxx>
+#include <gce_MakeParab2d.hxx>
 #include <GccAna_Circ2d2TanRad.hxx>
 #include <GccAna_Circ2dTanCen.hxx>
 #include <GccAna_Lin2d2Tan.hxx>
@@ -2826,4 +2833,104 @@ int OCCTGeom2dConvertApproxArcsSegments(OCCTCurve2DRef _Nonnull curveRef,
     } catch (...) {
         return 0;
     }
+}
+
+// MARK: - Extrema_LocateExtCC2d (v0.80)
+// --- Extrema_LocateExtCC2d ---
+
+OCCTExtremaLocateExtCC2dResult OCCTExtremaLocateExtCC2d(OCCTCurve2DRef curve1, double u1First, double u1Last,
+                                                         OCCTCurve2DRef curve2, double u2First, double u2Last,
+                                                         double seedU, double seedV) {
+    OCCTExtremaLocateExtCC2dResult result = {};
+    try {
+        auto* c1 = (OCCTCurve2D*)curve1;
+        auto* c2 = (OCCTCurve2D*)curve2;
+        Handle(Geom2dAdaptor_Curve) ac1 = new Geom2dAdaptor_Curve(c1->curve, u1First, u1Last);
+        Handle(Geom2dAdaptor_Curve) ac2 = new Geom2dAdaptor_Curve(c2->curve, u2First, u2Last);
+        Extrema_LocateExtCC2d ext(*ac1, *ac2, seedU, seedV);
+        result.isDone = ext.IsDone();
+        if (result.isDone) {
+            result.squareDistance = ext.SquareDistance();
+            Extrema_POnCurv2d p1, p2;
+            ext.Point(p1, p2);
+            result.x1 = p1.Value().X(); result.y1 = p1.Value().Y();
+            result.param1 = p1.Parameter();
+            result.x2 = p2.Value().X(); result.y2 = p2.Value().Y();
+            result.param2 = p2.Parameter();
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - gce_Make Circ2d / Lin2d / Elips2d / Hypr2d / Parab2d (v0.80)
+OCCTCurve2DRef _Nullable OCCTGceMakeCirc2dFromCenterRadius(double cx, double cy, double radius) {
+    try {
+        gce_MakeCirc2d mc(gp_Pnt2d(cx, cy), radius);
+        if (!mc.IsDone()) return nullptr;
+        Handle(Geom2d_Circle) circ = new Geom2d_Circle(mc.Value());
+        return (OCCTCurve2DRef)new OCCTCurve2D{circ};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTGceMakeCirc2dFrom3Points(double p1x, double p1y,
+                                                       double p2x, double p2y,
+                                                       double p3x, double p3y) {
+    try {
+        gce_MakeCirc2d mc(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y), gp_Pnt2d(p3x, p3y));
+        if (!mc.IsDone()) return nullptr;
+        Handle(Geom2d_Circle) circ = new Geom2d_Circle(mc.Value());
+        return (OCCTCurve2DRef)new OCCTCurve2D{circ};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTGceMakeLin2dFrom2Points(double p1x, double p1y,
+                                                      double p2x, double p2y) {
+    try {
+        gce_MakeLin2d ml(gp_Pnt2d(p1x, p1y), gp_Pnt2d(p2x, p2y));
+        if (!ml.IsDone()) return nullptr;
+        Handle(Geom2d_Line) line = new Geom2d_Line(ml.Value());
+        return (OCCTCurve2DRef)new OCCTCurve2D{line};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTGceMakeLin2dFromEquation(double a, double b, double c) {
+    try {
+        gce_MakeLin2d ml(a, b, c);
+        if (!ml.IsDone()) return nullptr;
+        Handle(Geom2d_Line) line = new Geom2d_Line(ml.Value());
+        return (OCCTCurve2DRef)new OCCTCurve2D{line};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTGceMakeElips2d(double cx, double cy,
+                                             double dirX, double dirY,
+                                             double majorRadius, double minorRadius) {
+    try {
+        gce_MakeElips2d me(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dirX, dirY)), majorRadius, minorRadius);
+        if (!me.IsDone()) return nullptr;
+        Handle(Geom2d_Ellipse) elips = new Geom2d_Ellipse(me.Value());
+        return (OCCTCurve2DRef)new OCCTCurve2D{elips};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTGceMakeHypr2d(double cx, double cy,
+                                             double dirX, double dirY,
+                                             double majorRadius, double minorRadius) {
+    try {
+        gce_MakeHypr2d mh(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dirX, dirY)), majorRadius, minorRadius, true);
+        if (!mh.IsDone()) return nullptr;
+        Handle(Geom2d_Hyperbola) hypr = new Geom2d_Hyperbola(mh.Value());
+        return (OCCTCurve2DRef)new OCCTCurve2D{hypr};
+    } catch (...) { return nullptr; }
+}
+
+OCCTCurve2DRef _Nullable OCCTGceMakeParab2d(double cx, double cy,
+                                              double dirX, double dirY,
+                                              double focal) {
+    try {
+        gce_MakeParab2d mp(gp_Ax2d(gp_Pnt2d(cx, cy), gp_Dir2d(dirX, dirY)), focal);
+        if (!mp.IsDone()) return nullptr;
+        Handle(Geom2d_Parabola) parab = new Geom2d_Parabola(mp.Value());
+        return (OCCTCurve2DRef)new OCCTCurve2D{parab};
+    } catch (...) { return nullptr; }
 }

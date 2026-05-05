@@ -81,6 +81,12 @@
 #include <GeomFill_SectionPlacement.hxx>
 #include <GeomFill_Stretch.hxx>
 #include <GeomFill_Generator.hxx>
+#include <Extrema_ExtPS.hxx>
+#include <Extrema_ExtSS.hxx>
+#include <Extrema_POnSurf.hxx>
+#include <gce_MakeCone.hxx>
+#include <gce_MakeCylinder.hxx>
+#include <gce_MakePln.hxx>
 #include <Adaptor3d_CurveOnSurface.hxx>
 #include <BRepTopAdaptor_TopolTool.hxx>
 #include <Contap_ContAna.hxx>
@@ -3117,4 +3123,124 @@ OCCTAppSurfResult OCCTGeomFillAppSurf(const OCCTCurve3DRef _Nonnull * _Nonnull c
         }
     } catch (...) {}
     return result;
+}
+
+// MARK: - Extrema_ExtPS + ExtSS (v0.80)
+// --- Extrema_ExtPS ---
+
+OCCTExtremaExtPSResult OCCTExtremaExtPS(double px, double py, double pz,
+                                         OCCTSurfaceRef surface) {
+    OCCTExtremaExtPSResult result = {false, 0};
+    try {
+        auto* s = (OCCTSurface*)surface;
+        Handle(GeomAdaptor_Surface) as = new GeomAdaptor_Surface(s->surface);
+        Extrema_ExtPS ext(gp_Pnt(px, py, pz), *as, 1e-6, 1e-6);
+        result.isDone = ext.IsDone();
+        if (result.isDone) result.nbExt = ext.NbExt();
+    } catch (...) {}
+    return result;
+}
+
+OCCTExtremaPointOnSurf OCCTExtremaExtPSPoint(double px, double py, double pz,
+                                              OCCTSurfaceRef surface, int index) {
+    OCCTExtremaPointOnSurf result = {};
+    try {
+        auto* s = (OCCTSurface*)surface;
+        Handle(GeomAdaptor_Surface) as = new GeomAdaptor_Surface(s->surface);
+        Extrema_ExtPS ext(gp_Pnt(px, py, pz), *as, 1e-6, 1e-6);
+        if (ext.IsDone() && index >= 1 && index <= ext.NbExt()) {
+            result.squareDistance = ext.SquareDistance(index);
+            const Extrema_POnSurf& ps = ext.Point(index);
+            result.x = ps.Value().X(); result.y = ps.Value().Y(); result.z = ps.Value().Z();
+            ps.Parameter(result.u, result.v);
+        }
+    } catch (...) {}
+    return result;
+}
+
+// --- Extrema_ExtSS ---
+
+OCCTExtremaExtSSResult OCCTExtremaExtSS(OCCTSurfaceRef surface1, OCCTSurfaceRef surface2) {
+    OCCTExtremaExtSSResult result = {false, false, 0};
+    try {
+        auto* s1 = (OCCTSurface*)surface1;
+        auto* s2 = (OCCTSurface*)surface2;
+        Handle(GeomAdaptor_Surface) as1 = new GeomAdaptor_Surface(s1->surface);
+        Handle(GeomAdaptor_Surface) as2 = new GeomAdaptor_Surface(s2->surface);
+        Extrema_ExtSS ext(*as1, *as2, 1e-6, 1e-6);
+        result.isDone = ext.IsDone();
+        if (result.isDone) {
+            result.isParallel = ext.IsParallel();
+            if (!result.isParallel) result.nbExt = ext.NbExt();
+        }
+    } catch (...) {}
+    return result;
+}
+
+OCCTExtremaPointPair OCCTExtremaExtSSPoint(OCCTSurfaceRef surface1, OCCTSurfaceRef surface2,
+                                            int index) {
+    OCCTExtremaPointPair result = {};
+    try {
+        auto* s1 = (OCCTSurface*)surface1;
+        auto* s2 = (OCCTSurface*)surface2;
+        Handle(GeomAdaptor_Surface) as1 = new GeomAdaptor_Surface(s1->surface);
+        Handle(GeomAdaptor_Surface) as2 = new GeomAdaptor_Surface(s2->surface);
+        Extrema_ExtSS ext(*as1, *as2, 1e-6, 1e-6);
+        if (ext.IsDone() && !ext.IsParallel() && index >= 1 && index <= ext.NbExt()) {
+            result.squareDistance = ext.SquareDistance(index);
+            Extrema_POnSurf p1, p2;
+            ext.Points(index, p1, p2);
+            result.x1 = p1.Value().X(); result.y1 = p1.Value().Y(); result.z1 = p1.Value().Z();
+            double u1, v1;
+            p1.Parameter(u1, v1);
+            result.param1 = u1;
+            result.x2 = p2.Value().X(); result.y2 = p2.Value().Y(); result.z2 = p2.Value().Z();
+            double u2, v2;
+            p2.Parameter(u2, v2);
+            result.param2 = u2;
+        }
+    } catch (...) {}
+    return result;
+}
+
+// MARK: - gce_Make Cone / Cylinder / Pln (v0.80)
+OCCTSurfaceRef _Nullable OCCTGceMakeCone(double p1x, double p1y, double p1z,
+                                          double p2x, double p2y, double p2z,
+                                          double radius1, double radius2) {
+    try {
+        gce_MakeCone mc(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z), radius1, radius2);
+        if (!mc.IsDone()) return nullptr;
+        Handle(Geom_ConicalSurface) cone = new Geom_ConicalSurface(mc.Value().Position(), mc.Value().SemiAngle(), mc.Value().RefRadius());
+        return (OCCTSurfaceRef)new OCCTSurface{cone};
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef _Nullable OCCTGceMakeCylinderFrom3Points(double p1x, double p1y, double p1z,
+                                                         double p2x, double p2y, double p2z,
+                                                         double p3x, double p3y, double p3z) {
+    try {
+        gce_MakeCylinder mc(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z), gp_Pnt(p3x, p3y, p3z));
+        if (!mc.IsDone()) return nullptr;
+        Handle(Geom_CylindricalSurface) cyl = new Geom_CylindricalSurface(mc.Value().Position(), mc.Value().Radius());
+        return (OCCTSurfaceRef)new OCCTSurface{cyl};
+    } catch (...) { return nullptr; }
+}
+OCCTSurfaceRef _Nullable OCCTGceMakePlnFromEquation(double a, double b, double c, double d) {
+    try {
+        gce_MakePln mp(a, b, c, d);
+        if (!mp.IsDone()) return nullptr;
+        Handle(Geom_Plane) plane = new Geom_Plane(mp.Value());
+        return (OCCTSurfaceRef)new OCCTSurface{plane};
+    } catch (...) { return nullptr; }
+}
+
+OCCTSurfaceRef _Nullable OCCTGceMakePlnFrom3Points(double p1x, double p1y, double p1z,
+                                                    double p2x, double p2y, double p2z,
+                                                    double p3x, double p3y, double p3z) {
+    try {
+        gce_MakePln mp(gp_Pnt(p1x, p1y, p1z), gp_Pnt(p2x, p2y, p2z), gp_Pnt(p3x, p3y, p3z));
+        if (!mp.IsDone()) return nullptr;
+        Handle(Geom_Plane) plane = new Geom_Plane(mp.Value());
+        return (OCCTSurfaceRef)new OCCTSurface{plane};
+    } catch (...) { return nullptr; }
 }
