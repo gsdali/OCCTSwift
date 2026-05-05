@@ -1976,3 +1976,11 @@ int OCCTImageSizePixelBytes(int format) {
 bool OCCTImageIsTopDownDefault(void) {
     return Image_AlienPixMap::IsTopDownDefault();
 }
+
+// MARK: - v0.114: Quantity_Color named color count
+// --- Quantity_Color named color count ---
+
+int32_t OCCTNamedColorCount() {
+    // Quantity_NOC_WHITE is the last named color before Quantity_NOC_NB
+    return (int32_t)Quantity_NOC_WHITE + 1;
+}

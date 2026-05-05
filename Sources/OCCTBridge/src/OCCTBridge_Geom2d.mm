@@ -4006,3 +4006,29 @@ double OCCTCurve2DParameterAtPoint(OCCTCurve2DRef curve,
         return proj.LowerDistanceParameter();
     } catch (...) { return 0; }
 }
+
+// MARK: - v0.114: Curve2D isBounded + DN + type-name
+
+bool OCCTCurve2DIsBounded(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return false;
+    try {
+        Handle(Geom2d_BoundedCurve) bc = Handle(Geom2d_BoundedCurve)::DownCast(curve->curve);
+        return !bc.IsNull();
+    } catch (...) { return false; }
+}
+
+void OCCTCurve2DDN(OCCTCurve2DRef curve, double u, int32_t n,
+                    double* x, double* y) {
+    if (!curve || curve->curve.IsNull()) { *x = *y = 0; return; }
+    try {
+        gp_Vec2d v = curve->curve->DN(u, n);
+        *x = v.X(); *y = v.Y();
+    } catch (...) { *x = *y = 0; }
+}
+const char* OCCTCurve2DTypeName(OCCTCurve2DRef curve) {
+    if (!curve || curve->curve.IsNull()) return nullptr;
+    try {
+        return curve->curve->DynamicType()->Name();
+    } catch (...) { return nullptr; }
+}
+

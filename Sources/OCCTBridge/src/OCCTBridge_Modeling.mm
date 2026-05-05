@@ -7187,3 +7187,203 @@ OCCTShapeRef OCCTMakeFaceFromGpCylinder(double cx, double cy, double cz,
         return ref;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.114: BRepBuilderAPI_MakeWire incremental + Boolean ops with tolerance + MakeOffset/MakeThickSolid
+// --- BRepBuilderAPI_MakeWire (incremental) ---
+
+struct OCCTWireBuilder {
+    BRepBuilderAPI_MakeWire maker;
+};
+
+OCCTWireBuilderRef OCCTWireBuilderCreate() {
+    try {
+        return new OCCTWireBuilder();
+    } catch (...) { return nullptr; }
+}
+
+void OCCTWireBuilderRelease(OCCTWireBuilderRef wb) {
+    delete wb;
+}
+
+void OCCTWireBuilderAddEdge(OCCTWireBuilderRef wb, OCCTShapeRef edge) {
+    if (!wb || !edge) return;
+    try {
+        wb->maker.Add(TopoDS::Edge(edge->shape));
+    } catch (...) {}
+}
+
+void OCCTWireBuilderAddWire(OCCTWireBuilderRef wb, OCCTShapeRef wire) {
+    if (!wb || !wire) return;
+    try {
+        wb->maker.Add(TopoDS::Wire(wire->shape));
+    } catch (...) {}
+}
+
+OCCTShapeRef OCCTWireBuilderWire(OCCTWireBuilderRef wb) {
+    if (!wb) return nullptr;
+    try {
+        if (!wb->maker.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = wb->maker.Wire();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTWireBuilderIsDone(OCCTWireBuilderRef wb) {
+    if (!wb) return false;
+    try { return wb->maker.IsDone(); }
+    catch (...) { return false; }
+}
+
+int32_t OCCTWireBuilderError(OCCTWireBuilderRef wb) {
+    if (!wb) return 1; // EmptyWire
+    try { return (int32_t)wb->maker.Error(); }
+    catch (...) { return 1; }
+}
+// --- Boolean operations with tolerance ---
+
+#include <BOPAlgo_GlueEnum.hxx>
+
+OCCTShapeRef OCCTBooleanFuseWithTolerance(OCCTShapeRef s1, OCCTShapeRef s2, double fuzzyTol) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        BRepAlgoAPI_Fuse fuse(s1->shape, s2->shape);
+        fuse.SetFuzzyValue(fuzzyTol);
+        fuse.Build();
+        if (!fuse.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = fuse.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBooleanCutWithTolerance(OCCTShapeRef s1, OCCTShapeRef s2, double fuzzyTol) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        BRepAlgoAPI_Cut cut(s1->shape, s2->shape);
+        cut.SetFuzzyValue(fuzzyTol);
+        cut.Build();
+        if (!cut.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = cut.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBooleanCommonWithTolerance(OCCTShapeRef s1, OCCTShapeRef s2, double fuzzyTol) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        BRepAlgoAPI_Common common(s1->shape, s2->shape);
+        common.SetFuzzyValue(fuzzyTol);
+        common.Build();
+        if (!common.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = common.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+static BOPAlgo_GlueEnum toGlueEnum(int32_t mode) {
+    switch (mode) {
+        case 0: return BOPAlgo_GlueShift;
+        case 1: return BOPAlgo_GlueFull;
+        default: return BOPAlgo_GlueOff;
+    }
+}
+
+OCCTShapeRef OCCTBooleanFuseGlue(OCCTShapeRef s1, OCCTShapeRef s2, int32_t glueMode) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        BRepAlgoAPI_Fuse fuse(s1->shape, s2->shape);
+        fuse.SetGlue(toGlueEnum(glueMode));
+        fuse.Build();
+        if (!fuse.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = fuse.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBooleanCutGlue(OCCTShapeRef s1, OCCTShapeRef s2, int32_t glueMode) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        BRepAlgoAPI_Cut cut(s1->shape, s2->shape);
+        cut.SetGlue(toGlueEnum(glueMode));
+        cut.Build();
+        if (!cut.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = cut.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBooleanCommonGlue(OCCTShapeRef s1, OCCTShapeRef s2, int32_t glueMode) {
+    if (!s1 || !s2) return nullptr;
+    try {
+        BRepAlgoAPI_Common common(s1->shape, s2->shape);
+        common.SetGlue(toGlueEnum(glueMode));
+        common.Build();
+        if (!common.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = common.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+// --- BRepOffsetAPI_MakeOffset expansion ---
+
+OCCTShapeRef OCCTOffsetWireOnPlane(OCCTShapeRef wire, double distance, int32_t joinType) {
+    if (!wire) return nullptr;
+    try {
+        GeomAbs_JoinType jt = GeomAbs_Arc;
+        if (joinType == 1) jt = GeomAbs_Tangent;
+        else if (joinType == 2) jt = GeomAbs_Intersection;
+        BRepOffsetAPI_MakeOffset offset(TopoDS::Wire(wire->shape), jt);
+        offset.Perform(distance);
+        if (!offset.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = offset.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTOffsetFace(OCCTShapeRef face, double distance, int32_t joinType) {
+    if (!face) return nullptr;
+    try {
+        GeomAbs_JoinType jt = GeomAbs_Arc;
+        if (joinType == 1) jt = GeomAbs_Tangent;
+        else if (joinType == 2) jt = GeomAbs_Intersection;
+        BRepOffsetAPI_MakeOffset offset(TopoDS::Face(face->shape), jt);
+        offset.Perform(distance);
+        if (!offset.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = offset.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+// --- BRepOffsetAPI_MakeThickSolid expansion ---
+
+OCCTShapeRef OCCTThickSolidWithOptions(OCCTShapeRef shape,
+                                         OCCTShapeRef const* facesToRemove,
+                                         int32_t faceCount,
+                                         double offset, double tolerance,
+                                         int32_t joinType) {
+    if (!shape || !facesToRemove || faceCount <= 0) return nullptr;
+    try {
+        TopTools_ListOfShape facesToHollow;
+        for (int32_t i = 0; i < faceCount; i++) {
+            if (facesToRemove[i]) {
+                facesToHollow.Append(facesToRemove[i]->shape);
+            }
+        }
+        GeomAbs_JoinType jt = GeomAbs_Arc;
+        if (joinType == 1) jt = GeomAbs_Tangent;
+        else if (joinType == 2) jt = GeomAbs_Intersection;
+        BRepOffsetAPI_MakeThickSolid maker;
+        maker.MakeThickSolidByJoin(shape->shape, facesToHollow, offset, tolerance,
+                                     BRepOffset_Skin, false, false, jt);
+        if (!maker.IsDone()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = maker.Shape();
+        return ref;
+    } catch (...) { return nullptr; }
+}

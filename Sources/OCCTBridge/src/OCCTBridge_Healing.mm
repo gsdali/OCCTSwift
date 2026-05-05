@@ -37,6 +37,7 @@
 #include <BRepCheck_Vertex.hxx>
 #include <BRepCheck_Wire.hxx>
 #include <BRepCheck_ListOfStatus.hxx>
+#include <ShapeAnalysis_ShapeContents.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepFilletAPI_MakeFillet.hxx>
 #include <ChFi2d_Builder.hxx>
@@ -3938,3 +3939,164 @@ void OCCTWireFixerSetMaxTailWidth(OCCTWireFixerRef fixer, double width) {
     try { fixer->fixer->SetMaxTailWidth(width); } catch (...) {}
 }
 
+
+// MARK: - v0.114: ShapeAnalysis_ShapeContents expanded + ShapeAnalysis_FreeBoundsProperties (handle-based)
+// --- ShapeAnalysis_ShapeContents expanded ---
+
+OCCTShapeContentsExtended OCCTShapeGetContentsExtended(OCCTShapeRef shape) {
+    OCCTShapeContentsExtended result = {};
+    if (!shape) return result;
+    try {
+        ShapeAnalysis_ShapeContents sc;
+        sc.Perform(shape->shape);
+        result.nbSolids = sc.NbSolids();
+        result.nbShells = sc.NbShells();
+        result.nbFaces = sc.NbFaces();
+        result.nbWires = sc.NbWires();
+        result.nbEdges = sc.NbEdges();
+        result.nbVertices = sc.NbVertices();
+        result.nbFreeEdges = sc.NbFreeEdges();
+        result.nbFreeWires = sc.NbFreeWires();
+        result.nbFreeFaces = sc.NbFreeFaces();
+        result.nbSolidsWithVoids = sc.NbSolidsWithVoids();
+        result.nbBigSplines = sc.NbBigSplines();
+        result.nbC0Surfaces = sc.NbC0Surfaces();
+        result.nbC0Curves = sc.NbC0Curves();
+        result.nbOffsetSurf = sc.NbOffsetSurf();
+        result.nbIndirectSurf = sc.NbIndirectSurf();
+        result.nbOffsetCurves = sc.NbOffsetCurves();
+        result.nbTrimmedCurve2d = sc.NbTrimmedCurve2d();
+        result.nbTrimmedCurve3d = sc.NbTrimmedCurve3d();
+        result.nbBSplineSurf = sc.NbBSplibeSurf();
+        result.nbBezierSurf = sc.NbBezierSurf();
+        result.nbTrimSurf = sc.NbTrimSurf();
+        result.nbWireWithSeam = sc.NbWireWitnSeam();
+        result.nbWireWithSevSeams = sc.NbWireWithSevSeams();
+        result.nbFaceWithSevWires = sc.NbFaceWithSevWires();
+        result.nbNoPCurve = sc.NbNoPCurve();
+        result.nbSharedSolids = sc.NbSharedSolids();
+        result.nbSharedShells = sc.NbSharedShells();
+        result.nbSharedFaces = sc.NbSharedFaces();
+        result.nbSharedWires = sc.NbSharedWires();
+        result.nbSharedEdges = sc.NbSharedEdges();
+        result.nbSharedVertices = sc.NbSharedVertices();
+    } catch (...) {}
+    return result;
+}
+// --- ShapeAnalysis_FreeBoundsProperties (handle-based) ---
+
+struct OCCTFreeBoundsProps {
+    ShapeAnalysis_FreeBoundsProperties fbp;
+    bool performed;
+};
+
+OCCTFreeBoundsPropsRef OCCTFreeBoundsPropsCreate(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return nullptr;
+    try {
+        auto ref = new OCCTFreeBoundsProps();
+        ref->fbp.Init(shape->shape, tolerance);
+        ref->performed = false;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+void OCCTFreeBoundsPropsRelease(OCCTFreeBoundsPropsRef props) {
+    delete props;
+}
+
+bool OCCTFreeBoundsPropsPerform(OCCTFreeBoundsPropsRef props) {
+    if (!props) return false;
+    try {
+        bool ok = props->fbp.Perform();
+        props->performed = ok;
+        return ok;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTFreeBoundsPropsNbClosedFreeBounds(OCCTFreeBoundsPropsRef props) {
+    if (!props || !props->performed) return 0;
+    try { return (int32_t)props->fbp.NbClosedFreeBounds(); }
+    catch (...) { return 0; }
+}
+
+int32_t OCCTFreeBoundsPropsNbOpenFreeBounds(OCCTFreeBoundsPropsRef props) {
+    if (!props || !props->performed) return 0;
+    try { return (int32_t)props->fbp.NbOpenFreeBounds(); }
+    catch (...) { return 0; }
+}
+
+double OCCTFreeBoundsPropsClosedArea(OCCTFreeBoundsPropsRef props, int32_t index) {
+    if (!props || !props->performed) return 0;
+    try {
+        Handle(ShapeAnalysis_FreeBoundData) fbd = props->fbp.ClosedFreeBound(index);
+        if (fbd.IsNull()) return 0;
+        return fbd->Area();
+    } catch (...) { return 0; }
+}
+
+double OCCTFreeBoundsPropsClosedPerimeter(OCCTFreeBoundsPropsRef props, int32_t index) {
+    if (!props || !props->performed) return 0;
+    try {
+        Handle(ShapeAnalysis_FreeBoundData) fbd = props->fbp.ClosedFreeBound(index);
+        if (fbd.IsNull()) return 0;
+        return fbd->Perimeter();
+    } catch (...) { return 0; }
+}
+
+double OCCTFreeBoundsPropsClosedRatio(OCCTFreeBoundsPropsRef props, int32_t index) {
+    if (!props || !props->performed) return 0;
+    try {
+        Handle(ShapeAnalysis_FreeBoundData) fbd = props->fbp.ClosedFreeBound(index);
+        if (fbd.IsNull()) return 0;
+        return fbd->Ratio();
+    } catch (...) { return 0; }
+}
+
+double OCCTFreeBoundsPropsClosedWidth(OCCTFreeBoundsPropsRef props, int32_t index) {
+    if (!props || !props->performed) return 0;
+    try {
+        Handle(ShapeAnalysis_FreeBoundData) fbd = props->fbp.ClosedFreeBound(index);
+        if (fbd.IsNull()) return 0;
+        return fbd->Width();
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTFreeBoundsPropsClosedWire(OCCTFreeBoundsPropsRef props, int32_t index) {
+    if (!props || !props->performed) return nullptr;
+    try {
+        Handle(ShapeAnalysis_FreeBoundData) fbd = props->fbp.ClosedFreeBound(index);
+        if (fbd.IsNull()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = fbd->FreeBound();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+double OCCTFreeBoundsPropsOpenArea(OCCTFreeBoundsPropsRef props, int32_t index) {
+    if (!props || !props->performed) return 0;
+    try {
+        Handle(ShapeAnalysis_FreeBoundData) fbd = props->fbp.OpenFreeBound(index);
+        if (fbd.IsNull()) return 0;
+        return fbd->Area();
+    } catch (...) { return 0; }
+}
+
+double OCCTFreeBoundsPropsOpenPerimeter(OCCTFreeBoundsPropsRef props, int32_t index) {
+    if (!props || !props->performed) return 0;
+    try {
+        Handle(ShapeAnalysis_FreeBoundData) fbd = props->fbp.OpenFreeBound(index);
+        if (fbd.IsNull()) return 0;
+        return fbd->Perimeter();
+    } catch (...) { return 0; }
+}
+
+OCCTShapeRef OCCTFreeBoundsPropsOpenWire(OCCTFreeBoundsPropsRef props, int32_t index) {
+    if (!props || !props->performed) return nullptr;
+    try {
+        Handle(ShapeAnalysis_FreeBoundData) fbd = props->fbp.OpenFreeBound(index);
+        if (fbd.IsNull()) return nullptr;
+        auto ref = new OCCTShape();
+        ref->shape = fbd->FreeBound();
+        return ref;
+    } catch (...) { return nullptr; }
+}

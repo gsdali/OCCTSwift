@@ -2808,3 +2808,227 @@ OCCTShapeRef OCCTDistSSSupportShape2(OCCTDistSSRef dist, int32_t index) {
         return ref;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - v0.114: TopoDS_Builder + BRepLib utilities + BRep_Tool queries + unique counts + Curve3D type-name + EmptyCopy
+// --- TopoDS_Builder ---
+
+#include <TopoDS_Builder.hxx>
+#include <TopoDS_CompSolid.hxx>
+
+OCCTShapeRef OCCTBuilderMakeWire() {
+    try {
+        TopoDS_Builder builder;
+        TopoDS_Wire wire;
+        builder.MakeWire(wire);
+        auto ref = new OCCTShape();
+        ref->shape = wire;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBuilderMakeShell() {
+    try {
+        TopoDS_Builder builder;
+        TopoDS_Shell shell;
+        builder.MakeShell(shell);
+        auto ref = new OCCTShape();
+        ref->shape = shell;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBuilderMakeSolid() {
+    try {
+        TopoDS_Builder builder;
+        TopoDS_Solid solid;
+        builder.MakeSolid(solid);
+        auto ref = new OCCTShape();
+        ref->shape = solid;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBuilderMakeCompound() {
+    try {
+        TopoDS_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+        auto ref = new OCCTShape();
+        ref->shape = compound;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBuilderMakeCompSolid() {
+    try {
+        TopoDS_Builder builder;
+        TopoDS_CompSolid cs;
+        builder.MakeCompSolid(cs);
+        auto ref = new OCCTShape();
+        ref->shape = cs;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTBuilderAdd(OCCTShapeRef parent, OCCTShapeRef child) {
+    if (!parent || !child) return false;
+    try {
+        TopoDS_Builder builder;
+        builder.Add(parent->shape, child->shape);
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBuilderRemove(OCCTShapeRef parent, OCCTShapeRef child) {
+    if (!parent || !child) return false;
+    try {
+        TopoDS_Builder builder;
+        builder.Remove(parent->shape, child->shape);
+        return true;
+    } catch (...) { return false; }
+}
+// --- BRepLib utilities ---
+
+bool OCCTBRepLibOrientClosedSolid(OCCTShapeRef shape) {
+    if (!shape) return false;
+    try {
+        TopoDS_Solid solid = TopoDS::Solid(shape->shape);
+        return BRepLib::OrientClosedSolid(solid);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepLibBuildCurves3dForShape(OCCTShapeRef shape, double tolerance) {
+    if (!shape) return false;
+    try {
+        return BRepLib::BuildCurves3d(shape->shape, tolerance);
+    } catch (...) { return false; }
+}
+
+OCCTShapeRef OCCTBRepLibSortFaces(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        NCollection_List<TopoDS_Shape> faceList;
+        BRepLib::SortFaces(shape->shape, faceList);
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+        for (auto it = faceList.cbegin(); it != faceList.cend(); ++it) {
+            builder.Add(compound, *it);
+        }
+        auto ref = new OCCTShape();
+        ref->shape = compound;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+OCCTShapeRef OCCTBRepLibReverseSortFaces(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        NCollection_List<TopoDS_Shape> faceList;
+        BRepLib::ReverseSortFaces(shape->shape, faceList);
+        BRep_Builder builder;
+        TopoDS_Compound compound;
+        builder.MakeCompound(compound);
+        for (auto it = faceList.cbegin(); it != faceList.cend(); ++it) {
+            builder.Add(compound, *it);
+        }
+        auto ref = new OCCTShape();
+        ref->shape = compound;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+// --- BRep_Tool queries on Shape ---
+
+double OCCTShapeEdgeTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        return BRep_Tool::Tolerance(TopoDS::Edge(shape->shape));
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeFaceTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        return BRep_Tool::Tolerance(TopoDS::Face(shape->shape));
+    } catch (...) { return 0; }
+}
+
+double OCCTShapeVertexTolerance(OCCTShapeRef shape) {
+    if (!shape) return 0;
+    try {
+        return BRep_Tool::Tolerance(TopoDS::Vertex(shape->shape));
+    } catch (...) { return 0; }
+}
+
+void OCCTShapeVertexPoint(OCCTShapeRef shape, double* x, double* y, double* z) {
+    if (!shape) { *x = *y = *z = 0; return; }
+    try {
+        gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(shape->shape));
+        *x = p.X(); *y = p.Y(); *z = p.Z();
+    } catch (...) { *x = *y = *z = 0; }
+}
+
+OCCTCurve3DRef OCCTShapeEdgeCurve(OCCTShapeRef shape, double* first, double* last) {
+    if (!shape) { *first = *last = 0; return nullptr; }
+    try {
+        double f, l;
+        Handle(Geom_Curve) curve = BRep_Tool::Curve(TopoDS::Edge(shape->shape), f, l);
+        if (curve.IsNull()) { *first = *last = 0; return nullptr; }
+        *first = f; *last = l;
+        auto ref = new OCCTCurve3D();
+        ref->curve = curve;
+        return ref;
+    } catch (...) { *first = *last = 0; return nullptr; }
+}
+
+OCCTSurfaceRef OCCTShapeFaceSurface(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        Handle(Geom_Surface) surf = BRep_Tool::Surface(TopoDS::Face(shape->shape));
+        if (surf.IsNull()) return nullptr;
+        auto ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
+bool OCCTShapeIsClosed(OCCTShapeRef shape) {
+    if (!shape) return false;
+    return shape->shape.Closed();
+}
+// --- Unique sub-shape counts ---
+
+#include <TopTools_IndexedMapOfShape.hxx>
+
+int32_t OCCTShapeUniqueSubShapeCount(OCCTShapeRef shape, int32_t type) {
+    if (!shape) return 0;
+    try {
+        TopTools_IndexedMapOfShape map;
+        TopExp::MapShapes(shape->shape, (TopAbs_ShapeEnum)type, map);
+        return (int32_t)map.Extent();
+    } catch (...) { return 0; }
+}
+// --- Convenience unique counts ---
+
+int32_t OCCTShapeUniqueEdgeCount(OCCTShapeRef shape) {
+    return OCCTShapeUniqueSubShapeCount(shape, 6); // TopAbs_EDGE
+}
+
+int32_t OCCTShapeUniqueFaceCount(OCCTShapeRef shape) {
+    return OCCTShapeUniqueSubShapeCount(shape, 4); // TopAbs_FACE
+}
+
+int32_t OCCTShapeUniqueVertexCount(OCCTShapeRef shape) {
+    return OCCTShapeUniqueSubShapeCount(shape, 7); // TopAbs_VERTEX
+}
+// --- Shape empty copy ---
+
+OCCTShapeRef OCCTShapeEmptyCopied(OCCTShapeRef shape) {
+    if (!shape) return nullptr;
+    try {
+        auto ref = new OCCTShape();
+        ref->shape = shape->shape.EmptyCopied();
+        return ref;
+    } catch (...) { return nullptr; }
+}
+
