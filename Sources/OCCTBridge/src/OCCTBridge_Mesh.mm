@@ -20,6 +20,7 @@
 
 // === Area-specific OCCT headers ===
 
+#include <BRepMesh_Deflection.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <BRep_Builder.hxx>
@@ -647,3 +648,19 @@ OCCTMeshRef OCCTMeshCreateFromArrays(
     }
 }
 
+
+// MARK: - BRepMesh_Deflection (v0.61)
+// MARK: - BRepMesh_Deflection (v0.61.0)
+
+double OCCTComputeAbsoluteDeflection(OCCTShapeRef shape, double relativeDeflection, double maxShapeSize) {
+    if (!shape) return -1.0;
+    try {
+        return BRepMesh_Deflection::ComputeAbsoluteDeflection(shape->shape, relativeDeflection, maxShapeSize);
+    } catch (...) { return -1.0; }
+}
+
+bool OCCTDeflectionIsConsistent(double current, double required, bool allowDecrease, double ratio) {
+    try {
+        return BRepMesh_Deflection::IsConsistent(current, required, allowDecrease, ratio);
+    } catch (...) { return false; }
+}

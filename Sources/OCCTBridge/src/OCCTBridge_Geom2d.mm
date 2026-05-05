@@ -21,6 +21,7 @@
 
 #include <Adaptor2d_Curve2d.hxx>
 #include <Approx_Curve2d.hxx>
+#include <BRepAdaptor_Curve2d.hxx>
 #include <GC_MakeLine2d.hxx>
 #include <GccEnt_Position.hxx>
 #include <Geom2d_BSplineCurve.hxx>
@@ -1661,4 +1662,38 @@ OCCTCurve2DRef _Nullable OCCTBisectorBisecAnaPointPoint(
         ref->curve = result;
         return ref;
     } catch (...) { return nullptr; }
+}
+
+// MARK: - BRepAdaptor_Curve2d Edge PCurves (v0.61)
+// MARK: - BRepAdaptor_Curve2d (v0.61.0)
+
+bool OCCTEdgePCurveParams(OCCTShapeRef edge, OCCTShapeRef face,
+    double* outFirst, double* outLast) {
+    if (!edge || !face || !outFirst || !outLast) return false;
+    try {
+        if (edge->shape.ShapeType() != TopAbs_EDGE) return false;
+        if (face->shape.ShapeType() != TopAbs_FACE) return false;
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        BRepAdaptor_Curve2d adaptor(e, f);
+        *outFirst = adaptor.FirstParameter();
+        *outLast = adaptor.LastParameter();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgePCurveValue(OCCTShapeRef edge, OCCTShapeRef face, double t,
+    double* outU, double* outV) {
+    if (!edge || !face || !outU || !outV) return false;
+    try {
+        if (edge->shape.ShapeType() != TopAbs_EDGE) return false;
+        if (face->shape.ShapeType() != TopAbs_FACE) return false;
+        TopoDS_Edge e = TopoDS::Edge(edge->shape);
+        TopoDS_Face f = TopoDS::Face(face->shape);
+        BRepAdaptor_Curve2d adaptor(e, f);
+        gp_Pnt2d pt = adaptor.Value(t);
+        *outU = pt.X();
+        *outV = pt.Y();
+        return true;
+    } catch (...) { return false; }
 }

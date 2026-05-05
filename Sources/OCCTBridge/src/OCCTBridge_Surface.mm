@@ -59,6 +59,7 @@
 #include <GeomConvert_CompBezierSurfacesToBSplineSurface.hxx>
 #include <GeomFill_Pipe.hxx>
 #include <GeomFill_BSplineCurves.hxx>
+#include <Contap_ContAna.hxx>
 #include <GeomFill_ConstrainedFilling.hxx>
 #include <GeomFill_SimpleBound.hxx>
 #include <ShapeCustom_Surface.hxx>
@@ -1715,4 +1716,113 @@ OCCTSurfaceContinuitySplitResult OCCTSurfaceSplitByContinuity(OCCTSurfaceRef sur
         result.nVSplits = vVals.IsNull() ? 0 : vVals->Length();
     } catch (...) {}
     return result;
+}
+
+// MARK: - Contap Contour Analysis (v0.61)
+// MARK: - Contap — Contour Analysis (v0.61.0)
+
+int32_t OCCTContapSphereDir(double cx, double cy, double cz, double radius,
+    double dirX, double dirY, double dirZ,
+    int32_t* outType, double* outData) {
+    if (!outType || !outData) return -1;
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(0, 0, 1)), radius);
+        gp_Dir viewDir(dirX, dirY, dirZ);
+        Contap_ContAna contAna;
+        contAna.Perform(sphere, viewDir);
+        if (!contAna.IsDone()) return -1;
+        int32_t nb = contAna.NbContours();
+        if (nb > 0) {
+            GeomAbs_CurveType ctype = contAna.TypeContour();
+            if (ctype == GeomAbs_Circle) {
+                *outType = 1; // circle
+                gp_Circ circ = contAna.Circle();
+                gp_Pnt center = circ.Location();
+                outData[0] = center.X();
+                outData[1] = center.Y();
+                outData[2] = center.Z();
+                outData[3] = circ.Radius();
+            } else if (ctype == GeomAbs_Line) {
+                *outType = 0; // line
+                gp_Lin line = contAna.Line(1);
+                gp_Pnt loc = line.Location();
+                gp_Dir dir = line.Direction();
+                outData[0] = loc.X(); outData[1] = loc.Y(); outData[2] = loc.Z();
+                outData[3] = dir.X(); outData[4] = dir.Y(); outData[5] = dir.Z();
+            } else {
+                *outType = 2; // walking/other
+            }
+        }
+        return nb;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTContapCylinderDir(double px, double py, double pz,
+    double axX, double axY, double axZ, double radius,
+    double dirX, double dirY, double dirZ,
+    int32_t* outType, double* outData) {
+    if (!outType || !outData) return -1;
+    try {
+        gp_Cylinder cyl(gp_Ax3(gp_Pnt(px, py, pz), gp_Dir(axX, axY, axZ)), radius);
+        gp_Dir viewDir(dirX, dirY, dirZ);
+        Contap_ContAna contAna;
+        contAna.Perform(cyl, viewDir);
+        if (!contAna.IsDone()) return -1;
+        int32_t nb = contAna.NbContours();
+        if (nb > 0) {
+            GeomAbs_CurveType ctype = contAna.TypeContour();
+            if (ctype == GeomAbs_Line) {
+                *outType = 0; // line
+                // Return first line
+                gp_Lin line = contAna.Line(1);
+                gp_Pnt loc = line.Location();
+                gp_Dir dir = line.Direction();
+                outData[0] = loc.X(); outData[1] = loc.Y(); outData[2] = loc.Z();
+                outData[3] = dir.X(); outData[4] = dir.Y(); outData[5] = dir.Z();
+            } else if (ctype == GeomAbs_Circle) {
+                *outType = 1; // circle
+                gp_Circ circ = contAna.Circle();
+                gp_Pnt center = circ.Location();
+                outData[0] = center.X(); outData[1] = center.Y(); outData[2] = center.Z();
+                outData[3] = circ.Radius();
+            } else {
+                *outType = 2;
+            }
+        }
+        return nb;
+    } catch (...) { return -1; }
+}
+
+int32_t OCCTContapSphereEye(double cx, double cy, double cz, double radius,
+    double eyeX, double eyeY, double eyeZ,
+    int32_t* outType, double* outData) {
+    if (!outType || !outData) return -1;
+    try {
+        gp_Sphere sphere(gp_Ax3(gp_Pnt(cx, cy, cz), gp_Dir(0, 0, 1)), radius);
+        gp_Pnt eye(eyeX, eyeY, eyeZ);
+        Contap_ContAna contAna;
+        contAna.Perform(sphere, eye);
+        if (!contAna.IsDone()) return -1;
+        int32_t nb = contAna.NbContours();
+        if (nb > 0) {
+            GeomAbs_CurveType ctype = contAna.TypeContour();
+            if (ctype == GeomAbs_Circle) {
+                *outType = 1;
+                gp_Circ circ = contAna.Circle();
+                gp_Pnt center = circ.Location();
+                outData[0] = center.X(); outData[1] = center.Y(); outData[2] = center.Z();
+                outData[3] = circ.Radius();
+            } else if (ctype == GeomAbs_Line) {
+                *outType = 0;
+                gp_Lin line = contAna.Line(1);
+                gp_Pnt loc = line.Location();
+                gp_Dir dir = line.Direction();
+                outData[0] = loc.X(); outData[1] = loc.Y(); outData[2] = loc.Z();
+                outData[3] = dir.X(); outData[4] = dir.Y(); outData[5] = dir.Z();
+            } else {
+                *outType = 2;
+            }
+        }
+        return nb;
+    } catch (...) { return -1; }
 }
