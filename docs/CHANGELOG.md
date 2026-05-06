@@ -2,13 +2,19 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.170.0
+## Current: v0.170.1
 
-**4,281 wrapped operations | 3,393 tests | 1,178 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta2**
+**4,281 wrapped operations | 3,399 tests | 1,179 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta2**
 
 ---
 
 ## Release History
+
+### v0.170.1 (May 2026) — ShapeMeasurements kernel hoist + OCCTBridge.mm split complete
+
+**ShapeMeasurements moved to kernel** ([#100](https://github.com/gsdali/OCCTSwift/issues/100), [PR #163](https://github.com/gsdali/OCCTSwift/pull/163)). `ShapeMeasurements` (per-face areas / centroids / perimeters + per-edge lengths) and `Shape.measure(linearTolerance:)` are now part of `OCCTSwift` itself, no longer requiring a dependency on `OCCTSwiftTools`. Pure Swift relocation — no bridge changes. Existing `OCCTSwiftTools.ShapeMeasurements` callers should re-target to `import OCCTSwift` once `OCCTSwiftTools` ships its dep bump (tracked in [OCCTSwiftTools#13](https://github.com/gsdali/OCCTSwiftTools/issues/13)).
+
+**OCCTBridge.mm split — DONE** ([#99](https://github.com/gsdali/OCCTSwift/issues/99), PRs #160-#162). The monolithic `OCCTBridge.mm` is now **393 lines** of pure foundation (header includes, global mutex, `OCCTSewing` struct, `Internal.h` import) — down from 58,168 lines pre-split (−99.3%). All 4,281 operations live in 15 per-OCCT-module translation units (`OCCTBridge_Modeling.mm`, `OCCTBridge_Topology.mm`, `OCCTBridge_Healing.mm`, `OCCTBridge_Properties.mm`, `OCCTBridge_Geom2d.mm`, `OCCTBridge_Surface.mm`, `OCCTBridge_Curve3D.mm`, `OCCTBridge_Document.mm`, `OCCTBridge_IO.mm`, `OCCTBridge_Mesh.mm`, `OCCTBridge_Spatial.mm`, `OCCTBridge_BRepGraph.mm`, `OCCTBridge_AIS.mm`, `OCCTBridge_Visualization.mm`, `OCCTBridge_ProjLib_NLPlate.mm`). Net-zero behavior change throughout; public C surface unchanged. The xcframework binary is identical to v0.170.0 (no OCCT changes), so SPM consumers can continue using the v0.170.0 binary URL.
 
 ### v0.170.0 (May 2026) — OCCT 8.0.0-beta2 ingest
 
