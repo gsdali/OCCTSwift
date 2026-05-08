@@ -161,6 +161,9 @@ public final class TopologyGraph: @unchecked Sendable {
     // MARK: - Explorers
 
     /// Node kind enumeration matching OCCT BRepGraph_NodeId::Kind.
+    /// Topology kinds 0–5 are core hierarchy; 6/7 are containers; 8 is the
+    /// face-context coedge entity. Assembly kinds (Product, Occurrence) start
+    /// at 10, leaving slot 9 reserved for future topology extension.
     public enum NodeKind: Int32, Sendable {
         case solid = 0
         case shell = 1
@@ -171,6 +174,8 @@ public final class TopologyGraph: @unchecked Sendable {
         case compound = 6
         case compSolid = 7
         case coedge = 8
+        case product = 10
+        case occurrence = 11
     }
 
     /// Count descendant nodes of a given kind from a root node.

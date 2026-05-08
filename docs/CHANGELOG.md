@@ -2,13 +2,25 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v1.0.0
+## Current: v1.0.1
 
 **4,275 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
 ## Release History
+
+### v1.0.1 (May 2026) — TopologyGraph.rootNodes fix + test repair
+
+**Bug fix.** `TopologyGraph.NodeKind` was missing `product = 10` and `occurrence = 11` cases, so `rootNodes` silently returned `[]` even when products were present (`compactMap { NodeKind(rawValue: 10) }` filtered every entry out as `nil`). After OCCT 8.0.0 beta1 reshaped root iteration to "Products only", every `rootNodes` consumer hit this. Fixed by extending the enum to cover the full `BRepGraph_NodeId::Kind` range (topology 0–8, assembly 10–11; slot 9 reserved upstream).
+
+**Tests.** The four pre-existing failures shipped with v1.0.0 are repaired:
+
+- `hasRoots` and `childExplorer` now wrap the box's solid in a Product via `linkProductToTopology` before querying `rootNodes` (matches OCCT 8.0 GA assembly semantics).
+- `edgeVertexDistance` switched from low-level `BRepExtrema_DistanceSS` (which deliberately skips edge-vertex pairs whose closest point is at an endpoint, expecting the caller to also pair vertices-with-vertices) to high-level `Shape.distance(to:)` backed by `BRepExtrema_DistShapeShape`, which orchestrates all subshape combinations including endpoint cases.
+- `edgeSelectorFeatureUnsupported` deleted — it asserted `Fillet.onFeature` was unsupported, contradicting the newer `filletOnFeature` test that asserts the opposite. `.onFeature` is wired up in `FeatureReconstructor`.
+
+xcframework binary is unchanged from v1.0.0; SPM consumers continue resolving against the v1.0.0 asset.
 
 ### v1.0.0 (May 2026) — OCCT 8.0.0 GA — SemVer-stable
 

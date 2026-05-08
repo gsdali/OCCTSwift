@@ -22693,14 +22693,22 @@ struct BRepExtremaDistanceSSTests {
 
     @Test("distance between edge and vertex")
     func edgeVertexDistance() {
+        // OCCT 8.0's low-level BRepExtrema_DistanceSS deliberately skips
+        // edge-vertex pairs whose closest point lands at one of the edge's
+        // endpoint-vertices (it expects the caller to pair vertices-with-
+        // vertices separately). Use the high-level BRepExtrema_DistShapeShape
+        // wrapper (Shape.distance(to:)) which handles all subshape pair
+        // combinations including endpoint cases.
         if let box1 = Shape.box(width: 1, height: 1, depth: 1),
            let box2 = Shape.box(origin: SIMD3(5, 5, 0), width: 1, height: 1, depth: 1) {
             let edges1 = box1.subShapes(ofType: .edge)
             let verts2 = box2.subShapes(ofType: .vertex)
             if let e = edges1.first, let v = verts2.first {
-                let r = e.distanceSS(to: v)
-                #expect(r.isDone)
-                #expect(r.distance > 0)
+                if let r = e.distance(to: v) {
+                    #expect(r.distance > 0)
+                } else {
+                    Issue.record("edge-vertex distance should resolve via DistShapeShape")
+                }
             }
         }
     }
@@ -42814,6 +42822,9 @@ struct TopologyGraphExplorerTests {
         if let box {
             let graph = TopologyGraph(shape: box)
             if let graph {
+                // OCCT 8.0 reshaped root iteration to Products only — wrap the
+                // box's solid root in a Product to expose it as a graph root.
+                _ = graph.linkProductToTopology(shapeRootKind: 0 /* Solid */, shapeRootIndex: 0)
                 let roots = graph.rootNodes
                 #expect(roots.count > 0)
                 if let root = roots.first {
@@ -42926,8 +42937,12 @@ struct TopologyGraphRootNodeTests {
         if let box {
             let graph = TopologyGraph(shape: box)
             if let graph {
+                // OCCT 8.0 reshaped root iteration to Products only — wrap the
+                // box's solid root in a Product to expose it as a graph root.
+                _ = graph.linkProductToTopology(shapeRootKind: 0 /* Solid */, shapeRootIndex: 0)
                 let roots = graph.rootNodes
                 #expect(roots.count > 0)
+                #expect(roots.first?.kind == .product)
             }
         }
     }
@@ -46612,21 +46627,10 @@ struct FeatureReconstructorTests {
         }
     }
 
-    @Test("EdgeSelector.onFeature is unsupported in v1")
-    func edgeSelectorFeatureUnsupported() {
-        let r = FeatureSpec.Revolve(
-            profilePoints2D: [SIMD2(0, 0), SIMD2(10, 0), SIMD2(10, 10), SIMD2(0, 10)],
-            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1), id: "base")
-        let f = FeatureSpec.Fillet(edgeSelector: .onFeature("base"), radius: 0.5, id: "fillet_base_edges")
-        let result = FeatureReconstructor.build(from: [.revolve(r), .fillet(f)])
-        if let skipped = result.skipped.first(where: { $0.featureID == "fillet_base_edges" }) {
-            if case .unsupported = skipped.reason {} else {
-                Issue.record("expected unsupported reason")
-            }
-        } else {
-            Issue.record("expected onFeature fillet to be skipped")
-        }
-    }
+    // The `EdgeSelector.onFeature is unsupported in v1` test was deleted in
+    // v1.0.0: `.onFeature` is wired up in FeatureReconstructor (see the
+    // `filletOnFeature` test for positive coverage); the contradictory
+    // assertion here was a stale tracker for a temporary v1 limitation.
 
     @Test("JSON front end parses a revolve")
     func jsonRevolve() throws {
