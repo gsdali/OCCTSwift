@@ -19340,28 +19340,6 @@ OCCTSurfaceRef _Nullable OCCTGeomFillGordon(const OCCTCurve3DRef _Nonnull * _Non
                                              int32_t guideCount,
                                              double tolerance);
 
-// --- PointSetLib ---
-
-/// Compute centroid and mass of a point cloud. points: flat [x,y,z,...].
-void OCCTPointSetProps(const double* _Nonnull points, int32_t count,
-                       double* _Nonnull cx, double* _Nonnull cy, double* _Nonnull cz,
-                       double* _Nonnull mass);
-
-/// Compute inertia matrix at centre of mass. inertiaMatrix: 9 doubles (3x3 row-major).
-void OCCTPointSetPropsInertia(const double* _Nonnull points, int32_t count,
-                               double* _Nonnull inertiaMatrix);
-
-/// Barycentre of point cloud (unit mass). points: flat [x,y,z,...].
-void OCCTPointSetBarycentre(const double* _Nonnull points, int32_t count,
-                             double* _Nonnull bx, double* _Nonnull by, double* _Nonnull bz);
-
-/// PCA analysis of a point cloud. Returns dimensionality: 0=point, 1=line, 2=plane, 3=space.
-/// planeNormal+planeDist valid for type=2; barycentre always valid.
-int32_t OCCTPointSetEquation(const double* _Nonnull points, int32_t count, double tolerance,
-                              double* _Nonnull baryCx, double* _Nonnull baryCy, double* _Nonnull baryCz,
-                              double* _Nonnull planeNx, double* _Nonnull planeNy, double* _Nonnull planeNz,
-                              double* _Nonnull planeDist);
-
 // --- ExtremaPC (Point-Curve Extrema) ---
 
 /// Find closest point on a Geom_Curve to a query point.
@@ -20007,9 +19985,6 @@ int32_t OCCTBRepGraphOccurrenceProduct(OCCTBRepGraphRef _Nonnull graph, int32_t 
 /// Parent product index of an occurrence.
 int32_t OCCTBRepGraphOccurrenceParentProduct(OCCTBRepGraphRef _Nonnull graph, int32_t occIndex);
 
-/// Parent occurrence index of an occurrence (-1 if top-level).
-int32_t OCCTBRepGraphOccurrenceParentOccurrence(OCCTBRepGraphRef _Nonnull graph, int32_t occIndex);
-
 /// Number of root products (not referenced by an active occurrence).
 int32_t OCCTBRepGraphRootProductCount(OCCTBRepGraphRef _Nonnull graph);
 
@@ -20349,10 +20324,14 @@ void OCCTBRepGraphSetChildRefChildDefId(OCCTBRepGraphRef _Nonnull graph, int32_t
 
 // CoEdge geometric setters
 void OCCTBRepGraphSetCoEdgeUVBox(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, double u1, double v1, double u2, double v2);
+/// Set the geometric regularity (C^k continuity) for an edge across a pair of faces.
+/// face1Index == face2Index sets the seam continuity across a closed-surface seam line.
 /// Continuity uses GeomAbs_Shape: 0=C0, 1=C1, 2=C2, 3=C3, 4=CN.
-void OCCTBRepGraphSetCoEdgeContinuity(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t continuity);
-void OCCTBRepGraphSetCoEdgeSeamContinuity(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t continuity);
-void OCCTBRepGraphSetCoEdgeSeamPairId(OCCTBRepGraphRef _Nonnull graph, int32_t coedgeIndex, int32_t seamPairCoedgeIndex);
+/// Returns 1 if written, 0 if the LayerRegularity layer is not registered.
+/// (OCCT 8.0.0 GA replaced per-coedge SetContinuity / SetSeamContinuity / SetSeamPairId
+///  with this per-(edge, face1, face2) layer model. Seam-pair-id is structural in GA —
+///  no setter exists; query via BRepGraph_Tool::CoEdge::SeamPair.)
+int32_t OCCTBRepGraphSetEdgeRegularity(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t face1Index, int32_t face2Index, int32_t continuity);
 
 // Face triangulation rep binding
 void OCCTBRepGraphSetFaceTriangulationRep(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t triRepId);

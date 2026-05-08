@@ -1157,15 +1157,6 @@ int32_t OCCTBRepGraphOccurrenceParentProduct(OCCTBRepGraphRef g, int32_t occInde
     } catch (...) { return -1; }
 }
 
-// OCCT 8.0.0 beta1 removed the parent-occurrence-of-occurrence relationship: assembly
-// hierarchy is now Product -> Occurrence -> Product, and an occurrence has only one
-// parent (a Product), not another occurrence. The wrapper is retained as -1 sentinel
-// for ABI compatibility within v0.157.x; remove at v1.0 if unused.
-int32_t OCCTBRepGraphOccurrenceParentOccurrence(OCCTBRepGraphRef g, int32_t occIndex) {
-    (void)g; (void)occIndex;
-    return -1;
-}
-
 int32_t OCCTBRepGraphRootProductCount(OCCTBRepGraphRef g) {
     if (!g) return 0;
     try {
@@ -2238,28 +2229,21 @@ void OCCTBRepGraphSetCoEdgeUVBox(OCCTBRepGraphRef g, int32_t coedgeIndex,
     } catch (...) {}
 }
 
-void OCCTBRepGraphSetCoEdgeContinuity(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t continuity) {
-    if (!g) return;
+// OCCT 8.0.0 GA moved continuity from per-coedge to per-(edge, face1, face2):
+// EditorView::EdgeOps::SetRegularity replaces the three former CoEdgeOps setters.
+// face1Index == face2Index sets the seam continuity across a closed-surface seam.
+// SetSeamPairId has no GA equivalent (seam-pair-id is now structural — derived from
+// two coedges on the same edge/face with opposite orientations).
+int32_t OCCTBRepGraphSetEdgeRegularity(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t face1Index, int32_t face2Index, int32_t continuity) {
+    if (!g) return 0;
     try {
-        g->graph.Editor().CoEdges().SetContinuity(
-            BRepGraph_CoEdgeId(coedgeIndex), continuityFromInt(continuity));
-    } catch (...) {}
-}
-
-void OCCTBRepGraphSetCoEdgeSeamContinuity(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t continuity) {
-    if (!g) return;
-    try {
-        g->graph.Editor().CoEdges().SetSeamContinuity(
-            BRepGraph_CoEdgeId(coedgeIndex), continuityFromInt(continuity));
-    } catch (...) {}
-}
-
-void OCCTBRepGraphSetCoEdgeSeamPairId(OCCTBRepGraphRef g, int32_t coedgeIndex, int32_t seamPairCoedgeIndex) {
-    if (!g) return;
-    try {
-        g->graph.Editor().CoEdges().SetSeamPairId(
-            BRepGraph_CoEdgeId(coedgeIndex), BRepGraph_CoEdgeId(seamPairCoedgeIndex));
-    } catch (...) {}
+        bool ok = g->graph.Editor().Edges().SetRegularity(
+            BRepGraph_EdgeId(edgeIndex),
+            BRepGraph_FaceId(face1Index),
+            BRepGraph_FaceId(face2Index),
+            continuityFromInt(continuity));
+        return ok ? 1 : 0;
+    } catch (...) { return 0; }
 }
 
 // Face triangulation rep binding

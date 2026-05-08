@@ -42261,82 +42261,7 @@ struct GeomFillGordonTests {
     }
 }
 
-@Suite("PointSetLib — Properties")
-struct PointSetLibPropsTests {
-
-    @Test func centroidOfSquare() {
-        let pts: [SIMD3<Double>] = [
-            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
-            SIMD3(0, 10, 0), SIMD3(10, 10, 0)
-        ]
-        let props = PointSetLib.properties(points: pts)
-        #expect(abs(props.centroid.x - 5.0) < 1e-10)
-        #expect(abs(props.centroid.y - 5.0) < 1e-10)
-        #expect(abs(props.mass - 4.0) < 1e-10)
-    }
-
-    @Test func barycentre() {
-        let pts: [SIMD3<Double>] = [
-            SIMD3(0, 0, 0), SIMD3(6, 0, 0), SIMD3(3, 3, 0)
-        ]
-        let b = PointSetLib.barycentre(points: pts)
-        #expect(abs(b.x - 3.0) < 1e-10)
-        #expect(abs(b.y - 1.0) < 1e-10)
-    }
-
-    @Test func inertiaMatrix() {
-        let pts: [SIMD3<Double>] = [
-            SIMD3(1, 0, 0), SIMD3(-1, 0, 0),
-            SIMD3(0, 1, 0), SIMD3(0, -1, 0)
-        ]
-        let m = PointSetLib.inertiaMatrix(points: pts)
-        #expect(m.count == 9)
-    }
-}
-
-@Suite("PointSetLib — Equation (PCA)")
-struct PointSetLibEquationTests {
-
-    @Test func coplanarPoints() {
-        let pts: [SIMD3<Double>] = [
-            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
-            SIMD3(0, 10, 0), SIMD3(10, 10, 0)
-        ]
-        if let eq = PointSetLib.equation(points: pts) {
-            #expect(eq.type == .plane)
-            #expect(abs(eq.planeNormal.z) > 0.9)
-        }
-    }
-
-    @Test func collinearPoints() {
-        let pts: [SIMD3<Double>] = [
-            SIMD3(0, 0, 0), SIMD3(5, 0, 0), SIMD3(10, 0, 0)
-        ]
-        if let eq = PointSetLib.equation(points: pts) {
-            #expect(eq.type == .line)
-        }
-    }
-
-    @Test func coincidentPoints() {
-        let pts: [SIMD3<Double>] = [
-            SIMD3(5, 5, 5), SIMD3(5, 5, 5), SIMD3(5, 5, 5)
-        ]
-        if let eq = PointSetLib.equation(points: pts) {
-            #expect(eq.type == .point)
-            #expect(abs(eq.barycentre.x - 5.0) < 1e-10)
-        }
-    }
-
-    @Test func spacePoints() {
-        let pts: [SIMD3<Double>] = [
-            SIMD3(0, 0, 0), SIMD3(10, 0, 0),
-            SIMD3(0, 10, 0), SIMD3(0, 0, 10)
-        ]
-        if let eq = PointSetLib.equation(points: pts) {
-            #expect(eq.type == .space)
-        }
-    }
-}
+// PointSetLib suites removed in v1.0.0 — module dropped from OCCT 8.0.0 GA.
 
 @Suite("ExtremaPC — Point to Curve Distance")
 struct ExtremaPCTests {
@@ -43754,18 +43679,18 @@ struct EditorViewProductOpsTests {
 
 @Suite("v0.162 EditorView geometric, location, PCurve setters")
 struct EditorViewV162Tests {
-    @Test("CoEdge UV box / continuity / seam setters operate on existing coedges")
+    @Test("CoEdge UV box setter and per-(edge, face1, face2) regularity setter operate on existing entities")
     func coedgeGeometricSetters() {
         let box = Shape.box(width: 10, height: 10, depth: 10)
         if let box {
             let graph = TopologyGraph(shape: box)
-            if let graph, graph.coedgeCount > 0 {
+            if let graph, graph.coedgeCount > 0, graph.edgeCount > 0, graph.faceCount > 1 {
                 graph.setCoEdgeUVBox(0, u1: 0, v1: 0, u2: 1, v2: 1)
-                graph.setCoEdgeContinuity(0, continuity: 1)       // C1
-                graph.setCoEdgeSeamContinuity(0, continuity: 0)   // C0
-                if graph.coedgeCount > 1 {
-                    graph.setCoEdgeSeamPairId(0, seamPairCoedgeIndex: 1)
-                }
+                // OCCT 8.0.0 GA replaced per-coedge SetContinuity / SetSeamContinuity /
+                // SetSeamPairId with EdgeOps::SetRegularity — continuity now lives on
+                // (edge, face1, face2). face1 == face2 expresses seam continuity.
+                _ = graph.setEdgeRegularity(0, face1: 0, face2: 1, continuity: 1) // C1 across faces 0,1
+                _ = graph.setEdgeRegularity(0, face1: 0, face2: 0, continuity: 0) // seam C0
             }
         }
     }

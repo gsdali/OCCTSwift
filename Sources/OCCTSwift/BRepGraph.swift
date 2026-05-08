@@ -897,18 +897,6 @@ public final class TopologyGraph: @unchecked Sendable {
         Int(OCCTBRepGraphOccurrenceParentProduct(handle, Int32(occIndex)))
     }
 
-    /// Parent occurrence index of an occurrence, or nil if top-level.
-    ///
-    /// OCCT 8.0.0 beta1 removed the parent-occurrence-of-occurrence relationship: the assembly
-    /// model is now `Product → Occurrence → Product`, so an occurrence has only one parent (a
-    /// product). This method always returns `nil` from v0.157.0 onward and will be removed in
-    /// v1.0.0. Use `occurrenceParentProduct(_:)` instead.
-    @available(*, deprecated, message: "Removed upstream in OCCT 8.0.0 beta1; always returns nil. Use occurrenceParentProduct(_:). Will be removed in OCCTSwift v1.0.0.")
-    public func occurrenceParentOccurrence(_ occIndex: Int) -> Int? {
-        let idx = Int(OCCTBRepGraphOccurrenceParentOccurrence(handle, Int32(occIndex)))
-        return idx >= 0 ? idx : nil
-    }
-
     /// Number of root products.
     public var rootProductCount: Int {
         Int(OCCTBRepGraphRootProductCount(handle))
@@ -1568,20 +1556,22 @@ public final class TopologyGraph: @unchecked Sendable {
         OCCTBRepGraphSetCoEdgeUVBox(handle, Int32(coedgeIndex), u1, v1, u2, v2)
     }
 
-    /// Set the geometric continuity of a coedge.
+    /// Set the geometric regularity (C^k continuity) for an edge across a pair of faces.
+    ///
+    /// Pass the same face index as `face1` and `face2` to set the seam continuity across
+    /// a closed-surface seam line.
+    ///
+    /// OCCT 8.0.0 GA reshaped the continuity model: it lives on the (edge, face1, face2)
+    /// triple in `BRepGraph_LayerRegularity`, replacing the per-coedge setters present in
+    /// pre-1.0 (`setCoEdgeContinuity`, `setCoEdgeSeamContinuity`). The explicit seam-pair-id
+    /// setter was removed — seam-pair-id is structural in GA (derived from two coedges on
+    /// the same edge/face with opposite orientations).
+    ///
     /// - Parameter continuity: GeomAbs_Shape — 0=C0, 1=C1, 2=C2, 3=C3, 4=CN.
-    public func setCoEdgeContinuity(_ coedgeIndex: Int, continuity: Int) {
-        OCCTBRepGraphSetCoEdgeContinuity(handle, Int32(coedgeIndex), Int32(continuity))
-    }
-
-    /// Set the seam-pair continuity of a coedge.
-    public func setCoEdgeSeamContinuity(_ coedgeIndex: Int, continuity: Int) {
-        OCCTBRepGraphSetCoEdgeSeamContinuity(handle, Int32(coedgeIndex), Int32(continuity))
-    }
-
-    /// Set the seam-pair id linking two coedges of a seam edge (-1 to break the link).
-    public func setCoEdgeSeamPairId(_ coedgeIndex: Int, seamPairCoedgeIndex: Int) {
-        OCCTBRepGraphSetCoEdgeSeamPairId(handle, Int32(coedgeIndex), Int32(seamPairCoedgeIndex))
+    /// - Returns: `true` if written, `false` if the LayerRegularity layer is not registered.
+    @discardableResult
+    public func setEdgeRegularity(_ edgeIndex: Int, face1: Int, face2: Int, continuity: Int) -> Bool {
+        OCCTBRepGraphSetEdgeRegularity(handle, Int32(edgeIndex), Int32(face1), Int32(face2), Int32(continuity)) != 0
     }
 
     /// Set the active triangulation rep on a face (used to bind a fresh triangulation

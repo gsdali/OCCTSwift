@@ -2,13 +2,38 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.171.0
+## Current: v1.0.0
 
-**4,281 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta2**
+**4,275 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
 ## Release History
+
+### v1.0.0 (May 2026) — OCCT 8.0.0 GA — SemVer-stable
+
+**OCCTSwift reaches SemVer-stable v1.0.0**, pinned to **OpenCASCADE Technology 8.0.0 GA** (released 2026-05-07, commit `d3056ef8` on `Open-Cascade-SAS/OCCT`). After eight months of pre-1.0 development across 170+ point releases — wrapping ~4,275 OCCT operations across 1,160+ test suites — the public Swift API is stable from this point on. Pin to `from: "1.0.0"` in `Package.swift`.
+
+**OCCT 8.0.0 GA highlights since rc5** (per [OCCT discussion #1275](https://github.com/Open-Cascade-SAS/OCCT/discussions/1275)):
+
+- BRepGraph (graph-based topology) and Gordon Surfaces shipped in their final shape
+- TKHelix toolkit (geometric helix with B-spline approximation)
+- ExtremaPC specialized point-to-curve extrema with variant dispatching
+- STEP read/write thread safety: "safe under the contract of one reader or writer per thread"
+- Multiple SEGV fixes in chamfer, fillet, and pipe-shell operations
+- BSpline evaluation bugs corrected; geometry hashing implementations completed
+- C++17 minimum (already required by Swift 6); `Standard_Failure` inherits `std::exception`
+
+**Beta2 → GA breaking changes absorbed in this release:**
+
+- **`PointSetLib` removed.** OCCT introduced `PointSetLib_Props` / `PointSetLib_Equation` in 8.0.0 beta1 (rc5/PCA point-cloud analysis) and removed them before GA. The Swift `PointSetLib` enum and bridge wrappers were deleted to follow upstream. If you depended on `PointSetLib.properties / barycentre / inertiaMatrix / equation`, port to your own NumPy/Accelerate implementation; the OCCT primitives are no longer available at any layer.
+- **CoEdge continuity setters consolidated into `setEdgeRegularity`.** OCCT 8.0.0 GA moved continuity from per-coedge to per-`(edge, face1, face2)` (in `BRepGraph_LayerRegularity`). The pre-GA `setCoEdgeContinuity` / `setCoEdgeSeamContinuity` / `setCoEdgeSeamPairId` are replaced by a single `TopologyGraph.setEdgeRegularity(_:face1:face2:continuity:) -> Bool`. For seam continuity, pass the same face index as `face1` and `face2`. Explicit seam-pair-id is gone — seam-pair-id is structural in GA (two coedges on the same edge/face with opposite orientations); query via the existing `coedgeSeamPair` accessor.
+
+**Removed deprecated:**
+
+- **`TopologyGraph.occurrenceParentOccurrence(_:)`** — deprecated in v0.157.0 when OCCT 8.0.0 beta1 reshaped assembly topology to `Product → Occurrence → Product`. Use `occurrenceParentProduct(_:)`.
+
+**Looking ahead:** OCCTSwift now moves to a **work-on-branch strategy** for upstream OCCT changes; `main` stays release-quality. Future OCCT releases land in feature branches and graduate to a tagged OCCTSwift release only when the upstream is GA.
 
 ### v0.171.0 (May 2026) — ML-export hoist to OCCTSwiftIO
 

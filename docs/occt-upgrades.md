@@ -6,10 +6,47 @@ Documents breaking changes and migration steps for each OCCT version upgrade.
 
 | OCCTSwift | OCCT Version | Date | Notes |
 |-----------|-------------|------|-------|
-| v0.128.0+ | 8.0.0-rc5 | Apr 2026 | Current — analytical geometry, thread safety improvements |
+| v1.0.0 | 8.0.0 GA | May 2026 | Current — SemVer-stable; PointSetLib removed, EdgeRegularity consolidated |
+| v0.170.x | 8.0.0-beta2 | May 2026 | Last pre-GA release |
+| v0.157.0 | 8.0.0-beta1 | May 2026 | BRepGraph BuilderView → EditorView reshape |
+| v0.128.0+ | 8.0.0-rc5 | Apr 2026 | Analytical geometry, thread safety improvements |
 | v0.27.0 | 8.0.0-rc4 | Feb 2026 | 111 improvements, 4 breaking changes |
 | v0.26.0 | 8.0.0-rc3 | Feb 2026 | Initial OCCT 8.0 adoption |
 | v0.16.0 | 7.8.1 | Feb 2026 | Original release |
+
+---
+
+## Beta2 to GA (v0.170.x → v1.0.0)
+
+### Breaking Changes
+
+| Change | Migration |
+|--------|-----------|
+| `PointSetLib_Props` / `PointSetLib_Equation` removed | Module rolled back before GA. Swift `PointSetLib` enum + bridge wrappers deleted. No upstream replacement — port consumers to NumPy/Accelerate. |
+| `BRepGraph::EditorView::CoEdgeOps::SetContinuity` removed | Replaced by `EditorView::EdgeOps::SetRegularity(edge, face1, face2, continuity)`. Continuity now lives on `BRepGraph_LayerRegularity` (per `(edge, face1, face2)`), not per coedge. |
+| `BRepGraph::EditorView::CoEdgeOps::SetSeamContinuity` removed | Use `SetRegularity(edge, face, face, continuity)` — `face1 == face2` expresses seam continuity across a closed-surface seam. |
+| `BRepGraph::EditorView::CoEdgeOps::SetSeamPairId` removed | No setter — seam-pair-id is structural in GA (two coedges on same `(edge, face)` with opposite orientations). Read via `BRepGraph_Tool::CoEdge::SeamPair`. |
+| `TopTools_IndexedMapOfShape` deprecated (warning only) | Use `NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher>`. Not yet migrated; warning is non-blocking. |
+| `Standard_True` / `Standard_False` deprecated (warning only) | Use C++ `true` / `false` directly. Bridge call sites flagged but not yet migrated; warnings non-blocking. |
+
+### New APIs in GA
+
+The headline GA additions (BRepGraph, Gordon Surfaces, TKHelix, ExtremaPC) all landed in earlier RCs/betas and are already wrapped. GA itself was a stabilization release — see [OCCT discussion #1275](https://github.com/Open-Cascade-SAS/OCCT/discussions/1275).
+
+### Stability
+
+- **STEP read/write**: now safe under the contract of one reader or writer per thread (per the GA announcement).
+- **SEGV fixes**: chamfer, fillet, and pipe-shell operations received multiple stability patches in the rc5→GA window.
+
+### OCCTSwift API consolidation in v1.0.0
+
+| Pre-1.0 | v1.0.0 |
+|---------|--------|
+| `setCoEdgeContinuity(_:continuity:)` | `setEdgeRegularity(_:face1:face2:continuity:) -> Bool` |
+| `setCoEdgeSeamContinuity(_:continuity:)` | `setEdgeRegularity(_:face1:face2:continuity:)` (face1 == face2) |
+| `setCoEdgeSeamPairId(_:seamPairCoedgeIndex:)` | Removed — seam-pair-id is structural; read via `coedgeSeamPair` |
+| `occurrenceParentOccurrence(_:)` | `occurrenceParentProduct(_:)` (deprecated since v0.157.0) |
+| `PointSetLib.{properties,inertiaMatrix,barycentre,equation}` | Removed — no OCCT replacement |
 
 ---
 
