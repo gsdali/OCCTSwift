@@ -1,0 +1,132 @@
+# OCCTSwift Ecosystem
+
+OCCTSwift is the kernel of a layered family of Swift packages that wrap [OpenCASCADE Technology](https://www.opencascade.com/) for CAD on Apple platforms. Each package has a narrow, well-bounded role; you pick the ones you need.
+
+This page exists so you don't have to guess which dep to add.
+
+## Map
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│  Applications & tooling                                                │
+│  ┌──────────────────────┐  ┌──────────────────────┐                    │
+│  │ OCCTSwiftScripts     │  │ OCCTMCP              │                    │
+│  │ (occtkit CLI +       │  │ (MCP server for AI   │                    │
+│  │  ScriptHarness)      │  │  CAD modeling)       │                    │
+│  └──────────┬───────────┘  └──────────┬───────────┘                    │
+└─────────────┼─────────────────────────┼────────────────────────────────┘
+              │                         │
+┌─────────────┼─────────────────────────┼────────────────────────────────┐
+│  Interactive viewport stack           │                                │
+│  ┌──────────▼────────────┐            │                                │
+│  │ OCCTSwiftAIS          │            │                                │
+│  │ (selection, widgets,  │            │                                │
+│  │  manipulators)        │            │                                │
+│  └──────────┬────────────┘            │                                │
+│             │                         │                                │
+│  ┌──────────▼────────────┐            │                                │
+│  │ OCCTSwiftTools        │            │                                │
+│  │ (kernel ↔ viewport    │            │                                │
+│  │  bridge layer)        │            │                                │
+│  └──────────┬────────────┘            │                                │
+│             │                         │                                │
+│  ┌──────────▼────────────┐            │                                │
+│  │ OCCTSwiftViewport     │            │                                │
+│  │ (Metal 3D viewport)   │            │                                │
+│  └──────────┬────────────┘            │                                │
+└─────────────┼─────────────────────────┼────────────────────────────────┘
+              │                         │
+┌─────────────┼─────────────────────────┼────────────────────────────────┐
+│  Headless / batch                     │                                │
+│  ┌──────────┴───────┐  ┌──────────────┴─────┐  ┌────────────────────┐  │
+│  │ OCCTSwiftIO      │  │ OCCTSwiftMesh      │  │ ... your code ...  │  │
+│  │ (STEP / IGES /   │  │ (decimation,       │  │                    │  │
+│  │  STL / glTF /    │  │  smoothing,        │  │                    │  │
+│  │  OBJ / BREP I/O) │  │  repair)           │  │                    │  │
+│  └──────────┬───────┘  └──────────┬─────────┘  └─────────┬──────────┘  │
+│             │                     │                      │             │
+└─────────────┼─────────────────────┼──────────────────────┼─────────────┘
+              │                     │                      │
+┌─────────────▼─────────────────────▼──────────────────────▼─────────────┐
+│  Kernel                                                                │
+│  ┌─────────────────────────────────────────────────────────────────┐   │
+│  │ OCCTSwift                                                       │   │
+│  │ Swift wrapper for OCCT — shapes, curves, surfaces, OCAF,        │   │
+│  │ TopologyGraph, drawing/projection, ML-friendly samplers.        │   │
+│  │ Bundles a pre-built OCCT 8.0.0 GA xcframework (arm64,           │   │
+│  │ macOS / iOS / visionOS / tvOS).                                 │   │
+│  └─────────────────────────────────────────────────────────────────┘   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+Lower layers don't know about upper layers. You can depend on the kernel alone for headless work and never pull a Metal framework.
+
+## When to use which
+
+### Doing solid modeling, headless
+
+You want **OCCTSwift** alone. Construct shapes, do booleans, sample geometry, walk topology, do measurements and feature recognition. No viewport, no graphics framework dep.
+
+If you also need to read or write STEP / IGES / STL / OBJ / BREP / glTF, add **OCCTSwiftIO**. It separates file format concerns from the kernel so that batch pipelines (CLIs, server-side, CI) don't drag in Viewport.
+
+If you need to simplify or repair meshes (decimation, smoothing, repair), add **OCCTSwiftMesh**. It vendors `meshoptimizer` under an LGPL wrapper.
+
+### Building a CAD application with a 3D viewport
+
+You want the full visualization stack:
+
+- **OCCTSwiftViewport** — the Metal-backed `MetalViewportView` (UIKit / AppKit / SwiftUI). Renders `ViewportBody` arrays and exposes camera, lighting, and selection events.
+- **OCCTSwiftTools** — converts kernel `Shape` instances into `ViewportBody` arrays with picking metadata (`vertexIndices`, `edgeIndices`, `faceIndices`). This is the layer that knows about *both* kernels and viewports.
+- **OCCTSwiftAIS** — high-level interactive services on top: selection-from-topology, manipulator widgets, dimension annotations, scene objects (Trihedron / WorkPlane / PointCloud / etc.). Inspired by OpenCASCADE's `AIS_*` API.
+
+`OCCTSwiftTools` re-exports `OCCTSwiftIO` symbols, so if you've already pulled Tools you can use the file loaders without an extra import.
+
+### Building a headless CLI or script runner
+
+You want **OCCTSwiftScripts**. It ships:
+
+- `occtkit` — a CLI binary with verbs like `compose`, `reconstruct`, `drawing-export`, `metrics`, `simplify-mesh`, `render-preview`, `xcaf`. Ready to drive from a Makefile or a server-side parametric pipeline.
+- `ScriptHarness` library — JSON-driven manifest format you can embed in your own tools, with topology-graph descriptors for downstream watchers.
+
+Scripts depends on the full ecosystem (kernel + IO + Mesh + Tools + AIS + Viewport for `render-preview`). If your use case is purely batch and you don't need preview rendering, depend on the lower-tier packages directly instead.
+
+### Exposing CAD modeling to AI agents
+
+You want **OCCTMCP** — an MCP (Model Context Protocol) server that exposes OCCT modeling primitives to LLM-driven tooling. Wraps `OCCTSwiftScripts` verbs as MCP tools.
+
+### Working from C, not Swift
+
+If you can't depend on Swift (e.g. you're writing a C plugin for a host application), look at **simpleOCCTVP** — a pure C API over OpenCASCADE for shape I/O, healing, mesh extraction, and offscreen 3D rendering. Independent of the Swift stack; useful if you're integrating OCCT into a non-Swift codebase on macOS.
+
+### Engineering-drawing ML pipelines
+
+`OCCTSwift` itself ships `TopologyGraph` for graph-based topology representation, plus UV-grid samplers and curve samplers for ML feature extraction. Combined with `OCCTSwiftIO.exportForML()` (extension on `TopologyGraph` lifted from the kernel in v0.171.0), you can produce flat / COO-format adjacency tensors for GNN / UV-Net / BRepNet pipelines.
+
+For trained model artifacts and CoreML wrappers:
+
+- **occt-design-loop-models** — pre-trained models published as ML artifacts: a GATv2 link predictor (F1 0.995 dimension-geometry) and a Random Forest line classifier.
+- **coreml-occt-models** — convenience wrappers for Apple's CoreML vision models tuned for engineering-drawing workflows.
+
+## Compatibility matrix (v1.0.0 cohort, May 2026)
+
+All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1.0.0 (OCCT 8.0.0 GA, 2026-05-07). Floors below are the recommended pins:
+
+| Package | Floor | Pulls (transitively) |
+|---------|-------|----------------------|
+| OCCTSwift | `from: "1.0.1"` | — |
+| OCCTSwiftIO | `from: "1.0.0"` | OCCTSwift |
+| OCCTSwiftMesh | `from: "1.0.0"` | OCCTSwift |
+| OCCTSwiftViewport | `from: "1.0.0"` | OCCTSwift |
+| OCCTSwiftTools | `from: "1.0.0"` | OCCTSwift, OCCTSwiftViewport, OCCTSwiftIO |
+| OCCTSwiftAIS | `from: "1.0.0"` | OCCTSwiftTools (→ Viewport, IO, kernel) |
+| OCCTSwiftScripts | `from: "1.0.0"` | full stack |
+| OCCTMCP | track latest | OCCTSwiftScripts |
+| simpleOCCTVP | — | own C build of OCCT; independent of Swift packages |
+
+## Versioning posture
+
+- **OCCTSwift** sets the OCCT-version pin for the whole ecosystem. A new OCCTSwift major (e.g. v2.0.0) signals an OCCT 9.x bump and a coordinated cohort upgrade.
+- **Other packages** version independently within their own SemVer line, but their major versions tend to graduate alongside the kernel's. For routine work you can take patch and minor updates everywhere without re-pinning OCCTSwift.
+- **Pre-1.0 history**: the ecosystem went through ~170 OCCTSwift point releases tracking OCCT 8.0 release candidates (rc3 → rc4 → rc5 → beta1 → beta2) before graduating with OCCT GA. Pre-1.0 was free to break; v1.0+ follows SemVer strictly.
+
+See [`docs/CHANGELOG.md`](CHANGELOG.md) for the OCCTSwift release history and [`docs/occt-upgrades.md`](occt-upgrades.md) for OCCT version migration notes.

@@ -47,14 +47,19 @@ try Exporter.writeSTL(shape: shelled, to: stlURL, deflection: 0.05)
 
 ## Ecosystem
 
-OCCTSwift is part of a family of packages:
+OCCTSwift is the kernel of a layered family of packages, all SemVer-stable from v1.0.0 (OCCT 8.0.0 GA cohort, May 2026). See [`docs/ecosystem.md`](docs/ecosystem.md) for an architecture map and "when to use which" guidance.
 
-| Package | Description |
-|---------|-------------|
-| **OCCTSwift** (this repo) | Core Swift wrapper for OCCT — shapes, curves, surfaces, import/export, OCAF |
-| [OCCTSwiftViewport](https://github.com/gsdali/OCCTSwiftViewport) | Metal-based 3D viewport component for CAD applications |
-| [OCCTSwiftScripts](https://github.com/gsdali/OCCTSwiftScripts) | Script harness for rapid parametric geometry iteration |
-| [OCCTMCP](https://github.com/gsdali/OCCTMCP) | MCP server exposing CAD modeling to AI tools via Model Context Protocol |
+| Package | Role |
+|---------|------|
+| **OCCTSwift** (this repo) | Core Swift wrapper — shapes, curves, surfaces, OCAF, TopologyGraph, drawing/projection, ML samplers. Bundles the OCCT 8.0.0 GA xcframework. |
+| [OCCTSwiftIO](https://github.com/gsdali/OCCTSwiftIO) | Headless CAD file I/O — STEP / IGES / STL / OBJ / BREP loaders + glTF / GLB / OBJ / PLY / STEP / BREP exporters. No Viewport dep. |
+| [OCCTSwiftMesh](https://github.com/gsdali/OCCTSwiftMesh) | Mesh-domain algorithms — decimation, smoothing, repair (vendors `meshoptimizer`). |
+| [OCCTSwiftViewport](https://github.com/gsdali/OCCTSwiftViewport) | Metal-based 3D viewport component (UIKit / AppKit / SwiftUI). |
+| [OCCTSwiftTools](https://github.com/gsdali/OCCTSwiftTools) | Bridge layer: converts kernel `Shape` to `ViewportBody` with picking metadata. |
+| [OCCTSwiftAIS](https://github.com/gsdali/OCCTSwiftAIS) | High-level interactive services — selection, manipulator widgets, dimension annotations, scene objects. |
+| [OCCTSwiftScripts](https://github.com/gsdali/OCCTSwiftScripts) | `occtkit` CLI + ScriptHarness — JSON-driven verbs for compose / reconstruct / drawing-export / metrics / mesh / render-preview / XCAF. |
+| [OCCTMCP](https://github.com/gsdali/OCCTMCP) | MCP server exposing CAD modeling to AI tools via Model Context Protocol. |
+| [simpleOCCTVP](https://github.com/gsdali/simpleOCCTVP) | Pure C API over OCCT for non-Swift consumers — shape I/O, healing, mesh extraction, offscreen rendering. |
 
 ## What's Wrapped
 
@@ -175,6 +180,7 @@ See [docs/guides/building-occt.md](docs/guides/building-occt.md) for details.
 
 | Document | Description |
 |----------|-------------|
+| [Ecosystem](docs/ecosystem.md) | Map of the package family, dependency layering, when to use which |
 | [Architecture Overview](docs/architecture/overview.md) | Three-layer design, memory management, conventions |
 | [Adding Features](docs/guides/adding-features.md) | How to wrap new OCCT operations |
 | [OCCT Concepts](docs/guides/occt-concepts.md) | B-Rep topology, handles, shapes primer |
