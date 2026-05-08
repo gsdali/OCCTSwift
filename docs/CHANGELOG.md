@@ -2,13 +2,23 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v0.170.1
+## Current: v0.171.0
 
-**4,281 wrapped operations | 3,399 tests | 1,179 suites | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta2**
+**4,281 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0-beta2**
 
 ---
 
 ## Release History
+
+### v0.171.0 (May 2026) — ML-export hoist to OCCTSwiftIO
+
+**Breaking change.** The consumption-side ML repacking layer added in v0.136.0 (`TopologyGraph.GraphExport`, `exportForML()`, `exportJSON()`) has been removed and lifted to [OCCTSwiftIO](https://github.com/gsdali/OCCTSwiftIO) v0.2.0 per [OCCTSwiftIO#1](https://github.com/gsdali/OCCTSwiftIO/issues/1) (supersedes [OCCTSwift#71](https://github.com/gsdali/OCCTSwift/issues/71)). It's pure batch / headless workflow with no Viewport dependency — fits the OCCTSwiftIO charter, doesn't need to live in the kernel.
+
+**What stays in the kernel** (and why): `FaceGridSample`, `sampleFaceUVGrid(faceIndex:uSamples:vSamples:)`, and `sampleEdgeCurve(edgeIndex:count:)`. Their implementations call C bridge functions on `TopologyGraph.handle`, which is `internal` to this module. Lifting them would require widening visibility — explicitly out of scope per the partial-lift decision recorded on the issue.
+
+**Consumer migration:** direct callers of `exportForML` / `exportJSON` must add `import OCCTSwiftIO` alongside `import OCCTSwift`. Symbol resolution otherwise unchanged. Known external callers swept: `OCCTSwiftScripts/Sources/occtkit/Commands/GraphML.swift`, `OCCTSwiftScripts/Sources/GraphML/main.swift`.
+
+**Net deltas:** −124 LOC in `BRepGraph.swift`, −76 LOC in `ShapeTests.swift`. xcframework binary unchanged (no bridge changes).
 
 ### v0.170.1 (May 2026) — ShapeMeasurements kernel hoist + OCCTBridge.mm split complete
 
