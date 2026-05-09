@@ -2,13 +2,56 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v1.0.2
+## Current: v1.0.3
 
-**4,279 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
+**4,284 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
 ## Release History
+
+### v1.0.3 (May 2026) — full per-input history Tier 2 & Tier 3 (issue #165)
+
+Completes [#165](https://github.com/gsdali/OCCTSwift/issues/165). Builds on the boolean-history surface in v1.0.2 by extending it to modification ops and threading history capture through `FeatureReconstructor`.
+
+**Tier 2 — modification ops with full history (+5 ops):**
+
+```swift
+extension Shape {
+    func filletedWithFullHistory(radius: Double, edges: [Int])
+        -> (result: Shape, history: ShapeHistoryRef)?
+    func filletedWithFullHistory(edge: Int, startRadius: Double, endRadius: Double)
+        -> (result: Shape, history: ShapeHistoryRef)?
+    func chamferedWithFullHistory(distance: Double, edges: [Int])
+        -> (result: Shape, history: ShapeHistoryRef)?
+    func shelledWithFullHistory(facesToRemove: [Int], thickness: Double, tolerance: Double = 1e-3)
+        -> (result: Shape, history: ShapeHistoryRef)?
+    func defeaturedWithFullHistory(faces: [Int])
+        -> (result: Shape, history: ShapeHistoryRef)?
+}
+```
+
+All five reuse the existing `OCCTBooleanHistory` opaque handle (the underlying type stores a `unique_ptr<BRepBuilderAPI_MakeShape>`, which is the common base of every OCCT modification builder). For consumers, the API matches Tier 1 — `history.record(of: inputSubShape)` returns the `ShapeHistoryRecord` of `Modified` / `Generated` / `IsDeleted` lookups.
+
+**Tier 3 — `FeatureReconstructor.BuildResult.histories`:**
+
+```swift
+public struct BuildResult: Sendable {
+    // … existing fields …
+    public let histories: [String: ShapeHistoryRef]
+}
+```
+
+Per-feature `ShapeHistoryRef` keyed by the feature id. Populated when:
+- A boolean spec (`FeatureSpec.Boolean`) with non-nil id resolves successfully — captured from `unionWithFullHistory` / `subtractedWithFullHistory` / `intersectionWithFullHistory`
+- A hole spec (`FeatureSpec.Hole`) with non-nil id — captured from the underlying subtract
+- An additive feature (revolve/extrude/sheet-metal) with non-nil id whose `absorbAdditive` step fuses into a non-empty `current` — captured from the union
+
+Features without an id aren't keyed, and the existing `applyFillet` / `applyChamfer` paths still go through the non-history primitives (those cases need edge/face index computation that's tracked as a separate refinement).
+
+This unblocks [OCCTMCP](https://github.com/gsdali/OCCTMCP)'s `remap_selection` for the `apply_feature` tool: instead of falling back to centroid-distance heuristics on splits / merges / deletions, the consumer can now walk `BuildResult.histories[feature_id].record(of: subshape)` for the exact OCCT-recorded mapping.
+
+**Op count: 4,279 → 4,284** (+5 Tier 2 entry points). xcframework binary unchanged from v1.0.0; SPM consumers continue to resolve against the v1.0.0 asset.
 
 ### v1.0.2 (May 2026) — per-input boolean history (issue #165 Tier 1)
 

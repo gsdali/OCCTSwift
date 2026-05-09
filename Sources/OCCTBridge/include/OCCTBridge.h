@@ -4580,6 +4580,43 @@ int32_t OCCTShapeCompoundChildren(OCCTShapeRef _Nonnull compound,
                                     OCCTShapeRef _Nullable * _Nullable outRefs, int32_t maxCount);
 
 
+// MARK: - Tier 2 modification ops with full per-input history (issue #165)
+
+/// Uniform-radius fillet on the given edges, with retained history.
+OCCTBooleanHistoryRef _Nullable OCCTShapeHistoryFromFilletEdges(OCCTShapeRef _Nonnull shape,
+                                                                  const int32_t* _Nonnull edgeIndices,
+                                                                  int32_t count,
+                                                                  double radius,
+                                                                  OCCTShapeRef _Nullable * _Nullable outResult);
+
+/// Variable-radius fillet on a single edge (start radius linearly varies to end radius
+/// along the edge's parameter range), with retained history.
+OCCTBooleanHistoryRef _Nullable OCCTShapeHistoryFromFilletEdgeVariable(OCCTShapeRef _Nonnull shape,
+                                                                         int32_t edgeIndex,
+                                                                         double startRadius, double endRadius,
+                                                                         OCCTShapeRef _Nullable * _Nullable outResult);
+
+/// Uniform chamfer on the given edges, with retained history.
+OCCTBooleanHistoryRef _Nullable OCCTShapeHistoryFromChamferEdges(OCCTShapeRef _Nonnull shape,
+                                                                   const int32_t* _Nonnull edgeIndices,
+                                                                   int32_t count,
+                                                                   double distance,
+                                                                   OCCTShapeRef _Nullable * _Nullable outResult);
+
+/// Shell / thick-solid: remove given faces and offset inward by `thickness`, with retained history.
+OCCTBooleanHistoryRef _Nullable OCCTShapeHistoryFromShell(OCCTShapeRef _Nonnull shape,
+                                                            const int32_t* _Nonnull faceIndices,
+                                                            int32_t faceCount,
+                                                            double thickness, double tolerance,
+                                                            OCCTShapeRef _Nullable * _Nullable outResult);
+
+/// Defeature: remove given faces by smoothing surrounding topology, with retained history.
+OCCTBooleanHistoryRef _Nullable OCCTShapeHistoryFromDefeature(OCCTShapeRef _Nonnull shape,
+                                                                const int32_t* _Nonnull faceIndices,
+                                                                int32_t faceCount,
+                                                                OCCTShapeRef _Nullable * _Nullable outResult);
+
+
 // MARK: - Thick Solid / Hollowing (v0.37.0)
 
 /// Create a hollowed (thick) solid by removing faces and offsetting inward.

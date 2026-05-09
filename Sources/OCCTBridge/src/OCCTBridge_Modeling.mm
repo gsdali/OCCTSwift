@@ -1676,6 +1676,148 @@ int32_t OCCTShapeCompoundChildren(OCCTShapeRef compound,
     } catch (...) { return -1; }
 }
 
+// MARK: - Tier 2: Modification ops with full per-input history (issue #165)
+// All these builders inherit from BRepBuilderAPI_MakeShape, so they fit the
+// existing OCCTBooleanHistory opaque handle (which stores a unique_ptr<MakeShape>).
+
+#include <BRepFilletAPI_MakeFillet.hxx>
+#include <BRepFilletAPI_MakeChamfer.hxx>
+#include <BRepOffsetAPI_MakeThickSolid.hxx>
+#include <BRepAlgoAPI_Defeaturing.hxx>
+#include <BRepOffset.hxx>
+#include <GeomAbs_JoinType.hxx>
+#include <TopExp.hxx>
+#include <TopTools_IndexedMapOfShape.hxx>
+
+OCCTBooleanHistoryRef OCCTShapeHistoryFromFilletEdges(OCCTShapeRef shape,
+                                                       const int32_t* edgeIndices, int32_t count,
+                                                       double radius,
+                                                       OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape || !edgeIndices || count < 1) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+        std::unique_ptr<BRepFilletAPI_MakeFillet> op(new BRepFilletAPI_MakeFillet(shape->shape));
+        for (int32_t i = 0; i < count; i++) {
+            int32_t idx = edgeIndices[i] + 1; // 0-based to 1-based
+            if (idx < 1 || idx > edgeMap.Extent()) continue;
+            op->Add(radius, TopoDS::Edge(edgeMap(idx)));
+        }
+        op->Build();
+        if (!op->IsDone()) return nullptr;
+        TopoDS_Shape result = op->Shape();
+        if (result.IsNull()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(result);
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
+OCCTBooleanHistoryRef OCCTShapeHistoryFromFilletEdgeVariable(OCCTShapeRef shape,
+                                                              int32_t edgeIndex,
+                                                              double startRadius, double endRadius,
+                                                              OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+        int32_t idx = edgeIndex + 1;
+        if (idx < 1 || idx > edgeMap.Extent()) return nullptr;
+        TopoDS_Edge edge = TopoDS::Edge(edgeMap(idx));
+        std::unique_ptr<BRepFilletAPI_MakeFillet> op(new BRepFilletAPI_MakeFillet(shape->shape));
+        op->Add(edge);
+        // Map the variable radius along the edge: (param=0, startR), (param=1, endR).
+        TColgp_Array1OfPnt2d radii(1, 2);
+        radii.SetValue(1, gp_Pnt2d(0.0, startRadius));
+        radii.SetValue(2, gp_Pnt2d(1.0, endRadius));
+        op->SetRadius(radii, 1, 1);
+        op->Build();
+        if (!op->IsDone()) return nullptr;
+        TopoDS_Shape result = op->Shape();
+        if (result.IsNull()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(result);
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
+OCCTBooleanHistoryRef OCCTShapeHistoryFromChamferEdges(OCCTShapeRef shape,
+                                                        const int32_t* edgeIndices, int32_t count,
+                                                        double distance,
+                                                        OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape || !edgeIndices || count < 1) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape edgeMap;
+        TopExp::MapShapes(shape->shape, TopAbs_EDGE, edgeMap);
+        std::unique_ptr<BRepFilletAPI_MakeChamfer> op(new BRepFilletAPI_MakeChamfer(shape->shape));
+        for (int32_t i = 0; i < count; i++) {
+            int32_t idx = edgeIndices[i] + 1;
+            if (idx < 1 || idx > edgeMap.Extent()) continue;
+            op->Add(distance, TopoDS::Edge(edgeMap(idx)));
+        }
+        op->Build();
+        if (!op->IsDone()) return nullptr;
+        TopoDS_Shape result = op->Shape();
+        if (result.IsNull()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(result);
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
+OCCTBooleanHistoryRef OCCTShapeHistoryFromShell(OCCTShapeRef shape,
+                                                 const int32_t* faceIndices, int32_t faceCount,
+                                                 double thickness, double tolerance,
+                                                 OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape || !faceIndices || faceCount < 1) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        TopTools_ListOfShape closingFaces;
+        for (int32_t i = 0; i < faceCount; ++i) {
+            int32_t idx = faceIndices[i] + 1;
+            if (idx < 1 || idx > faceMap.Extent()) return nullptr;
+            closingFaces.Append(faceMap(idx));
+        }
+        std::unique_ptr<BRepOffsetAPI_MakeThickSolid> op(new BRepOffsetAPI_MakeThickSolid());
+        op->MakeThickSolidByJoin(shape->shape, closingFaces, thickness, tolerance,
+                                  BRepOffset_Skin, false, false, GeomAbs_Arc);
+        op->Build();
+        if (!op->IsDone()) return nullptr;
+        TopoDS_Shape result = op->Shape();
+        if (result.IsNull()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(result);
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
+OCCTBooleanHistoryRef OCCTShapeHistoryFromDefeature(OCCTShapeRef shape,
+                                                     const int32_t* faceIndices, int32_t faceCount,
+                                                     OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape || !faceIndices || faceCount < 1) return nullptr;
+    try {
+        TopTools_IndexedMapOfShape faceMap;
+        TopExp::MapShapes(shape->shape, TopAbs_FACE, faceMap);
+        TopTools_ListOfShape facesToRemove;
+        for (int32_t i = 0; i < faceCount; ++i) {
+            int32_t idx = faceIndices[i] + 1;
+            if (idx < 1 || idx > faceMap.Extent()) return nullptr;
+            facesToRemove.Append(faceMap(idx));
+        }
+        std::unique_ptr<BRepAlgoAPI_Defeaturing> op(new BRepAlgoAPI_Defeaturing());
+        op->SetShape(shape->shape);
+        op->AddFacesToRemove(facesToRemove);
+        op->Build();
+        if (!op->IsDone()) return nullptr;
+        TopoDS_Shape result = op->Shape();
+        if (result.IsNull()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(result);
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
 // MARK: - Thick Solid / Hollowing (v0.37.0)
 
 #include <BRepOffsetAPI_MakeThickSolid.hxx>

@@ -171,6 +171,16 @@ public struct FeatureReconstructor: Sendable {
         public let fulfilled: [String]
         public let skipped: [Skipped]
         public let annotations: [Annotation]
+        /// Per-feature `ShapeHistoryRef` retained from history-recording
+        /// builders (booleans + the Tier-2 modification ops, when used).
+        /// Keyed by the feature id passed in `FeatureSpec.*.id`. Features
+        /// without an id are not retained here — their history can't be
+        /// remapped without a key.
+        ///
+        /// Use this to walk selection IDs across chained features:
+        /// `result.histories["my_hole"]?.record(of: face)` returns the
+        /// post-cut derivatives of `face`.
+        public let histories: [String: ShapeHistoryRef]
     }
 
     public struct Skipped: Sendable {
@@ -267,7 +277,8 @@ public struct FeatureReconstructor: Sendable {
         }
 
         return BuildResult(shape: ctx.current, fulfilled: ctx.fulfilled,
-                           skipped: ctx.skipped, annotations: ctx.annotations)
+                           skipped: ctx.skipped, annotations: ctx.annotations,
+                           histories: ctx.histories)
     }
 
     /// Internal state carried through the staged dispatch.
@@ -279,6 +290,8 @@ public struct FeatureReconstructor: Sendable {
         /// Named-shape registry. Features with non-nil ids register their
         /// produced shape here so downstream Boolean specs can reference them.
         var namedShapes: [String: Shape] = [:]
+        /// Per-feature ShapeHistoryRef from history-recording builders.
+        var histories: [String: ShapeHistoryRef] = [:]
     }
 
     // MARK: - Stage handlers
@@ -355,16 +368,21 @@ public struct FeatureReconstructor: Sendable {
                        stage: .subtractive)
             return
         }
-        guard let cut = target.subtracting(drill) else {
+        // Use the history-recording variant so consumers (e.g. selection
+        // remappers) can walk per-input subshape history through the cut.
+        if let id = h.id, let r = target.subtractedWithFullHistory(drill) {
+            ctx.current = r.result
+            ctx.fulfilled.append(id)
+            ctx.namedShapes[id] = r.result
+            ctx.histories[id] = r.history
+        } else if h.id == nil, let cut = target.subtracting(drill) {
+            // No id → no key to retain history under; skip the history capture.
+            ctx.current = cut
+        } else {
             recordSkip(ctx: &ctx, id: h.id,
                        reason: .occtFailure("boolean subtract failed"),
                        stage: .subtractive)
             return
-        }
-        ctx.current = cut
-        if let id = h.id {
-            ctx.fulfilled.append(id)
-            ctx.namedShapes[id] = cut
         }
     }
 
@@ -383,26 +401,41 @@ public struct FeatureReconstructor: Sendable {
                        stage: stage)
             return
         }
-        let result: Shape?
-        switch b.op {
-        case .union:     result = left.union(right)
-        case .subtract:  result = left.subtracting(right)
-        case .intersect: result = left.intersection(right)
-        }
-        guard let r = result else {
-            recordSkip(ctx: &ctx, id: b.id,
-                       reason: .occtFailure("boolean \(b.op.rawValue) failed"),
-                       stage: stage)
-            return
-        }
-        // A boolean's result replaces `current` only when it involves the current
-        // shape (via the named-shape convention that `current` registers under
-        // the last fulfilled additive id). Otherwise it just registers.
+        // Prefer the history-recording variant when the feature has an id so
+        // consumers can remap selections through the boolean. When no id, fall
+        // back to the cheap path (no key to attach the history under anyway).
         if let id = b.id {
+            let withHist: (result: Shape, history: ShapeHistoryRef)?
+            switch b.op {
+            case .union:     withHist = left.unionWithFullHistory(right)
+            case .subtract:  withHist = left.subtractedWithFullHistory(right)
+            case .intersect: withHist = left.intersectionWithFullHistory(right)
+            }
+            guard let r = withHist else {
+                recordSkip(ctx: &ctx, id: b.id,
+                           reason: .occtFailure("boolean \(b.op.rawValue) failed"),
+                           stage: stage)
+                return
+            }
             ctx.fulfilled.append(id)
-            ctx.namedShapes[id] = r
+            ctx.namedShapes[id] = r.result
+            ctx.histories[id] = r.history
+            ctx.current = r.result
+        } else {
+            let result: Shape?
+            switch b.op {
+            case .union:     result = left.union(right)
+            case .subtract:  result = left.subtracting(right)
+            case .intersect: result = left.intersection(right)
+            }
+            guard let r = result else {
+                recordSkip(ctx: &ctx, id: b.id,
+                           reason: .occtFailure("boolean \(b.op.rawValue) failed"),
+                           stage: stage)
+                return
+            }
+            ctx.current = r
         }
-        ctx.current = r
     }
 
     private static func applyFillet(_ f: FeatureSpec.Fillet, ctx: inout BuildContext) {
@@ -549,8 +582,20 @@ public struct FeatureReconstructor: Sendable {
     }
 
     private static func absorbAdditive(_ body: Shape, id: String?, ctx: inout BuildContext) {
-        let fused = ctx.current.flatMap { $0.union(body) } ?? body
-        ctx.current = fused
+        // First additive feature → just seed `current` (no fusion happened).
+        // Later additive features → fuse into existing current; capture history
+        // when an id is set so selections originating in either operand can be
+        // remapped through the union.
+        if let prior = ctx.current {
+            if let id, let r = prior.unionWithFullHistory(body) {
+                ctx.current = r.result
+                ctx.histories[id] = r.history
+            } else {
+                ctx.current = prior.union(body) ?? body
+            }
+        } else {
+            ctx.current = body
+        }
         if let id = id {
             ctx.fulfilled.append(id)
             ctx.namedShapes[id] = body    // register the feature's own body, not the fused
@@ -593,7 +638,8 @@ extension FeatureReconstructor {
             shape: result.shape,
             fulfilled: result.fulfilled,
             skipped: augmentedSkipped,
-            annotations: result.annotations)
+            annotations: result.annotations,
+            histories: result.histories)
     }
 }
 

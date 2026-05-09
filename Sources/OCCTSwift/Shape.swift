@@ -4348,6 +4348,91 @@ extension Shape {
     }
 }
 
+// MARK: - Tier 2 modification ops with full per-input history (issue #165)
+
+extension Shape {
+    /// Apply a uniform-radius fillet to the given edges, returning the result
+    /// shape and a `ShapeHistoryRef` queryable for `Modified` / `Generated` /
+    /// `IsDeleted` per input sub-shape (e.g. a filleted edge → multiple
+    /// generated fillet faces).
+    public func filletedWithFullHistory(radius: Double, edges: [Int])
+        -> (result: Shape, history: ShapeHistoryRef)?
+    {
+        guard !edges.isEmpty else { return nil }
+        let edgeIndices = edges.map { Int32($0) }
+        var resultRef: OCCTShapeRef?
+        let h = edgeIndices.withUnsafeBufferPointer { buf in
+            OCCTShapeHistoryFromFilletEdges(handle, buf.baseAddress!, Int32(edgeIndices.count),
+                                              radius, &resultRef)
+        }
+        guard let h, let resultRef else { return nil }
+        return (Shape(handle: resultRef), ShapeHistoryRef(h))
+    }
+
+    /// Variable-radius fillet on a single edge: radius linearly varies from
+    /// `startRadius` (at the edge's first parameter) to `endRadius` (at last).
+    public func filletedWithFullHistory(edge: Int, startRadius: Double, endRadius: Double)
+        -> (result: Shape, history: ShapeHistoryRef)?
+    {
+        var resultRef: OCCTShapeRef?
+        guard let h = OCCTShapeHistoryFromFilletEdgeVariable(handle, Int32(edge),
+                                                               startRadius, endRadius,
+                                                               &resultRef),
+              let resultRef else { return nil }
+        return (Shape(handle: resultRef), ShapeHistoryRef(h))
+    }
+
+    /// Apply a uniform chamfer to the given edges, returning the result and
+    /// a queryable history.
+    public func chamferedWithFullHistory(distance: Double, edges: [Int])
+        -> (result: Shape, history: ShapeHistoryRef)?
+    {
+        guard !edges.isEmpty else { return nil }
+        let edgeIndices = edges.map { Int32($0) }
+        var resultRef: OCCTShapeRef?
+        let h = edgeIndices.withUnsafeBufferPointer { buf in
+            OCCTShapeHistoryFromChamferEdges(handle, buf.baseAddress!, Int32(edgeIndices.count),
+                                               distance, &resultRef)
+        }
+        guard let h, let resultRef else { return nil }
+        return (Shape(handle: resultRef), ShapeHistoryRef(h))
+    }
+
+    /// Shell / hollow: remove the listed faces and offset the remaining shell
+    /// inward by `thickness` (use a negative `thickness` for outward), with a
+    /// queryable per-face history.
+    public func shelledWithFullHistory(facesToRemove: [Int], thickness: Double, tolerance: Double = 1e-3)
+        -> (result: Shape, history: ShapeHistoryRef)?
+    {
+        guard !facesToRemove.isEmpty else { return nil }
+        let faceIndices = facesToRemove.map { Int32($0) }
+        var resultRef: OCCTShapeRef?
+        let h = faceIndices.withUnsafeBufferPointer { buf in
+            OCCTShapeHistoryFromShell(handle, buf.baseAddress!, Int32(faceIndices.count),
+                                       thickness, tolerance, &resultRef)
+        }
+        guard let h, let resultRef else { return nil }
+        return (Shape(handle: resultRef), ShapeHistoryRef(h))
+    }
+
+    /// Defeature: remove given faces by reconnecting surrounding topology.
+    /// History reports each removed face as deleted and surrounding faces as
+    /// modified.
+    public func defeaturedWithFullHistory(faces: [Int])
+        -> (result: Shape, history: ShapeHistoryRef)?
+    {
+        guard !faces.isEmpty else { return nil }
+        let faceIndices = faces.map { Int32($0) }
+        var resultRef: OCCTShapeRef?
+        let h = faceIndices.withUnsafeBufferPointer { buf in
+            OCCTShapeHistoryFromDefeature(handle, buf.baseAddress!, Int32(faceIndices.count),
+                                            &resultRef)
+        }
+        guard let h, let resultRef else { return nil }
+        return (Shape(handle: resultRef), ShapeHistoryRef(h))
+    }
+}
+
 // MARK: - Thick Solid / Hollowing (v0.37.0)
 
 extension Shape {
