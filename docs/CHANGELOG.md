@@ -2,13 +2,36 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v1.0.4
+## Current: v1.1.0
 
-**4,284 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
+**4,286 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
 ## Release History
+
+### v1.1.0 (May 2026) — TopologyGraph history disambiguation (closes #167)
+
+**First MINOR bump under the [cohort SemVer policy](SEMVER.md).** Two new methods on `TopologyGraph` resolve the ambiguity in `findDerived`'s empty-result case:
+
+```swift
+extension TopologyGraph {
+    /// True iff any history record names `original` as a key.
+    public func hasHistoryRecord(for original: NodeRef) -> Bool
+
+    /// findDerived if non-empty; else [] for explicitly-deleted nodes;
+    /// else [original] for untouched nodes (still at the same index).
+    public func findDerivedOrSelf(of original: NodeRef) -> [NodeRef]
+}
+```
+
+`findDerived` returned `[]` for both "untouched" and "explicitly deleted" — selection-remap consumers couldn't tell which. `findDerivedOrSelf` is the typical "where did this node end up?" lookup: a single deterministic call that returns derivatives, `[]` for deleted, or `[original]` for untouched. `hasHistoryRecord` is the lower-level disambiguator for callers that want to handle the cases differently at the call site.
+
+Implementation is a Swift-side scan over `historyRecords` — O(records × originals-per-record), which is fine for typical scenes. A bridge-side accelerator can land later if profiling ever justifies it.
+
+**Downstream impact:** [OCCTMCP v1.3.0](https://github.com/gsdali/OCCTMCP/releases/tag/v1.3.0) currently works around this with an `isIdentityPreserving` flag on its `HistoryRegistry` for `transform_body` / `heal_shape`. Once OCCTMCP picks up this OCCTSwift bump, it can drop the flag for ops that record explicit modify/delete records and use per-node resolution.
+
+**Op count: 4,284 → 4,286** (+2). xcframework binary unchanged from v1.0.0.
 
 ### v1.0.4 (May 2026) — wire applyFillet / applyChamfer through *WithFullHistory (closes #166)
 

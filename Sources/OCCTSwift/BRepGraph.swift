@@ -652,8 +652,50 @@ public final class TopologyGraph: @unchecked Sendable {
         return NodeRef(kind: kind, index: Int(outIndex))
     }
 
+    /// True if any history record names `original` as a key (i.e. some recorded
+    /// operation modified or deleted this node).
+    ///
+    /// Use this with `findDerived` to disambiguate the two cases that both
+    /// return `[]` from `findDerived`: an explicitly-deleted node has a record
+    /// with empty replacements, while an untouched node is simply absent from
+    /// every record's mapping. See also `findDerivedOrSelf(of:)` for the
+    /// common "where did this node end up?" lookup.
+    public func hasHistoryRecord(for original: NodeRef) -> Bool {
+        for record in historyRecords {
+            if record.mapping[original] != nil { return true }
+        }
+        return false
+    }
+
+    /// Walk forwards from an original node and return its derivatives, falling
+    /// back to `[original]` when the node was untouched and `[]` when the node
+    /// was explicitly deleted.
+    ///
+    /// `findDerived(of:)` returns `[]` for both untouched and deleted nodes —
+    /// callers can't tell "this face survived the mutation unchanged" from
+    /// "this face was cut away". This entry point disambiguates by checking
+    /// whether any history record names the node as an `original` key:
+    ///
+    /// - non-empty `findDerived` result → return it (live derivatives)
+    /// - empty result + record present  → `[]` (explicitly deleted)
+    /// - empty result + no record       → `[original]` (untouched, same index)
+    ///
+    /// Use this when you want a single deterministic answer to "where did
+    /// this node end up?" — the typical selection-remap case. Use
+    /// `findDerived` + `hasHistoryRecord` directly if you need to distinguish
+    /// the deleted-vs-untouched cases at the call site.
+    public func findDerivedOrSelf(of original: NodeRef) -> [NodeRef] {
+        let derived = findDerived(of: original)
+        if !derived.isEmpty { return derived }
+        return hasHistoryRecord(for: original) ? [] : [original]
+    }
+
     /// Walk forwards from an original node to all transitively derived nodes.
     /// Returns empty if the node has no recorded descendants.
+    ///
+    /// **Note:** an empty result is ambiguous between "untouched" and
+    /// "explicitly deleted". Use `findDerivedOrSelf(of:)` for the common
+    /// case, or pair this call with `hasHistoryRecord(for:)` to disambiguate.
     public func findDerived(of original: NodeRef) -> [NodeRef] {
         var cap = 16
         var kinds = [Int32](repeating: 0, count: cap)

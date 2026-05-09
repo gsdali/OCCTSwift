@@ -46350,6 +46350,86 @@ struct BRepGraphHistoryReadbackTests {
         #expect(derived.isSuperset(of: [b, c]))
     }
 
+    // MARK: - #167: untouched-vs-deleted disambiguation
+
+    @Test("hasHistoryRecord: true for nodes named in any record's mapping; false otherwise")
+    func hasHistoryRecordDistinguishesNamedFromUntouched() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        graph.isHistoryEnabled = true
+        graph.clearHistory()
+
+        let modified = TopologyGraph.NodeRef(kind: .face, index: 0)
+        let replaced = TopologyGraph.NodeRef(kind: .face, index: 100)
+        let deleted = TopologyGraph.NodeRef(kind: .face, index: 1)
+        let untouched = TopologyGraph.NodeRef(kind: .face, index: 2)
+
+        graph.recordHistory(operationName: "ModifyFace", original: modified, replacements: [replaced])
+        graph.recordHistory(operationName: "DeleteFace", original: deleted, replacements: [])
+
+        #expect(graph.hasHistoryRecord(for: modified), "modified node should be named in a record")
+        #expect(graph.hasHistoryRecord(for: deleted), "explicitly-deleted node should be named in a record")
+        #expect(!graph.hasHistoryRecord(for: untouched), "untouched node has no record entry")
+    }
+
+    @Test("findDerivedOrSelf: returns derivatives, [] for deleted, [original] for untouched")
+    func findDerivedOrSelfDisambiguates() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        graph.isHistoryEnabled = true
+        graph.clearHistory()
+
+        let modified = TopologyGraph.NodeRef(kind: .face, index: 0)
+        let replaced = TopologyGraph.NodeRef(kind: .face, index: 100)
+        let deleted = TopologyGraph.NodeRef(kind: .face, index: 1)
+        let untouched = TopologyGraph.NodeRef(kind: .face, index: 2)
+
+        graph.recordHistory(operationName: "ModifyFace", original: modified, replacements: [replaced])
+        graph.recordHistory(operationName: "DeleteFace", original: deleted, replacements: [])
+
+        // Modified → derivatives via the existing forward walk
+        let modifiedResult = graph.findDerivedOrSelf(of: modified)
+        #expect(modifiedResult.contains(replaced),
+                "modified node should resolve to its replacement(s)")
+
+        // Deleted → empty (record is present but mapping is empty)
+        let deletedResult = graph.findDerivedOrSelf(of: deleted)
+        #expect(deletedResult.isEmpty, "explicitly-deleted node resolves to []")
+
+        // Untouched → [original] (no record names this node)
+        let untouchedResult = graph.findDerivedOrSelf(of: untouched)
+        #expect(untouchedResult == [untouched],
+                "untouched node should resolve to itself at the same index")
+    }
+
+    @Test("findDerivedOrSelf preserves findDerived semantics for chained records")
+    func findDerivedOrSelfMatchesFindDerivedWhenNonEmpty() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10),
+              let graph = TopologyGraph(shape: box) else {
+            Issue.record("graph nil"); return
+        }
+        graph.isHistoryEnabled = true
+        graph.clearHistory()
+
+        // orig → [a] → [b, c]
+        let orig = TopologyGraph.NodeRef(kind: .edge, index: 1)
+        let a = TopologyGraph.NodeRef(kind: .edge, index: 10)
+        let b = TopologyGraph.NodeRef(kind: .edge, index: 20)
+        let c = TopologyGraph.NodeRef(kind: .edge, index: 21)
+        graph.recordHistory(operationName: "Op1", original: orig, replacements: [a])
+        graph.recordHistory(operationName: "Op2", original: a, replacements: [b, c])
+
+        let derived = Set(graph.findDerived(of: orig))
+        let derivedOrSelf = Set(graph.findDerivedOrSelf(of: orig))
+        // When findDerived is non-empty, findDerivedOrSelf must return the same set.
+        #expect(derived == derivedOrSelf,
+                "findDerivedOrSelf must equal findDerived when derivatives exist")
+    }
+
     @Test("FindOriginal walks backwards")
     func findOriginalWalksBackward() {
         guard let box = Shape.box(width: 10, height: 10, depth: 10),
