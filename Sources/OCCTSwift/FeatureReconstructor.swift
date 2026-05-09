@@ -445,52 +445,76 @@ public struct FeatureReconstructor: Sendable {
                        stage: .finishing)
             return
         }
+        let edgeIndices: [Int]?
         switch f.edgeSelector {
         case .all:
-            if let filleted = target.filleted(radius: f.radius) {
-                ctx.current = filleted
-                if let id = f.id {
-                    ctx.fulfilled.append(id)
-                    ctx.namedShapes[id] = filleted
-                }
-            } else {
-                recordSkip(ctx: &ctx, id: f.id,
-                           reason: .occtFailure("uniform fillet failed"),
-                           stage: .finishing)
-            }
+            let allEdges = target.subShapes(ofType: .edge)
+            edgeIndices = allEdges.isEmpty ? nil : Array(allEdges.indices)
         case .nearPoint(let point, let tolerance):
-            if let filleted = applyFilletNearPoint(target, point: point,
-                                                    tolerance: tolerance, radius: f.radius) {
-                ctx.current = filleted
-                if let id = f.id {
-                    ctx.fulfilled.append(id)
-                    ctx.namedShapes[id] = filleted
-                }
-            } else {
+            edgeIndices = edgeIndicesNearPoint(target, point: point, tolerance: tolerance)
+            guard edgeIndices != nil else {
                 recordSkip(ctx: &ctx, id: f.id,
                            reason: .occtFailure("no edge found near point within tolerance"),
                            stage: .finishing)
+                return
             }
         case .onFeature(let featureID):
-            if let source = ctx.namedShapes[featureID] {
-                if let filleted = applyFilletOnFeature(target: target,
-                                                       source: source,
-                                                       radius: f.radius) {
-                    ctx.current = filleted
-                    if let id = f.id {
-                        ctx.fulfilled.append(id)
-                        ctx.namedShapes[id] = filleted
-                    }
-                } else {
-                    recordSkip(ctx: &ctx, id: f.id,
-                               reason: .occtFailure("fillet onFeature failed"),
-                               stage: .finishing)
-                }
-            } else {
+            guard let source = ctx.namedShapes[featureID] else {
                 recordSkip(ctx: &ctx, id: f.id,
                            reason: .unresolvedRef("feature '\(featureID)' not registered"),
                            stage: .finishing)
+                return
             }
+            edgeIndices = edgeIndicesContributedBy(target: target, source: source)
+            guard edgeIndices != nil else {
+                recordSkip(ctx: &ctx, id: f.id,
+                           reason: .occtFailure("fillet onFeature failed"),
+                           stage: .finishing)
+                return
+            }
+        }
+        guard let indices = edgeIndices else {
+            recordSkip(ctx: &ctx, id: f.id,
+                       reason: .occtFailure("uniform fillet failed"),
+                       stage: .finishing)
+            return
+        }
+        // History-recording path; falls back to the non-history primitive on nil
+        // so the back-compat surface stays defensive against any future builder
+        // that reports a builder failure but has nothing useful to recover.
+        if let r = target.filletedWithFullHistory(radius: f.radius, edges: indices) {
+            ctx.current = r.result
+            if let id = f.id {
+                ctx.fulfilled.append(id)
+                ctx.namedShapes[id] = r.result
+                ctx.histories[id] = r.history
+            }
+            return
+        }
+        // Fallback. For .all this exercises BRepFilletAPI_MakeFillet's
+        // shape-level convenience overload.
+        let fallback: Shape?
+        switch f.edgeSelector {
+        case .all:
+            fallback = target.filleted(radius: f.radius)
+        case .nearPoint, .onFeature:
+            // Look up the matching Edge objects and call the typed-edges variant.
+            let allTypedEdges = target.edges()
+            let edgeObjects = indices.compactMap { i -> Edge? in
+                (i >= 0 && i < allTypedEdges.count) ? allTypedEdges[i] : nil
+            }
+            fallback = edgeObjects.isEmpty ? nil : target.filleted(edges: edgeObjects, radius: f.radius)
+        }
+        if let filleted = fallback {
+            ctx.current = filleted
+            if let id = f.id {
+                ctx.fulfilled.append(id)
+                ctx.namedShapes[id] = filleted
+            }
+        } else {
+            recordSkip(ctx: &ctx, id: f.id,
+                       reason: .occtFailure("uniform fillet failed"),
+                       stage: .finishing)
         }
     }
 
@@ -501,74 +525,105 @@ public struct FeatureReconstructor: Sendable {
                        stage: .finishing)
             return
         }
+        let edgeIndices: [Int]?
         switch c.edgeSelector {
         case .all:
-            if let ch = target.chamfered(distance: c.distance) {
-                ctx.current = ch
-                if let id = c.id {
-                    ctx.fulfilled.append(id)
-                    ctx.namedShapes[id] = ch
-                }
-            } else {
+            let allEdges = target.subShapes(ofType: .edge)
+            edgeIndices = allEdges.isEmpty ? nil : Array(allEdges.indices)
+        case .nearPoint(let point, let tolerance):
+            edgeIndices = edgeIndicesNearPoint(target, point: point, tolerance: tolerance)
+            guard edgeIndices != nil else {
                 recordSkip(ctx: &ctx, id: c.id,
-                           reason: .occtFailure("uniform chamfer failed"),
+                           reason: .occtFailure("no edge found near point within tolerance"),
                            stage: .finishing)
+                return
             }
-        case .nearPoint, .onFeature:
-            // Chamfer's nearPoint/onFeature resolution uses the same machinery
-            // as fillet; mirror the fillet path for consistency.
-            // For v0.143 we ship the unsupported-message path for chamfer
-            // still, since uniform chamfer covers the 95% case and per-edge
-            // chamfer requires a per-edge distance API that's a separate wrap.
+        case .onFeature(let featureID):
+            guard let source = ctx.namedShapes[featureID] else {
+                recordSkip(ctx: &ctx, id: c.id,
+                           reason: .unresolvedRef("feature '\(featureID)' not registered"),
+                           stage: .finishing)
+                return
+            }
+            edgeIndices = edgeIndicesContributedBy(target: target, source: source)
+            guard edgeIndices != nil else {
+                recordSkip(ctx: &ctx, id: c.id,
+                           reason: .occtFailure("chamfer onFeature failed"),
+                           stage: .finishing)
+                return
+            }
+        }
+        guard let indices = edgeIndices else {
             recordSkip(ctx: &ctx, id: c.id,
-                       reason: .unsupported("per-edge chamfer selector not yet wired"),
+                       reason: .occtFailure("uniform chamfer failed"),
+                       stage: .finishing)
+            return
+        }
+        if let r = target.chamferedWithFullHistory(distance: c.distance, edges: indices) {
+            ctx.current = r.result
+            if let id = c.id {
+                ctx.fulfilled.append(id)
+                ctx.namedShapes[id] = r.result
+                ctx.histories[id] = r.history
+            }
+            return
+        }
+        // Fallback: only the .all case has an index-less fast-path
+        // (`Shape.chamfered(distance:)`); .nearPoint / .onFeature go through
+        // BRepFilletAPI_MakeChamfer with explicit edges, which the history
+        // variant already covers.
+        if case .all = c.edgeSelector, let chamfered = target.chamfered(distance: c.distance) {
+            ctx.current = chamfered
+            if let id = c.id {
+                ctx.fulfilled.append(id)
+                ctx.namedShapes[id] = chamfered
+            }
+        } else {
+            recordSkip(ctx: &ctx, id: c.id,
+                       reason: .occtFailure("uniform chamfer failed"),
                        stage: .finishing)
         }
     }
 
-    // MARK: - Edge-selector helpers (M3 / D5)
+    // MARK: - Edge-selector helpers
 
-    /// Find edges in `shape` whose midpoint lies within `tolerance` of `point`
-    /// and apply a fillet with `radius` to them.
-    private static func applyFilletNearPoint(_ shape: Shape,
+    /// Edge indices in `shape` whose midpoint lies within `tolerance` of `point`.
+    /// Index space matches `shape.subShapes(ofType: .edge)` / `shape.edges()` —
+    /// both are TopExp_MapShapes traversals in canonical order.
+    private static func edgeIndicesNearPoint(_ shape: Shape,
                                               point: SIMD3<Double>,
-                                              tolerance: Double,
-                                              radius: Double) -> Shape? {
-        let edges = shape.edges()
-        var matching: [Edge] = []
-        for edge in edges {
+                                              tolerance: Double) -> [Int]? {
+        var matching: [Int] = []
+        for (i, edge) in shape.edges().enumerated() {
             guard let bounds = edge.parameterBounds,
                   let mid = edge.point(at: (bounds.first + bounds.last) / 2) else { continue }
             if simd_length(mid - point) <= tolerance {
-                matching.append(edge)
+                matching.append(i)
             }
         }
-        guard !matching.isEmpty else { return nil }
-        return shape.filleted(edges: matching, radius: radius)
+        return matching.isEmpty ? nil : matching
     }
 
-    /// Fillet edges of `target` that were "contributed by" `source` — heuristic:
+    /// Edge indices of `target` that were "contributed by" `source` — heuristic:
     /// edges of target whose midpoint lies within a small tolerance of any edge
     /// midpoint of source. Useful for "fillet the edges the extrude created"
     /// without needing full TopologyGraph history.
-    private static func applyFilletOnFeature(target: Shape,
-                                              source: Shape,
-                                              radius: Double,
-                                              tolerance: Double = 1e-4) -> Shape? {
+    private static func edgeIndicesContributedBy(target: Shape,
+                                                  source: Shape,
+                                                  tolerance: Double = 1e-4) -> [Int]? {
         let sourceEdgeMidpoints = source.edges().compactMap { edge -> SIMD3<Double>? in
             guard let bounds = edge.parameterBounds else { return nil }
             return edge.point(at: (bounds.first + bounds.last) / 2)
         }
-        var matching: [Edge] = []
-        for edge in target.edges() {
+        var matching: [Int] = []
+        for (i, edge) in target.edges().enumerated() {
             guard let bounds = edge.parameterBounds,
                   let mid = edge.point(at: (bounds.first + bounds.last) / 2) else { continue }
             if sourceEdgeMidpoints.contains(where: { simd_length($0 - mid) <= tolerance }) {
-                matching.append(edge)
+                matching.append(i)
             }
         }
-        guard !matching.isEmpty else { return nil }
-        return target.filleted(edges: matching, radius: radius)
+        return matching.isEmpty ? nil : matching
     }
 
     // MARK: - Utilities

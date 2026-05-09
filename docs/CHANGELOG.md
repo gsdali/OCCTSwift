@@ -2,13 +2,27 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v1.0.3
+## Current: v1.0.4
 
 **4,284 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
 ## Release History
+
+### v1.0.4 (May 2026) — wire applyFillet / applyChamfer through *WithFullHistory (closes #166)
+
+Closes the explicit follow-up to v1.0.3: `FeatureReconstructor.BuildResult.histories[id]` now also covers `FeatureSpec.Fillet` and `FeatureSpec.Chamfer` with non-nil ids — every spec kind now resolves through OCCT's recorded history instead of the centroid-distance heuristic on the consumer side.
+
+**Behavior changes:**
+
+- `applyFillet` for all three `EdgeSelector` cases (`.all`, `.nearPoint`, `.onFeature`) now uses `Shape.filletedWithFullHistory(radius:edges:)` and records the returned `ShapeHistoryRef` in `ctx.histories[id]`.
+- `applyChamfer` does the same via `Shape.chamferedWithFullHistory(distance:edges:)`. **Chamfer's `.nearPoint` and `.onFeature` selectors are now wired up** — they were stubbed to `recordSkip(.unsupported)` in v1.0.3 and earlier.
+- Each path falls back to the index-less primitive (`filleted(radius:)` / `chamfered(distance:)`) on builder-nil to preserve existing back-compat semantics. Specs without ids continue to land directly on the non-history path.
+
+**Internals:** the per-selector helpers now return `[Int]?` matching-edge-index lists instead of pre-cooked `Shape?` results. This consolidates the resolution machinery between fillet and chamfer (chamfer used to duplicate fillet's `.all`-only path because it had no shared resolver). The OCCTSwiftIO and OCCTMCP-side consumers that read `BuildResult.histories[id]` get fillet / chamfer coverage without any code change.
+
+**Out of scope:** variable-radius fillet via `FeatureSpec` (the `filletedWithFullHistory(edge:startRadius:endRadius:)` Tier 2 variant) — `FeatureSpec.Fillet` only carries one `radius`. Variable-radius would be a new spec variant.
 
 ### v1.0.3 (May 2026) — full per-input history Tier 2 & Tier 3 (issue #165)
 
