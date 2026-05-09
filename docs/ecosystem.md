@@ -116,8 +116,8 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 | OCCTSwift | `from: "1.0.3"` | — |
 | OCCTSwiftIO | `from: "1.0.0"` | OCCTSwift |
 | OCCTSwiftMesh | `from: "1.0.0"` | OCCTSwift |
-| OCCTSwiftViewport | `from: "1.0.0"` | OCCTSwift |
-| OCCTSwiftTools | `from: "1.0.1"` | OCCTSwift, OCCTSwiftViewport, OCCTSwiftIO |
+| OCCTSwiftViewport | `from: "1.0.1"` | OCCTSwift |
+| OCCTSwiftTools | `from: "1.0.2"` | OCCTSwift, OCCTSwiftViewport, OCCTSwiftIO |
 | OCCTSwiftAIS | `from: "1.0.0"` | OCCTSwiftTools (→ Viewport, IO, kernel) |
 | OCCTSwiftScripts | `from: "1.0.0"` | full stack |
 | OCCTMCP | `from: "1.0.0"` | OCCTSwiftScripts |
