@@ -120,7 +120,7 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 | OCCTSwiftTools | `from: "1.0.1"` | OCCTSwift, OCCTSwiftViewport, OCCTSwiftIO |
 | OCCTSwiftAIS | `from: "1.0.0"` | OCCTSwiftTools (→ Viewport, IO, kernel) |
 | OCCTSwiftScripts | `from: "1.0.0"` | full stack |
-| OCCTMCP | track latest | OCCTSwiftScripts |
+| OCCTMCP | `from: "1.0.0"` | OCCTSwiftScripts |
 | simpleOCCTVP | — | own C build of OCCT; independent of Swift packages |
 
 ## Notable v1.0.x patches
