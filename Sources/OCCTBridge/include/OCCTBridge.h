@@ -4526,6 +4526,60 @@ int32_t OCCTShapeFuseWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
                                   OCCTShapeRef* outModified, int32_t maxModified);
 
 
+// MARK: - Boolean with Full Per-Input History (issue #165)
+
+/// Opaque handle to a boolean operation that retains its builder so
+/// per-input-subshape history (Modified / Generated / IsDeleted) can be
+/// queried after the operation completes. Free with OCCTBooleanHistoryRelease.
+typedef struct OCCTBooleanHistory* OCCTBooleanHistoryRef;
+
+/// Boolean union (s1 ∪ s2) with retained history.
+/// @param outResult If non-null, set to the result shape on success (caller owns; free with OCCTShapeRelease).
+/// @return History handle on success, NULL on failure.
+OCCTBooleanHistoryRef _Nullable OCCTBooleanUnionWithHistory(OCCTShapeRef _Nonnull shape1,
+                                                              OCCTShapeRef _Nonnull shape2,
+                                                              OCCTShapeRef _Nullable * _Nullable outResult);
+
+/// Boolean subtract (s1 \ s2) with retained history.
+OCCTBooleanHistoryRef _Nullable OCCTBooleanSubtractWithHistory(OCCTShapeRef _Nonnull shape1,
+                                                                 OCCTShapeRef _Nonnull shape2,
+                                                                 OCCTShapeRef _Nullable * _Nullable outResult);
+
+/// Boolean intersect (s1 ∩ s2) with retained history.
+OCCTBooleanHistoryRef _Nullable OCCTBooleanIntersectWithHistory(OCCTShapeRef _Nonnull shape1,
+                                                                  OCCTShapeRef _Nonnull shape2,
+                                                                  OCCTShapeRef _Nullable * _Nullable outResult);
+
+/// Split shape1 by shape2 (BRepAlgoAPI_Splitter). Result is a compound; use
+/// OCCTShapeCompoundChildren to extract the pieces.
+OCCTBooleanHistoryRef _Nullable OCCTBooleanSplitWithHistory(OCCTShapeRef _Nonnull shape1,
+                                                              OCCTShapeRef _Nonnull shape2,
+                                                              OCCTShapeRef _Nullable * _Nullable outResult);
+
+/// Modified output sub-shapes for an input sub-shape. Returns count, fills outRefs (if non-null) up to maxCount.
+/// Caller takes ownership of each OCCTShapeRef written.
+int32_t OCCTBooleanHistoryModified(OCCTBooleanHistoryRef _Nonnull history,
+                                     OCCTShapeRef _Nonnull inputSubShape,
+                                     OCCTShapeRef _Nullable * _Nullable outRefs, int32_t maxCount);
+
+/// Generated output sub-shapes for an input sub-shape (e.g. fillet faces generated FROM an edge).
+int32_t OCCTBooleanHistoryGenerated(OCCTBooleanHistoryRef _Nonnull history,
+                                      OCCTShapeRef _Nonnull inputSubShape,
+                                      OCCTShapeRef _Nullable * _Nullable outRefs, int32_t maxCount);
+
+/// True if the input sub-shape was deleted with no replacement.
+bool OCCTBooleanHistoryIsDeleted(OCCTBooleanHistoryRef _Nonnull history,
+                                   OCCTShapeRef _Nonnull inputSubShape);
+
+void OCCTBooleanHistoryRelease(OCCTBooleanHistoryRef _Nonnull history);
+
+/// Top-level children of a compound shape (TopoDS_Iterator). Returns count,
+/// fills outRefs (if non-null) up to maxCount. Used to extract pieces from
+/// BRepAlgoAPI_Splitter results. Caller takes ownership of each OCCTShapeRef.
+int32_t OCCTShapeCompoundChildren(OCCTShapeRef _Nonnull compound,
+                                    OCCTShapeRef _Nullable * _Nullable outRefs, int32_t maxCount);
+
+
 // MARK: - Thick Solid / Hollowing (v0.37.0)
 
 /// Create a hollowed (thick) solid by removing faces and offsetting inward.

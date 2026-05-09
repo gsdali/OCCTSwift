@@ -1533,6 +1533,149 @@ int32_t OCCTShapeFuseWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
     }
 }
 
+// MARK: - Boolean with Full Per-Input History (issue #165)
+// Holds a heap-stored builder so Modified / Generated / IsDeleted can be
+// queried after the bridge function returns. OCCTMCP's remap_selection
+// is the immediate consumer (per-subshape history → exact selection
+// remapping across boolean / feature mutations).
+
+#include <BRepAlgoAPI_Common.hxx>
+#include <BRepAlgoAPI_Splitter.hxx>
+#include <BRepBuilderAPI_MakeShape.hxx>
+#include <TopoDS_Iterator.hxx>
+#include <memory>
+
+struct OCCTBooleanHistory {
+    // Builder kept alive for the lifetime of the handle. unique_ptr because
+    // BRepBuilderAPI_MakeShape carries large internal state and is not
+    // safely copyable. Upcast from concrete Fuse / Cut / Common / Splitter.
+    std::unique_ptr<BRepBuilderAPI_MakeShape> op;
+
+    explicit OCCTBooleanHistory(std::unique_ptr<BRepBuilderAPI_MakeShape> theOp)
+        : op(std::move(theOp)) {}
+};
+
+OCCTBooleanHistoryRef OCCTBooleanUnionWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                                    OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape1 || !shape2) return nullptr;
+    try {
+        std::unique_ptr<BRepAlgoAPI_Fuse> op(new BRepAlgoAPI_Fuse(shape1->shape, shape2->shape));
+        if (!op->IsDone()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(op->Shape());
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
+OCCTBooleanHistoryRef OCCTBooleanSubtractWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                                       OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape1 || !shape2) return nullptr;
+    try {
+        std::unique_ptr<BRepAlgoAPI_Cut> op(new BRepAlgoAPI_Cut(shape1->shape, shape2->shape));
+        if (!op->IsDone()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(op->Shape());
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
+OCCTBooleanHistoryRef OCCTBooleanIntersectWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                                        OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape1 || !shape2) return nullptr;
+    try {
+        std::unique_ptr<BRepAlgoAPI_Common> op(new BRepAlgoAPI_Common(shape1->shape, shape2->shape));
+        if (!op->IsDone()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(op->Shape());
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
+OCCTBooleanHistoryRef OCCTBooleanSplitWithHistory(OCCTShapeRef shape1, OCCTShapeRef shape2,
+                                                    OCCTShapeRef* outResult) {
+    if (outResult) *outResult = nullptr;
+    if (!shape1 || !shape2) return nullptr;
+    try {
+        std::unique_ptr<BRepAlgoAPI_Splitter> op(new BRepAlgoAPI_Splitter());
+        TopTools_ListOfShape args;
+        args.Append(shape1->shape);
+        TopTools_ListOfShape tools;
+        tools.Append(shape2->shape);
+        op->SetArguments(args);
+        op->SetTools(tools);
+        op->Build();
+        if (!op->IsDone()) return nullptr;
+        if (outResult) *outResult = new OCCTShape(op->Shape());
+        return new OCCTBooleanHistory(std::move(op));
+    } catch (...) { return nullptr; }
+}
+
+// Always returns the full Modified count. If outRefs is non-null, also writes
+// up to maxCount entries (caller takes ownership of each). Pass outRefs=null
+// (or maxCount=0) to probe the count without allocating.
+int32_t OCCTBooleanHistoryModified(OCCTBooleanHistoryRef h, OCCTShapeRef inputSubShape,
+                                     OCCTShapeRef* outRefs, int32_t maxCount) {
+    if (!h || !inputSubShape) return -1;
+    try {
+        const TopTools_ListOfShape& list = h->op->Modified(inputSubShape->shape);
+        int32_t count = 0;
+        for (TopTools_ListIteratorOfListOfShape it(list); it.More(); it.Next()) {
+            if (outRefs && count < maxCount) {
+                outRefs[count] = new OCCTShape(it.Value());
+            }
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+// Same probe-and-fill semantics as OCCTBooleanHistoryModified.
+int32_t OCCTBooleanHistoryGenerated(OCCTBooleanHistoryRef h, OCCTShapeRef inputSubShape,
+                                      OCCTShapeRef* outRefs, int32_t maxCount) {
+    if (!h || !inputSubShape) return -1;
+    try {
+        const TopTools_ListOfShape& list = h->op->Generated(inputSubShape->shape);
+        int32_t count = 0;
+        for (TopTools_ListIteratorOfListOfShape it(list); it.More(); it.Next()) {
+            if (outRefs && count < maxCount) {
+                outRefs[count] = new OCCTShape(it.Value());
+            }
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
+bool OCCTBooleanHistoryIsDeleted(OCCTBooleanHistoryRef h, OCCTShapeRef inputSubShape) {
+    if (!h || !inputSubShape) return false;
+    try {
+        return h->op->IsDeleted(inputSubShape->shape);
+    } catch (...) { return false; }
+}
+
+void OCCTBooleanHistoryRelease(OCCTBooleanHistoryRef h) {
+    delete h;
+}
+
+// Iterate the top-level children of a compound (used by Splitter result to
+// extract the pieces produced by the split). Always returns the full count;
+// writes up to maxCount entries when outRefs is non-null. Pass outRefs=null
+// (or maxCount=0) to probe.
+int32_t OCCTShapeCompoundChildren(OCCTShapeRef compound,
+                                    OCCTShapeRef* outRefs, int32_t maxCount) {
+    if (!compound) return -1;
+    try {
+        int32_t count = 0;
+        for (TopoDS_Iterator it(compound->shape); it.More(); it.Next()) {
+            if (outRefs && count < maxCount) {
+                outRefs[count] = new OCCTShape(it.Value());
+            }
+            count++;
+        }
+        return count;
+    } catch (...) { return -1; }
+}
+
 // MARK: - Thick Solid / Hollowing (v0.37.0)
 
 #include <BRepOffsetAPI_MakeThickSolid.hxx>

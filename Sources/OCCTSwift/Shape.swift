@@ -4240,6 +4240,114 @@ extension Shape {
     }
 }
 
+// MARK: - Boolean with Full Per-Input History (issue #165)
+
+/// Per-input-subshape history for a boolean operation: which output
+/// sub-shapes the input was modified into, which output sub-shapes were
+/// generated FROM it, and whether it was deleted with no replacement.
+public struct ShapeHistoryRecord: Sendable {
+    /// Output sub-shapes that are modifications of the input (1:1 or 1:N).
+    /// Example: a face split by a boolean cut → multiple modified faces.
+    public let modified: [Shape]
+    /// Output sub-shapes generated FROM the input but not replacing it.
+    /// Example: filleting an edge generates new fillet faces from that edge,
+    /// while the edge itself is deleted.
+    public let generated: [Shape]
+    /// True if the input was deleted with no replacement.
+    public let isDeleted: Bool
+}
+
+/// Retained handle to a boolean operation's builder, queryable for per-input
+/// history after the operation completes. Used by tools that need to track
+/// selection IDs across boolean / split mutations (e.g. OCCTMCP's
+/// `remap_selection`, parametric editors that want feature replay).
+public final class ShapeHistoryRef: @unchecked Sendable {
+    fileprivate let handle: OCCTBooleanHistoryRef
+
+    fileprivate init(_ handle: OCCTBooleanHistoryRef) {
+        self.handle = handle
+    }
+
+    deinit {
+        OCCTBooleanHistoryRelease(handle)
+    }
+
+    /// Look up the post-mutation history of one input sub-shape (any face,
+    /// edge, or vertex from the original input shape).
+    public func record(of inputSubShape: Shape) -> ShapeHistoryRecord {
+        ShapeHistoryRecord(
+            modified: collect { buf, max in
+                OCCTBooleanHistoryModified(handle, inputSubShape.handle, buf, max)
+            },
+            generated: collect { buf, max in
+                OCCTBooleanHistoryGenerated(handle, inputSubShape.handle, buf, max)
+            },
+            isDeleted: OCCTBooleanHistoryIsDeleted(handle, inputSubShape.handle)
+        )
+    }
+
+    private func collect(_ fill: (UnsafeMutablePointer<OCCTShapeRef?>?, Int32) -> Int32) -> [Shape] {
+        // Probe with a max=0 call to get the count, then size the buffer exactly.
+        let count = fill(nil, 0)
+        guard count > 0 else { return [] }
+        var refs = [OCCTShapeRef?](repeating: nil, count: Int(count))
+        _ = refs.withUnsafeMutableBufferPointer { buf in
+            fill(buf.baseAddress, count)
+        }
+        return refs.compactMap { ref in ref.map(Shape.init(handle:)) }
+    }
+}
+
+extension Shape {
+    /// Boolean union (`self ∪ other`) with full per-input-subshape history.
+    /// - Returns: `(result, history)` on success; nil if the operation failed.
+    public func unionWithFullHistory(_ other: Shape) -> (result: Shape, history: ShapeHistoryRef)? {
+        var resultRef: OCCTShapeRef?
+        guard let h = OCCTBooleanUnionWithHistory(handle, other.handle, &resultRef),
+              let resultRef else { return nil }
+        return (Shape(handle: resultRef), ShapeHistoryRef(h))
+    }
+
+    /// Boolean subtract (`self \ tool`) with full per-input-subshape history.
+    public func subtractedWithFullHistory(_ tool: Shape) -> (result: Shape, history: ShapeHistoryRef)? {
+        var resultRef: OCCTShapeRef?
+        guard let h = OCCTBooleanSubtractWithHistory(handle, tool.handle, &resultRef),
+              let resultRef else { return nil }
+        return (Shape(handle: resultRef), ShapeHistoryRef(h))
+    }
+
+    /// Boolean intersect (`self ∩ other`) with full per-input-subshape history.
+    public func intersectionWithFullHistory(_ other: Shape) -> (result: Shape, history: ShapeHistoryRef)? {
+        var resultRef: OCCTShapeRef?
+        guard let h = OCCTBooleanIntersectWithHistory(handle, other.handle, &resultRef),
+              let resultRef else { return nil }
+        return (Shape(handle: resultRef), ShapeHistoryRef(h))
+    }
+
+    /// Split `self` by `tool` (BRepAlgoAPI_Splitter). The pieces are the
+    /// top-level children of the compound result; query history per input
+    /// sub-shape via `history.record(of:)`.
+    public func splitWithFullHistory(by tool: Shape) -> (pieces: [Shape], history: ShapeHistoryRef)? {
+        var compoundRef: OCCTShapeRef?
+        guard let h = OCCTBooleanSplitWithHistory(handle, tool.handle, &compoundRef),
+              let compoundRef else { return nil }
+        let compound = Shape(handle: compoundRef)
+
+        let pieceCount = OCCTShapeCompoundChildren(compound.handle, nil, 0)
+        let pieces: [Shape]
+        if pieceCount > 0 {
+            var refs = [OCCTShapeRef?](repeating: nil, count: Int(pieceCount))
+            _ = refs.withUnsafeMutableBufferPointer { buf in
+                OCCTShapeCompoundChildren(compound.handle, buf.baseAddress, pieceCount)
+            }
+            pieces = refs.compactMap { ref in ref.map(Shape.init(handle:)) }
+        } else {
+            pieces = []
+        }
+        return (pieces, ShapeHistoryRef(h))
+    }
+}
+
 // MARK: - Thick Solid / Hollowing (v0.37.0)
 
 extension Shape {
