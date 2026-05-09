@@ -191,10 +191,6 @@ See [docs/guides/building-occt.md](docs/guides/building-occt.md) for details.
 | [Wrapping Status](docs/occtswift-wrapping-gaps.md) | What's wrapped, what's not, and why |
 | [Changelog](docs/CHANGELOG.md) | Release history |
 
-## Known Issues
-
-- **Parallel SEGV**: OCCT has thread-safety issues with global state (IGES reader/writer, `Interface_Static`). Running 1000+ tests concurrently crashes ~100% of the time. Individual suites pass reliably. Tracked upstream at [Open-Cascade-SAS/OCCT#1179](https://github.com/Open-Cascade-SAS/OCCT/issues/1179).
-
 ## License
 
 LGPL-2.1. OpenCASCADE Technology is licensed under LGPL-2.1.
