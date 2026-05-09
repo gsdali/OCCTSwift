@@ -113,7 +113,7 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 
 | Package | Floor | Pulls (transitively) |
 |---------|-------|----------------------|
-| OCCTSwift | `from: "1.0.4"` | — |
+| OCCTSwift | `from: "1.1.0"` | — |
 | OCCTSwiftIO | `from: "1.0.0"` | OCCTSwift |
 | OCCTSwiftMesh | `from: "1.0.0"` | OCCTSwift |
 | OCCTSwiftViewport | `from: "1.0.2"` | OCCTSwift |
@@ -131,6 +131,7 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 - **OCCTSwift v1.0.4** — wires `applyFillet` / `applyChamfer` through the Tier 2 history variants and implements chamfer's `.nearPoint` / `.onFeature` selectors that were stubbed before. After this, every `FeatureSpec` kind (boolean / hole / additive / fillet / chamfer) populates `BuildResult.histories[id]` for specs with non-nil ids — closes #166.
 - **OCCTSwiftViewport v1.0.2** — point-cloud rendering pipeline (point sprites with screen-space disk masking via `[[point_size]]`). Adds `BodyPrimitiveKind`, `vertexColors`, `pointRadius` to `ViewportBody`. Closes Viewport [#28](https://github.com/gsdali/OCCTSwiftViewport/issues/28).
 - **OCCTSwiftTools v1.1.0** — first MINOR bump under the [cohort SemVer policy](SEMVER.md). `PointConverter.pointsToBody` now wires `pointRadius` and `perPointColors` through to the new `ViewportBody` fields and stamps `primitiveKind = .point`. Companion follow-up to Viewport v1.0.2.
+- **OCCTSwift v1.1.0** — `TopologyGraph.findDerivedOrSelf(of:)` and `hasHistoryRecord(for:)` disambiguate untouched-vs-deleted nodes that both returned `[]` from `findDerived` (closes #167). Direct unblocker for OCCTMCP `remap_selection`'s history path.
 - **OCCTSwiftTools v1.0.1** — `PointConverter.pointsToBody(_:)` for rendering point clouds without sphere-compound triangulation. Renderer-side support for drawing the points as visible primitives is tracked at [OCCTSwiftViewport#28](https://github.com/gsdali/OCCTSwiftViewport/issues/28).
 
 ## Versioning posture
