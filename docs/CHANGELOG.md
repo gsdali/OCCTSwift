@@ -2,13 +2,38 @@
 
 All notable changes to OCCTSwift.
 
-## Current: v1.0.1
+## Current: v1.0.2
 
-**4,275 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
+**4,279 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
 ## Release History
+
+### v1.0.2 (May 2026) — per-input boolean history (issue #165 Tier 1)
+
+**Additive feature for selection-remapping consumers** ([#165](https://github.com/gsdali/OCCTSwift/issues/165)). Adds a per-input-subshape history lookup surface to the four `BRepAlgoAPI` boolean ops, addressing OCCTMCP's `remap_selection` need to walk selection IDs across boolean / split mutations exactly (instead of the centroid-distance heuristic that loses on splits / merges / deletions):
+
+```swift
+extension Shape {
+    func unionWithFullHistory(_ other: Shape) -> (result: Shape, history: ShapeHistoryRef)?
+    func subtractedWithFullHistory(_ tool: Shape) -> (result: Shape, history: ShapeHistoryRef)?
+    func intersectionWithFullHistory(_ other: Shape) -> (result: Shape, history: ShapeHistoryRef)?
+    func splitWithFullHistory(by tool: Shape) -> (pieces: [Shape], history: ShapeHistoryRef)?
+}
+
+public final class ShapeHistoryRef: @unchecked Sendable {
+    func record(of inputSubShape: Shape) -> ShapeHistoryRecord  // .modified / .generated / .isDeleted
+}
+```
+
+The `ShapeHistoryRef` retains the OCCT builder so `Modified` / `Generated` / `IsDeleted` stay queryable after the operation completes. Existing `BooleanResult` / `BooleanHistoryResult` callers are unchanged — pure additive surface.
+
+**Bug fix on the way.** While building the history-handle plumbing I found that the new probe-then-fill helpers returned `0` when called with `maxCount=0` (or `outRefs=null`), breaking the Swift-side count-then-allocate idiom. Fixed: the new bridge functions now always return the full count and only stop *writing* when `count >= maxCount`. Existing callers were unaffected (none used the probe path).
+
+xcframework binary unchanged from v1.0.0 (no OCCT version change). SPM consumers continue to resolve against the v1.0.0 asset.
+
+**Out of scope for this release** (will land in follow-ups under #165 Tiers 2 / 3): `filletedWithFullHistory` / `chamferedWithFullHistory` / `shelledWithFullHistory` / `defeaturedWithFullHistory`, and `FeatureReconstructor.BuildResult.history`.
 
 ### v1.0.1 (May 2026) — TopologyGraph.rootNodes fix + test repair
 
