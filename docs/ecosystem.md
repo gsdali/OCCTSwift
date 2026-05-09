@@ -113,7 +113,7 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 
 | Package | Floor | Pulls (transitively) |
 |---------|-------|----------------------|
-| OCCTSwift | `from: "1.0.3"` | — |
+| OCCTSwift | `from: "1.0.4"` | — |
 | OCCTSwiftIO | `from: "1.0.0"` | OCCTSwift |
 | OCCTSwiftMesh | `from: "1.0.0"` | OCCTSwift |
 | OCCTSwiftViewport | `from: "1.0.1"` | OCCTSwift |
@@ -128,6 +128,7 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 - **OCCTSwift v1.0.1** — `TopologyGraph.NodeKind` extended to cover `Product` / `Occurrence` raw values; without this, `rootNodes` silently returned `[]` for any graph with assembly roots.
 - **OCCTSwift v1.0.2** — per-input boolean history surface (`unionWithFullHistory` / `subtractedWithFullHistory` / `intersectionWithFullHistory` / `splitWithFullHistory`), used by selection-remapping consumers (e.g. OCCTMCP's `remap_selection`) to walk selection IDs across boolean / split mutations exactly instead of falling back to a centroid-distance heuristic.
 - **OCCTSwift v1.0.3** — extends per-input history to modification ops (`filletedWithFullHistory` / `chamferedWithFullHistory` / `shelledWithFullHistory` / `defeaturedWithFullHistory`) and threads it through `FeatureReconstructor.BuildResult.histories[featureID]`. Closes the long-running #165 selection-survival epic.
+- **OCCTSwift v1.0.4** — wires `applyFillet` / `applyChamfer` through the Tier 2 history variants and implements chamfer's `.nearPoint` / `.onFeature` selectors that were stubbed before. After this, every `FeatureSpec` kind (boolean / hole / additive / fillet / chamfer) populates `BuildResult.histories[id]` for specs with non-nil ids — closes #166.
 - **OCCTSwiftTools v1.0.1** — `PointConverter.pointsToBody(_:)` for rendering point clouds without sphere-compound triangulation. Renderer-side support for drawing the points as visible primitives is tracked at [OCCTSwiftViewport#28](https://github.com/gsdali/OCCTSwiftViewport/issues/28).
 
 ## Versioning posture
