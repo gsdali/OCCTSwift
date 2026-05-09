@@ -135,6 +135,8 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 
 - **OCCTSwift** sets the OCCT-version pin for the whole ecosystem. A new OCCTSwift major (e.g. v2.0.0) signals an OCCT 9.x bump and a coordinated cohort upgrade.
 - **Other packages** version independently within their own SemVer line, but their major versions tend to graduate alongside the kernel's. For routine work you can take patch and minor updates everywhere without re-pinning OCCTSwift.
-- **Pre-1.0 history**: the ecosystem went through ~170 OCCTSwift point releases tracking OCCT 8.0 release candidates (rc3 → rc4 → rc5 → beta1 → beta2) before graduating with OCCT GA. Pre-1.0 was free to break; v1.0+ follows SemVer strictly.
+- **Pre-1.0 history**: the ecosystem went through ~170 OCCTSwift point releases tracking OCCT 8.0 release candidates (rc3 → rc4 → rc5 → beta1 → beta2) before graduating with OCCT GA. Pre-1.0 was free to break; v1.0+ follows the [cohort SemVer policy](SEMVER.md).
+
+The full versioning policy — what counts as MAJOR / MINOR / PATCH, how the cohort coordinates, and when dep floors get bumped — is documented in [`docs/SEMVER.md`](SEMVER.md).
 
 See [`docs/CHANGELOG.md`](CHANGELOG.md) for the OCCTSwift release history and [`docs/occt-upgrades.md`](occt-upgrades.md) for OCCT version migration notes.

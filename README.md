@@ -181,6 +181,7 @@ See [docs/guides/building-occt.md](docs/guides/building-occt.md) for details.
 | Document | Description |
 |----------|-------------|
 | [Ecosystem](docs/ecosystem.md) | Map of the package family, dependency layering, when to use which |
+| [SemVer Policy](docs/SEMVER.md) | Versioning rules for the cohort — what triggers MAJOR / MINOR / PATCH |
 | [Architecture Overview](docs/architecture/overview.md) | Three-layer design, memory management, conventions |
 | [Adding Features](docs/guides/adding-features.md) | How to wrap new OCCT operations |
 | [OCCT Concepts](docs/guides/occt-concepts.md) | B-Rep topology, handles, shapes primer |
