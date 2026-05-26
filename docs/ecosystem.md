@@ -116,11 +116,11 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 | OCCTSwift | `from: "1.1.0"` | — |
 | OCCTSwiftIO | `from: "1.0.0"` | OCCTSwift |
 | OCCTSwiftMesh | `from: "1.0.0"` | OCCTSwift |
-| OCCTSwiftViewport | `from: "1.0.2"` | OCCTSwift |
+| OCCTSwiftViewport | `from: "1.0.4"` | — (leaf; renders `ViewportBody`, no kernel dep) |
 | OCCTSwiftTools | `from: "1.1.0"` | OCCTSwift, OCCTSwiftViewport, OCCTSwiftIO |
 | OCCTSwiftAIS | `from: "1.0.1"` | OCCTSwiftTools (→ Viewport, IO, kernel) |
 | OCCTSwiftScripts | `from: "1.0.2"` | full stack |
-| OCCTMCP | `from: "1.1.1"` | OCCTSwiftScripts |
+| OCCTMCP | `from: "1.4.1"` | OCCTSwiftScripts |
 | simpleOCCTVP | — | own C build of OCCT; independent of Swift packages |
 
 ## Notable v1.0.x patches
@@ -130,9 +130,15 @@ All public packages graduated to **SemVer-stable v1.0.0** alongside OCCTSwift v1
 - **OCCTSwift v1.0.3** — extends per-input history to modification ops (`filletedWithFullHistory` / `chamferedWithFullHistory` / `shelledWithFullHistory` / `defeaturedWithFullHistory`) and threads it through `FeatureReconstructor.BuildResult.histories[featureID]`. Closes the long-running #165 selection-survival epic.
 - **OCCTSwift v1.0.4** — wires `applyFillet` / `applyChamfer` through the Tier 2 history variants and implements chamfer's `.nearPoint` / `.onFeature` selectors that were stubbed before. After this, every `FeatureSpec` kind (boolean / hole / additive / fillet / chamfer) populates `BuildResult.histories[id]` for specs with non-nil ids — closes #166.
 - **OCCTSwiftViewport v1.0.2** — point-cloud rendering pipeline (point sprites with screen-space disk masking via `[[point_size]]`). Adds `BodyPrimitiveKind`, `vertexColors`, `pointRadius` to `ViewportBody`. Closes Viewport [#28](https://github.com/gsdali/OCCTSwiftViewport/issues/28).
+- **OCCTSwiftViewport v1.0.3** — fixes an **uncatchable** crash (`fatalError`, not a thrown error) on body load: `NormalSmoothing.quantize(_:)` overflowed `Int32` for any mesh vertex beyond ±21,474.8 model units (or `NaN`/`±inf`). Now clamps non-finite/out-of-range coords before the trapping conversion. Closes Viewport [#30](https://github.com/gsdali/OCCTSwiftViewport/issues/30).
+- **OCCTSwiftViewport v1.0.4** — packaging fix: the demo target's dependency on `OCCTSwiftTools` (which depends back on Viewport) formed a package cycle that broke standalone `swift build`. The demo moved to `Examples/MetalDemo`; **the published Viewport package now has zero external dependencies** (its library never used the kernel or Tools). No library API change — fully compatible with v1.0.3. Closes Viewport [#32](https://github.com/gsdali/OCCTSwiftViewport/pull/32).
 - **OCCTSwiftTools v1.1.0** — first MINOR bump under the [cohort SemVer policy](SEMVER.md). `PointConverter.pointsToBody` now wires `pointRadius` and `perPointColors` through to the new `ViewportBody` fields and stamps `primitiveKind = .point`. Companion follow-up to Viewport v1.0.2.
 - **OCCTSwift v1.1.0** — `TopologyGraph.findDerivedOrSelf(of:)` and `hasHistoryRecord(for:)` disambiguate untouched-vs-deleted nodes that both returned `[]` from `findDerived` (closes #167). Direct unblocker for OCCTMCP `remap_selection`'s history path.
 - **OCCTSwiftTools v1.0.1** — `PointConverter.pointsToBody(_:)` for rendering point clouds without sphere-compound triangulation. Renderer-side support for drawing the points as visible primitives is tracked at [OCCTSwiftViewport#28](https://github.com/gsdali/OCCTSwiftViewport/issues/28).
+- **OCCTMCP v1.2.0** — full `apply_feature` history surface (consumes OCCTSwift v1.0.4's per-input histories) plus visible point clouds end-to-end (Viewport v1.0.2 + Tools v1.1.0).
+- **OCCTMCP v1.3.0** — `find_correspondences` tool (closes OCCTMCP #24) for matching topology across model variants, with a history-path fix.
+- **OCCTMCP v1.4.0** — consumes OCCTSwift v1.1.0 (`findDerivedOrSelf` / `hasHistoryRecord`) and drops the identity-flag workaround `remap_selection` previously needed.
+- **OCCTMCP v1.4.1** — dependency hygiene: drops the `gsdali/swift-sdk` fork branch for the official `modelcontextprotocol/swift-sdk` at a tagged version (0.12.1), back-porting the one-property `Value.numberValue` accessor locally until it lands upstream ([swift-sdk#226](https://github.com/modelcontextprotocol/swift-sdk/pull/226)). No behavioral change; the dependency graph is now reproducible.
 
 ## Versioning posture
 
