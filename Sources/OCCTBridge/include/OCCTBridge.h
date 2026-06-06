@@ -7549,6 +7549,13 @@ bool OCCTDocumentRemoveShape(OCCTDocumentRef doc, int64_t labelId);
 int64_t OCCTDocumentAddComponent(OCCTDocumentRef doc, int64_t assemblyLabelId,
     int64_t shapeLabelId, double tx, double ty, double tz);
 
+// Add a component with a FULL rigid placement from a 12-element row-major matrix
+// [r00 r01 r02 r10 r11 r12 r20 r21 r22 tx ty tz]. Returns -1 if the matrix is not a proper rigid
+// transform (e.g. a reflection — gp_Trsf can't represent it; the caller should bake a mirrored
+// product instead). Issue #174.
+int64_t OCCTDocumentAddComponentMatrix(OCCTDocumentRef doc, int64_t assemblyLabelId,
+    int64_t shapeLabelId, const double* _Nonnull matrix12);
+
 /// Remove a component from an assembly.
 void OCCTDocumentRemoveComponent(OCCTDocumentRef doc, int64_t componentLabelId);
 

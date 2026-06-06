@@ -2799,6 +2799,25 @@ int64_t OCCTDocumentAddComponent(OCCTDocumentRef doc, int64_t assemblyLabelId,
     } catch (...) { return -1; }
 }
 
+int64_t OCCTDocumentAddComponentMatrix(OCCTDocumentRef doc, int64_t assemblyLabelId,
+    int64_t shapeLabelId, const double* matrix12) {
+    if (!doc || doc->shapeTool.IsNull() || !matrix12) return -1;
+    try {
+        TDF_Label assemblyLabel = doc->getLabel(assemblyLabelId);
+        TDF_Label shapeLabel = doc->getLabel(shapeLabelId);
+        if (assemblyLabel.IsNull() || shapeLabel.IsNull()) return -1;
+        // Row-major 3x3 rotation + translation; gp_Trsf::SetValues throws if not a proper rigid
+        // (orthonormal, det +1) transform — reflections must be baked as a mirrored product (#174).
+        gp_Trsf trsf;
+        trsf.SetValues(matrix12[0], matrix12[1], matrix12[2], matrix12[9],
+                       matrix12[3], matrix12[4], matrix12[5], matrix12[10],
+                       matrix12[6], matrix12[7], matrix12[8], matrix12[11]);
+        TDF_Label comp = doc->shapeTool->AddComponent(assemblyLabel, shapeLabel, TopLoc_Location(trsf));
+        if (comp.IsNull()) return -1;
+        return doc->registerLabel(comp);
+    } catch (...) { return -1; }
+}
+
 void OCCTDocumentRemoveComponent(OCCTDocumentRef doc, int64_t componentLabelId) {
     if (!doc || doc->shapeTool.IsNull()) return;
     try {

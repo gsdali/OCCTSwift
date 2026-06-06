@@ -1918,6 +1918,17 @@ extension Document {
                                   translation.0, translation.1, translation.2)
     }
 
+    /// Add a component occurrence with a FULL rigid placement, from a 12-element row-major matrix
+    /// `[r00 r01 r02 r10 r11 r12 r20 r21 r22 tx ty tz]`. Returns the component label id, or -1 if the
+    /// matrix isn't a proper rigid transform (a reflection — bake a mirrored product instead). #174.
+    @discardableResult
+    public func addComponent(assemblyLabelId: Int64, shapeLabelId: Int64, matrix: [Double]) -> Int64 {
+        guard matrix.count == 12 else { return -1 }
+        return matrix.withUnsafeBufferPointer {
+            OCCTDocumentAddComponentMatrix(handle, assemblyLabelId, shapeLabelId, $0.baseAddress!)
+        }
+    }
+
     /// Remove a component from an assembly.
     public func removeComponent(labelId: Int64) {
         OCCTDocumentRemoveComponent(handle, labelId)
