@@ -5645,3 +5645,94 @@ bool OCCTCompCurveParamAtAbscissa(OCCTCompCurveRef ref, double s, double* outPar
         return true;
     } catch (...) { return false; }
 }
+
+// Shared: N points spaced equally by arc length along any 3D curve adaptor.
+// outXYZ must hold count*3 doubles; returns the number of points actually written.
+#include <Adaptor3d_Curve.hxx>
+#include <GCPnts_UniformAbscissa.hxx>
+static int32_t sampleAdaptorUniform(Adaptor3d_Curve& a, int32_t count, double* outXYZ) {
+    if (count < 2 || !outXYZ) return 0;
+    GCPnts_UniformAbscissa sampler(a, count);
+    if (!sampler.IsDone()) return 0;
+    int32_t n = sampler.NbPoints();
+    for (int32_t i = 1; i <= n; ++i) {
+        gp_Pnt p = a.Value(sampler.Parameter(i));
+        outXYZ[(i - 1) * 3 + 0] = p.X();
+        outXYZ[(i - 1) * 3 + 1] = p.Y();
+        outXYZ[(i - 1) * 3 + 2] = p.Z();
+    }
+    return n;
+}
+
+int32_t OCCTCompCurveSampleUniform(OCCTCompCurveRef ref, int32_t count, double* outXYZ) {
+    if (!ref) return 0;
+    try { return sampleAdaptorUniform(ref->adaptor, count, outXYZ); }
+    catch (...) { return 0; }
+}
+
+// MARK: - EdgeCurve adaptor (#211/#212): a single edge as an arc-length curve (BRepAdaptor_Curve)
+#include <BRepAdaptor_Curve.hxx>
+
+struct OCCTEdgeCurve {
+    BRepAdaptor_Curve adaptor;
+    explicit OCCTEdgeCurve(const TopoDS_Edge& e) : adaptor(e) {}
+};
+
+OCCTEdgeCurveRef OCCTEdgeCurveCreate(OCCTEdgeRef edge) {
+    if (!edge) return nullptr;
+    try { return new OCCTEdgeCurve(edge->edge); }
+    catch (...) { return nullptr; }
+}
+
+void OCCTEdgeCurveRelease(OCCTEdgeCurveRef ref) { delete ref; }
+
+double OCCTEdgeCurveLength(OCCTEdgeCurveRef ref) {
+    if (!ref) return -1.0;
+    try { return GCPnts_AbscissaPoint::Length(ref->adaptor); }
+    catch (...) { return -1.0; }
+}
+
+void OCCTEdgeCurveParamRange(OCCTEdgeCurveRef ref, double* first, double* last) {
+    if (!ref) return;
+    try {
+        if (first) *first = ref->adaptor.FirstParameter();
+        if (last)  *last  = ref->adaptor.LastParameter();
+    } catch (...) {}
+}
+
+bool OCCTEdgeCurvePointAtParam(OCCTEdgeCurveRef ref, double u, double* x, double* y, double* z) {
+    if (!ref) return false;
+    try {
+        gp_Pnt p = ref->adaptor.Value(u);
+        if (x) *x = p.X(); if (y) *y = p.Y(); if (z) *z = p.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeCurveTangentAtParam(OCCTEdgeCurveRef ref, double u, double* x, double* y, double* z) {
+    if (!ref) return false;
+    try {
+        gp_Pnt p; gp_Vec d1;
+        ref->adaptor.D1(u, p, d1);
+        if (d1.Magnitude() < 1e-12) return false;
+        gp_Dir dir(d1);
+        if (x) *x = dir.X(); if (y) *y = dir.Y(); if (z) *z = dir.Z();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTEdgeCurveParamAtAbscissa(OCCTEdgeCurveRef ref, double s, double* outParam) {
+    if (!ref) return false;
+    try {
+        GCPnts_AbscissaPoint ap(ref->adaptor, s, ref->adaptor.FirstParameter());
+        if (!ap.IsDone()) return false;
+        if (outParam) *outParam = ap.Parameter();
+        return true;
+    } catch (...) { return false; }
+}
+
+int32_t OCCTEdgeCurveSampleUniform(OCCTEdgeCurveRef ref, int32_t count, double* outXYZ) {
+    if (!ref) return 0;
+    try { return sampleAdaptorUniform(ref->adaptor, count, outXYZ); }
+    catch (...) { return 0; }
+}

@@ -37,4 +37,20 @@ struct Issue211OuterShell {
               let face = Shape.face(from: rect) else { #expect(Bool(false)); return }
         #expect(face.outerShell == nil)
     }
+
+    @Test("innerShells returns the cavity shells, empty for a plain solid")
+    func innerShells() {
+        guard let hollow = hollowSolid() else { #expect(Bool(false)); return }
+        let inner = hollow.innerShells
+        #expect(inner.count == 1)   // exactly one cavity
+        // the cavity shell spans the 8-cube, not the 20-cube
+        if let cavity = inner.first {
+            let bb = cavity.bounds
+            #expect(abs((bb.max.x - bb.min.x) - 8.0) < 1e-3)
+        }
+        // a plain solid has no inner shells
+        if let box = Shape.box(width: 10, height: 10, depth: 10) {
+            #expect(box.innerShells.isEmpty)
+        }
+    }
 }

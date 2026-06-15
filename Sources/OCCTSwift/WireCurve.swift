@@ -70,4 +70,23 @@ public final class WireCurve: @unchecked Sendable {
         guard let u = parameter(atAbscissa: s) else { return nil }
         return tangent(atParameter: u)
     }
+
+    /// `count` points spaced **equally by arc length** along the wire (`count >= 2`),
+    /// including both endpoints — `GCPnts_UniformAbscissa`. One pass, cheaper than calling
+    /// ``point(atAbscissa:)`` in a loop.
+    public func points(count: Int) -> [SIMD3<Double>] {
+        guard count >= 2 else { return [] }
+        var buf = [Double](repeating: 0, count: count * 3)
+        let n = Int(OCCTCompCurveSampleUniform(ref, Int32(count), &buf))
+        return (0..<n).map { SIMD3(buf[$0 * 3], buf[$0 * 3 + 1], buf[$0 * 3 + 2]) }
+    }
+
+    /// Points spaced approximately `spacing` apart along the wire (by arc length). The exact
+    /// step is adjusted so the samples divide the wire evenly end-to-end.
+    public func points(spacing: Double) -> [SIMD3<Double>] {
+        let len = length
+        guard spacing > 0, len > 0 else { return [] }
+        let count = max(2, Int((len / spacing).rounded()) + 1)
+        return points(count: count)
+    }
 }

@@ -48,4 +48,39 @@ struct Issue211WireCurve {
         let pts = (0...n).compactMap { wc.point(atAbscissa: wc.length * Double($0) / Double(n)) }
         #expect(pts.count == n + 1)
     }
+
+    @Test("points(count:) returns equally-spaced points incl. endpoints")
+    func uniformPoints() {
+        guard let w = lWire(), let wc = WireCurve(w) else { #expect(Bool(false)); return }
+        let pts = wc.points(count: 5)   // abscissae 0,5,10,15,20 on a length-20 wire
+        #expect(pts.count == 5)
+        if pts.count == 5 {
+            #expect(simd_distance(pts.first!, SIMD3(0, 0, 0)) < 1e-6)
+            #expect(simd_distance(pts[2], SIMD3(10, 0, 0)) < 1e-6)   // the corner
+            #expect(simd_distance(pts.last!, SIMD3(10, 10, 0)) < 1e-6)
+        }
+        #expect(wc.points(count: 1).isEmpty)   // need >= 2
+    }
+}
+
+// #211/#212: EdgeCurve — single-edge arc-length adaptor.
+@Suite("Issue #211/#212 — EdgeCurve arc-length adaptor")
+struct Issue211EdgeCurve {
+    private func anEdge() -> Edge? {
+        Shape.box(width: 10, height: 10, depth: 10)?.edges(where: { _ in true }).first
+    }
+
+    @Test("length and endpoint sampling on a box edge")
+    func lengthAndSampling() {
+        guard let e = anEdge(), let ec = EdgeCurve(e) else { #expect(Bool(false)); return }
+        #expect(abs(ec.length - 10.0) < 1e-6)               // box side
+        let pts = ec.points(count: 3)
+        #expect(pts.count == 3)
+        // mid-abscissa point lies on the edge
+        #expect(ec.point(atAbscissa: ec.length / 2) != nil)
+        // unit tangent
+        if let t = ec.tangent(atAbscissa: ec.length / 2) {
+            #expect(abs(simd_length(t) - 1.0) < 1e-6)
+        } else { #expect(Bool(false), "tangent nil") }
+    }
 }

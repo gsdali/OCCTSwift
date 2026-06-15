@@ -322,6 +322,32 @@ OCCTShapeRef OCCTShapeOuterShell(OCCTShapeRef shape) {
     }
 }
 
+// Inner (void/cavity) shells = every shell of the solid except the outer one. #212
+int32_t OCCTShapeInnerShells(OCCTShapeRef shape, OCCTShapeRef* outShells, int32_t maxCount) {
+    if (!shape) return 0;
+    try {
+        TopoDS_Solid solid;
+        if (shape->shape.ShapeType() == TopAbs_SOLID) {
+            solid = TopoDS::Solid(shape->shape);
+        } else {
+            TopExp_Explorer se(shape->shape, TopAbs_SOLID);
+            if (!se.More()) return 0;
+            solid = TopoDS::Solid(se.Current());
+        }
+        TopoDS_Shell outer = BRepClass3d::OuterShell(solid);
+        int32_t n = 0;
+        for (TopExp_Explorer ex(solid, TopAbs_SHELL); ex.More(); ex.Next()) {
+            const TopoDS_Shape& sh = ex.Current();
+            if (!outer.IsNull() && sh.IsSame(outer)) continue;   // skip the outer shell
+            if (outShells && n < maxCount) outShells[n] = new OCCTShape(sh);
+            n++;
+        }
+        return n;
+    } catch (...) {
+        return 0;
+    }
+}
+
 static int32_t mapTopAbsState(TopAbs_State state) {
     switch (state) {
         case TopAbs_IN:      return 0;

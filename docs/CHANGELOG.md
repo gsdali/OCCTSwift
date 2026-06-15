@@ -4,7 +4,7 @@ All notable changes to OCCTSwift.
 
 ## Current: v1.5.2
 
-**4,290 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
+**4,294 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
@@ -24,8 +24,14 @@ coverage audit (#211):
   coarser/finer mesh.
 - **`WireCurve`** (`BRepAdaptor_CompCurve`) — treats a multi-edge wire as one **arc-length**
   curve: `length`, `point(atAbscissa:)` / `tangent(atAbscissa:)` (walk across edge boundaries),
+  `points(count:)` / `points(spacing:)` for **even arc-length sampling** (`GCPnts_UniformAbscissa`),
   plus native `parameterRange` / `point(atParameter:)` / `tangent(atParameter:)`. Replaces ad-hoc
   per-edge sampling when placing sections along a measured wire.
+- **`EdgeCurve`** (`BRepAdaptor_Curve`) — the single-edge sibling of `WireCurve`: adds the
+  arc-length side (`length`, `point(atAbscissa:)`, `points(count:/spacing:)`) that `Edge`'s native
+  `point(at parameter:)` lacked.
+- **`Shape.innerShells`** — the void/cavity shells of a solid (every shell except `outerShell`);
+  pairs with `outerShell` to fully decompose a part into outer body + cavities.
 
 Also from #211, verified and **not** needing changes: `Shape.minDistance(to:) -> Double?` already
 exists; and a "scattered point-cloud" `GeomAPI_PointsToBSplineSurface` fit is **not** an OCCT

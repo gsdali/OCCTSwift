@@ -4902,6 +4902,18 @@ extension Shape {
         OCCTShapeOuterShell(handle).map(Shape.init(handle:))
     }
 
+    /// The **inner** (void / cavity) shells of this solid — every shell except ``outerShell``.
+    ///
+    /// Empty for a solid with no internal voids (or a non-solid). Pairs with ``outerShell`` to
+    /// decompose a part into outer body + cavities. (#212)
+    public var innerShells: [Shape] {
+        let count = OCCTShapeInnerShells(handle, nil, 0)
+        guard count > 0 else { return [] }
+        var handles = [OCCTShapeRef?](repeating: nil, count: Int(count))
+        let actual = OCCTShapeInnerShells(handle, &handles, count)
+        return handles.prefix(Int(actual)).compactMap { h in h.map { Shape(handle: $0) } }
+    }
+
     /// Extract all shell sub-shapes.
     public var shells: [Shape] {
         let count = OCCTShapeGetShellCount(handle)
