@@ -33,6 +33,17 @@ clang++ -std=c++17 -ObjC++ -w \
 nm -C Libraries/OCCT.xcframework/macos-arm64/libOCCT-macos.a 2>/dev/null | grep "ClassName" | head -5
 ```
 
+### OCCT Reference Docs (context7)
+
+OCCT's developer overview / user guides (the `dev.opencascade.org/doc/overview` content,
+generated from the repo's `dox/` guides) plus the wiki and headers are available via context7
+as **`/open-cascade-sas/occt`**. Query it when wrapping new ops or checking C++ API usage
+(e.g. `BRepAlgoAPI` options, `ThruSections`, healing) — it complements `/audit-occt` and the
+header-analyzer agent. **Caveats:** context7's snapshot is the **occt-7.9** branch (+ some
+`master`), while this project pins **OCCT 8.0.0** — for version-sensitive details, the pinned
+headers in `Libraries/OCCT.xcframework/.../Headers` are the source of truth. It documents the
+upstream C++ API the bridge wraps, not the Swift surface.
+
 ## Architecture
 
 ```
