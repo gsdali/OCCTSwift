@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Summary
 
-OCCTSwift is a comprehensive Swift wrapper for OpenCASCADE Technology (OCCT) 8.0.0-rc5. It exposes B-Rep solid modeling capabilities to Swift for macOS (arm64, v12+) and iOS (arm64, v15+) via a three-layer architecture: Swift public API → Objective-C++ bridge (C functions) → OCCT C++ library. Uses Swift 6 language mode (strict concurrency).
+OCCTSwift is a comprehensive Swift wrapper for OpenCASCADE Technology (OCCT) 8.0.0 (GA). It exposes B-Rep solid modeling capabilities to Swift for macOS (arm64, v12+) and iOS (arm64, v15+) via a three-layer architecture: Swift public API → Objective-C++ bridge (C functions) → OCCT C++ library. Uses Swift 6 language mode (strict concurrency).
 
 ## Build & Test Commands
 
@@ -167,7 +167,7 @@ docs/
 │   └── occt-concepts.md      # B-Rep topology, handles, shapes primer
 ├── integration-tests.md      # Design, CAM, stress, and regression test plans
 ├── naming-conventions.md     # Bridge and Swift naming patterns
-├── occt-upgrades.md          # Breaking changes per OCCT version (rc3→rc4→rc5)
+├── occt-upgrades.md          # Breaking changes per OCCT version (rc3→rc4→rc5→8.0.0 GA)
 ├── occtswift-wrapping-gaps.md # What's wrapped, what's not, and why
 └── thread-safety.md          # OCCTSerial mutex, parallel execution
 ```
