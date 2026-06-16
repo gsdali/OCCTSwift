@@ -32,9 +32,9 @@ let common = box.intersection(cyl)  // BRepAlgoAPI_Common — A ∩ B  (the rod 
 
 <table>
 <tr>
-<td align="center"><model-viewer src="models/booleans-union.glb" poster="images/booleans-union.png" camera-controls auto-rotate shadow-intensity="1" style="width:240px;height:220px;background:#f2f3f5;border-radius:6px"></model-viewer><br><code>union</code> (A ∪ B)</td>
-<td align="center"><model-viewer src="models/booleans-cut.glb" poster="images/booleans-cut.png" camera-controls auto-rotate shadow-intensity="1" style="width:240px;height:220px;background:#f2f3f5;border-radius:6px"></model-viewer><br><code>subtracting</code> (A − B)</td>
-<td align="center"><model-viewer src="models/booleans-common.glb" poster="images/booleans-common.png" camera-controls auto-rotate shadow-intensity="1" style="width:240px;height:220px;background:#f2f3f5;border-radius:6px"></model-viewer><br><code>intersection</code> (A ∩ B)</td>
+<td align="center"><model-viewer src="models/booleans-union.glb" poster="images/booleans-union.png" camera-controls auto-rotate environment-image="neutral" exposure="1.1" shadow-intensity="1" style="width:240px;height:220px;background:#eef1f5;border-radius:6px"></model-viewer><br><code>union</code> (A ∪ B)</td>
+<td align="center"><model-viewer src="models/booleans-cut.glb" poster="images/booleans-cut.png" camera-controls auto-rotate environment-image="neutral" exposure="1.1" shadow-intensity="1" style="width:240px;height:220px;background:#eef1f5;border-radius:6px"></model-viewer><br><code>subtracting</code> (A − B)</td>
+<td align="center"><model-viewer src="models/booleans-common.glb" poster="images/booleans-common.png" camera-controls auto-rotate environment-image="neutral" exposure="1.1" shadow-intensity="1" style="width:240px;height:220px;background:#eef1f5;border-radius:6px"></model-viewer><br><code>intersection</code> (A ∩ B)</td>
 </tr>
 </table>
 
