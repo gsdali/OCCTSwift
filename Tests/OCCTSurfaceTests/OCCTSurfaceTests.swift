@@ -4969,3 +4969,59 @@ struct DrawingSymbolsTests {
         #expect(detail.translate == SIMD2(200, 100))
     }
 }
+
+// MARK: - GeomFill Gordon report + NetworkSurface — OCCT 8.0.0p1
+
+@Suite("GeomFill — Gordon Report & Network Surface")
+struct GeomFillGordonReportTests {
+
+    private func makeNetwork() -> ([Curve3D], [Curve3D])? {
+        guard let p1 = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(5,0,0), SIMD3(10,0,0)]),
+              let p2 = Curve3D.interpolate(points: [SIMD3(0,10,0), SIMD3(5,10,0), SIMD3(10,10,0)]),
+              let g1 = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(0,5,0), SIMD3(0,10,0)]),
+              let g2 = Curve3D.interpolate(points: [SIMD3(10,0,0), SIMD3(10,5,0), SIMD3(10,10,0)])
+        else { return nil }
+        return ([p1, p2], [g1, g2])
+    }
+
+    @Test func gordonReportDoneForGoodNetwork() {
+        guard let (profiles, guides) = makeNetwork() else { return }
+        let result = Surface.gordonReport(profiles: profiles, guides: guides, tolerance: 1e-3)
+        #expect(result.status == .done)
+        #expect(result.surface != nil)
+        #expect(result.isApproximate == false)
+    }
+
+    @Test func gordonReportInvalidInput() {
+        guard let p1 = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(10,0,0)]) else { return }
+        let result = Surface.gordonReport(profiles: [p1], guides: [p1])
+        #expect(result.surface == nil)
+        #expect(result.status == .invalidInput)
+    }
+
+    @Test func gordonReportApproximateFallbackMode() {
+        guard let (profiles, guides) = makeNetwork() else { return }
+        // With fallback enabled a good network still builds; status must be a defined value.
+        let result = Surface.gordonReport(profiles: profiles, guides: guides,
+                                          tolerance: 1e-3, allowApproximateFallback: true)
+        #expect(result.status == .done)
+    }
+
+    @Test func networkSurfaceBuildsOrReportsStatus() {
+        guard let (profiles, guides) = makeNetwork() else { return }
+        let (surface, status) = Surface.networkSurface(profiles: profiles, guides: guides, tolerance: 1e-3)
+        // The low-level builder either produces a surface (status .done) or reports a
+        // defined non-.notStarted failure status — never silently returns notStarted.
+        #expect(status != .notStarted)
+        if status == .done {
+            #expect(surface != nil)
+        }
+    }
+
+    @Test func networkSurfaceTooFewCurves() {
+        guard let p1 = Curve3D.interpolate(points: [SIMD3(0,0,0), SIMD3(10,0,0)]) else { return }
+        let (surface, status) = Surface.networkSurface(profiles: [p1], guides: [p1])
+        #expect(surface == nil)
+        #expect(status == .invalidInput)
+    }
+}

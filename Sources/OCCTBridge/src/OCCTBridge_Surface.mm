@@ -6236,3 +6236,122 @@ OCCTSurfaceRef OCCTGeomEvalAHTBezierSurfaceCreate(
         return ref;
     } catch (...) { return nullptr; }
 }
+
+// MARK: - GeomFill_Gordon report + GeomFill_NetworkSurface — OCCT 8.0.0p1
+
+#include <GeomFill_NetworkSurface.hxx>
+
+// Build a Gordon surface reporting status + approximate flag.
+OCCTSurfaceRef OCCTGeomFillGordonReport(const OCCTCurve3DRef* profiles, int32_t profileCount,
+                                        const OCCTCurve3DRef* guides, int32_t guideCount,
+                                        double tolerance, int32_t approximationMode,
+                                        int32_t* outStatus, bool* outIsApproximate) {
+    if (outStatus) *outStatus = (int32_t)GeomFill_Gordon::ResultStatus::NotStarted;
+    if (outIsApproximate) *outIsApproximate = false;
+    if (!profiles || !guides || profileCount < 2 || guideCount < 2) {
+        if (outStatus) *outStatus = (int32_t)GeomFill_Gordon::ResultStatus::InvalidInput;
+        return nullptr;
+    }
+    try {
+        NCollection_Array1<occ::handle<Geom_Curve>> profs(0, profileCount - 1);
+        for (int i = 0; i < profileCount; i++) {
+            if (!profiles[i]) return nullptr;
+            profs.SetValue(i, profiles[i]->curve);
+        }
+        NCollection_Array1<occ::handle<Geom_Curve>> gds(0, guideCount - 1);
+        for (int i = 0; i < guideCount; i++) {
+            if (!guides[i]) return nullptr;
+            gds.SetValue(i, guides[i]->curve);
+        }
+
+        GeomFill_Gordon gordon;
+        gordon.SetApproximationMode(approximationMode == 1
+            ? GeomFill_Gordon::ApproximationMode::AllowApproximateFallback
+            : GeomFill_Gordon::ApproximationMode::ExactOnly);
+        gordon.Init(profs, gds, tolerance);
+        gordon.Perform();
+
+        if (outStatus) *outStatus = (int32_t)gordon.Status();
+        if (outIsApproximate) *outIsApproximate = gordon.IsApproximate();
+
+        if (!gordon.IsDone()) return nullptr;
+        auto surf = gordon.Surface();
+        if (surf.IsNull()) return nullptr;
+
+        auto ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+// Low-level GeomFill_NetworkSurface builder. Takes profile + guide curves and
+// builds a compatible non-periodic B-spline network: profiles are evaluated in
+// U, guides in V; the intersection grid is sampled at the natural [first,last]
+// parameter range of each curve, and the profile/guide locator parameters are
+// uniformly spaced. Returns the surface or NULL; writes the ResultStatus ordinal.
+OCCTSurfaceRef OCCTGeomFillNetworkSurface(const OCCTCurve3DRef* profiles, int32_t profileCount,
+                                          const OCCTCurve3DRef* guides, int32_t guideCount,
+                                          double tolerance, int32_t* outStatus) {
+    if (outStatus) *outStatus = (int32_t)GeomFill_NetworkSurface::ResultStatus::NotStarted;
+    if (!profiles || !guides || profileCount < 2 || guideCount < 2) {
+        if (outStatus) *outStatus = (int32_t)GeomFill_NetworkSurface::ResultStatus::InvalidInput;
+        return nullptr;
+    }
+    try {
+        // Convert inputs to explicit non-periodic B-spline curves.
+        NCollection_Array1<occ::handle<Geom_BSplineCurve>> profs(1, profileCount);
+        for (int i = 0; i < profileCount; i++) {
+            if (!profiles[i] || profiles[i]->curve.IsNull()) return nullptr;
+            Handle(Geom_BSplineCurve) bs = GeomConvert::CurveToBSplineCurve(profiles[i]->curve);
+            if (bs.IsNull()) return nullptr;
+            if (bs->IsPeriodic()) bs->SetNotPeriodic();
+            profs.SetValue(i + 1, bs);
+        }
+        NCollection_Array1<occ::handle<Geom_BSplineCurve>> gds(1, guideCount);
+        for (int i = 0; i < guideCount; i++) {
+            if (!guides[i] || guides[i]->curve.IsNull()) return nullptr;
+            Handle(Geom_BSplineCurve) bs = GeomConvert::CurveToBSplineCurve(guides[i]->curve);
+            if (bs.IsNull()) return nullptr;
+            if (bs->IsPeriodic()) bs->SetNotPeriodic();
+            gds.SetValue(i + 1, bs);
+        }
+
+        // Uniform locator parameters in [0,1].
+        NCollection_Array1<double> profileParams(1, profileCount);
+        for (int i = 0; i < profileCount; i++)
+            profileParams.SetValue(i + 1, profileCount > 1 ? (double)i / (profileCount - 1) : 0.0);
+        NCollection_Array1<double> guideParams(1, guideCount);
+        for (int j = 0; j < guideCount; j++)
+            guideParams.SetValue(j + 1, guideCount > 1 ? (double)j / (guideCount - 1) : 0.0);
+
+        // Intersection grid: row = profile (i), col = guide (j). Sample profile i
+        // at the parameter matching guide j's normalized position along the profile.
+        NCollection_Array2<gp_Pnt> ipts(1, profileCount, 1, guideCount);
+        NCollection_Array2<double> iwts(1, profileCount, 1, guideCount);
+        for (int i = 0; i < profileCount; i++) {
+            const Handle(Geom_BSplineCurve)& pc = profs.Value(i + 1);
+            double f = pc->FirstParameter(), l = pc->LastParameter();
+            for (int j = 0; j < guideCount; j++) {
+                double t = guideCount > 1 ? f + (l - f) * ((double)j / (guideCount - 1)) : f;
+                ipts.SetValue(i + 1, j + 1, pc->Value(t));
+                iwts.SetValue(i + 1, j + 1, 1.0);
+            }
+        }
+
+        GeomFill_NetworkSurface net;
+        net.Init(profs, gds, profileParams, guideParams, ipts, iwts, tolerance, false, false);
+        net.Perform();
+        if (outStatus) *outStatus = (int32_t)net.Status();
+        if (!net.IsDone()) return nullptr;
+
+        const Handle(Geom_BSplineSurface)& surf = net.Surface();
+        if (surf.IsNull()) return nullptr;
+        auto ref = new OCCTSurface();
+        ref->surface = surf;
+        return ref;
+    } catch (...) {
+        return nullptr;
+    }
+}

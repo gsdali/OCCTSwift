@@ -1427,14 +1427,21 @@ public final class TopologyGraph: @unchecked Sendable {
 
     // MARK: - EditorView Add operations (v0.161.0)
 
-    /// Add an internal vertex reference to an edge. Returns the new vertex-ref id, or nil on failure.
-    /// - Parameter orientation: 0=Forward, 1=Reversed, 2=Internal, 3=External (default Internal).
+    /// Attach an internal vertex (built from the graph vertex's point) to an edge as a runtime
+    /// supplement attachment. Returns the layer-local attachment uid, or nil on failure.
+    /// - Note: Edge-internal vertices are a supplemental, runtime concept in OCCT 8.0.0p1
+    ///   (`BRepGraph_LayerTopoSupplement`); a clean shape has none until one is added here.
+    /// - Parameter orientation: accepted for source-compat but ignored by the supplement layer.
     public func edgeAddInternalVertex(_ edgeIndex: Int, vertexIndex: Int, orientation: Int = 2) -> Int? {
         let id = Int(OCCTBRepGraphEdgeAddInternalVertex(handle, Int32(edgeIndex), Int32(vertexIndex), Int32(orientation)))
         return id >= 0 ? id : nil
     }
 
-    /// Add a vertex reference to a face. Returns the new vertex-ref id, or nil.
+    /// Attach a direct vertex (built from the graph vertex's point) to a face as a runtime supplement
+    /// attachment. Returns the layer-local attachment uid, or nil on failure.
+    /// - Note: Face-direct vertices are a supplemental, runtime concept in OCCT 8.0.0p1
+    ///   (`BRepGraph_LayerTopoSupplement`); a clean box has none until one is added here.
+    /// - Parameter orientation: accepted for source-compat but ignored by the supplement layer.
     public func faceAddVertex(_ faceIndex: Int, vertexIndex: Int, orientation: Int = 0) -> Int? {
         let id = Int(OCCTBRepGraphFaceAddVertex(handle, Int32(faceIndex), Int32(vertexIndex), Int32(orientation)))
         return id >= 0 ? id : nil
@@ -1482,9 +1489,10 @@ public final class TopologyGraph: @unchecked Sendable {
         OCCTBRepGraphWireRemoveCoEdge(handle, Int32(wireIndex), Int32(coedgeRefIndex))
     }
 
-    /// Detach a vertex ref from a face definition.
-    public func faceRemoveVertex(_ faceIndex: Int, vertexRefIndex: Int) -> Bool {
-        OCCTBRepGraphFaceRemoveVertex(handle, Int32(faceIndex), Int32(vertexRefIndex))
+    /// Detach a face-direct vertex supplement attachment by its uid (the value returned by
+    /// `faceAddVertex`). Returns true if the attachment existed and was removed.
+    public func faceRemoveVertex(_ faceIndex: Int, attachmentUID: Int) -> Bool {
+        OCCTBRepGraphFaceRemoveVertex(handle, Int32(faceIndex), Int64(attachmentUID))
     }
 
     /// Detach a wire ref from a face definition.
@@ -1921,5 +1929,127 @@ public final class TopologyGraph: @unchecked Sendable {
             points.append(SIMD3(buffer[i * 3], buffer[i * 3 + 1], buffer[i * 3 + 2]))
         }
         return points
+    }
+
+    // MARK: - Durable Identity (UID / RefUID / ItemUID) — OCCT 8.0.0p1
+
+    /// A durable node identifier: a `(kind, counter)` pair that persists across graph
+    /// mutations (compaction, node removal) within one graph generation. Unlike a
+    /// `(kind, index)` `NodeRef`, the counter never repeats within a kind and is stable
+    /// even when vector indices shift. `counter == 0` is the invalid sentinel.
+    ///
+    /// `kind` is the raw `BRepGraph_NodeId::Kind` ordinal
+    /// (0 Solid, 1 Shell, 2 Face, 3 Wire, 4 Edge, 5 Vertex, 6 Compound,
+    /// 7 CompSolid, 8 CoEdge, 10 Product, 11 Occurrence).
+    public struct GraphUID: Sendable, Hashable, Codable {
+        public var kind: Int
+        public var counter: UInt32
+        public init(kind: Int, counter: UInt32) {
+            self.kind = kind
+            self.counter = counter
+        }
+        /// True if this UID has a non-zero counter (it may still fail to resolve in a graph).
+        public var isValid: Bool { counter > 0 }
+    }
+
+    /// A durable reference-entry identifier `(kind, counter)`.
+    ///
+    /// `kind` is the raw `BRepGraph_RefId::Kind` ordinal
+    /// (0 Shell, 1 Face, 2 Wire, 3 Vertex, 4 Solid, 5 Child, 6 Occurrence).
+    public struct GraphRefUID: Sendable, Hashable, Codable {
+        public var kind: Int
+        public var counter: UInt32
+        public init(kind: Int, counter: UInt32) {
+            self.kind = kind
+            self.counter = counter
+        }
+        public var isValid: Bool { counter > 0 }
+    }
+
+    /// A durable generic item identifier covering both definition nodes and reference
+    /// entries. `domain` is 1 for a node, 2 for a reference; `kind` is the raw kind
+    /// ordinal in that domain's enum space.
+    public struct GraphItemUID: Sendable, Hashable, Codable {
+        public var domain: Int
+        public var kind: Int
+        public var counter: UInt32
+        public init(domain: Int, kind: Int, counter: UInt32) {
+            self.domain = domain
+            self.kind = kind
+            self.counter = counter
+        }
+        public var isValid: Bool { counter > 0 }
+    }
+
+    /// Return the durable UID for a node, or `nil` if the node is invalid/removed/out of bounds.
+    /// - Parameters:
+    ///   - kind: raw `BRepGraph_NodeId::Kind` ordinal (e.g. 2 = Face).
+    ///   - index: per-kind node index.
+    public func uid(ofNodeKind kind: Int, index: Int) -> GraphUID? {
+        var uidKind: Int32 = 0
+        var counter: UInt32 = 0
+        guard OCCTBRepGraphNodeUID(handle, Int32(kind), Int32(index), &uidKind, &counter) else { return nil }
+        return GraphUID(kind: Int(uidKind), counter: counter)
+    }
+
+    /// Resolve a node UID back to its `(kind, index)`, or `nil` if it does not resolve
+    /// in the current graph generation.
+    public func node(forUID uid: GraphUID) -> (kind: Int, index: Int)? {
+        var nodeKind: Int32 = 0
+        var nodeIndex: Int32 = 0
+        guard OCCTBRepGraphNodeFromUID(handle, Int32(uid.kind), uid.counter, &nodeKind, &nodeIndex) else { return nil }
+        return (Int(nodeKind), Int(nodeIndex))
+    }
+
+    /// True if a node UID is valid and exists in this graph generation.
+    public func contains(uid: GraphUID) -> Bool {
+        OCCTBRepGraphHasNodeUID(handle, Int32(uid.kind), uid.counter)
+    }
+
+    /// Return the durable RefUID for a reference entry, or `nil` if invalid/removed.
+    /// - Parameters:
+    ///   - kind: raw `BRepGraph_RefId::Kind` ordinal.
+    ///   - index: per-kind reference index.
+    public func uid(ofRefKind kind: Int, index: Int) -> GraphRefUID? {
+        var uidKind: Int32 = 0
+        var counter: UInt32 = 0
+        guard OCCTBRepGraphRefUID(handle, Int32(kind), Int32(index), &uidKind, &counter) else { return nil }
+        return GraphRefUID(kind: Int(uidKind), counter: counter)
+    }
+
+    /// Resolve a RefUID back to its `(kind, index)`, or `nil` if it does not resolve.
+    public func ref(forUID uid: GraphRefUID) -> (kind: Int, index: Int)? {
+        var refKind: Int32 = 0
+        var refIndex: Int32 = 0
+        guard OCCTBRepGraphRefFromUID(handle, Int32(uid.kind), uid.counter, &refKind, &refIndex) else { return nil }
+        return (Int(refKind), Int(refIndex))
+    }
+
+    /// True if a RefUID is valid and exists in this graph generation.
+    public func contains(uid: GraphRefUID) -> Bool {
+        OCCTBRepGraphHasRefUID(handle, Int32(uid.kind), uid.counter)
+    }
+
+    /// Return the durable ItemUID for a node, or `nil` if invalid/removed.
+    public func itemUID(ofNodeKind kind: Int, index: Int) -> GraphItemUID? {
+        var domain: Int32 = 0
+        var itemKind: Int32 = 0
+        var counter: UInt32 = 0
+        guard OCCTBRepGraphItemUIDOfNode(handle, Int32(kind), Int32(index), &domain, &itemKind, &counter) else { return nil }
+        return GraphItemUID(domain: Int(domain), kind: Int(itemKind), counter: counter)
+    }
+
+    /// Resolve an ItemUID back to its `(domain, kind, index)`, or `nil` if it does not resolve.
+    public func item(forUID uid: GraphItemUID) -> (domain: Int, kind: Int, index: Int)? {
+        var domain: Int32 = 0
+        var itemKind: Int32 = 0
+        var index: Int32 = 0
+        guard OCCTBRepGraphItemFromUID(handle, Int32(uid.domain), Int32(uid.kind), uid.counter, &domain, &itemKind, &index) else { return nil }
+        return (Int(domain), Int(itemKind), Int(index))
+    }
+
+    /// The current graph generation counter, incremented each time the graph is cleared/rebuilt.
+    public var generation: UInt32 {
+        OCCTBRepGraphGeneration(handle)
     }
 }

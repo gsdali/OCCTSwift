@@ -99,6 +99,18 @@ if compgen -G "$SCRIPT_DIR/patches/*.patch" > /dev/null; then
 fi
 
 # --------------------
+# Clean stale install prefixes
+# --------------------
+# cmake --install ADDS/overwrites headers but never DELETES ones that no longer exist in the source.
+# Reusing an install dir across OCCT versions therefore leaks removed/renamed headers (e.g. GA's
+# Approx_BSplineApproxInterp.hxx, BRepGraph_Builder/History/RepId/LayerRegularity.hxx, GeomFill_
+# GordonBuilder.hxx) into the packaged xcframework, where they masquerade as current API. Wipe the
+# install prefixes every run so only the current version's headers are staged. (Build dirs are already
+# rm -rf'd per platform below.)
+rm -rf occt-install-ios occt-install-sim occt-install-macos \
+       occt-install-xros occt-install-xrsim occt-install-tvos occt-install-tvsim
+
+# --------------------
 # Common CMake options (minimal build for modeling + export)
 # --------------------
 

@@ -53,6 +53,7 @@ static GeomAbs_Shape continuityFromInt(int val) {
     }
 }
 
+
 // === Extracted BRepGraph block ===
 //
 // Verbatim copy of lines 55486–EOF from OCCTBridge.mm at the time of issue #99.
@@ -62,6 +63,12 @@ static GeomAbs_Shape continuityFromInt(int val) {
 #include <BRepGraph.hxx>
 #include <BRepGraph_TopoView.hxx>
 #include <BRepGraph_Tool.hxx>
+#include <BRepGraph_LayerRegistry.hxx>
+// NOTE: BRepGraph_LayerRegularity.hxx is NOT included — it is an upstream p1 bug: it marks `override`
+// on OnNodeRemoved(node,replacement)/OnCompact() which do not exist as virtuals in BRepGraph_Layer,
+// so the header does not compile (AppleClang) and the .cxx is absent from libOCCT (0 symbols). Edge
+// regularity/continuity via the graph layer is therefore unavailable in 8.0.0p1; the shape-based
+// BRep_Tool::MaxContinuity path (OCCTBRepToolMaxContinuity) is unaffected.
 #include <BRepGraph_ReverseIterator.hxx>
 #include <BRepGraph_RefsView.hxx>
 #include <BRepGraphInc_Relations.hxx>
@@ -78,6 +85,23 @@ static GeomAbs_Shape continuityFromInt(int val) {
 #include <BRepGraphInc_RepId.hxx>
 // OCCT 8.0.0p1 removed BRepGraph_Builder; shape ingestion is now BRepGraph::ShapesView::Add().
 #include <BRepGraph_ShapesView.hxx>
+// TopoSupplement runtime layer (vertex-supplement attachments) — issue: un-stub vertex ops.
+#include <BRepGraph_SupplementEditor.hxx>
+#include <BRepGraph_SupplementIterator.hxx>
+#include <BRepGraph_LayerTopoSupplement.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
+#include <TopoDS_Vertex.hxx>
+// Surface-equality classes for FaceSameDomain derivation.
+#include <Geom_Plane.hxx>
+#include <Geom_CylindricalSurface.hxx>
+#include <Geom_ConicalSurface.hxx>
+#include <Geom_SphericalSurface.hxx>
+#include <Geom_ToroidalSurface.hxx>
+#include <gp_Ax1.hxx>
+#include <gp_Ax3.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Pln.hxx>
+#include <gp_Lin.hxx>
 
 // OCCT 8.0.0p1 side-registry (issue: rep-id ABI preservation)
 // ------------------------------------------------------------
@@ -121,6 +145,24 @@ static BRepGraph_NodeId::Kind kindFromInt(int32_t k) {
         case 8: return BRepGraph_NodeId::Kind::CoEdge;
         default: return BRepGraph_NodeId::Kind::Solid;
     }
+}
+
+// --- TopoSupplement helpers (vertex-supplement attachments) ---
+//
+// The supplement layer stores TopoDS_Shapes, not graph vertex indices. To attach
+// "graph vertex v" we build a TopoDS_Vertex from that vertex def's point.
+static TopoDS_Vertex bgVertexShapeFromIndex(OCCTBRepGraphRef g, int32_t vertexIndex) {
+    gp_Pnt p = BRepGraph_Tool::Vertex::Pnt(g->graph, BRepGraph_VertexId(vertexIndex));
+    return BRepBuilderAPI_MakeVertex(p).Vertex();
+}
+
+// Count supplement attachments of a given kind owned by a core node.
+static int32_t bgSupplementCount(OCCTBRepGraphRef g, BRepGraph_NodeId owner,
+                                 BRepGraph_LayerTopoSupplement::AttachmentKind kind) {
+    int32_t n = 0;
+    for (BRepGraph_SupplementIterator it(g->graph, owner); it.More(); it.Next())
+        if (it.Value().Kind == kind) ++n;
+    return n;
 }
 
 OCCTBRepGraphRef OCCTBRepGraphCreate(OCCTShapeRef shape, bool parallel) {
@@ -594,8 +636,9 @@ bool OCCTBRepGraphEdgeHasPolygon3D(OCCTBRepGraphRef g, int32_t edgeIndex) {
     } catch (...) { return false; }
 }
 
-// OCCT 8.0.0p1: per-edge max-regularity continuity is no longer exposed publicly
-// (continuity is per (edge, face1, face2) and not aggregated). Stubbed.
+// OCCT 8.0.0p1: edge continuity is conceptually the BRepGraph_LayerRegularity layer, but that class is
+// broken in p1 (uncompilable header / absent from libOCCT — see the include note above), so the graph
+// path is unavailable. Use the shape-based Shape.maxContinuity (BRep_Tool::MaxContinuity) instead.
 int32_t OCCTBRepGraphEdgeMaxContinuity(OCCTBRepGraphRef, int32_t) { return 0; }
 
 // --- Face Geometry ---
@@ -606,9 +649,16 @@ double OCCTBRepGraphFaceTolerance(OCCTBRepGraphRef g, int32_t faceIndex) {
     catch (...) { return 0; }
 }
 
-// OCCT 8.0.0p1: the face "natural restriction" flag is no longer stored or exposed publicly
-// (the incidence model derives restriction from wires). Stubbed.
-bool OCCTBRepGraphFaceIsNaturalRestriction(OCCTBRepGraphRef, int32_t) { return false; }
+// OCCT 8.0.0p1: the face "natural restriction" flag is no longer stored as an explicit bit; it is
+// derived from the incidence model. A face using its surface's natural bounds has no bounding wires,
+// so NbWires == 0. NOTE: p1 normalizes natural-bound faces (it always materializes a bounding wire),
+// so this is typically FALSE on real graphs (e.g. a box face has NbWires == 1).
+bool OCCTBRepGraphFaceIsNaturalRestriction(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return false;
+    try {
+        return BRepGraph_Tool::Face::NbWires(g->graph, BRepGraph_FaceId(faceIndex)) == 0;
+    } catch (...) { return false; }
+}
 
 bool OCCTBRepGraphFaceHasSurface(OCCTBRepGraphRef g, int32_t faceIndex) {
     if (!g) return false;
@@ -1093,10 +1143,77 @@ int32_t OCCTBRepGraphNbActiveCurves2D(OCCTBRepGraphRef g) {
 }
 
 // --- SameDomain ---
-// OCCT 8.0.0p1: TopoView::FaceOps no longer exposes a SameDomain() query (no public same-domain
-// adjacency survived the incidence-table redesign). Stubbed.
-int32_t OCCTBRepGraphFaceSameDomainCount(OCCTBRepGraphRef, int32_t) { return 0; }
-void OCCTBRepGraphFaceSameDomainIndices(OCCTBRepGraphRef, int32_t, int32_t*) {}
+// OCCT 8.0.0p1: TopoView::FaceOps no longer exposes a SameDomain() query, but the relation is
+// derivable: face G is "same-domain" with face F when they are adjacent (share an edge — via the
+// bgAdjacentFaces helper) AND lie on the geometrically-equal surface. We compare the two face
+// surfaces by DynamicType, then by defining geometry for the common analytic cases; any other
+// surface type is treated as not-equal (conservative).
+static bool bgSurfacesSameDomain(const occ::handle<Geom_Surface>& a,
+                                 const occ::handle<Geom_Surface>& b) {
+    if (a.IsNull() || b.IsNull()) return false;
+    if (a->DynamicType() != b->DynamicType()) return false;
+    const double tol = Precision::Confusion();
+    const double angTol = Precision::Angular();
+
+    if (auto pa = occ::handle<Geom_Plane>::DownCast(a)) {
+        auto pb = occ::handle<Geom_Plane>::DownCast(b);
+        gp_Pln A = pa->Pln(), B = pb->Pln();
+        // Coplanar: parallel normals AND each location lies on the other's plane.
+        if (!A.Axis().Direction().IsParallel(B.Axis().Direction(), angTol)) return false;
+        return A.Distance(B.Location()) <= tol;
+    }
+    if (auto ca = occ::handle<Geom_CylindricalSurface>::DownCast(a)) {
+        auto cb = occ::handle<Geom_CylindricalSurface>::DownCast(b);
+        if (Abs(ca->Radius() - cb->Radius()) > tol) return false;
+        const gp_Ax1 A = ca->Axis(), B = cb->Axis();
+        if (!A.Direction().IsParallel(B.Direction(), angTol)) return false;
+        return A.Location().Distance(B.Location()) <= tol
+            || gp_Lin(A).Distance(B.Location()) <= tol;
+    }
+    if (auto co = occ::handle<Geom_ConicalSurface>::DownCast(a)) {
+        auto cb = occ::handle<Geom_ConicalSurface>::DownCast(b);
+        if (Abs(co->SemiAngle() - cb->SemiAngle()) > angTol) return false;
+        if (Abs(co->RefRadius() - cb->RefRadius()) > tol) return false;
+        const gp_Ax1 A = co->Axis(), B = cb->Axis();
+        if (!A.Direction().IsParallel(B.Direction(), angTol)) return false;
+        return co->Apex().Distance(cb->Apex()) <= tol;
+    }
+    if (auto sa = occ::handle<Geom_SphericalSurface>::DownCast(a)) {
+        auto sb = occ::handle<Geom_SphericalSurface>::DownCast(b);
+        if (Abs(sa->Radius() - sb->Radius()) > tol) return false;
+        return sa->Location().Distance(sb->Location()) <= tol;
+    }
+    if (auto ta = occ::handle<Geom_ToroidalSurface>::DownCast(a)) {
+        auto tb = occ::handle<Geom_ToroidalSurface>::DownCast(b);
+        if (Abs(ta->MajorRadius() - tb->MajorRadius()) > tol) return false;
+        if (Abs(ta->MinorRadius() - tb->MinorRadius()) > tol) return false;
+        const gp_Ax1 A = ta->Axis(), B = tb->Axis();
+        if (!A.Direction().IsParallel(B.Direction(), angTol)) return false;
+        return ta->Location().Distance(tb->Location()) <= tol;
+    }
+    return false;
+}
+
+static std::set<int32_t> bgSameDomainFaces(OCCTBRepGraphRef g, int32_t faceIndex) {
+    std::set<int32_t> out;
+    const occ::handle<Geom_Surface>& sf = BRepGraph_Tool::Face::Surface(g->graph, BRepGraph_FaceId(faceIndex));
+    if (sf.IsNull()) return out;
+    for (int32_t other : bgAdjacentFaces(g, faceIndex)) {
+        if (other == faceIndex) continue;
+        const occ::handle<Geom_Surface>& so = BRepGraph_Tool::Face::Surface(g->graph, BRepGraph_FaceId(other));
+        if (bgSurfacesSameDomain(sf, so)) out.insert(other);
+    }
+    return out;
+}
+
+int32_t OCCTBRepGraphFaceSameDomainCount(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try { return (int32_t)bgSameDomainFaces(g, faceIndex).size(); } catch (...) { return 0; }
+}
+void OCCTBRepGraphFaceSameDomainIndices(OCCTBRepGraphRef g, int32_t faceIndex, int32_t* out) {
+    if (!g || !out) return;
+    try { int i = 0; for (int32_t f : bgSameDomainFaces(g, faceIndex)) out[i++] = f; } catch (...) {}
+}
 
 // --- Copy and Transform ---
 
@@ -1362,9 +1479,17 @@ int32_t OCCTBRepGraphFaceNbWires(OCCTBRepGraphRef g, int32_t faceIndex) {
     } catch (...) { return 0; }
 }
 
-// OCCT 8.0.0p1: faces no longer carry direct vertex references (FaceRelations holds only
-// WireRefIds + ParentFaceRefIds). No public face-vertex-ref count. Stubbed.
-int32_t OCCTBRepGraphFaceNbVertexRefs(OCCTBRepGraphRef, int32_t) { return 0; }
+// OCCT 8.0.0p1: faces no longer carry direct vertex references in the core FaceRelations
+// (only WireRefIds + ParentFaceRefIds survive). Face-direct vertices are now a supplemental,
+// runtime concept stored in BRepGraph_LayerTopoSupplement: this counts the FaceDirectVertex
+// attachments on the face node (0 on a freshly built graph until faceAddVertex adds one).
+int32_t OCCTBRepGraphFaceNbVertexRefs(OCCTBRepGraphRef g, int32_t faceIndex) {
+    if (!g) return 0;
+    try {
+        return bgSupplementCount(g, BRepGraph_NodeId(BRepGraph_NodeId::Kind::Face, faceIndex),
+                                 BRepGraph_LayerTopoSupplement::AttachmentKind::FaceDirectVertex);
+    } catch (...) { return 0; }
+}
 
 // --- Edge Definition Details ---
 
@@ -1898,12 +2023,37 @@ void OCCTBRepGraphSetShellIsClosed(OCCTBRepGraphRef, int32_t, bool) {}
 
 // --- Add operations ---
 
-// OCCT 8.0.0p1: edges no longer support adding internal/supplemental vertex usages through the
-// public Editor (only boundary start/end vertex refs persist). No equivalent — stubbed.
-int32_t OCCTBRepGraphEdgeAddInternalVertex(OCCTBRepGraphRef, int32_t, int32_t, int32_t) { return -1; }
+// OCCT 8.0.0p1: edges no longer carry internal/supplemental vertex usages in the core; they are
+// now runtime supplement attachments (BRepGraph_LayerTopoSupplement, EdgeInternalVertex). Attach a
+// TopoDS_Vertex built from the graph vertex's point and return the layer-local attachment uid.
+// `orientation` is unused by the supplement layer — kept for source-compat, ignored.
+int64_t OCCTBRepGraphEdgeAddInternalVertex(OCCTBRepGraphRef g, int32_t edgeIndex, int32_t vertexIndex, int32_t /*orientation*/) {
+    if (!g) return -1;
+    try {
+        TopoDS_Vertex v = bgVertexShapeFromIndex(g, vertexIndex);
+        if (v.IsNull()) return -1;
+        uint64_t uid = g->graph.Editor().Supplement().AttachToEdge(
+            BRepGraph_EdgeId(edgeIndex), v,
+            BRepGraph_LayerTopoSupplement::AttachmentKind::EdgeInternalVertex);
+        return uid != 0 ? (int64_t)uid : -1;
+    } catch (...) { return -1; }
+}
 
-// OCCT 8.0.0p1: faces no longer carry direct vertex usages (FaceRelations has only wires). Stubbed.
-int32_t OCCTBRepGraphFaceAddVertex(OCCTBRepGraphRef, int32_t, int32_t, int32_t) { return -1; }
+// OCCT 8.0.0p1: faces no longer carry direct vertex usages in the core (FaceRelations has only
+// wires). Face-direct vertices are now runtime supplement attachments. Attach a TopoDS_Vertex
+// built from the graph vertex's point and return the layer-local attachment uid.
+// `orientation` is unused by the supplement layer — kept for source-compat, ignored.
+int64_t OCCTBRepGraphFaceAddVertex(OCCTBRepGraphRef g, int32_t faceIndex, int32_t vertexIndex, int32_t /*orientation*/) {
+    if (!g) return -1;
+    try {
+        TopoDS_Vertex v = bgVertexShapeFromIndex(g, vertexIndex);
+        if (v.IsNull()) return -1;
+        uint64_t uid = g->graph.Editor().Supplement().AttachToFace(
+            BRepGraph_FaceId(faceIndex), v,
+            BRepGraph_LayerTopoSupplement::AttachmentKind::FaceDirectVertex);
+        return uid != 0 ? (int64_t)uid : -1;
+    } catch (...) { return -1; }
+}
 
 int32_t OCCTBRepGraphShellAddChild(OCCTBRepGraphRef g, int32_t shellIndex,
                                     int32_t childKind, int32_t childIndex, int32_t orientation) {
@@ -1990,8 +2140,15 @@ bool OCCTBRepGraphWireRemoveCoEdge(OCCTBRepGraphRef g, int32_t wireIndex, int32_
     } catch (...) { return false; }
 }
 
-// OCCT 8.0.0p1: faces no longer own direct vertex refs (FaceOps::RemoveVertex removed). Stubbed.
-bool OCCTBRepGraphFaceRemoveVertex(OCCTBRepGraphRef, int32_t, int32_t) { return false; }
+// OCCT 8.0.0p1: faces no longer own direct vertex refs in the core. The face-direct vertex is now a
+// runtime supplement attachment, removed by its layer-local uid (the value returned by faceAddVertex,
+// NOT a core ref index). The faceIndex param is unused — the uid is globally unique within the layer.
+bool OCCTBRepGraphFaceRemoveVertex(OCCTBRepGraphRef g, int32_t /*faceIndex*/, int64_t attachmentUID) {
+    if (!g || attachmentUID < 0) return false;
+    try {
+        return g->graph.Editor().Supplement().RemoveAttachment((uint64_t)attachmentUID);
+    } catch (...) { return false; }
+}
 
 bool OCCTBRepGraphFaceRemoveWire(OCCTBRepGraphRef g, int32_t faceIndex, int32_t wireRefIndex) {
     if (!g) return false;
@@ -2315,10 +2472,10 @@ void OCCTBRepGraphSetChildRefChildDefId(OCCTBRepGraphRef g, int32_t childRefInde
 // (UV endpoints are derived from the PCurve via BRepGraph_Tool::CoEdge::UVPoints). No-op.
 void OCCTBRepGraphSetCoEdgeUVBox(OCCTBRepGraphRef, int32_t, double, double, double, double) {}
 
-// OCCT 8.0.0p1: EdgeOps::SetRegularity was removed — edge continuity across an (edge, face1, face2)
-// is no longer a settable field (continuity is derived). No public equivalent; report failure.
+// OCCT 8.0.0p1: edge regularity would live in BRepGraph_LayerRegularity, but that class is broken in
+// p1 (uncompilable header / absent from libOCCT — see the include note near the top of this file), so
+// there is no working write path. Report failure. continuityFromInt() is kept for the cut-path wrappers.
 int32_t OCCTBRepGraphSetEdgeRegularity(OCCTBRepGraphRef, int32_t, int32_t, int32_t, int32_t) {
-    // continuityFromInt() is otherwise unused now; keep it referenced to avoid an unused-static warning.
     (void)&continuityFromInt;
     return 0;
 }
@@ -2966,4 +3123,138 @@ double OCCTEdgeGetDihedralAngle(OCCTEdgeRef edge, OCCTFaceRef face1, OCCTFaceRef
     } catch (...) {
         return -1;
     }
+}
+
+// MARK: - Durable identity (BRepGraph::UIDsView) — OCCT 8.0.0p1
+
+#include <BRepGraph_UID.hxx>
+#include <BRepGraph_RefUID.hxx>
+#include <BRepGraph_ItemUID.hxx>
+#include <BRepGraph_UIDsView.hxx>
+
+// Maps a raw BRepGraph_RefId::Kind enum ordinal (0..6 as defined in the header)
+// straight back to the enum. Distinct from refKindFromInt() above, which carries a
+// legacy ABI remap; the UID round-trip uses the actual enum ordinals we emit.
+static BRepGraph_RefId::Kind refKindFromRawOrdinal(int32_t k) {
+    switch (k) {
+        case 0: return BRepGraph_RefId::Kind::Shell;
+        case 1: return BRepGraph_RefId::Kind::Face;
+        case 2: return BRepGraph_RefId::Kind::Wire;
+        case 3: return BRepGraph_RefId::Kind::Vertex;
+        case 4: return BRepGraph_RefId::Kind::Solid;
+        case 5: return BRepGraph_RefId::Kind::Child;
+        case 6: return BRepGraph_RefId::Kind::Occurrence;
+        default: return BRepGraph_RefId::Kind::Shell;
+    }
+}
+
+bool OCCTBRepGraphNodeUID(OCCTBRepGraphRef graph,
+                          int32_t nodeKind, int32_t nodeIndex,
+                          int32_t* outUIDKind, uint32_t* outCounter) {
+    if (!graph) return false;
+    try {
+        BRepGraph_NodeId node(kindFromInt(nodeKind), (uint32_t)nodeIndex);
+        BRepGraph_UID uid = graph->graph.UIDs().Of(node);
+        if (!uid.IsValid()) return false;
+        *outUIDKind = (int32_t)uid.Kind;
+        *outCounter = uid.Counter;
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphNodeFromUID(OCCTBRepGraphRef graph,
+                              int32_t uidKind, uint32_t counter,
+                              int32_t* outNodeKind, int32_t* outNodeIndex) {
+    if (!graph) return false;
+    try {
+        BRepGraph_UID uid(kindFromInt(uidKind), counter);
+        BRepGraph_NodeId node = graph->graph.UIDs().NodeIdFrom(uid);
+        if (!node.IsValid()) return false;
+        *outNodeKind = (int32_t)node.NodeKind;
+        *outNodeIndex = (int32_t)node.Index;
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphHasNodeUID(OCCTBRepGraphRef graph, int32_t uidKind, uint32_t counter) {
+    if (!graph) return false;
+    try {
+        BRepGraph_UID uid(kindFromInt(uidKind), counter);
+        return graph->graph.UIDs().Has(uid);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphRefUID(OCCTBRepGraphRef graph,
+                         int32_t refKind, int32_t refIndex,
+                         int32_t* outUIDKind, uint32_t* outCounter) {
+    if (!graph) return false;
+    try {
+        BRepGraph_RefId ref(refKindFromRawOrdinal(refKind), (uint32_t)refIndex);
+        BRepGraph_RefUID uid = graph->graph.UIDs().Of(ref);
+        if (!uid.IsValid()) return false;
+        *outUIDKind = (int32_t)uid.Kind;
+        *outCounter = uid.Counter;
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphRefFromUID(OCCTBRepGraphRef graph,
+                             int32_t uidKind, uint32_t counter,
+                             int32_t* outRefKind, int32_t* outRefIndex) {
+    if (!graph) return false;
+    try {
+        BRepGraph_RefUID uid(refKindFromRawOrdinal(uidKind), counter);
+        BRepGraph_RefId ref = graph->graph.UIDs().RefIdFrom(uid);
+        if (!ref.IsValid()) return false;
+        *outRefKind = (int32_t)ref.RefKind;
+        *outRefIndex = (int32_t)ref.Index;
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphHasRefUID(OCCTBRepGraphRef graph, int32_t uidKind, uint32_t counter) {
+    if (!graph) return false;
+    try {
+        BRepGraph_RefUID uid(refKindFromRawOrdinal(uidKind), counter);
+        return graph->graph.UIDs().Has(uid);
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphItemUIDOfNode(OCCTBRepGraphRef graph,
+                                int32_t nodeKind, int32_t nodeIndex,
+                                int32_t* outDomain, int32_t* outKind,
+                                uint32_t* outCounter) {
+    if (!graph) return false;
+    try {
+        BRepGraph_NodeId node(kindFromInt(nodeKind), (uint32_t)nodeIndex);
+        BRepGraph_ItemId item(node);
+        BRepGraph_ItemUID uid = graph->graph.UIDs().Of(item);
+        if (!uid.IsValid()) return false;
+        *outDomain = (int32_t)uid.ItemDomain();
+        *outKind = (int32_t)uid.RawKind();
+        *outCounter = (uint32_t)uid.Counter();
+        return true;
+    } catch (...) { return false; }
+}
+
+bool OCCTBRepGraphItemFromUID(OCCTBRepGraphRef graph,
+                              int32_t domain, int32_t kind, uint32_t counter,
+                              int32_t* outDomain, int32_t* outKind, int32_t* outIndex) {
+    if (!graph) return false;
+    try {
+        BRepGraph_ItemUID uid = (domain == (int32_t)BRepGraph_ItemUID::Domain::Reference)
+            ? BRepGraph_ItemUID::Reference(refKindFromRawOrdinal(kind), (size_t)counter)
+            : BRepGraph_ItemUID::Node(kindFromInt(kind), (size_t)counter);
+        BRepGraph_ItemId item = graph->graph.UIDs().ItemIdFrom(uid);
+        if (!item.IsValid()) return false;
+        *outDomain = (int32_t)item.ItemDomain();
+        *outKind = (int32_t)item.RawKind();
+        *outIndex = (int32_t)item.Index();
+        return true;
+    } catch (...) { return false; }
+}
+
+uint32_t OCCTBRepGraphGeneration(OCCTBRepGraphRef graph) {
+    if (!graph) return 0;
+    try { return graph->graph.UIDs().Generation(); } catch (...) { return 0; }
 }

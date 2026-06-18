@@ -2683,6 +2683,110 @@ extension Surface {
             }
         }
     }
+
+    /// Result status of a Gordon surface build, mirroring `GeomFill_Gordon::ResultStatus`.
+    public enum GordonResultStatus: Int, Sendable {
+        case notStarted = 0
+        case done
+        case invalidInput
+        case conversionFailed
+        case intersectionFailed
+        case orderingFailed
+        case reparametrizationFailed
+        case compatibilityFailed
+        case curveCompatibilityFailed
+        case rationalReparametrizationFailed
+        case skinningFailed
+        case referenceSurfaceFailed
+        case knotAlignmentFailed
+        case rationalDegreeOverflow
+        case rationalConstructionFailed
+        case periodicityFailed
+        case approximationFailed
+        case constructionFailed
+    }
+
+    /// Outcome of `gordonReport(...)`: surface (nil on failure), status, and whether the
+    /// result was produced by approximate fallback (no exact interpolation guarantee).
+    public struct GordonResult: Sendable {
+        public let surface: Surface?
+        public let status: GordonResultStatus
+        public let isApproximate: Bool
+    }
+
+    /// Result status of a network-surface build, mirroring `GeomFill_NetworkSurface::ResultStatus`.
+    public enum NetworkSurfaceStatus: Int, Sendable {
+        case notStarted = 0
+        case done
+        case invalidInput
+        case curveCompatibilityFailed
+        case skinningFailed
+        case referenceSurfaceFailed
+        case knotAlignmentFailed
+        case rationalDegreeOverflow
+        case rationalConstructionFailed
+        case constructionFailed
+        case periodicityFailed
+    }
+
+    /// Build a Gordon surface, returning the result status and approximate flag.
+    /// - Parameters:
+    ///   - profiles: profile curves (V-direction), at least 2.
+    ///   - guides: guide curves (U-direction), at least 2.
+    ///   - tolerance: geometric tolerance for intersection detection.
+    ///   - allowApproximateFallback: if true, permit a sampled B-spline fallback when exact
+    ///     construction fails (result marked `isApproximate`); default false (`ExactOnly`).
+    public static func gordonReport(profiles: [Curve3D], guides: [Curve3D],
+                                    tolerance: Double = 1e-3,
+                                    allowApproximateFallback: Bool = false) -> GordonResult {
+        guard profiles.count >= 2, guides.count >= 2 else {
+            return GordonResult(surface: nil, status: .invalidInput, isApproximate: false)
+        }
+        let profileRefs = profiles.map { $0.handle }
+        let guideRefs = guides.map { $0.handle }
+        var statusRaw: Int32 = 0
+        var isApprox: Bool = false
+        let surfaceRef: OCCTSurfaceRef? = profileRefs.withUnsafeBufferPointer { pBuf in
+            guideRefs.withUnsafeBufferPointer { gBuf in
+                guard let pPtr = pBuf.baseAddress, let gPtr = gBuf.baseAddress else { return nil as OCCTSurfaceRef? }
+                return OCCTGeomFillGordonReport(pPtr, Int32(profiles.count),
+                                                gPtr, Int32(guides.count),
+                                                tolerance, allowApproximateFallback ? 1 : 0,
+                                                &statusRaw, &isApprox)
+            }
+        }
+        let status = GordonResultStatus(rawValue: Int(statusRaw)) ?? .notStarted
+        let surface = surfaceRef.map { Surface(handle: $0) }
+        return GordonResult(surface: surface, status: status, isApproximate: isApprox)
+    }
+
+    /// Build a surface with the low-level `GeomFill_NetworkSurface` builder from a
+    /// profile/guide curve network. The curves are converted to non-periodic B-splines,
+    /// an intersection grid is sampled along each profile, and locator parameters are
+    /// uniformly spaced. Returns the surface (nil on failure) and the result status.
+    /// - Parameters:
+    ///   - profiles: profile curves evaluated in U, at least 2.
+    ///   - guides: guide curves evaluated in V, at least 2.
+    ///   - tolerance: geometric tolerance for closed-seam checks.
+    public static func networkSurface(profiles: [Curve3D], guides: [Curve3D],
+                                      tolerance: Double = 1e-3)
+        -> (surface: Surface?, status: NetworkSurfaceStatus) {
+        guard profiles.count >= 2, guides.count >= 2 else { return (nil, .invalidInput) }
+        let profileRefs = profiles.map { $0.handle }
+        let guideRefs = guides.map { $0.handle }
+        var statusRaw: Int32 = 0
+        let surfaceRef: OCCTSurfaceRef? = profileRefs.withUnsafeBufferPointer { pBuf in
+            guideRefs.withUnsafeBufferPointer { gBuf in
+                guard let pPtr = pBuf.baseAddress, let gPtr = gBuf.baseAddress else { return nil as OCCTSurfaceRef? }
+                return OCCTGeomFillNetworkSurface(pPtr, Int32(profiles.count),
+                                                  gPtr, Int32(guides.count),
+                                                  tolerance, &statusRaw)
+            }
+        }
+        let status = NetworkSurfaceStatus(rawValue: Int(statusRaw)) ?? .notStarted
+        let surface = surfaceRef.map { Surface(handle: $0) }
+        return (surface, status)
+    }
 }
 
 // MARK: - GeomEval TBezier / AHTBezier Surfaces (v0.131.0)

@@ -961,3 +961,73 @@ struct MeshViewCountsTests {
         }
     }
 }
+
+// MARK: - Poly copy / mutators — OCCT 8.0.0p1
+
+@Suite("Poly Copy & Mutators")
+struct PolyCopyMutatorTests {
+
+    @Test("Polygon2D copy preserves contents")
+    func polygon2DCopy() {
+        let pts = [SIMD2<Double>(0, 0), SIMD2<Double>(1, 0), SIMD2<Double>(1, 1)]
+        guard let poly = Polygon2D.create(points: pts) else { return }
+        poly.deflection = 0.25
+        guard let copy = poly.copy() else {
+            Issue.record("Polygon2D.copy() returned nil")
+            return
+        }
+        #expect(copy.nodeCount == poly.nodeCount)
+        for i in 0..<poly.nodeCount {
+            if let a = poly.node(at: i), let b = copy.node(at: i) {
+                #expect(abs(a.x - b.x) < 1e-12)
+                #expect(abs(a.y - b.y) < 1e-12)
+            }
+        }
+        #expect(abs(copy.deflection - 0.25) < 1e-12)
+    }
+
+    @Test("PolygonOnTriangulation copy preserves nodes")
+    func polygonOnTriCopy() {
+        let indices: [Int32] = [1, 2, 3, 4]
+        guard let poly = PolygonOnTriangulation.create(nodeIndices: indices) else { return }
+        guard let copy = poly.copy() else {
+            Issue.record("PolygonOnTriangulation.copy() returned nil")
+            return
+        }
+        #expect(copy.nodeCount == poly.nodeCount)
+        for i in 0..<poly.nodeCount {
+            #expect(copy.nodeIndex(at: i) == poly.nodeIndex(at: i))
+        }
+    }
+
+    @Test("PolygonOnTriangulation setNodes mutates in place")
+    func polygonOnTriSetNodes() {
+        let indices: [Int32] = [1, 2, 3, 4]
+        guard let poly = PolygonOnTriangulation.create(nodeIndices: indices) else { return }
+        #expect(poly.setNodes([5, 6, 7, 8]))
+        #expect(poly.nodeIndex(at: 0) == 5)
+        #expect(poly.nodeIndex(at: 3) == 8)
+        // Size mismatch must be rejected.
+        #expect(!poly.setNodes([1, 2]))
+    }
+
+    @Test("PolygonOnTriangulation setParameters mutates in place")
+    func polygonOnTriSetParameters() {
+        let indices: [Int32] = [1, 2, 3]
+        let params: [Double] = [0.0, 1.0, 2.0]
+        guard let poly = PolygonOnTriangulation.create(nodeIndices: indices, parameters: params) else { return }
+        #expect(poly.hasParameters)
+        #expect(poly.setParameters([10.0, 20.0, 30.0]))
+        #expect(abs(poly.parameter(at: 1) - 20.0) < 1e-12)
+        // Size mismatch rejected.
+        #expect(!poly.setParameters([1.0]))
+    }
+
+    @Test("setParameters fails when polygon has no parameters")
+    func setParametersWithoutParams() {
+        let indices: [Int32] = [1, 2, 3]
+        guard let poly = PolygonOnTriangulation.create(nodeIndices: indices) else { return }
+        #expect(!poly.hasParameters)
+        #expect(!poly.setParameters([0.0, 1.0, 2.0]))
+    }
+}

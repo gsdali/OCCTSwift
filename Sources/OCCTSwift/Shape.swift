@@ -11625,6 +11625,12 @@ public final class Polygon2D: @unchecked Sendable {
         get { OCCTPolyPolygon2DDeflection(handle) }
         set { OCCTPolyPolygon2DSetDeflection(handle, newValue) }
     }
+
+    /// Create a deep copy of this polygon (`Poly_Polygon2D::Copy()`).
+    public func copy() -> Polygon2D? {
+        guard let ref = OCCTPolyPolygon2DCopy(handle) else { return nil }
+        return Polygon2D(handle: ref)
+    }
 }
 
 // MARK: - Triangulation (v0.160.0)
@@ -11827,6 +11833,32 @@ public final class PolygonOnTriangulation: @unchecked Sendable {
     public var deflection: Double {
         get { OCCTPolyPolygonOnTriDeflection(handle) }
         set { OCCTPolyPolygonOnTriSetDeflection(handle, newValue) }
+    }
+
+    /// Create a deep copy of this polygon (`Poly_PolygonOnTriangulation::Copy()`).
+    public func copy() -> PolygonOnTriangulation? {
+        guard let ref = OCCTPolyPolygonOnTriCopy(handle) else { return nil }
+        return PolygonOnTriangulation(handle: ref)
+    }
+
+    /// Overwrite the node-index array in place (`ChangeNodeArray()`).
+    /// The supplied array must have the same length as `nodeCount`.
+    /// - Returns: true on success, false on size mismatch.
+    @discardableResult
+    public func setNodes(_ nodeIndices: [Int32]) -> Bool {
+        nodeIndices.withUnsafeBufferPointer { buf in
+            OCCTPolyPolygonOnTriSetNodes(handle, buf.baseAddress!, Int32(nodeIndices.count))
+        }
+    }
+
+    /// Overwrite the parameter array in place (`ChangeParameterArray()`).
+    /// Requires `hasParameters` and an array length equal to `nodeCount`.
+    /// - Returns: true on success, false otherwise.
+    @discardableResult
+    public func setParameters(_ params: [Double]) -> Bool {
+        params.withUnsafeBufferPointer { buf in
+            OCCTPolyPolygonOnTriSetParameters(handle, buf.baseAddress!, Int32(params.count))
+        }
     }
 }
 
