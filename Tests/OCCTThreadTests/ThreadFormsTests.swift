@@ -102,6 +102,12 @@ struct ThreadFormsTests {
                     - p * sqrt(3) / 2 * 5 / 8) < 1e-9)
         #expect(abs(ThreadSpec(form: .acme, nominalDiameter: 12, pitch: p).cutDepth - 0.5 * p) < 1e-9)
         #expect(abs(ThreadSpec(form: .whitworth, nominalDiameter: 12, pitch: p).cutDepth - 0.640327 * p) < 1e-6)
+        // DIN 405 knuckle: depth 0.55·P → minor d3 = d − 1.1·P (matches the standard table:
+        // Rd 8 × 1/10", d = 8.254, P = 2.540 → d3 = 5.460).
+        let din405 = ThreadSpec(form: .knuckle, nominalDiameter: 8.254, pitch: 2.540)
+        #expect(abs(din405.cutDepth - 0.55 * 2.540) < 1e-9)
+        #expect(abs(din405.minorDiameter - 5.460) < 1e-3)
+        #expect(ThreadProfile.knuckle.hasCrestFlat)   // small land kept for the smooth build
         // square has two radial walls
         #expect(ThreadProfile.square.segments.filter { $0.kind == .wall }.count == 2)
         // iso V has a crest flat

@@ -144,26 +144,33 @@ public struct ThreadProfile: Sendable, Hashable, Codable {
         .init(axial: 0.1274, depth: 0), .init(axial: 0.2912, depth: 0),
         .init(axial: 0.9539, depth: 1), .init(axial: 1,      depth: 1),
     ])
-    /// Knuckle / round (DIN 405) — cosine-rounded flanks with small crest & root flats (the flats
-    /// let the smooth direct build attach a crest land; `cutDepth = P/2`).
+    /// Knuckle / round thread (DIN 405): 30°-included (15° per side) flanks with circular-arc rounded
+    /// crest and root, at the standard depth `0.55·P` (bolt minor d3 = d − 1.1·P, verified against the
+    /// DIN 405 dimension table). The rounding radius is solved so the fillets are tangent to both the
+    /// flank and a small crest/root land; the small lands let the smooth direct build attach a crest.
     public static let knuckle: ThreadProfile = {
-        let rootHalf = 0.05, crestHalf = 0.05   // half-widths of the (small) flats
-        var vs: [Vertex] = [.init(axial: 0, depth: 1), .init(axial: rootHalf, depth: 1)]
-        let m = 6
-        for i in 1..<m {                          // rising flank: depth 1 → 0 (cosine ease)
-            let f = Double(i) / Double(m)
-            let a = rootHalf + (0.5 - crestHalf - rootHalf) * f
-            vs.append(.init(axial: a, depth: 0.5 + 0.5 * cos(Double.pi * f)))
+        let h = 0.55                          // thread depth as a fraction of pitch (DIN 405)
+        let cf = 0.06, rf = 0.06              // small crest / root flats (fraction of pitch)
+        let beta = 15.0 * Double.pi / 180     // half flank angle from the radial (30° included)
+        let phiMax = .pi / 2 - beta           // fillet sweep, flat-tangent (90°) → flank (75°)
+        let s = sin(phiMax), c = 1 - cos(phiMax)
+        let r = (0.5 - cf / 2 - rf / 2 - h * tan(beta)) / (2 * s - 2 * c * tan(beta))  // tangent radius
+        func df(_ depthP: Double) -> Double { depthP / h }   // depth in pitch units → 0…1 fraction
+        let m = 4                             // samples per fillet
+        var left: [Vertex] = [.init(axial: 0, depth: 1), .init(axial: rf / 2, depth: 1)]   // root flat
+        for i in 1...m {                      // root fillet (concave), tangent to the root flat
+            let psi = phiMax * Double(i) / Double(m)
+            left.append(.init(axial: rf / 2 + r * sin(psi), depth: df(h - r * (1 - cos(psi)))))
         }
-        vs.append(.init(axial: 0.5 - crestHalf, depth: 0))
-        vs.append(.init(axial: 0.5 + crestHalf, depth: 0))
-        for i in 1..<m {                          // falling flank: depth 0 → 1
-            let f = Double(i) / Double(m)
-            let a = (0.5 + crestHalf) + (0.5 - crestHalf - rootHalf) * f
-            vs.append(.init(axial: a, depth: 0.5 - 0.5 * cos(Double.pi * f)))
+        for i in 0...m {                      // flank (first→second vertex) then crest fillet (convex)
+            let psi = phiMax * Double(m - i) / Double(m)
+            left.append(.init(axial: (0.5 - cf / 2) - r * sin(psi), depth: df(r * (1 - cos(psi)))))
         }
-        vs.append(.init(axial: 1 - rootHalf, depth: 1))
-        vs.append(.init(axial: 1, depth: 1))
+        left.append(.init(axial: 0.5, depth: 0))   // crest flat to the centre
+        var vs = left
+        for i in stride(from: left.count - 2, through: 0, by: -1) {   // mirror to the next root
+            vs.append(.init(axial: 1 - left[i].axial, depth: left[i].depth))
+        }
         return ThreadProfile(trusted: vs)
     }()
 }
@@ -230,7 +237,8 @@ public struct ThreadSpec: Sendable, Hashable, Codable {
         switch form {
         case .iso68, .unified, .nptTapered:           return theoreticalDepth * 5 / 8   // 5H/8
         case .whitworth, .bspParallel, .bsptTapered:  return 0.640327 * pitch
-        case .acme, .trapezoidal, .square, .knuckle:  return 0.5 * pitch
+        case .acme, .trapezoidal, .square:            return 0.5 * pitch
+        case .knuckle:                                return 0.55 * pitch       // DIN 405: d3 = d − 1.1·P
         case .buttress:                               return 0.66271 * pitch
         case .custom:                                 return 0.5 * pitch
         }
