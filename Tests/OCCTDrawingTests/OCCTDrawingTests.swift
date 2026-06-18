@@ -1334,7 +1334,7 @@ struct EditorViewAddRemoveTests {
                 #expect(graph.edgeRemoveVertex(0, vertexRefIndex: 99999) == false)
                 #expect(graph.edgeReplaceVertex(0, oldVertexRefIndex: 99999, newVertexIndex: 0) == nil)
                 #expect(graph.wireRemoveCoEdge(0, coedgeRefIndex: 99999) == false)
-                #expect(graph.faceRemoveVertex(0, vertexRefIndex: 99999) == false)
+                #expect(graph.faceRemoveVertex(0, attachmentUID: 99999) == false)
                 #expect(graph.faceRemoveWire(0, wireRefIndex: 99999) == false)
                 #expect(graph.shellRemoveFace(0, faceRefIndex: 99999) == false)
                 #expect(graph.shellRemoveChild(0, childRefIndex: 99999) == false)

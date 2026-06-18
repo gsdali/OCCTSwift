@@ -7,13 +7,47 @@ nav_order: 4
 
 All notable changes to OCCTSwift.
 
-## Current: v1.7.0
+## Current: v1.7.1
 
-**4,294 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0p1**
+**macOS / iOS / visionOS / tvOS | OCCT 8.0.0p1**
 
 ---
 
 ## Release History
+
+### v1.7.1 (June 2026) — p1 follow-ups + xcframework header hygiene
+
+**Additive + a packaging fix.** New p1 operations and a corrected xcframework (no stale headers).
+
+#### New operations
+- **BRepGraph durable identity** — `TopologyGraph` UID/RefUID/ItemUID accessors (`uid(ofNodeKind:index:)`,
+  `node(forUID:)`, `contains(uid:)`, ref/item variants, `generation`) over `BRepGraph::UIDsView`, giving
+  persist-safe identifiers (the migration note's `UID`/`RefUID`/`ItemUID`, vs the non-durable NodeId/RefId).
+- **`Surface.networkSurface(profiles:guides:tolerance:)`** — wraps the new `GeomFill_NetworkSurface`
+  low-level Gordon builder, with a `NetworkSurfaceStatus`.
+- **`Surface.gordonReport(…)`** — exposes `GeomFill_Gordon`'s new `Status()`/`IsApproximate()` and the
+  `ExactOnly`/approximate-fallback `ApproximationMode` (`GordonResult` + `GordonResultStatus`).
+- **`Polygon2D.copy()`, `PolygonOnTriangulation.copy()/setNodes()/setParameters()`** — the new
+  `Poly_*` copy/mutator APIs.
+- **BRepGraph reads, now real:** `faceSameDomain(of:)` (derived from edge-incidence + surface equality),
+  face/edge adjacency & shared-edges (derived from first-class reverse relations), `faceIsNaturalRestriction`
+  (`Tool::Face::NbWires == 0`).
+- **BRepGraph vertex-supplement:** `faceAddVertex`/`edgeAddInternalVertex`/`faceRemoveVertex`/`faceNbVertexRefs`
+  now back onto the `BRepGraph_LayerTopoSupplement` layer (uid/shape-based; the v1.7.0 stubs were no-ops).
+
+#### Packaging fix — stale headers removed from the xcframework
+`build-occt.sh` reused the CMake install prefix across builds; `cmake --install` adds headers but never
+deletes removed ones, so **18 OCCT 8.0.0-GA headers** that p1 removed/renamed (e.g.
+`Approx_BSplineApproxInterp.hxx`, `BRepGraph_Builder/History/RepId/MeshCache/LayerRegularity.hxx`,
+`GeomFill_GordonBuilder.hxx`) **leaked into the v1.7.0 framework**, where they masqueraded as current
+API (their symbols were never in the library). The build script now wipes the install prefixes each run,
+and the v1.7.1 xcframework contains **only real p1 headers**. (Functionally harmless in v1.7.0 — the
+phantom headers had no symbols — but misleading.)
+
+> Note on edge regularity/continuity: one of those phantom headers (`BRepGraph_LayerRegularity`) made it
+> look like a graph-level regularity API existed in p1. It does not (p1 ships `BRepGraph_LayerParametric`
+> instead); `TopologyGraph.edgeMaxContinuity`/`setEdgeRegularity` remain no-ops. Use `Shape.maxContinuity`
+> (`BRep_Tool::MaxContinuity`) for edge continuity.
 
 ### v1.7.0 (June 2026) — OCCT 8.0.0p1 upgrade; BRepGraph realigned to its redesigned model
 

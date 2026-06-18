@@ -1127,6 +1127,61 @@ void OCCTPolyPolygonOnTriRelease(OCCTPolyPolygonOnTriRef _Nonnull ref) {
     delete reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
 }
 
+// MARK: - Poly copy / mutators — OCCT 8.0.0p1
+
+OCCTPolyPolygon2DRef _Nullable OCCTPolyPolygon2DCopy(OCCTPolyPolygon2DRef _Nonnull ref) {
+    try {
+        auto* p = reinterpret_cast<Poly_Polygon2DOpaque*>(ref);
+        Handle(Poly_Polygon2D) copy = p->polygon->Copy();
+        if (copy.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTPolyPolygon2DRef>(new Poly_Polygon2DOpaque{copy});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+OCCTPolyPolygonOnTriRef _Nullable OCCTPolyPolygonOnTriCopy(OCCTPolyPolygonOnTriRef _Nonnull ref) {
+    try {
+        auto* p = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+        Handle(Poly_PolygonOnTriangulation) copy = p->polygon->Copy();
+        if (copy.IsNull()) return nullptr;
+        return reinterpret_cast<OCCTPolyPolygonOnTriRef>(new Poly_PolygonOnTriangulationOpaque{copy});
+    } catch (...) {
+        return nullptr;
+    }
+}
+
+bool OCCTPolyPolygonOnTriSetNodes(OCCTPolyPolygonOnTriRef _Nonnull ref,
+                                  const int* _Nonnull nodeIndices, int count) {
+    try {
+        auto* p = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+        NCollection_Array1<int>& arr = p->polygon->ChangeNodeArray();
+        if (count != arr.Length()) return false;
+        for (int i = 0; i < count; i++) {
+            arr.SetValue(arr.Lower() + i, nodeIndices[i]);
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
+bool OCCTPolyPolygonOnTriSetParameters(OCCTPolyPolygonOnTriRef _Nonnull ref,
+                                       const double* _Nonnull params, int count) {
+    try {
+        auto* p = reinterpret_cast<Poly_PolygonOnTriangulationOpaque*>(ref);
+        if (!p->polygon->HasParameters()) return false;
+        NCollection_Array1<double>& arr = p->polygon->ChangeParameterArray();
+        if (count != arr.Length()) return false;
+        for (int i = 0; i < count; i++) {
+            arr.SetValue(arr.Lower() + i, params[i]);
+        }
+        return true;
+    } catch (...) {
+        return false;
+    }
+}
+
 // MARK: - Poly_MergeNodesTool (v0.78)
 // MARK: - Poly_MergeNodesTool
 

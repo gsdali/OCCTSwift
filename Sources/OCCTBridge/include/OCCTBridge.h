@@ -20475,8 +20475,11 @@ void OCCTBRepGraphSetShellIsClosed(OCCTBRepGraphRef _Nonnull graph, int32_t shel
 // invalid ids.
 
 // Add operations (Ref-typed return)
-int32_t OCCTBRepGraphEdgeAddInternalVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t vertexIndex, int32_t orientation);
-int32_t OCCTBRepGraphFaceAddVertex(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t vertexIndex, int32_t orientation);
+// NOTE: EdgeAddInternalVertex / FaceAddVertex return an int64_t supplement-attachment uid (-1 on
+// failure) in OCCT 8.0.0p1 — these are runtime BRepGraph_LayerTopoSupplement attachments, not core
+// ref ids. The `orientation` param is accepted for source-compat but ignored by the supplement layer.
+int64_t OCCTBRepGraphEdgeAddInternalVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t vertexIndex, int32_t orientation);
+int64_t OCCTBRepGraphFaceAddVertex(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t vertexIndex, int32_t orientation);
 int32_t OCCTBRepGraphShellAddChild(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex, int32_t childKind, int32_t childIndex, int32_t orientation);
 int32_t OCCTBRepGraphSolidAddChild(OCCTBRepGraphRef _Nonnull graph, int32_t solidIndex, int32_t childKind, int32_t childIndex, int32_t orientation);
 int32_t OCCTBRepGraphCompoundAddChild(OCCTBRepGraphRef _Nonnull graph, int32_t compoundIndex, int32_t childKind, int32_t childIndex, int32_t orientation);
@@ -20486,7 +20489,9 @@ int32_t OCCTBRepGraphCompSolidAddSolid(OCCTBRepGraphRef _Nonnull graph, int32_t 
 bool OCCTBRepGraphEdgeRemoveVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t vertexRefIndex);
 int32_t OCCTBRepGraphEdgeReplaceVertex(OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex, int32_t oldVertexRefIndex, int32_t newVertexIndex);
 bool OCCTBRepGraphWireRemoveCoEdge(OCCTBRepGraphRef _Nonnull graph, int32_t wireIndex, int32_t coedgeRefIndex);
-bool OCCTBRepGraphFaceRemoveVertex(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t vertexRefIndex);
+// NOTE: 2nd param is now the int64_t supplement-attachment uid returned by FaceAddVertex (OCCT 8.0.0p1),
+// not a core ref index. faceIndex is unused (uid is layer-global).
+bool OCCTBRepGraphFaceRemoveVertex(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int64_t attachmentUID);
 bool OCCTBRepGraphFaceRemoveWire(OCCTBRepGraphRef _Nonnull graph, int32_t faceIndex, int32_t wireRefIndex);
 bool OCCTBRepGraphShellRemoveFace(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex, int32_t faceRefIndex);
 bool OCCTBRepGraphShellRemoveChild(OCCTBRepGraphRef _Nonnull graph, int32_t shellIndex, int32_t childRefIndex);
@@ -20636,6 +20641,102 @@ int32_t OCCTBRepGraphSampleFaceUVGrid(
 int32_t OCCTBRepGraphSampleEdgeCurve(
     OCCTBRepGraphRef _Nonnull graph, int32_t edgeIndex,
     int32_t count, double* _Nonnull outPoints);
+
+// MARK: - Durable identity (BRepGraph::UIDsView) — OCCT 8.0.0p1
+
+/// Return the durable node UID for the node identified by (nodeKind, nodeIndex).
+/// On success, writes the UID kind to *outUIDKind and the monotonic counter to
+/// *outCounter, and returns true. Returns false (and leaves outputs untouched)
+/// if the node is invalid/removed/out of bounds. counter == 0 is the invalid sentinel.
+bool OCCTBRepGraphNodeUID(OCCTBRepGraphRef _Nonnull graph,
+                          int32_t nodeKind, int32_t nodeIndex,
+                          int32_t* _Nonnull outUIDKind, uint32_t* _Nonnull outCounter);
+
+/// Resolve a node UID (uidKind, counter) back to a NodeId.
+/// On success, writes the node kind to *outNodeKind and the per-kind index to
+/// *outNodeIndex, and returns true. Returns false if the UID does not resolve.
+bool OCCTBRepGraphNodeFromUID(OCCTBRepGraphRef _Nonnull graph,
+                              int32_t uidKind, uint32_t counter,
+                              int32_t* _Nonnull outNodeKind, int32_t* _Nonnull outNodeIndex);
+
+/// True if a node UID (uidKind, counter) exists in this graph generation.
+bool OCCTBRepGraphHasNodeUID(OCCTBRepGraphRef _Nonnull graph,
+                             int32_t uidKind, uint32_t counter);
+
+/// Return the durable reference UID for the reference (refKind, refIndex).
+/// Writes the UID kind to *outUIDKind and the counter to *outCounter; returns
+/// true on success, false if the reference is invalid/removed/out of bounds.
+bool OCCTBRepGraphRefUID(OCCTBRepGraphRef _Nonnull graph,
+                         int32_t refKind, int32_t refIndex,
+                         int32_t* _Nonnull outUIDKind, uint32_t* _Nonnull outCounter);
+
+/// Resolve a reference UID (uidKind, counter) back to a RefId.
+/// Writes the ref kind to *outRefKind and the per-kind index to *outRefIndex;
+/// returns true on success, false if the UID does not resolve.
+bool OCCTBRepGraphRefFromUID(OCCTBRepGraphRef _Nonnull graph,
+                             int32_t uidKind, uint32_t counter,
+                             int32_t* _Nonnull outRefKind, int32_t* _Nonnull outRefIndex);
+
+/// True if a reference UID (uidKind, counter) exists in this graph generation.
+bool OCCTBRepGraphHasRefUID(OCCTBRepGraphRef _Nonnull graph,
+                            int32_t uidKind, uint32_t counter);
+
+/// Return the durable item UID for the node (nodeKind, nodeIndex).
+/// Writes the item domain (1 = Node, 2 = Reference) to *outDomain, the kind to
+/// *outKind, and the counter to *outCounter; returns true on success.
+bool OCCTBRepGraphItemUIDOfNode(OCCTBRepGraphRef _Nonnull graph,
+                                int32_t nodeKind, int32_t nodeIndex,
+                                int32_t* _Nonnull outDomain, int32_t* _Nonnull outKind,
+                                uint32_t* _Nonnull outCounter);
+
+/// Resolve an item UID (domain, kind, counter) back to an item id.
+/// Writes the item domain to *outDomain, the kind to *outKind and per-kind index
+/// to *outIndex; returns true on success, false if the UID does not resolve.
+bool OCCTBRepGraphItemFromUID(OCCTBRepGraphRef _Nonnull graph,
+                              int32_t domain, int32_t kind, uint32_t counter,
+                              int32_t* _Nonnull outDomain, int32_t* _Nonnull outKind,
+                              int32_t* _Nonnull outIndex);
+
+/// Return the current graph generation counter (incremented on each Clear()).
+uint32_t OCCTBRepGraphGeneration(OCCTBRepGraphRef _Nonnull graph);
+
+// MARK: - GeomFill_NetworkSurface / GeomFill_Gordon report — OCCT 8.0.0p1
+
+/// Build a Gordon surface (GeomFill_Gordon) reporting status and approximate flag.
+/// approximationMode: 0 = ExactOnly (default), 1 = AllowApproximateFallback.
+/// Writes the GeomFill_Gordon::ResultStatus ordinal to *outStatus and the
+/// IsApproximate flag to *outIsApproximate. Returns the surface or NULL.
+OCCTSurfaceRef _Nullable OCCTGeomFillGordonReport(
+    const OCCTCurve3DRef _Nonnull * _Nonnull profiles, int32_t profileCount,
+    const OCCTCurve3DRef _Nonnull * _Nonnull guides, int32_t guideCount,
+    double tolerance, int32_t approximationMode,
+    int32_t* _Nonnull outStatus, bool* _Nonnull outIsApproximate);
+
+/// Build a surface with the low-level GeomFill_NetworkSurface builder from a
+/// profile/guide curve network. Writes the GeomFill_NetworkSurface::ResultStatus
+/// ordinal to *outStatus. Returns the surface or NULL.
+OCCTSurfaceRef _Nullable OCCTGeomFillNetworkSurface(
+    const OCCTCurve3DRef _Nonnull * _Nonnull profiles, int32_t profileCount,
+    const OCCTCurve3DRef _Nonnull * _Nonnull guides, int32_t guideCount,
+    double tolerance, int32_t* _Nonnull outStatus);
+
+// MARK: - Poly copy / mutators — OCCT 8.0.0p1
+
+/// Deep-copy a Poly_Polygon2D (Poly_Polygon2D::Copy()). Returns NULL on failure.
+OCCTPolyPolygon2DRef _Nullable OCCTPolyPolygon2DCopy(OCCTPolyPolygon2DRef _Nonnull ref);
+
+/// Deep-copy a Poly_PolygonOnTriangulation. Returns NULL on failure.
+OCCTPolyPolygonOnTriRef _Nullable OCCTPolyPolygonOnTriCopy(OCCTPolyPolygonOnTriRef _Nonnull ref);
+
+/// Overwrite the node-index array via ChangeNodeArray(). count must equal NbNodes().
+/// Returns true on success, false on size mismatch / error.
+bool OCCTPolyPolygonOnTriSetNodes(OCCTPolyPolygonOnTriRef _Nonnull ref,
+                                  const int* _Nonnull nodeIndices, int count);
+
+/// Overwrite the parameter array via ChangeParameterArray(). Requires HasParameters()
+/// and count == NbNodes(). Returns true on success, false otherwise.
+bool OCCTPolyPolygonOnTriSetParameters(OCCTPolyPolygonOnTriRef _Nonnull ref,
+                                       const double* _Nonnull params, int count);
 
 #ifdef __cplusplus
 }

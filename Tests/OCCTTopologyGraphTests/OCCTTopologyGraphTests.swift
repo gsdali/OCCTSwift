@@ -2328,3 +2328,133 @@ struct ContainedInTests {
         }
     }
 }
+
+// MARK: - Durable Identity (UID / RefUID / ItemUID) — OCCT 8.0.0p1
+
+@Suite("TopologyGraph Durable UID")
+struct TopologyGraphDurableUIDTests {
+    // Face kind ordinal in BRepGraph_NodeId::Kind is 2.
+    private let faceKind = 2
+
+    @Test func nodeUIDRoundTrip() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let graph = TopologyGraph(shape: box) else { return }
+        #expect(graph.faceCount == 6)
+
+        // Every face should yield a valid UID that round-trips back to the same node.
+        for i in 0..<graph.faceCount {
+            guard let uid = graph.uid(ofNodeKind: faceKind, index: i) else {
+                Issue.record("face \(i) had no UID")
+                continue
+            }
+            #expect(uid.isValid)
+            #expect(graph.contains(uid: uid))
+            if let resolved = graph.node(forUID: uid) {
+                #expect(resolved.kind == faceKind)
+                #expect(resolved.index == i)
+            } else {
+                Issue.record("UID for face \(i) did not resolve")
+            }
+        }
+    }
+
+    @Test func foreignUIDDoesNotResolve() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let graph = TopologyGraph(shape: box) else { return }
+
+        // A fabricated UID with a wildly out-of-range counter must not resolve.
+        let bogus = TopologyGraph.GraphUID(kind: faceKind, counter: 999_999)
+        #expect(!graph.contains(uid: bogus))
+        #expect(graph.node(forUID: bogus) == nil)
+
+        // The invalid sentinel (counter 0) is never valid.
+        let invalid = TopologyGraph.GraphUID(kind: faceKind, counter: 0)
+        #expect(!invalid.isValid)
+        #expect(!graph.contains(uid: invalid))
+    }
+
+    @Test func generationIsStable() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let graph = TopologyGraph(shape: box) else { return }
+        // Generation is a simple monotonic counter; reading it twice is stable.
+        let g1 = graph.generation
+        let g2 = graph.generation
+        #expect(g1 == g2)
+    }
+
+    @Test func itemUIDOfNode() {
+        guard let box = Shape.box(width: 10, height: 10, depth: 10) else { return }
+        guard let graph = TopologyGraph(shape: box) else { return }
+        guard graph.faceCount > 0 else { return }
+
+        if let item = graph.itemUID(ofNodeKind: faceKind, index: 0) {
+            #expect(item.isValid)
+            #expect(item.domain == 1) // 1 == Node domain
+            if let resolved = graph.item(forUID: item) {
+                #expect(resolved.domain == 1)
+                #expect(resolved.kind == faceKind)
+                #expect(resolved.index == 0)
+            } else {
+                Issue.record("item UID did not resolve")
+            }
+        }
+    }
+}
+
+// MARK: - Supplement vertex attachments (un-stubbed against OCCT 8.0.0p1 TopoSupplement layer)
+//
+// Face-direct and edge-internal vertices are a supplemental, RUNTIME concept in 8.0.0p1
+// (BRepGraph_LayerTopoSupplement): a freshly built (clean) box graph has none until one is
+// attached via faceAddVertex / edgeAddInternalVertex. The returned value is a layer-local
+// attachment uid (not a core ref index); removal is by that uid.
+@Suite("TopologyGraph Supplement Vertices")
+struct TopologyGraphSupplementVertexTests {
+    @Test func faceDirectVertexAttachCountRemove() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        guard let box else { Issue.record("box build failed"); return }
+        let graph = TopologyGraph(shape: box)
+        guard let graph else { Issue.record("graph build failed"); return }
+
+        // Clean box: no face-direct vertices until we add one.
+        #expect(graph.faceVertexRefCount(0) == 0)
+
+        let uid = graph.faceAddVertex(0, vertexIndex: 0)
+        #expect(uid != nil)
+        if let uid {
+            #expect(uid >= 0)
+            // The attachment now shows up in the FaceDirectVertex count for face 0.
+            #expect(graph.faceVertexRefCount(0) >= 1)
+
+            // Removing by the returned uid succeeds and drops the count back.
+            #expect(graph.faceRemoveVertex(0, attachmentUID: uid) == true)
+            #expect(graph.faceVertexRefCount(0) == 0)
+
+            // Removing the same uid again returns false (already gone).
+            #expect(graph.faceRemoveVertex(0, attachmentUID: uid) == false)
+        }
+    }
+
+    @Test func edgeInternalVertexAttach() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        guard let box else { Issue.record("box build failed"); return }
+        let graph = TopologyGraph(shape: box)
+        guard let graph else { Issue.record("graph build failed"); return }
+
+        // Attaching an edge-internal vertex returns a non-nil layer-local uid.
+        let uid = graph.edgeAddInternalVertex(0, vertexIndex: 0)
+        #expect(uid != nil)
+        if let uid { #expect(uid >= 0) }
+    }
+
+    // FaceIsNaturalRestriction: honest read of NbWires == 0. p1 normalizes natural-bound faces
+    // (it always materializes a bounding wire) so a box face is NOT a natural-restriction face.
+    @Test func boxFacesNotNaturalRestriction() {
+        let box = Shape.box(width: 10, height: 10, depth: 10)
+        guard let box else { Issue.record("box build failed"); return }
+        let graph = TopologyGraph(shape: box)
+        guard let graph else { Issue.record("graph build failed"); return }
+        for i in 0..<graph.faceCount {
+            #expect(graph.isFaceNaturalRestriction(i) == false)
+        }
+    }
+}
