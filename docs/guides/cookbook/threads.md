@@ -76,6 +76,74 @@ m12.minorDiameter      // nominal − 2·cutDepth
 m12.halfFlankAngle     // π/6 (30° → 60° included)
 ```
 
+## Thread forms
+
+`ThreadForm` covers the common standards — set it on the `ThreadSpec`:
+
+| Form | `ThreadForm` | Angle / shape |
+|---|---|---|
+| Metric M / Unified (UNC, UNF, SAE, metric-fine) | `.iso68` / `.unified` | 60° V (the standard is just a pitch) |
+| Whitworth (BSW) / BSP parallel (G) | `.whitworth` / `.bspParallel` | 55° |
+| ACME / metric trapezoidal (Tr) | `.acme` / `.trapezoidal` | 29° / 30° trapezoid (lead screws) |
+| Square | `.square` | 0° walls |
+| Buttress | `.buttress` | asymmetric 7° / 45° |
+| Knuckle / round | `.knuckle` | rounded |
+| NPT / BSPT (tapered pipe) | `.nptTapered` / `.bsptTapered` | 60° / 55° on a 1:16 taper |
+
+```swift
+// An ACME lead-screw thread.
+let acme = ThreadSpec(form: .acme, nominalDiameter: 14, pitch: 3)
+let leadScrew = stock.threadedShaft(axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+                                    spec: acme, length: 40)
+```
+
+<table>
+<tr>
+<td align="center"><model-viewer src="models/threads-acme.glb" poster="images/threads-acme.png" camera-controls auto-rotate environment-image="neutral" exposure="1.1" shadow-intensity="1" style="width:220px;height:280px;background:#eef1f5;border-radius:6px"></model-viewer><br><code>.acme</code> (29°)</td>
+<td align="center"><model-viewer src="models/threads-square.glb" poster="images/threads-square.png" camera-controls auto-rotate environment-image="neutral" exposure="1.1" shadow-intensity="1" style="width:220px;height:280px;background:#eef1f5;border-radius:6px"></model-viewer><br><code>.square</code></td>
+<td align="center"><model-viewer src="models/threads-buttress.glb" poster="images/threads-buttress.png" camera-controls auto-rotate environment-image="neutral" exposure="1.1" shadow-intensity="1" style="width:220px;height:280px;background:#eef1f5;border-radius:6px"></model-viewer><br><code>.buttress</code> (7°/45°)</td>
+</tr>
+</table>
+
+External threads on a cylinder use the smooth, valid direct build for every form; internal threads
+(`threadedHole`), non-cylinder targets, and the tapered pipe forms use the robust faceted cut path.
+
+### Specs from a designation
+
+`ThreadSpec.parse` reads the standard designations across forms:
+
+```swift
+ThreadSpec.parse("Tr40x7")      // .trapezoidal, Ø40, pitch 7  (LH: "Tr40x7LH")
+ThreadSpec.parse("1.5-4 ACME")  // .acme,        Ø38.1, pitch 6.35
+ThreadSpec.parse("G1/2")        // .bspParallel, Ø20.955, 14 TPI
+ThreadSpec.parse("R3/4")        // .bsptTapered  ("Rc…" for the parallel-internal/taper pair)
+ThreadSpec.parse("W1/2")        // .whitworth    (also "1/2 BSW")
+ThreadSpec.parse("1/2-14 NPT")  // .nptTapered
+```
+
+(Metric `M…`, Unified `…-… UNC/UNF`, fractional `3/8-16` still parse as before.)
+
+## Threading with a custom shape
+
+Beyond the standard forms, thread a cylinder with **any** cross-section by supplying a
+`ThreadProfile` — a normalized tooth outline over one pitch (`axial` 0…1 along the pitch, `depth` 0
+at the crest/major radius … 1 at the root/minor radius). It builds via the same smooth direct path.
+
+```swift
+// An asymmetric sawtooth tooth.
+guard let profile = ThreadProfile(vertices: [
+    .init(axial: 0.0, depth: 1), .init(axial: 0.1, depth: 1),   // root flat
+    .init(axial: 0.5, depth: 0), .init(axial: 0.6, depth: 0),   // up to a crest flat
+    .init(axial: 0.9, depth: 1), .init(axial: 1.0, depth: 1),   // back down to root
+]) else { return }
+let spec = ThreadSpec(customProfile: profile, nominalDiameter: 12, pitch: 2, cutDepth: 1)
+let custom = stock.threadedShaft(axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
+                                 spec: spec, length: 16)
+```
+
+`ThreadProfile` validates the outline (periodic, spans a crest and a root) and is `Codable`, so a
+custom form round-trips through JSON.
+
 ## A threaded hole
 
 `threadedHole` taps the wall of an existing bore. The internal form is cut with the robust boolean
