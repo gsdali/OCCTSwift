@@ -160,6 +160,24 @@ let tapped = block.threadedHole(axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1)
 // tapped?.isValid == true; tapping only adds material toward the axis (outer Ø unchanged)
 ```
 
+Because the body is just *any solid with a bore*, you can tap nuts of any shape — a hex prism
+(extruded hexagon), a wing nut (body + wings), or a lead-screw nut. The pieces below are built from
+the snippets on this page (`Wire.polygon` → `Shape.extrude` for the hex, `union` for the wings,
+`.square` thread for the lead screw, and a `pipeShell` coil — see [Helices & Springs](helices.md) —
+for the anti-backlash spring):
+
+<table>
+<tr>
+<td align="center"><model-viewer src="models/threadedhole-nut.glb" poster="images/threadedhole-nut.png" camera-controls auto-rotate environment-image="neutral" exposure="1.1" shadow-intensity="1" style="width:230px;height:200px;background:#eef1f5;border-radius:6px"></model-viewer><br>ISO M12 <b>hex nut</b></td>
+<td align="center"><model-viewer src="models/threadedhole-wingnut.glb" poster="images/threadedhole-wingnut.png" camera-controls auto-rotate environment-image="neutral" exposure="1.1" shadow-intensity="1" style="width:250px;height:200px;background:#eef1f5;border-radius:6px"></model-viewer><br>3/8-16 UNC <b>wing nut</b></td>
+<td align="center"><img src="images/threadedhole-leadscrew.png" width="200" style="background:#eef1f5;border-radius:6px"><br>Square <b>lead screw</b> + anti-backlash nut & spring</td>
+</tr>
+</table>
+
+<sub>🖱️ The nut and wing nut are interactive (drag to orbit). The lead-screw assembly — a square-thread
+screw, a hex half-nut, and a compression spring that pushes the split nut apart to take up backlash —
+is a static render of a 4-part assembly.</sub>
+
 ## Multi-start and handedness
 
 `starts` interleaves N thread starts (lead screws, fast-advance fasteners); `leftHanded` flips the
