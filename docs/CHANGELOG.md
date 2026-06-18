@@ -7,13 +7,22 @@ nav_order: 4
 
 All notable changes to OCCTSwift.
 
-## Current: v1.6.1
+## Current: v1.6.2
 
 **4,294 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
 ## Release History
+
+### v1.6.2 (June 2026) — knuckle thread trued to DIN 405
+
+**PATCH — geometry correction, non-breaking.** The `.knuckle` form now matches DIN 405: depth
+**0.55·P** (so the bolt minor `d3 = d − 1.1·P`, verified against the standard dimension table — e.g.
+Rd 8 × 1/10″ → d3 = 5.460) and a proper **30°-included (15° per side)** flank with circular-arc
+rounded crest and root (the rounding radius is solved for flank tangency). Previously it used a
+cosine profile at 0.5·P (≈60°-included flanks). A small crest/root land is retained so the smooth
+direct build still applies.
 
 ### v1.6.1 (June 2026) — smooth internal threads
 
