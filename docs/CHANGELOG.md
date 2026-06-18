@@ -7,13 +7,40 @@ nav_order: 4
 
 All notable changes to OCCTSwift.
 
-## Current: v1.5.3
+## Current: v1.6.0
 
 **4,294 wrapped operations | macOS / iOS / visionOS / tvOS | OCCT 8.0.0**
 
 ---
 
 ## Release History
+
+### v1.6.0 (June 2026) — thread forms + custom profiles
+
+**MINOR — additive, non-breaking** (existing `ThreadSpec`/`threadedShaft` calls are unchanged).
+
+The thread feature now covers the common standard forms beyond the 60° V, and can thread a cylinder
+with **any** cross-section:
+
+- **New `ThreadForm` cases**: `.whitworth` / `.bspParallel` (55°), `.acme` (29°) / `.trapezoidal`
+  (metric Tr, 30°), `.square`, `.buttress` (7°/45°), `.knuckle` (rounded), `.nptTapered` /
+  `.bsptTapered` (60°/55° on a 1:16 taper), and `.custom`. (UNF/UNC, metric-fine, and SAE remain
+  pitch/standards variants of the existing 60° forms — no new cases needed.)
+- **`ThreadProfile`** — a public, `Codable` normalized tooth cross-section (vertices of
+  `axial` 0…1 × `depth` 0 = crest … 1 = root). `ThreadSpec(customProfile:nominalDiameter:pitch:cutDepth:)`
+  threads a cylinder with an arbitrary shape. Built-in form profiles are exposed too
+  (`.iso60V()`, `.acme29`, `.square`, …).
+- **Geometry is now form-dependent**: `ThreadSpec.cutDepth` / `profile` / `taperRatio` switch on the
+  form. ISO/Unified compute identically to before (5H/8, P/8 crest, P/4 root, 30° flanks).
+- **All forms work external and internal**: external cylinders use the smooth, BRepCheck-valid direct
+  build (#213) — a handful of faces; internal threads (`threadedHole`), non-cylinder targets, and the
+  tapered pipe forms use the robust faceted cut path. The OCCT bridge is unchanged (a thin wrapper);
+  all new geometry is composed in Swift.
+- **Parser** recognises `Tr40x7[LH]`, `1.5-4 ACME`, `G1/2` (BSP), `R…`/`Rc…` (BSPT), `W1/2` / `1/2 BSW`
+  (Whitworth), and `1/2-14 NPT`, alongside the existing metric/Unified designations.
+
+Cookbook: the [Threads](https://gsdali.github.io/OCCTSwift/guides/cookbook/threads.html) page gains a
+forms gallery and a custom-profile example.
 
 ### v1.5.3 (June 2026) — smooth, valid ISO V-threads built without booleans (closes #213)
 
