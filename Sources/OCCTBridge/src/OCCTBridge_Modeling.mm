@@ -7321,8 +7321,37 @@ OCCTShapeRef OCCTMakeFaceFromSurfaceWire(OCCTSurfaceRef surface, OCCTShapeRef wi
 OCCTShapeRef OCCTMakeFaceAddHole(OCCTShapeRef face, OCCTShapeRef wire) {
     if (!face || !wire) return nullptr;
     try {
+        TopoDS_Wire w = TopoDS::Wire(wire->shape);
+
+        // #234: reject a DEGENERATE hole wire (fewer than 3 distinct vertices, or all-collinear =
+        // zero enclosed area). Adding such a wire yields a non-nil-but-invalid face; extruding it
+        // gives an invalid prism that SIGSEGVs OCCT's ShapeFix (`healed()`) downstream — an OS
+        // signal the bridge's catch(...) cannot recover. Failing here (return nil) breaks the chain.
+        TopTools_IndexedMapOfShape vmap;
+        TopExp::MapShapes(w, TopAbs_VERTEX, vmap);
+        std::vector<gp_Pnt> pts;
+        for (int i = 1; i <= vmap.Extent(); i++) {
+            gp_Pnt p = BRep_Tool::Pnt(TopoDS::Vertex(vmap(i)));
+            bool dup = false;
+            for (const gp_Pnt& q : pts) { if (q.Distance(p) < Precision::Confusion()) { dup = true; break; } }
+            if (!dup) pts.push_back(p);
+        }
+        if (pts.size() < 3) return nullptr;                     // sub-3-distinct-vertex → degenerate
+        // Collinearity (zero area): farthest pair defines a line; if every point lies on it, reject.
+        gp_Pnt a = pts[0], b = pts[0];
+        double maxd = 0;
+        for (const gp_Pnt& p : pts) { double d = a.Distance(p); if (d > maxd) { maxd = d; b = p; } }
+        if (maxd < Precision::Confusion()) return nullptr;      // all coincident
+        gp_Vec dir(a, b); dir.Normalize();
+        double maxPerp = 0;
+        for (const gp_Pnt& p : pts) {
+            double perp = gp_Vec(a, p).Crossed(dir).Magnitude();   // perpendicular distance to the line
+            if (perp > maxPerp) maxPerp = perp;
+        }
+        if (maxPerp < Precision::Confusion()) return nullptr;   // collinear → zero-area → degenerate
+
         BRepBuilderAPI_MakeFace mf(TopoDS::Face(face->shape));
-        mf.Add(TopoDS::Wire(wire->shape));
+        mf.Add(w);
         if (!mf.IsDone()) return nullptr;
         auto result = new OCCTShape();
         result->shape = mf.Shape();
