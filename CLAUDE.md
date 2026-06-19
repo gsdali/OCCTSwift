@@ -181,6 +181,12 @@ docs/
 - **Keep docs current** — when upgrading OCCT or changing architecture, update the relevant doc in the same commit.
 - **Operation counts and version numbers** must match reality. Grep for stale numbers when releasing.
 - **Code reviews and handoff docs** are ephemeral — don't commit them.
+- **Document with a runnable Swift snippet so context7 indexes it.** Our Swift API is indexed on
+  context7 as `/gsdali/occtswift` (verified #210) — and context7 ranks on **code-example density**.
+  So when wrapping or changing a public API, give it a `///` summary + parameter docs + at least one
+  fenced ```` ```swift ```` snippet (the cookbook pages under `docs/guides/cookbook/` are the richest
+  source; high-traffic types should also carry an in-source snippet). Snippets are what context7
+  harvests — terse one-line summaries don't surface in answers.
 
 ### What Goes Where
 
