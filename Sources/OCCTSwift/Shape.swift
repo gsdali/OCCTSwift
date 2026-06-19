@@ -16,7 +16,11 @@ public final class Shape: @unchecked Sendable {
 
     // MARK: - Primitive Creation
 
-    /// Create a box centered at origin
+    /// Create a box centered at origin.
+    ///
+    /// ```swift
+    /// let box = Shape.box(width: 10, height: 5, depth: 3)   // -> Shape? (nil on bad input)
+    /// ```
     public static func box(width: Double, height: Double, depth: Double) -> Shape? {
         guard let handle = OCCTShapeCreateBox(width, height, depth) else { return nil }
         return Shape(handle: handle)
@@ -59,7 +63,11 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
-    /// Create a cylinder along Z axis
+    /// Create a cylinder along the Z axis (base at the origin).
+    ///
+    /// ```swift
+    /// let cyl = Shape.cylinder(radius: 2, height: 10)
+    /// ```
     public static func cylinder(radius: Double, height: Double) -> Shape? {
         guard let handle = OCCTShapeCreateCylinder(radius, height) else { return nil }
         return Shape(handle: handle)
@@ -147,7 +155,11 @@ public final class Shape: @unchecked Sendable {
         return Shape(handle: handle)
     }
 
-    /// Create a sphere centered at origin
+    /// Create a sphere centered at origin.
+    ///
+    /// ```swift
+    /// let ball = Shape.sphere(radius: 5)
+    /// ```
     public static func sphere(radius: Double) -> Shape? {
         guard let handle = OCCTShapeCreateSphere(radius) else { return nil }
         return Shape(handle: handle)
@@ -512,6 +524,11 @@ public final class Shape: @unchecked Sendable {
     ///   - glue: Glue mode for coincident-face arguments (default `.off`). See ``BooleanGlue``.
     ///   - timeout: Wall-clock bound in seconds (default ``defaultBooleanTimeout``, 120s). Returns
     ///     `nil` if the operation doesn't finish in time instead of hanging. `0`/negative = unbounded.
+    ///
+    /// ```swift
+    /// let merged = box.union(cyl)                      // or: box + cyl
+    /// let clean  = outer.union(inner, fuzzyValue: 1e-4) // near-tangent walls fuse cleanly
+    /// ```
     public func union(_ other: Shape, fuzzyValue: Double = 0, glue: BooleanGlue = .off,
                       timeout: Double = Shape.defaultBooleanTimeout) -> Shape? {
         guard let handle = OCCTShapeUnionEx(self.handle, other.handle, fuzzyValue, glue.rawValue, timeout) else { return nil }
@@ -532,6 +549,10 @@ public final class Shape: @unchecked Sendable {
     ///   - glue: Glue mode for coincident-face arguments (default `.off`). See ``BooleanGlue``.
     ///   - timeout: Wall-clock bound in seconds (default ``defaultBooleanTimeout``, 120s). Returns
     ///     `nil` if the operation doesn't finish in time instead of hanging. `0`/negative = unbounded.
+    ///
+    /// ```swift
+    /// let drilled = box.subtracting(cyl)   // or: box - cyl  — a box with a through-hole
+    /// ```
     public func subtracting(_ other: Shape, fuzzyValue: Double = 0, glue: BooleanGlue = .off,
                             timeout: Double = Shape.defaultBooleanTimeout) -> Shape? {
         guard let handle = OCCTShapeSubtractEx(self.handle, other.handle, fuzzyValue, glue.rawValue, timeout) else { return nil }
@@ -547,6 +568,10 @@ public final class Shape: @unchecked Sendable {
     ///   - glue: Glue mode for coincident-face arguments (default `.off`). See ``BooleanGlue``.
     ///   - timeout: Wall-clock bound in seconds (default ``defaultBooleanTimeout``, 120s). Returns
     ///     `nil` if the operation doesn't finish in time instead of hanging. `0`/negative = unbounded.
+    ///
+    /// ```swift
+    /// let common = box.intersection(cyl)   // or: box & cyl  — the overlapping volume
+    /// ```
     public func intersection(_ other: Shape, fuzzyValue: Double = 0, glue: BooleanGlue = .off,
                              timeout: Double = Shape.defaultBooleanTimeout) -> Shape? {
         guard let handle = OCCTShapeIntersectEx(self.handle, other.handle, fuzzyValue, glue.rawValue, timeout) else { return nil }
