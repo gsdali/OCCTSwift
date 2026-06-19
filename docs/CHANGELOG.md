@@ -7,13 +7,22 @@ nav_order: 4
 
 All notable changes to OCCTSwift.
 
-## Current: v1.7.6
+## Current: v1.7.7
 
 **macOS / iOS / visionOS / tvOS | OCCT 8.0.0p1**
 
 ---
 
 ## Release History
+
+### v1.7.7 (June 2026) — cookbook: Gordon surfaces (#229)
+
+**Documentation only — no code, API, or xcframework change.** New cookbook page on **Gordon
+surfaces** — skinning a surface through a network of crossing profile + guide curves via
+`Surface.gordon` / `Surface.gordonReport` (`GeomFill_Gordon`). Covers the grid-closure requirement,
+build diagnostics (`GordonResultStatus`, `allowApproximateFallback`), the lower-level `networkSurface`
+(`GeomFill_NetworkSurface`) and its knot-alignment caveat, and a Gordon-vs-loft-vs-fill decision table.
+Snippets compile-checked against the shipped API; figure rendered from the same network the page shows.
 
 ### v1.7.6 (June 2026) — cookbook complete: healing, meshing, XCAF, topology (#210, #228)
 
