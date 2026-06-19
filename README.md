@@ -9,7 +9,7 @@
 
 A comprehensive Swift wrapper for [OpenCASCADE Technology (OCCT)](https://www.opencascade.com/) 8.0.0p1, providing B-Rep solid modeling for macOS and iOS. **v1.0.0 — SemVer-stable as of 2026-05-07.**
 
-**4,287 wrapped operations** | macOS 12+ / iOS 15+ / visionOS 1+ / tvOS 15+ (arm64) | OCCT 8.0.0p1
+**4,288 wrapped operations** | macOS 12+ / iOS 15+ / visionOS 1+ / tvOS 15+ (arm64) | OCCT 8.0.0p1
 
 ## Quick Start
 
@@ -87,7 +87,7 @@ OCCTSwift provides method-level coverage of all user-facing OCCT classes. Key ar
 | Colors & Materials | 63 | Quantity_Color, sRGB/Lab/HLS, PBR materials, named colors |
 | Geometry Factories | 90+ | GC/GCE2d/gce factories, convert to BSpline, analytical recognition |
 | Drawings & Dimensions | 32 | HLR projection, visible/hidden/outline edges, linear/radial/diameter/angular dimensions, centrelines, auto-centreline from revolution axes, DXF R12 writer |
-| Thread Features | 22 | ThreadForm (ISO-68/Unified), ThreadSpec parser (M5x0.8, 1/4-20 UNC), truncated 60° V-profile, multi-start, runout styles, Shape.threadedHole, Shape.threadedShaft (ThreadBuild `.auto`/`.direct`/`.boolean` — in-envelope cut for headless lead screws/studs/worms) |
+| Thread Features | 23 | ThreadForm (ISO-68/Unified), ThreadSpec parser (M5x0.8, 1/4-20 UNC), truncated 60° V-profile, multi-start, runout styles, Shape.threadedHole, Shape.threadedShaft (ThreadBuild `.auto`/`.direct`/`.boolean` — in-envelope cut for headless lead screws/studs/worms), Shape.threadedRod (smooth worm/screw from a custom ThreadProfile, boolean-free) |
 | Sheet Metal | 3 | `SheetMetal.Flange` + `Bend` + `Builder.build` — declarative flange-and-bend composition via extrude + union + fillet |
 
 For the full operation-by-operation mapping to OCCT classes, see [docs/API_REFERENCE.md](docs/API_REFERENCE.md).

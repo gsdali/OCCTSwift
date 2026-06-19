@@ -51,4 +51,5 @@ using the static PNG as the loading poster. Code → figure → 3D model all com
 - [Threads](threads.md) — `threadedShaft` / `threadedHole`, ISO-68 / Unified specs, the boolean-free smooth build, runout & multi-start.
 - [Helices & Springs](helices.md) — `Wire.helix`, sweeping a circle into a coiled spring, tapered / variable-section coils, and why threads can't be built this way.
 - [Lofting & Sweeps](lofting-and-sweeps.md) — extrude, revolve, sweep along a path, loft (ruled / smooth / point-capped), and multi-section pipe shells.
+- [Helical Sweeps](helical-sweeps.md) — `helicalSweep` helicoids, `threadedRod` worms/screws from a custom profile, and why you can't boolean a helicoid onto a shaft.
 - _(more areas per #210: healing & validity, meshing & export, XCAF assemblies, topology graph)_

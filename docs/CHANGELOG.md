@@ -7,13 +7,33 @@ nav_order: 4
 
 All notable changes to OCCTSwift.
 
-## Current: v1.7.4
+## Current: v1.7.5
 
 **macOS / iOS / visionOS / tvOS | OCCT 8.0.0p1**
 
 ---
 
 ## Release History
+
+### v1.7.5 (June 2026) — `threadedRod` from a custom profile + helical-sweeps cookbook (#225)
+
+**Additive, source-compatible.** New `Shape.threadedRod(customProfile:nominalDiameter:pitch:cutDepth:length:…)`
+builds a smooth worm/screw from a **custom radial tooth profile** directly — composing the helicoid
+with the core by sewing, with **no boolean** — yielding a BRepCheck-valid, analytic solid (a handful
+of B-spline faces → a sub-MB STEP).
+
+This addresses #225: `helicalSweep` + `union`/`subtract` against a coaxial cylinder produces an
+invalid (union) or collapsed-to-zero (subtract) result that no fuzzy value or heal pass recovers —
+OCCT's BOP can't resolve the coincident/tangent helicoid faces (consistent with #213, #181). The
+boolean compose path was never the way; the direct build is. The custom-profile direct build already
+existed under `threadedShaft(spec:)` with a `ThreadSpec(customProfile:)` — `threadedRod` makes it a
+discoverable one-liner and never silently falls back to an invalid boolean (returns `nil` instead).
+
+- `ThreadProfile.supportsSmoothRodBuild` — public predicate (real crest flat, ≤ 2 flanks) for whether
+  a custom profile can take the direct build.
+- `Shape.helicalSweep(…)` doc now warns against the boolean-compose anti-pattern and points to `threadedRod`.
+- **Cookbook: Helical Sweeps** — new page (`helicalSweep` helicoids vs. `threadedRod` worms, and why
+  the boolean compose fails), with rendered figures.
 
 ### v1.7.4 (June 2026) — docs: cookbook lofting & sweeps, context7 onboarding
 

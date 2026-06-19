@@ -2518,6 +2518,15 @@ extension Shape {
     ///   analytic-helicoid path will give an exact thread flank — see the thread-helicoid
     ///   tracking issue. (This is why `threadedShaft`/`threadedHole` do **not** use it.)
     ///
+    /// - Warning: This builds a **standalone** helicoid. Do **not** try to make a thread by
+    ///   booleaning the result with a coaxial cylinder whose surface is coincident with the
+    ///   helicoid's inner/outer edge: `union` comes out BRepCheck-invalid and `subtracting`
+    ///   collapses to zero volume — OCCT's BOP cannot resolve the tangent/coincident faces, and
+    ///   no fuzzy value or heal pass recovers it (OCCTSwift #225, #213, #181). To build a smooth,
+    ///   valid worm/screw from a custom radial cross-section, use
+    ///   ``threadedRod(customProfile:nominalDiameter:pitch:cutDepth:length:axisOrigin:axisDirection:leftHanded:)``,
+    ///   which composes the helicoid with the core **directly, with no boolean**.
+    ///
     /// Profiles are positioned at their stations on the helix, in the (radial, axis) plane.
     /// One profile gives a uniform thread; two or more give a varying section (e.g. a
     /// runout that ramps from full crest to a small rib — the original #180 motivation).
