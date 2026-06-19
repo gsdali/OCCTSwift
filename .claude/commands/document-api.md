@@ -46,7 +46,9 @@ in `docs/reference/README.md`.
    force-unwrap); no invention (if a method's purpose is unclear from source+bridge+OCCT, say so briefly);
    concise reference style.
 
-   Do **not** edit any file other than your output page. Do not run `swift build`/`swift test`.
+   Do **not** edit any file other than your output page — in particular do **not** touch
+   `docs/reference/README.md` (the orchestrator updates the status table; parallel agents editing
+   it race and clobber each other). Do not run `swift build`/`swift test`.
    ---
 
 3. **Collect & verify.** When subagents finish, spot-check each page: front-matter present, signatures
