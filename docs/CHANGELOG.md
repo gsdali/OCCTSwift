@@ -7,13 +7,29 @@ nav_order: 4
 
 All notable changes to OCCTSwift.
 
-## Current: v1.7.5
+## Current: v1.7.6
 
 **macOS / iOS / visionOS / tvOS | OCCT 8.0.0p1**
 
 ---
 
 ## Release History
+
+### v1.7.6 (June 2026) — cookbook complete: healing, meshing, XCAF, topology (#210, #228)
+
+**Documentation only — no code, API, or xcframework change.** Adds the final four cookbook areas,
+completing the issue #210 area list (the Swift-API counterpart to OCCT's own user guides). Every
+snippet was compile- and run-checked against the shipped API.
+
+- **Healing & Validity** — `isValid` / `isValidSolid` / `isSelfIntersecting`, `analyze`,
+  `signedVolume` + `orientedForward`, the repair ops (`healed` / `fixed` / `unified` / `upgraded`),
+  sewing, and free-boundary gap finding/closing.
+- **Meshing & Export** — `mesh(linearDeflection:)` + `MeshParameters`, the `Mesh` type, `mesh.toShape`,
+  a deflection table, and STL / OBJ / PLY / STEP / IGES / BREP / glTF export + import with a round-trip.
+- **XCAF Assemblies** — `Document` trees, components & instancing, names / colors / materials, and
+  structured STEP / GLB round-trip (with a two-colour assembly figure).
+- **Topology Graph** — `TopologyGraph` node counts, adjacency / shared edges / `sameDomainFaces`,
+  durable `GraphUID`s (vs ephemeral `NodeRef`), and history tracking through operations.
 
 ### v1.7.5 (June 2026) — `threadedRod` from a custom profile + helical-sweeps cookbook (#225)
 
