@@ -105,6 +105,16 @@ public struct ThreadProfile: Sendable, Hashable, Codable {
         segments.contains { $0.kind == .flat && $0.a.depth < 1e-6 && abs($0.b.axial - $0.a.axial) > 1e-9 }
     }
 
+    /// Whether this profile can be built by the smooth, boolean-free direct rod path
+    /// (``Shape/threadedRod(customProfile:nominalDiameter:pitch:cutDepth:length:axisOrigin:axisDirection:leftHanded:)``
+    /// and the direct branch of `threadedShaft`). It requires a real **crest flat** (so the
+    /// unthreaded margin can attach) and **at most two flank segments** (piecewise-linear forms:
+    /// trapezoidal / ACME / square / buttress / worm). Pointed-crest or many-flank (rounded /
+    /// knuckle) profiles return `false` and must use the faceted boolean cut path instead.
+    public var supportsSmoothRodBuild: Bool {
+        hasCrestFlat && segments.filter { $0.kind == .flank }.count <= 2
+    }
+
     // MARK: Built-in form profiles
 
     /// Symmetric truncated trapezoid: root half-flats at the ends, crest flat in the middle,
@@ -493,6 +503,59 @@ extension Shape {
                        runout: runout,
                        apexSign: -1,
                        helixRadius: spec.nominalDiameter / 2)
+    }
+
+    /// Build a smooth worm / screw thread from a **custom radial cross-section**, directly and with
+    /// **no boolean** — the discoverable entry point for the #225 use case.
+    ///
+    /// This is the right way to turn a custom tooth profile into a solid thread. The tempting
+    /// alternative — `helicalSweep` the profile, then `union`/`subtract` it with a coaxial cylinder —
+    /// produces a BRepCheck-invalid (union) or collapsed (subtract) result that no fuzzy value or
+    /// heal pass recovers, because OCCT's BOP can't resolve the coincident/tangent helicoid faces
+    /// (OCCTSwift #225, #213, #181). Instead this composes the thread region (a `ruled:false`
+    /// cam-slice loft of the profile, swept along the exact helix) with the core cylinder by pure
+    /// sewing, so the result is BRepCheck-valid and analytic (a handful of B-spline faces → a small
+    /// STEP, not a faceted multi-MB one).
+    ///
+    /// The cross-section is a ``ThreadProfile`` in normalized `(axial, depth)` coordinates: `axial`
+    /// 0…1 spans one pitch, `depth` 0 = crest (at `nominalDiameter / 2`) … 1 = root (at
+    /// `nominalDiameter / 2 − cutDepth`). The profile must satisfy ``ThreadProfile/supportsSmoothRodBuild``
+    /// (a real crest flat, ≤ 2 flanks). For the standard named forms, prefer
+    /// ``threadedShaft(axisOrigin:axisDirection:spec:length:starts:runout:build:)`` with a
+    /// `ThreadForm` spec.
+    ///
+    /// - Parameters:
+    ///   - customProfile: The tooth cross-section (must be ``ThreadProfile/supportsSmoothRodBuild``).
+    ///   - nominalDiameter: Outer (crest) diameter in mm.
+    ///   - pitch: Axial advance per turn in mm.
+    ///   - cutDepth: Radial depth crest → root in mm (`< nominalDiameter / 2`).
+    ///   - length: Threaded length along the axis in mm.
+    ///   - axisOrigin: A point on the rod axis (the thread start).
+    ///   - axisDirection: The rod axis direction.
+    ///   - leftHanded: Helix handedness.
+    /// - Returns: A valid, smooth threaded rod, or `nil` if the inputs are degenerate, the profile
+    ///   isn't smooth-rod-buildable, or the direct build can't produce a valid solid (it never
+    ///   silently falls back to an invalid boolean result).
+    public static func threadedRod(customProfile: ThreadProfile,
+                                   nominalDiameter: Double,
+                                   pitch: Double,
+                                   cutDepth: Double,
+                                   length: Double,
+                                   axisOrigin: SIMD3<Double> = .zero,
+                                   axisDirection: SIMD3<Double> = SIMD3(0, 0, 1),
+                                   leftHanded: Bool = false) -> Shape? {
+        guard length > 0, pitch > 0, nominalDiameter > 0,
+              cutDepth > 0, cutDepth < nominalDiameter / 2,
+              customProfile.supportsSmoothRodBuild else { return nil }
+        let axis = simd_normalize(axisDirection)
+        guard let stock = Shape.cylinder(at: axisOrigin, direction: axis,
+                                         radius: nominalDiameter / 2, height: length) else { return nil }
+        let spec = ThreadSpec(customProfile: customProfile, nominalDiameter: nominalDiameter,
+                              pitch: pitch, cutDepth: cutDepth, leftHanded: leftHanded)
+        guard let rod = stock.threadedShaft(axisOrigin: axisOrigin, axisDirection: axis,
+                                            spec: spec, length: length, build: .direct),
+              rod.isValidSolid else { return nil }
+        return rod
     }
 
     /// Build a smooth external threaded rod directly (no boolean) when `self` is a plain cylinder
