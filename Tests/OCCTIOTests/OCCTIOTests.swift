@@ -104,18 +104,12 @@ struct BREPTests {
 
     @Test("writeBREP(allowInvalid:) persists an invalid shape that the default gate rejects")
     func writeBREPAllowInvalid() throws {
-        // A long full-length thread comes back invalid-but-usable (faceted
-        // screw-loft; benign facet self-intersection trips BRepCheck) — the
-        // canonical "loose/invalid but dimensionally real" shape (#193).
-        let shank = Shape.cylinder(radius: 5, height: 50)!
-        let spec = ThreadSpec(form: .iso68, nominalDiameter: 10, pitch: 1.0)
-        guard let invalid = shank.threadedShaft(
-            axisOrigin: .zero, axisDirection: SIMD3(0, 0, 1),
-            spec: spec, length: 49, runout: .none), !invalid.isValid else {
-            // If this build produced a valid thread, the fixture no longer
-            // exercises the gate — skip rather than assert a false negative.
-            return
-        }
+        // A bowtie (self-intersecting) polygon face is deterministically invalid
+        // — BRepCheck flags the self-intersection — standing in for the "loose /
+        // invalid but dimensionally real" reconstruction the gate must let through.
+        let bowtie = Wire.polygon([SIMD2(0, 0), SIMD2(1, 1), SIMD2(1, 0), SIMD2(0, 1)], closed: true)!
+        let invalid = Shape.face(from: bowtie)!
+        #expect(!invalid.isValid)
 
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("test_allow_invalid_\(UUID().uuidString).brep")
