@@ -1,0 +1,10 @@
+okf_version: 1
+repo: OCCTSwift
+cluster: kernel
+visibility: public
+status: active
+language: Swift
+summary: Swift wrapper for OpenCASCADE Technology (OCCT) — B-Rep solid modelling kernel for Apple platforms (iOS/macOS/visionOS/tvOS).
+products: []
+depends_on: []          # dependency root — only build input is the bundled OCCT.xcframework
+maintainer: gsdali
