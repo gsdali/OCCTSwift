@@ -4437,6 +4437,15 @@ OCCTShapeRef OCCTShapeCreateFaceFromSurfaceUVPolygon(OCCTSurfaceRef surface,
 /// @return Trimmed face shape, or NULL on failure.
 OCCTShapeRef OCCTShapeCreateFaceFromSurfaceWire(OCCTSurfaceRef surface, OCCTWireRef wire);
 
+/// Build a face from a surface trimmed by an outer wire with N interior **hole** wires
+/// (windows / cutouts). `BRepBuilderAPI_MakeFace(surface, outer)` then `.Add(hole)` per inner wire,
+/// then ShapeFix_Face to project pcurves and orient the holes. All wires must lie (approximately)
+/// on the surface. #266.
+/// @return Trimmed face-with-holes shape, or NULL on failure.
+OCCTShapeRef OCCTShapeCreateFaceFromSurfaceWireWithHoles(OCCTSurfaceRef surface, OCCTWireRef outer,
+                                                         const OCCTWireRef* innerWires,
+                                                         int32_t innerCount);
+
 
 // MARK: - Edges to Faces (v0.33.0)
 

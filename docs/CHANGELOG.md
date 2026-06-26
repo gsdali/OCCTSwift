@@ -7,13 +7,26 @@ nav_order: 13
 
 All notable changes to OCCTSwift.
 
-## Current: v1.8.5
+## Current: v1.8.6
 
 **macOS / iOS (device + simulator) | OCCT 8.0.0p1 (+ #263 ShapeFix kernel patch)**
 
 ---
 
 ## Release History
+
+### v1.8.6 (June 2026) — feat: face-from-surface with interior holes (#266)
+
+**New API.** `Shape.face(from: surface, outer: Wire, innerWires: [Wire])` builds a single trimmed
+face that has **interior openings** (windows / cutouts) — a parametric surface trimmed by an outer
+boundary with N inner-wire holes. Wraps `BRepBuilderAPI_MakeFace(surface, outer)` + `.Add(hole)` per
+hole + `ShapeFix_Face` to project pcurves; hole winding is normalized automatically (tries holes
+reversed, falls back to as-given, returns the valid build). Until now every face-from-surface builder
+took a single outer loop, so a panel with holes couldn't be one trimmed face.
+
+Motivating case: OCCTReconstruct carbody side-panel surfacing — a fitted B-spline panel with
+window/door cutouts now surfaces cleanly instead of the surface ballooning over the windows
+(SecondMouseAU/OCCTReconstruct #133). Swift-only; no xcframework change.
 
 ### v1.8.5 (June 2026) — chore: slim xcframework to the core slices (≈57% smaller download)
 
