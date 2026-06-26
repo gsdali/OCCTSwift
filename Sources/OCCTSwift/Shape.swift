@@ -4311,6 +4311,38 @@ extension Shape {
         guard uv.count >= 3 else { return nil }
         return surface.toFace(uvBoundary: uv)
     }
+
+    /// Create a face from a surface trimmed by an **outer** wire with **interior hole** wires
+    /// (windows / cutouts) — a single trimmed face with real openings.
+    ///
+    /// Wraps `BRepBuilderAPI_MakeFace(surface, outer)` then `.Add(hole)` per inner wire, then
+    /// `ShapeFix_Face` to project pcurves onto the surface and orient the holes. Unlike the
+    /// single-loop ``face(from:boundary:)``, this represents a panel whose surface has cutouts —
+    /// e.g. a fitted B-spline carbody side panel with window/door openings, so the surface doesn't
+    /// span (balloon over) the windows.
+    ///
+    /// All wires must lie on (or near) the surface — typically a fitted analytic / B-spline surface
+    /// and the region's real boundary loops. The inner wires are interior loops fully inside `outer`.
+    ///
+    /// ```swift
+    /// // Trim a fitted panel surface to its outline, with two window cutouts:
+    /// let panel = Shape.face(from: fittedSurface, outer: outline, innerWires: [window1, window2])
+    /// ```
+    ///
+    /// - Parameters:
+    ///   - surface: The parametric surface to trim.
+    ///   - outer: The closed outer boundary wire on (or near) the surface.
+    ///   - innerWires: Closed interior loops (holes) on the surface; empty gives a plain trimmed face.
+    /// - Returns: The trimmed face-with-holes, or nil on failure (e.g. a wire off the surface, a
+    ///   self-intersecting loop, or a hole not enclosed by `outer`).
+    public static func face(from surface: Surface, outer: Wire, innerWires: [Wire]) -> Shape? {
+        let handles: [OCCTWireRef?] = innerWires.map { $0.handle }
+        guard let handle = handles.withUnsafeBufferPointer({ buffer in
+            OCCTShapeCreateFaceFromSurfaceWireWithHoles(surface.handle, outer.handle,
+                                                        buffer.baseAddress, Int32(innerWires.count))
+        }) else { return nil }
+        return Shape(handle: handle)
+    }
 }
 
 // MARK: - Edges to Faces (v0.33.0)

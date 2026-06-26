@@ -2166,6 +2166,43 @@ OCCTShapeRef OCCTShapeCreateFaceFromSurfaceWire(OCCTSurfaceRef surface, OCCTWire
     }
 }
 
+OCCTShapeRef OCCTShapeCreateFaceFromSurfaceWireWithHoles(OCCTSurfaceRef surface, OCCTWireRef outer,
+                                                         const OCCTWireRef* innerWires,
+                                                         int32_t innerCount) {
+    if (!surface || surface->surface.IsNull() || !outer || outer->wire.IsNull()) return nullptr;
+    try {
+        Handle(Geom_Surface) surf = surface->surface;
+
+        // A hole subtracts area only when its winding is opposite the outer boundary. The caller's
+        // wire winding is unknown, so try the holes reversed (the usual convention) and, if that
+        // doesn't yield a valid face, fall back to the wires as given. Returns the first valid build.
+        for (int attempt = 0; attempt < 2; attempt++) {
+            const bool reverseHoles = (attempt == 0);
+            BRepBuilderAPI_MakeFace faceMaker(surf, outer->wire, Standard_True);
+            if (!faceMaker.IsDone()) return nullptr;   // outer alone failed — no point retrying
+            bool ok = true;
+            for (int32_t i = 0; i < innerCount; i++) {
+                OCCTWireRef w = innerWires ? innerWires[i] : nullptr;
+                if (!w || w->wire.IsNull()) continue;
+                TopoDS_Wire hole = reverseHoles ? TopoDS::Wire(w->wire.Reversed()) : w->wire;
+                faceMaker.Add(hole);
+                if (!faceMaker.IsDone()) { ok = false; break; }
+            }
+            if (!ok) continue;
+            TopoDS_Face face = faceMaker.Face();
+            // The 3D wires likely have no pcurves on this surface — project them.
+            ShapeFix_Face fixer(face);
+            fixer.Perform();
+            TopoDS_Face fixed = fixer.Face();
+            BRepLib::BuildCurves3d(fixed);
+            if (BRepCheck_Analyzer(fixed).IsValid()) return new OCCTShape(fixed);
+        }
+        return nullptr;
+    } catch (...) {
+        return nullptr;
+    }
+}
+
 // MARK: - Edges to Faces (v0.33.0)
 
 OCCTShapeRef OCCTShapeEdgesToFaces(OCCTShapeRef compound, bool isOnlyPlane) {
